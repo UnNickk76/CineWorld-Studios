@@ -844,9 +844,9 @@ const FilmWizard = () => {
                 <SelectTrigger className="h-12 bg-black/20 border-white/10" data-testid="genre-select">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#1A1A1A] border-white/10">
                   {['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy'].map(g => (
-                    <SelectItem key={g} value={g}>{t(g)}</SelectItem>
+                    <SelectItem key={g} value={g} data-testid={`genre-option-${g}`}>{t(g)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

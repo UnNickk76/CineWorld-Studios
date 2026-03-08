@@ -62,6 +62,8 @@ Create a multiplayer online film production game with user profiles, film creati
 3. **Genre Expansion**: Added 6 new genres (Musical, Western, War, Noir, Adventure, Biographical)
 4. **Sub-genre System**: Each genre now has 6 sub-genres, players can select up to 3
 5. **Actor Roles**: New system to assign roles (Protagonist, Co-protagonist, Antagonist, Supporting, Cameo)
+6. **Chat Moderator Bots**: 3 bots (CineMaster MOD, FilmGuide MOD, CineNews BOT) with auto-responses
+7. **Same-Day Film Release**: Films can now be released on the same day of creation
 
 ## API Endpoints
 - POST /api/auth/register, login, /me, /profile, /reset

@@ -843,12 +843,12 @@ const FilmWizard = () => {
   const [actorRoles, setActorRoles] = useState([]);
 
   const [filmData, setFilmData] = useState({
-    title: '', genre: 'action', subgenres: [], release_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+    title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
     screenwriter_id: '', director_id: '', actors: [], extras_count: 50, extras_cost: 50000,
     screenplay: '', screenplay_source: 'manual', poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
   });
-  const [releaseDate, setReleaseDate] = useState(new Date(Date.now() + 30*24*60*60*1000));
+  const [releaseDate, setReleaseDate] = useState(new Date());
   const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Cast'},{num:7,title:'Script'},{num:8,title:'Poster'},{num:9,title:'Ads'},{num:10,title:'Review'}];
 
   useEffect(() => { 
@@ -955,7 +955,7 @@ const FilmWizard = () => {
             )}
           </div>
         )}
-        <div><Label className="text-xs">{t('release_date')}</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full h-9 justify-start bg-black/20 border-white/10"><Calendar className="w-3 h-3 mr-2" />{format(releaseDate,'PPP')}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 bg-[#1A1A1A] border-white/10"><CalendarComponent mode="single" selected={releaseDate} onSelect={setReleaseDate} disabled={d=>d<new Date()} /></PopoverContent></Popover></div>
+        <div><Label className="text-xs">{t('release_date')}</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full h-9 justify-start bg-black/20 border-white/10"><Calendar className="w-3 h-3 mr-2" />{format(releaseDate,'PPP')}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 bg-[#1A1A1A] border-white/10"><CalendarComponent mode="single" selected={releaseDate} onSelect={setReleaseDate} disabled={d=>d<new Date(new Date().setHours(0,0,0,0))} /></PopoverContent></Popover></div>
         <div><Label className="text-xs">Weeks: {filmData.weeks_in_theater}</Label><Slider value={[filmData.weeks_in_theater]} onValueChange={([v])=>setFilmData({...filmData,weeks_in_theater:v})} min={1} max={12} /></div>
       </div>);
       case 2: return (<div className="space-y-2">
@@ -1393,14 +1393,16 @@ const ChatPage = () => {
                           <div className="flex items-center gap-1">
                             <OnlineIndicator isOnline={true} />
                             <span className="text-xs font-semibold truncate">{u.nickname}</span>
+                            {u.is_bot && u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-red-500/20 text-red-400">MOD</Badge>}
+                            {u.is_bot && !u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-blue-500/20 text-blue-400">BOT</Badge>}
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{u.production_house_name}</p>
+                          <p className="text-xs text-gray-500 truncate">{u.is_bot ? u.role : u.production_house_name}</p>
                         </div>
-                        {loadingDM === u.id ? (
+                        {!u.is_bot && (loadingDM === u.id ? (
                           <span className="text-xs text-gray-400">...</span>
                         ) : (
                           <MessageSquare className="w-3 h-3 text-gray-400" />
-                        )}
+                        ))}
                       </button>
                     ))
                   )}
@@ -1533,9 +1535,13 @@ const ChatPage = () => {
                     ) : (
                       messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] px-3 py-1.5 rounded-xl text-sm ${msg.sender_id === user.id ? 'bg-yellow-500 text-black rounded-br-sm' : 'bg-white/10 rounded-bl-sm'}`}>
+                          <div className={`max-w-[70%] px-3 py-1.5 rounded-xl text-sm ${msg.sender_id === user.id ? 'bg-yellow-500 text-black rounded-br-sm' : msg.sender?.is_bot ? 'bg-blue-500/20 border border-blue-500/30 rounded-bl-sm' : 'bg-white/10 rounded-bl-sm'}`}>
                             {msg.sender_id !== user.id && !activeRoom.is_private && (
-                              <p className="text-xs font-semibold mb-0.5">{msg.sender?.nickname}</p>
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <p className="text-xs font-semibold">{msg.sender?.nickname}</p>
+                                {msg.sender?.is_bot && msg.sender?.is_moderator && <Badge className="h-3 px-1 text-[8px] bg-red-500/30 text-red-400">MOD</Badge>}
+                                {msg.sender?.is_bot && !msg.sender?.is_moderator && <Badge className="h-3 px-1 text-[8px] bg-blue-500/30 text-blue-400">BOT</Badge>}
+                              </div>
                             )}
                             <p>{msg.content}</p>
                             <p className={`text-xs mt-0.5 ${msg.sender_id === user.id ? 'text-black/50' : 'text-gray-500'}`}>

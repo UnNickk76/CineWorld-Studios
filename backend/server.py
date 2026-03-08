@@ -124,6 +124,51 @@ PRESET_AVATARS = [
     {'id': 'fantasy-6', 'url': 'https://api.dicebear.com/9.x/glass/svg?seed=Crystal&backgroundColor=0abde3', 'category': 'fantasy'}
 ]
 
+# Chat Moderator Bots
+CHAT_BOTS = [
+    {
+        'id': 'bot-cinemaster',
+        'nickname': 'CineMaster',
+        'avatar_url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CineMaster&backgroundColor=feca57',
+        'is_bot': True,
+        'is_moderator': True,
+        'role': 'moderator',
+        'bio': 'Official CineWorld Moderator. Here to help and keep the community safe!',
+        'welcome_messages': {
+            'en': 'Welcome to CineWorld Studios! Feel free to ask questions. Be respectful to others!',
+            'it': 'Benvenuto a CineWorld Studios! Sentiti libero di fare domande. Sii rispettoso con gli altri!',
+            'es': '¡Bienvenido a CineWorld Studios! Siéntete libre de hacer preguntas. ¡Sé respetuoso con los demás!',
+            'fr': 'Bienvenue à CineWorld Studios! N\'hésitez pas à poser des questions. Soyez respectueux envers les autres!',
+            'de': 'Willkommen bei CineWorld Studios! Fühlen Sie sich frei, Fragen zu stellen. Seien Sie respektvoll!'
+        }
+    },
+    {
+        'id': 'bot-filmguide',
+        'nickname': 'FilmGuide',
+        'avatar_url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=FilmGuide&backgroundColor=48dbfb',
+        'is_bot': True,
+        'is_moderator': True,
+        'role': 'helper',
+        'bio': 'Your friendly film production assistant. Tips & tricks for new producers!',
+        'tips': {
+            'en': ['Tip: Choose sponsors carefully - they take a cut of your revenue!', 'Tip: Higher quality equipment = better film scores!', 'Tip: Star actors cost more but attract bigger audiences!'],
+            'it': ['Consiglio: Scegli gli sponsor con attenzione - prendono una percentuale dei tuoi incassi!', 'Consiglio: Attrezzature di qualità superiore = punteggi film migliori!', 'Consiglio: Gli attori famosi costano di più ma attirano più pubblico!'],
+            'es': ['Consejo: ¡Elige los patrocinadores con cuidado - se llevan parte de tus ingresos!', 'Consejo: ¡Mejor equipo = mejores puntuaciones!', 'Consejo: ¡Los actores estrella cuestan más pero atraen más público!'],
+            'fr': ['Conseil: Choisissez vos sponsors avec soin - ils prennent une part de vos revenus!', 'Conseil: Meilleur équipement = meilleurs scores!', 'Conseil: Les stars coûtent plus cher mais attirent plus de spectateurs!'],
+            'de': ['Tipp: Wählen Sie Sponsoren sorgfältig - sie nehmen einen Teil Ihrer Einnahmen!', 'Tipp: Bessere Ausrüstung = bessere Filmbewertungen!', 'Tipp: Stars kosten mehr, ziehen aber mehr Publikum an!']
+        }
+    },
+    {
+        'id': 'bot-newsbot',
+        'nickname': 'CineNews',
+        'avatar_url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=NewsBot&backgroundColor=ff6b6b',
+        'is_bot': True,
+        'is_moderator': False,
+        'role': 'announcer',
+        'bio': 'Breaking news and announcements from CineWorld HQ!'
+    }
+]
+
 # Mini Games with questions
 MINI_GAMES = [
     {'id': 'trivia', 'name': 'Film Trivia', 'description': 'Answer movie questions', 'reward_min': 5000, 'reward_max': 50000, 'cooldown_minutes': 30, 'questions_count': 5},
@@ -1639,7 +1684,7 @@ async def user_heartbeat(user: dict = Depends(get_current_user)):
 
 @api_router.get("/users/online")
 async def get_online_users(user: dict = Depends(get_current_user)):
-    """Get list of online users (active in last 5 minutes)"""
+    """Get list of online users (active in last 5 minutes) + chat bots"""
     now = datetime.now(timezone.utc)
     active_users = []
     expired = []
@@ -1656,7 +1701,24 @@ async def get_online_users(user: dict = Depends(get_current_user)):
     for uid in expired:
         del online_users[uid]
     
+    # Add chat bots (always online)
+    for bot in CHAT_BOTS:
+        active_users.append({
+            'id': bot['id'],
+            'nickname': bot['nickname'],
+            'avatar_url': bot['avatar_url'],
+            'is_bot': True,
+            'is_moderator': bot.get('is_moderator', False),
+            'role': bot.get('role', 'bot'),
+            'is_online': True
+        })
+    
     return active_users
+
+@api_router.get("/chat/bots")
+async def get_chat_bots():
+    """Get list of chat moderator bots"""
+    return CHAT_BOTS
 
 # User Routes - IMPORTANT: specific routes must come before parameterized routes
 
@@ -1813,6 +1875,55 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
         **{k: v for k, v in message.items() if k != '_id'},
         'sender': {k: v for k, v in user.items() if k not in ['password', '_id', 'email']}
     }, room=msg_data.room_id)
+    
+    # Check if bot should respond (for public rooms only)
+    room = await db.chat_rooms.find_one({'id': msg_data.room_id})
+    if room and not room.get('is_private', True):
+        # Bot response triggers
+        content_lower = msg_data.content.lower()
+        user_lang = user.get('language', 'en')
+        
+        # Check for bot mentions or keywords
+        bot_response = None
+        responding_bot = None
+        
+        # CineMaster responds to greetings and help requests
+        if any(word in content_lower for word in ['ciao', 'hello', 'hi', 'help', 'aiuto', 'hola', 'bonjour', 'hallo']):
+            responding_bot = CHAT_BOTS[0]  # CineMaster
+            welcome_msgs = responding_bot['welcome_messages']
+            bot_response = welcome_msgs.get(user_lang, welcome_msgs['en'])
+        
+        # FilmGuide responds with tips when asked
+        elif any(word in content_lower for word in ['tip', 'consiglio', 'how', 'come', 'help', 'suggest']):
+            responding_bot = CHAT_BOTS[1]  # FilmGuide
+            tips = responding_bot['tips']
+            tip_list = tips.get(user_lang, tips['en'])
+            bot_response = random.choice(tip_list)
+        
+        # Send bot response if triggered
+        if bot_response and responding_bot:
+            import asyncio
+            await asyncio.sleep(1)  # Small delay for natural feel
+            bot_message = {
+                'id': str(uuid.uuid4()),
+                'room_id': msg_data.room_id,
+                'sender_id': responding_bot['id'],
+                'content': bot_response,
+                'message_type': 'text',
+                'image_url': None,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.chat_messages.insert_one(bot_message)
+            await sio.emit('new_message', {
+                **{k: v for k, v in bot_message.items() if k != '_id'},
+                'sender': {
+                    'id': responding_bot['id'],
+                    'nickname': responding_bot['nickname'],
+                    'avatar_url': responding_bot['avatar_url'],
+                    'is_bot': True,
+                    'is_moderator': responding_bot.get('is_moderator', False)
+                }
+            }, room=msg_data.room_id)
     
     return {k: v for k, v in message.items() if k != '_id'}
 

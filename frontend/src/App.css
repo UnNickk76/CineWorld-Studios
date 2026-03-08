@@ -38,3 +38,34 @@
     background: radial-gradient(ellipse at 50% 0%, rgba(234, 179, 8, 0.08) 0%, transparent 50%),
                 linear-gradient(to bottom, #0F0F10 0%, #0F0F10 100%);
 }
+
+/* Hide/reposition Emergent badge on mobile */
+@media screen and (max-width: 768px) {
+    /* Target the Emergent "Made with" badge */
+    [class*="emergent"], 
+    [id*="emergent"],
+    a[href*="emergent"],
+    div[style*="position: fixed"][style*="bottom"],
+    .powered-by-emergent,
+    #powered-by-emergent {
+        transform: scale(0.7);
+        bottom: 4px !important;
+        right: 4px !important;
+        opacity: 0.6;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    /* Smaller screens - make it less intrusive */
+    [class*="emergent"], 
+    [id*="emergent"],
+    a[href*="emergent"],
+    div[style*="position: fixed"][style*="bottom"],
+    .powered-by-emergent,
+    #powered-by-emergent {
+        transform: scale(0.5);
+        bottom: 2px !important;
+        right: 2px !important;
+        opacity: 0.5;
+    }
+}

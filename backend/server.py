@@ -41,53 +41,74 @@ api_router = APIRouter(prefix="/api")
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 socket_app = socketio.ASGIApp(sio, app)
 
-# International Names Pool (for actors, directors, screenwriters)
-INTERNATIONAL_FIRST_NAMES = [
-    # Male
-    'James', 'Michael', 'Robert', 'David', 'William', 'Richard', 'Joseph', 'Thomas',
-    'Alessandro', 'Marco', 'Luca', 'Giovanni', 'Francesco', 'Andrea', 'Matteo',
-    'Carlos', 'Miguel', 'Antonio', 'Pablo', 'Diego', 'Fernando', 'Rafael',
-    'Pierre', 'Jean', 'Louis', 'François', 'Antoine', 'Nicolas', 'Philippe',
-    'Hans', 'Klaus', 'Stefan', 'Wolfgang', 'Maximilian', 'Friedrich', 'Heinrich',
-    'Hiroshi', 'Takeshi', 'Kenji', 'Yuki', 'Akira', 'Ryu', 'Koji',
-    'Wei', 'Chen', 'Ming', 'Li', 'Zhang', 'Wang', 'Liu',
-    # Female
-    'Emma', 'Olivia', 'Sophia', 'Isabella', 'Charlotte', 'Amelia', 'Mia',
-    'Giulia', 'Chiara', 'Francesca', 'Valentina', 'Alessia', 'Sofia', 'Aurora',
-    'María', 'Carmen', 'Ana', 'Lucia', 'Elena', 'Isabel', 'Paula',
-    'Marie', 'Camille', 'Léa', 'Chloé', 'Juliette', 'Margot', 'Claire',
-    'Anna', 'Lena', 'Mia', 'Hannah', 'Lea', 'Sophie', 'Emma',
-    'Yuki', 'Sakura', 'Hana', 'Aiko', 'Mei', 'Rin', 'Kaori',
-    'Xia', 'Lin', 'Mei', 'Yan', 'Hua', 'Jing', 'Fang'
-]
+# Names by Nationality (coherent name + nationality)
+NAMES_BY_NATIONALITY = {
+    'USA': {
+        'first_male': ['James', 'Michael', 'Robert', 'David', 'William', 'Richard', 'Joseph', 'Thomas', 'Christopher', 'Daniel'],
+        'first_female': ['Emma', 'Olivia', 'Sophia', 'Isabella', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn', 'Abigail'],
+        'last': ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Wilson', 'Anderson']
+    },
+    'Italy': {
+        'first_male': ['Alessandro', 'Marco', 'Luca', 'Giovanni', 'Francesco', 'Andrea', 'Matteo', 'Lorenzo', 'Davide', 'Simone'],
+        'first_female': ['Giulia', 'Chiara', 'Francesca', 'Valentina', 'Alessia', 'Sofia', 'Aurora', 'Martina', 'Sara', 'Giorgia'],
+        'last': ['Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo', 'Ricci', 'Marino', 'Greco']
+    },
+    'Spain': {
+        'first_male': ['Carlos', 'Miguel', 'Antonio', 'Pablo', 'Diego', 'Fernando', 'Rafael', 'Alejandro', 'Javier', 'Manuel'],
+        'first_female': ['María', 'Carmen', 'Ana', 'Lucia', 'Elena', 'Isabel', 'Paula', 'Laura', 'Marta', 'Sara'],
+        'last': ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez', 'Ramírez', 'Torres']
+    },
+    'France': {
+        'first_male': ['Pierre', 'Jean', 'Louis', 'François', 'Antoine', 'Nicolas', 'Philippe', 'Michel', 'Jacques', 'Christophe'],
+        'first_female': ['Marie', 'Camille', 'Léa', 'Chloé', 'Juliette', 'Margot', 'Claire', 'Manon', 'Inès', 'Emma'],
+        'last': ['Martin', 'Bernard', 'Dubois', 'Thomas', 'Robert', 'Richard', 'Petit', 'Durand', 'Leroy', 'Moreau']
+    },
+    'Germany': {
+        'first_male': ['Hans', 'Klaus', 'Stefan', 'Wolfgang', 'Maximilian', 'Friedrich', 'Heinrich', 'Karl', 'Peter', 'Thomas'],
+        'first_female': ['Anna', 'Lena', 'Hannah', 'Lea', 'Sophie', 'Marie', 'Lina', 'Emilia', 'Mia', 'Emma'],
+        'last': ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann']
+    },
+    'Japan': {
+        'first_male': ['Hiroshi', 'Takeshi', 'Kenji', 'Akira', 'Ryu', 'Koji', 'Yuki', 'Daiki', 'Haruto', 'Ren'],
+        'first_female': ['Yuki', 'Sakura', 'Hana', 'Aiko', 'Mei', 'Rin', 'Kaori', 'Yui', 'Haruka', 'Mio'],
+        'last': ['Tanaka', 'Yamamoto', 'Watanabe', 'Suzuki', 'Takahashi', 'Kobayashi', 'Sato', 'Ito', 'Nakamura', 'Kato']
+    },
+    'China': {
+        'first_male': ['Wei', 'Chen', 'Ming', 'Jun', 'Feng', 'Lei', 'Hao', 'Jian', 'Qiang', 'Bo'],
+        'first_female': ['Xia', 'Lin', 'Mei', 'Yan', 'Hua', 'Jing', 'Fang', 'Li', 'Ying', 'Xue'],
+        'last': ['Wang', 'Li', 'Zhang', 'Liu', 'Chen', 'Yang', 'Huang', 'Zhao', 'Wu', 'Zhou']
+    },
+    'UK': {
+        'first_male': ['Oliver', 'George', 'Harry', 'Jack', 'Charlie', 'Thomas', 'Henry', 'William', 'James', 'Edward'],
+        'first_female': ['Olivia', 'Emily', 'Sophie', 'Lily', 'Amelia', 'Grace', 'Charlotte', 'Ella', 'Mia', 'Lucy'],
+        'last': ['Wilson', 'Taylor', 'Davies', 'Evans', 'Thomas', 'Roberts', 'Walker', 'Wright', 'Robinson', 'Thompson']
+    },
+    'Brazil': {
+        'first_male': ['João', 'Pedro', 'Lucas', 'Gabriel', 'Rafael', 'Matheus', 'Bruno', 'Gustavo', 'Felipe', 'Thiago'],
+        'first_female': ['Ana', 'Maria', 'Julia', 'Beatriz', 'Larissa', 'Fernanda', 'Camila', 'Amanda', 'Bruna', 'Carolina'],
+        'last': ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Pereira', 'Costa', 'Ferreira', 'Rodrigues', 'Almeida']
+    },
+    'India': {
+        'first_male': ['Raj', 'Arjun', 'Vikram', 'Aditya', 'Rohan', 'Amit', 'Rahul', 'Prashant', 'Suresh', 'Deepak'],
+        'first_female': ['Priya', 'Ananya', 'Pooja', 'Shreya', 'Kavitha', 'Divya', 'Neha', 'Anjali', 'Meera', 'Lakshmi'],
+        'last': ['Singh', 'Kumar', 'Sharma', 'Patel', 'Gupta', 'Shah', 'Verma', 'Joshi', 'Reddy', 'Rao']
+    }
+}
 
-INTERNATIONAL_LAST_NAMES = [
-    'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis',
-    'Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo',
-    'García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez',
-    'Martin', 'Bernard', 'Dubois', 'Thomas', 'Robert', 'Richard', 'Petit',
-    'Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner',
-    'Tanaka', 'Yamamoto', 'Watanabe', 'Suzuki', 'Takahashi', 'Kobayashi', 'Sato',
-    'Wang', 'Li', 'Zhang', 'Liu', 'Chen', 'Yang', 'Huang',
-    'Kim', 'Park', 'Lee', 'Choi', 'Jung', 'Kang', 'Cho',
-    'Singh', 'Kumar', 'Sharma', 'Patel', 'Gupta', 'Shah', 'Verma'
-]
+NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
 # Preset Avatars (20 total)
 PRESET_AVATARS = [
-    # Male Avatars
     {'id': 'male-1', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix&backgroundColor=b6e3f4', 'category': 'male'},
     {'id': 'male-2', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Jasper&backgroundColor=c0aede', 'category': 'male'},
     {'id': 'male-3', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Oliver&backgroundColor=d1d4f9', 'category': 'male'},
     {'id': 'male-4', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Max&backgroundColor=ffd5dc', 'category': 'male'},
     {'id': 'male-5', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Leo&backgroundColor=ffdfbf', 'category': 'male'},
-    # Female Avatars
     {'id': 'female-1', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sophie&backgroundColor=b6e3f4', 'category': 'female'},
     {'id': 'female-2', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Luna&backgroundColor=c0aede', 'category': 'female'},
     {'id': 'female-3', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Mia&backgroundColor=d1d4f9', 'category': 'female'},
     {'id': 'female-4', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Emma&backgroundColor=ffd5dc', 'category': 'female'},
     {'id': 'female-5', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Aria&backgroundColor=ffdfbf', 'category': 'female'},
-    # Fantasy Avatars
     {'id': 'fantasy-1', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot1&backgroundColor=b6e3f4', 'category': 'fantasy'},
     {'id': 'fantasy-2', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot2&backgroundColor=c0aede', 'category': 'fantasy'},
     {'id': 'fantasy-3', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot3&backgroundColor=d1d4f9', 'category': 'fantasy'},
@@ -100,14 +121,69 @@ PRESET_AVATARS = [
     {'id': 'fantasy-10', 'url': 'https://api.dicebear.com/7.x/lorelei/svg?seed=Mystical3&backgroundColor=ffdfbf', 'category': 'fantasy'}
 ]
 
-# Mini Games
+# Mini Games with questions
 MINI_GAMES = [
-    {'id': 'trivia', 'name': 'Film Trivia', 'description': 'Answer movie questions', 'reward_min': 5000, 'reward_max': 50000, 'cooldown_minutes': 30},
-    {'id': 'guess_poster', 'name': 'Guess the Poster', 'description': 'Identify films by their posters', 'reward_min': 3000, 'reward_max': 30000, 'cooldown_minutes': 20},
-    {'id': 'script_match', 'name': 'Script Match', 'description': 'Match quotes to movies', 'reward_min': 4000, 'reward_max': 40000, 'cooldown_minutes': 25},
-    {'id': 'box_office_bet', 'name': 'Box Office Bet', 'description': 'Predict which film earns more', 'reward_min': 10000, 'reward_max': 100000, 'cooldown_minutes': 60},
-    {'id': 'casting_puzzle', 'name': 'Casting Puzzle', 'description': 'Match actors to their best roles', 'reward_min': 6000, 'reward_max': 60000, 'cooldown_minutes': 45}
+    {'id': 'trivia', 'name': 'Film Trivia', 'description': 'Answer movie questions', 'reward_min': 5000, 'reward_max': 50000, 'cooldown_minutes': 30, 'questions_count': 5},
+    {'id': 'guess_genre', 'name': 'Guess the Genre', 'description': 'Match films to their genres', 'reward_min': 3000, 'reward_max': 30000, 'cooldown_minutes': 20, 'questions_count': 5},
+    {'id': 'director_match', 'name': 'Director Match', 'description': 'Match directors to their famous films', 'reward_min': 4000, 'reward_max': 40000, 'cooldown_minutes': 25, 'questions_count': 5},
+    {'id': 'box_office_bet', 'name': 'Box Office Bet', 'description': 'Guess which film earned more', 'reward_min': 10000, 'reward_max': 100000, 'cooldown_minutes': 60, 'questions_count': 3},
+    {'id': 'year_guess', 'name': 'Release Year', 'description': 'Guess when films were released', 'reward_min': 6000, 'reward_max': 60000, 'cooldown_minutes': 45, 'questions_count': 5}
 ]
+
+# Trivia Questions Database
+TRIVIA_QUESTIONS = [
+    {'question': 'Which film won Best Picture at the 2020 Oscars?', 'options': ['1917', 'Parasite', 'Joker', 'Once Upon a Time in Hollywood'], 'answer': 'Parasite'},
+    {'question': 'Who directed "Inception"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+    {'question': 'What year was "The Godfather" released?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+    {'question': 'Which actor played Jack in "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+    {'question': 'What is the highest-grossing film of all time?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: The Force Awakens'], 'answer': 'Avatar'},
+    {'question': 'Who directed "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+    {'question': 'In which film does Tom Hanks say "Life is like a box of chocolates"?', 'options': ['Cast Away', 'Forrest Gump', 'The Green Mile', 'Big'], 'answer': 'Forrest Gump'},
+    {'question': 'What is the name of the fictional African country in "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+    {'question': 'Who played the Joker in "The Dark Knight"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+    {'question': 'Which film features a character named Andy Dufresne?', 'options': ['The Green Mile', 'The Shawshank Redemption', 'Stand By Me', 'Misery'], 'answer': 'The Shawshank Redemption'},
+]
+
+GENRE_QUESTIONS = [
+    {'question': '"The Exorcist" (1973)', 'options': ['Action', 'Comedy', 'Horror', 'Drama'], 'answer': 'Horror'},
+    {'question': '"The Hangover" (2009)', 'options': ['Horror', 'Comedy', 'Drama', 'Thriller'], 'answer': 'Comedy'},
+    {'question': '"Schindler\'s List" (1993)', 'options': ['Comedy', 'Action', 'Drama', 'Sci-Fi'], 'answer': 'Drama'},
+    {'question': '"Die Hard" (1988)', 'options': ['Comedy', 'Romance', 'Action', 'Horror'], 'answer': 'Action'},
+    {'question': '"The Notebook" (2004)', 'options': ['Action', 'Horror', 'Comedy', 'Romance'], 'answer': 'Romance'},
+    {'question': '"Alien" (1979)', 'options': ['Comedy', 'Sci-Fi', 'Drama', 'Romance'], 'answer': 'Sci-Fi'},
+    {'question': '"The Silence of the Lambs" (1991)', 'options': ['Comedy', 'Romance', 'Action', 'Thriller'], 'answer': 'Thriller'},
+    {'question': '"Finding Nemo" (2003)', 'options': ['Horror', 'Animation', 'Drama', 'Action'], 'answer': 'Animation'},
+]
+
+DIRECTOR_QUESTIONS = [
+    {'question': 'Who directed "E.T. the Extra-Terrestrial"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+    {'question': 'Who directed "The Shining"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+    {'question': 'Who directed "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+    {'question': 'Who directed "Fight Club"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+    {'question': 'Who directed "The Lord of the Rings" trilogy?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+]
+
+BOX_OFFICE_QUESTIONS = [
+    {'question': 'Which film earned more worldwide?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+    {'question': 'Which film earned more worldwide?', 'options': ['The Lion King 2019 ($1.6B)', 'Frozen II ($1.4B)'], 'answer': 'The Lion King 2019 ($1.6B)'},
+    {'question': 'Which film earned more worldwide?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+]
+
+YEAR_QUESTIONS = [
+    {'question': 'When was "Star Wars: A New Hope" released?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+    {'question': 'When was "The Matrix" released?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+    {'question': 'When was "Jaws" released?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+    {'question': 'When was "Back to the Future" released?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+    {'question': 'When was "Jurassic Park" released?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+]
+
+GAME_QUESTIONS = {
+    'trivia': TRIVIA_QUESTIONS,
+    'guess_genre': GENRE_QUESTIONS,
+    'director_match': DIRECTOR_QUESTIONS,
+    'box_office_bet': BOX_OFFICE_QUESTIONS,
+    'year_guess': YEAR_QUESTIONS
+}
 
 # Challenges
 DAILY_CHALLENGES = [
@@ -248,7 +324,7 @@ TRANSLATIONS = {
         'challenges': 'Desafíos',
         'daily': 'Diarios',
         'weekly': 'Semanales',
-        'adult_warning': 'Esta es una comunidad para adultos (18+). Compartir imágenes de menores está estrictamente prohibido y resultará en un ban inmediato.',
+        'adult_warning': 'Esta es una comunidad para adultos (18+). Compartir imágenes de menores está estrictamente prohibido.',
         'age': 'Edad',
         'gender': 'Género',
         'male': 'Masculino',
@@ -291,7 +367,7 @@ TRANSLATIONS = {
         'challenges': 'Défis',
         'daily': 'Quotidiens',
         'weekly': 'Hebdomadaires',
-        'adult_warning': 'Ceci est une communauté adulte (18+). Le partage d\'images de mineurs est strictement interdit et entraînera un bannissement immédiat.',
+        'adult_warning': 'Ceci est une communauté adulte (18+). Le partage d\'images de mineurs est strictement interdit.',
         'age': 'Âge',
         'gender': 'Genre',
         'male': 'Masculin',
@@ -334,7 +410,7 @@ TRANSLATIONS = {
         'challenges': 'Herausforderungen',
         'daily': 'Täglich',
         'weekly': 'Wöchentlich',
-        'adult_warning': 'Dies ist eine Erwachsenen-Community (18+). Das Teilen von Bildern von Minderjährigen ist strengstens verboten und führt zu sofortiger Sperrung.',
+        'adult_warning': 'Dies ist eine Erwachsenen-Community (18+). Das Teilen von Bildern von Minderjährigen ist strengstens verboten.',
         'age': 'Alter',
         'gender': 'Geschlecht',
         'male': 'Männlich',
@@ -358,17 +434,18 @@ COUNTRIES = {
     'India': ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad']
 }
 
+# Fictional Sponsors
 SPONSORS = [
-    {'name': 'CocaCola', 'budget_offer': 500000, 'revenue_share': 5, 'rating': 5},
-    {'name': 'Nike', 'budget_offer': 400000, 'revenue_share': 4, 'rating': 4},
-    {'name': 'Apple', 'budget_offer': 800000, 'revenue_share': 8, 'rating': 5},
-    {'name': 'Samsung', 'budget_offer': 600000, 'revenue_share': 6, 'rating': 4},
-    {'name': 'Mercedes', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 5},
-    {'name': 'Rolex', 'budget_offer': 900000, 'revenue_share': 10, 'rating': 5},
-    {'name': 'Pepsi', 'budget_offer': 450000, 'revenue_share': 5, 'rating': 4},
-    {'name': 'Adidas', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
-    {'name': 'BMW', 'budget_offer': 650000, 'revenue_share': 7, 'rating': 4},
-    {'name': 'Sony', 'budget_offer': 550000, 'revenue_share': 6, 'rating': 4}
+    {'name': 'StarBurst Energy', 'budget_offer': 500000, 'revenue_share': 5, 'rating': 5},
+    {'name': 'VeloSpeed Sports', 'budget_offer': 400000, 'revenue_share': 4, 'rating': 4},
+    {'name': 'NovaTech Industries', 'budget_offer': 800000, 'revenue_share': 8, 'rating': 5},
+    {'name': 'GalaxyWare Electronics', 'budget_offer': 600000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Luxor Motors', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 5},
+    {'name': 'Chronos Timepieces', 'budget_offer': 900000, 'revenue_share': 10, 'rating': 5},
+    {'name': 'FreshWave Beverages', 'budget_offer': 450000, 'revenue_share': 5, 'rating': 4},
+    {'name': 'AeroFit Apparel', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'VoltDrive Automotive', 'budget_offer': 650000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'QuantumPlay Gaming', 'budget_offer': 550000, 'revenue_share': 6, 'rating': 4}
 ]
 
 LOCATIONS = [
@@ -392,7 +469,6 @@ EQUIPMENT_PACKAGES = [
     {'name': 'Hollywood Elite', 'cost': 1500000, 'quality_bonus': 25}
 ]
 
-# Skills for actors/directors/screenwriters
 SKILL_TYPES = {
     'actor': ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing', 'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation', 'Chemistry', 'Star Power'],
     'director': ['Vision', 'Leadership', 'Technical', 'Storytelling', 'Actor Direction', 'Visual Style', 'Pacing', 'Innovation', 'Budget Management', 'Award Potential'],
@@ -506,14 +582,14 @@ class ChatRoomCreate(BaseModel):
     is_private: bool = False
     participant_ids: List[str] = []
 
-class MiniGameResult(BaseModel):
-    game_id: str
-    score: int
-    correct_answers: int = 0
+class MiniGameAnswer(BaseModel):
+    question_index: int
+    answer: str
 
-class ChallengeProgress(BaseModel):
-    challenge_id: str
-    progress: int
+class MiniGameSubmit(BaseModel):
+    game_id: str
+    session_id: str
+    answers: List[MiniGameAnswer]
 
 class ScreenplayRequest(BaseModel):
     genre: str
@@ -559,60 +635,73 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def generate_international_name():
-    """Generate a random international name"""
-    first_name = random.choice(INTERNATIONAL_FIRST_NAMES)
-    last_name = random.choice(INTERNATIONAL_LAST_NAMES)
-    return f"{first_name} {last_name}"
+def generate_person_name():
+    """Generate a person with coherent name and nationality"""
+    nationality = random.choice(NATIONALITIES)
+    names = NAMES_BY_NATIONALITY[nationality]
+    is_female = random.choice([True, False])
+    
+    if is_female:
+        first_name = random.choice(names['first_female'])
+    else:
+        first_name = random.choice(names['first_male'])
+    
+    last_name = random.choice(names['last'])
+    
+    return {
+        'name': f"{first_name} {last_name}",
+        'nationality': nationality,
+        'gender': 'female' if is_female else 'male'
+    }
 
 async def get_or_create_person(person_type: str) -> dict:
     """Get existing person from DB or create new one with persistent skills"""
-    # Try to get an existing person
-    existing = await db.people.find_one(
-        {'type': person_type, 'in_use': {'$ne': True}},
-        {'_id': 0}
-    )
+    existing_count = await db.people.count_documents({'type': person_type})
     
-    if existing:
-        return existing
+    if existing_count < 100:
+        # Create new person with coherent name/nationality
+        person_info = generate_person_name()
+        
+        skills = {}
+        skill_changes = {}
+        for skill in SKILL_TYPES.get(person_type, []):
+            base_score = random.randint(1, 10)
+            skills[skill] = base_score
+            skill_changes[skill] = 0
+        
+        person = {
+            'id': str(uuid.uuid4()),
+            'type': person_type,
+            'name': person_info['name'],
+            'age': random.randint(22, 65),
+            'nationality': person_info['nationality'],
+            'gender': person_info['gender'],
+            'avatar_url': f"https://api.dicebear.com/7.x/personas/svg?seed={uuid.uuid4()}",
+            'skills': skills,
+            'skill_changes': skill_changes,
+            'films_count': random.randint(0, 30),
+            'is_star': random.random() < 0.05,
+            'trust_level': random.randint(0, 100),
+            'cost_per_film': random.randint(50000, 5000000),
+            'times_used': 0,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        if person_type == 'actor':
+            person['preferred_genres'] = random.sample(GENRES, 2)
+            person['alternate_genres'] = random.sample(GENRES, 2)
+        elif person_type == 'director':
+            person['style'] = random.choice(['Auteur', 'Commercial', 'Indie', 'Blockbuster', 'Art House'])
+            person['awards'] = random.randint(0, 10)
+        elif person_type == 'screenwriter':
+            person['writing_style'] = random.choice(['Character-driven', 'Plot-driven', 'Dialogue-heavy', 'Visual', 'Experimental'])
+        
+        await db.people.insert_one(person)
+        return {k: v for k, v in person.items() if k != '_id'}
     
-    # Create new person with international name
-    skills = {}
-    skill_changes = {}
-    for skill in SKILL_TYPES.get(person_type, []):
-        # Even unknown people can have high skills (1-10)
-        base_score = random.randint(1, 10)
-        skills[skill] = base_score
-        skill_changes[skill] = 0  # 0 = no change, positive = improved, negative = declined
-    
-    person = {
-        'id': str(uuid.uuid4()),
-        'type': person_type,
-        'name': generate_international_name(),
-        'age': random.randint(22, 65),
-        'nationality': random.choice(['USA', 'Italy', 'Spain', 'France', 'Germany', 'UK', 'Japan', 'Brazil', 'India', 'China']),
-        'avatar_url': f"https://api.dicebear.com/7.x/personas/svg?seed={uuid.uuid4()}",
-        'skills': skills,
-        'skill_changes': skill_changes,
-        'films_count': random.randint(0, 30),
-        'is_star': random.random() < 0.05,
-        'trust_level': random.randint(0, 100),
-        'cost_per_film': random.randint(50000, 5000000),
-        'times_used': 0,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    if person_type == 'actor':
-        person['preferred_genres'] = random.sample(GENRES, 2)
-        person['alternate_genres'] = random.sample(GENRES, 2)
-    elif person_type == 'director':
-        person['style'] = random.choice(['Auteur', 'Commercial', 'Indie', 'Blockbuster', 'Art House'])
-        person['awards'] = random.randint(0, 10)
-    elif person_type == 'screenwriter':
-        person['writing_style'] = random.choice(['Character-driven', 'Plot-driven', 'Dialogue-heavy', 'Visual', 'Experimental'])
-    
-    await db.people.insert_one(person)
-    return person
+    # Get random existing person
+    people = await db.people.find({'type': person_type}, {'_id': 0}).to_list(100)
+    return random.choice(people) if people else None
 
 async def update_person_skills(person_id: str, performance_score: float):
     """Update person's skills based on film performance"""
@@ -624,14 +713,13 @@ async def update_person_skills(person_id: str, performance_score: float):
     skill_changes = person.get('skill_changes', {})
     
     for skill in skills:
-        # Determine if skill improves or declines
         change = 0
         if performance_score > 70:
-            if random.random() < 0.3:  # 30% chance to improve
+            if random.random() < 0.3:
                 change = 1
                 skills[skill] = min(10, skills[skill] + 1)
         elif performance_score < 30:
-            if random.random() < 0.2:  # 20% chance to decline
+            if random.random() < 0.2:
                 change = -1
                 skills[skill] = max(1, skills[skill] - 1)
         
@@ -643,21 +731,16 @@ async def update_person_skills(person_id: str, performance_score: float):
     )
 
 def calculate_box_office(film: dict, day: int) -> dict:
-    """Calculate daily box office with audience satisfaction affecting theater duration"""
     base_revenue = film['quality_score'] * 100000
     satisfaction = film.get('audience_satisfaction', 50)
     
-    # Satisfaction affects decay rate
     decay_rate = 0.85 if satisfaction > 70 else 0.9 if satisfaction > 50 else 0.95
     decay = decay_rate ** day
     daily_base = base_revenue * decay * random.uniform(0.8, 1.2) * (satisfaction / 50)
     
-    # Ad penalty
     if film['ad_duration_seconds'] > 60:
         penalty = (film['ad_duration_seconds'] - 60) / 60 * 0.05
         daily_base *= (1 - min(penalty, 0.3))
-        # Ads also reduce satisfaction
-        film['audience_satisfaction'] = max(0, satisfaction - random.uniform(0.5, 2))
     
     box_office = {}
     for country, cities in COUNTRIES.items():
@@ -681,7 +764,6 @@ def calculate_box_office(film: dict, day: int) -> dict:
 # Auth Routes
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
-    # Validate age (18+)
     if user_data.age < 18:
         raise HTTPException(status_code=400, detail="You must be 18 or older to register")
     
@@ -713,12 +795,13 @@ async def register(user_data: UserCreate):
         'messages_sent': 0,
         'daily_challenges': {},
         'weekly_challenges': {},
-        'mini_game_cooldowns': {}
+        'mini_game_cooldowns': {},
+        'mini_game_sessions': {}
     }
     
     await db.users.insert_one(user)
     
-    user_response = {k: v for k, v in user.items() if k not in ['password', '_id', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns']}
+    user_response = {k: v for k, v in user.items() if k not in ['password', '_id', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
     token = create_token(user['id'])
     
     return TokenResponse(access_token=token, user=UserResponse(**user_response))
@@ -729,14 +812,14 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user['password']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    user_response = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns']}
+    user_response = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
     token = create_token(user['id'])
     
     return TokenResponse(access_token=token, user=UserResponse(**user_response))
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
-    return UserResponse(**{k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns']})
+    return UserResponse(**{k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']})
 
 @api_router.put("/auth/profile")
 async def update_profile(
@@ -764,7 +847,6 @@ async def update_profile(
 
 @api_router.post("/auth/reset")
 async def reset_player(user: dict = Depends(get_current_user)):
-    """Reset player to initial state"""
     default_avatar = PRESET_AVATARS[0]
     
     reset_data = {
@@ -779,15 +861,12 @@ async def reset_player(user: dict = Depends(get_current_user)):
         'messages_sent': 0,
         'daily_challenges': {},
         'weekly_challenges': {},
-        'mini_game_cooldowns': {}
+        'mini_game_cooldowns': {},
+        'mini_game_sessions': {}
     }
     
     await db.users.update_one({'id': user['id']}, {'$set': reset_data})
-    
-    # Delete user's films
     await db.films.delete_many({'user_id': user['id']})
-    
-    # Delete user's likes
     await db.likes.delete_many({'user_id': user['id']})
     
     return {'message': 'Player reset successfully', 'new_funds': 10000000.0}
@@ -802,7 +881,7 @@ async def get_avatars():
 async def get_translations(lang: str):
     return TRANSLATIONS.get(lang, TRANSLATIONS['en'])
 
-# People (Actors, Directors, Screenwriters) with persistent skills
+# People (Actors, Directors, Screenwriters)
 @api_router.get("/actors")
 async def get_actors(
     page: int = 1,
@@ -810,22 +889,24 @@ async def get_actors(
     genre: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
-    # Get existing actors from DB or create new ones
     actors = []
-    existing_actors = await db.people.find({'type': 'actor'}, {'_id': 0}).limit(limit).to_list(limit)
+    for _ in range(limit):
+        actor = await get_or_create_person('actor')
+        if actor:
+            actors.append(actor)
     
-    if len(existing_actors) < limit:
-        # Create more actors
-        for _ in range(limit - len(existing_actors)):
-            actor = await get_or_create_person('actor')
-            existing_actors.append(actor)
-    
-    actors = existing_actors
+    # Remove duplicates
+    seen_ids = set()
+    unique_actors = []
+    for a in actors:
+        if a['id'] not in seen_ids:
+            seen_ids.add(a['id'])
+            unique_actors.append(a)
     
     if genre:
-        actors = [a for a in actors if genre in a.get('preferred_genres', []) or genre in a.get('alternate_genres', [])]
+        unique_actors = [a for a in unique_actors if genre in a.get('preferred_genres', []) or genre in a.get('alternate_genres', [])]
     
-    return {'actors': actors, 'total': await db.people.count_documents({'type': 'actor'}), 'page': page}
+    return {'actors': unique_actors, 'total': await db.people.count_documents({'type': 'actor'}), 'page': page}
 
 @api_router.get("/directors")
 async def get_directors(
@@ -833,14 +914,20 @@ async def get_directors(
     limit: int = 20,
     user: dict = Depends(get_current_user)
 ):
-    existing = await db.people.find({'type': 'director'}, {'_id': 0}).limit(limit).to_list(limit)
+    directors = []
+    for _ in range(limit):
+        director = await get_or_create_person('director')
+        if director:
+            directors.append(director)
     
-    if len(existing) < limit:
-        for _ in range(limit - len(existing)):
-            director = await get_or_create_person('director')
-            existing.append(director)
+    seen_ids = set()
+    unique_directors = []
+    for d in directors:
+        if d['id'] not in seen_ids:
+            seen_ids.add(d['id'])
+            unique_directors.append(d)
     
-    return {'directors': existing, 'total': await db.people.count_documents({'type': 'director'}), 'page': page}
+    return {'directors': unique_directors, 'total': await db.people.count_documents({'type': 'director'}), 'page': page}
 
 @api_router.get("/screenwriters")
 async def get_screenwriters(
@@ -848,14 +935,20 @@ async def get_screenwriters(
     limit: int = 20,
     user: dict = Depends(get_current_user)
 ):
-    existing = await db.people.find({'type': 'screenwriter'}, {'_id': 0}).limit(limit).to_list(limit)
+    screenwriters = []
+    for _ in range(limit):
+        sw = await get_or_create_person('screenwriter')
+        if sw:
+            screenwriters.append(sw)
     
-    if len(existing) < limit:
-        for _ in range(limit - len(existing)):
-            sw = await get_or_create_person('screenwriter')
-            existing.append(sw)
+    seen_ids = set()
+    unique_sw = []
+    for s in screenwriters:
+        if s['id'] not in seen_ids:
+            seen_ids.add(s['id'])
+            unique_sw.append(s)
     
-    return {'screenwriters': existing, 'total': await db.people.count_documents({'type': 'screenwriter'}), 'page': page}
+    return {'screenwriters': unique_sw, 'total': await db.people.count_documents({'type': 'screenwriter'}), 'page': page}
 
 # Sponsors, Locations, Equipment
 @api_router.get("/sponsors")
@@ -877,7 +970,6 @@ async def get_countries():
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
-    # Calculate total budget
     equipment = next((e for e in EQUIPMENT_PACKAGES if e['name'] == film_data.equipment_package), EQUIPMENT_PACKAGES[0])
     location_costs = {}
     total_location_cost = 0
@@ -891,7 +983,6 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     total_budget = equipment['cost'] + total_location_cost + film_data.extras_cost
     
-    # Check funds
     sponsor_budget = 0
     sponsor = None
     if film_data.sponsor_id:
@@ -903,16 +994,13 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if total_budget > available_funds:
         raise HTTPException(status_code=400, detail="Insufficient funds")
     
-    # Calculate quality score
     quality_score = 50 + equipment['quality_bonus']
     quality_score += random.randint(-10, 20)
     quality_score = max(0, min(100, quality_score))
     
-    # Title bonus
     if len(film_data.title) > 5:
         quality_score += random.randint(1, 5)
     
-    # Calculate opening day revenue
     opening_day_revenue = quality_score * 150000 * random.uniform(0.8, 1.5)
     
     film = {
@@ -951,7 +1039,6 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     await db.films.insert_one(film)
     
-    # Update user funds with opening day revenue
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue + opening_day_revenue
     await db.users.update_one({'id': user['id']}, {'$set': {'funds': new_funds}})
     
@@ -969,6 +1056,23 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Film not found")
     return FilmResponse(**film)
 
+@api_router.delete("/films/{film_id}")
+async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Withdraw film from theaters"""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+    
+    if film['status'] != 'in_theaters':
+        raise HTTPException(status_code=400, detail="Film is not currently in theaters")
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {'status': 'withdrawn'}}
+    )
+    
+    return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
+
 @api_router.get("/films/social/feed")
 async def get_social_feed(
     page: int = 1,
@@ -977,18 +1081,18 @@ async def get_social_feed(
 ):
     skip = (page - 1) * limit
     films = await db.films.find(
-        {'status': {'$in': ['released', 'in_theaters']}},
+        {'user_id': {'$ne': user['id']}},
         {'_id': 0}
     ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
     
     for film in films:
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0})
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
         film['owner'] = owner
         
         like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
         film['user_liked'] = like is not None
     
-    total = await db.films.count_documents({'status': {'$in': ['released', 'in_theaters']}})
+    total = await db.films.count_documents({'user_id': {'$ne': user['id']}})
     return {'films': films, 'total': total, 'page': page}
 
 @api_router.post("/films/{film_id}/like")
@@ -1001,8 +1105,6 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     if existing_like:
         await db.likes.delete_one({'film_id': film_id, 'user_id': user['id']})
         await db.films.update_one({'id': film_id}, {'$inc': {'likes_count': -1}})
-        
-        # Update user stats
         await db.users.update_one({'id': user['id']}, {'$inc': {'total_likes_given': -1}})
         await db.users.update_one({'id': film['user_id']}, {'$inc': {'total_likes_received': -1}})
         
@@ -1016,22 +1118,15 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     })
     await db.films.update_one({'id': film_id}, {'$inc': {'likes_count': 1}})
     
-    # Update user stats and scores
     await db.users.update_one(
         {'id': user['id']}, 
-        {
-            '$inc': {'total_likes_given': 1, 'interaction_score': 0.5},
-            '$set': {'character_score': min(100, user.get('character_score', 50) + 0.2)}
-        }
+        {'$inc': {'total_likes_given': 1, 'interaction_score': 0.5}}
     )
     await db.users.update_one(
         {'id': film['user_id']}, 
-        {
-            '$inc': {'total_likes_received': 1, 'likeability_score': 0.3}
-        }
+        {'$inc': {'total_likes_received': 1, 'likeability_score': 0.3}}
     )
     
-    # Like affects film quality and audience satisfaction
     quality_change = random.uniform(0.1, 1)
     satisfaction_change = random.uniform(0.5, 2)
     await db.films.update_one(
@@ -1041,84 +1136,14 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     
     return {'liked': True, 'likes_count': film['likes_count'] + 1}
 
-# Daily Revenue Update
-@api_router.post("/films/update-revenues")
-async def update_daily_revenues():
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    
-    films = await db.films.find({'status': 'in_theaters'}, {'_id': 0}).to_list(1000)
-    
-    for film in films:
-        release_date = datetime.fromisoformat(film['release_date'].replace('Z', '+00:00'))
-        days_since_release = (datetime.now(timezone.utc) - release_date).days
-        
-        # Check if film should be removed based on audience satisfaction
-        satisfaction = film.get('audience_satisfaction', 50)
-        max_weeks = film['weeks_in_theater']
-        
-        # Low satisfaction = shorter run, high satisfaction = longer run
-        if satisfaction < 30:
-            max_weeks = max(1, max_weeks - 2)
-        elif satisfaction > 70:
-            max_weeks = min(max_weeks + 2, 16)
-        
-        if days_since_release >= max_weeks * 7:
-            await db.films.update_one(
-                {'id': film['id']}, 
-                {'$set': {'status': 'ended', 'actual_weeks_in_theater': max_weeks}}
-            )
-            continue
-        
-        daily_box_office = calculate_box_office(film, days_since_release)
-        total_daily = sum(c['total_revenue'] for c in daily_box_office.values())
-        
-        # Sponsor share
-        sponsor_share = 0
-        if film.get('sponsor'):
-            sponsor_share = total_daily * (film['sponsor']['revenue_share'] / 100)
-        
-        net_revenue = total_daily - sponsor_share
-        
-        revenue_entry = {
-            'date': today,
-            'day': days_since_release + 1,
-            'gross_revenue': total_daily,
-            'sponsor_share': sponsor_share,
-            'net_revenue': net_revenue,
-            'audience_satisfaction': satisfaction,
-            'box_office': daily_box_office
-        }
-        
-        await db.films.update_one(
-            {'id': film['id']},
-            {
-                '$push': {'daily_revenues': revenue_entry},
-                '$set': {'box_office': daily_box_office},
-                '$inc': {'total_revenue': net_revenue, 'actual_weeks_in_theater': 1/7}
-            }
-        )
-        
-        # Update user funds
-        await db.users.update_one({'id': film['user_id']}, {'$inc': {'funds': net_revenue}})
-        
-        # Update people skills based on performance
-        if film.get('director', {}).get('id'):
-            await update_person_skills(film['director']['id'], satisfaction)
-        if film.get('screenwriter', {}).get('id'):
-            await update_person_skills(film['screenwriter']['id'], satisfaction)
-        for actor in film.get('cast', []):
-            if actor.get('actor_id'):
-                await update_person_skills(actor['actor_id'], satisfaction)
-    
-    return {'updated': len(films)}
-
-# Mini Games
+# Mini Games with real questions
 @api_router.get("/minigames")
 async def get_mini_games():
     return MINI_GAMES
 
-@api_router.post("/minigames/{game_id}/play")
-async def play_mini_game(game_id: str, result: MiniGameResult, user: dict = Depends(get_current_user)):
+@api_router.post("/minigames/{game_id}/start")
+async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
+    """Start a mini game session and get questions"""
     game = next((g for g in MINI_GAMES if g['id'] == game_id), None)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -1128,12 +1153,77 @@ async def play_mini_game(game_id: str, result: MiniGameResult, user: dict = Depe
     last_played = cooldowns.get(game_id)
     if last_played:
         last_time = datetime.fromisoformat(last_played)
-        if datetime.now(timezone.utc) - last_time < timedelta(minutes=game['cooldown_minutes']):
-            remaining = game['cooldown_minutes'] - (datetime.now(timezone.utc) - last_time).seconds // 60
-            raise HTTPException(status_code=400, detail=f"Game on cooldown. Wait {remaining} minutes.")
+        cooldown_remaining = game['cooldown_minutes'] - (datetime.now(timezone.utc) - last_time).total_seconds() / 60
+        if cooldown_remaining > 0:
+            raise HTTPException(status_code=400, detail=f"Game on cooldown. Wait {int(cooldown_remaining)} minutes.")
     
-    # Calculate reward based on score
-    score_ratio = min(result.score / 100, 1)
+    # Get questions for this game
+    questions_pool = GAME_QUESTIONS.get(game_id, TRIVIA_QUESTIONS)
+    questions = random.sample(questions_pool, min(game['questions_count'], len(questions_pool)))
+    
+    # Create session
+    session_id = str(uuid.uuid4())
+    session_data = {
+        'game_id': game_id,
+        'questions': questions,
+        'started_at': datetime.now(timezone.utc).isoformat(),
+        'completed': False
+    }
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {f'mini_game_sessions.{session_id}': session_data}}
+    )
+    
+    # Return questions without answers
+    questions_without_answers = [
+        {'question': q['question'], 'options': q['options'], 'index': i}
+        for i, q in enumerate(questions)
+    ]
+    
+    return {
+        'session_id': session_id,
+        'game': game,
+        'questions': questions_without_answers
+    }
+
+@api_router.post("/minigames/submit")
+async def submit_mini_game(submission: MiniGameSubmit, user: dict = Depends(get_current_user)):
+    """Submit answers and get reward"""
+    sessions = user.get('mini_game_sessions', {})
+    session = sessions.get(submission.session_id)
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    
+    if session.get('completed'):
+        raise HTTPException(status_code=400, detail="Game already completed")
+    
+    game = next((g for g in MINI_GAMES if g['id'] == submission.game_id), None)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    # Calculate score
+    questions = session['questions']
+    correct_count = 0
+    results = []
+    
+    for answer in submission.answers:
+        if answer.question_index < len(questions):
+            question = questions[answer.question_index]
+            is_correct = answer.answer == question['answer']
+            if is_correct:
+                correct_count += 1
+            results.append({
+                'question': question['question'],
+                'your_answer': answer.answer,
+                'correct_answer': question['answer'],
+                'is_correct': is_correct
+            })
+    
+    # Calculate reward
+    total_questions = len(questions)
+    score_ratio = correct_count / total_questions if total_questions > 0 else 0
     reward = int(game['reward_min'] + (game['reward_max'] - game['reward_min']) * score_ratio)
     
     # Update user
@@ -1141,11 +1231,20 @@ async def play_mini_game(game_id: str, result: MiniGameResult, user: dict = Depe
         {'id': user['id']},
         {
             '$inc': {'funds': reward},
-            '$set': {f'mini_game_cooldowns.{game_id}': datetime.now(timezone.utc).isoformat()}
+            '$set': {
+                f'mini_game_cooldowns.{submission.game_id}': datetime.now(timezone.utc).isoformat(),
+                f'mini_game_sessions.{submission.session_id}.completed': True
+            }
         }
     )
     
-    return {'reward': reward, 'new_balance': user['funds'] + reward}
+    return {
+        'correct_answers': correct_count,
+        'total_questions': total_questions,
+        'score_percentage': int(score_ratio * 100),
+        'reward': reward,
+        'results': results
+    }
 
 # Challenges
 @api_router.get("/challenges")
@@ -1226,7 +1325,7 @@ async def get_global_statistics(user: dict = Depends(get_current_user)):
         'total_films': total_films,
         'total_users': total_users,
         'total_box_office': total_revenue,
-        'genre_distribution': {g['_id']: g['count'] for g in genre_result},
+        'genre_distribution': {g['_id']: g['count'] for g in genre_result if g['_id']},
         'top_countries': list(COUNTRIES.keys())
     }
 
@@ -1250,7 +1349,71 @@ async def get_my_statistics(user: dict = Depends(get_current_user)):
         'character_score': user.get('character_score', 50)
     }
 
-# User Profiles
+# Online Users Tracking
+online_users = {}  # {user_id: {'nickname': ..., 'avatar_url': ..., 'last_seen': ...}}
+
+@api_router.post("/users/heartbeat")
+async def user_heartbeat(user: dict = Depends(get_current_user)):
+    """Update user's online status"""
+    online_users[user['id']] = {
+        'id': user['id'],
+        'nickname': user['nickname'],
+        'avatar_url': user.get('avatar_url'),
+        'production_house_name': user.get('production_house_name'),
+        'last_seen': datetime.now(timezone.utc).isoformat()
+    }
+    return {'status': 'ok'}
+
+@api_router.get("/users/online")
+async def get_online_users(user: dict = Depends(get_current_user)):
+    """Get list of online users (active in last 5 minutes)"""
+    now = datetime.now(timezone.utc)
+    active_users = []
+    expired = []
+    
+    for user_id, data in online_users.items():
+        last_seen = datetime.fromisoformat(data['last_seen'].replace('Z', '+00:00'))
+        if (now - last_seen).total_seconds() < 300:  # 5 minutes
+            if user_id != user['id']:
+                active_users.append(data)
+        else:
+            expired.append(user_id)
+    
+    # Clean up expired users
+    for uid in expired:
+        del online_users[uid]
+    
+    return active_users
+
+# User Routes - IMPORTANT: specific routes must come before parameterized routes
+
+@api_router.get("/users/search")
+async def search_users(q: str, user: dict = Depends(get_current_user)):
+    users = await db.users.find(
+        {'nickname': {'$regex': q, '$options': 'i'}, 'id': {'$ne': user['id']}},
+        {'_id': 0, 'password': 0, 'email': 0}
+    ).limit(20).to_list(20)
+    
+    # Add online status
+    for u in users:
+        u['is_online'] = u['id'] in online_users
+    
+    return users
+
+@api_router.get("/users/all")
+async def get_all_users(user: dict = Depends(get_current_user)):
+    """Get all users for chat"""
+    users = await db.users.find(
+        {'id': {'$ne': user['id']}},
+        {'_id': 0, 'password': 0, 'email': 0}
+    ).limit(100).to_list(100)
+    
+    for u in users:
+        u['is_online'] = u['id'] in online_users
+    
+    return users
+
+# Parameterized user route - must be AFTER specific routes
 @api_router.get("/users/{user_id}")
 async def get_user_profile(user_id: str, user: dict = Depends(get_current_user)):
     profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
@@ -1259,16 +1422,9 @@ async def get_user_profile(user_id: str, user: dict = Depends(get_current_user))
     
     films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(10)
     profile['recent_films'] = films
+    profile['is_online'] = user_id in online_users
     
     return profile
-
-@api_router.get("/users/search")
-async def search_users(q: str, user: dict = Depends(get_current_user)):
-    users = await db.users.find(
-        {'nickname': {'$regex': q, '$options': 'i'}, 'id': {'$ne': user['id']}},
-        {'_id': 0, 'password': 0, 'email': 0}
-    ).limit(20).to_list(20)
-    return users
 
 # Chat System
 @api_router.get("/chat/rooms")
@@ -1278,6 +1434,25 @@ async def get_chat_rooms(user: dict = Depends(get_current_user)):
         'is_private': True,
         'participant_ids': user['id']
     }, {'_id': 0}).to_list(50)
+    
+    # Add other participant info for private rooms
+    for room in private_rooms:
+        other_id = next((pid for pid in room['participant_ids'] if pid != user['id']), None)
+        if other_id:
+            other_user = await db.users.find_one({'id': other_id}, {'_id': 0, 'password': 0, 'email': 0})
+            room['other_user'] = other_user
+            room['other_user']['is_online'] = other_id in online_users
+        
+        # Get last message
+        last_msg = await db.chat_messages.find_one(
+            {'room_id': room['id']},
+            {'_id': 0},
+            sort=[('created_at', -1)]
+        )
+        room['last_message'] = last_msg
+        
+        # Count unread (simplified - messages after last read)
+        room['unread_count'] = 0
     
     return {'public': public_rooms, 'private': private_rooms}
 
@@ -1293,6 +1468,42 @@ async def create_chat_room(room_data: ChatRoomCreate, user: dict = Depends(get_c
     }
     await db.chat_rooms.insert_one(room)
     return {k: v for k, v in room.items() if k != '_id'}
+
+@api_router.post("/chat/direct/{target_user_id}")
+async def start_direct_chat(target_user_id: str, user: dict = Depends(get_current_user)):
+    """Start or get existing direct chat with another user"""
+    # Check if target user exists
+    target_user = await db.users.find_one({'id': target_user_id}, {'_id': 0, 'password': 0, 'email': 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if private chat already exists
+    existing_room = await db.chat_rooms.find_one({
+        'is_private': True,
+        'participant_ids': {'$all': [user['id'], target_user_id], '$size': 2}
+    }, {'_id': 0})
+    
+    if existing_room:
+        existing_room['other_user'] = target_user
+        existing_room['other_user']['is_online'] = target_user_id in online_users
+        return existing_room
+    
+    # Create new private chat
+    room = {
+        'id': str(uuid.uuid4()),
+        'name': f"DM: {user['nickname']} & {target_user['nickname']}",
+        'is_private': True,
+        'participant_ids': [user['id'], target_user_id],
+        'created_by': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.chat_rooms.insert_one(room)
+    
+    room_response = {k: v for k, v in room.items() if k != '_id'}
+    room_response['other_user'] = target_user
+    room_response['other_user']['is_online'] = target_user_id in online_users
+    
+    return room_response
 
 @api_router.get("/chat/rooms/{room_id}/messages")
 async def get_room_messages(room_id: str, limit: int = 50, user: dict = Depends(get_current_user)):
@@ -1320,7 +1531,6 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
     }
     await db.chat_messages.insert_one(message)
     
-    # Update user stats
     await db.users.update_one(
         {'id': user['id']},
         {'$inc': {'messages_sent': 1, 'interaction_score': 0.1}}
@@ -1428,7 +1638,7 @@ async def translate_text(request: TranslationRequest, user: dict = Depends(get_c
         logging.error(f"Translation error: {e}")
         return {'translated_text': request.text}
 
-# Initialize default chat rooms and people
+# Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
     default_rooms = [
@@ -1443,12 +1653,8 @@ async def startup_event():
             room['created_at'] = datetime.now(timezone.utc).isoformat()
             await db.chat_rooms.insert_one(room)
     
-    # Pre-generate some people
-    for person_type in ['actor', 'director', 'screenwriter']:
-        count = await db.people.count_documents({'type': person_type})
-        if count < 50:
-            for _ in range(50 - count):
-                await get_or_create_person(person_type)
+    # Clear old people to regenerate with correct names
+    await db.people.delete_many({})
 
 # Socket.IO Events
 @sio.event

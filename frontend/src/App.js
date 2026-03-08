@@ -839,9 +839,11 @@ const FilmWizard = () => {
   const [screenwriters, setScreenwriters] = useState([]);
   const [directors, setDirectors] = useState([]);
   const [actors, setActors] = useState([]);
+  const [genres, setGenres] = useState({});
+  const [actorRoles, setActorRoles] = useState([]);
 
   const [filmData, setFilmData] = useState({
-    title: '', genre: 'action', release_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+    title: '', genre: 'action', subgenres: [], release_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
     screenwriter_id: '', director_id: '', actors: [], extras_count: 50, extras_cost: 50000,
     screenplay: '', screenplay_source: 'manual', poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
@@ -849,7 +851,13 @@ const FilmWizard = () => {
   const [releaseDate, setReleaseDate] = useState(new Date(Date.now() + 30*24*60*60*1000));
   const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Cast'},{num:7,title:'Script'},{num:8,title:'Poster'},{num:9,title:'Ads'},{num:10,title:'Review'}];
 
-  useEffect(() => { api.get('/sponsors').then(r=>setSponsors(r.data)); api.get('/locations').then(r=>setLocations(r.data)); api.get('/equipment').then(r=>setEquipment(r.data)); }, [api]);
+  useEffect(() => { 
+    api.get('/sponsors').then(r=>setSponsors(r.data)); 
+    api.get('/locations').then(r=>setLocations(r.data)); 
+    api.get('/equipment').then(r=>setEquipment(r.data));
+    api.get('/genres').then(r=>setGenres(r.data));
+    api.get('/actor-roles').then(r=>setActorRoles(r.data));
+  }, [api]);
   
   const fetchPeople = async (type) => {
     const res = await api.get(`/${type}`);
@@ -867,7 +875,14 @@ const FilmWizard = () => {
   
   const handleSubmit = async () => { setLoading(true); try { const res = await api.post('/films', {...filmData, release_date: releaseDate.toISOString()}); toast.success(`Film created! Opening: $${res.data.opening_day_revenue.toLocaleString()}`); updateFunds(user.funds - calculateBudget() + getSponsorBudget() + filmData.ad_revenue + res.data.opening_day_revenue); navigate(`/films/${res.data.id}`); } catch(e) { toast.error(e.response?.data?.detail||'Failed'); } finally { setLoading(false); }};
 
-  const PersonCard = ({ person, isSelected, onSelect }) => (
+  const getRoleName = (roleId) => {
+    const role = actorRoles.find(r => r.id === roleId);
+    if (!role) return roleId;
+    const langKey = `name_${language}`;
+    return role[langKey] || role.name;
+  };
+
+  const PersonCard = ({ person, isSelected, onSelect, showRoleSelect = false, currentRole = null, onRoleChange = null }) => (
     <Card className={`bg-[#1A1A1A] border-2 cursor-pointer ${isSelected ? 'border-yellow-500' : 'border-white/10'}`} onClick={onSelect}>
       <CardContent className="p-2">
         <div className="flex items-center gap-2 mb-1.5">
@@ -879,17 +894,67 @@ const FilmWizard = () => {
           <p className="text-yellow-500 font-bold text-xs">${(person.cost_per_film/1000).toFixed(0)}K</p>
         </div>
         <div className="grid grid-cols-2 gap-0.5">{Object.entries(person.skills||{}).slice(0,4).map(([s,v])=><SkillBadge key={s} name={s} value={v} change={person.skill_changes?.[s]||0} />)}</div>
+        {showRoleSelect && isSelected && (
+          <div className="mt-2 pt-2 border-t border-white/10" onClick={e => e.stopPropagation()}>
+            <Select value={currentRole} onValueChange={onRoleChange}>
+              <SelectTrigger className="h-7 text-xs bg-black/20 border-white/10">
+                <SelectValue placeholder="Select role..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                {actorRoles.map(r => (
+                  <SelectItem key={r.id} value={r.id} className="text-xs">{getRoleName(r.id)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 
-  const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy'];
+  const toggleSubgenre = (subgenre) => {
+    if (filmData.subgenres.includes(subgenre)) {
+      setFilmData({...filmData, subgenres: filmData.subgenres.filter(s => s !== subgenre)});
+    } else if (filmData.subgenres.length < 3) {
+      setFilmData({...filmData, subgenres: [...filmData.subgenres, subgenre]});
+    } else {
+      toast.error('Max 3 sub-genres allowed');
+    }
+  };
 
   const renderStep = () => {
     switch(step) {
       case 1: return (<div className="space-y-3">
         <div><Label className="text-xs">Title *</Label><Input value={filmData.title} onChange={e=>setFilmData({...filmData,title:e.target.value})} placeholder="Film title..." className="h-10 bg-black/20 border-white/10" data-testid="film-title-input" /></div>
-        <div><Label className="text-xs">{t('genre')} *</Label><Select value={filmData.genre} onValueChange={v=>setFilmData({...filmData,genre:v})}><SelectTrigger className="h-9 bg-black/20 border-white/10"><SelectValue /></SelectTrigger><SelectContent className="bg-[#1A1A1A]">{GENRES.map(g=><SelectItem key={g} value={g}>{t(g)}</SelectItem>)}</SelectContent></Select></div>
+        <div>
+          <Label className="text-xs">{t('genre')} *</Label>
+          <Select value={filmData.genre} onValueChange={v=>setFilmData({...filmData, genre:v, subgenres: []})}>
+            <SelectTrigger className="h-9 bg-black/20 border-white/10"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-[#1A1A1A] max-h-[200px]">
+              {Object.entries(genres).map(([key, g])=><SelectItem key={key} value={key}>{g.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {genres[filmData.genre] && (
+          <div>
+            <Label className="text-xs">Sub-genres (max 3)</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {genres[filmData.genre].subgenres.map(sg => (
+                <Badge 
+                  key={sg}
+                  variant={filmData.subgenres.includes(sg) ? "default" : "outline"}
+                  className={`cursor-pointer text-xs ${filmData.subgenres.includes(sg) ? 'bg-yellow-500 text-black hover:bg-yellow-600' : 'hover:bg-white/10'}`}
+                  onClick={() => toggleSubgenre(sg)}
+                >
+                  {sg} {filmData.subgenres.includes(sg) && <X className="w-2.5 h-2.5 ml-1" />}
+                </Badge>
+              ))}
+            </div>
+            {filmData.subgenres.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">Selected: {filmData.subgenres.join(', ')}</p>
+            )}
+          </div>
+        )}
         <div><Label className="text-xs">{t('release_date')}</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full h-9 justify-start bg-black/20 border-white/10"><Calendar className="w-3 h-3 mr-2" />{format(releaseDate,'PPP')}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 bg-[#1A1A1A] border-white/10"><CalendarComponent mode="single" selected={releaseDate} onSelect={setReleaseDate} disabled={d=>d<new Date()} /></PopoverContent></Popover></div>
         <div><Label className="text-xs">Weeks: {filmData.weeks_in_theater}</Label><Slider value={[filmData.weeks_in_theater]} onValueChange={([v])=>setFilmData({...filmData,weeks_in_theater:v})} min={1} max={12} /></div>
       </div>);
@@ -901,13 +966,63 @@ const FilmWizard = () => {
         <div><Label className="text-xs">Equipment</Label><div className="space-y-1">{equipment.map(e=><Card key={e.name} className={`border-2 cursor-pointer ${filmData.equipment_package===e.name?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,equipment_package:e.name})}><CardContent className="p-2 flex justify-between"><span className="text-sm">{e.name} <span className="text-gray-400">(+{e.quality_bonus}%)</span></span><span className="text-yellow-500 text-sm">${e.cost.toLocaleString()}</span></CardContent></Card>)}</div></div>
         <div><Label className="text-xs">Locations</Label><div className="grid grid-cols-2 gap-1">{locations.map(l=>{const sel=filmData.locations.includes(l.name);return<Card key={l.name} className={`border-2 cursor-pointer ${sel?'border-yellow-500':'border-white/10'}`} onClick={()=>{if(sel)setFilmData({...filmData,locations:filmData.locations.filter(x=>x!==l.name)});else setFilmData({...filmData,locations:[...filmData.locations,l.name],location_days:{...filmData.location_days,[l.name]:7}});}}><CardContent className="p-1.5 text-xs"><span>{l.name}</span><span className="text-yellow-500 block">${l.cost_per_day.toLocaleString()}/day</span></CardContent></Card>;})}</div></div>
       </div>);
-      case 4: case 5: case 6:
-        const people = step===4?screenwriters:step===5?directors:actors;
-        const selId = step===4?filmData.screenwriter_id:step===5?filmData.director_id:null;
+      case 4: case 5:
+        const people45 = step===4?screenwriters:directors;
+        const selId = step===4?filmData.screenwriter_id:filmData.director_id;
         return (<div className="space-y-2">
-          <div className="flex justify-between items-center"><p className="text-xs text-gray-400">{step===6?`Selected: ${filmData.actors.length}`:''}</p><Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(step===4?'screenwriters':step===5?'directors':'actors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button></div>
-          <ScrollArea className="h-[280px]"><div className="space-y-1.5 pr-2">{people.map(p=>{const isSel=step===6?filmData.actors.some(a=>a.actor_id===p.id):selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else if(step===5)setFilmData({...filmData,director_id:p.id});else{if(isSel)setFilmData({...filmData,actors:filmData.actors.filter(a=>a.actor_id!==p.id)});else setFilmData({...filmData,actors:[...filmData.actors,{actor_id:p.id,role:'Lead'}]});}}} />;})}</div></ScrollArea>
-          {step===6&&<div><Label className="text-xs">Extras: {filmData.extras_count} (${filmData.extras_cost.toLocaleString()})</Label><Slider value={[filmData.extras_count]} onValueChange={([v])=>setFilmData({...filmData,extras_count:v,extras_cost:v*1000})} min={0} max={500} step={10} /></div>}
+          <div className="flex justify-between items-center"><p className="text-xs text-gray-400"></p><Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(step===4?'screenwriters':'directors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button></div>
+          <ScrollArea className="h-[280px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
+        </div>);
+      case 6:
+        return (<div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-400">Selected: {filmData.actors.length} actors</p>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
+          {filmData.actors.length > 0 && (
+            <div className="flex flex-wrap gap-1 p-2 bg-black/20 rounded border border-white/10">
+              {filmData.actors.map(a => {
+                const actor = actors.find(ac => ac.id === a.actor_id);
+                return actor ? (
+                  <Badge key={a.actor_id} className="bg-yellow-500/20 text-yellow-500 text-xs">
+                    {actor.name} ({getRoleName(a.role)})
+                    <X className="w-2.5 h-2.5 ml-1 cursor-pointer" onClick={() => setFilmData({...filmData, actors: filmData.actors.filter(x => x.actor_id !== a.actor_id)})} />
+                  </Badge>
+                ) : null;
+              })}
+            </div>
+          )}
+          <ScrollArea className="h-[200px]">
+            <div className="space-y-1.5 pr-2">
+              {actors.map(p => {
+                const selectedActor = filmData.actors.find(a => a.actor_id === p.id);
+                const isSel = !!selectedActor;
+                return (
+                  <PersonCard 
+                    key={p.id} 
+                    person={p} 
+                    isSelected={isSel}
+                    showRoleSelect={true}
+                    currentRole={selectedActor?.role || 'protagonist'}
+                    onRoleChange={(newRole) => {
+                      setFilmData({
+                        ...filmData, 
+                        actors: filmData.actors.map(a => a.actor_id === p.id ? {...a, role: newRole} : a)
+                      });
+                    }}
+                    onSelect={() => {
+                      if (isSel) {
+                        setFilmData({...filmData, actors: filmData.actors.filter(a => a.actor_id !== p.id)});
+                      } else {
+                        setFilmData({...filmData, actors: [...filmData.actors, {actor_id: p.id, role: 'protagonist'}]});
+                      }
+                    }} 
+                  />
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <div><Label className="text-xs">Extras: {filmData.extras_count} (${filmData.extras_cost.toLocaleString()})</Label><Slider value={[filmData.extras_count]} onValueChange={([v])=>setFilmData({...filmData,extras_count:v,extras_cost:v*1000})} min={0} max={500} step={10} /></div>
         </div>);
       case 7: return (<div className="space-y-3">
         <div className="flex gap-2"><Button variant={filmData.screenplay_source==='manual'?'default':'outline'} size="sm" onClick={()=>setFilmData({...filmData,screenplay_source:'manual'})} className={filmData.screenplay_source==='manual'?'bg-yellow-500 text-black':''}>Manual</Button><Button variant="outline" size="sm" onClick={generateScreenplay} disabled={generating||!filmData.title}><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'AI Generate'}</Button></div>

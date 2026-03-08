@@ -99,26 +99,29 @@ NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
 # Preset Avatars (20 total)
 PRESET_AVATARS = [
-    {'id': 'male-1', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix&backgroundColor=b6e3f4', 'category': 'male'},
-    {'id': 'male-2', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Jasper&backgroundColor=c0aede', 'category': 'male'},
-    {'id': 'male-3', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Oliver&backgroundColor=d1d4f9', 'category': 'male'},
-    {'id': 'male-4', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Max&backgroundColor=ffd5dc', 'category': 'male'},
-    {'id': 'male-5', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Leo&backgroundColor=ffdfbf', 'category': 'male'},
-    {'id': 'female-1', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sophie&backgroundColor=b6e3f4', 'category': 'female'},
-    {'id': 'female-2', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Luna&backgroundColor=c0aede', 'category': 'female'},
-    {'id': 'female-3', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Mia&backgroundColor=d1d4f9', 'category': 'female'},
-    {'id': 'female-4', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Emma&backgroundColor=ffd5dc', 'category': 'female'},
-    {'id': 'female-5', 'url': 'https://api.dicebear.com/7.x/adventurer/svg?seed=Aria&backgroundColor=ffdfbf', 'category': 'female'},
-    {'id': 'fantasy-1', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot1&backgroundColor=b6e3f4', 'category': 'fantasy'},
-    {'id': 'fantasy-2', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot2&backgroundColor=c0aede', 'category': 'fantasy'},
-    {'id': 'fantasy-3', 'url': 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot3&backgroundColor=d1d4f9', 'category': 'fantasy'},
-    {'id': 'fantasy-4', 'url': 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Pixel1&backgroundColor=ffd5dc', 'category': 'fantasy'},
-    {'id': 'fantasy-5', 'url': 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Pixel2&backgroundColor=ffdfbf', 'category': 'fantasy'},
-    {'id': 'fantasy-6', 'url': 'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Emoji1&backgroundColor=b6e3f4', 'category': 'fantasy'},
-    {'id': 'fantasy-7', 'url': 'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Emoji2&backgroundColor=c0aede', 'category': 'fantasy'},
-    {'id': 'fantasy-8', 'url': 'https://api.dicebear.com/7.x/lorelei/svg?seed=Mystical1&backgroundColor=d1d4f9', 'category': 'fantasy'},
-    {'id': 'fantasy-9', 'url': 'https://api.dicebear.com/7.x/lorelei/svg?seed=Mystical2&backgroundColor=ffd5dc', 'category': 'fantasy'},
-    {'id': 'fantasy-10', 'url': 'https://api.dicebear.com/7.x/lorelei/svg?seed=Mystical3&backgroundColor=ffdfbf', 'category': 'fantasy'}
+    # Male - Modern Notion-style avatars
+    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Zach&backgroundColor=c0aede&body=variant01&gesture=hand', 'category': 'male'},
+    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Marcus&backgroundColor=ffd5dc&body=variant02&gesture=handPhone', 'category': 'male'},
+    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Leo&backgroundColor=b6e3f4&body=variant03', 'category': 'male'},
+    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=James&backgroundColor=ffdfbf&body=variant04&gesture=ok', 'category': 'male'},
+    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Director1&backgroundColor=1a1a2e&hair=variant01', 'category': 'male'},
+    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Producer1&backgroundColor=16213e&hair=variant04', 'category': 'male'},
+    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/personas/svg?seed=FilmStar&backgroundColor=0f3460', 'category': 'male'},
+    # Female - Modern stylized avatars
+    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Sofia&backgroundColor=ffd5dc&body=variant01&gesture=wave', 'category': 'female'},
+    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Luna&backgroundColor=c0aede&body=variant02', 'category': 'female'},
+    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Mia&backgroundColor=b6e3f4&body=variant03&gesture=hand', 'category': 'female'},
+    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Aria&backgroundColor=ffdfbf&body=variant04', 'category': 'female'},
+    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actress1&backgroundColor=e94560&hair=variant02', 'category': 'female'},
+    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StarLady&backgroundColor=ff6b6b&hair=variant06', 'category': 'female'},
+    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/personas/svg?seed=Diva&backgroundColor=533483', 'category': 'female'},
+    # Fantasy - Creative/Cinema themed
+    {'id': 'fantasy-1', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Happy&backgroundColor=feca57&faceOffsetX=0&faceOffsetY=0', 'category': 'fantasy'},
+    {'id': 'fantasy-2', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Cool&backgroundColor=48dbfb&eyes=variant4W12', 'category': 'fantasy'},
+    {'id': 'fantasy-3', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Star&backgroundColor=ff9ff3&eyes=variant2W10', 'category': 'fantasy'},
+    {'id': 'fantasy-4', 'url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CineBot&backgroundColor=00d2d3', 'category': 'fantasy'},
+    {'id': 'fantasy-5', 'url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=FilmBot&backgroundColor=5f27cd', 'category': 'fantasy'},
+    {'id': 'fantasy-6', 'url': 'https://api.dicebear.com/9.x/glass/svg?seed=Crystal&backgroundColor=0abde3', 'category': 'fantasy'}
 ]
 
 # Mini Games with questions
@@ -130,60 +133,238 @@ MINI_GAMES = [
     {'id': 'year_guess', 'name': 'Release Year', 'description': 'Guess when films were released', 'reward_min': 6000, 'reward_max': 60000, 'cooldown_minutes': 45, 'questions_count': 5}
 ]
 
-# Trivia Questions Database
-TRIVIA_QUESTIONS = [
-    {'question': 'Which film won Best Picture at the 2020 Oscars?', 'options': ['1917', 'Parasite', 'Joker', 'Once Upon a Time in Hollywood'], 'answer': 'Parasite'},
-    {'question': 'Who directed "Inception"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
-    {'question': 'What year was "The Godfather" released?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
-    {'question': 'Which actor played Jack in "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
-    {'question': 'What is the highest-grossing film of all time?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: The Force Awakens'], 'answer': 'Avatar'},
-    {'question': 'Who directed "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
-    {'question': 'In which film does Tom Hanks say "Life is like a box of chocolates"?', 'options': ['Cast Away', 'Forrest Gump', 'The Green Mile', 'Big'], 'answer': 'Forrest Gump'},
-    {'question': 'What is the name of the fictional African country in "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
-    {'question': 'Who played the Joker in "The Dark Knight"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
-    {'question': 'Which film features a character named Andy Dufresne?', 'options': ['The Green Mile', 'The Shawshank Redemption', 'Stand By Me', 'Misery'], 'answer': 'The Shawshank Redemption'},
-]
-
-GENRE_QUESTIONS = [
-    {'question': '"The Exorcist" (1973)', 'options': ['Action', 'Comedy', 'Horror', 'Drama'], 'answer': 'Horror'},
-    {'question': '"The Hangover" (2009)', 'options': ['Horror', 'Comedy', 'Drama', 'Thriller'], 'answer': 'Comedy'},
-    {'question': '"Schindler\'s List" (1993)', 'options': ['Comedy', 'Action', 'Drama', 'Sci-Fi'], 'answer': 'Drama'},
-    {'question': '"Die Hard" (1988)', 'options': ['Comedy', 'Romance', 'Action', 'Horror'], 'answer': 'Action'},
-    {'question': '"The Notebook" (2004)', 'options': ['Action', 'Horror', 'Comedy', 'Romance'], 'answer': 'Romance'},
-    {'question': '"Alien" (1979)', 'options': ['Comedy', 'Sci-Fi', 'Drama', 'Romance'], 'answer': 'Sci-Fi'},
-    {'question': '"The Silence of the Lambs" (1991)', 'options': ['Comedy', 'Romance', 'Action', 'Thriller'], 'answer': 'Thriller'},
-    {'question': '"Finding Nemo" (2003)', 'options': ['Horror', 'Animation', 'Drama', 'Action'], 'answer': 'Animation'},
-]
-
-DIRECTOR_QUESTIONS = [
-    {'question': 'Who directed "E.T. the Extra-Terrestrial"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
-    {'question': 'Who directed "The Shining"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
-    {'question': 'Who directed "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
-    {'question': 'Who directed "Fight Club"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
-    {'question': 'Who directed "The Lord of the Rings" trilogy?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
-]
-
-BOX_OFFICE_QUESTIONS = [
-    {'question': 'Which film earned more worldwide?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
-    {'question': 'Which film earned more worldwide?', 'options': ['The Lion King 2019 ($1.6B)', 'Frozen II ($1.4B)'], 'answer': 'The Lion King 2019 ($1.6B)'},
-    {'question': 'Which film earned more worldwide?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
-]
-
-YEAR_QUESTIONS = [
-    {'question': 'When was "Star Wars: A New Hope" released?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
-    {'question': 'When was "The Matrix" released?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
-    {'question': 'When was "Jaws" released?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
-    {'question': 'When was "Back to the Future" released?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
-    {'question': 'When was "Jurassic Park" released?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
-]
-
-GAME_QUESTIONS = {
-    'trivia': TRIVIA_QUESTIONS,
-    'guess_genre': GENRE_QUESTIONS,
-    'director_match': DIRECTOR_QUESTIONS,
-    'box_office_bet': BOX_OFFICE_QUESTIONS,
-    'year_guess': YEAR_QUESTIONS
+# Trivia Questions Database - Multilingual
+TRIVIA_QUESTIONS = {
+    'en': [
+        {'question': 'Which film won Best Picture at the 2020 Oscars?', 'options': ['1917', 'Parasite', 'Joker', 'Once Upon a Time in Hollywood'], 'answer': 'Parasite'},
+        {'question': 'Who directed "Inception"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+        {'question': 'What year was "The Godfather" released?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+        {'question': 'Which actor played Jack in "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+        {'question': 'What is the highest-grossing film of all time?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: The Force Awakens'], 'answer': 'Avatar'},
+        {'question': 'Who directed "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+        {'question': 'In which film does Tom Hanks say "Life is like a box of chocolates"?', 'options': ['Cast Away', 'Forrest Gump', 'The Green Mile', 'Big'], 'answer': 'Forrest Gump'},
+        {'question': 'What is the name of the fictional African country in "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+        {'question': 'Who played the Joker in "The Dark Knight"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+        {'question': 'Which film features a character named Andy Dufresne?', 'options': ['The Green Mile', 'The Shawshank Redemption', 'Stand By Me', 'Misery'], 'answer': 'The Shawshank Redemption'},
+    ],
+    'it': [
+        {'question': 'Quale film ha vinto il miglior film agli Oscar 2020?', 'options': ['1917', 'Parasite', 'Joker', 'C\'era una volta a Hollywood'], 'answer': 'Parasite'},
+        {'question': 'Chi ha diretto "Inception"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+        {'question': 'In che anno è uscito "Il Padrino"?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+        {'question': 'Quale attore ha interpretato Jack in "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+        {'question': 'Qual è il film con il maggior incasso di tutti i tempi?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: Il risveglio della Forza'], 'answer': 'Avatar'},
+        {'question': 'Chi ha diretto "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+        {'question': 'In quale film Tom Hanks dice "La vita è come una scatola di cioccolatini"?', 'options': ['Cast Away', 'Forrest Gump', 'Il miglio verde', 'Big'], 'answer': 'Forrest Gump'},
+        {'question': 'Come si chiama il paese africano immaginario in "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+        {'question': 'Chi ha interpretato il Joker in "Il cavaliere oscuro"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+        {'question': 'In quale film appare il personaggio Andy Dufresne?', 'options': ['Il miglio verde', 'Le ali della libertà', 'Stand By Me', 'Misery'], 'answer': 'Le ali della libertà'},
+    ],
+    'es': [
+        {'question': '¿Qué película ganó el Oscar a la Mejor Película en 2020?', 'options': ['1917', 'Parásitos', 'Joker', 'Érase una vez en Hollywood'], 'answer': 'Parásitos'},
+        {'question': '¿Quién dirigió "Origen"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+        {'question': '¿En qué año se estrenó "El Padrino"?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+        {'question': '¿Qué actor interpretó a Jack en "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+        {'question': '¿Cuál es la película más taquillera de todos los tiempos?', 'options': ['Avatar', 'Vengadores: Endgame', 'Titanic', 'Star Wars: El despertar de la Fuerza'], 'answer': 'Avatar'},
+        {'question': '¿Quién dirigió "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+        {'question': '¿En qué película Tom Hanks dice "La vida es como una caja de bombones"?', 'options': ['Náufrago', 'Forrest Gump', 'La milla verde', 'Big'], 'answer': 'Forrest Gump'},
+        {'question': '¿Cómo se llama el país africano ficticio en "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+        {'question': '¿Quién interpretó al Joker en "El caballero oscuro"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+        {'question': '¿En qué película aparece el personaje Andy Dufresne?', 'options': ['La milla verde', 'Cadena perpetua', 'Cuenta conmigo', 'Misery'], 'answer': 'Cadena perpetua'},
+    ],
+    'fr': [
+        {'question': 'Quel film a remporté l\'Oscar du meilleur film en 2020?', 'options': ['1917', 'Parasite', 'Joker', 'Once Upon a Time in Hollywood'], 'answer': 'Parasite'},
+        {'question': 'Qui a réalisé "Inception"?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+        {'question': 'En quelle année "Le Parrain" est-il sorti?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+        {'question': 'Quel acteur a joué Jack dans "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+        {'question': 'Quel est le film le plus rentable de tous les temps?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: Le Réveil de la Force'], 'answer': 'Avatar'},
+        {'question': 'Qui a réalisé "Pulp Fiction"?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+        {'question': 'Dans quel film Tom Hanks dit "La vie c\'est comme une boîte de chocolats"?', 'options': ['Seul au monde', 'Forrest Gump', 'La Ligne verte', 'Big'], 'answer': 'Forrest Gump'},
+        {'question': 'Comment s\'appelle le pays africain fictif dans "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+        {'question': 'Qui a joué le Joker dans "The Dark Knight"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+        {'question': 'Dans quel film apparaît le personnage Andy Dufresne?', 'options': ['La Ligne verte', 'Les Évadés', 'Stand By Me', 'Misery'], 'answer': 'Les Évadés'},
+    ],
+    'de': [
+        {'question': 'Welcher Film gewann 2020 den Oscar für den besten Film?', 'options': ['1917', 'Parasite', 'Joker', 'Once Upon a Time in Hollywood'], 'answer': 'Parasite'},
+        {'question': 'Wer führte bei "Inception" Regie?', 'options': ['Steven Spielberg', 'Christopher Nolan', 'Martin Scorsese', 'James Cameron'], 'answer': 'Christopher Nolan'},
+        {'question': 'In welchem Jahr wurde "Der Pate" veröffentlicht?', 'options': ['1970', '1972', '1974', '1976'], 'answer': '1972'},
+        {'question': 'Welcher Schauspieler spielte Jack in "Titanic"?', 'options': ['Brad Pitt', 'Tom Hanks', 'Leonardo DiCaprio', 'Johnny Depp'], 'answer': 'Leonardo DiCaprio'},
+        {'question': 'Was ist der erfolgreichste Film aller Zeiten?', 'options': ['Avatar', 'Avengers: Endgame', 'Titanic', 'Star Wars: Das Erwachen der Macht'], 'answer': 'Avatar'},
+        {'question': 'Wer führte bei "Pulp Fiction" Regie?', 'options': ['Quentin Tarantino', 'Martin Scorsese', 'Ridley Scott', 'David Fincher'], 'answer': 'Quentin Tarantino'},
+        {'question': 'In welchem Film sagt Tom Hanks "Das Leben ist wie eine Schachtel Pralinen"?', 'options': ['Cast Away', 'Forrest Gump', 'The Green Mile', 'Big'], 'answer': 'Forrest Gump'},
+        {'question': 'Wie heißt das fiktive afrikanische Land in "Black Panther"?', 'options': ['Zamunda', 'Wakanda', 'Genovia', 'Latveria'], 'answer': 'Wakanda'},
+        {'question': 'Wer spielte den Joker in "The Dark Knight"?', 'options': ['Jared Leto', 'Joaquin Phoenix', 'Heath Ledger', 'Jack Nicholson'], 'answer': 'Heath Ledger'},
+        {'question': 'In welchem Film kommt die Figur Andy Dufresne vor?', 'options': ['The Green Mile', 'Die Verurteilten', 'Stand By Me', 'Misery'], 'answer': 'Die Verurteilten'},
+    ]
 }
+
+GENRE_QUESTIONS = {
+    'en': [
+        {'question': '"The Exorcist" (1973)', 'options': ['Action', 'Comedy', 'Horror', 'Drama'], 'answer': 'Horror'},
+        {'question': '"The Hangover" (2009)', 'options': ['Horror', 'Comedy', 'Drama', 'Thriller'], 'answer': 'Comedy'},
+        {'question': '"Schindler\'s List" (1993)', 'options': ['Comedy', 'Action', 'Drama', 'Sci-Fi'], 'answer': 'Drama'},
+        {'question': '"Die Hard" (1988)', 'options': ['Comedy', 'Romance', 'Action', 'Horror'], 'answer': 'Action'},
+        {'question': '"The Notebook" (2004)', 'options': ['Action', 'Horror', 'Comedy', 'Romance'], 'answer': 'Romance'},
+        {'question': '"Alien" (1979)', 'options': ['Comedy', 'Sci-Fi', 'Drama', 'Romance'], 'answer': 'Sci-Fi'},
+        {'question': '"The Silence of the Lambs" (1991)', 'options': ['Comedy', 'Romance', 'Action', 'Thriller'], 'answer': 'Thriller'},
+        {'question': '"Finding Nemo" (2003)', 'options': ['Horror', 'Animation', 'Drama', 'Action'], 'answer': 'Animation'},
+    ],
+    'it': [
+        {'question': '"L\'Esorcista" (1973)', 'options': ['Azione', 'Commedia', 'Horror', 'Drammatico'], 'answer': 'Horror'},
+        {'question': '"Una notte da leoni" (2009)', 'options': ['Horror', 'Commedia', 'Drammatico', 'Thriller'], 'answer': 'Commedia'},
+        {'question': '"Schindler\'s List" (1993)', 'options': ['Commedia', 'Azione', 'Drammatico', 'Fantascienza'], 'answer': 'Drammatico'},
+        {'question': '"Die Hard" (1988)', 'options': ['Commedia', 'Romantico', 'Azione', 'Horror'], 'answer': 'Azione'},
+        {'question': '"Le pagine della nostra vita" (2004)', 'options': ['Azione', 'Horror', 'Commedia', 'Romantico'], 'answer': 'Romantico'},
+        {'question': '"Alien" (1979)', 'options': ['Commedia', 'Fantascienza', 'Drammatico', 'Romantico'], 'answer': 'Fantascienza'},
+        {'question': '"Il silenzio degli innocenti" (1991)', 'options': ['Commedia', 'Romantico', 'Azione', 'Thriller'], 'answer': 'Thriller'},
+        {'question': '"Alla ricerca di Nemo" (2003)', 'options': ['Horror', 'Animazione', 'Drammatico', 'Azione'], 'answer': 'Animazione'},
+    ],
+    'es': [
+        {'question': '"El Exorcista" (1973)', 'options': ['Acción', 'Comedia', 'Terror', 'Drama'], 'answer': 'Terror'},
+        {'question': '"Resacón en Las Vegas" (2009)', 'options': ['Terror', 'Comedia', 'Drama', 'Suspense'], 'answer': 'Comedia'},
+        {'question': '"La lista de Schindler" (1993)', 'options': ['Comedia', 'Acción', 'Drama', 'Ciencia Ficción'], 'answer': 'Drama'},
+        {'question': '"Jungla de cristal" (1988)', 'options': ['Comedia', 'Romance', 'Acción', 'Terror'], 'answer': 'Acción'},
+        {'question': '"Diario de una pasión" (2004)', 'options': ['Acción', 'Terror', 'Comedia', 'Romance'], 'answer': 'Romance'},
+        {'question': '"Alien" (1979)', 'options': ['Comedia', 'Ciencia Ficción', 'Drama', 'Romance'], 'answer': 'Ciencia Ficción'},
+        {'question': '"El silencio de los corderos" (1991)', 'options': ['Comedia', 'Romance', 'Acción', 'Suspense'], 'answer': 'Suspense'},
+        {'question': '"Buscando a Nemo" (2003)', 'options': ['Terror', 'Animación', 'Drama', 'Acción'], 'answer': 'Animación'},
+    ],
+    'fr': [
+        {'question': '"L\'Exorciste" (1973)', 'options': ['Action', 'Comédie', 'Horreur', 'Drame'], 'answer': 'Horreur'},
+        {'question': '"Very Bad Trip" (2009)', 'options': ['Horreur', 'Comédie', 'Drame', 'Thriller'], 'answer': 'Comédie'},
+        {'question': '"La Liste de Schindler" (1993)', 'options': ['Comédie', 'Action', 'Drame', 'Science-Fiction'], 'answer': 'Drame'},
+        {'question': '"Piège de cristal" (1988)', 'options': ['Comédie', 'Romance', 'Action', 'Horreur'], 'answer': 'Action'},
+        {'question': '"N\'oublie jamais" (2004)', 'options': ['Action', 'Horreur', 'Comédie', 'Romance'], 'answer': 'Romance'},
+        {'question': '"Alien" (1979)', 'options': ['Comédie', 'Science-Fiction', 'Drame', 'Romance'], 'answer': 'Science-Fiction'},
+        {'question': '"Le Silence des agneaux" (1991)', 'options': ['Comédie', 'Romance', 'Action', 'Thriller'], 'answer': 'Thriller'},
+        {'question': '"Le Monde de Nemo" (2003)', 'options': ['Horreur', 'Animation', 'Drame', 'Action'], 'answer': 'Animation'},
+    ],
+    'de': [
+        {'question': '"Der Exorzist" (1973)', 'options': ['Action', 'Komödie', 'Horror', 'Drama'], 'answer': 'Horror'},
+        {'question': '"Hangover" (2009)', 'options': ['Horror', 'Komödie', 'Drama', 'Thriller'], 'answer': 'Komödie'},
+        {'question': '"Schindlers Liste" (1993)', 'options': ['Komödie', 'Action', 'Drama', 'Science-Fiction'], 'answer': 'Drama'},
+        {'question': '"Stirb langsam" (1988)', 'options': ['Komödie', 'Romanze', 'Action', 'Horror'], 'answer': 'Action'},
+        {'question': '"Wie ein einziger Tag" (2004)', 'options': ['Action', 'Horror', 'Komödie', 'Romanze'], 'answer': 'Romanze'},
+        {'question': '"Alien" (1979)', 'options': ['Komödie', 'Science-Fiction', 'Drama', 'Romanze'], 'answer': 'Science-Fiction'},
+        {'question': '"Das Schweigen der Lämmer" (1991)', 'options': ['Komödie', 'Romanze', 'Action', 'Thriller'], 'answer': 'Thriller'},
+        {'question': '"Findet Nemo" (2003)', 'options': ['Horror', 'Animation', 'Drama', 'Action'], 'answer': 'Animation'},
+    ]
+}
+
+DIRECTOR_QUESTIONS = {
+    'en': [
+        {'question': 'Who directed "E.T. the Extra-Terrestrial"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+        {'question': 'Who directed "The Shining"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+        {'question': 'Who directed "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+        {'question': 'Who directed "Fight Club"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+        {'question': 'Who directed "The Lord of the Rings" trilogy?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+    ],
+    'it': [
+        {'question': 'Chi ha diretto "E.T. l\'extra-terrestre"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+        {'question': 'Chi ha diretto "Shining"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+        {'question': 'Chi ha diretto "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+        {'question': 'Chi ha diretto "Fight Club"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+        {'question': 'Chi ha diretto la trilogia "Il Signore degli Anelli"?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+    ],
+    'es': [
+        {'question': '¿Quién dirigió "E.T. el extraterrestre"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+        {'question': '¿Quién dirigió "El resplandor"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+        {'question': '¿Quién dirigió "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+        {'question': '¿Quién dirigió "El club de la lucha"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+        {'question': '¿Quién dirigió la trilogía "El Señor de los Anillos"?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+    ],
+    'fr': [
+        {'question': 'Qui a réalisé "E.T. l\'extra-terrestre"?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+        {'question': 'Qui a réalisé "Shining"?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+        {'question': 'Qui a réalisé "Avatar"?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+        {'question': 'Qui a réalisé "Fight Club"?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+        {'question': 'Qui a réalisé la trilogie "Le Seigneur des Anneaux"?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+    ],
+    'de': [
+        {'question': 'Wer führte bei "E.T. - Der Außerirdische" Regie?', 'options': ['George Lucas', 'Steven Spielberg', 'James Cameron', 'Ridley Scott'], 'answer': 'Steven Spielberg'},
+        {'question': 'Wer führte bei "Shining" Regie?', 'options': ['Stanley Kubrick', 'Alfred Hitchcock', 'John Carpenter', 'Wes Craven'], 'answer': 'Stanley Kubrick'},
+        {'question': 'Wer führte bei "Avatar" Regie?', 'options': ['Steven Spielberg', 'Peter Jackson', 'James Cameron', 'Christopher Nolan'], 'answer': 'James Cameron'},
+        {'question': 'Wer führte bei "Fight Club" Regie?', 'options': ['David Fincher', 'Quentin Tarantino', 'Martin Scorsese', 'Darren Aronofsky'], 'answer': 'David Fincher'},
+        {'question': 'Wer führte bei "Der Herr der Ringe"-Trilogie Regie?', 'options': ['Peter Jackson', 'Guillermo del Toro', 'Sam Raimi', 'Terry Gilliam'], 'answer': 'Peter Jackson'},
+    ]
+}
+
+BOX_OFFICE_QUESTIONS = {
+    'en': [
+        {'question': 'Which film earned more worldwide?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+        {'question': 'Which film earned more worldwide?', 'options': ['The Lion King 2019 ($1.6B)', 'Frozen II ($1.4B)'], 'answer': 'The Lion King 2019 ($1.6B)'},
+        {'question': 'Which film earned more worldwide?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+    ],
+    'it': [
+        {'question': 'Quale film ha incassato di più nel mondo?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+        {'question': 'Quale film ha incassato di più nel mondo?', 'options': ['Il Re Leone 2019 ($1.6B)', 'Frozen II ($1.4B)'], 'answer': 'Il Re Leone 2019 ($1.6B)'},
+        {'question': 'Quale film ha incassato di più nel mondo?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+    ],
+    'es': [
+        {'question': '¿Qué película recaudó más en todo el mundo?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+        {'question': '¿Qué película recaudó más en todo el mundo?', 'options': ['El Rey León 2019 ($1.6B)', 'Frozen II ($1.4B)'], 'answer': 'El Rey León 2019 ($1.6B)'},
+        {'question': '¿Qué película recaudó más en todo el mundo?', 'options': ['Vengadores: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+    ],
+    'fr': [
+        {'question': 'Quel film a rapporté le plus dans le monde?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+        {'question': 'Quel film a rapporté le plus dans le monde?', 'options': ['Le Roi Lion 2019 ($1.6B)', 'La Reine des neiges II ($1.4B)'], 'answer': 'Le Roi Lion 2019 ($1.6B)'},
+        {'question': 'Quel film a rapporté le plus dans le monde?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+    ],
+    'de': [
+        {'question': 'Welcher Film hat weltweit mehr eingespielt?', 'options': ['Titanic ($2.2B)', 'Jurassic World ($1.6B)'], 'answer': 'Titanic ($2.2B)'},
+        {'question': 'Welcher Film hat weltweit mehr eingespielt?', 'options': ['Der König der Löwen 2019 ($1.6B)', 'Die Eiskönigin II ($1.4B)'], 'answer': 'Der König der Löwen 2019 ($1.6B)'},
+        {'question': 'Welcher Film hat weltweit mehr eingespielt?', 'options': ['Avengers: Endgame ($2.8B)', 'Avatar ($2.9B)'], 'answer': 'Avatar ($2.9B)'},
+    ]
+}
+
+YEAR_QUESTIONS = {
+    'en': [
+        {'question': 'When was "Star Wars: A New Hope" released?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+        {'question': 'When was "The Matrix" released?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+        {'question': 'When was "Jaws" released?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+        {'question': 'When was "Back to the Future" released?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+        {'question': 'When was "Jurassic Park" released?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+    ],
+    'it': [
+        {'question': 'Quando è uscito "Star Wars: Una nuova speranza"?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+        {'question': 'Quando è uscito "Matrix"?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+        {'question': 'Quando è uscito "Lo squalo"?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+        {'question': 'Quando è uscito "Ritorno al futuro"?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+        {'question': 'Quando è uscito "Jurassic Park"?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+    ],
+    'es': [
+        {'question': '¿Cuándo se estrenó "Star Wars: Una nueva esperanza"?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+        {'question': '¿Cuándo se estrenó "Matrix"?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+        {'question': '¿Cuándo se estrenó "Tiburón"?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+        {'question': '¿Cuándo se estrenó "Regreso al futuro"?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+        {'question': '¿Cuándo se estrenó "Parque Jurásico"?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+    ],
+    'fr': [
+        {'question': 'Quand est sorti "Star Wars: Un nouvel espoir"?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+        {'question': 'Quand est sorti "Matrix"?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+        {'question': 'Quand est sorti "Les Dents de la mer"?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+        {'question': 'Quand est sorti "Retour vers le futur"?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+        {'question': 'Quand est sorti "Jurassic Park"?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+    ],
+    'de': [
+        {'question': 'Wann wurde "Star Wars: Eine neue Hoffnung" veröffentlicht?', 'options': ['1975', '1977', '1979', '1981'], 'answer': '1977'},
+        {'question': 'Wann wurde "Matrix" veröffentlicht?', 'options': ['1997', '1998', '1999', '2000'], 'answer': '1999'},
+        {'question': 'Wann wurde "Der weiße Hai" veröffentlicht?', 'options': ['1973', '1975', '1977', '1979'], 'answer': '1975'},
+        {'question': 'Wann wurde "Zurück in die Zukunft" veröffentlicht?', 'options': ['1983', '1985', '1987', '1989'], 'answer': '1985'},
+        {'question': 'Wann wurde "Jurassic Park" veröffentlicht?', 'options': ['1991', '1993', '1995', '1997'], 'answer': '1993'},
+    ]
+}
+
+def get_questions_for_language(game_id: str, language: str):
+    """Get questions in the specified language"""
+    questions_map = {
+        'trivia': TRIVIA_QUESTIONS,
+        'guess_genre': GENRE_QUESTIONS,
+        'director_match': DIRECTOR_QUESTIONS,
+        'box_office_bet': BOX_OFFICE_QUESTIONS,
+        'year_guess': YEAR_QUESTIONS
+    }
+    questions = questions_map.get(game_id, TRIVIA_QUESTIONS)
+    return questions.get(language, questions.get('en', []))
 
 # Challenges
 DAILY_CHALLENGES = [
@@ -419,7 +600,75 @@ TRANSLATIONS = {
     }
 }
 
-GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy']
+# Film Genres with Sub-genres
+GENRES = {
+    'action': {
+        'name': 'Action',
+        'subgenres': ['Martial Arts', 'Spy', 'Superhero', 'Military', 'Disaster', 'Heist']
+    },
+    'comedy': {
+        'name': 'Comedy', 
+        'subgenres': ['Romantic Comedy', 'Dark Comedy', 'Parody', 'Slapstick', 'Satire', 'Buddy Comedy']
+    },
+    'drama': {
+        'name': 'Drama',
+        'subgenres': ['Legal Drama', 'Medical Drama', 'Political', 'Family', 'Sports Drama', 'Tragedy']
+    },
+    'horror': {
+        'name': 'Horror',
+        'subgenres': ['Supernatural', 'Slasher', 'Psychological', 'Zombie', 'Found Footage', 'Gothic']
+    },
+    'sci_fi': {
+        'name': 'Sci-Fi',
+        'subgenres': ['Space Opera', 'Cyberpunk', 'Time Travel', 'Dystopian', 'Alien Invasion', 'Post-Apocalyptic']
+    },
+    'romance': {
+        'name': 'Romance',
+        'subgenres': ['Period Romance', 'Teen Romance', 'Tragic Romance', 'LGBTQ+', 'Second Chance', 'Forbidden Love']
+    },
+    'thriller': {
+        'name': 'Thriller',
+        'subgenres': ['Psychological Thriller', 'Crime Thriller', 'Conspiracy', 'Techno-Thriller', 'Mystery', 'Survival']
+    },
+    'animation': {
+        'name': 'Animation',
+        'subgenres': ['3D Animation', 'Anime', 'Stop Motion', 'Musical Animation', 'Family Animation', 'Adult Animation']
+    },
+    'documentary': {
+        'name': 'Documentary',
+        'subgenres': ['Nature', 'True Crime', 'Historical', 'Music Documentary', 'Sports Documentary', 'Social Issues']
+    },
+    'fantasy': {
+        'name': 'Fantasy',
+        'subgenres': ['Epic Fantasy', 'Urban Fantasy', 'Dark Fantasy', 'Fairy Tale', 'Mythological', 'Sword & Sorcery']
+    },
+    'musical': {
+        'name': 'Musical',
+        'subgenres': ['Broadway Adaptation', 'Jukebox Musical', 'Rock Musical', 'Dance Film', 'Opera', 'Concert Film']
+    },
+    'western': {
+        'name': 'Western',
+        'subgenres': ['Spaghetti Western', 'Neo-Western', 'Revisionist Western', 'Comedy Western', 'Epic Western', 'Outlaw']
+    },
+    'war': {
+        'name': 'War',
+        'subgenres': ['World War II', 'Vietnam War', 'Civil War', 'Modern Warfare', 'Anti-War', 'War Drama']
+    },
+    'noir': {
+        'name': 'Noir',
+        'subgenres': ['Classic Noir', 'Neo-Noir', 'Tech-Noir', 'Femme Fatale', 'Hardboiled', 'Crime Noir']
+    },
+    'adventure': {
+        'name': 'Adventure',
+        'subgenres': ['Treasure Hunt', 'Survival Adventure', 'Jungle Adventure', 'Sea Adventure', 'Expedition', 'Swashbuckler']
+    },
+    'biographical': {
+        'name': 'Biographical',
+        'subgenres': ['Music Biopic', 'Sports Biopic', 'Historical Figure', 'Political Biopic', 'Artist Biopic', 'Criminal Biopic']
+    }
+}
+
+GENRE_LIST = list(GENRES.keys())
 
 COUNTRIES = {
     'USA': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami', 'San Francisco'],
@@ -519,6 +768,7 @@ class TokenResponse(BaseModel):
 class FilmCreate(BaseModel):
     title: str
     genre: str
+    subgenres: List[str] = []  # Up to 3 sub-genres
     release_date: str
     weeks_in_theater: int
     sponsor_id: Optional[str] = None
@@ -527,7 +777,7 @@ class FilmCreate(BaseModel):
     location_days: Dict[str, int]
     screenwriter_id: str
     director_id: str
-    actors: List[Dict[str, str]]
+    actors: List[Dict[str, str]]  # Each actor has {id, role}
     extras_count: int
     extras_cost: float
     screenplay: str
@@ -543,6 +793,7 @@ class FilmResponse(BaseModel):
     user_id: str
     title: str
     genre: str
+    subgenres: List[str] = []
     release_date: str
     weeks_in_theater: int
     actual_weeks_in_theater: int = 0
@@ -552,7 +803,7 @@ class FilmResponse(BaseModel):
     location_costs: Dict[str, float]
     screenwriter: Dict[str, Any]
     director: Dict[str, Any]
-    cast: List[Dict[str, Any]]
+    cast: List[Dict[str, Any]]  # Includes role for each actor
     extras_count: int
     extras_cost: float
     screenplay: str
@@ -688,8 +939,8 @@ async def get_or_create_person(person_type: str) -> dict:
         }
         
         if person_type == 'actor':
-            person['preferred_genres'] = random.sample(GENRES, 2)
-            person['alternate_genres'] = random.sample(GENRES, 2)
+            person['preferred_genres'] = random.sample(GENRE_LIST, 2)
+            person['alternate_genres'] = random.sample(GENRE_LIST, 2)
         elif person_type == 'director':
             person['style'] = random.choice(['Auteur', 'Commercial', 'Indie', 'Blockbuster', 'Art House'])
             person['awards'] = random.randint(0, 10)
@@ -967,6 +1218,26 @@ async def get_equipment():
 async def get_countries():
     return COUNTRIES
 
+@api_router.get("/genres")
+async def get_genres():
+    """Get all genres with their sub-genres"""
+    return GENRES
+
+# Actor Roles for films
+ACTOR_ROLES = [
+    {'id': 'protagonist', 'name': 'Protagonist', 'name_it': 'Protagonista', 'name_es': 'Protagonista', 'name_fr': 'Protagoniste', 'name_de': 'Hauptdarsteller'},
+    {'id': 'co_protagonist', 'name': 'Co-Protagonist', 'name_it': 'Co-Protagonista', 'name_es': 'Co-Protagonista', 'name_fr': 'Co-Protagoniste', 'name_de': 'Nebenhauptdarsteller'},
+    {'id': 'antagonist', 'name': 'Antagonist', 'name_it': 'Antagonista', 'name_es': 'Antagonista', 'name_fr': 'Antagoniste', 'name_de': 'Antagonist'},
+    {'id': 'supporting', 'name': 'Supporting', 'name_it': 'Personaggio Secondario', 'name_es': 'Personaje Secundario', 'name_fr': 'Rôle Secondaire', 'name_de': 'Nebenrolle'},
+    {'id': 'cameo', 'name': 'Cameo', 'name_it': 'Cameo', 'name_es': 'Cameo', 'name_fr': 'Cameo', 'name_de': 'Cameo'}
+]
+
+@api_router.get("/actor-roles")
+async def get_actor_roles():
+    """Get available actor roles for film casting"""
+    return ACTOR_ROLES
+
+
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
@@ -1008,6 +1279,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'user_id': user['id'],
         'title': film_data.title,
         'genre': film_data.genre,
+        'subgenres': film_data.subgenres[:3],  # Max 3 sub-genres
         'release_date': film_data.release_date,
         'weeks_in_theater': film_data.weeks_in_theater,
         'actual_weeks_in_theater': 0,
@@ -1017,7 +1289,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'location_costs': location_costs,
         'screenwriter': {'id': film_data.screenwriter_id},
         'director': {'id': film_data.director_id},
-        'cast': film_data.actors,
+        'cast': film_data.actors,  # Now includes role for each actor
         'extras_count': film_data.extras_count,
         'extras_cost': film_data.extras_cost,
         'screenplay': film_data.screenplay,
@@ -1157,8 +1429,9 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
         if cooldown_remaining > 0:
             raise HTTPException(status_code=400, detail=f"Game on cooldown. Wait {int(cooldown_remaining)} minutes.")
     
-    # Get questions for this game
-    questions_pool = GAME_QUESTIONS.get(game_id, TRIVIA_QUESTIONS)
+    # Get questions for this game in user's language
+    user_language = user.get('language', 'en')
+    questions_pool = get_questions_for_language(game_id, user_language)
     questions = random.sample(questions_pool, min(game['questions_count'], len(questions_pool)))
     
     # Create session

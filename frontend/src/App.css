@@ -32,3 +32,9 @@
         transform: rotate(360deg);
     }
 }
+
+/* Global App Styles */
+.cinema-bg {
+    background: radial-gradient(ellipse at 50% 0%, rgba(234, 179, 8, 0.08) 0%, transparent 50%),
+                linear-gradient(to bottom, #0F0F10 0%, #0F0F10 100%);
+}

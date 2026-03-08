@@ -1,0 +1,120 @@
+{
+  "identity": {
+    "name": "CineWorld Studio's",
+    "theme_mode": "dark",
+    "emotional_archetype": "The Producer's Desk",
+    "core_values": [
+      "Cinematic Immersion",
+      "High-Stakes Business",
+      "Creative Freedom",
+      "Global Domination"
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Bebas Neue, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-6xl md:text-7xl tracking-tight leading-none font-normal",
+      "h2": "text-4xl md:text-5xl tracking-tight leading-tight",
+      "h3": "text-2xl md:text-3xl tracking-normal",
+      "body_lg": "text-lg leading-relaxed font-light",
+      "body_base": "text-base leading-relaxed text-muted-foreground",
+      "caption": "text-sm tracking-wide uppercase text-muted-foreground/60"
+    },
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@300;400;500;700&display=swap');"
+    ]
+  },
+  "colors": {
+    "palette": {
+      "background": "#0F0F10",
+      "surface": "#1A1A1A",
+      "surface_highlight": "#252525",
+      "border": "#27272A",
+      "primary": "#EAB308",
+      "primary_foreground": "#000000",
+      "secondary": "#FFFFFF",
+      "accent_red": "#E11D48",
+      "accent_blue": "#3B82F6",
+      "success": "#22C55E",
+      "text_primary": "#F3F4F6",
+      "text_secondary": "#9CA3AF"
+    },
+    "gradients": {
+      "gold_rush": "bg-gradient-to-r from-yellow-500 to-amber-600",
+      "cinema_glow": "bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/10 via-background to-background",
+      "dark_overlay": "bg-gradient-to-t from-background via-background/80 to-transparent"
+    }
+  },
+  "layout_strategy": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "spacing": "space-y-8 or gap-8",
+    "grid_system": "grid grid-cols-1 md:grid-cols-12 gap-6",
+    "z_index": {
+      "toast": 50,
+      "modal": 40,
+      "dropdown": 30,
+      "sticky_nav": 20,
+      "base": 0
+    },
+    "navigation": {
+      "position": "top-fixed",
+      "style": "h-16 border-b border-border bg-background/80 backdrop-blur-md z-50 flex items-center justify-between px-6"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-bold uppercase tracking-widest px-8 py-3 transition-transform active:scale-95 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
+      "secondary": "bg-secondary/10 text-secondary hover:bg-secondary/20 rounded-sm font-medium border border-white/10 px-6 py-3",
+      "ghost": "text-muted-foreground hover:text-white hover:bg-white/5"
+    },
+    "cards": {
+      "dashboard_widget": "bg-surface border border-white/5 rounded-lg p-6 shadow-xl hover:border-white/10 transition-colors",
+      "movie_poster": "aspect-[2/3] rounded-lg overflow-hidden shadow-2xl hover:scale-[1.02] transition-transform duration-300 relative group border border-white/5"
+    },
+    "inputs": {
+      "default": "bg-black/20 border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 h-12 rounded-md text-white placeholder:text-white/20"
+    },
+    "badges": {
+      "status_live": "bg-red-500/10 text-red-500 border-red-500/20 animate-pulse",
+      "status_production": "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      "rank_gold": "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+    }
+  },
+  "image_assets": {
+    "placeholders": {
+      "movie_posters": [
+        "https://images.unsplash.com/photo-1575823857138-d80155581d8c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMG1vdmllJTIwcG9zdGVyJTIwbWluaW1hbGlzdHxlbnwwfHx8fDE3NzMwMDQ1MTJ8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1543363950-d1d51b4eca60?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMG1vdmllJTIwcG9zdGVyJTIwbWluaW1hbGlzdHxlbnwwfHx8fDE3NzMwMDQ1MTJ8MA&ixlib=rb-4.1.0&q=85"
+      ],
+      "director_avatars": [
+        "https://images.unsplash.com/photo-1632749696743-a909c17b92f2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHw0fHxmaWxtJTIwZGlyZWN0b3IlMjBwb3J0cmFpdCUyMHByb2Zlc3Npb25hbCUyMGJsYWNrJTIwYW5kJTIwd2hpdGV8ZW58MHx8fHwxNzczMDA0NTE0fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1657672737825-b4c21477798e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwzfHxmaWxtJTIwZGlyZWN0b3IlMjBwb3J0cmFpdCUyMHByb2Zlc3Npb25hbCUyMGJsYWNrJTIwYW5kJTIwd2hpdGV8ZW58MHx8fHwxNzczMDA0NTE0fDA&ixlib=rb-4.1.0&q=85"
+      ],
+      "background_textures": [
+        "https://images.unsplash.com/photo-1762541693135-fb989de961e1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHw0fHxjaW5lbWElMjBhdWRpZW5jZSUyMGRhcmslMjBtb3ZpZSUyMHRoZWF0ZXJ8ZW58MHx8fHwxNzczMDA0NTE1fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1621276336795-925346853745?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwyfHxjaW5lbWElMjBhdWRpZW5jZSUyMGRhcmslMjBtb3ZpZSUyMHRoZWF0ZXJ8ZW58MHx8fHwxNzczMDA0NTE1fDA&ixlib=rb-4.1.0&q=85"
+      ]
+    }
+  },
+  "feature_specific_guidelines": {
+    "box_office_map": "Use a stylized list or simple SVG map for countries. Clicking a country expands to show cities. Use color intensity (Red to Gold) to show revenue heat.",
+    "chat_system": "Chat bubbles must be distinct. User (Gold/Right), Others (Grey/Left). Voice notes should appear as audio waveforms. Private chats support image previews.",
+    "film_wizard": "Step-by-step process. Use a progress bar at the top. Each step (Script -> Cast -> Sponsor -> etc.) should feel like a distinct phase of production.",
+    "real_time_clock": "Display 'Game Date' prominently in the top bar. It syncs with real days but might have a different year."
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react', 'recharts', 'framer-motion', 'clsx', 'tailwind-merge' if not present.",
+    "Use 'sonner' for notifications.",
+    "Ensure all text has sufficient contrast (AA standard minimum).",
+    "Use the provided image URLs for placeholders until the user generates their own content.",
+    "Implement the 'Bebas Neue' font for all headings to maintain the cinematic brand.",
+    "The Top Navigation is critical. It must contain the User Profile, Game Date, and Company Funds.",
+    "Use the 'gradients.cinema_glow' class for hero sections or winning moments.",
+    "For the Chart components, use a custom tooltip that matches the dark theme (bg-surface border-white/10).",
+    "Add data-testid attributes to all interactive elements (buttons, inputs, links)."
+  ]
+}

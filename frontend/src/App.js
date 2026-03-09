@@ -2194,10 +2194,10 @@ const FilmDetail = () => {
               setGeneratingTrailer(false);
               if (statusRes.data.has_trailer) {
                 toast.success('Trailer generato con successo! +5 bonus qualità');
-                loadFilm();
               } else if (statusRes.data.error) {
-                toast.error('Errore nella generazione del trailer');
+                toast.error('Errore nella generazione del trailer. Puoi riprovare.');
               }
+              loadFilm(); // Reload to update filmActions
             }
           } catch (e) {
             clearInterval(pollInterval);
@@ -2477,10 +2477,22 @@ const FilmDetail = () => {
               ) : trailerStatus?.error ? (
                 <div className="text-center py-6 space-y-3">
                   <AlertTriangle className="w-10 h-10 mx-auto text-red-400" />
-                  <p className="text-red-400">Errore nella generazione del trailer</p>
-                  <Button onClick={generateTrailer} variant="outline" className="border-purple-500/30 text-purple-400">
-                    Riprova
-                  </Button>
+                  <p className="text-red-400">{language === 'it' ? 'Errore nella generazione del trailer' : 'Error generating trailer'}</p>
+                  <p className="text-xs text-gray-500">{trailerStatus.error}</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-xs text-gray-400">{language === 'it' ? 'Riprova la generazione:' : 'Retry generation:'}</p>
+                    <div className="flex gap-2">
+                      <Button onClick={() => generateTrailer(4)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
+                        4 sec
+                      </Button>
+                      <Button onClick={() => generateTrailer(8)} size="sm" className="bg-purple-600 hover:bg-purple-500">
+                        <RefreshCw className="w-3 h-3 mr-1" /> 8 sec ($50,000)
+                      </Button>
+                      <Button onClick={() => generateTrailer(12)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
+                        12 sec
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-6 space-y-3">

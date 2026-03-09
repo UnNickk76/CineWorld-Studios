@@ -2055,12 +2055,18 @@ async def get_actor_roles():
 @api_router.get("/films/{film_id}/actions")
 async def get_film_actions(film_id: str, user: dict = Depends(get_current_user)):
     """Get the status of one-time actions for a film."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'user_id': 1})
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'trailer_error': 1, 'trailer_generating': 1, 'user_id': 1})
     if not film:
         raise HTTPException(status_code=404, detail="Film not found")
     
     is_owner = film.get('user_id') == user['id']
     actions_performed = film.get('actions_performed', {})
+    
+    # Trailer is available if: owner AND (no trailer OR there was an error) AND not currently generating
+    has_trailer = bool(film.get('trailer_url'))
+    has_error = bool(film.get('trailer_error'))
+    is_generating = bool(film.get('trailer_generating'))
+    trailer_available = is_owner and (not has_trailer or has_error) and not is_generating
     
     return {
         'film_id': film_id,
@@ -2077,9 +2083,11 @@ async def get_film_actions(film_id: str, user: dict = Depends(get_current_user))
                 'available': is_owner and not actions_performed.get('skill_boost', False)
             },
             'generate_trailer': {
-                'performed': bool(film.get('trailer_url')),
+                'performed': bool(film.get('trailer_url')) and not film.get('trailer_error'),
                 'trailer_url': film.get('trailer_url'),
-                'available': is_owner and not film.get('trailer_url')
+                'trailer_error': film.get('trailer_error'),
+                'generating': film.get('trailer_generating', False),
+                'available': trailer_available
             }
         }
     }
@@ -4082,8 +4090,8 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Check if trailer already exists
-    if film.get('trailer_url'):
+    # Check if trailer already exists AND there's no error (allow retry on error)
+    if film.get('trailer_url') and not film.get('trailer_error'):
         return {'trailer_url': film['trailer_url'], 'status': 'exists'}
     
     # Check if generation is in progress
@@ -4098,8 +4106,11 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     # Deduct cost
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -trailer_cost}})
     
-    # Mark as generating
-    await db.films.update_one({'id': request.film_id}, {'$set': {'trailer_generating': True}})
+    # Mark as generating and reset error (for retry)
+    await db.films.update_one({'id': request.film_id}, {
+        '$set': {'trailer_generating': True},
+        '$unset': {'trailer_error': ''}
+    })
     
     # Generate prompt based on film details
     genre = film.get('genre', 'drama')

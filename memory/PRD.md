@@ -5,7 +5,34 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## Funzionalità Implementate
 
-### Sistema Sociale e Profili - 09/03/2025 (NUOVO)
+### Sistema Social Completo - 09/03/2026 (COMPLETATO)
+
+#### Major (Alleanze)
+- Pagina `/major` per creare e gestire alleanze
+- Requisito livello 20 per creare una Major
+- Visualizzazione membri con ruoli (Fondatore, Vice, Produttore Senior, Membro)
+- Bonus Major: Qualità, Incassi, XP basati sul livello dell'alleanza
+- Sfide settimanali con rewards
+- Sistema inviti membri
+
+#### Amici & Follower
+- Pagina `/friends` con 4 tab: Amici, Follower, Seguiti, Richieste
+- Invio e accettazione richieste di amicizia
+- Sistema follow/unfollow
+- Visualizzazione profili cliccando sugli utenti
+
+#### Centro Notifiche
+- Pagina `/notifications` per tutte le notifiche
+- Contatore badge rosso nella navbar
+- Notifiche automatiche per: friend_request, friend_accepted, new_follower, major_invite, etc.
+- Pulsanti segna come letto e elimina
+- Icone colorate per tipo di notifica
+
+#### Sincronizzazione Lingua
+- La lingua dell'utente viene sincronizzata al login
+- L'interfaccia si adatta automaticamente alla lingua del profilo
+
+### Sistema Sociale e Profili - 09/03/2025
 
 #### Lista Utenti Online Cliccabile
 - Utenti online e offline visibili nella Chat
@@ -59,6 +86,32 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## API Endpoints Nuovi
 
+### Sistema Social
+```
+GET  /api/major/my - Info Major utente
+POST /api/major/create - Crea nuova Major
+POST /api/major/invite - Invita utente
+POST /api/major/invite/{id}/accept - Accetta invito
+GET  /api/major/challenge - Sfida settimanale
+
+GET  /api/friends - Lista amici
+GET  /api/friends/requests - Richieste in/out
+POST /api/friends/request - Invia richiesta
+POST /api/friends/request/{id}/accept - Accetta
+POST /api/friends/request/{id}/reject - Rifiuta
+DELETE /api/friends/{id} - Rimuovi amico
+
+GET  /api/followers - Lista follower
+GET  /api/following - Lista seguiti
+POST /api/follow/{id} - Segui utente
+DELETE /api/follow/{id} - Smetti di seguire
+
+GET  /api/notifications - Lista notifiche
+GET  /api/notifications/count - Contatore non lette
+POST /api/notifications/read - Segna come lette
+DELETE /api/notifications/{id} - Elimina
+```
+
 ### Profili e Social
 ```
 GET  /api/users/{id}/full-profile - Profilo completo con stats e film
@@ -89,13 +142,16 @@ POST /api/films/{id}/action/skill-boost - Boost skill cast
 ## Backlog
 
 ### P1 - In Progress
+- [ ] Attività delle Major (Sfide, Co-Produzioni, Classifiche)
 - [ ] Mini-giochi Versus tra giocatori
 - [ ] Cerimonie di premiazione "Live" animate
+- [ ] Indicatore UI "Ha già lavorato con noi" sul cast
 
 ### P2 - Future
 - [ ] Preascolto colonne sonore (bloccato - no API gratuite)
-- [ ] Refactoring server.py e App.js (file monolitici)
+- [ ] Refactoring server.py e App.js (file monolitici ~7000 righe ciascuno)
 
 ## Test Reports
+- `/app/test_reports/iteration_16.json` - Sistema Social (100% pass) ✅
 - `/app/test_reports/iteration_14.json` - Cast System v2 (100% pass)
 - `/app/test_reports/iteration_15.json` - Social Features (100% backend, 95% frontend)

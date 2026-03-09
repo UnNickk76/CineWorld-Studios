@@ -56,7 +56,7 @@ Create a multiplayer online film production game with user profiles, film creati
 - [x] Daily revenue based on audience satisfaction
 - [x] Variable theater duration
 
-## Recent Updates (March 8, 2026)
+## Recent Updates (March 8-9, 2026)
 1. **Avatar System Overhaul**: Replaced old avatars with 20 modern DiceBear v9 styles
 2. **Mini-game Translations**: All questions translated in IT, EN, ES, FR, DE
 3. **Genre Expansion**: Added 6 new genres (Musical, Western, War, Noir, Adventure, Biographical)
@@ -64,6 +64,7 @@ Create a multiplayer online film production game with user profiles, film creati
 5. **Actor Roles**: New system to assign roles (Protagonist, Co-protagonist, Antagonist, Supporting, Cameo)
 6. **Chat Moderator Bots**: 3 bots (CineMaster MOD, FilmGuide MOD, CineNews BOT) with auto-responses
 7. **Same-Day Film Release**: Films can now be released on the same day of creation
+8. **Auto Film Announcements**: CineNews bot announces new film releases in General chat (translated)
 
 ## API Endpoints
 - POST /api/auth/register, login, /me, /profile, /reset

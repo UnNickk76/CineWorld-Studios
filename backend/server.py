@@ -1359,6 +1359,41 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue + opening_day_revenue
     await db.users.update_one({'id': user['id']}, {'$set': {'funds': new_funds}})
     
+    # CineNews bot announces the new film in public chat
+    news_bot = CHAT_BOTS[2]  # CineNews
+    user_lang = user.get('language', 'en')
+    
+    announcements = {
+        'en': f"🎬 NEW RELEASE! '{film_data.title}' by {user.get('production_house_name', 'Unknown Studio')} is now in theaters! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
+        'it': f"🎬 NUOVO FILM! '{film_data.title}' di {user.get('production_house_name', 'Studio Sconosciuto')} è ora nelle sale! Genere: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
+        'es': f"🎬 ¡NUEVO ESTRENO! '{film_data.title}' de {user.get('production_house_name', 'Estudio Desconocido')} ya está en cines! Género: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
+        'fr': f"🎬 NOUVELLE SORTIE! '{film_data.title}' de {user.get('production_house_name', 'Studio Inconnu')} est maintenant en salles! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
+        'de': f"🎬 NEUER FILM! '{film_data.title}' von {user.get('production_house_name', 'Unbekanntes Studio')} ist jetzt im Kino! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}"
+    }
+    
+    announcement = announcements.get(user_lang, announcements['en'])
+    
+    bot_message = {
+        'id': str(uuid.uuid4()),
+        'room_id': 'general',
+        'sender_id': news_bot['id'],
+        'content': announcement,
+        'message_type': 'text',
+        'image_url': None,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.chat_messages.insert_one(bot_message)
+    await sio.emit('new_message', {
+        **{k: v for k, v in bot_message.items() if k != '_id'},
+        'sender': {
+            'id': news_bot['id'],
+            'nickname': news_bot['nickname'],
+            'avatar_url': news_bot['avatar_url'],
+            'is_bot': True,
+            'is_moderator': False
+        }
+    }, room='general')
+    
     return FilmResponse(**{k: v for k, v in film.items() if k != '_id'})
 
 @api_router.get("/films/my", response_model=List[FilmResponse])

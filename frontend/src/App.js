@@ -1560,15 +1560,23 @@ const CinemaJournal = () => {
   const { api, user } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const [films, setFilms] = useState([]);
+  const [news, setNews] = useState([]);
+  const [discoveredStars, setDiscoveredStars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [comment, setComment] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => { 
-    api.get('/films/cinema-journal')
-      .then(r => setFilms(r.data.films))
-      .finally(() => setLoading(false)); 
+    Promise.all([
+      api.get('/films/cinema-journal'),
+      api.get('/cinema-news'),
+      api.get('/discovered-stars')
+    ]).then(([filmsRes, newsRes, starsRes]) => {
+      setFilms(filmsRes.data.films);
+      setNews(newsRes.data.news || []);
+      setDiscoveredStars(starsRes.data.stars || []);
+    }).finally(() => setLoading(false)); 
   }, [api]);
 
   const handleRate = async (filmId, rating) => {
@@ -1647,6 +1655,67 @@ const CinemaJournal = () => {
         </div>
         <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
       </div>
+
+      {/* Breaking News - Star Discoveries */}
+      {news.length > 0 && (
+        <Card className="bg-gradient-to-r from-yellow-500/10 to-purple-500/10 border-yellow-500/30 mb-6 overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">BREAKING NEWS</h2>
+            </div>
+            <div className="space-y-3">
+              {news.slice(0, 3).map(item => (
+                <div key={item.id} className="flex items-start gap-3 p-3 bg-black/30 rounded-lg">
+                  {item.person_avatar && (
+                    <Avatar className="w-12 h-12 ring-2 ring-yellow-500">
+                      <AvatarImage src={item.person_avatar} />
+                      <AvatarFallback className="bg-yellow-500/20 text-yellow-500">{item.person_name?.[0]}</AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-yellow-500">{item.title_localized}</h3>
+                      {item.importance === 'high' && <Badge className="bg-red-500/20 text-red-400 text-[10px]">HOT</Badge>}
+                    </div>
+                    <p className="text-sm text-gray-300 mt-1">{item.content_localized}</p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      <span>Scoperto da {item.discoverer_name}</span>
+                      <span>•</span>
+                      <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Discovered Stars Hall of Fame */}
+      {discoveredStars.length > 0 && (
+        <Card className="bg-[#1A1A1A] border-purple-500/30 mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Award className="w-5 h-5 text-purple-400" />
+              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">HALL OF FAME - STELLE SCOPERTE</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {discoveredStars.slice(0, 8).map(star => (
+                <div key={star.id} className="flex-shrink-0 w-24 text-center">
+                  <Avatar className="w-16 h-16 mx-auto ring-2 ring-purple-500">
+                    <AvatarImage src={star.avatar_url} />
+                    <AvatarFallback className="bg-purple-500/20 text-purple-400">{star.name?.[0]}</AvatarFallback>
+                  </Avatar>
+                  <p className="text-xs font-semibold mt-1 truncate">{star.name}</p>
+                  <p className="text-[10px] text-gray-500">by {star.discoverer?.nickname}</p>
+                  <Badge className="bg-purple-500/20 text-purple-400 text-[10px] mt-1">Superstar</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {loading ? (
         <div className="text-center py-8 text-gray-400">Loading the latest news...</div>

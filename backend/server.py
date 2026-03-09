@@ -1748,6 +1748,47 @@ async def get_ad_platforms():
     """Get available advertising platforms"""
     return AD_PLATFORMS
 
+# Get Cinema News (star discoveries, events, etc.)
+@api_router.get("/cinema-news")
+async def get_cinema_news(
+    limit: int = 10,
+    user: dict = Depends(get_current_user)
+):
+    """Get latest cinema news including star discoveries"""
+    user_lang = user.get('language', 'en')
+    
+    news = await db.cinema_news.find(
+        {},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    
+    # Localize titles and content
+    for item in news:
+        item['title_localized'] = item.get('title', {}).get(user_lang, item.get('title', {}).get('en', 'News'))
+        item['content_localized'] = item.get('content', {}).get(user_lang, item.get('content', {}).get('en', ''))
+    
+    return {'news': news}
+
+# Get discovered stars
+@api_router.get("/discovered-stars")
+async def get_discovered_stars(user: dict = Depends(get_current_user)):
+    """Get list of discovered stars"""
+    stars = await db.people.find(
+        {'is_discovered_star': True},
+        {'_id': 0}
+    ).sort('discovered_at', -1).limit(20).to_list(20)
+    
+    # Get discoverer details
+    for star in stars:
+        if star.get('discovered_by'):
+            discoverer = await db.users.find_one(
+                {'id': star['discovered_by']}, 
+                {'_id': 0, 'nickname': 1, 'avatar_url': 1}
+            )
+            star['discoverer'] = discoverer
+    
+    return {'stars': stars}
+
 # Advertise a film
 class AdvertisingCampaign(BaseModel):
     platforms: List[str]  # Platform IDs
@@ -1901,10 +1942,40 @@ async def check_star_discovery(user: dict, person_id: str, film_quality: float):
             'sender': {'id': news_bot['id'], 'nickname': news_bot['nickname'], 'avatar_url': news_bot['avatar_url'], 'is_bot': True}
         }, room='general')
         
-        # Reward the discoverer
+        # Create news for Cinema Journal
+        news_entry = {
+            'id': str(uuid.uuid4()),
+            'type': 'star_discovery',
+            'title': {
+                'en': f"RISING STAR: {person['name']} Discovered!",
+                'it': f"STELLA NASCENTE: {person['name']} Scoperta!",
+                'es': f"ESTRELLA EMERGENTE: ¡{person['name']} Descubierta!",
+                'fr': f"ÉTOILE MONTANTE: {person['name']} Découvert!",
+                'de': f"AUFSTEIGENDER STAR: {person['name']} Entdeckt!"
+            },
+            'content': {
+                'en': f"A new star has been born in the film industry! {user.get('nickname')} has discovered the incredible talent of {person['name']}, who is destined to become a superstar. Watch out Hollywood!",
+                'it': f"Una nuova stella è nata nell'industria cinematografica! {user.get('nickname')} ha scoperto l'incredibile talento di {person['name']}, destinato a diventare una superstar. Attenti Hollywood!",
+                'es': f"¡Una nueva estrella ha nacido en la industria del cine! {user.get('nickname')} ha descubierto el increíble talento de {person['name']}.",
+                'fr': f"Une nouvelle star est née dans l'industrie du cinéma! {user.get('nickname')} a découvert l'incroyable talent de {person['name']}.",
+                'de': f"Ein neuer Star ist in der Filmindustrie geboren! {user.get('nickname')} hat das unglaubliche Talent von {person['name']} entdeckt."
+            },
+            'person_id': person_id,
+            'person_name': person['name'],
+            'person_avatar': person.get('avatar_url'),
+            'person_role': person.get('type'),
+            'discoverer_id': user['id'],
+            'discoverer_name': user.get('nickname'),
+            'discoverer_avatar': user.get('avatar_url'),
+            'importance': 'high',
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.cinema_news.insert_one(news_entry)
+        
+        # Reward the discoverer with XP bonus
         await db.users.update_one(
             {'id': user['id']},
-            {'$inc': {'funds': 500000, 'likeability_score': 5, 'discovered_stars': 1}}
+            {'$inc': {'funds': 500000, 'likeability_score': 5, 'discovered_stars': 1, 'total_xp': 200}}
         )
         
         return person['name']

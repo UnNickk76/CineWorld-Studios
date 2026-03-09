@@ -16,6 +16,20 @@ import random
 import socketio
 import base64
 import asyncio
+import math
+
+# Import game systems
+from game_systems import (
+    calculate_xp_for_level, get_level_from_xp, XP_REWARDS, check_minigame_cooldown,
+    MINIGAME_COOLDOWN_HOURS, MINIGAME_MAX_PLAYS,
+    calculate_fame_change, get_fame_tier,
+    INFRASTRUCTURE_TYPES, WORLD_CITIES, LANGUAGE_TO_COUNTRY,
+    get_first_cinema_city, calculate_infrastructure_cost, DEFAULT_CINEMA_PRICES,
+    calculate_cinema_daily_revenue,
+    generate_student_actor, train_student, graduate_student,
+    calculate_imdb_rating, generate_ai_interactions,
+    calculate_leaderboard_score
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -515,7 +529,9 @@ TRANSLATIONS = {
         'gender': 'Gender',
         'male': 'Male',
         'female': 'Female',
-        'other': 'Other'
+        'other': 'Other',
+        'infrastructure': 'Infrastructure',
+        'leaderboard': 'Leaderboard'
     },
     'it': {
         'welcome': 'Benvenuto in CineWorld Studio\'s',
@@ -554,6 +570,8 @@ TRANSLATIONS = {
         'challenges': 'Sfide',
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
+        'infrastructure': 'Infrastrutture',
+        'leaderboard': 'Classifica',
         'adult_warning': 'Questa è una comunità per adulti (18+). La condivisione di immagini di minori è severamente vietata e comporterà il ban immediato.',
         'age': 'Età',
         'gender': 'Genere',
@@ -854,6 +872,12 @@ class UserResponse(BaseModel):
     total_likes_given: int = 0
     total_likes_received: int = 0
     messages_sent: int = 0
+    # New level system fields
+    total_xp: int = 0
+    level: int = 0
+    fame: float = 50.0
+    total_lifetime_revenue: float = 0
+    leaderboard_score: float = 0
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -1498,10 +1522,49 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     
+    # Calculate IMDb-style rating
+    film['imdb_rating'] = calculate_imdb_rating(film)
+    
+    # Generate initial AI interactions
+    film['ai_interactions'] = generate_ai_interactions(film, 0)
+    film['ratings'] = {'user_ratings': [], 'ai_ratings': film['ai_interactions']}
+    
     await db.films.insert_one(film)
     
+    # Update user funds
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue + opening_day_revenue
-    await db.users.update_one({'id': user['id']}, {'$set': {'funds': new_funds}})
+    
+    # Calculate XP based on film quality
+    xp_gained = XP_REWARDS['film_release']
+    if quality_score >= 90:
+        xp_gained += XP_REWARDS['film_blockbuster']
+    elif quality_score >= 80:
+        xp_gained += XP_REWARDS['film_hit']
+    elif quality_score < 40:
+        xp_gained = XP_REWARDS['film_flop']
+    
+    # Calculate fame change
+    current_fame = user.get('fame', 50)
+    fame_change = calculate_fame_change(quality_score, opening_day_revenue, current_fame)
+    new_fame = max(0, min(100, current_fame + fame_change))
+    
+    # Update total lifetime revenue
+    new_lifetime_revenue = user.get('total_lifetime_revenue', 0) + opening_day_revenue
+    
+    # Update user stats
+    new_xp = user.get('total_xp', 0) + xp_gained
+    new_level_info = get_level_from_xp(new_xp)
+    
+    await db.users.update_one(
+        {'id': user['id']}, 
+        {'$set': {
+            'funds': new_funds,
+            'total_xp': new_xp,
+            'level': new_level_info['level'],
+            'fame': new_fame,
+            'total_lifetime_revenue': new_lifetime_revenue
+        }}
+    )
     
     # Check for star discoveries among the cast
     discovered_stars = []
@@ -2061,13 +2124,15 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     })
     await db.films.update_one({'id': film_id}, {'$inc': {'likes_count': 1}})
     
+    # Add XP for giving like
     await db.users.update_one(
         {'id': user['id']}, 
-        {'$inc': {'total_likes_given': 1, 'interaction_score': 0.5}}
+        {'$inc': {'total_likes_given': 1, 'interaction_score': 0.5, 'total_xp': XP_REWARDS['like_given']}}
     )
+    # Add XP for receiving like
     await db.users.update_one(
         {'id': film['user_id']}, 
-        {'$inc': {'total_likes_received': 1, 'likeability_score': 0.3}}
+        {'$inc': {'total_likes_received': 1, 'likeability_score': 0.3, 'total_xp': XP_REWARDS['like_received']}}
     )
     
     quality_change = random.uniform(0.1, 1)
@@ -2091,14 +2156,15 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     
-    # Check cooldown
-    cooldowns = user.get('mini_game_cooldowns', {})
-    last_played = cooldowns.get(game_id)
-    if last_played:
-        last_time = datetime.fromisoformat(last_played)
-        cooldown_remaining = game['cooldown_minutes'] - (datetime.now(timezone.utc) - last_time).total_seconds() / 60
-        if cooldown_remaining > 0:
-            raise HTTPException(status_code=400, detail=f"Game on cooldown. Wait {int(cooldown_remaining)} minutes.")
+    # Check new cooldown system (4 plays per game every 4 hours)
+    play_history = user.get('minigame_plays', [])
+    cooldown_status = check_minigame_cooldown(play_history, game_id)
+    
+    if not cooldown_status['can_play']:
+        raise HTTPException(
+            status_code=429, 
+            detail=f"Hai raggiunto il limite di {MINIGAME_MAX_PLAYS} partite. Prossimo reset tra {cooldown_status['minutes_until_reset']} minuti."
+        )
     
     # Get questions for this game in user's language
     user_language = user.get('language', 'en')
@@ -2114,9 +2180,18 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
         'completed': False
     }
     
+    # Record play for cooldown
+    play_history.append({
+        'game_id': game_id,
+        'played_at': datetime.now(timezone.utc).isoformat()
+    })
+    
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {f'mini_game_sessions.{session_id}': session_data}}
+        {'$set': {
+            f'mini_game_sessions.{session_id}': session_data,
+            'minigame_plays': play_history
+        }}
     )
     
     # Return questions without answers
@@ -2125,10 +2200,14 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
         for i, q in enumerate(questions)
     ]
     
+    # Get updated cooldown status
+    new_cooldown_status = check_minigame_cooldown(play_history, game_id)
+    
     return {
         'session_id': session_id,
         'game': game,
-        'questions': questions_without_answers
+        'questions': questions_without_answers,
+        'cooldown_status': new_cooldown_status
     }
 
 @api_router.post("/minigames/submit")
@@ -2170,14 +2249,24 @@ async def submit_mini_game(submission: MiniGameSubmit, user: dict = Depends(get_
     score_ratio = correct_count / total_questions if total_questions > 0 else 0
     reward = int(game['reward_min'] + (game['reward_max'] - game['reward_min']) * score_ratio)
     
+    # Calculate XP based on performance
+    xp_gained = XP_REWARDS['minigame_play']
+    if score_ratio >= 0.8:
+        xp_gained += XP_REWARDS['minigame_win']
+    
     # Update user
+    new_xp = user.get('total_xp', 0) + xp_gained
+    new_level_info = get_level_from_xp(new_xp)
+    
     await db.users.update_one(
         {'id': user['id']},
         {
             '$inc': {'funds': reward},
             '$set': {
                 f'mini_game_cooldowns.{submission.game_id}': datetime.now(timezone.utc).isoformat(),
-                f'mini_game_sessions.{submission.session_id}.completed': True
+                f'mini_game_sessions.{submission.session_id}.completed': True,
+                'total_xp': new_xp,
+                'level': new_level_info['level']
             }
         }
     )
@@ -2187,6 +2276,8 @@ async def submit_mini_game(submission: MiniGameSubmit, user: dict = Depends(get_
         'total_questions': total_questions,
         'score_percentage': int(score_ratio * 100),
         'reward': reward,
+        'xp_gained': xp_gained,
+        'level_info': new_level_info,
         'results': results
     }
 
@@ -2687,6 +2778,698 @@ async def leave_room(sid, data):
     room_id = data.get('room_id')
     if room_id:
         sio.leave_room(sid, room_id)
+
+# ==================== LEVEL & XP SYSTEM ====================
+
+class AddXPRequest(BaseModel):
+    xp_type: str
+    amount: Optional[int] = None
+
+@api_router.get("/player/level-info")
+async def get_player_level_info(user: dict = Depends(get_current_user)):
+    """Get detailed level information for current player."""
+    total_xp = user.get('total_xp', 0)
+    level_info = get_level_from_xp(total_xp)
+    
+    return {
+        **level_info,
+        'fame': user.get('fame', 50),
+        'fame_tier': get_fame_tier(user.get('fame', 50)),
+        'total_lifetime_revenue': user.get('total_lifetime_revenue', 0),
+        'leaderboard_score': calculate_leaderboard_score(user)
+    }
+
+@api_router.post("/player/add-xp")
+async def add_player_xp(request: AddXPRequest, user: dict = Depends(get_current_user)):
+    """Add XP to player (internal use)."""
+    xp_amount = request.amount or XP_REWARDS.get(request.xp_type, 0)
+    
+    if xp_amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid XP type or amount")
+    
+    current_xp = user.get('total_xp', 0)
+    new_xp = current_xp + xp_amount
+    
+    old_level = get_level_from_xp(current_xp)['level']
+    new_level_info = get_level_from_xp(new_xp)
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'total_xp': new_xp, 'level': new_level_info['level']}}
+    )
+    
+    level_up = new_level_info['level'] > old_level
+    
+    return {
+        'xp_gained': xp_amount,
+        'total_xp': new_xp,
+        'level_info': new_level_info,
+        'level_up': level_up,
+        'unlocked_infrastructure': get_newly_unlocked_infrastructure(old_level, new_level_info['level']) if level_up else []
+    }
+
+def get_newly_unlocked_infrastructure(old_level: int, new_level: int) -> List[dict]:
+    """Get infrastructure types unlocked between two levels."""
+    unlocked = []
+    for infra_id, infra in INFRASTRUCTURE_TYPES.items():
+        req_level = infra['level_required']
+        if old_level < req_level <= new_level:
+            unlocked.append({
+                'id': infra_id,
+                'name': infra['name'],
+                'name_it': infra['name_it'],
+                'level_required': req_level
+            })
+    return unlocked
+
+# ==================== MINIGAME COOLDOWN SYSTEM ====================
+
+@api_router.get("/minigames/cooldowns")
+async def get_minigame_cooldowns(user: dict = Depends(get_current_user)):
+    """Get cooldown status for all minigames."""
+    play_history = user.get('minigame_plays', [])
+    
+    cooldowns = {}
+    for game in MINI_GAMES:
+        cooldowns[game['id']] = check_minigame_cooldown(play_history, game['id'])
+    
+    return cooldowns
+
+@api_router.post("/minigames/{game_id}/record-play")
+async def record_minigame_play(game_id: str, user: dict = Depends(get_current_user)):
+    """Record a minigame play for cooldown tracking."""
+    play_history = user.get('minigame_plays', [])
+    
+    # Check if can play
+    cooldown_status = check_minigame_cooldown(play_history, game_id)
+    if not cooldown_status['can_play']:
+        raise HTTPException(status_code=429, detail=f"Cooldown active. {cooldown_status['plays_remaining']} plays remaining. Reset in {cooldown_status['minutes_until_reset']} minutes.")
+    
+    # Record play
+    play_history.append({
+        'game_id': game_id,
+        'played_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Keep only last 24 hours of history
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    play_history = [p for p in play_history if datetime.fromisoformat(p['played_at'].replace('Z', '+00:00')) > cutoff]
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'minigame_plays': play_history}}
+    )
+    
+    return check_minigame_cooldown(play_history, game_id)
+
+# ==================== FAME SYSTEM ====================
+
+@api_router.get("/player/fame")
+async def get_player_fame(user: dict = Depends(get_current_user)):
+    """Get player fame information."""
+    fame = user.get('fame', 50)
+    tier = get_fame_tier(fame)
+    
+    return {
+        'fame': fame,
+        'tier': tier,
+        'next_tier': get_fame_tier(min(fame + 20, 100)) if fame < 90 else None
+    }
+
+# ==================== INFRASTRUCTURE SYSTEM ====================
+
+class InfrastructurePurchaseRequest(BaseModel):
+    type: str
+    city_name: str
+    country: str
+    custom_name: Optional[str] = None
+    logo_url: Optional[str] = None
+
+class CinemaPricesUpdate(BaseModel):
+    prices: Dict[str, float]
+
+@api_router.get("/infrastructure/types")
+async def get_infrastructure_types(user: dict = Depends(get_current_user)):
+    """Get all infrastructure types with unlock requirements."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 50)
+    
+    result = []
+    for infra_id, infra in INFRASTRUCTURE_TYPES.items():
+        can_purchase = level_info['level'] >= infra['level_required'] and fame >= infra['fame_required']
+        result.append({
+            **infra,
+            'can_purchase': can_purchase,
+            'meets_level': level_info['level'] >= infra['level_required'],
+            'meets_fame': fame >= infra['fame_required']
+        })
+    
+    return sorted(result, key=lambda x: x['level_required'])
+
+@api_router.get("/infrastructure/cities")
+async def get_available_cities(country: Optional[str] = None):
+    """Get cities available for infrastructure purchase."""
+    if country:
+        return {country: WORLD_CITIES.get(country, [])}
+    return WORLD_CITIES
+
+@api_router.get("/infrastructure/my")
+async def get_my_infrastructure(user: dict = Depends(get_current_user)):
+    """Get player's owned infrastructure."""
+    infrastructure = await db.infrastructure.find(
+        {'owner_id': user['id']},
+        {'_id': 0}
+    ).to_list(100)
+    
+    # Group by type
+    grouped = {}
+    for infra in infrastructure:
+        infra_type = infra.get('type', 'unknown')
+        if infra_type not in grouped:
+            grouped[infra_type] = []
+        grouped[infra_type].append(infra)
+    
+    return {
+        'infrastructure': infrastructure,
+        'grouped': grouped,
+        'total_count': len(infrastructure)
+    }
+
+@api_router.post("/infrastructure/purchase")
+async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: dict = Depends(get_current_user)):
+    """Purchase new infrastructure."""
+    infra_type = INFRASTRUCTURE_TYPES.get(request.type)
+    if not infra_type:
+        raise HTTPException(status_code=400, detail="Invalid infrastructure type")
+    
+    # Check level requirement
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    if level_info['level'] < infra_type['level_required']:
+        raise HTTPException(status_code=400, detail=f"Level {infra_type['level_required']} required")
+    
+    # Check fame requirement
+    fame = user.get('fame', 50)
+    if fame < infra_type['fame_required']:
+        raise HTTPException(status_code=400, detail=f"Fame {infra_type['fame_required']} required")
+    
+    # Find city
+    cities = WORLD_CITIES.get(request.country, [])
+    city = next((c for c in cities if c['name'] == request.city_name), None)
+    if not city:
+        raise HTTPException(status_code=400, detail="Invalid city")
+    
+    # Check if first infrastructure - must be in language country
+    existing = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': request.type})
+    if existing == 0 and request.type == 'cinema':
+        language_country = LANGUAGE_TO_COUNTRY.get(user.get('language', 'en'), 'USA')
+        if request.country != language_country:
+            raise HTTPException(status_code=400, detail=f"First cinema must be in {language_country}")
+    
+    # Calculate cost
+    cost = calculate_infrastructure_cost(request.type, city)
+    
+    # Check funds
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient funds. Need ${cost:,}")
+    
+    # Create infrastructure
+    new_infra = {
+        'id': str(uuid.uuid4()),
+        'owner_id': user['id'],
+        'type': request.type,
+        'custom_name': request.custom_name or f"{user.get('nickname', 'Player')}'s {infra_type['name']}",
+        'logo_url': request.logo_url,
+        'city': city,
+        'country': request.country,
+        'purchase_cost': cost,
+        'purchase_date': datetime.now(timezone.utc).isoformat(),
+        'prices': DEFAULT_CINEMA_PRICES.copy() if infra_type.get('screens', 0) > 0 else {},
+        'films_showing': [],
+        'students': [] if request.type == 'cinema_school' else None,
+        'total_revenue': 0,
+        'daily_revenues': []
+    }
+    
+    await db.infrastructure.insert_one(new_infra)
+    
+    # Deduct funds and add XP
+    new_funds = user['funds'] - cost
+    new_xp = user.get('total_xp', 0) + XP_REWARDS['infrastructure_purchase']
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'funds': new_funds, 'total_xp': new_xp}}
+    )
+    
+    return {
+        'infrastructure': {k: v for k, v in new_infra.items() if k != '_id'},
+        'cost': cost,
+        'new_funds': new_funds,
+        'xp_gained': XP_REWARDS['infrastructure_purchase']
+    }
+
+@api_router.get("/infrastructure/{infra_id}")
+async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed infrastructure information."""
+    infra = await db.infrastructure.find_one(
+        {'id': infra_id, 'owner_id': user['id']},
+        {'_id': 0}
+    )
+    
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    
+    return {
+        **infra,
+        'type_info': infra_type
+    }
+
+@api_router.put("/infrastructure/{infra_id}/prices")
+async def update_infrastructure_prices(infra_id: str, request: CinemaPricesUpdate, user: dict = Depends(get_current_user)):
+    """Update cinema prices."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'prices': request.prices}}
+    )
+    
+    return {'success': True, 'prices': request.prices}
+
+@api_router.put("/infrastructure/{infra_id}/logo")
+async def update_infrastructure_logo(infra_id: str, logo_url: str = Query(...), user: dict = Depends(get_current_user)):
+    """Update infrastructure logo."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'logo_url': logo_url}}
+    )
+    
+    return {'success': True, 'logo_url': logo_url}
+
+# ==================== CINEMA FILM MANAGEMENT ====================
+
+class AddFilmToCinemaRequest(BaseModel):
+    film_id: str
+
+class BuyFilmRequest(BaseModel):
+    film_id: str
+
+@api_router.post("/infrastructure/{infra_id}/add-film")
+async def add_film_to_cinema(infra_id: str, request: AddFilmToCinemaRequest, user: dict = Depends(get_current_user)):
+    """Add own film to cinema."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type or infra_type.get('screens', 0) == 0:
+        raise HTTPException(status_code=400, detail="This infrastructure cannot show films")
+    
+    film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned")
+    
+    films_showing = infra.get('films_showing', [])
+    if len(films_showing) >= infra_type.get('screens', 4):
+        raise HTTPException(status_code=400, detail="All screens occupied")
+    
+    films_showing.append({
+        'film_id': film['id'],
+        'title': film['title'],
+        'quality_score': film.get('quality_score', 50),
+        'added_at': datetime.now(timezone.utc).isoformat(),
+        'is_owned': True
+    })
+    
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'films_showing': films_showing}}
+    )
+    
+    return {'success': True, 'films_showing': films_showing}
+
+@api_router.get("/films/available-for-purchase")
+async def get_films_for_purchase(user: dict = Depends(get_current_user)):
+    """Get films from other players available for purchase."""
+    films = await db.films.find(
+        {'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(50)
+    
+    result = []
+    for film in films:
+        # Price based on quality
+        quality = film.get('quality_score', 50)
+        price = int(50000 + (quality * 1000))  # $50k-$150k
+        
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+        
+        result.append({
+            'id': film['id'],
+            'title': film['title'],
+            'genre': film['genre'],
+            'quality_score': quality,
+            'imdb_rating': film.get('imdb_rating', calculate_imdb_rating(film)),
+            'owner': owner,
+            'purchase_price': price
+        })
+    
+    return result
+
+@api_router.post("/infrastructure/{infra_id}/buy-film")
+async def buy_film_for_cinema(infra_id: str, request: BuyFilmRequest, user: dict = Depends(get_current_user)):
+    """Buy another player's film to show in cinema."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    film = await db.films.find_one({'id': request.film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film['user_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Cannot buy your own film")
+    
+    # Calculate price
+    quality = film.get('quality_score', 50)
+    price = int(50000 + (quality * 1000))
+    
+    if user.get('funds', 0) < price:
+        raise HTTPException(status_code=400, detail=f"Insufficient funds. Need ${price:,}")
+    
+    # Add to cinema
+    films_showing = infra.get('films_showing', [])
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    
+    if len(films_showing) >= infra_type.get('screens', 4):
+        raise HTTPException(status_code=400, detail="All screens occupied")
+    
+    films_showing.append({
+        'film_id': film['id'],
+        'title': film['title'],
+        'quality_score': quality,
+        'added_at': datetime.now(timezone.utc).isoformat(),
+        'is_owned': False,
+        'purchase_price': price
+    })
+    
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'films_showing': films_showing}}
+    )
+    
+    # Pay film owner 70% of price
+    owner_payment = int(price * 0.7)
+    await db.users.update_one(
+        {'id': film['user_id']},
+        {'$inc': {'funds': owner_payment}}
+    )
+    
+    # Deduct from buyer
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -price}}
+    )
+    
+    return {
+        'success': True,
+        'price_paid': price,
+        'owner_received': owner_payment,
+        'films_showing': films_showing
+    }
+
+@api_router.delete("/infrastructure/{infra_id}/films/{film_id}")
+async def remove_film_from_cinema(infra_id: str, film_id: str, user: dict = Depends(get_current_user)):
+    """Remove a film from cinema."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    films_showing = [f for f in infra.get('films_showing', []) if f['film_id'] != film_id]
+    
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'films_showing': films_showing}}
+    )
+    
+    return {'success': True, 'films_showing': films_showing}
+
+# ==================== CINEMA SCHOOL ====================
+
+@api_router.get("/cinema-school/{school_id}/students")
+async def get_school_students(school_id: str, user: dict = Depends(get_current_user)):
+    """Get students in cinema school."""
+    school = await db.infrastructure.find_one(
+        {'id': school_id, 'owner_id': user['id'], 'type': 'cinema_school'},
+        {'_id': 0}
+    )
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="Cinema school not found")
+    
+    return {
+        'students': school.get('students', []),
+        'max_students': INFRASTRUCTURE_TYPES['cinema_school']['max_students']
+    }
+
+@api_router.post("/cinema-school/{school_id}/enroll")
+async def enroll_new_student(school_id: str, user: dict = Depends(get_current_user)):
+    """Enroll a new student in cinema school."""
+    school = await db.infrastructure.find_one(
+        {'id': school_id, 'owner_id': user['id'], 'type': 'cinema_school'}
+    )
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="Cinema school not found")
+    
+    students = school.get('students', [])
+    max_students = INFRASTRUCTURE_TYPES['cinema_school']['max_students']
+    
+    if len([s for s in students if s['status'] == 'training']) >= max_students:
+        raise HTTPException(status_code=400, detail=f"School is full ({max_students} students max)")
+    
+    # Generate new student
+    new_student = generate_student_actor()
+    
+    # Assign random name
+    nationality = random.choice(list(NAMES_BY_NATIONALITY.keys()))
+    names = NAMES_BY_NATIONALITY[nationality]
+    if new_student['gender'] == 'female':
+        first_name = random.choice(names['first_female'])
+    else:
+        first_name = random.choice(names['first_male'])
+    last_name = random.choice(names['last'])
+    
+    new_student['name'] = f"{first_name} {last_name}"
+    new_student['nationality'] = nationality
+    
+    students.append(new_student)
+    
+    await db.infrastructure.update_one(
+        {'id': school_id},
+        {'$set': {'students': students}}
+    )
+    
+    return {'student': new_student, 'total_students': len([s for s in students if s['status'] == 'training'])}
+
+@api_router.post("/cinema-school/{school_id}/train")
+async def train_all_students(school_id: str, user: dict = Depends(get_current_user)):
+    """Train all students for one day."""
+    school = await db.infrastructure.find_one(
+        {'id': school_id, 'owner_id': user['id'], 'type': 'cinema_school'}
+    )
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="Cinema school not found")
+    
+    students = school.get('students', [])
+    training_speed = INFRASTRUCTURE_TYPES['cinema_school'].get('training_speed', 1.0)
+    
+    updated_students = []
+    left_students = []
+    
+    for student in students:
+        if student['status'] == 'training':
+            trained = train_student(student, training_speed)
+            if trained['status'] == 'left':
+                left_students.append(trained)
+            updated_students.append(trained)
+        else:
+            updated_students.append(student)
+    
+    await db.infrastructure.update_one(
+        {'id': school_id},
+        {'$set': {'students': updated_students}}
+    )
+    
+    return {
+        'students': updated_students,
+        'left_students': left_students
+    }
+
+@api_router.post("/cinema-school/{school_id}/give-attention/{student_id}")
+async def give_student_attention(school_id: str, student_id: str, user: dict = Depends(get_current_user)):
+    """Give attention to a student to prevent them from leaving."""
+    school = await db.infrastructure.find_one(
+        {'id': school_id, 'owner_id': user['id'], 'type': 'cinema_school'}
+    )
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="Cinema school not found")
+    
+    students = school.get('students', [])
+    
+    for student in students:
+        if student['id'] == student_id:
+            student['days_without_attention'] = 0
+            student['motivation'] = min(1.0, student.get('motivation', 0.8) + 0.1)
+            break
+    
+    await db.infrastructure.update_one(
+        {'id': school_id},
+        {'$set': {'students': students}}
+    )
+    
+    return {'success': True}
+
+@api_router.post("/cinema-school/{school_id}/graduate/{student_id}")
+async def graduate_school_student(school_id: str, student_id: str, user: dict = Depends(get_current_user)):
+    """Graduate a student to become a personal actor."""
+    school = await db.infrastructure.find_one(
+        {'id': school_id, 'owner_id': user['id'], 'type': 'cinema_school'}
+    )
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="Cinema school not found")
+    
+    students = school.get('students', [])
+    student = next((s for s in students if s['id'] == student_id and s['status'] == 'training'), None)
+    
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    if student.get('training_days', 0) < 30:
+        raise HTTPException(status_code=400, detail="Student needs at least 30 days of training")
+    
+    # Graduate student
+    actor = graduate_student(student, school_id, user['id'])
+    actor['name'] = student['name']
+    actor['nationality'] = student.get('nationality', 'USA')
+    actor['avatar_url'] = f"https://api.dicebear.com/9.x/avataaars/svg?seed={actor['name'].replace(' ', '')}&backgroundColor=ffd5dc"
+    
+    # Add to people collection
+    await db.people.insert_one(actor)
+    
+    # Update student status
+    student['status'] = 'graduated'
+    await db.infrastructure.update_one(
+        {'id': school_id},
+        {'$set': {'students': students}}
+    )
+    
+    return {'actor': {k: v for k, v in actor.items() if k != '_id'}}
+
+@api_router.get("/actors/personal")
+async def get_personal_actors(user: dict = Depends(get_current_user)):
+    """Get player's personal actors from cinema school."""
+    actors = await db.people.find(
+        {'owner_id': user['id'], 'is_personal_actor': True},
+        {'_id': 0}
+    ).to_list(50)
+    
+    return {'actors': actors}
+
+# ==================== LEADERBOARD ====================
+
+@api_router.get("/leaderboard/global")
+async def get_global_leaderboard(limit: int = 50):
+    """Get global leaderboard."""
+    users = await db.users.find(
+        {},
+        {'_id': 0, 'password': 0}
+    ).to_list(1000)
+    
+    # Calculate scores
+    for user in users:
+        user['leaderboard_score'] = calculate_leaderboard_score(user)
+        user['level_info'] = get_level_from_xp(user.get('total_xp', 0))
+        user['fame_tier'] = get_fame_tier(user.get('fame', 50))
+    
+    # Sort by composite score
+    sorted_users = sorted(users, key=lambda x: x['leaderboard_score'], reverse=True)[:limit]
+    
+    # Add ranks
+    for i, user in enumerate(sorted_users):
+        user['rank'] = i + 1
+    
+    return {'leaderboard': sorted_users}
+
+@api_router.get("/leaderboard/local/{country}")
+async def get_local_leaderboard(country: str, limit: int = 50):
+    """Get local leaderboard by country."""
+    # Get users with infrastructure in this country
+    infra_owners = await db.infrastructure.distinct('owner_id', {'country': country})
+    
+    users = await db.users.find(
+        {'id': {'$in': infra_owners}},
+        {'_id': 0, 'password': 0}
+    ).to_list(1000)
+    
+    for user in users:
+        user['leaderboard_score'] = calculate_leaderboard_score(user)
+        user['level_info'] = get_level_from_xp(user.get('total_xp', 0))
+        user['fame_tier'] = get_fame_tier(user.get('fame', 50))
+    
+    sorted_users = sorted(users, key=lambda x: x['leaderboard_score'], reverse=True)[:limit]
+    
+    for i, user in enumerate(sorted_users):
+        user['rank'] = i + 1
+    
+    return {'leaderboard': sorted_users, 'country': country}
+
+# ==================== PLAYER PROFILE (PUBLIC) ====================
+
+@api_router.get("/players/{player_id}/profile")
+async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
+    """Get public profile of another player."""
+    player = await db.users.find_one(
+        {'id': player_id},
+        {'_id': 0, 'password': 0, 'email': 0}
+    )
+    
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    # Get player stats
+    films = await db.films.find({'user_id': player_id}, {'_id': 0}).to_list(100)
+    infrastructure = await db.infrastructure.find({'owner_id': player_id}, {'_id': 0}).to_list(50)
+    
+    level_info = get_level_from_xp(player.get('total_xp', 0))
+    fame_tier = get_fame_tier(player.get('fame', 50))
+    
+    return {
+        'id': player['id'],
+        'nickname': player.get('nickname'),
+        'production_house_name': player.get('production_house_name'),
+        'avatar_url': player.get('avatar_url'),
+        'level': level_info['level'],
+        'level_info': level_info,
+        'fame': player.get('fame', 50),
+        'fame_tier': fame_tier,
+        'films_count': len(films),
+        'infrastructure_count': len(infrastructure),
+        'total_likes_received': player.get('total_likes_received', 0),
+        'leaderboard_score': calculate_leaderboard_score(player),
+        'created_at': player.get('created_at')
+    }
 
 # Include router and middleware
 app.include_router(api_router)

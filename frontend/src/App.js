@@ -7,7 +7,8 @@ import {
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
   Send, Image, ChevronRight, ChevronDown, Menu, X, Settings, 
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
-  Check, XCircle, Newspaper, MessageCircle
+  Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
+  Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -129,22 +130,28 @@ const LanguageProvider = ({ children }) => {
 
 // Top Navbar Component
 const TopNavbar = () => {
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, api } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [levelInfo, setLevelInfo] = useState(null);
+
+  useEffect(() => {
+    api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
+  }, [api, user?.total_xp]);
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create', icon: Plus, label: 'create_film' },
+    { path: '/infrastructure', icon: Building, label: 'infrastructure' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/social', icon: Users, label: 'social' },
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
+    { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
-    { path: '/statistics', icon: BarChart3, label: 'statistics' },
   ];
 
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {
@@ -176,6 +183,17 @@ const TopNavbar = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Level Badge */}
+          {levelInfo && (
+            <div className="hidden md:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')} title={`${levelInfo.current_xp}/${levelInfo.xp_for_next_level} XP`}>
+              <Star className="w-3 h-3 text-purple-400" />
+              <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
+              <div className="w-12 h-1.5 bg-purple-900/50 rounded-full overflow-hidden">
+                <div className="h-full bg-purple-500 rounded-full transition-all" style={{width: `${levelInfo.progress_percent}%`}} />
+              </div>
+            </div>
+          )}
+
           <div className="hidden md:flex items-center gap-1.5 text-xs text-gray-400">
             <Calendar className="w-3 h-3" />
             <span className="hidden lg:inline">{gameDate}</span>
@@ -217,6 +235,12 @@ const TopNavbar = () => {
                 <div className="border-b border-white/10 pb-2 mb-2">
                   <p className="font-semibold text-sm">{user?.nickname}</p>
                   <p className="text-xs text-gray-400">{user?.production_house_name}</p>
+                  {levelInfo && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>
+                      <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px] h-4">Fame {user?.fame?.toFixed(0) || 50}</Badge>
+                    </div>
+                  )}
                 </div>
                 <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8" onClick={() => navigate('/profile')} data-testid="profile-btn">
                   <User className="w-3.5 h-3.5" /> {t('profile')}
@@ -242,6 +266,17 @@ const TopNavbar = () => {
             exit={{ opacity: 0, y: -20 }}
             className="lg:hidden absolute top-14 left-0 right-0 bg-[#0F0F10] border-b border-white/10 p-3"
           >
+            {/* Mobile Level Display */}
+            {levelInfo && (
+              <div className="flex items-center gap-2 mb-3 p-2 bg-purple-500/10 rounded border border-purple-500/20">
+                <Star className="w-4 h-4 text-purple-400" />
+                <span className="text-purple-400 font-bold">Level {levelInfo.level}</span>
+                <div className="flex-1 h-2 bg-purple-900/50 rounded-full overflow-hidden">
+                  <div className="h-full bg-purple-500 rounded-full" style={{width: `${levelInfo.progress_percent}%`}} />
+                </div>
+                <span className="text-[10px] text-purple-300">{levelInfo.current_xp}/{levelInfo.xp_for_next_level}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {navItems.map(item => (
                 <Button
@@ -2166,6 +2201,445 @@ const ProfilePage = () => {
   );
 };
 
+// Infrastructure Page
+const InfrastructurePage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { t, language } = useTranslations();
+  const navigate = useNavigate();
+  const [infraTypes, setInfraTypes] = useState([]);
+  const [myInfra, setMyInfra] = useState({ infrastructure: [], grouped: {} });
+  const [cities, setCities] = useState({});
+  const [selectedType, setSelectedType] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [purchasing, setPurchasing] = useState(false);
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [levelInfo, setLevelInfo] = useState(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/infrastructure/types'),
+      api.get('/infrastructure/my'),
+      api.get('/infrastructure/cities'),
+      api.get('/player/level-info')
+    ]).then(([types, my, citiesData, level]) => {
+      setInfraTypes(types.data);
+      setMyInfra(my.data);
+      setCities(citiesData.data);
+      setLevelInfo(level.data);
+    });
+  }, [api]);
+
+  const getIcon = (iconName) => {
+    const icons = { film: Film, car: Car, 'shopping-bag': ShoppingBag, building: Building, 'building-2': Building2, 'graduation-cap': GraduationCap, landmark: Landmark, crown: Crown, award: Award, 'ferris-wheel': Star, clapperboard: Clapperboard };
+    return icons[iconName] || Building;
+  };
+
+  const handlePurchase = async () => {
+    if (!selectedType || !selectedCountry || !selectedCity) return;
+    setPurchasing(true);
+    try {
+      const res = await api.post('/infrastructure/purchase', {
+        type: selectedType.id,
+        city_name: selectedCity,
+        country: selectedCountry,
+        custom_name: customName || null
+      });
+      toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
+      setShowPurchaseDialog(false);
+      // Refresh
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Acquisto fallito');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const getCityPrice = () => {
+    if (!selectedType || !selectedCountry || !selectedCity) return 0;
+    const city = cities[selectedCountry]?.find(c => c.name === selectedCity);
+    if (!city) return selectedType.base_cost;
+    return Math.round(selectedType.base_cost * city.cost_multiplier);
+  };
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="infrastructure-page">
+      {/* Level Progress */}
+      {levelInfo && (
+        <Card className="bg-gradient-to-r from-purple-500/20 to-yellow-500/20 border-purple-500/30 mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Star className="w-6 h-6 text-purple-400" />
+                <span className="font-['Bebas_Neue'] text-2xl">Level {levelInfo.level}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-yellow-400" />
+                <span className="text-yellow-400 font-semibold">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
+              </div>
+            </div>
+            <Progress value={levelInfo.progress_percent} className="h-2 mb-1" />
+            <p className="text-xs text-gray-400">{levelInfo.current_xp} / {levelInfo.xp_for_next_level} XP per il prossimo livello</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* My Infrastructure */}
+      <Card className="bg-[#1A1A1A] border-white/10 mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+            <Building className="w-5 h-5 text-yellow-500" /> Le Mie Infrastrutture ({myInfra.total_count || 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {myInfra.infrastructure.length === 0 ? (
+            <p className="text-gray-400 text-center py-6">Non hai ancora infrastrutture. Raggiungi il livello 5 per acquistare il tuo primo cinema!</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {myInfra.infrastructure.map(infra => {
+                const Icon = getIcon(INFRASTRUCTURE_TYPES?.[infra.type]?.icon || 'building');
+                return (
+                  <Card key={infra.id} className="bg-white/5 border-white/10 cursor-pointer hover:border-yellow-500/50 transition-colors" onClick={() => navigate(`/infrastructure/${infra.id}`)}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-yellow-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{infra.custom_name}</h3>
+                          <p className="text-[10px] text-gray-400">{infra.city?.name}, {infra.country}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Ricavi totali:</span>
+                        <span className="text-green-400">${(infra.total_revenue || 0).toLocaleString()}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Available Infrastructure Types */}
+      <Card className="bg-[#1A1A1A] border-white/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-yellow-500" /> Infrastrutture Disponibili
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {infraTypes.map(infra => {
+              const Icon = getIcon(infra.icon);
+              const canBuy = infra.can_purchase;
+              return (
+                <Card key={infra.id} className={`border transition-all ${canBuy ? 'bg-white/5 border-green-500/30 hover:border-green-500' : 'bg-white/5 border-white/10 opacity-60'}`}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${canBuy ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                        {canBuy ? <Icon className="w-5 h-5 text-green-500" /> : <Lock className="w-5 h-5 text-gray-500" />}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-sm">{language === 'it' ? infra.name_it : infra.name}</h3>
+                        <div className="flex gap-1">
+                          <Badge className={`text-[10px] h-4 ${infra.meets_level ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            Lv.{infra.level_required}
+                          </Badge>
+                          <Badge className={`text-[10px] h-4 ${infra.meets_fame ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            Fame {infra.fame_required}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{language === 'it' ? infra.description_it : infra.description}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-yellow-500 font-semibold text-sm">${infra.base_cost?.toLocaleString()}</span>
+                      <Button size="sm" className="h-7 text-xs" disabled={!canBuy} onClick={() => { setSelectedType(infra); setShowPurchaseDialog(true); }}>
+                        {canBuy ? 'Acquista' : 'Bloccato'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Purchase Dialog */}
+      <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl">Acquista {selectedType?.name_it || selectedType?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs">Nome personalizzato</Label>
+              <Input value={customName} onChange={e => setCustomName(e.target.value)} placeholder={`${user?.nickname}'s ${selectedType?.name}`} className="h-9 bg-black/20 border-white/10" />
+            </div>
+            <div>
+              <Label className="text-xs">Paese</Label>
+              <Select value={selectedCountry} onValueChange={v => { setSelectedCountry(v); setSelectedCity(''); }}>
+                <SelectTrigger className="h-9 bg-black/20 border-white/10"><SelectValue placeholder="Seleziona paese" /></SelectTrigger>
+                <SelectContent>
+                  {Object.keys(cities).map(country => (
+                    <SelectItem key={country} value={country}>{country}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedCountry && (
+              <div>
+                <Label className="text-xs">Città</Label>
+                <Select value={selectedCity} onValueChange={setSelectedCity}>
+                  <SelectTrigger className="h-9 bg-black/20 border-white/10"><SelectValue placeholder="Seleziona città" /></SelectTrigger>
+                  <SelectContent>
+                    {cities[selectedCountry]?.map(city => (
+                      <SelectItem key={city.name} value={city.name}>
+                        {city.name} (x{city.cost_multiplier})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {selectedCity && (
+              <div className="p-3 bg-yellow-500/10 rounded border border-yellow-500/20">
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm">Costo totale:</span>
+                  <span className="text-yellow-500 font-bold">${getCityPrice().toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>I tuoi fondi:</span>
+                  <span className={user?.funds >= getCityPrice() ? 'text-green-400' : 'text-red-400'}>${user?.funds?.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPurchaseDialog(false)}>Annulla</Button>
+            <Button onClick={handlePurchase} disabled={purchasing || !selectedCity || user?.funds < getCityPrice()} className="bg-yellow-500 text-black">
+              {purchasing ? 'Acquistando...' : 'Conferma Acquisto'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+// Placeholder for infrastructure detail route
+const INFRASTRUCTURE_TYPES = {};
+
+// Leaderboard Page
+const LeaderboardPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { t, language } = useTranslations();
+  const navigate = useNavigate();
+  const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
+  const [localLeaderboard, setLocalLeaderboard] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('global');
+
+  useEffect(() => {
+    api.get('/leaderboard/global?limit=50').then(r => {
+      setGlobalLeaderboard(r.data.leaderboard);
+      setLoading(false);
+    });
+  }, [api]);
+
+  const loadLocalLeaderboard = async (country) => {
+    setSelectedCountry(country);
+    const res = await api.get(`/leaderboard/local/${country}?limit=50`);
+    setLocalLeaderboard(res.data.leaderboard);
+  };
+
+  const getRankBadge = (rank) => {
+    if (rank === 1) return <div className="w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center text-black font-bold text-xs">1</div>;
+    if (rank === 2) return <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-black font-bold text-xs">2</div>;
+    if (rank === 3) return <div className="w-6 h-6 rounded-full bg-amber-600 flex items-center justify-center text-black font-bold text-xs">3</div>;
+    return <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-gray-400 font-bold text-xs">{rank}</div>;
+  };
+
+  const PlayerRow = ({ player, showRank = true }) => (
+    <div className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer" onClick={() => navigate(`/player/${player.id}`)}>
+      {showRank && getRankBadge(player.rank)}
+      <Avatar className="w-8 h-8 border border-white/10">
+        <AvatarImage src={player.avatar_url} />
+        <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{player.nickname?.[0]}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1">
+          <span className="font-semibold text-sm truncate">{player.nickname}</span>
+          <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{player.level_info?.level || 0}</Badge>
+        </div>
+        <p className="text-[10px] text-gray-400 truncate">{player.production_house_name}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-semibold text-yellow-500">{player.leaderboard_score?.toFixed(1)}</p>
+        <p className="text-[10px] text-gray-400">Fame: {player.fame?.toFixed(0) || 50}</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="leaderboard-page">
+      <Card className="bg-[#1A1A1A] border-white/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2">
+            <Trophy className="w-6 h-6 text-yellow-500" /> Classifica
+          </CardTitle>
+          <CardDescription>La classifica si basa sulla media di Livello, Fama e Ricavi</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="bg-black/20 mb-4">
+              <TabsTrigger value="global" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black">
+                <Globe className="w-4 h-4 mr-1" /> Globale
+              </TabsTrigger>
+              <TabsTrigger value="local" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black">
+                <MapPin className="w-4 h-4 mr-1" /> Locale
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="global">
+              {loading ? (
+                <div className="text-center py-8"><RefreshCw className="w-6 h-6 animate-spin mx-auto text-yellow-500" /></div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-1">
+                    {globalLeaderboard.map(player => <PlayerRow key={player.id} player={player} />)}
+                  </div>
+                </ScrollArea>
+              )}
+            </TabsContent>
+
+            <TabsContent value="local">
+              <div className="mb-4">
+                <Select value={selectedCountry} onValueChange={loadLocalLeaderboard}>
+                  <SelectTrigger className="h-9 bg-black/20 border-white/10">
+                    <SelectValue placeholder="Seleziona un paese" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['USA', 'Italy', 'Spain', 'France', 'Germany', 'UK', 'Japan', 'China', 'Brazil', 'India'].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {localLeaderboard.length > 0 ? (
+                <ScrollArea className="h-[450px]">
+                  <div className="space-y-1">
+                    {localLeaderboard.map(player => <PlayerRow key={player.id} player={player} />)}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-center text-gray-400 py-8">Seleziona un paese per vedere la classifica locale</p>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Player Public Profile Page
+const PlayerPublicProfile = () => {
+  const { api, user } = useContext(AuthContext);
+  const { t } = useTranslations();
+  const navigate = useNavigate();
+  const [player, setPlayer] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const playerId = window.location.pathname.split('/').pop();
+    api.get(`/players/${playerId}/profile`).then(r => {
+      setPlayer(r.data);
+      setLoading(false);
+    }).catch(() => {
+      toast.error('Giocatore non trovato');
+      navigate('/leaderboard');
+    });
+  }, [api, navigate]);
+
+  if (loading) return <div className="pt-16 flex items-center justify-center h-96"><RefreshCw className="w-8 h-8 animate-spin text-yellow-500" /></div>;
+  if (!player) return null;
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-2xl mx-auto" data-testid="player-profile-page">
+      <Card className="bg-[#1A1A1A] border-white/10">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4 mb-6">
+            <Avatar className="w-20 h-20 border-2 border-yellow-500/30">
+              <AvatarImage src={player.avatar_url} />
+              <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-2xl">{player.nickname?.[0]}</AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-['Bebas_Neue'] text-2xl">{player.nickname}</h1>
+                <Badge className="bg-purple-500/20 text-purple-400">Lv.{player.level}</Badge>
+              </div>
+              <p className="text-gray-400">{player.production_house_name}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className="bg-yellow-500/20 text-yellow-400">Fame: {player.fame?.toFixed(0)}</Badge>
+                <Badge className={`${player.fame_tier?.name === 'Legend' ? 'bg-yellow-500 text-black' : 'bg-white/10'}`}>
+                  {player.fame_tier?.name}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="p-3 rounded bg-white/5 text-center">
+              <Film className="w-5 h-5 mx-auto mb-1 text-yellow-500" />
+              <p className="text-lg font-bold">{player.films_count}</p>
+              <p className="text-xs text-gray-400">Film</p>
+            </div>
+            <div className="p-3 rounded bg-white/5 text-center">
+              <Building className="w-5 h-5 mx-auto mb-1 text-blue-400" />
+              <p className="text-lg font-bold">{player.infrastructure_count}</p>
+              <p className="text-xs text-gray-400">Infrastrutture</p>
+            </div>
+            <div className="p-3 rounded bg-white/5 text-center">
+              <Heart className="w-5 h-5 mx-auto mb-1 text-red-400" />
+              <p className="text-lg font-bold">{player.total_likes_received}</p>
+              <p className="text-xs text-gray-400">Like ricevuti</p>
+            </div>
+            <div className="p-3 rounded bg-white/5 text-center">
+              <Trophy className="w-5 h-5 mx-auto mb-1 text-yellow-500" />
+              <p className="text-lg font-bold">{player.leaderboard_score?.toFixed(1)}</p>
+              <p className="text-xs text-gray-400">Punteggio</p>
+            </div>
+          </div>
+
+          {/* Level Progress */}
+          <div className="p-3 rounded bg-purple-500/10 border border-purple-500/20 mb-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span>Level {player.level}</span>
+              <span className="text-purple-400">{player.level_info?.current_xp} / {player.level_info?.xp_for_next_level} XP</span>
+            </div>
+            <Progress value={player.level_info?.progress_percent || 0} className="h-2" />
+          </div>
+
+          {player.id !== user?.id && (
+            <Button className="w-full bg-yellow-500 text-black" onClick={() => navigate(`/chat?dm=${player.id}`)}>
+              <MessageSquare className="w-4 h-4 mr-2" /> Invia Messaggio
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 // Protected Route
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -2194,6 +2668,9 @@ function App() {
               <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
               <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+              <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+              <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

@@ -1251,13 +1251,101 @@ async def update_profile(
 
 @api_router.post("/auth/reset")
 async def reset_player(user: dict = Depends(get_current_user)):
-    # Generate new avatar
-    new_avatar = generate_default_avatar(user.get('nickname', 'Player'), user.get('gender', 'other'))
+    """
+    Reset TOTALE del player - richiede conferma con token.
+    Step 1: Chiamare senza confirm_token per ottenere un token di conferma
+    Step 2: Chiamare con confirm_token per eseguire il reset
+    """
+    raise HTTPException(status_code=400, detail="Usa /auth/reset/request per iniziare il processo di reset")
+
+class ResetConfirmRequest(BaseModel):
+    confirm_token: str
+
+@api_router.post("/auth/reset/request")
+async def request_reset(user: dict = Depends(get_current_user)):
+    """Step 1: Richiedi reset - genera token di conferma valido 5 minuti."""
+    confirm_token = str(uuid.uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    
+    await db.reset_tokens.delete_many({'user_id': user['id']})  # Rimuovi token vecchi
+    await db.reset_tokens.insert_one({
+        'user_id': user['id'],
+        'token': confirm_token,
+        'expires_at': expires_at,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        'message': 'Token di conferma generato. Hai 5 minuti per confermare.',
+        'confirm_token': confirm_token,
+        'warning': 'ATTENZIONE: Il reset è IRREVERSIBILE. Perderai TUTTI i tuoi progressi: film, infrastrutture, premi, statistiche, chat.',
+        'expires_at': expires_at
+    }
+
+@api_router.post("/auth/reset/confirm")
+async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_current_user)):
+    """Step 2: Conferma reset TOTALE del player."""
+    # Verifica token
+    reset_token = await db.reset_tokens.find_one({
+        'user_id': user['id'],
+        'token': request.confirm_token
+    })
+    
+    if not reset_token:
+        raise HTTPException(status_code=400, detail="Token non valido o scaduto. Richiedi un nuovo reset.")
+    
+    # Verifica scadenza
+    expires_at = datetime.fromisoformat(reset_token['expires_at'].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        await db.reset_tokens.delete_one({'_id': reset_token['_id']})
+        raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo reset.")
+    
+    # Elimina token usato
+    await db.reset_tokens.delete_one({'_id': reset_token['_id']})
+    
+    user_id = user['id']
+    
+    # RESET TOTALE
+    # 1. Elimina tutti i film
+    deleted_films = await db.films.delete_many({'user_id': user_id})
+    
+    # 2. Elimina tutte le infrastrutture
+    deleted_infra = await db.infrastructure.delete_many({'owner_id': user_id})
+    
+    # 3. Elimina tutti i premi festival
+    deleted_awards = await db.festival_awards.delete_many({'owner_id': user_id})
+    
+    # 4. Elimina tutti i voti festival
+    await db.festival_votes.delete_many({'user_id': user_id})
+    
+    # 5. Elimina like dati e ricevuti
+    await db.likes.delete_many({'$or': [{'user_id': user_id}, {'target_user_id': user_id}]})
+    
+    # 6. Elimina commenti
+    await db.film_comments.delete_many({'user_id': user_id})
+    
+    # 7. Elimina ratings
+    await db.film_ratings.delete_many({'user_id': user_id})
+    
+    # 8. Elimina notifiche
+    await db.notifications.delete_many({'user_id': user_id})
+    
+    # 9. Elimina messaggi chat
+    await db.chat_messages.delete_many({'sender_id': user_id})
+    
+    # 10. Elimina inviti premiere
+    await db.premiere_invites.delete_many({'$or': [{'inviter_id': user_id}, {'invitee_id': user_id}]})
+    
+    # 11. Reset dati utente ai valori iniziali
+    new_avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.get('nickname', 'Player')}{random.randint(1000,9999)}"
     
     reset_data = {
         'funds': 10000000.0,
+        'level': 1,
+        'total_xp': 0,
+        'xp_to_next_level': 50,
+        'fame': 50,
         'avatar_url': new_avatar,
-        'avatar_id': 'generated',
         'avatar_source': 'auto',
         'likeability_score': 50.0,
         'interaction_score': 50.0,
@@ -1265,17 +1353,36 @@ async def reset_player(user: dict = Depends(get_current_user)):
         'total_likes_given': 0,
         'total_likes_received': 0,
         'messages_sent': 0,
+        'films_produced': 0,
+        'total_revenue': 0,
         'daily_challenges': {},
         'weekly_challenges': {},
         'mini_game_cooldowns': {},
-        'mini_game_sessions': {}
+        'mini_game_sessions': {},
+        'infrastructure': [],
+        'owned_cinemas': [],
+        'last_collected_earnings': {},
+        'reset_count': (user.get('reset_count', 0) or 0) + 1,
+        'last_reset_at': datetime.now(timezone.utc).isoformat()
     }
     
-    await db.users.update_one({'id': user['id']}, {'$set': reset_data})
-    await db.films.delete_many({'user_id': user['id']})
-    await db.likes.delete_many({'user_id': user['id']})
+    await db.users.update_one({'id': user_id}, {'$set': reset_data})
     
-    return {'message': 'Player reset successfully', 'new_funds': 10000000.0}
+    return {
+        'success': True,
+        'message': 'Reset completato! Sei tornato al punto di partenza.',
+        'deleted': {
+            'films': deleted_films.deleted_count,
+            'infrastructure': deleted_infra.deleted_count,
+            'awards': deleted_awards.deleted_count
+        },
+        'new_stats': {
+            'funds': 10000000.0,
+            'level': 1,
+            'xp': 0,
+            'fame': 50
+        }
+    }
 
 # Avatars - No presets, only AI or custom URL
 @api_router.get("/avatars")
@@ -5433,6 +5540,451 @@ async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_u
         stats['by_category'][cid] = stats['by_category'].get(cid, 0) + 1
     
     return {'awards': awards, 'stats': stats}
+
+# ==================== CUSTOM FESTIVALS (Player-Created) ====================
+
+CUSTOM_FESTIVAL_MIN_LEVEL = 20  # Livello minimo per creare un festival
+CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
+CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base
+
+def calculate_custom_festival_cost(creator_level: int) -> int:
+    """Costo esponenziale per creare un festival basato sul livello."""
+    return int(CUSTOM_FESTIVAL_BASE_COST * (1.15 ** (creator_level - CUSTOM_FESTIVAL_MIN_LEVEL)))
+
+def calculate_participation_cost(film_index: int, base_cost: int) -> int:
+    """Costo esponenziale per ogni film aggiuntivo (1° film = base, 2° = base*1.5, etc.)."""
+    return int(base_cost * (1.5 ** film_index))
+
+class CustomFestivalCreate(BaseModel):
+    name: str
+    description: str
+    poster_prompt: Optional[str] = None
+    categories: List[str]  # Lista di category_id da AWARD_CATEGORIES
+    base_participation_cost: int = 10000  # Costo base per partecipare con 1 film
+    max_films_per_participant: int = 10
+    duration_days: int = 7  # Durata del festival
+    prize_pool_percentage: int = 70  # % del montepremi che va ai vincitori (resto al creatore)
+
+class CustomFestivalParticipate(BaseModel):
+    festival_id: str
+    film_ids: List[str]
+
+@api_router.get("/custom-festivals")
+async def get_custom_festivals(status: str = 'active', user: dict = Depends(get_current_user)):
+    """Lista festival personalizzati."""
+    query = {}
+    if status == 'active':
+        query['status'] = {'$in': ['open', 'voting', 'live']}
+    elif status == 'mine':
+        query['creator_id'] = user['id']
+    
+    festivals = await db.custom_festivals.find(query, {'_id': 0}).sort('created_at', -1).to_list(50)
+    return {'festivals': festivals}
+
+@api_router.get("/custom-festivals/creation-cost")
+async def get_festival_creation_cost(user: dict = Depends(get_current_user)):
+    """Calcola il costo per creare un festival."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    user_level = level_info['level']
+    
+    can_create = user_level >= CUSTOM_FESTIVAL_MIN_LEVEL
+    cost = calculate_custom_festival_cost(user_level) if can_create else calculate_custom_festival_cost(CUSTOM_FESTIVAL_MIN_LEVEL)
+    
+    return {
+        'can_create': can_create,
+        'user_level': user_level,
+        'required_level': CUSTOM_FESTIVAL_MIN_LEVEL,
+        'creation_cost': cost,
+        'participation_min_level': CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL
+    }
+
+@api_router.get("/custom-festivals/{festival_id}")
+async def get_custom_festival(festival_id: str, user: dict = Depends(get_current_user)):
+    """Dettagli di un festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id}, {'_id': 0})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    # Get participants count
+    participants = await db.custom_festival_entries.count_documents({'festival_id': festival_id})
+    festival['participants_count'] = participants
+    
+    # Check if user already participating
+    user_entry = await db.custom_festival_entries.find_one({'festival_id': festival_id, 'user_id': user['id']})
+    festival['user_participating'] = user_entry is not None
+    festival['user_films'] = user_entry.get('film_ids', []) if user_entry else []
+    
+    # Get all entries for voting
+    if festival.get('status') in ['voting', 'live', 'completed']:
+        entries = await db.custom_festival_entries.find({'festival_id': festival_id}, {'_id': 0}).to_list(500)
+        festival['entries'] = entries
+    
+    return festival
+
+@api_router.post("/custom-festivals/create")
+async def create_custom_festival(request: CustomFestivalCreate, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Crea un nuovo festival personalizzato."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    user_level = level_info['level']
+    
+    if user_level < CUSTOM_FESTIVAL_MIN_LEVEL:
+        raise HTTPException(status_code=400, detail=f"Devi essere almeno livello {CUSTOM_FESTIVAL_MIN_LEVEL} per creare un festival. Sei livello {user_level}.")
+    
+    # Calcola costo
+    creation_cost = calculate_custom_festival_cost(user_level)
+    
+    if user.get('funds', 0) < creation_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo: ${creation_cost:,}")
+    
+    # Valida categorie
+    valid_categories = [c for c in request.categories if c in AWARD_CATEGORIES]
+    if not valid_categories:
+        raise HTTPException(status_code=400, detail="Seleziona almeno una categoria valida")
+    
+    # Genera poster AI se richiesto
+    poster_url = None
+    if request.poster_prompt:
+        try:
+            from emergentintegrations.llm.gemini import GeminiImageGeneration
+            img_gen = GeminiImageGeneration(os.environ.get('EMERGENT_API_KEY'))
+            prompt = f"Film festival poster: {request.poster_prompt}. Elegant, prestigious, cinematic style with golden accents."
+            poster_url = await img_gen.generate_image(prompt, width=1024, height=1536)
+        except Exception as e:
+            logging.error(f"Poster generation error: {e}")
+    
+    festival_id = str(uuid.uuid4())
+    end_date = (datetime.now(timezone.utc) + timedelta(days=request.duration_days)).isoformat()
+    
+    festival = {
+        'id': festival_id,
+        'name': request.name,
+        'description': request.description,
+        'poster_url': poster_url,
+        'creator_id': user['id'],
+        'creator_name': user.get('nickname'),
+        'creator_level': user_level,
+        'categories': [{'id': c, 'name': AWARD_CATEGORIES[c]['names'].get('it', c)} for c in valid_categories],
+        'base_participation_cost': request.base_participation_cost,
+        'max_films_per_participant': min(request.max_films_per_participant, 10),
+        'prize_pool_percentage': min(max(request.prize_pool_percentage, 50), 90),
+        'creation_cost': creation_cost,
+        'prize_pool': 0,
+        'creator_earnings': 0,
+        'status': 'open',  # open, voting, live, completed
+        'end_date': end_date,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Deduce costo
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -creation_cost}})
+    
+    # Salva festival
+    await db.custom_festivals.insert_one(festival)
+    
+    # Pubblica nel giornale
+    await db.cinema_news.insert_one({
+        'id': str(uuid.uuid4()),
+        'type': 'custom_festival',
+        'title': f"Nuovo Festival: {request.name}",
+        'message': f"{user.get('nickname')} ha creato il festival '{request.name}'! Partecipa con i tuoi film e vinci premi!",
+        'festival_id': festival_id,
+        'creator_id': user['id'],
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Notifica a tutti i giocatori
+    all_users = await db.users.find({'id': {'$ne': user['id']}}, {'_id': 0, 'id': 1}).to_list(1000)
+    notifications = [{
+        'id': str(uuid.uuid4()),
+        'user_id': u['id'],
+        'type': 'new_custom_festival',
+        'message': f"Nuovo Festival! '{request.name}' creato da {user.get('nickname')}. Partecipa ora!",
+        'data': {'festival_id': festival_id},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    } for u in all_users]
+    
+    if notifications:
+        await db.notifications.insert_many(notifications)
+    
+    festival.pop('_id', None)
+    return {
+        'success': True,
+        'festival': festival,
+        'cost_paid': creation_cost,
+        'message': f"Festival '{request.name}' creato! Tutti i giocatori sono stati notificati."
+    }
+
+@api_router.post("/custom-festivals/participate")
+async def participate_in_custom_festival(request: CustomFestivalParticipate, user: dict = Depends(get_current_user)):
+    """Partecipa a un festival con i tuoi film."""
+    festival = await db.custom_festivals.find_one({'id': request.festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('status') != 'open':
+        raise HTTPException(status_code=400, detail="Il festival non accetta più iscrizioni")
+    
+    # Verifica livello
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    if level_info['level'] < CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL:
+        raise HTTPException(status_code=400, detail=f"Devi essere almeno livello {CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL} per partecipare")
+    
+    # Verifica numero film
+    is_creator = user['id'] == festival.get('creator_id')
+    max_films = 1 if is_creator else festival.get('max_films_per_participant', 10)
+    
+    if len(request.film_ids) > max_films:
+        raise HTTPException(status_code=400, detail=f"Puoi iscrivere massimo {max_films} film")
+    
+    if not request.film_ids:
+        raise HTTPException(status_code=400, detail="Seleziona almeno un film")
+    
+    # Verifica film appartengano all'utente
+    films = await db.films.find({'id': {'$in': request.film_ids}, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1}).to_list(max_films)
+    if len(films) != len(request.film_ids):
+        raise HTTPException(status_code=400, detail="Alcuni film non sono tuoi")
+    
+    # Calcola costo totale
+    base_cost = festival.get('base_participation_cost', 10000)
+    total_cost = sum(calculate_participation_cost(i, base_cost) for i in range(len(request.film_ids)))
+    
+    if user.get('funds', 0) < total_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo: ${total_cost:,}")
+    
+    # Verifica se già iscritto
+    existing = await db.custom_festival_entries.find_one({'festival_id': request.festival_id, 'user_id': user['id']})
+    if existing:
+        raise HTTPException(status_code=400, detail="Sei già iscritto a questo festival")
+    
+    # Deduce costo
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    
+    # 30% al creatore immediatamente
+    creator_share = int(total_cost * 0.30)
+    prize_pool_share = total_cost - creator_share
+    
+    await db.users.update_one({'id': festival['creator_id']}, {'$inc': {'funds': creator_share}})
+    await db.custom_festivals.update_one(
+        {'id': request.festival_id},
+        {'$inc': {'prize_pool': prize_pool_share, 'creator_earnings': creator_share}}
+    )
+    
+    # Registra partecipazione
+    entry = {
+        'id': str(uuid.uuid4()),
+        'festival_id': request.festival_id,
+        'user_id': user['id'],
+        'user_name': user.get('nickname'),
+        'film_ids': request.film_ids,
+        'films': [{'id': f['id'], 'title': f['title']} for f in films],
+        'cost_paid': total_cost,
+        'votes': 0,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.custom_festival_entries.insert_one(entry)
+    
+    # Notifica creatore
+    if not is_creator:
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': festival['creator_id'],
+            'type': 'festival_participant',
+            'message': f"{user.get('nickname')} si è iscritto al tuo festival '{festival.get('name')}'! +${creator_share:,}",
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {
+        'success': True,
+        'cost_paid': total_cost,
+        'creator_received': creator_share,
+        'added_to_prize_pool': prize_pool_share,
+        'message': f"Iscrizione completata! {len(films)} film iscritti."
+    }
+
+@api_router.post("/custom-festivals/{festival_id}/vote")
+async def vote_custom_festival(festival_id: str, entry_id: str, user: dict = Depends(get_current_user)):
+    """Vota per un'entry in un festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('status') not in ['voting', 'live']:
+        raise HTTPException(status_code=400, detail="Le votazioni non sono aperte")
+    
+    # Verifica che l'entry esista
+    entry = await db.custom_festival_entries.find_one({'id': entry_id, 'festival_id': festival_id})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry non trovata")
+    
+    # Non puoi votare te stesso
+    if entry.get('user_id') == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi votare i tuoi film")
+    
+    # Verifica se già votato
+    existing_vote = await db.custom_festival_votes.find_one({
+        'festival_id': festival_id,
+        'user_id': user['id'],
+        'entry_id': entry_id
+    })
+    if existing_vote:
+        raise HTTPException(status_code=400, detail="Hai già votato questa entry")
+    
+    # Registra voto
+    await db.custom_festival_votes.insert_one({
+        'id': str(uuid.uuid4()),
+        'festival_id': festival_id,
+        'entry_id': entry_id,
+        'user_id': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Aggiorna conteggio voti
+    await db.custom_festival_entries.update_one({'id': entry_id}, {'$inc': {'votes': 1}})
+    
+    return {'success': True, 'message': 'Voto registrato!'}
+
+@api_router.post("/custom-festivals/{festival_id}/start-ceremony")
+async def start_live_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Inizia la cerimonia live di premiazione (solo creatore)."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('creator_id') != user['id']:
+        raise HTTPException(status_code=403, detail="Solo il creatore può avviare la cerimonia")
+    
+    if festival.get('status') != 'voting':
+        raise HTTPException(status_code=400, detail="Il festival deve essere in fase di votazione")
+    
+    # Cambia stato a 'live'
+    await db.custom_festivals.update_one(
+        {'id': festival_id},
+        {'$set': {'status': 'live', 'ceremony_started_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Notifica tutti i partecipanti
+    entries = await db.custom_festival_entries.find({'festival_id': festival_id}, {'_id': 0, 'user_id': 1}).to_list(500)
+    participant_ids = [e['user_id'] for e in entries]
+    
+    notifications = [{
+        'id': str(uuid.uuid4()),
+        'user_id': pid,
+        'type': 'ceremony_live',
+        'message': f"La cerimonia di premiazione del festival '{festival.get('name')}' è iniziata! Guarda i vincitori in diretta!",
+        'data': {'festival_id': festival_id},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    } for pid in participant_ids if pid != user['id']]
+    
+    if notifications:
+        await db.notifications.insert_many(notifications)
+    
+    return {'success': True, 'message': 'Cerimonia live avviata!', 'status': 'live'}
+
+@api_router.post("/custom-festivals/{festival_id}/award-winners")
+async def award_custom_festival_winners(festival_id: str, user: dict = Depends(get_current_user)):
+    """Assegna i premi ai vincitori del festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('creator_id') != user['id']:
+        raise HTTPException(status_code=403, detail="Solo il creatore può assegnare i premi")
+    
+    if festival.get('status') not in ['voting', 'live']:
+        raise HTTPException(status_code=400, detail="I premi sono già stati assegnati o il festival non è pronto")
+    
+    # Ottieni tutte le entries ordinate per voti
+    entries = await db.custom_festival_entries.find(
+        {'festival_id': festival_id},
+        {'_id': 0}
+    ).sort('votes', -1).to_list(500)
+    
+    if not entries:
+        raise HTTPException(status_code=400, detail="Nessun partecipante")
+    
+    # Calcola premi
+    prize_pool = festival.get('prize_pool', 0)
+    prize_percentage = festival.get('prize_pool_percentage', 70) / 100
+    total_prizes = int(prize_pool * prize_percentage)
+    
+    # Distribuzione premi: 50% primo, 30% secondo, 20% terzo
+    winners = []
+    prize_distribution = [0.50, 0.30, 0.20]
+    
+    for i, entry in enumerate(entries[:3]):
+        if i >= len(prize_distribution):
+            break
+        
+        prize = int(total_prizes * prize_distribution[i])
+        
+        # Assegna premio
+        await db.users.update_one(
+            {'id': entry['user_id']},
+            {'$inc': {'funds': prize, 'total_xp': 100 * (3 - i), 'fame': 20 * (3 - i)}}
+        )
+        
+        winners.append({
+            'rank': i + 1,
+            'user_id': entry['user_id'],
+            'user_name': entry.get('user_name'),
+            'films': entry.get('films'),
+            'votes': entry.get('votes', 0),
+            'prize': prize,
+            'xp': 100 * (3 - i),
+            'fame': 20 * (3 - i)
+        })
+        
+        # Notifica vincitore
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': entry['user_id'],
+            'type': 'festival_prize',
+            'message': f"Hai vinto il {i+1}° posto al festival '{festival.get('name')}'! Premio: ${prize:,} + {100*(3-i)} XP + {20*(3-i)} Fama",
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Il resto del prize pool va al creatore
+    creator_bonus = prize_pool - total_prizes
+    if creator_bonus > 0:
+        await db.users.update_one({'id': festival['creator_id']}, {'$inc': {'funds': creator_bonus}})
+    
+    # Aggiorna stato festival
+    await db.custom_festivals.update_one(
+        {'id': festival_id},
+        {'$set': {
+            'status': 'completed',
+            'winners': winners,
+            'total_prizes_distributed': total_prizes,
+            'completed_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        'success': True,
+        'winners': winners,
+        'total_prizes': total_prizes,
+        'message': 'Premi assegnati!'
+    }
+
+# ==================== LIVE CEREMONY SYSTEM ====================
+
+@api_router.get("/ceremonies/active")
+async def get_active_ceremonies(user: dict = Depends(get_current_user)):
+    """Ottieni cerimonie live attive."""
+    # Festival ufficiali in premiazione
+    now = datetime.now(timezone.utc)
+    
+    # Custom festivals con cerimonia live
+    live_customs = await db.custom_festivals.find(
+        {'status': 'live'},
+        {'_id': 0}
+    ).to_list(10)
+    
+    return {'ceremonies': live_customs}
 
 @api_router.get("/leaderboard/global")
 async def get_global_leaderboard(limit: int = 50):

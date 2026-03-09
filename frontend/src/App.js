@@ -2482,6 +2482,9 @@ const ProfilePage = () => {
   const [generatingAi, setGeneratingAi] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [levelInfo, setLevelInfo] = useState(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetToken, setResetToken] = useState(null);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => { 
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {}); 
@@ -2516,9 +2519,34 @@ const ProfilePage = () => {
     }
   };
 
-  const resetPlayer = async () => {
-    try { await api.post('/auth/reset'); await refreshUser(); toast.success('Player resettato!'); navigate('/dashboard'); }
-    catch (e) { toast.error('Errore'); }
+  const requestReset = async () => {
+    setResetting(true);
+    try {
+      const res = await api.post('/auth/reset/request');
+      setResetToken(res.data.confirm_token);
+      toast.warning(res.data.warning);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const confirmReset = async () => {
+    if (!resetToken) return;
+    setResetting(true);
+    try {
+      const res = await api.post('/auth/reset/confirm', { confirm_token: resetToken });
+      toast.success(res.data.message);
+      setShowResetDialog(false);
+      setResetToken(null);
+      await refreshUser();
+      navigate('/dashboard');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setResetting(false);
+    }
   };
 
   return (
@@ -2602,12 +2630,60 @@ const ProfilePage = () => {
             <Select value={language} onValueChange={setLanguage}><SelectTrigger className="bg-black/20 border-white/10 h-8 sm:h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="it">Italiano</SelectItem><SelectItem value="es">Español</SelectItem><SelectItem value="fr">Français</SelectItem><SelectItem value="de">Deutsch</SelectItem></SelectContent></Select>
           </div>
           <Button onClick={saveProfile} disabled={saving} className="w-full bg-yellow-500 text-black mb-2 h-8 sm:h-9 text-sm">{saving ? 'Saving...' : 'Save Changes'}</Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild><Button variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 h-8 sm:h-9 text-sm"><RefreshCw className="w-3 sm:w-3.5 h-3 sm:h-3.5 mr-2" /> Reset Player</Button></AlertDialogTrigger>
-            <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md"><AlertDialogHeader><AlertDialogTitle className="text-base">Reset Player?</AlertDialogTitle><AlertDialogDescription className="text-sm">This deletes all films, resets funds to $10M, and clears progress.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="h-8 text-sm">Cancel</AlertDialogCancel><AlertDialogAction onClick={resetPlayer} className="bg-red-500 h-8 text-sm">Reset</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-          </AlertDialog>
+          
+          {/* Reset Player Button */}
+          <Button variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 h-8 sm:h-9 text-sm" onClick={() => setShowResetDialog(true)}>
+            <RefreshCw className="w-3 sm:w-3.5 h-3 sm:h-3.5 mr-2" /> Reset Totale Player
+          </Button>
         </CardContent>
       </Card>
+
+      {/* Reset Dialog - Doppia Conferma */}
+      <Dialog open={showResetDialog} onOpenChange={(open) => { setShowResetDialog(open); if(!open) setResetToken(null); }}>
+        <DialogContent className="bg-[#1A1A1A] border-red-500/30 max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" /> Reset Totale Player
+            </DialogTitle>
+          </DialogHeader>
+          {!resetToken ? (
+            <div className="space-y-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded p-3">
+                <p className="text-sm text-red-300 font-semibold mb-2">⚠️ ATTENZIONE: Azione IRREVERSIBILE!</p>
+                <p className="text-xs text-gray-300">Perderai TUTTO:</p>
+                <ul className="text-xs text-gray-400 list-disc list-inside mt-1 space-y-0.5">
+                  <li>Tutti i film prodotti</li>
+                  <li>Tutte le infrastrutture</li>
+                  <li>Tutti i premi vinti</li>
+                  <li>Livello, XP, Fama</li>
+                  <li>Messaggi e chat</li>
+                </ul>
+              </div>
+              <p className="text-sm text-gray-300">Tornerai a: Livello 1, $10M, 50 Fama</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowResetDialog(false)}>Annulla</Button>
+                <Button className="flex-1 bg-red-500 hover:bg-red-600" onClick={requestReset} disabled={resetting}>
+                  {resetting ? 'Attendi...' : 'Richiedi Reset'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
+                <p className="text-sm text-yellow-300 font-semibold">🔐 Conferma Finale</p>
+                <p className="text-xs text-gray-300 mt-1">Token valido per 5 minuti. Clicca "CONFERMA RESET" per procedere.</p>
+              </div>
+              <p className="text-center text-lg font-bold text-red-400">Sei ASSOLUTAMENTE sicuro?</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setShowResetDialog(false); setResetToken(null); }}>No, Annulla</Button>
+                <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={confirmReset} disabled={resetting}>
+                  {resetting ? 'Resetting...' : 'CONFERMA RESET'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       
       {/* AI Avatar Generator Dialog */}
       <Dialog open={showAiGenerator} onOpenChange={setShowAiGenerator}>
@@ -3898,13 +3974,22 @@ const FestivalsPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useTranslations();
   const [festivals, setFestivals] = useState([]);
+  const [customFestivals, setCustomFestivals] = useState([]);
   const [selectedFestival, setSelectedFestival] = useState(null);
   const [currentEdition, setCurrentEdition] = useState(null);
+  const [selectedCustomFestival, setSelectedCustomFestival] = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('all_time');
   const [myAwards, setMyAwards] = useState(null);
   const [activeTab, setActiveTab] = useState('festivals');
   const [voting, setVoting] = useState(false);
+  const [creationCost, setCreationCost] = useState(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newFestival, setNewFestival] = useState({ name: '', description: '', poster_prompt: '', categories: ['best_film', 'best_director', 'best_actor'], base_participation_cost: 10000, duration_days: 7 });
+  const [myFilms, setMyFilms] = useState([]);
+  const [selectedFilmIds, setSelectedFilmIds] = useState([]);
+  const [participating, setParticipating] = useState(false);
 
   const periodLabels = {
     'monthly': language === 'it' ? 'Questo Mese' : language === 'es' ? 'Este Mes' : 'This Month',
@@ -3912,10 +3997,22 @@ const FestivalsPage = () => {
     'all_time': language === 'it' ? 'Di Sempre' : language === 'es' ? 'De Todos Los Tiempos' : 'All Time'
   };
 
+  const categoryOptions = [
+    { id: 'best_film', name: language === 'it' ? 'Miglior Film' : 'Best Film' },
+    { id: 'best_director', name: language === 'it' ? 'Miglior Regia' : 'Best Director' },
+    { id: 'best_actor', name: language === 'it' ? 'Miglior Attore' : 'Best Actor' },
+    { id: 'best_actress', name: language === 'it' ? 'Miglior Attrice' : 'Best Actress' },
+    { id: 'best_screenplay', name: language === 'it' ? 'Miglior Sceneggiatura' : 'Best Screenplay' },
+    { id: 'best_soundtrack', name: language === 'it' ? 'Miglior Colonna Sonora' : 'Best Soundtrack' },
+    { id: 'audience_choice', name: language === 'it' ? 'Premio del Pubblico' : 'Audience Choice' },
+  ];
+
   useEffect(() => {
     loadFestivals();
+    loadCustomFestivals();
     loadLeaderboard();
     loadMyAwards();
+    loadCreationCost();
   }, [language]);
 
   const loadFestivals = async () => {
@@ -3924,6 +4021,67 @@ const FestivalsPage = () => {
       setFestivals(res.data.festivals);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const loadCustomFestivals = async () => {
+    try {
+      const res = await api.get('/custom-festivals');
+      setCustomFestivals(res.data.festivals || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadCreationCost = async () => {
+    try {
+      const res = await api.get('/custom-festivals/creation-cost');
+      setCreationCost(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadCustomFestivalDetails = async (festivalId) => {
+    try {
+      const res = await api.get(`/custom-festivals/${festivalId}`);
+      setSelectedCustomFestival(res.data);
+      // Load user's films for participation
+      const filmsRes = await api.get('/films/my');
+      setMyFilms(filmsRes.data || []);
+    } catch (e) {
+      toast.error('Errore caricamento festival');
+    }
+  };
+
+  const createCustomFestival = async () => {
+    if (!newFestival.name.trim()) { toast.error('Inserisci un nome'); return; }
+    setCreating(true);
+    try {
+      const res = await api.post('/custom-festivals/create', newFestival);
+      toast.success(res.data.message);
+      setShowCreateDialog(false);
+      setNewFestival({ name: '', description: '', poster_prompt: '', categories: ['best_film'], base_participation_cost: 10000, duration_days: 7 });
+      loadCustomFestivals();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore creazione');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const participateInFestival = async () => {
+    if (!selectedCustomFestival || selectedFilmIds.length === 0) return;
+    setParticipating(true);
+    try {
+      const res = await api.post('/custom-festivals/participate', { festival_id: selectedCustomFestival.id, film_ids: selectedFilmIds });
+      toast.success(res.data.message);
+      loadCustomFestivalDetails(selectedCustomFestival.id);
+      setSelectedFilmIds([]);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore partecipazione');
+    } finally {
+      setParticipating(false);
     }
   };
 
@@ -3987,10 +4145,13 @@ const FestivalsPage = () => {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 justify-center flex-wrap">
         <Button variant={activeTab === 'festivals' ? 'default' : 'outline'} onClick={() => setActiveTab('festivals')} className={activeTab === 'festivals' ? 'bg-yellow-500 text-black' : ''}>
-          <Star className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival' : 'Festivals'}
+          <Star className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival Ufficiali' : 'Official Festivals'}
+        </Button>
+        <Button variant={activeTab === 'custom' ? 'default' : 'outline'} onClick={() => setActiveTab('custom')} className={activeTab === 'custom' ? 'bg-purple-500 text-white' : ''}>
+          <Crown className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival dei Player' : 'Player Festivals'}
         </Button>
         <Button variant={activeTab === 'leaderboard' ? 'default' : 'outline'} onClick={() => setActiveTab('leaderboard')} className={activeTab === 'leaderboard' ? 'bg-yellow-500 text-black' : ''}>
-          <Trophy className="w-4 h-4 mr-2" />{language === 'it' ? 'Classifica Premi' : 'Awards Leaderboard'}
+          <Trophy className="w-4 h-4 mr-2" />{language === 'it' ? 'Classifica' : 'Leaderboard'}
         </Button>
         <Button variant={activeTab === 'my_awards' ? 'default' : 'outline'} onClick={() => setActiveTab('my_awards')} className={activeTab === 'my_awards' ? 'bg-yellow-500 text-black' : ''}>
           <Medal className="w-4 h-4 mr-2" />{language === 'it' ? 'I Miei Premi' : 'My Awards'}
@@ -4085,6 +4246,210 @@ const FestivalsPage = () => {
           )}
         </div>
       )}
+
+      {/* Custom Festivals Tab */}
+      {activeTab === 'custom' && (
+        <div className="space-y-4">
+          {/* Create Button */}
+          {creationCost && (
+            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-['Bebas_Neue'] text-lg text-purple-400">{language === 'it' ? 'Crea il Tuo Festival' : 'Create Your Festival'}</h3>
+                  <p className="text-xs text-gray-400">
+                    {creationCost.can_create 
+                      ? `Costo: $${creationCost.creation_cost?.toLocaleString()} • Livello ${creationCost.user_level}`
+                      : `Richiesto Livello ${creationCost.required_level} (sei ${creationCost.user_level})`}
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => setShowCreateDialog(true)} 
+                  disabled={!creationCost.can_create}
+                  className="bg-purple-500 hover:bg-purple-400"
+                >
+                  <Plus className="w-4 h-4 mr-2" />{language === 'it' ? 'Crea Festival' : 'Create Festival'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!selectedCustomFestival ? (
+            <div className="grid md:grid-cols-2 gap-4">
+              {customFestivals.length === 0 ? (
+                <Card className="bg-[#1A1A1A] border-white/10 col-span-2">
+                  <CardContent className="p-8 text-center">
+                    <Crown className="w-12 h-12 text-purple-400/50 mx-auto mb-2" />
+                    <p className="text-gray-400">{language === 'it' ? 'Nessun festival dei player attivo. Creane uno!' : 'No player festivals active. Create one!'}</p>
+                  </CardContent>
+                </Card>
+              ) : customFestivals.map(fest => (
+                <Card key={fest.id} className="bg-[#1A1A1A] border-white/10 cursor-pointer hover:border-purple-500/50 transition-colors" onClick={() => loadCustomFestivalDetails(fest.id)}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="font-['Bebas_Neue'] text-lg text-purple-400">{fest.name}</CardTitle>
+                      <Badge className={fest.status === 'open' ? 'bg-green-500/20 text-green-400' : fest.status === 'live' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}>
+                        {fest.status === 'open' ? 'APERTO' : fest.status === 'live' ? 'LIVE' : fest.status.toUpperCase()}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-400 text-xs mb-2">{fest.description?.substring(0, 100)}...</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <User className="w-3 h-3" /> {fest.creator_name}
+                      <span>•</span>
+                      <span>${fest.prize_pool?.toLocaleString()} montepremi</span>
+                    </div>
+                    {fest.poster_url && <img src={fest.poster_url} alt="" className="mt-2 w-full h-32 object-cover rounded" />}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <Button variant="ghost" onClick={() => {setSelectedCustomFestival(null); setSelectedFilmIds([]);}} className="mb-4">
+                <ChevronLeft className="w-4 h-4 mr-1" />{language === 'it' ? 'Torna ai Festival' : 'Back'}
+              </Button>
+              
+              <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 mb-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="font-['Bebas_Neue'] text-2xl text-purple-400">{selectedCustomFestival.name}</CardTitle>
+                    <Badge className={selectedCustomFestival.status === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}>
+                      {selectedCustomFestival.status?.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    {language === 'it' ? 'Creato da' : 'Created by'} {selectedCustomFestival.creator_name} • 
+                    Montepremi: ${selectedCustomFestival.prize_pool?.toLocaleString()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-300 mb-4">{selectedCustomFestival.description}</p>
+                  
+                  {/* Participation Section */}
+                  {selectedCustomFestival.status === 'open' && !selectedCustomFestival.user_participating && (
+                    <Card className="bg-black/30 border-white/10 mb-4">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{language === 'it' ? 'Partecipa!' : 'Participate!'}</CardTitle>
+                        <CardDescription className="text-xs">
+                          {language === 'it' 
+                            ? `Costo base: $${selectedCustomFestival.base_participation_cost?.toLocaleString()} per film` 
+                            : `Base cost: $${selectedCustomFestival.base_participation_cost?.toLocaleString()} per film`}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[150px] mb-3">
+                          <div className="space-y-2">
+                            {myFilms.map((film, i) => {
+                              const isSelected = selectedFilmIds.includes(film.id);
+                              const cost = Math.floor(selectedCustomFestival.base_participation_cost * Math.pow(1.5, selectedFilmIds.indexOf(film.id) > -1 ? selectedFilmIds.indexOf(film.id) : selectedFilmIds.length));
+                              return (
+                                <div key={film.id} className={`p-2 rounded flex items-center justify-between cursor-pointer ${isSelected ? 'bg-purple-500/20 border border-purple-500' : 'bg-white/5 hover:bg-white/10'}`}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedFilmIds(selectedFilmIds.filter(id => id !== film.id));
+                                    } else if (selectedFilmIds.length < (selectedCustomFestival.creator_id === user?.id ? 1 : 10)) {
+                                      setSelectedFilmIds([...selectedFilmIds, film.id]);
+                                    }
+                                  }}>
+                                  <span className="text-sm">{film.title}</span>
+                                  {isSelected && <Check className="w-4 h-4 text-purple-400" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                        <Button onClick={participateInFestival} disabled={participating || selectedFilmIds.length === 0} className="w-full bg-purple-500">
+                          {participating ? 'Iscrizione...' : `Iscrivi ${selectedFilmIds.length} film`}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {selectedCustomFestival.user_participating && (
+                    <Badge className="bg-green-500/20 text-green-400 mb-4">{language === 'it' ? 'Stai partecipando!' : 'You are participating!'}</Badge>
+                  )}
+                  
+                  {/* Categories */}
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCustomFestival.categories?.map(cat => (
+                      <Badge key={cat.id} variant="outline" className="border-purple-500/30">{cat.name}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Festival Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-purple-500/30 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl text-purple-400 flex items-center gap-2">
+              <Crown className="w-5 h-5" /> {language === 'it' ? 'Crea il Tuo Festival' : 'Create Your Festival'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            <div>
+              <Label className="text-xs">{language === 'it' ? 'Nome del Festival' : 'Festival Name'}</Label>
+              <Input value={newFestival.name} onChange={e => setNewFestival({...newFestival, name: e.target.value})} placeholder="Il Mio Festival..." className="bg-black/20 border-white/10" />
+            </div>
+            <div>
+              <Label className="text-xs">{language === 'it' ? 'Descrizione' : 'Description'}</Label>
+              <Textarea value={newFestival.description} onChange={e => setNewFestival({...newFestival, description: e.target.value})} placeholder="Descrivi il tuo festival..." className="bg-black/20 border-white/10 h-20" />
+            </div>
+            <div>
+              <Label className="text-xs">{language === 'it' ? 'Prompt Locandina AI (opzionale)' : 'Poster AI Prompt (optional)'}</Label>
+              <Input value={newFestival.poster_prompt} onChange={e => setNewFestival({...newFestival, poster_prompt: e.target.value})} placeholder="Stile elegante, colori dorati..." className="bg-black/20 border-white/10" />
+            </div>
+            <div>
+              <Label className="text-xs">{language === 'it' ? 'Categorie Premio' : 'Award Categories'}</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {categoryOptions.map(cat => (
+                  <Badge key={cat.id} variant={newFestival.categories.includes(cat.id) ? 'default' : 'outline'} className={`cursor-pointer ${newFestival.categories.includes(cat.id) ? 'bg-purple-500' : 'hover:bg-white/10'}`}
+                    onClick={() => {
+                      if (newFestival.categories.includes(cat.id)) {
+                        setNewFestival({...newFestival, categories: newFestival.categories.filter(c => c !== cat.id)});
+                      } else {
+                        setNewFestival({...newFestival, categories: [...newFestival.categories, cat.id]});
+                      }
+                    }}>
+                    {cat.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">{language === 'it' ? 'Costo Partecipazione' : 'Participation Cost'}</Label>
+                <Input type="number" value={newFestival.base_participation_cost} onChange={e => setNewFestival({...newFestival, base_participation_cost: parseInt(e.target.value) || 10000})} className="bg-black/20 border-white/10" />
+              </div>
+              <div>
+                <Label className="text-xs">{language === 'it' ? 'Durata (giorni)' : 'Duration (days)'}</Label>
+                <Input type="number" value={newFestival.duration_days} onChange={e => setNewFestival({...newFestival, duration_days: parseInt(e.target.value) || 7})} min={1} max={30} className="bg-black/20 border-white/10" />
+              </div>
+            </div>
+            {creationCost && (
+              <Card className="bg-purple-500/10 border-purple-500/30">
+                <CardContent className="p-3">
+                  <div className="flex justify-between items-center">
+                    <span>{language === 'it' ? 'Costo Creazione' : 'Creation Cost'}</span>
+                    <span className="text-purple-400 font-bold">${creationCost.creation_cost?.toLocaleString()}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>{language === 'it' ? 'Annulla' : 'Cancel'}</Button>
+            <Button onClick={createCustomFestival} disabled={creating || !newFestival.name || newFestival.categories.length === 0} className="bg-purple-500">
+              {creating ? 'Creazione...' : language === 'it' ? 'Crea Festival' : 'Create Festival'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Leaderboard Tab */}
       {activeTab === 'leaderboard' && (

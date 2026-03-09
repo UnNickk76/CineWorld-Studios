@@ -3,56 +3,64 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Funzionalità Implementate
+## Funzionalità Implementate - Sessione 09/03/2025
 
-### Sessione 09/03/2025 - Festival Cinematografici
+### 1. Reset Totale Player ✅
+- Reset COMPLETO con doppia conferma (token 5 minuti)
+- Elimina: Film, Infrastrutture, Premi, Voti, Chat, Notifiche
+- Ripristina: $10M, Livello 1, 50 Fama, nuovo avatar
+- Accessibile solo dal player stesso (Profilo)
 
-#### Sistema Festival (NUOVO)
-- [x] **3 Festival ogni 10 giorni:**
-  - **Golden Stars Awards** ⭐⭐⭐ (Voto Player) - +500 XP, +50 Fama, $100K
-  - **Spotlight Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K  
-  - **Cinema Excellence Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K
+### 2. Festival Ufficiali (3 ogni 10 giorni) ✅
+- **Golden Stars Awards** ⭐⭐⭐ (Voto Player) - +500 XP, +50 Fama, $100K
+- **Spotlight Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K
+- **Cinema Excellence Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K
+- 10 Categorie Premio
+- Classifiche: Mensili, Annuali, Di Sempre
 
-- [x] **10 Categorie Premio:**
-  1. Miglior Film
-  2. Miglior Regia
-  3. Miglior Attore
-  4. Miglior Attrice
-  5. Miglior Attore Non Protagonista
-  6. Miglior Attrice Non Protagonista
-  7. Miglior Sceneggiatura
-  8. Miglior Colonna Sonora
-  9. Miglior Fotografia
-  10. Premio del Pubblico
+### 3. Festival Personalizzati (Player-Created) ✅
+- **Requisiti:** Livello 20+ per creare, Livello 5+ per partecipare
+- **Costo Creazione:** Esponenziale basato sul livello ($500K base × 1.15^(level-20))
+- **Partecipazione:**
+  - Creatore: max 1 film
+  - Altri: max 10 film, costo esponenziale per film aggiuntivo
+  - 30% del costo → immediato al creatore
+  - 70% → montepremi
+- **Categorie:** Scelta dal creatore tra 7 opzioni
+- **Locandina AI:** Generabile con prompt personalizzato
+- **Pubblicità:** Notifica giornale + notifica diretta a tutti i player
+- **Cerimonia Live:** Il creatore può avviare la premiazione in diretta
 
-- [x] **Classifiche Premi:** Mensili, Annuali, Di Sempre
-- [x] **Traduzioni complete** in 5 lingue (EN, IT, ES, FR, DE)
+### 4. Altre Feature Completate
+- Compositore/Produttore Musicale (Step 6 wizard)
+- Colonna Sonora AI con prompt (Step 9 wizard)
+- Trailer Video 4/8/12 sec (Sora 2)
+- Anteprime Esclusive
+- Pagina Crediti con Andreola Fabio
 
-#### Altre Feature Completate
-- [x] Compositore/Produttore Musicale (Step 6 wizard)
-- [x] Colonna Sonora AI con prompt (Step 9 wizard)
-- [x] Fix Trailer Video (4/8/12 sec - Sora 2)
-- [x] Sistema Anteprime Esclusive
-- [x] Pagina Crediti con Andreola Fabio e diritti riservati
+## API Endpoints Nuovi
 
-### Wizard Creazione Film (12 Step)
-1. Title, 2. Sponsor, 3. Equipment, 4. Writer, 5. Director, 
-6. **Composer**, 7. Cast, 8. Script, 9. **Soundtrack**, 10. Poster, 11. Ads, 12. Review
-
-### Funzionalità Core
-- Sistema XP Esponenziale, Incassi Bilanciati, Voti Non Modificabili
-- Tutorial 8 step, Credits, Notifiche, Riscossione Incassi
-- Saghe/Sequel, Serie TV, Anime, Noleggio Film
-
-## API Endpoints Festival
-
+### Reset Player
 ```
-GET  /api/festivals                    - Lista 3 festival
-GET  /api/festivals/{id}/current       - Edizione corrente con nominati
-POST /api/festivals/vote               - Vota (solo Golden Stars)
-POST /api/festivals/{edition_id}/finalize - Assegna premi
-GET  /api/festivals/awards/leaderboard - Classifica premi
-GET  /api/festivals/my-awards          - Premi vinti
+POST /api/auth/reset/request   - Richiedi token reset (5 min validità)
+POST /api/auth/reset/confirm   - Conferma reset con token
+```
+
+### Festival Personalizzati
+```
+GET  /api/custom-festivals                    - Lista festival attivi
+GET  /api/custom-festivals/creation-cost      - Costo creazione
+GET  /api/custom-festivals/{id}               - Dettagli festival
+POST /api/custom-festivals/create             - Crea festival
+POST /api/custom-festivals/participate        - Partecipa con film
+POST /api/custom-festivals/{id}/vote          - Vota entry
+POST /api/custom-festivals/{id}/start-ceremony - Avvia cerimonia live
+POST /api/custom-festivals/{id}/award-winners  - Assegna premi
+```
+
+### Cerimonie Live
+```
+GET /api/ceremonies/active - Cerimonie in corso
 ```
 
 ## Backlog
@@ -65,10 +73,13 @@ GET  /api/festivals/my-awards          - Premi vinti
 - [ ] Bonus trailer collegato agli incassi
 - [ ] Evoluzione abilità cast
 
-## 3rd Party Integrations
-- OpenAI GPT-5.2 (Sceneggiature, Colonne sonore)
-- Gemini Nano Banana (Avatar/Poster)
-- Sora 2 (Trailer video)
+## Architettura
+```
+/app/
+├── backend/server.py (6800+ righe)
+├── frontend/src/App.js (5100+ righe)
+└── memory/PRD.md
+```
 
-## Test Reports
-- `/app/test_reports/iteration_13.json` - 100% pass (21/21 backend, frontend OK)
+## 3rd Party Integrations
+- OpenAI GPT-5.2, Gemini Nano Banana, Sora 2 (Emergent LLM Key)

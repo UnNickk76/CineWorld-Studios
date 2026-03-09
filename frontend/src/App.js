@@ -11,7 +11,7 @@ import {
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
-  Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle
+  Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -6947,6 +6947,48 @@ const MajorPage = () => {
                 <div className="flex gap-2">
                   <Badge className="bg-yellow-500/20 text-yellow-400">+{majorData.weekly_challenge.rewards?.xp} XP</Badge>
                   <Badge className="bg-green-500/20 text-green-400">+${(majorData.weekly_challenge.rewards?.funds / 1000).toFixed(0)}K</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Major Activities */}
+          {majorData.activities && Object.keys(majorData.activities).length > 0 && (
+            <Card className="bg-[#1A1A1A] border-purple-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-purple-500" />
+                  {t('activities')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-2">
+                  {Object.entries(majorData.activities).map(([key, activity]) => (
+                    <div key={key} className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-sm">{activity.name?.[language] || activity.name?.en}</h4>
+                          <p className="text-xs text-gray-400 mt-1">{activity.description?.[language] || activity.description?.en}</p>
+                        </div>
+                        {activity.bonus && (
+                          <div className="flex flex-col gap-1 ml-2">
+                            {activity.bonus.quality && <Badge className="text-[10px] bg-blue-500/20 text-blue-400">+{activity.bonus.quality}% {language === 'it' ? 'Qualità' : 'Quality'}</Badge>}
+                            {activity.bonus.revenue && <Badge className="text-[10px] bg-green-500/20 text-green-400">+{activity.bonus.revenue}% {language === 'it' ? 'Incassi' : 'Revenue'}</Badge>}
+                            {activity.bonus.revenue_multiplier && <Badge className="text-[10px] bg-green-500/20 text-green-400">x{activity.bonus.revenue_multiplier} {language === 'it' ? 'Incassi' : 'Revenue'}</Badge>}
+                            {activity.bonus.likes && <Badge className="text-[10px] bg-pink-500/20 text-pink-400">+{activity.bonus.likes} Likes</Badge>}
+                          </div>
+                        )}
+                        {activity.discount_percent && (
+                          <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400">-{activity.discount_percent}%</Badge>
+                        )}
+                      </div>
+                      {activity.cooldown_hours && (
+                        <p className="text-[10px] text-gray-500 mt-2">
+                          {language === 'it' ? 'Disponibile ogni' : 'Available every'} {activity.cooldown_hours < 24 ? `${activity.cooldown_hours}h` : `${Math.round(activity.cooldown_hours / 24)}d`}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

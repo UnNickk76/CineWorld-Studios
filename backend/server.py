@@ -1079,12 +1079,12 @@ def generate_person_name():
     }
 
 async def initialize_cast_pool_if_needed():
-    """Initialize the full cast pool (700 members) if not already done."""
+    """Initialize the full cast pool (2000+ members) if not already done."""
     counts = {
-        'actor': 400,
-        'director': 100,
-        'screenwriter': 100,
-        'composer': 100
+        'actor': 500,
+        'director': 500,
+        'screenwriter': 500,
+        'composer': 500
     }
     
     for role_type, target_count in counts.items():
@@ -1095,6 +1095,8 @@ async def initialize_cast_pool_if_needed():
             
             cast_pool = generate_full_cast_pool(role_type, needed)
             for member in cast_pool:
+                # Ensure all skills are integers (no decimals)
+                int_skills = {k: int(round(v)) for k, v in member['skills'].items()}
                 person = {
                     'id': member['id'],
                     'type': role_type,
@@ -1103,17 +1105,17 @@ async def initialize_cast_pool_if_needed():
                     'nationality': member['nationality'],
                     'gender': member['gender'],
                     'avatar_url': member['avatar_url'],
-                    'skills': member['skills'],
+                    'skills': int_skills,
                     'primary_skills': member.get('primary_skills', []),
                     'secondary_skill': member.get('secondary_skill'),
-                    'skill_changes': {k: 0 for k in member['skills']},
+                    'skill_changes': {k: 0 for k in int_skills},
                     'films_count': member['films_count'],
                     'fame_category': member['fame_category'],
-                    'fame_score': member['fame'],
+                    'fame_score': int(round(member['fame'])),
                     'years_active': member['years_active'],
                     'stars': member['stars'],
                     'category': member.get('category', 'unknown'),
-                    'avg_film_quality': member['avg_film_quality'],
+                    'avg_film_quality': int(round(member['avg_film_quality'])),
                     'is_hidden_gem': member['fame_category'] == 'unknown' and member['stars'] >= 4,
                     'star_potential': random.random() if member['fame_category'] in ['unknown', 'rising'] else 0,
                     'is_discovered_star': False,
@@ -1131,17 +1133,20 @@ async def get_or_create_person(person_type: str) -> dict:
     """Get existing person from DB or create new one using enhanced cast system v2"""
     # Target counts for each type
     target_counts = {
-        'actor': 400,
-        'director': 100,
-        'screenwriter': 100,
-        'composer': 100
+        'actor': 500,
+        'director': 500,
+        'screenwriter': 500,
+        'composer': 500
     }
-    target = target_counts.get(person_type, 100)
+    target = target_counts.get(person_type, 500)
     existing_count = await db.people.count_documents({'type': person_type})
     
     if existing_count < target:
         # Use enhanced cast system v2 for generation
         cast_member = generate_cast_member_v2(person_type, category='random')
+        
+        # Ensure all skills are integers (no decimals)
+        int_skills = {k: int(round(v)) for k, v in cast_member['skills'].items()}
         
         person = {
             'id': cast_member['id'],
@@ -1151,13 +1156,13 @@ async def get_or_create_person(person_type: str) -> dict:
             'nationality': cast_member['nationality'],
             'gender': cast_member['gender'],
             'avatar_url': cast_member['avatar_url'],
-            'skills': cast_member['skills'],
+            'skills': int_skills,
             'primary_skills': cast_member.get('primary_skills', []),
             'secondary_skill': cast_member.get('secondary_skill'),
-            'skill_changes': {k: 0 for k in cast_member['skills']},
+            'skill_changes': {k: 0 for k in int_skills},
             'films_count': cast_member['films_count'],
             'fame_category': cast_member['fame_category'],
-            'fame_score': cast_member['fame'],
+            'fame_score': int(round(cast_member['fame'])),
             'years_active': cast_member['years_active'],
             'stars': cast_member['stars'],
             'category': cast_member.get('category', 'unknown'),
@@ -1789,7 +1794,7 @@ async def get_cast_skills(
 
 @api_router.post("/cast/initialize")
 async def initialize_cast(user: dict = Depends(get_current_user)):
-    """Initialize full cast pool (700 members). Admin function."""
+    """Initialize full cast pool (2000 members). Admin function."""
     await initialize_cast_pool_if_needed()
     
     counts = {
@@ -1800,6 +1805,40 @@ async def initialize_cast(user: dict = Depends(get_current_user)):
     }
     
     return {'message': 'Cast pool initialized', 'counts': counts}
+
+@api_router.get("/cast/stats")
+async def get_cast_stats(user: dict = Depends(get_current_user)):
+    """Get cast pool statistics."""
+    counts = {
+        'actors': await db.people.count_documents({'type': 'actor'}),
+        'directors': await db.people.count_documents({'type': 'director'}),
+        'screenwriters': await db.people.count_documents({'type': 'screenwriter'}),
+        'composers': await db.people.count_documents({'type': 'composer'})
+    }
+    
+    # Get new members added today
+    today = datetime.now(timezone.utc).date().isoformat()
+    last_gen = await db.system_config.find_one({'key': 'last_cast_generation'})
+    new_today = 0
+    if last_gen and last_gen.get('date') == today:
+        new_today = last_gen.get('count', 0)
+    
+    return {
+        'counts': counts,
+        'total': sum(counts.values()),
+        'new_today': new_today,
+        'last_generation': last_gen.get('date') if last_gen else None
+    }
+
+@api_router.get("/cast/new-arrivals")
+async def get_new_cast_arrivals(user: dict = Depends(get_current_user), limit: int = 20):
+    """Get the newest cast members."""
+    new_members = await db.people.find(
+        {'is_new': True},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    
+    return {'new_arrivals': new_members, 'count': len(new_members)}
 
 @api_router.get("/cast/bonus-preview")
 async def preview_cast_bonus(
@@ -4678,9 +4717,106 @@ async def startup_event():
             room['created_at'] = datetime.now(timezone.utc).isoformat()
             await db.chat_rooms.insert_one(room)
     
-    # Initialize cast pool if needed (700 members: 400 actors, 100 directors, 100 screenwriters, 100 composers)
+    # Initialize cast pool if needed (2000 members: 500 actors, 500 directors, 500 screenwriters, 500 composers)
     await initialize_cast_pool_if_needed()
     logging.info("Cast pool initialized")
+    
+    # Check and generate daily new cast members
+    await generate_daily_cast_members()
+    
+    # Fix existing cast members with decimal skills
+    await fix_decimal_skills_in_db()
+
+async def fix_decimal_skills_in_db():
+    """Fix any existing cast members that have decimal skill values."""
+    # Find all people with decimal skills
+    people = await db.people.find({}).to_list(10000)
+    fixed_count = 0
+    
+    for person in people:
+        skills = person.get('skills', {})
+        needs_fix = False
+        fixed_skills = {}
+        
+        for skill_key, skill_value in skills.items():
+            if isinstance(skill_value, float) and skill_value != int(skill_value):
+                needs_fix = True
+            fixed_skills[skill_key] = int(round(skill_value)) if isinstance(skill_value, (int, float)) else skill_value
+        
+        if needs_fix:
+            await db.people.update_one(
+                {'_id': person['_id']},
+                {'$set': {
+                    'skills': fixed_skills,
+                    'skill_changes': {k: 0 for k in fixed_skills},
+                    'fame_score': int(round(person.get('fame_score', 50))),
+                    'avg_film_quality': int(round(person.get('avg_film_quality', 50)))
+                }}
+            )
+            fixed_count += 1
+    
+    if fixed_count > 0:
+        logging.info(f"Fixed decimal skills for {fixed_count} cast members")
+
+async def generate_daily_cast_members():
+    """Generate new cast members daily to keep the pool growing."""
+    # Check last generation date
+    last_gen = await db.system_config.find_one({'key': 'last_cast_generation'})
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    if last_gen and last_gen.get('date') == today:
+        logging.info("Daily cast generation already done for today")
+        return
+    
+    # Generate 10-20 new members per type daily
+    new_members_per_type = random.randint(10, 20)
+    total_generated = 0
+    
+    for role_type in ['actor', 'director', 'screenwriter', 'composer']:
+        cast_pool = generate_full_cast_pool(role_type, new_members_per_type)
+        for member in cast_pool:
+            int_skills = {k: int(round(v)) for k, v in member['skills'].items()}
+            person = {
+                'id': member['id'],
+                'type': role_type,
+                'name': member['name'],
+                'age': member['age'],
+                'nationality': member['nationality'],
+                'gender': member['gender'],
+                'avatar_url': member['avatar_url'],
+                'skills': int_skills,
+                'primary_skills': member.get('primary_skills', []),
+                'secondary_skill': member.get('secondary_skill'),
+                'skill_changes': {k: 0 for k in int_skills},
+                'films_count': member['films_count'],
+                'fame_category': member['fame_category'],
+                'fame_score': int(round(member['fame'])),
+                'years_active': member['years_active'],
+                'stars': member['stars'],
+                'category': member.get('category', 'unknown'),
+                'avg_film_quality': int(round(member['avg_film_quality'])),
+                'is_hidden_gem': member['fame_category'] == 'unknown' and member['stars'] >= 4,
+                'star_potential': random.random() if member['fame_category'] in ['unknown', 'rising'] else 0,
+                'is_discovered_star': False,
+                'discovered_by': None,
+                'trust_level': random.randint(0, 100),
+                'cost_per_film': member['cost'],
+                'times_used': 0,
+                'films_worked': [],
+                'created_at': member['created_at'],
+                'is_new': True  # Mark as new for UI highlighting
+            }
+            await db.people.insert_one(person)
+            total_generated += 1
+    
+    # Update last generation date
+    await db.system_config.update_one(
+        {'key': 'last_cast_generation'},
+        {'$set': {'date': today, 'count': total_generated}},
+        upsert=True
+    )
+    
+    logging.info(f"Generated {total_generated} new cast members for today ({today})")
 
 # Socket.IO Events
 @sio.event

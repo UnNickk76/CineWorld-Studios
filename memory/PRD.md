@@ -3,9 +3,18 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.047
+## Versione Attuale: v0.048
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.048 - Sistema Rifiuto Ingaggio Cast - 09/03/2026 (COMPLETATO)
+- **Backend**: Endpoint `POST /api/cast/offer` per fare offerte ai membri del cast
+- **Backend**: Endpoint `GET /api/cast/rejections` per ottenere lista rifiuti (ultime 24h)
+- **Backend**: 23 motivazioni di rifiuto in italiano e inglese
+- **Backend**: Calcolo probabilità rifiuto basato su: livello giocatore, fama cast, ricavi, genere film
+- **Frontend**: Modal "Offerta Rifiutata" con nome, motivazione, stelle e fama
+- **Frontend**: Card con badge "Ha rifiutato" e visivamente disabilitata
+- **Persistenza**: Rifiuto memorizzato per 24 ore (non richiederlo di nuovo)
 
 ### v0.047 - Sistema Ingaggio Star - 09/03/2026 (COMPLETATO)
 - **Sezione dedicata "Stelle Scoperte"** con pagina completa
@@ -54,6 +63,15 @@ DELETE /api/stars/hired/{id}   - Rilascia star ingaggiata
 ### Release Notes
 ```
 GET  /api/release-notes        - Storico versioni e cambiamenti
+```
+
+### Sistema Rifiuto Cast
+```
+POST /api/cast/offer           - Fai un'offerta a un membro del cast
+                                 Body: { person_id, person_type, film_genre }
+                                 Returns: { accepted, reason, stars, fame, already_refused }
+GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
+                                 Returns: { rejections: [], refused_ids: [] }
 ```
 
 ## Menu Principale

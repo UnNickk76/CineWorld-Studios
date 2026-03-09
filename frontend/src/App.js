@@ -6415,7 +6415,7 @@ const MajorPage = () => {
   useEffect(() => {
     Promise.all([
       api.get('/major/my'),
-      api.get('/users/online')
+      api.get('/users/all')  // Include offline users for invites
     ]).then(([major, users]) => {
       setMajorData(major.data);
       setAllUsers(users.data || []);
@@ -6586,13 +6586,30 @@ const MajorPage = () => {
                     </PopoverTrigger>
                     <PopoverContent className="bg-[#1A1A1A] border-white/10 w-64">
                       <p className="text-sm mb-2">{language === 'it' ? 'Invita utente' : 'Invite user'}</p>
+                      <Input 
+                        placeholder={language === 'it' ? 'Cerca utente...' : 'Search user...'} 
+                        className="bg-black/30 border-white/10 h-8 text-xs mb-2"
+                        onChange={(e) => setInviteUserId(e.target.value)}
+                      />
                       <ScrollArea className="h-40">
-                        {allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).map(u => (
+                        {allUsers
+                          .filter(u => !majorData.members?.some(m => m.user_id === u.id))
+                          .filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase()))
+                          .map(u => (
                           <Button key={u.id} variant="ghost" size="sm" className="w-full justify-between h-8 mb-1" onClick={() => inviteUser(u.id)}>
-                            <span className="text-xs">{u.nickname}</span>
+                            <span className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${u.is_online ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                              <span className="text-xs">{u.nickname}</span>
+                              <span className="text-[10px] text-gray-500">Lv.{u.level || 0}</span>
+                            </span>
                             <Send className="w-3 h-3" />
                           </Button>
                         ))}
+                        {allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).length === 0 && (
+                          <p className="text-xs text-gray-500 text-center py-2">
+                            {language === 'it' ? 'Nessun utente disponibile' : 'No users available'}
+                          </p>
+                        )}
                       </ScrollArea>
                     </PopoverContent>
                   </Popover>

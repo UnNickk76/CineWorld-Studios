@@ -35,6 +35,14 @@ from game_systems import (
     calculate_tour_rating, generate_tour_review
 )
 
+# Import enhanced cast system
+from cast_system import (
+    generate_cast_member, generate_cast_pool, get_all_locations_flat,
+    calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL,
+    calculate_stars, calculate_fame_from_career, get_fame_category_from_score, calculate_cast_cost,
+    EXPANDED_NAMES, FILMING_LOCATIONS
+)
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -527,7 +535,8 @@ TRANSLATIONS = {
         'other': 'Other',
         'infrastructure': 'Infrastructure',
         'leaderboard': 'Leaderboard',
-        'tour': 'Cinema Tour'
+        'tour': 'Cinema Tour',
+        'marketplace': 'Marketplace'
     },
     'it': {
         'welcome': 'Benvenuto in CineWorld Studio\'s',
@@ -569,6 +578,7 @@ TRANSLATIONS = {
         'infrastructure': 'Infrastrutture',
         'leaderboard': 'Classifica',
         'tour': 'Tour Cinema',
+        'marketplace': 'Mercato',
         'adult_warning': 'Questa è una comunità per adulti (18+). La condivisione di immagini di minori è severamente vietata e comporterà il ban immediato.',
         'age': 'Età',
         'gender': 'Genere',
@@ -1036,56 +1046,35 @@ def generate_person_name():
     }
 
 async def get_or_create_person(person_type: str) -> dict:
-    """Get existing person from DB or create new one with persistent skills"""
+    """Get existing person from DB or create new one using enhanced cast system"""
     existing_count = await db.people.count_documents({'type': person_type})
     
-    if existing_count < 100:
-        # Create new person with coherent name/nationality
-        person_info = generate_person_name()
-        
-        skills = {}
-        skill_changes = {}
-        skill_total = 0
-        for skill in SKILL_TYPES.get(person_type, []):
-            # Skills are independent of fame - unknowns can have high skills!
-            base_score = random.randint(1, 10)
-            skills[skill] = base_score
-            skill_changes[skill] = 0
-            skill_total += base_score
-        
-        skill_avg = skill_total / len(skills) if skills else 5
-        films_count = random.randint(0, 50)
-        
-        # Determine fame category
-        fame_category = get_fame_category(skill_avg, films_count)
-        
-        # Cost is based on fame, not just skills
-        cost = calculate_cost_by_fame(fame_category, skill_avg)
-        
-        # Small chance of being a hidden gem (high skill, low fame)
-        is_hidden_gem = fame_category == 'unknown' and skill_avg >= 7
-        
-        # Potential to become a star (tracked for discovery mechanic)
-        star_potential = random.random() if fame_category in ['unknown', 'rising'] else 0
+    if existing_count < 150:  # Increase pool size
+        # Use enhanced cast system for generation
+        cast_member = generate_cast_member(person_type, skill_tier='random')
         
         person = {
-            'id': str(uuid.uuid4()),
+            'id': cast_member['id'],
             'type': person_type,
-            'name': person_info['name'],
+            'name': cast_member['name'],
             'age': random.randint(22, 65),
-            'nationality': person_info['nationality'],
-            'gender': person_info['gender'],
-            'avatar_url': person_info['avatar_url'],
-            'skills': skills,
-            'skill_changes': skill_changes,
-            'films_count': films_count,
-            'fame_category': fame_category,
-            'is_hidden_gem': is_hidden_gem,
-            'star_potential': star_potential,  # 0-1, chance to become star when used
+            'nationality': cast_member['nationality'],
+            'gender': cast_member['gender'],
+            'avatar_url': cast_member['avatar_url'],
+            'skills': cast_member['skills'],
+            'skill_changes': {k: 0 for k in cast_member['skills']},
+            'films_count': cast_member['films_count'],
+            'fame_category': cast_member['fame_category'],
+            'fame_score': cast_member['fame'],
+            'years_active': cast_member['years_active'],
+            'stars': cast_member['stars'],
+            'avg_film_quality': cast_member['avg_film_quality'],
+            'is_hidden_gem': cast_member['fame_category'] == 'unknown' and cast_member['stars'] >= 4,
+            'star_potential': random.random() if cast_member['fame_category'] in ['unknown', 'rising'] else 0,
             'is_discovered_star': False,
             'discovered_by': None,
             'trust_level': random.randint(0, 100),
-            'cost_per_film': cost,
+            'cost_per_film': cast_member['cost'],
             'times_used': 0,
             'created_at': datetime.now(timezone.utc).isoformat()
         }
@@ -1101,10 +1090,6 @@ async def get_or_create_person(person_type: str) -> dict:
         
         await db.people.insert_one(person)
         return {k: v for k, v in person.items() if k != '_id'}
-    
-    # Get random existing person
-    people = await db.people.find({'type': person_type}, {'_id': 0}).to_list(100)
-    return random.choice(people) if people else None
     
     # Get random existing person
     people = await db.people.find({'type': person_type}, {'_id': 0}).to_list(100)
@@ -1431,7 +1416,8 @@ async def get_sponsors():
 
 @api_router.get("/locations")
 async def get_locations():
-    return LOCATIONS
+    # Return expanded filming locations from cast_system
+    return get_all_locations_flat()
 
 @api_router.get("/equipment")
 async def get_equipment():
@@ -3394,6 +3380,287 @@ async def get_personal_actors(user: dict = Depends(get_current_user)):
     ).to_list(50)
     
     return {'actors': actors}
+
+# ==================== INFRASTRUCTURE MARKETPLACE ====================
+
+class MarketplaceListingCreate(BaseModel):
+    infrastructure_id: str
+    asking_price: int
+
+class MarketplaceOfferCreate(BaseModel):
+    listing_id: str
+    offer_price: int
+
+@api_router.get("/marketplace")
+async def get_marketplace_listings(
+    infra_type: Optional[str] = None,
+    min_price: Optional[int] = None,
+    max_price: Optional[int] = None,
+    country: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get all active marketplace listings."""
+    # Check if user can access marketplace
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    can_trade = level_info['level'] >= TRADE_REQUIRED_LEVEL
+    
+    query = {'status': 'active'}
+    if infra_type:
+        query['infrastructure.type'] = infra_type
+    if country:
+        query['infrastructure.country'] = country
+    if min_price:
+        query['asking_price'] = {'$gte': min_price}
+    if max_price:
+        query['asking_price'] = {**query.get('asking_price', {}), '$lte': max_price}
+    
+    listings = await db.marketplace_listings.find(query, {'_id': 0}).sort('created_at', -1).to_list(50)
+    
+    # Enrich with seller info
+    for listing in listings:
+        seller = await db.users.find_one({'id': listing['seller_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1})
+        listing['seller'] = seller
+    
+    return {
+        'listings': listings,
+        'can_trade': can_trade,
+        'required_level': TRADE_REQUIRED_LEVEL,
+        'current_level': level_info['level']
+    }
+
+@api_router.post("/marketplace/list")
+async def create_marketplace_listing(
+    request: MarketplaceListingCreate,
+    user: dict = Depends(get_current_user)
+):
+    """List an infrastructure for sale on marketplace."""
+    # Check level requirement
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    if level_info['level'] < TRADE_REQUIRED_LEVEL:
+        raise HTTPException(status_code=403, detail=f"Devi raggiungere il livello {TRADE_REQUIRED_LEVEL} per vendere infrastrutture")
+    
+    # Get infrastructure
+    infra = await db.infrastructure.find_one({'id': request.infrastructure_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    
+    # Check if already listed
+    existing = await db.marketplace_listings.find_one({
+        'infrastructure_id': request.infrastructure_id,
+        'status': 'active'
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Questa infrastruttura è già in vendita")
+    
+    # Calculate value
+    value_info = calculate_infrastructure_value(infra)
+    
+    # Validate asking price
+    if request.asking_price < value_info['min_price']:
+        raise HTTPException(status_code=400, detail=f"Prezzo minimo: ${value_info['min_price']:,}")
+    if request.asking_price > value_info['max_price']:
+        raise HTTPException(status_code=400, detail=f"Prezzo massimo: ${value_info['max_price']:,}")
+    
+    # Create listing
+    listing = {
+        'id': str(uuid.uuid4()),
+        'infrastructure_id': request.infrastructure_id,
+        'seller_id': user['id'],
+        'infrastructure': {
+            'id': infra['id'],
+            'type': infra['type'],
+            'custom_name': infra.get('custom_name'),
+            'city': infra.get('city'),
+            'country': infra.get('country'),
+            'total_revenue': infra.get('total_revenue', 0),
+            'films_showing': len(infra.get('films_showing', []))
+        },
+        'asking_price': request.asking_price,
+        'calculated_value': value_info['calculated_value'],
+        'value_factors': value_info['factors'],
+        'status': 'active',
+        'offers': [],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.marketplace_listings.insert_one(listing)
+    
+    return {
+        'success': True,
+        'listing_id': listing['id'],
+        'asking_price': request.asking_price,
+        'calculated_value': value_info['calculated_value']
+    }
+
+@api_router.delete("/marketplace/listing/{listing_id}")
+async def cancel_marketplace_listing(listing_id: str, user: dict = Depends(get_current_user)):
+    """Cancel a marketplace listing."""
+    listing = await db.marketplace_listings.find_one({'id': listing_id, 'seller_id': user['id']})
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annuncio non trovato")
+    
+    if listing['status'] != 'active':
+        raise HTTPException(status_code=400, detail="Questo annuncio non è più attivo")
+    
+    await db.marketplace_listings.update_one(
+        {'id': listing_id},
+        {'$set': {'status': 'cancelled', 'cancelled_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {'success': True}
+
+@api_router.post("/marketplace/offer")
+async def make_marketplace_offer(
+    request: MarketplaceOfferCreate,
+    user: dict = Depends(get_current_user)
+):
+    """Make an offer on a marketplace listing."""
+    # Check level
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    if level_info['level'] < TRADE_REQUIRED_LEVEL:
+        raise HTTPException(status_code=403, detail=f"Devi raggiungere il livello {TRADE_REQUIRED_LEVEL} per acquistare infrastrutture")
+    
+    # Get listing
+    listing = await db.marketplace_listings.find_one({'id': request.listing_id, 'status': 'active'})
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annuncio non trovato o non più attivo")
+    
+    # Can't buy own listing
+    if listing['seller_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi comprare la tua infrastruttura")
+    
+    # Check funds
+    if user['funds'] < request.offer_price:
+        raise HTTPException(status_code=400, detail="Fondi insufficienti")
+    
+    # Create offer
+    offer = {
+        'id': str(uuid.uuid4()),
+        'buyer_id': user['id'],
+        'buyer_nickname': user['nickname'],
+        'offer_price': request.offer_price,
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.marketplace_listings.update_one(
+        {'id': request.listing_id},
+        {'$push': {'offers': offer}}
+    )
+    
+    return {'success': True, 'offer_id': offer['id']}
+
+@api_router.post("/marketplace/offer/{listing_id}/accept/{offer_id}")
+async def accept_marketplace_offer(listing_id: str, offer_id: str, user: dict = Depends(get_current_user)):
+    """Accept an offer and complete the sale."""
+    listing = await db.marketplace_listings.find_one({'id': listing_id, 'seller_id': user['id'], 'status': 'active'})
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annuncio non trovato")
+    
+    # Find offer
+    offer = None
+    for o in listing.get('offers', []):
+        if o['id'] == offer_id and o['status'] == 'pending':
+            offer = o
+            break
+    
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offerta non trovata")
+    
+    # Get buyer
+    buyer = await db.users.find_one({'id': offer['buyer_id']})
+    if not buyer:
+        raise HTTPException(status_code=404, detail="Acquirente non trovato")
+    
+    if buyer['funds'] < offer['offer_price']:
+        raise HTTPException(status_code=400, detail="L'acquirente non ha più fondi sufficienti")
+    
+    # Transfer ownership
+    infra_id = listing['infrastructure_id']
+    
+    # Update infrastructure owner
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {
+            '$set': {
+                'owner_id': buyer['id'],
+                'previous_owner_id': user['id'],
+                'transfer_date': datetime.now(timezone.utc).isoformat(),
+                'purchase_price': offer['offer_price']
+            }
+        }
+    )
+    
+    # Transfer funds: buyer pays, seller receives
+    await db.users.update_one({'id': buyer['id']}, {'$inc': {'funds': -offer['offer_price']}})
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': offer['offer_price']}})
+    
+    # Mark listing as sold
+    await db.marketplace_listings.update_one(
+        {'id': listing_id},
+        {
+            '$set': {
+                'status': 'sold',
+                'sold_to': buyer['id'],
+                'sold_price': offer['offer_price'],
+                'sold_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Award XP to both parties
+    await db.users.update_one({'id': buyer['id']}, {'$inc': {'total_xp': XP_REWARDS['infrastructure_purchase']}})
+    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 50}})  # Seller XP bonus
+    
+    return {
+        'success': True,
+        'sold_price': offer['offer_price'],
+        'new_funds': user['funds'] + offer['offer_price']
+    }
+
+@api_router.post("/marketplace/offer/{listing_id}/reject/{offer_id}")
+async def reject_marketplace_offer(listing_id: str, offer_id: str, user: dict = Depends(get_current_user)):
+    """Reject an offer."""
+    result = await db.marketplace_listings.update_one(
+        {'id': listing_id, 'seller_id': user['id'], 'offers.id': offer_id},
+        {'$set': {'offers.$.status': 'rejected'}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Offerta non trovata")
+    
+    return {'success': True}
+
+@api_router.get("/marketplace/my-listings")
+async def get_my_marketplace_listings(user: dict = Depends(get_current_user)):
+    """Get user's marketplace listings and offers."""
+    listings = await db.marketplace_listings.find({'seller_id': user['id']}, {'_id': 0}).to_list(50)
+    offers_made = await db.marketplace_listings.find(
+        {'offers.buyer_id': user['id']},
+        {'_id': 0}
+    ).to_list(50)
+    
+    return {
+        'my_listings': listings,
+        'my_offers': offers_made
+    }
+
+@api_router.get("/infrastructure/{infra_id}/valuation")
+async def get_infrastructure_valuation(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get valuation for an infrastructure."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    value_info = calculate_infrastructure_value(infra)
+    
+    return {
+        **value_info,
+        'can_sell': level_info['level'] >= TRADE_REQUIRED_LEVEL,
+        'required_level': TRADE_REQUIRED_LEVEL,
+        'current_level': level_info['level']
+    }
 
 # ==================== LEADERBOARD ====================
 

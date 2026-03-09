@@ -512,6 +512,7 @@ TRANSLATIONS = {
         'dashboard': 'Dashboard',
         'my_films': 'My Films',
         'create_film': 'Create Film',
+        'drafts': 'Drafts',
         'social': 'Social',
         'cineboard': 'CineBoard',
         'chat': 'Chat',
@@ -565,6 +566,7 @@ TRANSLATIONS = {
         'dashboard': 'Dashboard',
         'my_films': 'I Miei Film',
         'create_film': 'Crea Film',
+        'drafts': 'Bozze',
         'social': 'Social',
         'cineboard': 'CineBoard',
         'chat': 'Chat',
@@ -618,6 +620,7 @@ TRANSLATIONS = {
         'dashboard': 'Panel',
         'my_films': 'Mis Películas',
         'create_film': 'Crear Película',
+        'drafts': 'Borradores',
         'social': 'Social',
         'chat': 'Chat',
         'statistics': 'Estadísticas',
@@ -663,6 +666,7 @@ TRANSLATIONS = {
         'dashboard': 'Tableau de Bord',
         'my_films': 'Mes Films',
         'create_film': 'Créer un Film',
+        'drafts': 'Brouillons',
         'social': 'Social',
         'chat': 'Chat',
         'statistics': 'Statistiques',
@@ -708,6 +712,7 @@ TRANSLATIONS = {
         'dashboard': 'Dashboard',
         'my_films': 'Meine Filme',
         'create_film': 'Film Erstellen',
+        'drafts': 'Entwürfe',
         'social': 'Sozial',
         'chat': 'Chat',
         'statistics': 'Statistiken',
@@ -940,6 +945,31 @@ class FilmCreate(BaseModel):
     poster_prompt: Optional[str] = None
     ad_duration_seconds: int = 0
     ad_revenue: float = 0
+
+class FilmDraft(BaseModel):
+    """Model for saving incomplete film drafts."""
+    title: Optional[str] = ""
+    genre: Optional[str] = ""
+    subgenres: List[str] = []
+    release_date: Optional[str] = ""
+    weeks_in_theater: Optional[int] = 1
+    sponsor_id: Optional[str] = None
+    equipment_package: Optional[str] = ""
+    locations: List[str] = []
+    location_days: Dict[str, int] = {}
+    screenwriter_id: Optional[str] = ""
+    director_id: Optional[str] = ""
+    actors: List[Dict[str, Any]] = []
+    extras_count: Optional[int] = 0
+    extras_cost: Optional[float] = 0
+    screenplay: Optional[str] = ""
+    screenplay_source: Optional[str] = "original"
+    poster_url: Optional[str] = None
+    poster_prompt: Optional[str] = None
+    ad_duration_seconds: Optional[int] = 0
+    ad_revenue: Optional[float] = 0
+    current_step: int = 1  # Which wizard step the user was on
+    paused_reason: Optional[str] = "paused"  # paused, error, incomplete
 
 class FilmResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2320,6 +2350,141 @@ async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_curr
     }
 
 
+# ==================== FILM DRAFTS (INCOMPLETE FILMS) ====================
+
+@api_router.post("/films/drafts")
+async def save_film_draft(draft_data: FilmDraft, user: dict = Depends(get_current_user)):
+    """Save or update a film draft (paused/incomplete film)."""
+    user_id = user['id']
+    
+    # Check if there's an existing draft with this title or create new
+    existing_draft = None
+    if draft_data.title:
+        existing_draft = await db.film_drafts.find_one({
+            'user_id': user_id, 
+            'title': draft_data.title
+        })
+    
+    draft = {
+        'user_id': user_id,
+        'title': draft_data.title or f"Bozza_{datetime.now().strftime('%Y%m%d_%H%M')}",
+        'genre': draft_data.genre,
+        'subgenres': draft_data.subgenres,
+        'release_date': draft_data.release_date,
+        'weeks_in_theater': draft_data.weeks_in_theater,
+        'sponsor_id': draft_data.sponsor_id,
+        'equipment_package': draft_data.equipment_package,
+        'locations': draft_data.locations,
+        'location_days': draft_data.location_days,
+        'screenwriter_id': draft_data.screenwriter_id,
+        'director_id': draft_data.director_id,
+        'actors': draft_data.actors,
+        'extras_count': draft_data.extras_count,
+        'extras_cost': draft_data.extras_cost,
+        'screenplay': draft_data.screenplay,
+        'screenplay_source': draft_data.screenplay_source,
+        'poster_url': draft_data.poster_url,
+        'poster_prompt': draft_data.poster_prompt,
+        'ad_duration_seconds': draft_data.ad_duration_seconds,
+        'ad_revenue': draft_data.ad_revenue,
+        'current_step': draft_data.current_step,
+        'paused_reason': draft_data.paused_reason,
+        'updated_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    if existing_draft:
+        # Update existing draft
+        await db.film_drafts.update_one(
+            {'_id': existing_draft['_id']},
+            {'$set': draft}
+        )
+        draft['id'] = existing_draft.get('id', str(existing_draft['_id']))
+    else:
+        # Create new draft
+        draft['id'] = str(uuid.uuid4())
+        draft['created_at'] = datetime.now(timezone.utc).isoformat()
+        await db.film_drafts.insert_one(draft)
+    
+    return {
+        'success': True,
+        'message': 'Bozza salvata con successo',
+        'draft_id': draft['id']
+    }
+
+@api_router.get("/films/drafts")
+async def get_film_drafts(user: dict = Depends(get_current_user)):
+    """Get all film drafts for the current user."""
+    user_id = user['id']
+    
+    drafts = await db.film_drafts.find(
+        {'user_id': user_id},
+        {'_id': 0}
+    ).sort('updated_at', -1).to_list(50)
+    
+    # Enrich with cast/crew names
+    for draft in drafts:
+        # Get director name
+        if draft.get('director_id'):
+            director = await db.people.find_one({'id': draft['director_id']}, {'_id': 0, 'name': 1})
+            draft['director_name'] = director.get('name', 'Unknown') if director else None
+        
+        # Get screenwriter name
+        if draft.get('screenwriter_id'):
+            sw = await db.people.find_one({'id': draft['screenwriter_id']}, {'_id': 0, 'name': 1})
+            draft['screenwriter_name'] = sw.get('name', 'Unknown') if sw else None
+        
+        # Count actors
+        draft['actors_count'] = len(draft.get('actors', []))
+        
+        # Get genre display name
+        draft['genre_display'] = GENRES.get(draft.get('genre', ''), {}).get('name', draft.get('genre', 'N/A'))
+    
+    return {'drafts': drafts, 'count': len(drafts)}
+
+@api_router.get("/films/drafts/{draft_id}")
+async def get_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+    """Get a specific film draft."""
+    draft = await db.film_drafts.find_one(
+        {'id': draft_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    
+    if not draft:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    
+    return draft
+
+@api_router.delete("/films/drafts/{draft_id}")
+async def delete_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+    """Delete a film draft."""
+    result = await db.film_drafts.delete_one({
+        'id': draft_id,
+        'user_id': user['id']
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    
+    return {'success': True, 'message': 'Bozza eliminata'}
+
+@api_router.post("/films/drafts/{draft_id}/resume")
+async def resume_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+    """Mark a draft as being resumed (for tracking)."""
+    draft = await db.film_drafts.find_one(
+        {'id': draft_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    
+    if not draft:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    
+    # Return the full draft data for the frontend to load
+    return {
+        'success': True,
+        'draft': draft
+    }
+
+
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
@@ -2423,14 +2588,15 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     film['imdb_rating'] = calculate_imdb_rating(film)
     
     # Generate synopsis/plot summary from screenplay
+    genre_name = GENRES.get(film_data.genre, {}).get('name', film_data.genre)
+    director_name = director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
+    
     if film_data.screenplay:
         try:
             from emergentintegrations.llm.openai import OpenAILLM
             llm = OpenAILLM(api_key=EMERGENT_LLM_KEY)
             
-            genre_name = film_data.genre
             cast_names = ", ".join([c.get('name', 'Unknown') for c in enriched_cast[:3]])
-            director_name = director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
             
             synopsis_prompt = f"""Create a compelling movie synopsis/plot summary for a {genre_name} film.
 

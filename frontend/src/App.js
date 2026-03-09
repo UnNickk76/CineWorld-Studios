@@ -183,6 +183,7 @@ const TopNavbar = () => {
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create', icon: Plus, label: 'create_film' },
+    { path: '/drafts', icon: Clock, label: 'drafts' },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure' },
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace' },
@@ -1561,6 +1562,7 @@ const FilmWizard = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [sponsors, setSponsors] = useState([]);
   const [locations, setLocations] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -1570,6 +1572,7 @@ const FilmWizard = () => {
   const [composers, setComposers] = useState([]);
   const [genres, setGenres] = useState({});
   const [actorRoles, setActorRoles] = useState([]);
+  const [resumedDraftId, setResumedDraftId] = useState(null);
   
   // New states for cast filtering
   const [castCategories, setCastCategories] = useState([]);
@@ -1590,6 +1593,74 @@ const FilmWizard = () => {
   });
   const [releaseDate, setReleaseDate] = useState(new Date());
   const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Composer'},{num:7,title:'Cast'},{num:8,title:'Script'},{num:9,title:'Soundtrack'},{num:10,title:'Poster'},{num:11,title:'Ads'},{num:12,title:'Review'}];
+
+  // Function to save draft (pause)
+  const saveDraft = async (reason = 'paused') => {
+    setSavingDraft(true);
+    try {
+      const draftData = {
+        ...filmData,
+        current_step: step,
+        paused_reason: reason
+      };
+      const res = await api.post('/films/drafts', draftData);
+      toast.success(language === 'it' ? 'Bozza salvata! Puoi riprendere dalla pagina "Film Incompleti"' : 'Draft saved! You can resume from "Incomplete Films"');
+      if (reason === 'paused') {
+        navigate('/drafts');
+      }
+    } catch (e) {
+      toast.error(language === 'it' ? 'Errore nel salvataggio della bozza' : 'Error saving draft');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+  
+  // Load draft from URL params or localStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const draftId = params.get('draft');
+    if (draftId) {
+      loadDraft(draftId);
+    }
+  }, []);
+  
+  const loadDraft = async (draftId) => {
+    try {
+      const res = await api.get(`/films/drafts/${draftId}`);
+      const draft = res.data;
+      setFilmData({
+        title: draft.title || '',
+        genre: draft.genre || 'action',
+        subgenres: draft.subgenres || [],
+        release_date: draft.release_date || new Date().toISOString().split('T')[0],
+        weeks_in_theater: draft.weeks_in_theater || 4,
+        sponsor_id: draft.sponsor_id,
+        equipment_package: draft.equipment_package || 'Standard',
+        locations: draft.locations || [],
+        location_days: draft.location_days || {},
+        screenwriter_id: draft.screenwriter_id || '',
+        director_id: draft.director_id || '',
+        composer_id: draft.composer_id || '',
+        actors: draft.actors || [],
+        extras_count: draft.extras_count || 50,
+        extras_cost: draft.extras_cost || 50000,
+        screenplay: draft.screenplay || '',
+        screenplay_source: draft.screenplay_source || 'manual',
+        screenplay_prompt: '',
+        soundtrack_prompt: '',
+        soundtrack_description: '',
+        poster_url: draft.poster_url || '',
+        poster_prompt: draft.poster_prompt || '',
+        ad_duration_seconds: draft.ad_duration_seconds || 0,
+        ad_revenue: draft.ad_revenue || 0
+      });
+      setStep(draft.current_step || 1);
+      setResumedDraftId(draftId);
+      toast.success(language === 'it' ? 'Bozza caricata!' : 'Draft loaded!');
+    } catch (e) {
+      toast.error(language === 'it' ? 'Errore nel caricamento della bozza' : 'Error loading draft');
+    }
+  };
 
   useEffect(() => { 
     api.get('/sponsors').then(r=>setSponsors(r.data)); 
@@ -2048,9 +2119,197 @@ const FilmWizard = () => {
       </div>
       <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
       <div className="flex justify-between mt-3">
-        <Button variant="outline" size="sm" onClick={()=>setStep(step-1)} disabled={step===1}>Previous</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={()=>setStep(step-1)} disabled={step===1}>Previous</Button>
+          <Button variant="outline" size="sm" onClick={()=>saveDraft('paused')} disabled={savingDraft} className="text-orange-400 border-orange-400/50 hover:bg-orange-500/10">
+            {savingDraft ? '...' : (language === 'it' ? 'Metti in Pausa' : 'Pause')}
+          </Button>
+        </div>
         {step<12?<Button size="sm" onClick={()=>setStep(step+1)} disabled={!canProceed()} className="bg-yellow-500 text-black">Next <ChevronRight className="w-3 h-3 ml-1" /></Button>:<Button size="sm" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds} className="bg-yellow-500 text-black">{loading?'...':'Create Film'}</Button>}
       </div>
+    </div>
+  );
+};
+
+// Film Drafts (Incomplete Films) Board
+const FilmDrafts = () => {
+  const { api } = useContext(AuthContext);
+  const { language } = useTranslations();
+  const navigate = useNavigate();
+  const [drafts, setDrafts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    loadDrafts();
+  }, []);
+
+  const loadDrafts = async () => {
+    try {
+      const res = await api.get('/films/drafts');
+      setDrafts(res.data.drafts || []);
+    } catch (e) {
+      toast.error('Errore nel caricamento delle bozze');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteDraft = async (draftId) => {
+    setDeletingId(draftId);
+    try {
+      await api.delete(`/films/drafts/${draftId}`);
+      toast.success(language === 'it' ? 'Bozza eliminata' : 'Draft deleted');
+      setDrafts(drafts.filter(d => d.id !== draftId));
+    } catch (e) {
+      toast.error('Errore');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const resumeDraft = (draftId) => {
+    navigate(`/create?draft=${draftId}`);
+  };
+
+  const getStepName = (stepNum) => {
+    const steps = ['', 'Titolo', 'Sponsor', 'Equip.', 'Scrittore', 'Regista', 'Compositore', 'Cast', 'Script', 'Musica', 'Poster', 'Ads', 'Review'];
+    return steps[stepNum] || `Step ${stepNum}`;
+  };
+
+  const getReasonBadge = (reason) => {
+    switch(reason) {
+      case 'paused':
+        return <Badge className="bg-orange-500/20 text-orange-400">{language === 'it' ? 'In Pausa' : 'Paused'}</Badge>;
+      case 'error':
+        return <Badge className="bg-red-500/20 text-red-400">{language === 'it' ? 'Errore' : 'Error'}</Badge>;
+      default:
+        return <Badge className="bg-gray-500/20 text-gray-400">{language === 'it' ? 'Incompleto' : 'Incomplete'}</Badge>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-700 rounded w-1/3"></div>
+          <div className="h-24 bg-gray-700 rounded"></div>
+          <div className="h-24 bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="film-drafts-page">
+      <div className="flex items-center gap-3 mb-6">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-8 w-8">
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl flex items-center gap-2">
+          <Film className="w-6 h-6 text-orange-400" />
+          {language === 'it' ? 'Film Incompleti' : 'Incomplete Films'}
+        </h1>
+      </div>
+
+      {drafts.length === 0 ? (
+        <Card className="bg-[#1A1A1A] border-white/10">
+          <CardContent className="py-12 text-center">
+            <Film className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+            <p className="text-gray-400 text-lg">
+              {language === 'it' ? 'Nessun film in sospeso' : 'No incomplete films'}
+            </p>
+            <p className="text-gray-500 text-sm mt-2">
+              {language === 'it' ? 'I film messi in pausa o con errori appariranno qui' : 'Paused or errored films will appear here'}
+            </p>
+            <Button onClick={() => navigate('/create')} className="mt-4 bg-yellow-500 text-black">
+              <Plus className="w-4 h-4 mr-2" />
+              {language === 'it' ? 'Crea Nuovo Film' : 'Create New Film'}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {drafts.map(draft => (
+            <Card key={draft.id} className="bg-[#1A1A1A] border-white/10 hover:border-orange-500/30 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-lg truncate">
+                        {draft.title || (language === 'it' ? 'Senza Titolo' : 'Untitled')}
+                      </h3>
+                      {getReasonBadge(draft.paused_reason)}
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-400">
+                      {draft.genre_display && (
+                        <span className="flex items-center gap-1">
+                          <Film className="w-3 h-3" />
+                          {draft.genre_display}
+                        </span>
+                      )}
+                      {draft.director_name && (
+                        <span className="flex items-center gap-1">
+                          <Clapperboard className="w-3 h-3" />
+                          {draft.director_name}
+                        </span>
+                      )}
+                      {draft.actors_count > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {draft.actors_count} {language === 'it' ? 'attori' : 'actors'}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="w-3 h-3" />
+                        {language === 'it' ? 'Fermo a:' : 'Stopped at:'}
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        Step {draft.current_step}/12 - {getStepName(draft.current_step)}
+                      </Badge>
+                    </div>
+                    
+                    {draft.updated_at && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {language === 'it' ? 'Ultimo salvataggio:' : 'Last saved:'} {new Date(draft.updated_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      onClick={() => resumeDraft(draft.id)} 
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      size="sm"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      {language === 'it' ? 'Riprendi' : 'Resume'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => deleteDraft(draft.id)}
+                      disabled={deletingId === draft.id}
+                      className="text-red-400 border-red-400/50 hover:bg-red-500/10"
+                    >
+                      {deletingId === draft.id ? '...' : (
+                        <>
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          {language === 'it' ? 'Elimina' : 'Delete'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -7885,6 +8144,7 @@ function App() {
               <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
               <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
               <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
+              <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
               <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
               <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
               <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />

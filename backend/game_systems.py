@@ -847,6 +847,10 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     final_revenue *= genre_mult * hour_mult * day_mult * decay_mult
     final_revenue *= competition_mult * unpredictability * weather_mult * event_mult
     
+    # BOOST: +10% for all days after opening (opening day has +30% applied at creation)
+    if days_in_theater > 1:
+        final_revenue *= 1.10  # +10% boost
+    
     final_revenue = max(100, int(final_revenue))  # Minimum $100
     
     return {

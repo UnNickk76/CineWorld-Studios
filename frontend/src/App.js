@@ -1720,7 +1720,7 @@ const FilmWizard = () => {
   }, [api]);
   
   const fetchPeople = async (type, category = '', skill = '') => {
-    let url = `/${type}?limit=40`;
+    let url = `/${type}?limit=200`;
     if (category && category !== 'all') url += `&category=${category}`;
     if (skill && skill !== 'all') url += `&skill=${skill}`;
     
@@ -3136,6 +3136,7 @@ const CinemaJournal = () => {
   const [films, setFilms] = useState([]);
   const [news, setNews] = useState([]);
   const [discoveredStars, setDiscoveredStars] = useState([]);
+  const [recentTrailers, setRecentTrailers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [comment, setComment] = useState('');
@@ -3148,6 +3149,7 @@ const CinemaJournal = () => {
       api.get('/discovered-stars')
     ]).then(([filmsRes, newsRes, starsRes]) => {
       setFilms(filmsRes.data.films);
+      setRecentTrailers(filmsRes.data.recent_trailers || []);
       setNews(newsRes.data.news || []);
       setDiscoveredStars(starsRes.data.stars || []);
     }).finally(() => setLoading(false)); 
@@ -3229,6 +3231,49 @@ const CinemaJournal = () => {
         </div>
         <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
       </div>
+
+      {/* Recent Trailers Section */}
+      {recentTrailers.length > 0 && (
+        <Card className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border-purple-500/30 mb-6 overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Film className="w-5 h-5 text-purple-400" />
+              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">{language === 'it' ? 'NUOVI TRAILER' : 'NEW TRAILERS'}</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {recentTrailers.slice(0, 5).map(film => (
+                <div 
+                  key={film.id} 
+                  onClick={() => navigate(`/film/${film.id}`)}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:bg-black/50 transition-colors"
+                >
+                  <div className="aspect-video relative">
+                    {film.poster_url ? (
+                      <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+                        <Film className="w-10 h-10 text-purple-400" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-purple-500 rounded-full p-3">
+                        <Clapperboard className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                    <Badge className="absolute top-2 right-2 bg-purple-500/80 text-white text-xs">
+                      TRAILER
+                    </Badge>
+                  </div>
+                  <div className="p-2">
+                    <h3 className="font-semibold text-sm truncate">{film.title}</h3>
+                    <p className="text-xs text-gray-400">{film.owner?.production_house_name || 'Unknown Studio'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Breaking News - Star Discoveries */}
       {news.length > 0 && (
@@ -3981,15 +4026,34 @@ const ChatPage = () => {
                     ) : (
                       messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] px-3 py-1.5 rounded-xl text-sm ${msg.sender_id === user.id ? 'bg-yellow-500 text-black rounded-br-sm' : msg.sender?.is_bot ? 'bg-blue-500/20 border border-blue-500/30 rounded-bl-sm' : 'bg-white/10 rounded-bl-sm'}`}>
+                          <div className={`max-w-[70%] px-3 py-1.5 rounded-xl text-sm ${
+                            msg.message_type === 'trailer_announcement' 
+                              ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-bl-sm cursor-pointer hover:from-purple-500/30 hover:to-pink-500/30'
+                              : msg.sender_id === user.id 
+                                ? 'bg-yellow-500 text-black rounded-br-sm' 
+                                : msg.sender?.is_bot 
+                                  ? 'bg-blue-500/20 border border-blue-500/30 rounded-bl-sm' 
+                                  : 'bg-white/10 rounded-bl-sm'
+                          }`}
+                          onClick={() => msg.message_type === 'trailer_announcement' && msg.film_id && navigate(`/film/${msg.film_id}`)}
+                          >
                             {msg.sender_id !== user.id && !activeRoom.is_private && (
                               <div className="flex items-center gap-1 mb-0.5">
-                                <p className="text-xs font-semibold">{msg.sender?.nickname}</p>
-                                {msg.sender?.is_bot && msg.sender?.is_moderator && <Badge className="h-3 px-1 text-[8px] bg-red-500/30 text-red-400">MOD</Badge>}
-                                {msg.sender?.is_bot && !msg.sender?.is_moderator && <Badge className="h-3 px-1 text-[8px] bg-blue-500/30 text-blue-400">BOT</Badge>}
+                                <p className="text-xs font-semibold">{msg.sender?.nickname || msg.user?.nickname}</p>
+                                {(msg.sender?.is_bot || msg.user_id === 'system_bot') && <Badge className="h-3 px-1 text-[8px] bg-blue-500/30 text-blue-400">BOT</Badge>}
                               </div>
                             )}
-                            <p>{msg.content}</p>
+                            {msg.message_type === 'trailer_announcement' ? (
+                              <div className="flex items-center gap-2">
+                                <Film className="w-5 h-5 text-purple-400" />
+                                <div>
+                                  <p>{msg.content}</p>
+                                  <p className="text-xs text-purple-300 mt-1">{language === 'it' ? 'Clicca per vedere' : 'Click to watch'}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <p>{msg.content}</p>
+                            )}
                             <p className={`text-xs mt-0.5 ${msg.sender_id === user.id ? 'text-black/50' : 'text-gray-500'}`}>
                               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>

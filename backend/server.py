@@ -7329,6 +7329,165 @@ async def process_all_films_hourly(user: dict = Depends(get_current_user)):
         'results': results
     }
 
+# ==================== OFFLINE CATCH-UP SYSTEM ====================
+
+@api_router.post("/catchup/process")
+async def process_offline_catchup(user: dict = Depends(get_current_user)):
+    """
+    Process all missed revenue while the server was offline.
+    This calculates retroactive earnings for films in theaters and infrastructure.
+    Called automatically when user reconnects after server sleep.
+    """
+    user_id = user['id']
+    
+    # Get user's last activity timestamp
+    last_activity = user.get('last_activity')
+    now = datetime.now(timezone.utc)
+    
+    # If no last activity, use current time (first login)
+    if not last_activity:
+        await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
+        return {'status': 'first_login', 'catchup_revenue': 0, 'hours_missed': 0}
+    
+    # Parse last activity
+    if isinstance(last_activity, str):
+        last_activity = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+    
+    # Calculate hours missed
+    hours_missed = (now - last_activity).total_seconds() / 3600
+    
+    # Only process if more than 1 hour has passed
+    if hours_missed < 1:
+        await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
+        return {'status': 'recent_activity', 'catchup_revenue': 0, 'hours_missed': 0}
+    
+    # Cap at 168 hours (1 week) to prevent excessive calculations
+    hours_missed = min(hours_missed, 168)
+    full_hours = int(hours_missed)
+    
+    total_catchup_revenue = 0
+    film_details = []
+    infra_details = []
+    
+    # 1. Process Films in Theaters
+    films = await db.films.find({
+        'user_id': user_id,
+        'status': 'in_theaters'
+    }).to_list(100)
+    
+    for film in films:
+        # Calculate average hourly revenue based on film stats
+        release_date = film.get('release_date')
+        if release_date:
+            if isinstance(release_date, str):
+                release_date = datetime.fromisoformat(release_date.replace('Z', '+00:00'))
+            days_in_theater = max(1, (now - release_date).days)
+        else:
+            days_in_theater = 1
+        
+        # Get competing films count
+        competing_films = await db.films.count_documents({
+            'status': 'in_theaters',
+            'id': {'$ne': film['id']}
+        })
+        
+        # Calculate revenue for each missed hour (simplified - use average)
+        film_catchup = 0
+        for hour_offset in range(full_hours):
+            past_time = last_activity + timedelta(hours=hour_offset)
+            hour = past_time.hour
+            day_of_week = past_time.weekday()
+            
+            revenue_data = calculate_hourly_film_revenue(
+                film, hour, day_of_week, days_in_theater + (hour_offset // 24), competing_films
+            )
+            film_catchup += revenue_data['revenue']
+        
+        if film_catchup > 0:
+            # Update film total revenue
+            new_total = film.get('total_revenue', 0) + film_catchup
+            await db.films.update_one(
+                {'id': film['id']},
+                {'$set': {
+                    'total_revenue': new_total,
+                    'last_hourly_processed': now.isoformat()
+                }}
+            )
+            
+            total_catchup_revenue += film_catchup
+            film_details.append({
+                'title': film['title'],
+                'revenue': film_catchup,
+                'hours': full_hours
+            })
+    
+    # 2. Process Infrastructure (cinemas, etc.)
+    infra = await db.infrastructure.find_one({'user_id': user_id})
+    if infra and infra.get('owned'):
+        for item in infra.get('owned', []):
+            item_type = item.get('type')
+            infra_config = next((i for i in INFRASTRUCTURE_TYPES if i['id'] == item_type), None)
+            if not infra_config:
+                continue
+            
+            # Calculate passive income for missed hours
+            base_income = infra_config.get('passive_income', 0)
+            if base_income > 0:
+                # Check if it's a cinema with films
+                if infra_config.get('can_screen_films'):
+                    # Use average of 500 per hour for cinemas
+                    hourly_rate = 500
+                else:
+                    hourly_rate = base_income
+                
+                infra_catchup = int(hourly_rate * full_hours)
+                if infra_catchup > 0:
+                    total_catchup_revenue += infra_catchup
+                    infra_details.append({
+                        'name': infra_config.get('name', item_type),
+                        'revenue': infra_catchup,
+                        'hours': full_hours
+                    })
+        
+        # Update infrastructure last update
+        await db.infrastructure.update_one(
+            {'user_id': user_id},
+            {'$set': {'last_revenue_update': now.isoformat()}}
+        )
+    
+    # 3. Update user funds and last activity
+    if total_catchup_revenue > 0:
+        await db.users.update_one(
+            {'id': user_id},
+            {
+                '$inc': {'funds': total_catchup_revenue, 'total_lifetime_revenue': total_catchup_revenue},
+                '$set': {'last_activity': now.isoformat()}
+            }
+        )
+    else:
+        await db.users.update_one(
+            {'id': user_id},
+            {'$set': {'last_activity': now.isoformat()}}
+        )
+    
+    return {
+        'status': 'catchup_processed',
+        'hours_missed': full_hours,
+        'catchup_revenue': total_catchup_revenue,
+        'films': film_details,
+        'infrastructure': infra_details,
+        'message': f'Recuperati ${total_catchup_revenue:,} per {full_hours} ore di inattività!' if total_catchup_revenue > 0 else None
+    }
+
+@api_router.post("/activity/heartbeat")
+async def update_activity_heartbeat(user: dict = Depends(get_current_user)):
+    """Update user's last activity timestamp. Called periodically by frontend."""
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'last_activity': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {'status': 'ok'}
+
 # ==================== WORLD EVENTS ====================
 
 @api_router.get("/events/active")

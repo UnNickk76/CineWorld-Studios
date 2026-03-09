@@ -1066,11 +1066,12 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
 
 // Dashboard Page
 const Dashboard = () => {
-  const { user, api } = useContext(AuthContext);
-  const { t } = useTranslations();
+  const { user, api, refreshUser } = useContext(AuthContext);
+  const { t, language } = useTranslations();
   const [stats, setStats] = useState(null);
   const [films, setFilms] = useState([]);
   const [challenges, setChallenges] = useState({ daily: [], weekly: [] });
+  const [catchupData, setCatchupData] = useState(null);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -1085,6 +1086,20 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // First, process offline catch-up
+        const catchupRes = await api.post('/catchup/process');
+        if (catchupRes.data.catchup_revenue > 0) {
+          setCatchupData(catchupRes.data);
+          toast.success(
+            language === 'it' 
+              ? `Bentornato! Recuperati $${catchupRes.data.catchup_revenue.toLocaleString()} per ${catchupRes.data.hours_missed} ore offline!`
+              : `Welcome back! Collected $${catchupRes.data.catchup_revenue.toLocaleString()} for ${catchupRes.data.hours_missed} hours offline!`,
+            { duration: 6000 }
+          );
+          // Refresh user data to update funds
+          refreshUser();
+        }
+        
         const [statsRes, filmsRes, challengesRes] = await Promise.all([
           api.get('/statistics/my'),
           api.get('/films/my'),
@@ -1098,6 +1113,13 @@ const Dashboard = () => {
       }
     };
     fetchData();
+    
+    // Setup heartbeat to track activity (every 5 minutes)
+    const heartbeatInterval = setInterval(() => {
+      api.post('/activity/heartbeat').catch(() => {});
+    }, 5 * 60 * 1000);
+    
+    return () => clearInterval(heartbeatInterval);
   }, [api]);
 
   return (

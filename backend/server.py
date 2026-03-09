@@ -30,7 +30,9 @@ from game_systems import (
     calculate_imdb_rating, generate_ai_interactions,
     calculate_leaderboard_score,
     calculate_hourly_film_revenue, calculate_film_duration_factors,
-    calculate_star_discovery_chance, evolve_cast_skills, calculate_negative_rating_penalty
+    calculate_star_discovery_chance, evolve_cast_skills, calculate_negative_rating_penalty,
+    WORLD_EVENTS, get_active_world_events, calculate_event_bonus,
+    calculate_tour_rating, generate_tour_review
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -159,31 +161,22 @@ def calculate_cost_by_fame(fame_category: str, skill_avg: float) -> int:
     return int(base_cost * skill_bonus)
 
 # Preset Avatars (20 total) - Stylized but gender-recognizable
-PRESET_AVATARS = [
-    # Male - Stylized avatars with masculine features
-    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Director1&backgroundColor=b6e3f4&top=shortHairShortFlat&facialHair=beardMedium', 'category': 'male'},
-    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Producer1&backgroundColor=c0aede&top=shortHairShortWaved&facialHair=beardLight', 'category': 'male'},
-    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Actor1&backgroundColor=ffd5dc&top=shortHairTheCaesar', 'category': 'male'},
-    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Filmmaker1&backgroundColor=ffdfbf&top=shortHairDreads01&facialHair=beardMajestic', 'category': 'male'},
-    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Writer1&backgroundColor=d1d4f9&top=shortHairShortCurly', 'category': 'male'},
-    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaMan&backgroundColor=c4e7d4&top=shortHairSides&facialHair=moustacheFancy', 'category': 'male'},
-    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=StudioBoss&backgroundColor=fbe8d3&top=shortHairFrizzle', 'category': 'male'},
-    # Female - Stylized avatars with feminine features  
-    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Actress1&backgroundColor=ffd5dc&top=longHairStraight&accessories=prescription02', 'category': 'female'},
-    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=DirectorLady&backgroundColor=c0aede&top=longHairCurly&accessories=round', 'category': 'female'},
-    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=FilmStar&backgroundColor=b6e3f4&top=longHairBob', 'category': 'female'},
-    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=ProducerGal&backgroundColor=ffdfbf&top=longHairStraight2', 'category': 'female'},
-    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaQueen&backgroundColor=d1d4f9&top=longHairFrida', 'category': 'female'},
-    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=ScriptWriter&backgroundColor=fbe8d3&top=longHairMiaWallace', 'category': 'female'},
-    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=MovieDiva&backgroundColor=c4e7d4&top=longHairStraightStrand', 'category': 'female'},
-    # Neutral/Creative - For all users
-    {'id': 'neutral-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Cinephile1&backgroundColor=f8d7da&top=hat', 'category': 'neutral'},
-    {'id': 'neutral-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=MovieLover&backgroundColor=d4edda&top=winterHat04', 'category': 'neutral'},
-    {'id': 'neutral-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=FilmBuff&backgroundColor=cce5ff&top=turban', 'category': 'neutral'},
-    {'id': 'neutral-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=StudioArtist&backgroundColor=e2d5f1&top=winterHat02', 'category': 'neutral'},
-    {'id': 'neutral-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaFan&backgroundColor=fff3cd&top=hijab', 'category': 'neutral'},
-    {'id': 'neutral-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=BoxOffice&backgroundColor=d6d6d6&top=eyepatch', 'category': 'neutral'}
-]
+# Avatar generation - No presets, only AI or custom URL
+def generate_default_avatar(nickname: str, gender: str = 'other') -> str:
+    """Generate a unique avatar URL based on nickname and gender."""
+    seed = nickname.replace(' ', '') + str(random.randint(1000, 9999))
+    
+    if gender == 'female':
+        features = '&top=longHairStraight&accessories=prescription02'
+    elif gender == 'male':
+        features = '&top=shortHairShortFlat&facialHair=beardLight'
+    else:
+        features = '&top=hat'
+    
+    colors = ['b6e3f4', 'c0aede', 'ffd5dc', 'ffdfbf', 'd1d4f9', 'c4e7d4', 'fbe8d3']
+    bg_color = random.choice(colors)
+    
+    return f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor={bg_color}{features}"
 
 # Chat Moderator Bots
 CHAT_BOTS = [
@@ -533,7 +526,8 @@ TRANSLATIONS = {
         'female': 'Female',
         'other': 'Other',
         'infrastructure': 'Infrastructure',
-        'leaderboard': 'Leaderboard'
+        'leaderboard': 'Leaderboard',
+        'tour': 'Cinema Tour'
     },
     'it': {
         'welcome': 'Benvenuto in CineWorld Studio\'s',
@@ -574,6 +568,7 @@ TRANSLATIONS = {
         'weekly': 'Settimanali',
         'infrastructure': 'Infrastrutture',
         'leaderboard': 'Classifica',
+        'tour': 'Tour Cinema',
         'adult_warning': 'Questa è una comunità per adulti (18+). La condivisione di immagini di minori è severamente vietata e comporterà il ban immediato.',
         'age': 'Età',
         'gender': 'Genere',
@@ -1183,7 +1178,8 @@ async def register(user_data: UserCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    default_avatar = PRESET_AVATARS[0]
+    # Generate unique avatar based on nickname and gender
+    avatar_url = generate_default_avatar(user_data.nickname, user_data.gender)
     
     user = {
         'id': str(uuid.uuid4()),
@@ -1196,8 +1192,9 @@ async def register(user_data: UserCreate):
         'age': user_data.age,
         'gender': user_data.gender,
         'funds': 10000000.0,
-        'avatar_url': default_avatar['url'],
-        'avatar_id': default_avatar['id'],
+        'avatar_url': avatar_url,
+        'avatar_id': 'generated',
+        'avatar_source': 'auto',
         'created_at': datetime.now(timezone.utc).isoformat(),
         'likeability_score': 50.0,
         'interaction_score': 50.0,
@@ -1208,7 +1205,11 @@ async def register(user_data: UserCreate):
         'daily_challenges': {},
         'weekly_challenges': {},
         'mini_game_cooldowns': {},
-        'mini_game_sessions': {}
+        'mini_game_sessions': {},
+        'total_xp': 0,
+        'level': 0,
+        'fame': 50.0,
+        'total_lifetime_revenue': 0
     }
     
     await db.users.insert_one(user)
@@ -1246,10 +1247,8 @@ async def update_profile(
     if language:
         updates['language'] = language
     if avatar_id:
-        avatar = next((a for a in PRESET_AVATARS if a['id'] == avatar_id), None)
-        if avatar:
-            updates['avatar_id'] = avatar_id
-            updates['avatar_url'] = avatar['url']
+        # Avatar ID is no longer used - avatars are only AI or custom URL
+        pass
     
     if updates:
         await db.users.update_one({'id': user['id']}, {'$set': updates})
@@ -1259,12 +1258,14 @@ async def update_profile(
 
 @api_router.post("/auth/reset")
 async def reset_player(user: dict = Depends(get_current_user)):
-    default_avatar = PRESET_AVATARS[0]
+    # Generate new avatar
+    new_avatar = generate_default_avatar(user.get('nickname', 'Player'), user.get('gender', 'other'))
     
     reset_data = {
         'funds': 10000000.0,
-        'avatar_url': default_avatar['url'],
-        'avatar_id': default_avatar['id'],
+        'avatar_url': new_avatar,
+        'avatar_id': 'generated',
+        'avatar_source': 'auto',
         'likeability_score': 50.0,
         'interaction_score': 50.0,
         'character_score': 50.0,
@@ -1283,10 +1284,17 @@ async def reset_player(user: dict = Depends(get_current_user)):
     
     return {'message': 'Player reset successfully', 'new_funds': 10000000.0}
 
-# Avatars
+# Avatars - No presets, only AI or custom URL
 @api_router.get("/avatars")
 async def get_avatars():
-    return PRESET_AVATARS
+    """Avatar system now uses only AI-generated or custom URL avatars."""
+    return {
+        'message': 'Avatar presets removed. Use AI generation or custom URL.',
+        'options': [
+            {'type': 'ai', 'description': 'Generate a unique avatar using AI'},
+            {'type': 'custom_url', 'description': 'Paste a URL to your own image'}
+        ]
+    }
 
 # Generate AI Avatar
 class AvatarGenerationRequest(BaseModel):
@@ -3951,6 +3959,225 @@ async def process_all_films_hourly(user: dict = Depends(get_current_user)):
         'skipped': len([r for r in results if r.get('skipped')]),
         'total_revenue': total_revenue,
         'results': results
+    }
+
+# ==================== WORLD EVENTS ====================
+
+@api_router.get("/events/active")
+async def get_active_events():
+    """Get currently active world events."""
+    events = get_active_world_events()
+    return {
+        'events': events,
+        'count': len(events)
+    }
+
+@api_router.get("/events/all")
+async def get_all_events():
+    """Get all possible world events."""
+    return list(WORLD_EVENTS.values())
+
+@api_router.get("/films/{film_id}/event-bonus")
+async def get_film_event_bonus(film_id: str, user: dict = Depends(get_current_user)):
+    """Calculate event bonuses for a specific film."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    bonus = calculate_event_bonus(film)
+    return bonus
+
+# ==================== CINEMA TOUR SYSTEM ====================
+
+@api_router.get("/tour/featured")
+async def get_featured_cinemas(limit: int = 10):
+    """Get featured cinemas for touring."""
+    # Get all cinemas with at least some activity
+    cinemas = await db.infrastructure.find(
+        {'type': {'$in': ['cinema', 'multiplex_small', 'multiplex_medium', 'multiplex_large', 'vip_cinema', 'drive_in', 'cinema_museum', 'film_festival_venue', 'theme_park']}},
+        {'_id': 0}
+    ).to_list(100)
+    
+    # Calculate tour ratings and sort
+    rated_cinemas = []
+    for cinema in cinemas:
+        visitor_count = cinema.get('tour_visits', 0)
+        rating = calculate_tour_rating(cinema, visitor_count)
+        
+        # Get owner info
+        owner = await db.users.find_one({'id': cinema['owner_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1})
+        
+        rated_cinemas.append({
+            'id': cinema['id'],
+            'name': cinema.get('custom_name', 'Cinema'),
+            'type': cinema['type'],
+            'city': cinema.get('city', {}),
+            'country': cinema.get('country', 'Unknown'),
+            'logo_url': cinema.get('logo_url'),
+            'films_showing': len(cinema.get('films_showing', [])),
+            'tour_rating': rating,
+            'owner': owner,
+            'total_revenue': cinema.get('total_revenue', 0)
+        })
+    
+    # Sort by tour score
+    rated_cinemas.sort(key=lambda x: x['tour_rating']['score'], reverse=True)
+    
+    return rated_cinemas[:limit]
+
+@api_router.get("/tour/cinema/{cinema_id}")
+async def get_cinema_tour_details(cinema_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed tour information for a cinema."""
+    cinema = await db.infrastructure.find_one({'id': cinema_id}, {'_id': 0})
+    if not cinema:
+        raise HTTPException(status_code=404, detail="Cinema not found")
+    
+    # Get owner info
+    owner = await db.users.find_one({'id': cinema['owner_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1, 'fame': 1})
+    
+    # Get films showing details
+    films_showing = []
+    for film_info in cinema.get('films_showing', []):
+        film = await db.films.find_one({'id': film_info.get('film_id')}, {'_id': 0, 'title': 1, 'genre': 1, 'poster_url': 1, 'quality_score': 1, 'imdb_rating': 1})
+        if film:
+            films_showing.append(film)
+    
+    # Calculate tour rating
+    visitor_count = cinema.get('tour_visits', 0)
+    rating = calculate_tour_rating(cinema, visitor_count)
+    
+    # Get reviews
+    reviews = cinema.get('tour_reviews', [])[-10:]  # Last 10 reviews
+    
+    # Infrastructure type info
+    infra_type = INFRASTRUCTURE_TYPES.get(cinema['type'], {})
+    
+    return {
+        'cinema': cinema,
+        'owner': owner,
+        'type_info': infra_type,
+        'films_showing': films_showing,
+        'tour_rating': rating,
+        'reviews': reviews,
+        'visitor_count': visitor_count
+    }
+
+@api_router.post("/tour/cinema/{cinema_id}/visit")
+async def visit_cinema(cinema_id: str, user: dict = Depends(get_current_user)):
+    """Record a tour visit to a cinema."""
+    cinema = await db.infrastructure.find_one({'id': cinema_id})
+    if not cinema:
+        raise HTTPException(status_code=404, detail="Cinema not found")
+    
+    # Can't visit own cinema
+    if cinema['owner_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Cannot tour your own cinema")
+    
+    # Check if already visited today
+    today = datetime.now(timezone.utc).date().isoformat()
+    visits_today = user.get('tour_visits_today', {})
+    if visits_today.get(cinema_id) == today:
+        raise HTTPException(status_code=400, detail="Already visited this cinema today")
+    
+    # Record visit
+    visits_today[cinema_id] = today
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'tour_visits_today': visits_today}}
+    )
+    
+    # Increment cinema visit count
+    await db.infrastructure.update_one(
+        {'id': cinema_id},
+        {'$inc': {'tour_visits': 1}}
+    )
+    
+    # Add XP for touring
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 5}}
+    )
+    
+    return {
+        'visited': True,
+        'xp_gained': 5,
+        'message': f"You visited {cinema.get('custom_name', 'the cinema')}!"
+    }
+
+@api_router.post("/tour/cinema/{cinema_id}/review")
+async def review_cinema(cinema_id: str, rating: float = Query(..., ge=1.0, le=5.0), comment: str = Query(None), user: dict = Depends(get_current_user)):
+    """Leave a review for a cinema."""
+    cinema = await db.infrastructure.find_one({'id': cinema_id})
+    if not cinema:
+        raise HTTPException(status_code=404, detail="Cinema not found")
+    
+    # Can't review own cinema
+    if cinema['owner_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Cannot review your own cinema")
+    
+    review = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'user_nickname': user.get('nickname', 'Anonymous'),
+        'user_avatar': user.get('avatar_url'),
+        'rating': rating,
+        'comment': comment or '',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Add review
+    reviews = cinema.get('tour_reviews', [])
+    reviews.append(review)
+    
+    # Calculate new average
+    all_ratings = [r['rating'] for r in reviews]
+    avg_rating = sum(all_ratings) / len(all_ratings)
+    
+    await db.infrastructure.update_one(
+        {'id': cinema_id},
+        {'$set': {
+            'tour_reviews': reviews,
+            'average_review': round(avg_rating, 1)
+        }}
+    )
+    
+    # Add XP for reviewing
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 10}}
+    )
+    
+    # Add fame bonus to owner for good reviews
+    if rating >= 4.0:
+        await db.users.update_one(
+            {'id': cinema['owner_id']},
+            {'$inc': {'fame': 0.2}}
+        )
+    
+    return {
+        'reviewed': True,
+        'xp_gained': 10,
+        'new_average': round(avg_rating, 1)
+    }
+
+@api_router.get("/tour/my-visits")
+async def get_my_tour_visits(user: dict = Depends(get_current_user)):
+    """Get user's tour history."""
+    visits_today = user.get('tour_visits_today', {})
+    
+    visited_cinemas = []
+    for cinema_id in visits_today.keys():
+        cinema = await db.infrastructure.find_one({'id': cinema_id}, {'_id': 0, 'custom_name': 1, 'type': 1, 'city': 1, 'country': 1})
+        if cinema:
+            visited_cinemas.append({
+                'id': cinema_id,
+                **cinema,
+                'visited_date': visits_today[cinema_id]
+            })
+    
+    return {
+        'visits_today': len(visited_cinemas),
+        'cinemas': visited_cinemas
     }
 
 # Include router and middleware

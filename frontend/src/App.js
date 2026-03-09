@@ -147,6 +147,7 @@ const TopNavbar = () => {
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create', icon: Plus, label: 'create_film' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure' },
+    { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/social', icon: Users, label: 'social' },
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
@@ -2204,60 +2205,75 @@ const ProfilePage = () => {
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
   const navigate = useNavigate();
-  const [avatars, setAvatars] = useState([]);
-  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar_id);
   const [saving, setSaving] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const [levelInfo, setLevelInfo] = useState(null);
 
-  useEffect(() => { api.get('/avatars').then(r => setAvatars(r.data)); }, [api]);
+  useEffect(() => { 
+    api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {}); 
+  }, [api]);
 
   const saveProfile = async () => {
     setSaving(true);
     try { 
-      // If using custom avatar (AI generated or URL)
       if (customAvatarUrl) {
         await api.put('/auth/avatar', { avatar_url: customAvatarUrl, avatar_source: 'custom' });
-      } else if (selectedAvatar) {
-        const avatar = avatars.find(a => a.id === selectedAvatar);
-        if (avatar) {
-          await api.put('/auth/avatar', { avatar_url: avatar.url, avatar_source: 'preset' });
-        }
       }
-      await api.put('/auth/profile', { avatar_id: selectedAvatar || 'custom', language }); 
+      await api.put('/auth/profile', { language }); 
       await refreshUser(); 
-      toast.success('Saved!'); 
+      toast.success('Salvato!'); 
     }
-    catch (e) { toast.error('Failed'); }
+    catch (e) { toast.error('Errore'); }
     finally { setSaving(false); }
   };
 
   const generateAiAvatar = async () => {
-    if (!aiPrompt.trim()) { toast.error('Enter a description'); return; }
+    if (!aiPrompt.trim()) { toast.error('Inserisci una descrizione'); return; }
     setGeneratingAi(true);
     try {
       const res = await api.post('/avatar/generate', { description: aiPrompt, style: 'portrait' });
       setCustomAvatarUrl(res.data.avatar_url);
-      setSelectedAvatar(null);
       setShowAiGenerator(false);
-      toast.success('Avatar generated!');
+      toast.success('Avatar generato!');
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Generation failed');
+      toast.error(e.response?.data?.detail || 'Generazione fallita');
     } finally {
       setGeneratingAi(false);
     }
   };
 
   const resetPlayer = async () => {
-    try { await api.post('/auth/reset'); await refreshUser(); toast.success('Player reset!'); navigate('/dashboard'); }
-    catch (e) { toast.error('Failed'); }
+    try { await api.post('/auth/reset'); await refreshUser(); toast.success('Player resettato!'); navigate('/dashboard'); }
+    catch (e) { toast.error('Errore'); }
   };
 
   return (
     <div className="pt-16 pb-20 px-2 sm:px-3 max-w-2xl mx-auto" data-testid="profile-page">
       <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl mb-4">{t('profile')}</h1>
+      
+      {/* Level & Fame Card */}
+      {levelInfo && (
+        <Card className="bg-gradient-to-r from-purple-500/20 to-yellow-500/20 border-purple-500/30 mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Star className="w-6 h-6 text-purple-400" />
+                <span className="font-['Bebas_Neue'] text-2xl">Level {levelInfo.level}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-yellow-400" />
+                <span className="text-yellow-400 font-semibold">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
+              </div>
+            </div>
+            <Progress value={levelInfo.progress_percent} className="h-2 mb-1" />
+            <p className="text-xs text-gray-400">{levelInfo.current_xp} / {levelInfo.xp_for_next_level} XP per il prossimo livello</p>
+          </CardContent>
+        </Card>
+      )}
+      
       <Card className="bg-[#1A1A1A] border-white/10">
         <CardContent className="p-3 sm:p-4">
           <div className="flex items-center gap-3 mb-4">
@@ -2271,52 +2287,41 @@ const ProfilePage = () => {
               <p className="text-[10px] sm:text-xs text-gray-500">Owner: {user?.owner_name}</p>
             </div>
           </div>
+          
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.likeability_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Like</p></div>
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.interaction_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Social</p></div>
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
           </div>
           
-          {/* Avatar Section */}
+          {/* Avatar Section - Only AI or Custom URL */}
           <div className="space-y-3 mb-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Avatar</Label>
-              <Button variant="outline" size="sm" className="h-6 text-[10px] sm:text-xs px-2 border-yellow-500/30 text-yellow-400" onClick={() => setShowAiGenerator(true)}>
-                <Sparkles className="w-2.5 sm:w-3 h-2.5 sm:h-3 mr-1" /> Generate AI Avatar
-              </Button>
-            </div>
+            <Label className="text-xs font-semibold">Cambia Avatar</Label>
             
             {customAvatarUrl && (
               <div className="p-2 bg-yellow-500/10 rounded border border-yellow-500/30 flex items-center gap-2">
                 <Avatar className="w-10 h-10"><AvatarImage src={customAvatarUrl} /></Avatar>
-                <span className="text-xs text-yellow-400 flex-1">Custom Avatar</span>
+                <span className="text-xs text-yellow-400 flex-1">Nuovo Avatar</span>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setCustomAvatarUrl('')}>
                   <X className="w-3 h-3" />
                 </Button>
               </div>
             )}
             
-            <div className="grid grid-cols-5 sm:grid-cols-7 gap-1">{avatars.map(a => (
-              <button key={a.id} className={`p-0.5 rounded border-2 ${selectedAvatar === a.id && !customAvatarUrl ? 'border-yellow-500' : 'border-transparent hover:border-white/20'}`} onClick={() => { setSelectedAvatar(a.id); setCustomAvatarUrl(''); }}>
-                <Avatar className="w-full aspect-square"><AvatarImage src={a.url} /></Avatar>
-              </button>
-            ))}</div>
-            
-            {/* Custom URL Input */}
-            <div className="pt-2 border-t border-white/10">
-              <Label className="text-[10px] text-gray-400 mb-1 block">Or paste a custom image URL</Label>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" className="h-20 flex-col border-purple-500/30 hover:bg-purple-500/10" onClick={() => setShowAiGenerator(true)}>
+                <Sparkles className="w-6 h-6 text-purple-400 mb-1" />
+                <span className="text-xs">Genera con AI</span>
+              </Button>
+              <div className="border border-white/10 rounded-lg p-2">
+                <Label className="text-[10px] text-gray-400 mb-1 block">URL Immagine</Label>
                 <Input 
                   value={customAvatarUrl} 
-                  onChange={e => { setCustomAvatarUrl(e.target.value); setSelectedAvatar(null); }} 
+                  onChange={e => setCustomAvatarUrl(e.target.value)} 
                   placeholder="https://..." 
-                  className="h-8 text-xs bg-black/20 border-white/10 flex-1"
+                  className="h-8 text-xs bg-black/20 border-white/10"
                 />
-                {customAvatarUrl && (
-                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setCustomAvatarUrl('')}>
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
               </div>
             </div>
           </div>
@@ -2812,6 +2817,270 @@ const PlayerPublicProfile = () => {
   );
 };
 
+// Cinema Tour Page
+const CinemaTourPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [featuredCinemas, setFeaturedCinemas] = useState([]);
+  const [activeEvents, setActiveEvents] = useState([]);
+  const [myVisits, setMyVisits] = useState({ visits_today: 0, cinemas: [] });
+  const [loading, setLoading] = useState(true);
+  const [selectedCinema, setSelectedCinema] = useState(null);
+  const [cinemaDetails, setCinemaDetails] = useState(null);
+  const [reviewRating, setReviewRating] = useState(4);
+  const [reviewComment, setReviewComment] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/tour/featured?limit=12'),
+      api.get('/events/active'),
+      api.get('/tour/my-visits')
+    ]).then(([featured, events, visits]) => {
+      setFeaturedCinemas(featured.data);
+      setActiveEvents(events.data.events);
+      setMyVisits(visits.data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [api]);
+
+  const visitCinema = async (cinemaId) => {
+    try {
+      const res = await api.post(`/tour/cinema/${cinemaId}/visit`);
+      toast.success(res.data.message + ` (+${res.data.xp_gained} XP)`);
+      const visits = await api.get('/tour/my-visits');
+      setMyVisits(visits.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const viewCinemaDetails = async (cinemaId) => {
+    setSelectedCinema(cinemaId);
+    const res = await api.get(`/tour/cinema/${cinemaId}`);
+    setCinemaDetails(res.data);
+  };
+
+  const submitReview = async () => {
+    try {
+      const res = await api.post(`/tour/cinema/${selectedCinema}/review?rating=${reviewRating}&comment=${encodeURIComponent(reviewComment)}`);
+      toast.success(`Recensione inviata! (+${res.data.xp_gained} XP)`);
+      setReviewComment('');
+      viewCinemaDetails(selectedCinema);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const getTierColor = (tier) => {
+    const colors = {
+      gold: 'from-yellow-500/30 to-yellow-600/30 border-yellow-500',
+      purple: 'from-purple-500/30 to-purple-600/30 border-purple-500',
+      blue: 'from-blue-500/30 to-blue-600/30 border-blue-500',
+      green: 'from-green-500/30 to-green-600/30 border-green-500',
+      yellow: 'from-yellow-400/20 to-yellow-500/20 border-yellow-400',
+      red: 'from-red-500/20 to-red-600/20 border-red-500'
+    };
+    return colors[tier] || colors.green;
+  };
+
+  if (loading) return <div className="pt-16 flex items-center justify-center h-96"><RefreshCw className="w-8 h-8 animate-spin text-yellow-500" /></div>;
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="tour-page">
+      {/* Active Events Banner */}
+      {activeEvents.length > 0 && (
+        <div className="mb-4">
+          <h2 className="font-['Bebas_Neue'] text-lg mb-2 flex items-center gap-2">
+            <Award className="w-5 h-5 text-yellow-500" /> Eventi Mondiali Attivi
+          </h2>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {activeEvents.map(event => (
+              <Card key={event.id} className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30 min-w-[200px] flex-shrink-0">
+                <CardContent className="p-3">
+                  <h3 className="font-semibold text-sm">{event.name_it || event.name}</h3>
+                  <p className="text-[10px] text-gray-400">{event.days_remaining} giorni rimanenti</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* My Visits Today */}
+      <Card className="bg-[#1A1A1A] border-white/10 mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-green-400" /> Le Mie Visite Oggi ({myVisits.visits_today})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {myVisits.cinemas.length === 0 ? (
+            <p className="text-gray-400 text-sm">Non hai ancora visitato nessun cinema oggi. Esplora e guadagna XP!</p>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto">
+              {myVisits.cinemas.map(c => (
+                <Badge key={c.id} className="bg-green-500/20 text-green-400">{c.custom_name}</Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Featured Cinemas */}
+      <Card className="bg-[#1A1A1A] border-white/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+            <Building className="w-5 h-5 text-yellow-500" /> Cinema in Evidenza
+          </CardTitle>
+          <CardDescription>Visita i cinema degli altri giocatori e lascia recensioni</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {featuredCinemas.map(cinema => (
+              <Card key={cinema.id} className={`bg-gradient-to-br ${getTierColor(cinema.tour_rating?.tier?.color)} border overflow-hidden`}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    {cinema.logo_url ? (
+                      <img src={cinema.logo_url} alt="" className="w-10 h-10 rounded object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-yellow-500/20 flex items-center justify-center">
+                        <Building className="w-5 h-5 text-yellow-500" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm truncate">{cinema.name}</h3>
+                      <p className="text-[10px] text-gray-400">{cinema.city?.name}, {cinema.country}</p>
+                    </div>
+                    <Badge className={`text-[10px] ${cinema.tour_rating?.tier?.color === 'gold' ? 'bg-yellow-500 text-black' : 'bg-white/10'}`}>
+                      {cinema.tour_rating?.score}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 mb-2">
+                    <span>{cinema.films_showing} film in sala</span>
+                    <span>{cinema.tour_rating?.tier?.name_it || cinema.tour_rating?.tier?.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mb-2">
+                    <Avatar className="w-5 h-5"><AvatarImage src={cinema.owner?.avatar_url} /></Avatar>
+                    <span className="text-xs text-gray-300">{cinema.owner?.nickname}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button size="sm" className="flex-1 h-7 text-xs bg-yellow-500 text-black" onClick={() => viewCinemaDetails(cinema.id)}>
+                      Dettagli
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-green-500/30 text-green-400" onClick={() => visitCinema(cinema.id)} disabled={cinema.owner?.id === user?.id}>
+                      Visita
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cinema Details Dialog */}
+      <Dialog open={!!selectedCinema} onOpenChange={() => setSelectedCinema(null)}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-2xl max-h-[80vh] overflow-y-auto">
+          {cinemaDetails && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+                  {cinemaDetails.cinema.custom_name}
+                  <Badge className="bg-yellow-500/20 text-yellow-400">{cinemaDetails.tour_rating?.score}/100</Badge>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Owner Info */}
+                <div className="flex items-center gap-3 p-3 bg-white/5 rounded">
+                  <Avatar className="w-10 h-10"><AvatarImage src={cinemaDetails.owner?.avatar_url} /></Avatar>
+                  <div>
+                    <p className="font-semibold">{cinemaDetails.owner?.nickname}</p>
+                    <p className="text-xs text-gray-400">{cinemaDetails.owner?.production_house_name}</p>
+                  </div>
+                  <Badge className="ml-auto bg-yellow-500/20 text-yellow-400">Fame: {cinemaDetails.owner?.fame?.toFixed(0)}</Badge>
+                </div>
+
+                {/* Cinema Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2 bg-white/5 rounded">
+                    <p className="text-[10px] text-gray-400">Tipo</p>
+                    <p className="font-semibold text-sm">{cinemaDetails.type_info?.name_it || cinemaDetails.type_info?.name}</p>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded">
+                    <p className="text-[10px] text-gray-400">Posizione</p>
+                    <p className="font-semibold text-sm">{cinemaDetails.cinema.city?.name}, {cinemaDetails.cinema.country}</p>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded">
+                    <p className="text-[10px] text-gray-400">Schermi</p>
+                    <p className="font-semibold text-sm">{cinemaDetails.type_info?.screens || 0}</p>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded">
+                    <p className="text-[10px] text-gray-400">Visite</p>
+                    <p className="font-semibold text-sm">{cinemaDetails.visitor_count || 0}</p>
+                  </div>
+                </div>
+
+                {/* Films Showing */}
+                {cinemaDetails.films_showing.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2">Film in Programmazione</h4>
+                    <div className="flex gap-2 overflow-x-auto">
+                      {cinemaDetails.films_showing.map(film => (
+                        <div key={film.title} className="min-w-[100px] flex-shrink-0">
+                          <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'} alt={film.title} className="w-full h-32 object-cover rounded" />
+                          <p className="text-[10px] truncate mt-1">{film.title}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Reviews */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Recensioni</h4>
+                  {cinemaDetails.reviews?.length > 0 ? (
+                    <ScrollArea className="h-32">
+                      <div className="space-y-2">
+                        {cinemaDetails.reviews.map(review => (
+                          <div key={review.id} className="p-2 bg-white/5 rounded">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Avatar className="w-5 h-5"><AvatarImage src={review.user_avatar} /></Avatar>
+                              <span className="text-xs font-semibold">{review.user_nickname}</span>
+                              <span className="text-yellow-500 text-xs">{'★'.repeat(Math.floor(review.rating))}</span>
+                            </div>
+                            <p className="text-xs text-gray-300">{review.comment}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <p className="text-gray-400 text-sm">Nessuna recensione ancora.</p>
+                  )}
+                </div>
+
+                {/* Leave Review */}
+                {cinemaDetails.cinema.owner_id !== user?.id && (
+                  <div className="border-t border-white/10 pt-3">
+                    <h4 className="text-sm font-semibold mb-2">Lascia una Recensione</h4>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs">Voto:</span>
+                      {[1,2,3,4,5].map(n => (
+                        <button key={n} onClick={() => setReviewRating(n)} className={`text-lg ${n <= reviewRating ? 'text-yellow-500' : 'text-gray-600'}`}>★</button>
+                      ))}
+                    </div>
+                    <Textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Scrivi un commento..." className="h-16 text-sm bg-black/20 border-white/10 mb-2" />
+                    <Button onClick={submitReview} className="w-full bg-yellow-500 text-black">Invia Recensione (+10 XP)</Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
 // Protected Route
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -2841,6 +3110,7 @@ function App() {
               <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+              <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
               <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
               <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />

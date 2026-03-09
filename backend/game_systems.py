@@ -1149,3 +1149,369 @@ def calculate_negative_rating_penalty(user: dict, film: dict, rating: float) -> 
         'quality_penalty': penalty,
         'warning': warning
     }
+
+
+# ==================== WORLD EVENTS SYSTEM ====================
+
+WORLD_EVENTS = {
+    'cannes_festival': {
+        'id': 'cannes_festival',
+        'name': 'Cannes Film Festival',
+        'name_it': 'Festival di Cannes',
+        'description': 'The prestigious Cannes Film Festival is happening!',
+        'description_it': 'Il prestigioso Festival di Cannes è in corso!',
+        'duration_days': 12,
+        'effects': {
+            'drama_bonus': 1.5,
+            'art_film_bonus': 2.0,
+            'fame_gain_multiplier': 1.3,
+            'france_cinema_bonus': 2.0,
+            'all_cinema_bonus': 1.1
+        },
+        'month': 5,  # May
+        'icon': 'palm-tree'
+    },
+    'oscar_season': {
+        'id': 'oscar_season',
+        'name': 'Oscar Season',
+        'name_it': 'Stagione degli Oscar',
+        'description': 'Hollywood is buzzing with Oscar anticipation!',
+        'description_it': 'Hollywood è in fermento per gli Oscar!',
+        'duration_days': 30,
+        'effects': {
+            'all_genres_bonus': 1.2,
+            'usa_cinema_bonus': 1.8,
+            'fame_gain_multiplier': 1.5,
+            'quality_threshold_bonus': 1.3  # High quality films get extra
+        },
+        'month': 2,  # February
+        'icon': 'award'
+    },
+    'venice_biennale': {
+        'id': 'venice_biennale',
+        'name': 'Venice Film Festival',
+        'name_it': 'Mostra del Cinema di Venezia',
+        'description': 'The oldest film festival in the world!',
+        'description_it': 'Il più antico festival del cinema al mondo!',
+        'duration_days': 11,
+        'effects': {
+            'drama_bonus': 1.4,
+            'documentary_bonus': 1.6,
+            'italy_cinema_bonus': 2.0,
+            'fame_gain_multiplier': 1.25
+        },
+        'month': 9,  # September
+        'icon': 'lion'
+    },
+    'berlin_festival': {
+        'id': 'berlin_festival',
+        'name': 'Berlin International Film Festival',
+        'name_it': 'Festival Internazionale del Cinema di Berlino',
+        'description': 'The Berlinale celebrates cinema diversity!',
+        'description_it': 'La Berlinale celebra la diversità del cinema!',
+        'duration_days': 10,
+        'effects': {
+            'indie_bonus': 1.5,
+            'political_films_bonus': 1.4,
+            'germany_cinema_bonus': 1.8,
+            'fame_gain_multiplier': 1.2
+        },
+        'month': 2,  # February
+        'icon': 'bear'
+    },
+    'summer_blockbuster': {
+        'id': 'summer_blockbuster',
+        'name': 'Summer Blockbuster Season',
+        'name_it': 'Stagione dei Blockbuster Estivi',
+        'description': 'Summer is here! Big budget films dominate!',
+        'description_it': "È estate! I film ad alto budget dominano!",
+        'duration_days': 90,
+        'effects': {
+            'action_bonus': 1.6,
+            'adventure_bonus': 1.5,
+            'animation_bonus': 1.7,
+            'sci_fi_bonus': 1.4,
+            'all_cinema_revenue_bonus': 1.3
+        },
+        'month': 6,  # June-August
+        'icon': 'sun'
+    },
+    'holiday_season': {
+        'id': 'holiday_season',
+        'name': 'Holiday Movie Season',
+        'name_it': 'Stagione dei Film Natalizi',
+        'description': 'Families flock to cinemas during the holidays!',
+        'description_it': 'Le famiglie affollano i cinema durante le feste!',
+        'duration_days': 45,
+        'effects': {
+            'family_bonus': 1.8,
+            'animation_bonus': 1.6,
+            'comedy_bonus': 1.4,
+            'romance_bonus': 1.5,
+            'all_cinema_revenue_bonus': 1.5,
+            'food_sales_bonus': 1.4
+        },
+        'month': 12,  # December-January
+        'icon': 'gift'
+    },
+    'horror_october': {
+        'id': 'horror_october',
+        'name': 'Halloween Horror Fest',
+        'name_it': 'Festival Horror di Halloween',
+        'description': 'October brings scares and thrills!',
+        'description_it': 'Ottobre porta brividi e paura!',
+        'duration_days': 31,
+        'effects': {
+            'horror_bonus': 2.5,
+            'thriller_bonus': 1.6,
+            'all_cinema_night_bonus': 1.4
+        },
+        'month': 10,  # October
+        'icon': 'ghost'
+    },
+    'valentines_romance': {
+        'id': 'valentines_romance',
+        'name': "Valentine's Day Romance",
+        'name_it': 'San Valentino Romantico',
+        'description': 'Love is in the air at cinemas!',
+        'description_it': "L'amore è nell'aria al cinema!",
+        'duration_days': 14,
+        'effects': {
+            'romance_bonus': 2.0,
+            'drama_bonus': 1.3,
+            'comedy_bonus': 1.2,
+            'couples_attendance_bonus': 1.6
+        },
+        'month': 2,  # February
+        'icon': 'heart'
+    }
+}
+
+def get_active_world_events() -> List[dict]:
+    """Get currently active world events based on date."""
+    now = datetime.now(timezone.utc)
+    current_month = now.month
+    current_day = now.day
+    
+    active_events = []
+    
+    for event_id, event in WORLD_EVENTS.items():
+        event_month = event['month']
+        duration = event['duration_days']
+        
+        # Simple check: if we're in the event's month (or close to it)
+        if event_month == current_month:
+            active_events.append({
+                **event,
+                'active': True,
+                'days_remaining': max(1, duration - current_day)
+            })
+        # Check for multi-month events
+        elif event_id == 'summer_blockbuster' and current_month in [6, 7, 8]:
+            active_events.append({
+                **event,
+                'active': True,
+                'days_remaining': (8 - current_month) * 30 + (30 - current_day)
+            })
+        elif event_id == 'holiday_season' and current_month in [12, 1]:
+            active_events.append({
+                **event,
+                'active': True,
+                'days_remaining': 45 - current_day if current_month == 12 else 15 - current_day
+            })
+    
+    return active_events
+
+def calculate_event_bonus(film: dict, infrastructure: dict = None) -> dict:
+    """Calculate bonus multipliers from active world events."""
+    active_events = get_active_world_events()
+    
+    if not active_events:
+        return {'total_multiplier': 1.0, 'events': [], 'bonuses': {}}
+    
+    genre = film.get('genre', 'drama').lower()
+    country = infrastructure.get('country', 'USA') if infrastructure else 'USA'
+    
+    total_multiplier = 1.0
+    bonuses = {}
+    
+    for event in active_events:
+        effects = event.get('effects', {})
+        
+        # Genre-specific bonuses
+        genre_key = f'{genre}_bonus'
+        if genre_key in effects:
+            bonus = effects[genre_key]
+            total_multiplier *= bonus
+            bonuses[f"{event['name']} ({genre})"] = bonus
+        
+        # Country-specific bonuses
+        country_key = f'{country.lower()}_cinema_bonus'
+        if country_key in effects:
+            bonus = effects[country_key]
+            total_multiplier *= bonus
+            bonuses[f"{event['name']} ({country})"] = bonus
+        
+        # General bonuses
+        if 'all_cinema_bonus' in effects:
+            bonus = effects['all_cinema_bonus']
+            total_multiplier *= bonus
+            bonuses[f"{event['name']} (Global)"] = bonus
+        
+        if 'all_cinema_revenue_bonus' in effects:
+            bonus = effects['all_cinema_revenue_bonus']
+            total_multiplier *= bonus
+            bonuses[f"{event['name']} (Revenue)"] = bonus
+    
+    return {
+        'total_multiplier': round(total_multiplier, 2),
+        'events': [{'id': e['id'], 'name': e['name'], 'name_it': e['name_it']} for e in active_events],
+        'bonuses': bonuses
+    }
+
+# ==================== CINEMA TOUR SYSTEM ====================
+
+def calculate_tour_rating(infrastructure: dict, visitor_count: int = 0) -> dict:
+    """Calculate a cinema's tour rating based on various factors."""
+    
+    # Base score
+    score = 50
+    factors = []
+    
+    # Infrastructure type bonus
+    infra_type = infrastructure.get('type', 'cinema')
+    type_bonuses = {
+        'cinema': 10,
+        'drive_in': 15,
+        'multiplex_small': 20,
+        'multiplex_medium': 30,
+        'multiplex_large': 40,
+        'vip_cinema': 50,
+        'cinema_museum': 45,
+        'film_festival_venue': 55,
+        'theme_park': 60,
+        'production_studio': 35,
+        'cinema_school': 25
+    }
+    type_bonus = type_bonuses.get(infra_type, 10)
+    score += type_bonus
+    factors.append(f"Infrastructure type: +{type_bonus}")
+    
+    # Logo bonus
+    if infrastructure.get('logo_url'):
+        score += 10
+        factors.append("Custom logo: +10")
+    
+    # Films showing bonus
+    films_count = len(infrastructure.get('films_showing', []))
+    if films_count > 0:
+        film_bonus = min(films_count * 5, 20)
+        score += film_bonus
+        factors.append(f"Films showing ({films_count}): +{film_bonus}")
+    
+    # Visitor count bonus
+    if visitor_count > 0:
+        visitor_bonus = min(visitor_count, 30)
+        score += visitor_bonus
+        factors.append(f"Popularity ({visitor_count} visits): +{visitor_bonus}")
+    
+    # City prestige bonus
+    city = infrastructure.get('city', {})
+    wealth = city.get('wealth', 1.0)
+    if wealth >= 1.5:
+        score += 15
+        factors.append("Prestigious location: +15")
+    elif wealth >= 1.2:
+        score += 8
+        factors.append("Good location: +8")
+    
+    # Recent reviews bonus (simulated)
+    avg_review = infrastructure.get('average_review', 0)
+    if avg_review >= 4.5:
+        score += 20
+        factors.append(f"Excellent reviews ({avg_review}★): +20")
+    elif avg_review >= 4.0:
+        score += 15
+        factors.append(f"Great reviews ({avg_review}★): +15")
+    elif avg_review >= 3.5:
+        score += 10
+        factors.append(f"Good reviews ({avg_review}★): +10")
+    
+    # Cap score at 100
+    score = min(100, score)
+    
+    # Determine tier
+    if score >= 90:
+        tier = {'name': 'Legendary', 'name_it': 'Leggendario', 'color': 'gold'}
+    elif score >= 75:
+        tier = {'name': 'Excellent', 'name_it': 'Eccellente', 'color': 'purple'}
+    elif score >= 60:
+        tier = {'name': 'Great', 'name_it': 'Ottimo', 'color': 'blue'}
+    elif score >= 45:
+        tier = {'name': 'Good', 'name_it': 'Buono', 'color': 'green'}
+    elif score >= 30:
+        tier = {'name': 'Average', 'name_it': 'Nella media', 'color': 'yellow'}
+    else:
+        tier = {'name': 'Needs Improvement', 'name_it': 'Da migliorare', 'color': 'red'}
+    
+    return {
+        'score': score,
+        'tier': tier,
+        'factors': factors
+    }
+
+def generate_tour_review() -> dict:
+    """Generate a random tour review from a simulated visitor."""
+    
+    positive_comments = [
+        "Amazing atmosphere! Will definitely come back.",
+        "The best cinema experience I've ever had!",
+        "Great selection of films and friendly staff.",
+        "Loved the popcorn and the comfortable seats!",
+        "A must-visit for any film lover.",
+        "Incredible sound system and picture quality!",
+        "The VIP treatment was worth every penny.",
+        "Perfect date night destination!",
+    ]
+    
+    negative_comments = [
+        "Could use some improvements in cleanliness.",
+        "Prices are a bit high for what you get.",
+        "Sound system needs an upgrade.",
+        "Not enough variety in the snack bar.",
+        "Seats were a bit uncomfortable.",
+    ]
+    
+    neutral_comments = [
+        "Decent experience, nothing special.",
+        "Average cinema, does the job.",
+        "Good location but average facilities.",
+        "Okay for a casual movie night.",
+    ]
+    
+    # Random rating with bias toward positive
+    roll = random.random()
+    if roll < 0.6:  # 60% positive
+        rating = random.uniform(4.0, 5.0)
+        comment = random.choice(positive_comments)
+    elif roll < 0.85:  # 25% neutral
+        rating = random.uniform(3.0, 4.0)
+        comment = random.choice(neutral_comments)
+    else:  # 15% negative
+        rating = random.uniform(1.5, 3.0)
+        comment = random.choice(negative_comments)
+    
+    # Random visitor name
+    visitor_names = [
+        "CinemaFan42", "MovieBuff", "FilmLover", "PopcornKing", 
+        "ScreenQueen", "ReelDeal", "CinephileX", "FlickPicker",
+        "SilverScreen", "BlockbusterBoss", "IndieWatcher", "ClassicCinema"
+    ]
+    
+    return {
+        'id': str(uuid.uuid4()),
+        'visitor_name': random.choice(visitor_names) + str(random.randint(1, 999)),
+        'rating': round(rating, 1),
+        'comment': comment,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }

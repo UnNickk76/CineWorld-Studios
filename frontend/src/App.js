@@ -684,22 +684,38 @@ const SkillBadge = ({ name, value, change, language = 'it' }) => {
 // User Profile Modal Component
 const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
   const { language } = useContext(LanguageContext);
+  const { user } = useContext(AuthContext);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [friendStatus, setFriendStatus] = useState(null); // 'friends', 'pending', 'none'
+  const [myMajor, setMyMajor] = useState(null);
   const navigate = useNavigate();
   
   useEffect(() => {
     if (isOpen && userId) {
       setLoading(true);
-      api.get(`/users/${userId}/full-profile`)
-        .then(res => {
-          setProfile(res.data);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error(err);
-          setLoading(false);
-        });
+      Promise.all([
+        api.get(`/users/${userId}/full-profile`),
+        api.get('/friends'),
+        api.get('/friends/requests'),
+        api.get('/major/my')
+      ]).then(([profileRes, friendsRes, requestsRes, majorRes]) => {
+        setProfile(profileRes.data);
+        
+        // Check friend status
+        const isFriend = friendsRes.data?.some(f => f.id === userId);
+        const hasPendingRequest = requestsRes.data?.outgoing?.some(r => r.user?.id === userId);
+        setFriendStatus(isFriend ? 'friends' : hasPendingRequest ? 'pending' : 'none');
+        
+        // Check if user has a Major and can invite
+        setMyMajor(majorRes.data?.has_major ? majorRes.data : null);
+        
+        setLoading(false);
+      }).catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
     }
   }, [isOpen, userId, api]);
   
@@ -714,15 +730,46 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
       quality: language === 'it' ? 'Qualità Media' : 'Avg Quality',
       awards: language === 'it' ? 'Premi' : 'Awards',
       infrastructure: language === 'it' ? 'Infrastrutture' : 'Infrastructure',
-      sendMessage: language === 'it' ? 'Invia Messaggio' : 'Send Message',
+      sendMessage: language === 'it' ? 'Messaggio' : 'Message',
       viewFilms: language === 'it' ? 'Vedi Film' : 'View Films',
       close: language === 'it' ? 'Chiudi' : 'Close',
       online: language === 'it' ? 'Online' : 'Online',
       offline: language === 'it' ? 'Offline' : 'Offline',
       bestFilm: language === 'it' ? 'Miglior Film' : 'Best Film',
-      recentFilms: language === 'it' ? 'Film Recenti' : 'Recent Films'
+      recentFilms: language === 'it' ? 'Film Recenti' : 'Recent Films',
+      addFriend: language === 'it' ? 'Amicizia' : 'Add Friend',
+      pendingRequest: language === 'it' ? 'In Attesa' : 'Pending',
+      alreadyFriends: language === 'it' ? 'Amici' : 'Friends',
+      inviteToMajor: language === 'it' ? 'Invita Major' : 'Invite to Major',
+      invited: language === 'it' ? 'Invitato' : 'Invited',
+      alreadyInMajor: language === 'it' ? 'In una Major' : 'In a Major'
     };
     return translations[key] || key;
+  };
+  
+  const sendFriendRequest = async () => {
+    try {
+      setActionLoading('friend');
+      await api.post('/friends/request', { user_id: userId });
+      setFriendStatus('pending');
+      toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+  
+  const inviteToMajor = async () => {
+    try {
+      setActionLoading('major');
+      await api.post('/major/invite', { user_id: userId });
+      toast.success(language === 'it' ? 'Invito alla Major inviato!' : 'Major invitation sent!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    } finally {
+      setActionLoading(null);
+    }
   };
   
   return (
@@ -828,7 +875,8 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
             
             {/* Actions */}
             {!profile.is_own_profile && (
-              <div className="flex gap-2 mt-4">
+              <div className="flex flex-wrap gap-2 mt-4">
+                {/* Send Message */}
                 <Button 
                   className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400"
                   onClick={() => {
@@ -840,6 +888,57 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                   <MessageSquare className="w-4 h-4 mr-2" />
                   {t('sendMessage')}
                 </Button>
+                
+                {/* Friend Request */}
+                {friendStatus === 'friends' ? (
+                  <Button variant="outline" className="flex-1 border-green-500/30 text-green-400" disabled>
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    {t('alreadyFriends')}
+                  </Button>
+                ) : friendStatus === 'pending' ? (
+                  <Button variant="outline" className="flex-1 border-yellow-500/30 text-yellow-400" disabled>
+                    <Clock className="w-4 h-4 mr-2" />
+                    {t('pendingRequest')}
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                    onClick={sendFriendRequest}
+                    disabled={actionLoading === 'friend'}
+                  >
+                    {actionLoading === 'friend' ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <UserPlus className="w-4 h-4 mr-2" />
+                    )}
+                    {t('addFriend')}
+                  </Button>
+                )}
+                
+                {/* Invite to Major */}
+                {myMajor?.has_major && (myMajor.my_role === 'founder' || myMajor.my_role === 'vice') && (
+                  profile.user?.major_id ? (
+                    <Button variant="outline" className="flex-1 border-gray-500/30 text-gray-400" disabled>
+                      <Crown className="w-4 h-4 mr-2" />
+                      {t('alreadyInMajor')}
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                      onClick={inviteToMajor}
+                      disabled={actionLoading === 'major'}
+                    >
+                      {actionLoading === 'major' ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Crown className="w-4 h-4 mr-2" />
+                      )}
+                      {t('inviteToMajor')}
+                    </Button>
+                  )
+                )}
               </div>
             )}
           </>

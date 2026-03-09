@@ -10,7 +10,7 @@ import {
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
-  ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock
+  ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -837,13 +837,13 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                   <Trophy className="w-4 h-4 text-yellow-500" />
                   {t('bestFilm')}
                 </h4>
-                <Card className="bg-black/30 border-yellow-500/30">
+                <Card className="bg-black/30 border-yellow-500/30 cursor-pointer hover:border-yellow-500/50 transition-colors" onClick={() => { onClose(); navigate(`/films/${profile.best_film.id}`); }}>
                   <CardContent className="p-3 flex items-center gap-3">
                     {profile.best_film.poster_url && (
                       <img src={profile.best_film.poster_url} alt="" className="w-12 h-16 object-cover rounded" />
                     )}
                     <div className="flex-1">
-                      <p className="font-semibold">{profile.best_film.title}</p>
+                      <p className="font-semibold hover:text-yellow-500">{profile.best_film.title}</p>
                       <p className="text-xs text-gray-400">{profile.best_film.genre} • {profile.best_film.quality_score || 0}% quality</p>
                       <p className="text-xs text-green-500">${((profile.best_film.revenue || 0) / 1000000).toFixed(2)}M revenue</p>
                     </div>
@@ -861,9 +861,9 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {profile.recent_films.slice(0, 4).map(film => (
-                    <Card key={film.id} className="bg-black/30 border-white/10">
+                    <Card key={film.id} className="bg-black/30 border-white/10 cursor-pointer hover:border-yellow-500/30 transition-colors" onClick={() => { onClose(); navigate(`/films/${film.id}`); }}>
                       <CardContent className="p-2">
-                        <p className="text-xs font-semibold truncate">{film.title}</p>
+                        <p className="text-xs font-semibold truncate hover:text-yellow-500">{film.title}</p>
                         <p className="text-[10px] text-gray-400">{film.genre}</p>
                         <p className="text-[10px] text-yellow-500">{film.quality_score}%</p>
                       </CardContent>
@@ -1035,8 +1035,8 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
               <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('revenue')})</h4>
               <div className="space-y-1">
                 {(detailedStats.films?.top_by_revenue || []).map((film, i) => (
-                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center">
-                    <span className="text-xs">{i + 1}. {film.title}</span>
+                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { setShowStatsDetail(false); navigate(`/films/${film.id}`); }}>
+                    <span className="text-xs hover:text-yellow-500">{i + 1}. {film.title}</span>
                     <span className="text-xs text-green-500">${(film.revenue / 1000000).toFixed(2)}M</span>
                   </div>
                 ))}
@@ -1089,8 +1089,8 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
               <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('likes')})</h4>
               <div className="space-y-1">
                 {(detailedStats.films?.top_by_likes || []).map((film, i) => (
-                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center">
-                    <span className="text-xs">{i + 1}. {film.title}</span>
+                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { setShowStatsDetail(false); navigate(`/films/${film.id}`); }}>
+                    <span className="text-xs hover:text-yellow-500">{i + 1}. {film.title}</span>
                     <span className="text-xs text-pink-500">{film.likes} likes</span>
                   </div>
                 ))}
@@ -2159,6 +2159,8 @@ const FilmDetail = () => {
   const [processing, setProcessing] = useState(false);
   const [trailerStatus, setTrailerStatus] = useState(null);
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
+  const [rereleaseStatus, setRereleaseStatus] = useState(null);
+  const [rereleasing, setRereleasing] = useState(false);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -2186,6 +2188,28 @@ const FilmDetail = () => {
       ]);
       if (hourlyRes) setHourlyRevenue(hourlyRes.data);
       if (durationRes) setDurationStatus(durationRes.data);
+    }
+    
+    // Load re-release status for withdrawn/completed films
+    if (filmRes.data.status === 'withdrawn' || filmRes.data.status === 'completed') {
+      const rereleaseRes = await api.get(`/films/${id}/rerelease-status`).catch(() => null);
+      if (rereleaseRes) setRereleaseStatus(rereleaseRes.data);
+    }
+  };
+  
+  const handleRerelease = async () => {
+    if (!rereleaseStatus?.can_rerelease) return;
+    
+    setRereleasing(true);
+    try {
+      const res = await api.post(`/films/${film.id}/rerelease`);
+      toast.success(res.data.message);
+      toast.info(`Incasso apertura: $${res.data.opening_revenue.toLocaleString()}`);
+      loadFilm();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setRereleasing(false);
     }
   };
 
@@ -2490,6 +2514,77 @@ const FilmDetail = () => {
                     <p className="text-xs text-gray-300">Il film potrebbe essere ritirato anticipatamente.</p>
                     <p className="text-xs text-red-300">Fame penalty: {durationStatus.fame_change}</p>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Re-release Section - For withdrawn/completed films owned by user */}
+          {isOwner && (film.status === 'withdrawn' || film.status === 'completed') && (
+            <Card className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-purple-400" /> 
+                  {language === 'it' ? 'Rimetti in Sala' : 'Re-release'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {rereleaseStatus?.can_rerelease ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-300">
+                      {language === 'it' 
+                        ? 'Puoi rimettere questo film nelle sale cinematografiche!'
+                        : 'You can bring this film back to theaters!'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-2 rounded bg-black/20 text-center">
+                        <p className="text-[10px] text-gray-400">{language === 'it' ? 'Costo' : 'Cost'}</p>
+                        <p className="text-lg font-bold text-yellow-400">${rereleaseStatus.cost?.toLocaleString()}</p>
+                      </div>
+                      <div className="p-2 rounded bg-black/20 text-center">
+                        <p className="text-[10px] text-gray-400">{language === 'it' ? 'Uscite precedenti' : 'Previous releases'}</p>
+                        <p className="text-lg font-bold">{rereleaseStatus.times_released || 1}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {language === 'it' 
+                        ? `Costo: 30% del budget originale ($${rereleaseStatus.original_budget?.toLocaleString()})`
+                        : `Cost: 30% of original budget ($${rereleaseStatus.original_budget?.toLocaleString()})`}
+                    </p>
+                    <Button 
+                      onClick={handleRerelease} 
+                      disabled={rereleasing || (user?.funds || 0) < rereleaseStatus.cost}
+                      className="w-full bg-purple-600 hover:bg-purple-500"
+                    >
+                      {rereleasing ? (
+                        <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> {language === 'it' ? 'Rilancio...' : 'Releasing...'}</>
+                      ) : (
+                        <><RotateCcw className="w-4 h-4 mr-2" /> {language === 'it' ? 'Rimetti in Sala' : 'Re-release'} - ${rereleaseStatus.cost?.toLocaleString()}</>
+                      )}
+                    </Button>
+                  </div>
+                ) : rereleaseStatus?.days_remaining > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-300">
+                      {language === 'it' 
+                        ? 'Questo film non può essere ancora rimesso in sala.'
+                        : 'This film cannot be re-released yet.'}
+                    </p>
+                    <div className="p-3 rounded bg-black/20 text-center">
+                      <Clock className="w-8 h-8 mx-auto mb-2 text-yellow-500" />
+                      <p className="text-2xl font-bold text-yellow-400">{rereleaseStatus.days_remaining}</p>
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'giorni rimanenti' : 'days remaining'}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 text-center">
+                      {language === 'it' 
+                        ? 'Devi aspettare 7 giorni dalla rimozione prima di poter rimettere il film in sala.'
+                        : 'You must wait 7 days after withdrawal before re-releasing.'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">
+                    {rereleaseStatus?.reason || (language === 'it' ? 'Verifica stato in corso...' : 'Checking status...')}
+                  </p>
                 )}
               </CardContent>
             </Card>

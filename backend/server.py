@@ -7101,6 +7101,133 @@ async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_use
         'revenue_penalty': revenue_penalty
     }
 
+# ==================== FILM RE-RELEASE ====================
+
+RE_RELEASE_WAIT_DAYS = 7  # Days to wait before re-releasing
+RE_RELEASE_COST_MULTIPLIER = 0.3  # 30% of original budget
+
+@api_router.get("/films/{film_id}/rerelease-status")
+async def get_rerelease_status(film_id: str, user: dict = Depends(get_current_user)):
+    """Check if a film can be re-released and when."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    status = film.get('status')
+    if status == 'in_theaters':
+        return {'can_rerelease': False, 'reason': 'Film già in sala'}
+    
+    if status not in ['withdrawn', 'completed']:
+        return {'can_rerelease': False, 'reason': 'Film non può essere rimesso in sala'}
+    
+    # Check when the film was withdrawn/completed
+    withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
+    if withdrawn_at:
+        if isinstance(withdrawn_at, str):
+            withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
+        
+        days_since = (datetime.now(timezone.utc) - withdrawn_at).days
+        days_remaining = max(0, RE_RELEASE_WAIT_DAYS - days_since)
+        
+        if days_remaining > 0:
+            return {
+                'can_rerelease': False, 
+                'reason': f'Devi aspettare ancora {days_remaining} giorni',
+                'days_remaining': days_remaining,
+                'available_date': (withdrawn_at + timedelta(days=RE_RELEASE_WAIT_DAYS)).isoformat()
+            }
+    
+    # Calculate re-release cost
+    original_budget = film.get('budget', 1000000)
+    rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
+    
+    return {
+        'can_rerelease': True,
+        'cost': rerelease_cost,
+        'original_budget': original_budget,
+        'times_released': film.get('times_released', 1)
+    }
+
+@api_router.post("/films/{film_id}/rerelease")
+async def rerelease_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Re-release a withdrawn or completed film back to theaters."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    status = film.get('status')
+    if status == 'in_theaters':
+        raise HTTPException(status_code=400, detail="Film già in sala")
+    
+    if status not in ['withdrawn', 'completed']:
+        raise HTTPException(status_code=400, detail="Questo film non può essere rimesso in sala")
+    
+    # Check wait period
+    withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
+    if withdrawn_at:
+        if isinstance(withdrawn_at, str):
+            withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
+        
+        days_since = (datetime.now(timezone.utc) - withdrawn_at).days
+        if days_since < RE_RELEASE_WAIT_DAYS:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Devi aspettare ancora {RE_RELEASE_WAIT_DAYS - days_since} giorni prima di rimettere il film in sala"
+            )
+    
+    # Calculate and check cost
+    original_budget = film.get('budget', 1000000)
+    rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
+    
+    if user.get('funds', 0) < rerelease_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${rerelease_cost:,}")
+    
+    # Deduct cost
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -rerelease_cost}})
+    
+    # Update film status
+    times_released = film.get('times_released', 1) + 1
+    now = datetime.now(timezone.utc)
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'status': 'in_theaters',
+            'release_date': now.isoformat(),
+            'rerelease_date': now.isoformat(),
+            'times_released': times_released,
+            'theater_days_extended': 0
+        },
+        '$unset': {
+            'withdrawn_at': '',
+            'withdrawn_early': '',
+            'theater_end_date': ''
+        }}
+    )
+    
+    # Calculate opening day revenue (reduced for re-release)
+    quality_factor = film.get('quality_score', 50) / 100
+    base_revenue = film.get('budget', 1000000) * 0.1 * quality_factor
+    opening_revenue = int(base_revenue * (0.5 / times_released))  # Diminishing returns
+    
+    await db.users.update_one(
+        {'id': user['id']}, 
+        {'$inc': {'funds': opening_revenue, 'total_lifetime_revenue': opening_revenue}}
+    )
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$inc': {'total_revenue': opening_revenue}}
+    )
+    
+    return {
+        'success': True,
+        'message': f'"{film.get("title")}" è tornato in sala!',
+        'opening_revenue': opening_revenue,
+        'cost': rerelease_cost,
+        'times_released': times_released
+    }
+
 # ==================== STAR DISCOVERY & SKILL EVOLUTION ====================
 
 @api_router.post("/films/{film_id}/check-star-discoveries")

@@ -3365,6 +3365,122 @@ async def get_trailer_status(film_id: str, user: dict = Depends(get_current_user
         'error': film.get('trailer_error') if film else None
     }
 
+# Exclusive Premiere System
+class PremierInviteRequest(BaseModel):
+    film_id: str
+    friend_nickname: str
+
+@api_router.post("/premiere/invite")
+async def invite_to_premiere(request: PremierInviteRequest, user: dict = Depends(get_current_user)):
+    """Invite a friend to an exclusive trailer premiere."""
+    # Check if film exists and has trailer
+    film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    if not film.get('trailer_url'):
+        raise HTTPException(status_code=400, detail="Il film non ha ancora un trailer")
+    
+    # Find friend
+    friend = await db.users.find_one({'nickname': request.friend_nickname}, {'_id': 0})
+    if not friend:
+        raise HTTPException(status_code=404, detail="Amico non trovato")
+    
+    if friend['id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi invitare te stesso")
+    
+    # Check if already invited
+    existing_invite = await db.premiere_invites.find_one({
+        'film_id': request.film_id,
+        'invitee_id': friend['id']
+    })
+    if existing_invite:
+        raise HTTPException(status_code=400, detail="Già invitato a questa premiere")
+    
+    # Create invite
+    invite = {
+        'id': str(uuid.uuid4()),
+        'film_id': request.film_id,
+        'film_title': film.get('title'),
+        'inviter_id': user['id'],
+        'inviter_name': user.get('nickname'),
+        'invitee_id': friend['id'],
+        'invitee_name': friend.get('nickname'),
+        'viewed': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.premiere_invites.insert_one(invite)
+    
+    # Create notification for friend
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': friend['id'],
+        'type': 'premiere_invite',
+        'message': f"{user.get('nickname')} ti ha invitato alla premiere esclusiva di '{film.get('title')}'!",
+        'data': {'film_id': request.film_id, 'invite_id': invite['id']},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {'success': True, 'message': f"Invito inviato a {friend.get('nickname')}!"}
+
+@api_router.get("/premiere/invites")
+async def get_my_premiere_invites(user: dict = Depends(get_current_user)):
+    """Get premiere invites received."""
+    invites = await db.premiere_invites.find(
+        {'invitee_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+    return {'invites': invites}
+
+@api_router.post("/premiere/view/{invite_id}")
+async def view_premiere(invite_id: str, user: dict = Depends(get_current_user)):
+    """Mark premiere as viewed and reward both users."""
+    invite = await db.premiere_invites.find_one({'id': invite_id, 'invitee_id': user['id']})
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    
+    if invite.get('viewed'):
+        return {'already_viewed': True, 'message': 'Hai già visto questa premiere'}
+    
+    # Mark as viewed
+    await db.premiere_invites.update_one({'id': invite_id}, {'$set': {'viewed': True, 'viewed_at': datetime.now(timezone.utc).isoformat()}})
+    
+    # Reward inviter (fame + XP)
+    xp_reward = 25
+    fame_reward = 5
+    await db.users.update_one(
+        {'id': invite['inviter_id']},
+        {'$inc': {'total_xp': xp_reward, 'fame': fame_reward}}
+    )
+    
+    # Reward viewer (XP)
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 10}}
+    )
+    
+    # Notify inviter
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': invite['inviter_id'],
+        'type': 'premiere_viewed',
+        'message': f"{user.get('nickname')} ha visto la premiere di '{invite.get('film_title')}'! +{xp_reward} XP +{fame_reward} Fama",
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Get film for trailer URL
+    film = await db.films.find_one({'id': invite['film_id']}, {'_id': 0, 'trailer_url': 1, 'title': 1})
+    
+    return {
+        'success': True,
+        'trailer_url': film.get('trailer_url') if film else None,
+        'film_title': invite.get('film_title'),
+        'xp_earned': 10,
+        'message': 'Hai guadagnato 10 XP per aver visto la premiere!'
+    }
+
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():

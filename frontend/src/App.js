@@ -880,17 +880,20 @@ const FilmWizard = () => {
   const [screenwriters, setScreenwriters] = useState([]);
   const [directors, setDirectors] = useState([]);
   const [actors, setActors] = useState([]);
+  const [composers, setComposers] = useState([]);
   const [genres, setGenres] = useState({});
   const [actorRoles, setActorRoles] = useState([]);
 
   const [filmData, setFilmData] = useState({
     title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
-    screenwriter_id: '', director_id: '', actors: [], extras_count: 50, extras_cost: 50000,
-    screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
+    screenwriter_id: '', director_id: '', composer_id: '', actors: [], extras_count: 50, extras_cost: 50000,
+    screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', 
+    soundtrack_prompt: '', soundtrack_description: '',
+    poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
   });
   const [releaseDate, setReleaseDate] = useState(new Date());
-  const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Cast'},{num:7,title:'Script'},{num:8,title:'Poster'},{num:9,title:'Ads'},{num:10,title:'Review'}];
+  const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Composer'},{num:7,title:'Cast'},{num:8,title:'Script'},{num:9,title:'Soundtrack'},{num:10,title:'Poster'},{num:11,title:'Ads'},{num:12,title:'Review'}];
 
   useEffect(() => { 
     api.get('/sponsors').then(r=>setSponsors(r.data)); 
@@ -905,11 +908,13 @@ const FilmWizard = () => {
     if(type==='screenwriters') setScreenwriters(res.data.screenwriters);
     else if(type==='directors') setDirectors(res.data.directors);
     else if(type==='actors') setActors(res.data.actors);
+    else if(type==='composers') setComposers(res.data.composers);
   };
-  useEffect(() => { if(step===4)fetchPeople('screenwriters'); if(step===5)fetchPeople('directors'); if(step===6)fetchPeople('actors'); }, [step]);
+  useEffect(() => { if(step===4)fetchPeople('screenwriters'); if(step===5)fetchPeople('directors'); if(step===6)fetchPeople('composers'); if(step===7)fetchPeople('actors'); }, [step]);
 
   const generateScreenplay = async () => { setGenerating(true); try { const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); toast.success('Sceneggiatura generata!'); } catch(e) { toast.error('Errore'); } finally { setGenerating(false); }};
   const generatePoster = async () => { setGenerating(true); try { const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); setFilmData({...filmData, poster_url: res.data.poster_url}); toast.success('Poster generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
+  const generateSoundtrack = async () => { setGenerating(true); try { const res = await api.post('/ai/soundtrack-description', { title: filmData.title, genre: filmData.genre, mood: 'epic', custom_prompt: filmData.soundtrack_prompt }); setFilmData({...filmData, soundtrack_description: res.data.description}); toast.success('Descrizione colonna sonora generata!'); } catch(e) { toast.error('Errore generazione'); } finally { setGenerating(false); }};
   
   const calculateBudget = () => { const eq = equipment.find(e=>e.name===filmData.equipment_package)||{cost:0}; let loc=0; filmData.locations.forEach(l=>{const lo=locations.find(x=>x.name===l); if(lo)loc+=lo.cost_per_day*(filmData.location_days[l]||7);}); return eq.cost+loc+filmData.extras_cost; };
   const getSponsorBudget = () => { if(!filmData.sponsor_id)return 0; const s=sponsors.find(x=>x.name===filmData.sponsor_id); return s?.budget_offer||0; };
@@ -1059,6 +1064,21 @@ const FilmWizard = () => {
       case 6:
         return (<div className="space-y-2">
           <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-400"><Music className="w-3 h-3 inline mr-1" />Seleziona il compositore per la colonna sonora</p>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('composers')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
+          <ScrollArea className="h-[400px] sm:h-[450px]">
+            <div className="space-y-1.5 pr-2">
+              {composers.map(p => {
+                const isSel = filmData.composer_id === p.id;
+                return <PersonCard key={p.id} person={p} isSelected={isSel} onSelect={() => setFilmData({...filmData, composer_id: p.id})} />;
+              })}
+            </div>
+          </ScrollArea>
+        </div>);
+      case 7:
+        return (<div className="space-y-2">
+          <div className="flex justify-between items-center">
             <p className="text-xs text-gray-400">Selected: {filmData.actors.length} actors</p>
             <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
           </div>
@@ -1107,12 +1127,30 @@ const FilmWizard = () => {
           </ScrollArea>
           <div><Label className="text-xs">Extras: {filmData.extras_count} (${filmData.extras_cost.toLocaleString()})</Label><Slider value={[filmData.extras_count]} onValueChange={([v])=>setFilmData({...filmData,extras_count:v,extras_cost:v*1000})} min={0} max={500} step={10} /></div>
         </div>);
-      case 7: return (<div className="space-y-3">
+      case 8: return (<div className="space-y-3">
         <div className="flex gap-2"><Button variant={filmData.screenplay_source==='manual'?'default':'outline'} size="sm" onClick={()=>setFilmData({...filmData,screenplay_source:'manual'})} className={filmData.screenplay_source==='manual'?'bg-yellow-500 text-black':''}>Manuale</Button><Button variant="outline" size="sm" onClick={generateScreenplay} disabled={generating||!filmData.title}><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'Genera con AI'}</Button></div>
         <Input value={filmData.screenplay_prompt} onChange={e=>setFilmData({...filmData,screenplay_prompt:e.target.value})} placeholder="La tua idea per la sceneggiatura... (opzionale per AI)" className="bg-black/20 border-white/10 text-sm" />
         <Textarea value={filmData.screenplay} onChange={e=>setFilmData({...filmData,screenplay:e.target.value})} placeholder="Sceneggiatura..." className="min-h-[200px] bg-black/20 border-white/10" />
       </div>);
-      case 8: return (<div className="grid md:grid-cols-2 gap-3">
+      case 9: return (<div className="space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Music className="w-5 h-5 text-purple-400" />
+          <p className="text-sm">Genera una descrizione per la colonna sonora AI</p>
+        </div>
+        <Input value={filmData.soundtrack_prompt} onChange={e=>setFilmData({...filmData,soundtrack_prompt:e.target.value})} placeholder="Il tuo concept per la colonna sonora... (es: epica orchestrale con cori)" className="bg-black/20 border-white/10 text-sm" />
+        <Button variant="outline" onClick={generateSoundtrack} disabled={generating||!filmData.title} className="border-purple-500/30 text-purple-400">
+          <Sparkles className="w-3 h-3 mr-1" />{generating?'Generazione...':'Genera Descrizione AI'}
+        </Button>
+        {filmData.soundtrack_description && (
+          <Card className="bg-purple-500/10 border-purple-500/30">
+            <CardContent className="p-3">
+              <p className="text-sm text-purple-200">{filmData.soundtrack_description}</p>
+            </CardContent>
+          </Card>
+        )}
+        <p className="text-xs text-gray-500">La descrizione verrà usata per generare la colonna sonora nel trailer del film.</p>
+      </div>);
+      case 10: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder="Describe poster..." className="min-h-[100px] bg-black/20 border-white/10" />
           <Button onClick={generatePoster} disabled={generating} className="w-full bg-yellow-500 text-black"><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'Generate AI Poster'}</Button>
@@ -1120,22 +1158,22 @@ const FilmWizard = () => {
         </div>
         <div className="aspect-[2/3] bg-[#1A1A1A] rounded border border-white/10 overflow-hidden">{filmData.poster_url?<img src={filmData.poster_url} alt="Poster" className="w-full h-full object-cover" />:<div className="w-full h-full flex items-center justify-center text-gray-500"><Image className="w-10 h-10 opacity-50" /></div>}</div>
       </div>);
-      case 9: return (<div className="space-y-3">
+      case 11: return (<div className="space-y-3">
         <p className="text-xs text-gray-400">Ads give immediate revenue but may reduce satisfaction.</p>
         <div><Label className="text-xs">Duration: {filmData.ad_duration_seconds}s</Label><Slider value={[filmData.ad_duration_seconds]} onValueChange={([v])=>setFilmData({...filmData,ad_duration_seconds:v,ad_revenue:v*5000})} min={0} max={180} step={15} /></div>
         <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><div className="flex justify-between"><span>Immediate Revenue</span><span className="text-green-400 text-lg">+${filmData.ad_revenue.toLocaleString()}</span></div>{filmData.ad_duration_seconds>60&&<p className="text-xs text-yellow-500 mt-1">⚠️ High ads may reduce satisfaction</p>}</CardContent></Card>
       </div>);
-      case 10:
+      case 12:
         const budget=calculateBudget(), sponsor=getSponsorBudget(), net=budget-sponsor-filmData.ad_revenue;
         return (<Card className="bg-[#1A1A1A] border-white/10"><CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-xl">{filmData.title}</CardTitle><CardDescription>{t(filmData.genre)} • {filmData.weeks_in_theater}w</CardDescription></CardHeader><CardContent className="space-y-2">
-          <div className="grid grid-cols-2 gap-2 text-xs"><div><span className="text-gray-400">Release</span><p>{format(releaseDate,'PPP')}</p></div><div><span className="text-gray-400">Sponsor</span><p>{filmData.sponsor_id||'None'}</p></div><div><span className="text-gray-400">Equipment</span><p>{filmData.equipment_package}</p></div><div><span className="text-gray-400">Cast</span><p>{filmData.actors.length}+{filmData.extras_count}</p></div></div>
+          <div className="grid grid-cols-2 gap-2 text-xs"><div><span className="text-gray-400">Release</span><p>{format(releaseDate,'PPP')}</p></div><div><span className="text-gray-400">Sponsor</span><p>{filmData.sponsor_id||'None'}</p></div><div><span className="text-gray-400">Equipment</span><p>{filmData.equipment_package}</p></div><div><span className="text-gray-400">Cast</span><p>{filmData.actors.length}+{filmData.extras_count}</p></div><div><span className="text-gray-400">Composer</span><p>{composers.find(c=>c.id===filmData.composer_id)?.name||'None'}</p></div></div>
           <div className="pt-2 border-t border-white/10 space-y-1 text-sm"><div className="flex justify-between"><span>Budget</span><span className="text-red-400">-${budget.toLocaleString()}</span></div>{sponsor>0&&<div className="flex justify-between"><span>Sponsor</span><span className="text-green-400">+${sponsor.toLocaleString()}</span></div>}{filmData.ad_revenue>0&&<div className="flex justify-between"><span>Ads</span><span className="text-green-400">+${filmData.ad_revenue.toLocaleString()}</span></div>}<div className="flex justify-between font-bold pt-1 border-t border-white/10"><span>Net</span><span className={net>0?'text-red-400':'text-green-400'}>${Math.abs(net).toLocaleString()}</span></div></div>
         </CardContent></Card>);
       default: return null;
     }
   };
 
-  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 3:return filmData.locations.length>0; case 4:return filmData.screenwriter_id; case 5:return filmData.director_id; case 6:return filmData.actors.length>0; case 7:return filmData.screenplay; default:return true; }};
+  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 3:return filmData.locations.length>0; case 4:return filmData.screenwriter_id; case 5:return filmData.director_id; case 6:return filmData.composer_id; case 7:return filmData.actors.length>0; case 8:return filmData.screenplay; default:return true; }};
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="film-wizard">
@@ -1350,10 +1388,10 @@ const FilmDetail = () => {
     }
   };
 
-  const generateTrailer = async () => {
+  const generateTrailer = async (duration = 8) => {
     setGeneratingTrailer(true);
     try {
-      const res = await api.post('/ai/generate-trailer', { film_id: film.id, duration: 15 });
+      const res = await api.post('/ai/generate-trailer', { film_id: film.id, duration: duration, style: 'cinematic' });
       if (res.data.status === 'exists') {
         toast.info('Il trailer esiste già!');
         setTrailerStatus({ has_trailer: true, trailer_url: res.data.trailer_url });
@@ -1637,17 +1675,37 @@ const FilmDetail = () => {
                 <div className="text-center py-6 space-y-3">
                   <Film className="w-12 h-12 mx-auto text-purple-400/50" />
                   <p className="text-gray-400 text-sm">Nessun trailer generato per questo film</p>
-                  <div className="flex flex-col items-center gap-2">
-                    <Button 
-                      onClick={generateTrailer} 
-                      disabled={generatingTrailer}
-                      className="bg-purple-600 hover:bg-purple-500"
-                      data-testid="generate-trailer-btn"
-                    >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Genera Trailer AI ($50,000)
-                    </Button>
-                    <p className="text-[10px] text-gray-500">Durata: 15 secondi • Generato da Sora 2</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => generateTrailer(4)} 
+                        disabled={generatingTrailer}
+                        variant="outline"
+                        className="border-purple-500/30 text-purple-400"
+                        data-testid="generate-trailer-4s"
+                      >
+                        4 sec
+                      </Button>
+                      <Button 
+                        onClick={() => generateTrailer(8)} 
+                        disabled={generatingTrailer}
+                        className="bg-purple-600 hover:bg-purple-500"
+                        data-testid="generate-trailer-btn"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        8 sec ($50,000)
+                      </Button>
+                      <Button 
+                        onClick={() => generateTrailer(12)} 
+                        disabled={generatingTrailer}
+                        variant="outline"
+                        className="border-purple-500/30 text-purple-400"
+                        data-testid="generate-trailer-12s"
+                      >
+                        12 sec
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Generato da Sora 2 • +5 bonus qualità</p>
                   </div>
                 </div>
               )}

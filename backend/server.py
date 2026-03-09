@@ -524,6 +524,7 @@ TRANSLATIONS = {
         'documentary': 'Documentary',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Games',
+        'sagas_series': 'Sagas & Series',
         'cinema_journal': 'Cinema Journal',
         'challenges': 'Challenges',
         'daily': 'Daily',
@@ -575,6 +576,7 @@ TRANSLATIONS = {
         'documentary': 'Documentario',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Giochi',
+        'sagas_series': 'Saghe e Serie',
         'cinema_journal': 'Giornale del Cinema',
         'challenges': 'Sfide',
         'daily': 'Giornaliere',
@@ -626,6 +628,7 @@ TRANSLATIONS = {
         'documentary': 'Documental',
         'fantasy': 'Fantasía',
         'mini_games': 'Mini Juegos',
+        'sagas_series': 'Sagas y Series',
         'cinema_journal': 'Diario del Cine',
         'challenges': 'Desafíos',
         'daily': 'Diarios',
@@ -670,6 +673,7 @@ TRANSLATIONS = {
         'documentary': 'Documentaire',
         'fantasy': 'Fantaisie',
         'mini_games': 'Mini Jeux',
+        'sagas_series': 'Sagas et Séries',
         'cinema_journal': 'Journal du Cinéma',
         'challenges': 'Défis',
         'daily': 'Quotidiens',
@@ -714,6 +718,7 @@ TRANSLATIONS = {
         'documentary': 'Dokumentation',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Spiele',
+        'sagas_series': 'Sagen & Serien',
         'cinema_journal': 'Kino Zeitung',
         'challenges': 'Herausforderungen',
         'daily': 'Täglich',
@@ -1804,6 +1809,22 @@ class CreateSeriesRequest(BaseModel):
     episode_length: int = 45  # minutes
     synopsis: str
     series_type: str = 'tv_series'  # tv_series or anime
+
+@api_router.get("/saga/can-create")
+async def can_create_saga(user: dict = Depends(get_current_user)):
+    """Check if user meets requirements to create sagas/sequels."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
+    
+    can_create = level_info['level'] >= SAGA_REQUIRED_LEVEL and fame >= SAGA_REQUIRED_FAME
+    
+    return {
+        'can_create': can_create,
+        'required_level': SAGA_REQUIRED_LEVEL,
+        'required_fame': SAGA_REQUIRED_FAME,
+        'current_level': level_info['level'],
+        'current_fame': fame
+    }
 
 @api_router.get("/films/{film_id}/can-create-sequel")
 async def can_create_sequel(film_id: str, user: dict = Depends(get_current_user)):

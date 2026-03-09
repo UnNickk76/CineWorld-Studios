@@ -97,31 +97,76 @@ NAMES_BY_NATIONALITY = {
 
 NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
-# Preset Avatars (20 total) - Realistic style
+# Fame Categories with costs
+FAME_CATEGORIES = {
+    'unknown': {'name': 'Unknown', 'name_it': 'Sconosciuto', 'min_cost': 10000, 'max_cost': 50000, 'quality_bonus': 0},
+    'rising': {'name': 'Rising Star', 'name_it': 'Emergente', 'min_cost': 50000, 'max_cost': 200000, 'quality_bonus': 5},
+    'famous': {'name': 'Famous', 'name_it': 'Famoso', 'min_cost': 200000, 'max_cost': 1000000, 'quality_bonus': 15},
+    'superstar': {'name': 'Superstar', 'name_it': 'Superstar', 'min_cost': 1000000, 'max_cost': 10000000, 'quality_bonus': 30}
+}
+
+# Advertising platforms
+AD_PLATFORMS = [
+    {'id': 'social_media', 'name': 'Social Media', 'name_it': 'Social Media', 'reach_multiplier': 1.2, 'cost_per_day': 5000},
+    {'id': 'tv_spots', 'name': 'TV Commercials', 'name_it': 'Spot TV', 'reach_multiplier': 2.0, 'cost_per_day': 50000},
+    {'id': 'billboards', 'name': 'Billboards', 'name_it': 'Cartelloni', 'reach_multiplier': 1.5, 'cost_per_day': 20000},
+    {'id': 'streaming_ads', 'name': 'Streaming Ads', 'name_it': 'Pubblicità Streaming', 'reach_multiplier': 1.8, 'cost_per_day': 30000},
+    {'id': 'influencers', 'name': 'Influencer Campaign', 'name_it': 'Campagna Influencer', 'reach_multiplier': 1.6, 'cost_per_day': 25000},
+    {'id': 'premiere_event', 'name': 'Red Carpet Premiere', 'name_it': 'Premiere Red Carpet', 'reach_multiplier': 2.5, 'cost_per_day': 100000}
+]
+
+def get_fame_category(skill_avg: float, films_count: int, is_discovered_star: bool = False) -> str:
+    """Determine fame category based on performance"""
+    if is_discovered_star:
+        return 'superstar'
+    
+    # Fame is based on films count and average skill
+    fame_score = (films_count * 2) + (skill_avg * 3)
+    
+    if fame_score < 30:
+        return 'unknown'
+    elif fame_score < 60:
+        return 'rising'
+    elif fame_score < 100:
+        return 'famous'
+    else:
+        return 'superstar'
+
+def calculate_cost_by_fame(fame_category: str, skill_avg: float) -> int:
+    """Calculate cost based on fame category and skills"""
+    category = FAME_CATEGORIES.get(fame_category, FAME_CATEGORIES['unknown'])
+    base_cost = random.randint(category['min_cost'], category['max_cost'])
+    
+    # Skill bonus (high skill unknowns are still cheap but talented)
+    skill_bonus = 1 + (skill_avg / 20)  # Max 1.5x for skill 10
+    
+    return int(base_cost * skill_bonus)
+
+# Preset Avatars (20 total) - Stylized but gender-recognizable
 PRESET_AVATARS = [
-    # Male - Realistic Lorelei style avatars
-    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Director1&backgroundColor=b6e3f4&hair=variant01&beard=variant01', 'category': 'male'},
-    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Producer1&backgroundColor=c0aede&hair=variant03&beard=variant02', 'category': 'male'},
-    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actor1&backgroundColor=ffd5dc&hair=variant04', 'category': 'male'},
-    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Filmmaker1&backgroundColor=ffdfbf&hair=variant08&beard=variant01', 'category': 'male'},
-    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Screenwriter1&backgroundColor=d1d4f9&hair=variant02', 'category': 'male'},
-    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaMan&backgroundColor=c4e7d4&hair=variant06&beard=variant02', 'category': 'male'},
-    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StudioBoss&backgroundColor=fbe8d3&hair=variant07', 'category': 'male'},
-    # Female - Realistic Lorelei style avatars  
-    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actress1&backgroundColor=ffd5dc&hair=variant02&earrings=variant01', 'category': 'female'},
-    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=DirectorLady&backgroundColor=c0aede&hair=variant04&earrings=variant02', 'category': 'female'},
-    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=FilmStar&backgroundColor=b6e3f4&hair=variant06', 'category': 'female'},
-    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=ProducerGal&backgroundColor=ffdfbf&hair=variant01&earrings=variant01', 'category': 'female'},
-    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaQueen&backgroundColor=d1d4f9&hair=variant03', 'category': 'female'},
-    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=ScriptWriter&backgroundColor=fbe8d3&hair=variant05&earrings=variant02', 'category': 'female'},
-    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=MovieDiva&backgroundColor=c4e7d4&hair=variant07', 'category': 'female'},
+    # Male - Stylized avatars with masculine features
+    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Director1&backgroundColor=b6e3f4&top=shortHairShortFlat&facialHair=beardMedium', 'category': 'male'},
+    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Producer1&backgroundColor=c0aede&top=shortHairShortWaved&facialHair=beardLight', 'category': 'male'},
+    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Actor1&backgroundColor=ffd5dc&top=shortHairTheCaesar', 'category': 'male'},
+    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Filmmaker1&backgroundColor=ffdfbf&top=shortHairDreads01&facialHair=beardMajestic', 'category': 'male'},
+    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Writer1&backgroundColor=d1d4f9&top=shortHairShortCurly', 'category': 'male'},
+    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaMan&backgroundColor=c4e7d4&top=shortHairSides&facialHair=moustacheFancy', 'category': 'male'},
+    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=StudioBoss&backgroundColor=fbe8d3&top=shortHairFrizzle', 'category': 'male'},
+    # Female - Stylized avatars with feminine features  
+    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Actress1&backgroundColor=ffd5dc&top=longHairStraight&accessories=prescription02', 'category': 'female'},
+    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=DirectorLady&backgroundColor=c0aede&top=longHairCurly&accessories=round', 'category': 'female'},
+    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=FilmStar&backgroundColor=b6e3f4&top=longHairBob', 'category': 'female'},
+    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=ProducerGal&backgroundColor=ffdfbf&top=longHairStraight2', 'category': 'female'},
+    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaQueen&backgroundColor=d1d4f9&top=longHairFrida', 'category': 'female'},
+    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=ScriptWriter&backgroundColor=fbe8d3&top=longHairMiaWallace', 'category': 'female'},
+    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=MovieDiva&backgroundColor=c4e7d4&top=longHairStraightStrand', 'category': 'female'},
     # Neutral/Creative - For all users
-    {'id': 'neutral-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Cinephile1&backgroundColor=f8d7da&hair=variant01', 'category': 'neutral'},
-    {'id': 'neutral-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=MovieLover&backgroundColor=d4edda&hair=variant04', 'category': 'neutral'},
-    {'id': 'neutral-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=FilmBuff&backgroundColor=cce5ff&hair=variant06', 'category': 'neutral'},
-    {'id': 'neutral-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StudioArtist&backgroundColor=e2d5f1&hair=variant02', 'category': 'neutral'},
-    {'id': 'neutral-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaFan&backgroundColor=fff3cd&hair=variant08', 'category': 'neutral'},
-    {'id': 'neutral-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=BoxOffice&backgroundColor=d6d6d6&hair=variant03', 'category': 'neutral'}
+    {'id': 'neutral-1', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=Cinephile1&backgroundColor=f8d7da&top=hat', 'category': 'neutral'},
+    {'id': 'neutral-2', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=MovieLover&backgroundColor=d4edda&top=winterHat04', 'category': 'neutral'},
+    {'id': 'neutral-3', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=FilmBuff&backgroundColor=cce5ff&top=turban', 'category': 'neutral'},
+    {'id': 'neutral-4', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=StudioArtist&backgroundColor=e2d5f1&top=winterHat02', 'category': 'neutral'},
+    {'id': 'neutral-5', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=CinemaFan&backgroundColor=fff3cd&top=hijab', 'category': 'neutral'},
+    {'id': 'neutral-6', 'url': 'https://api.dicebear.com/9.x/avataaars/svg?seed=BoxOffice&backgroundColor=d6d6d6&top=eyepatch', 'category': 'neutral'}
 ]
 
 # Chat Moderator Bots
@@ -950,12 +995,17 @@ def generate_person_name():
     last_name = random.choice(names['last'])
     gender = 'female' if is_female else 'male'
     
-    # Generate realistic avatar based on gender and name
+    # Generate stylized avatar based on gender - Avataaars style (recognizable gender)
     avatar_seed = f"{first_name}_{last_name}_{nationality}"
     if is_female:
-        avatar_url = f"https://api.dicebear.com/9.x/lorelei/svg?seed={avatar_seed}&backgroundColor=ffd5dc,c0aede,b6e3f4&hair=variant01,variant02,variant04,variant06&earrings=variant01,variant02"
+        # Female: long hair styles, accessories
+        hair_styles = ['longHairStraight', 'longHairCurly', 'longHairBob', 'longHairStraight2', 'longHairMiaWallace', 'longHairFrida']
+        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={avatar_seed}&backgroundColor=ffd5dc,c0aede,b6e3f4&top={random.choice(hair_styles)}"
     else:
-        avatar_url = f"https://api.dicebear.com/9.x/lorelei/svg?seed={avatar_seed}&backgroundColor=b6e3f4,c0aede,ffdfbf&hair=variant01,variant03,variant04,variant08&beard=variant01,variant02"
+        # Male: short hair, facial hair options
+        hair_styles = ['shortHairShortFlat', 'shortHairShortWaved', 'shortHairTheCaesar', 'shortHairShortCurly', 'shortHairSides']
+        facial_hair = ['', '&facialHair=beardLight', '&facialHair=beardMedium', '&facialHair=moustacheFancy']
+        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={avatar_seed}&backgroundColor=b6e3f4,c0aede,ffdfbf&top={random.choice(hair_styles)}{random.choice(facial_hair)}"
     
     return {
         'name': f"{first_name} {last_name}",
@@ -974,10 +1024,28 @@ async def get_or_create_person(person_type: str) -> dict:
         
         skills = {}
         skill_changes = {}
+        skill_total = 0
         for skill in SKILL_TYPES.get(person_type, []):
+            # Skills are independent of fame - unknowns can have high skills!
             base_score = random.randint(1, 10)
             skills[skill] = base_score
             skill_changes[skill] = 0
+            skill_total += base_score
+        
+        skill_avg = skill_total / len(skills) if skills else 5
+        films_count = random.randint(0, 50)
+        
+        # Determine fame category
+        fame_category = get_fame_category(skill_avg, films_count)
+        
+        # Cost is based on fame, not just skills
+        cost = calculate_cost_by_fame(fame_category, skill_avg)
+        
+        # Small chance of being a hidden gem (high skill, low fame)
+        is_hidden_gem = fame_category == 'unknown' and skill_avg >= 7
+        
+        # Potential to become a star (tracked for discovery mechanic)
+        star_potential = random.random() if fame_category in ['unknown', 'rising'] else 0
         
         person = {
             'id': str(uuid.uuid4()),
@@ -989,10 +1057,14 @@ async def get_or_create_person(person_type: str) -> dict:
             'avatar_url': person_info['avatar_url'],
             'skills': skills,
             'skill_changes': skill_changes,
-            'films_count': random.randint(0, 30),
-            'is_star': random.random() < 0.05,
+            'films_count': films_count,
+            'fame_category': fame_category,
+            'is_hidden_gem': is_hidden_gem,
+            'star_potential': star_potential,  # 0-1, chance to become star when used
+            'is_discovered_star': False,
+            'discovered_by': None,
             'trust_level': random.randint(0, 100),
-            'cost_per_film': random.randint(50000, 5000000),
+            'cost_per_film': cost,
             'times_used': 0,
             'created_at': datetime.now(timezone.utc).isoformat()
         }
@@ -1008,6 +1080,10 @@ async def get_or_create_person(person_type: str) -> dict:
         
         await db.people.insert_one(person)
         return {k: v for k, v in person.items() if k != '_id'}
+    
+    # Get random existing person
+    people = await db.people.find({'type': person_type}, {'_id': 0}).to_list(100)
+    return random.choice(people) if people else None
     
     # Get random existing person
     people = await db.people.find({'type': person_type}, {'_id': 0}).to_list(100)
@@ -1373,6 +1449,20 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue + opening_day_revenue
     await db.users.update_one({'id': user['id']}, {'$set': {'funds': new_funds}})
     
+    # Check for star discoveries among the cast
+    discovered_stars = []
+    for actor_info in film_data.actors:
+        star_name = await check_star_discovery(user, actor_info.get('actor_id'), quality_score)
+        if star_name:
+            discovered_stars.append(star_name)
+    
+    # Check director and screenwriter too
+    await check_star_discovery(user, film_data.director_id, quality_score)
+    await check_star_discovery(user, film_data.screenwriter_id, quality_score)
+    
+    # Update cast skills based on film quality
+    await update_cast_after_film(film['id'], quality_score)
+    
     # CineNews bot announces the new film in public chat
     news_bot = CHAT_BOTS[2]  # CineNews
     user_lang = user.get('language', 'en')
@@ -1538,6 +1628,243 @@ async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
     )
     
     return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
+
+# Get advertising platforms
+@api_router.get("/advertising/platforms")
+async def get_ad_platforms():
+    """Get available advertising platforms"""
+    return AD_PLATFORMS
+
+# Advertise a film
+class AdvertisingCampaign(BaseModel):
+    platforms: List[str]  # Platform IDs
+    days: int  # Campaign duration in days
+    budget: float
+
+@api_router.post("/films/{film_id}/advertise")
+async def advertise_film(film_id: str, campaign: AdvertisingCampaign, user: dict = Depends(get_current_user)):
+    """Create an advertising campaign for a film"""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+    
+    if film['status'] != 'in_theaters':
+        raise HTTPException(status_code=400, detail="Can only advertise films currently in theaters")
+    
+    # Calculate total cost
+    total_cost = 0
+    total_multiplier = 1.0
+    selected_platforms = []
+    
+    for platform_id in campaign.platforms:
+        platform = next((p for p in AD_PLATFORMS if p['id'] == platform_id), None)
+        if platform:
+            platform_cost = platform['cost_per_day'] * campaign.days
+            total_cost += platform_cost
+            total_multiplier *= platform['reach_multiplier']
+            selected_platforms.append(platform)
+    
+    # Check if user has enough funds
+    if user['funds'] < total_cost:
+        raise HTTPException(status_code=400, detail=f"Not enough funds. Need ${total_cost:,.0f}")
+    
+    # Deduct funds
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    
+    # Calculate revenue boost
+    base_daily_revenue = film.get('total_revenue', 0) / max(film.get('actual_weeks_in_theater', 1) * 7, 1)
+    boosted_revenue = base_daily_revenue * total_multiplier * campaign.days
+    
+    # Update film with advertising boost
+    await db.films.update_one(
+        {'id': film_id},
+        {
+            '$inc': {'total_revenue': boosted_revenue, 'quality_score': 2},
+            '$push': {
+                'advertising_campaigns': {
+                    'id': str(uuid.uuid4()),
+                    'platforms': [p['name'] for p in selected_platforms],
+                    'cost': total_cost,
+                    'days': campaign.days,
+                    'revenue_generated': boosted_revenue,
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                }
+            }
+        }
+    )
+    
+    # Announce in chat
+    news_bot = CHAT_BOTS[2]  # CineNews
+    user_lang = user.get('language', 'en')
+    announcements = {
+        'en': f"📣 ADVERTISING BLITZ! '{film['title']}' launches massive marketing campaign on {', '.join([p['name'] for p in selected_platforms])}!",
+        'it': f"📣 CAMPAGNA PUBBLICITARIA! '{film['title']}' lancia una massiccia campagna su {', '.join([p['name_it'] for p in selected_platforms])}!",
+    }
+    bot_msg = {
+        'id': str(uuid.uuid4()),
+        'room_id': 'general',
+        'sender_id': news_bot['id'],
+        'content': announcements.get(user_lang, announcements['en']),
+        'message_type': 'text',
+        'image_url': None,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.chat_messages.insert_one(bot_msg)
+    
+    return {
+        'success': True,
+        'cost': total_cost,
+        'revenue_boost': boosted_revenue,
+        'platforms': [p['name'] for p in selected_platforms],
+        'days': campaign.days
+    }
+
+# Check for star discovery when film is created
+async def check_star_discovery(user: dict, person_id: str, film_quality: float):
+    """Check if a person becomes a discovered star"""
+    person = await db.people.find_one({'id': person_id})
+    if not person or person.get('is_discovered_star'):
+        return None
+    
+    # Only unknowns and rising stars can be "discovered"
+    if person.get('fame_category') not in ['unknown', 'rising']:
+        return None
+    
+    # Discovery chance based on:
+    # - Star potential (innate)
+    # - Film quality
+    # - Person's skills
+    skill_avg = sum(person.get('skills', {}).values()) / max(len(person.get('skills', {})), 1)
+    discovery_chance = person.get('star_potential', 0) * (film_quality / 100) * (skill_avg / 10)
+    
+    if random.random() < discovery_chance:
+        # STAR DISCOVERED!
+        # Upgrade fame and skills
+        for skill in person.get('skills', {}):
+            person['skills'][skill] = min(10, person['skills'][skill] + random.randint(1, 2))
+            person['skill_changes'][skill] = random.randint(1, 2)
+        
+        new_cost = calculate_cost_by_fame('superstar', sum(person['skills'].values()) / len(person['skills']))
+        
+        await db.people.update_one(
+            {'id': person_id},
+            {
+                '$set': {
+                    'is_discovered_star': True,
+                    'discovered_by': user['id'],
+                    'discovered_by_name': user.get('nickname', 'Unknown'),
+                    'fame_category': 'superstar',
+                    'cost_per_film': new_cost,
+                    'skills': person['skills'],
+                    'skill_changes': person['skill_changes'],
+                    'discovered_at': datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Announce the discovery!
+        news_bot = CHAT_BOTS[2]  # CineNews
+        user_lang = user.get('language', 'en')
+        announcements = {
+            'en': f"⭐ STAR DISCOVERED! {user.get('nickname')} has discovered a future superstar: {person['name']}! Their career is about to skyrocket!",
+            'it': f"⭐ STELLA SCOPERTA! {user.get('nickname')} ha scoperto una futura superstar: {person['name']}! La sua carriera sta per decollare!",
+            'es': f"⭐ ¡ESTRELLA DESCUBIERTA! {user.get('nickname')} ha descubierto una futura superestrella: {person['name']}!",
+            'fr': f"⭐ STAR DÉCOUVERTE! {user.get('nickname')} a découvert une future superstar: {person['name']}!",
+            'de': f"⭐ STAR ENTDECKT! {user.get('nickname')} hat einen zukünftigen Superstar entdeckt: {person['name']}!"
+        }
+        
+        bot_msg = {
+            'id': str(uuid.uuid4()),
+            'room_id': 'general',
+            'sender_id': news_bot['id'],
+            'content': announcements.get(user_lang, announcements['en']),
+            'message_type': 'text',
+            'image_url': None,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.chat_messages.insert_one(bot_msg)
+        await sio.emit('new_message', {
+            **{k: v for k, v in bot_msg.items() if k != '_id'},
+            'sender': {'id': news_bot['id'], 'nickname': news_bot['nickname'], 'avatar_url': news_bot['avatar_url'], 'is_bot': True}
+        }, room='general')
+        
+        # Reward the discoverer
+        await db.users.update_one(
+            {'id': user['id']},
+            {'$inc': {'funds': 500000, 'likeability_score': 5, 'discovered_stars': 1}}
+        )
+        
+        return person['name']
+    
+    return None
+
+# Update skills based on film performance (can improve or worsen)
+async def update_cast_after_film(film_id: str, quality_score: float):
+    """Update cast skills based on film performance"""
+    film = await db.films.find_one({'id': film_id})
+    if not film:
+        return
+    
+    # Performance threshold
+    performance = quality_score / 100  # 0-1
+    
+    # Update all cast members
+    for actor_info in film.get('cast', []):
+        actor_id = actor_info.get('actor_id')
+        if not actor_id:
+            continue
+            
+        actor = await db.people.find_one({'id': actor_id})
+        if not actor:
+            continue
+        
+        # Good performance = skills improve, bad = skills worsen
+        for skill, value in actor.get('skills', {}).items():
+            if performance > 0.7:  # Good film
+                change = random.choice([0, 1, 1])  # Likely improve
+            elif performance < 0.4:  # Bad film
+                change = random.choice([-1, -1, 0])  # Likely worsen
+            else:
+                change = random.choice([-1, 0, 0, 1])  # Mixed
+            
+            new_value = max(1, min(10, value + change))
+            actor['skills'][skill] = new_value
+            actor['skill_changes'][skill] = change
+        
+        # Update fame based on accumulated performance
+        skill_avg = sum(actor['skills'].values()) / len(actor['skills'])
+        new_fame = get_fame_category(skill_avg, actor.get('films_count', 0) + 1, actor.get('is_discovered_star', False))
+        new_cost = calculate_cost_by_fame(new_fame, skill_avg)
+        
+        await db.people.update_one(
+            {'id': actor_id},
+            {
+                '$set': {
+                    'skills': actor['skills'],
+                    'skill_changes': actor['skill_changes'],
+                    'fame_category': new_fame,
+                    'cost_per_film': new_cost
+                },
+                '$inc': {'films_count': 1}
+            }
+        )
+    
+    # Same for director
+    director_id = film.get('director', {}).get('id')
+    if director_id:
+        director = await db.people.find_one({'id': director_id})
+        if director:
+            for skill, value in director.get('skills', {}).items():
+                change = 1 if performance > 0.6 else (-1 if performance < 0.4 else 0)
+                director['skills'][skill] = max(1, min(10, value + change))
+                director['skill_changes'][skill] = change
+            
+            await db.people.update_one(
+                {'id': director_id},
+                {'$set': {'skills': director['skills'], 'skill_changes': director['skill_changes']}, '$inc': {'films_count': 1}}
+            )
+
+
 
 # Rate a film (0-5 stars, including half stars)
 class FilmRating(BaseModel):

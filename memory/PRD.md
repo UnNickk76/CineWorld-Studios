@@ -70,6 +70,13 @@ Create a multiplayer online film production game with user profiles, film creati
 11. **Realistic Avatars**: All avatars (users and cast) now use Lorelei style for a more realistic look
 12. **Gender for Cast**: Actors, directors, and screenwriters now have gender displayed with matching avatars
 13. **Shorter AI Screenplay**: AI now generates brief guidelines (max 300 words) instead of full scripts
+14. **Film Advertising System**: 6 platforms (Social Media, TV, Billboards, Streaming, Influencers, Red Carpet) with cost/day and reach multipliers
+15. **Fame Categories**: Cast divided into 4 fame levels (Unknown, Rising Star, Famous, Superstar) with appropriate costs
+16. **Hidden Gems**: Unknown actors can have high skills - discover future stars!
+17. **Star Discovery**: When you use a talented unknown who succeeds, they can become superstars (announced in chat, player rewarded $500k)
+18. **Dynamic Skills**: Cast skills improve/worsen based on film performance
+19. **Mobile Optimization**: Grid layouts, compact buttons, touch-friendly UI for smartphones
+20. **Stylized Avatars (Avataaars)**: Gender-recognizable avatars (long hair/accessories for female, short hair/beard for male)
 
 ## API Endpoints
 - POST /api/auth/register, login, /me, /profile, /reset

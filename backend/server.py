@@ -3945,7 +3945,13 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
-    # Latest first
+    # Latest first - These will be migrated to database on startup
+    {'version': '0.050', 'date': '2026-03-09', 'title': 'Release Notes Dinamiche', 
+     'changes': ['Note di rilascio salvate nel database', 'Aggiornamento automatico', 'Endpoint POST /api/admin/release-notes']},
+    {'version': '0.049', 'date': '2026-03-09', 'title': 'Sistema Autonomo 24/7', 
+     'changes': ['APScheduler per task automatici', 'Aggiornamento ricavi ogni ora', 'Generazione cast giornaliera', 'Reset sfide automatico', 'Pulizia dati scaduti']},
+    {'version': '0.048', 'date': '2026-03-09', 'title': 'Sistema Rifiuto Ingaggio Cast', 
+     'changes': ['Cast può rifiutare offerte di lavoro', '23 motivazioni di rifiuto IT/EN', 'Modal popup con dettagli rifiuto', 'Card disabilitata dopo rifiuto', 'Persistenza rifiuto 24h']},
     {'version': '0.047', 'date': '2026-03-09', 'title': 'Sistema Ingaggio Star', 
      'changes': ['Sezione dedicata Stelle Scoperte', 'Ingaggio anticipato star per prossimo film', 'Visualizzazione skill dettagliate', 'Pagina Release Notes']},
     {'version': '0.046', 'date': '2026-03-09', 'title': 'Trailer in Chat & Giornale', 
@@ -4044,14 +4050,127 @@ RELEASE_NOTES = [
      'changes': ['Setup iniziale', 'Architettura FastAPI + React', 'Database MongoDB']},
 ]
 
+# ==================== RELEASE NOTES SYSTEM (Dynamic) ====================
+
+async def initialize_release_notes():
+    """Migrate static release notes to database on startup."""
+    existing_count = await db.release_notes.count_documents({})
+    if existing_count == 0:
+        # First time: insert all release notes
+        for note in RELEASE_NOTES:
+            note['id'] = str(uuid.uuid4())
+            note['created_at'] = datetime.now(timezone.utc).isoformat()
+            await db.release_notes.insert_one(note)
+        logging.info(f"Initialized {len(RELEASE_NOTES)} release notes in database")
+    else:
+        # Check for new versions not in database
+        for note in RELEASE_NOTES:
+            existing = await db.release_notes.find_one({'version': note['version']})
+            if not existing:
+                note['id'] = str(uuid.uuid4())
+                note['created_at'] = datetime.now(timezone.utc).isoformat()
+                await db.release_notes.insert_one(note)
+                logging.info(f"Added new release note v{note['version']}")
+
+async def add_release_note(version: str, title: str, changes: list):
+    """
+    Add a new release note to the database.
+    Called automatically when a new feature is implemented.
+    """
+    # Check if version already exists
+    existing = await db.release_notes.find_one({'version': version})
+    if existing:
+        # Update existing
+        await db.release_notes.update_one(
+            {'version': version},
+            {'$set': {
+                'title': title,
+                'changes': changes,
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        logging.info(f"Updated release note v{version}")
+    else:
+        # Create new
+        note = {
+            'id': str(uuid.uuid4()),
+            'version': version,
+            'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+            'title': title,
+            'changes': changes,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.release_notes.insert_one(note)
+        logging.info(f"Added release note v{version}: {title}")
+    
+    return True
+
+def get_next_version():
+    """Calculate the next version number."""
+    if not RELEASE_NOTES:
+        return '0.001'
+    current = RELEASE_NOTES[0]['version']
+    parts = current.split('.')
+    major = int(parts[0])
+    minor = int(parts[1])
+    return f"{major}.{str(minor + 1).zfill(3)}"
+
 @api_router.get("/release-notes")
 async def get_release_notes():
-    """Get all release notes with version history"""
-    current_version = RELEASE_NOTES[0]['version'] if RELEASE_NOTES else '0.000'
+    """Get all release notes from database, sorted by version descending."""
+    # Try to get from database first
+    db_notes = await db.release_notes.find({}, {'_id': 0}).sort('version', -1).to_list(1000)
+    
+    if db_notes:
+        current_version = db_notes[0]['version'] if db_notes else '0.000'
+        return {
+            'current_version': current_version,
+            'releases': db_notes,
+            'total_releases': len(db_notes),
+            'source': 'database'
+        }
+    else:
+        # Fallback to static list
+        current_version = RELEASE_NOTES[0]['version'] if RELEASE_NOTES else '0.000'
+        return {
+            'current_version': current_version,
+            'releases': RELEASE_NOTES,
+            'total_releases': len(RELEASE_NOTES),
+            'source': 'static'
+        }
+
+class NewReleaseNote(BaseModel):
+    title: str
+    changes: List[str]
+    version: Optional[str] = None  # Auto-increment if not provided
+
+@api_router.post("/admin/release-notes")
+async def create_release_note(note: NewReleaseNote):
+    """
+    Create a new release note. 
+    This endpoint is called by the system when new features are implemented.
+    """
+    # Calculate version if not provided
+    version = note.version
+    if not version:
+        # Get highest version from database
+        latest = await db.release_notes.find_one({}, sort=[('version', -1)])
+        if latest:
+            parts = latest['version'].split('.')
+            major = int(parts[0])
+            minor = int(parts[1])
+            version = f"{major}.{str(minor + 1).zfill(3)}"
+        else:
+            version = '0.050'  # Start from 0.050 if database is empty
+    
+    # Add the release note
+    await add_release_note(version, note.title, note.changes)
+    
     return {
-        'current_version': current_version,
-        'releases': RELEASE_NOTES,
-        'total_releases': len(RELEASE_NOTES)
+        'success': True,
+        'version': version,
+        'title': note.title,
+        'message': f'Release note v{version} aggiunta con successo!'
     }
 
 # Advertise a film
@@ -5533,6 +5652,10 @@ async def startup_event():
     
     # Fix existing cast members with decimal skills
     await fix_decimal_skills_in_db()
+    
+    # Initialize release notes in database
+    await initialize_release_notes()
+    logging.info("Release notes initialized")
     
     # ==================== APSCHEDULER SETUP ====================
     # Start the background scheduler for autonomous game operations

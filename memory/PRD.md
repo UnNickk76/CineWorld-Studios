@@ -3,9 +3,15 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.049
+## Versione Attuale: v0.050
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.050 - Release Notes Dinamiche - 09/03/2026 (COMPLETATO)
+- **Database MongoDB**: Note di rilascio salvate nel database invece che nel codice
+- **Auto-increment versione**: Nuove release ottengono automaticamente la versione successiva
+- **Endpoint admin**: `POST /api/admin/release-notes` per aggiungere nuove release
+- **Sincronizzazione**: Lista statica migrata al DB allo startup
 
 ### v0.049 - Sistema Autonomo 24/7 - 09/03/2026 (COMPLETATO)
 - **APScheduler integrato**: Task automatici senza intervento dell'Agent

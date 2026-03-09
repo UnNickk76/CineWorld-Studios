@@ -3868,8 +3868,9 @@ async def startup_event():
             room['created_at'] = datetime.now(timezone.utc).isoformat()
             await db.chat_rooms.insert_one(room)
     
-    # Clear old people to regenerate with correct names
-    await db.people.delete_many({})
+    # Initialize cast pool if needed (700 members: 400 actors, 100 directors, 100 screenwriters, 100 composers)
+    await initialize_cast_pool_if_needed()
+    logging.info("Cast pool initialized")
 
 # Socket.IO Events
 @sio.event

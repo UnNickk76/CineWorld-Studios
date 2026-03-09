@@ -12,7 +12,9 @@ Create a multiplayer online film production game with user profiles, film creati
 - [x] JWT-based authentication (register/login)
 - [x] Age verification (18+ required) with adult content warning
 - [x] Gender selection
-- [x] **20 Modern Avatars** (DiceBear v9: Notionists, Lorelei, Personas, Thumbs, Bottts-neutral, Glass)
+- [x] **20 Modern Avatars** (DiceBear v9: Avataaars with gender-appropriate styles)
+- [x] **AI Avatar Generation** (GPT Image 1 via emergentintegrations)
+- [x] **Custom Avatar URL Input** (users can paste any image URL)
 - [x] Multi-language support (IT, EN, ES, FR, DE)
 - [x] Auto-login via localStorage
 - [x] Player reset function
@@ -22,15 +24,24 @@ Create a multiplayer online film production game with user profiles, film creati
 - [x] **16 Genres**: Action, Comedy, Drama, Horror, Sci-Fi, Romance, Thriller, Animation, Documentary, Fantasy, Musical, Western, War, Noir, Adventure, Biographical
 - [x] **Sub-genres system**: 6 sub-genres per genre, max 3 selectable
 - [x] Sponsor selection with budget offers
-- [x] Equipment packages (Basic to Hollywood Elite)
-- [x] Multiple filming locations
-- [x] Screenwriter/Director selection with skills
+- [x] Equipment packages (Basic to Hollywood Elite) - **Costs +20%**
+- [x] Multiple filming locations - **Costs +20%**
+- [x] Screenwriter/Director selection with skills and **gender icons (♂/♀)**
 - [x] **Actor Role System**: Protagonist, Co-protagonist, Antagonist, Supporting, Cameo
+- [x] **Gender visible next to all cast names**
 - [x] Extras management
 - [x] AI screenplay generation (GPT-5.2)
 - [x] AI poster generation (GPT Image 1)
 - [x] In-film advertising options
 - [x] Film withdrawal from theaters
+
+### Cast System
+- [x] International names (10 nationalities)
+- [x] Skills system (1-10) with change indicators
+- [x] **Gender field (male/female)** for all cast members
+- [x] **Gender-appropriate avatars** (long hair/accessories for female, short hair/beard for male)
+- [x] **Fame Categories**: Unknown, Rising Star, Famous, Superstar with appropriate costs
+- [x] **All cast costs increased by 20%**
 
 ### Mini Games (FULLY PLAYABLE & TRANSLATED)
 - [x] **5 Games**: Film Trivia, Guess the Genre, Director Match, Box Office Bet, Release Year
@@ -44,67 +55,72 @@ Create a multiplayer online film production game with user profiles, film creati
 - [x] Public chat rooms (General, Producers Lounge, Box Office Talk)
 - [x] **Private messaging (DM)**
 - [x] **Online users tracking** with heartbeat
-- [x] Public/Private chat tabs
+- [x] **Chat Moderator Bots**: CineMaster, FilmGuide, CineNews
 
-### Cast System
-- [x] International names (10 nationalities)
-- [x] Skills system (1-10) with change indicators
-- [x] Unique names per nationality
+### Cinema Journal
+- [x] Newspaper-style page with films ranked by quality
+- [x] Star ratings (0-5 with half stars)
+- [x] Comments section
+- [x] **Main cast display with gender icons**
+- [x] Film descriptions and genres
 
 ### Box Office
 - [x] Opening day immediate revenue
 - [x] Daily revenue based on audience satisfaction
 - [x] Variable theater duration
+- [x] Same-day film release allowed
 
-## Recent Updates (March 8-9, 2026)
-1. **Avatar System Overhaul**: Replaced old avatars with 20 modern DiceBear v9 styles
-2. **Mini-game Translations**: All questions translated in IT, EN, ES, FR, DE
-3. **Genre Expansion**: Added 6 new genres (Musical, Western, War, Noir, Adventure, Biographical)
-4. **Sub-genre System**: Each genre now has 6 sub-genres, players can select up to 3
-5. **Actor Roles**: New system to assign roles (Protagonist, Co-protagonist, Antagonist, Supporting, Cameo)
-6. **Chat Moderator Bots**: 3 bots (CineMaster MOD, FilmGuide MOD, CineNews BOT) with auto-responses
-7. **Same-Day Film Release**: Films can now be released on the same day of creation
-8. **Auto Film Announcements**: CineNews bot announces new film releases in General chat (translated)
-9. **Cinema Journal**: New newspaper-style page showing all films ranked by quality, with star ratings (0-5), comments, and main cast display
-10. **Star Rating System**: Users can rate films 0-5 stars (half stars included). Too many negative ratings affect the rater's own films
-11. **Realistic Avatars**: All avatars (users and cast) now use Lorelei style for a more realistic look
-12. **Gender for Cast**: Actors, directors, and screenwriters now have gender displayed with matching avatars
-13. **Shorter AI Screenplay**: AI now generates brief guidelines (max 300 words) instead of full scripts
-14. **Film Advertising System**: 6 platforms (Social Media, TV, Billboards, Streaming, Influencers, Red Carpet) with cost/day and reach multipliers
-15. **Fame Categories**: Cast divided into 4 fame levels (Unknown, Rising Star, Famous, Superstar) with appropriate costs
-16. **Hidden Gems**: Unknown actors can have high skills - discover future stars!
-17. **Star Discovery**: When you use a talented unknown who succeeds, they can become superstars (announced in chat, player rewarded $500k)
-18. **Dynamic Skills**: Cast skills improve/worsen based on film performance
-19. **Mobile Optimization**: Grid layouts, compact buttons, touch-friendly UI for smartphones
-20. **Stylized Avatars (Avataaars)**: Gender-recognizable avatars (long hair/accessories for female, short hair/beard for male)
+## Recent Updates (March 9, 2026)
+1. **Gender Icons**: Added ♂/♀ icons next to all cast names in FilmWizard, CinemaJournal, and FilmDetail
+2. **Cost Increase**: All equipment, location, and cast costs increased by 20%
+3. **AI Avatar Generation**: Users can generate custom avatars using GPT Image 1
+4. **Custom Avatar URL**: Users can paste any image URL as their avatar
+5. **Profile Avatar Replacement**: Full UI for changing avatars (preset, AI, or custom URL)
+6. **FilmDetail Cast Section**: New section showing director, screenwriter, and full cast with gender icons and roles
 
 ## API Endpoints
 - POST /api/auth/register, login, /me, /profile, /reset
+- PUT /api/auth/avatar - Update user avatar
+- POST /api/avatar/generate - Generate AI avatar
 - GET /api/avatars - Returns 20 modern avatars
 - GET /api/genres - Returns 16 genres with sub-genres
 - GET /api/actor-roles - Returns 5 actor roles with translations
-- GET /api/actors, /directors, /screenwriters, /sponsors, /locations, /equipment
+- GET /api/actors, /directors, /screenwriters - Returns cast with gender field
+- GET /api/sponsors, /locations, /equipment - All costs +20%
 - POST /api/films, GET /api/films/my, /films/{id}, DELETE /api/films/{id}
+- GET /api/films/cinema-journal - Films with main_cast including gender
 - GET /api/films/social/feed, POST /api/films/{id}/like
-- GET /api/minigames, POST /api/minigames/{id}/start (returns translated questions)
+- POST /api/films/{id}/rate, /comment
+- GET /api/minigames, POST /api/minigames/{id}/start
 - GET /api/challenges, /statistics/global, /statistics/my
 - POST /api/users/heartbeat, GET /api/users/online, /users/all
 - GET /api/chat/rooms, POST /api/chat/direct/{user_id}, /chat/messages
 
-## Test Results (March 8, 2026)
-- Backend: 100% (18/18 tests passed)
-- Frontend: 100% (all UI features working)
-- All 6 new features verified working
+## Test Results (March 9, 2026)
+- Backend: 100% (10/10 tests passed)
+- Frontend: All UI features verified working
+- Gender icons visible in FilmWizard, CinemaJournal, FilmDetail
+- Avatar selection and custom URL working
+- Costs properly increased by 20%
 
 ## P1 Features (Next Phase)
+- [ ] Star Discovery System: Announce when unknown actor becomes superstar
+- [ ] Skill Evolution: Cast skills improve/worsen over time with notifications
+- [ ] Negative Rating Penalty: Too many negative ratings affect rater's films
 - [ ] Image sharing in chat with moderation
-- [ ] Voice messages
 - [ ] Automatic chat translation
-- [ ] PvP challenges
 
 ## P2 Features (Backlog)
-- [ ] Custom avatar upload
+- [ ] Voice messages in chat
+- [ ] Detailed box office statistics by country/city
+- [ ] PvP challenges
+- [ ] Player reputation scores impact gameplay
 - [ ] Film trailers
 - [ ] Award ceremonies
 - [ ] Seasonal events
-- [ ] Skill evolution over time
+
+## Technical Stack
+- **Backend**: FastAPI, Python, MongoDB (motor), WebSockets, JWT
+- **Frontend**: React, JavaScript, TailwindCSS, Shadcn/UI, axios
+- **AI**: OpenAI GPT-5.2 (text), GPT Image 1 (images) via emergentintegrations
+- **Architecture**: SPA with RESTful backend and WebSocket for real-time chat

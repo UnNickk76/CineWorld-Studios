@@ -97,22 +97,22 @@ NAMES_BY_NATIONALITY = {
 
 NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
-# Fame Categories with costs
+# Fame Categories with costs (+20% adjusted)
 FAME_CATEGORIES = {
-    'unknown': {'name': 'Unknown', 'name_it': 'Sconosciuto', 'min_cost': 10000, 'max_cost': 50000, 'quality_bonus': 0},
-    'rising': {'name': 'Rising Star', 'name_it': 'Emergente', 'min_cost': 50000, 'max_cost': 200000, 'quality_bonus': 5},
-    'famous': {'name': 'Famous', 'name_it': 'Famoso', 'min_cost': 200000, 'max_cost': 1000000, 'quality_bonus': 15},
-    'superstar': {'name': 'Superstar', 'name_it': 'Superstar', 'min_cost': 1000000, 'max_cost': 10000000, 'quality_bonus': 30}
+    'unknown': {'name': 'Unknown', 'name_it': 'Sconosciuto', 'min_cost': 12000, 'max_cost': 60000, 'quality_bonus': 0},
+    'rising': {'name': 'Rising Star', 'name_it': 'Emergente', 'min_cost': 60000, 'max_cost': 240000, 'quality_bonus': 5},
+    'famous': {'name': 'Famous', 'name_it': 'Famoso', 'min_cost': 240000, 'max_cost': 1200000, 'quality_bonus': 15},
+    'superstar': {'name': 'Superstar', 'name_it': 'Superstar', 'min_cost': 1200000, 'max_cost': 12000000, 'quality_bonus': 30}
 }
 
-# Advertising platforms
+# Advertising platforms (+20% costs)
 AD_PLATFORMS = [
-    {'id': 'social_media', 'name': 'Social Media', 'name_it': 'Social Media', 'reach_multiplier': 1.2, 'cost_per_day': 5000},
-    {'id': 'tv_spots', 'name': 'TV Commercials', 'name_it': 'Spot TV', 'reach_multiplier': 2.0, 'cost_per_day': 50000},
-    {'id': 'billboards', 'name': 'Billboards', 'name_it': 'Cartelloni', 'reach_multiplier': 1.5, 'cost_per_day': 20000},
-    {'id': 'streaming_ads', 'name': 'Streaming Ads', 'name_it': 'Pubblicità Streaming', 'reach_multiplier': 1.8, 'cost_per_day': 30000},
-    {'id': 'influencers', 'name': 'Influencer Campaign', 'name_it': 'Campagna Influencer', 'reach_multiplier': 1.6, 'cost_per_day': 25000},
-    {'id': 'premiere_event', 'name': 'Red Carpet Premiere', 'name_it': 'Premiere Red Carpet', 'reach_multiplier': 2.5, 'cost_per_day': 100000}
+    {'id': 'social_media', 'name': 'Social Media', 'name_it': 'Social Media', 'reach_multiplier': 1.2, 'cost_per_day': 6000},
+    {'id': 'tv_spots', 'name': 'TV Commercials', 'name_it': 'Spot TV', 'reach_multiplier': 2.0, 'cost_per_day': 60000},
+    {'id': 'billboards', 'name': 'Billboards', 'name_it': 'Cartelloni', 'reach_multiplier': 1.5, 'cost_per_day': 24000},
+    {'id': 'streaming_ads', 'name': 'Streaming Ads', 'name_it': 'Pubblicità Streaming', 'reach_multiplier': 1.8, 'cost_per_day': 36000},
+    {'id': 'influencers', 'name': 'Influencer Campaign', 'name_it': 'Campagna Influencer', 'reach_multiplier': 1.6, 'cost_per_day': 30000},
+    {'id': 'premiere_event', 'name': 'Red Carpet Premiere', 'name_it': 'Premiere Red Carpet', 'reach_multiplier': 2.5, 'cost_per_day': 120000}
 ]
 
 def get_fame_category(skill_avg: float, films_count: int, is_discovered_star: bool = False) -> str:
@@ -793,24 +793,24 @@ SPONSORS = [
 ]
 
 LOCATIONS = [
-    {'name': 'Hollywood Studio', 'cost_per_day': 50000, 'type': 'studio'},
-    {'name': 'New York City', 'cost_per_day': 80000, 'type': 'urban'},
-    {'name': 'Paris Streets', 'cost_per_day': 70000, 'type': 'urban'},
-    {'name': 'Sahara Desert', 'cost_per_day': 40000, 'type': 'natural'},
-    {'name': 'Alps Mountains', 'cost_per_day': 60000, 'type': 'natural'},
-    {'name': 'Tokyo District', 'cost_per_day': 75000, 'type': 'urban'},
-    {'name': 'Caribbean Beach', 'cost_per_day': 55000, 'type': 'natural'},
-    {'name': 'London Set', 'cost_per_day': 65000, 'type': 'urban'},
-    {'name': 'Amazon Jungle', 'cost_per_day': 45000, 'type': 'natural'},
+    {'name': 'Hollywood Studio', 'cost_per_day': 60000, 'type': 'studio'},
+    {'name': 'New York City', 'cost_per_day': 96000, 'type': 'urban'},
+    {'name': 'Paris Streets', 'cost_per_day': 84000, 'type': 'urban'},
+    {'name': 'Sahara Desert', 'cost_per_day': 48000, 'type': 'natural'},
+    {'name': 'Alps Mountains', 'cost_per_day': 72000, 'type': 'natural'},
+    {'name': 'Tokyo District', 'cost_per_day': 90000, 'type': 'urban'},
+    {'name': 'Caribbean Beach', 'cost_per_day': 66000, 'type': 'natural'},
+    {'name': 'London Set', 'cost_per_day': 78000, 'type': 'urban'},
+    {'name': 'Amazon Jungle', 'cost_per_day': 54000, 'type': 'natural'},
     {'name': 'Rome Colosseum', 'cost_per_day': 90000, 'type': 'historical'}
 ]
 
 EQUIPMENT_PACKAGES = [
-    {'name': 'Basic', 'cost': 100000, 'quality_bonus': 0},
-    {'name': 'Standard', 'cost': 250000, 'quality_bonus': 5},
-    {'name': 'Professional', 'cost': 500000, 'quality_bonus': 10},
-    {'name': 'Premium', 'cost': 800000, 'quality_bonus': 15},
-    {'name': 'Hollywood Elite', 'cost': 1500000, 'quality_bonus': 25}
+    {'name': 'Basic', 'cost': 120000, 'quality_bonus': 0},
+    {'name': 'Standard', 'cost': 300000, 'quality_bonus': 5},
+    {'name': 'Professional', 'cost': 600000, 'quality_bonus': 10},
+    {'name': 'Premium', 'cost': 960000, 'quality_bonus': 15},
+    {'name': 'Hollywood Elite', 'cost': 1800000, 'quality_bonus': 25}
 ]
 
 SKILL_TYPES = {
@@ -1261,6 +1261,60 @@ async def reset_player(user: dict = Depends(get_current_user)):
 @api_router.get("/avatars")
 async def get_avatars():
     return PRESET_AVATARS
+
+# Generate AI Avatar
+class AvatarGenerationRequest(BaseModel):
+    description: str  # e.g., "professional male director", "young female actress"
+    style: str = "portrait"  # portrait, cartoon, artistic
+
+@api_router.post("/avatar/generate")
+async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depends(get_current_user)):
+    """Generate a custom avatar using AI"""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=400, detail="AI generation not available")
+    
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        
+        prompt = f"Professional {request.style} avatar portrait: {request.description}. Clean background, high quality, suitable for a profile picture. No text or watermarks."
+        
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1
+        )
+        
+        if images and len(images) > 0:
+            # Convert to base64 data URL
+            image_base64 = base64.b64encode(images[0]).decode('utf-8')
+            avatar_url = f"data:image/png;base64,{image_base64}"
+            return {'avatar_url': avatar_url, 'prompt': prompt}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate avatar")
+    except Exception as e:
+        logging.error(f"Avatar generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+# Update user avatar
+class AvatarUpdate(BaseModel):
+    avatar_url: str
+    avatar_source: str = "preset"  # preset, ai, upload
+
+@api_router.put("/auth/avatar")
+async def update_user_avatar(avatar_data: AvatarUpdate, user: dict = Depends(get_current_user)):
+    """Update user's avatar"""
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {
+            'avatar_url': avatar_data.avatar_url,
+            'avatar_source': avatar_data.avatar_source
+        }}
+    )
+    
+    updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
+    return updated_user
 
 # Translations
 @api_router.get("/translations/{lang}")

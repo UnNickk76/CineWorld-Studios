@@ -889,7 +889,11 @@ const FilmWizard = () => {
         <div className="flex items-center gap-2 mb-1.5">
           <Avatar className="w-10 h-10"><AvatarImage src={person.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{person.name[0]}</AvatarFallback></Avatar>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1"><h4 className="font-semibold text-xs truncate">{person.name}</h4>{person.is_star && <Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />}</div>
+            <div className="flex items-center gap-1">
+              <h4 className="font-semibold text-xs truncate">{person.name}</h4>
+              <span className="text-[10px] text-gray-400">{person.gender === 'female' ? '♀' : '♂'}</span>
+              {person.is_star && <Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />}
+            </div>
             <p className="text-xs text-gray-400">{person.nationality} • {person.age}yo</p>
           </div>
           <p className="text-yellow-500 font-bold text-xs">${(person.cost_per_film/1000).toFixed(0)}K</p>
@@ -1175,12 +1179,37 @@ const MyFilms = () => {
 // Film Detail
 const FilmDetail = () => {
   const { api } = useContext(AuthContext);
-  const { t } = useTranslations();
+  const { t, language } = useTranslations();
   const [film, setFilm] = useState(null);
   const [expandedCountry, setExpandedCountry] = useState(null);
+  const [actorRoles, setActorRoles] = useState([]);
 
-  useEffect(() => { const id = window.location.pathname.split('/').pop(); api.get(`/films/${id}`).then(r=>setFilm(r.data)); }, [api]);
+  useEffect(() => { 
+    const id = window.location.pathname.split('/').pop(); 
+    api.get(`/films/${id}`).then(r=>setFilm(r.data)); 
+    api.get('/actor-roles').then(r => setActorRoles(r.data)).catch(()=>{});
+  }, [api]);
+  
   if (!film) return <div className="pt-16 p-4 text-center">Loading...</div>;
+
+  const getRoleName = (roleId) => {
+    const role = actorRoles.find(r => r.id === roleId);
+    if (!role) return roleId;
+    const langKey = `name_${language}`;
+    return role[langKey] || role.name;
+  };
+
+  const getRoleBadge = (role) => {
+    const badges = {
+      protagonist: { color: 'bg-yellow-500/20 text-yellow-500', label: getRoleName('protagonist') },
+      co_protagonist: { color: 'bg-blue-500/20 text-blue-400', label: getRoleName('co_protagonist') },
+      antagonist: { color: 'bg-red-500/20 text-red-400', label: getRoleName('antagonist') },
+      supporting: { color: 'bg-gray-500/20 text-gray-400', label: getRoleName('supporting') },
+      cameo: { color: 'bg-purple-500/20 text-purple-400', label: getRoleName('cameo') }
+    };
+    const badge = badges[role] || badges.supporting;
+    return <Badge className={`${badge.color} text-[10px] h-4`}>{badge.label}</Badge>;
+  };
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="film-detail-page">
@@ -1189,7 +1218,11 @@ const FilmDetail = () => {
           <div className="aspect-[2/3]"><img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'} alt={film.title} className="w-full h-full object-cover" /></div>
           <CardContent className="p-3">
             <h1 className="font-['Bebas_Neue'] text-xl mb-2">{film.title}</h1>
-            <div className="flex gap-1.5 mb-2"><Badge className="bg-yellow-500/20 text-yellow-500 text-xs">{t(film.genre)}</Badge><Badge className={`text-xs ${film.status==='in_theaters'?'bg-green-500':film.status==='withdrawn'?'bg-orange-500':'bg-gray-500'}`}>{film.status}</Badge></div>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              <Badge className="bg-yellow-500/20 text-yellow-500 text-xs">{t(film.genre)}</Badge>
+              {film.subgenres?.map(sg => <Badge key={sg} variant="outline" className="text-[10px] h-4 border-gray-600">{sg}</Badge>)}
+              <Badge className={`text-xs ${film.status==='in_theaters'?'bg-green-500':film.status==='withdrawn'?'bg-orange-500':'bg-gray-500'}`}>{film.status}</Badge>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="text-center p-2 rounded bg-white/5"><Heart className="w-4 h-4 mx-auto mb-0.5 text-red-400" /><p className="font-bold text-sm">{film.likes_count}</p></div>
               <div className="text-center p-2 rounded bg-white/5"><DollarSign className="w-4 h-4 mx-auto mb-0.5 text-green-400" /><p className="font-bold text-sm">${(film.total_revenue||0).toLocaleString()}</p></div>
@@ -1200,7 +1233,62 @@ const FilmDetail = () => {
             </div>
           </CardContent>
         </Card>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Cast Section */}
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Users className="w-4 h-4 text-yellow-500" /> Cast & Crew</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {/* Director & Screenwriter */}
+              <div className="grid grid-cols-2 gap-2">
+                {film.director && (
+                  <div className="p-2 rounded bg-white/5">
+                    <p className="text-[10px] text-gray-500 uppercase mb-1">Director</p>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-8 h-8"><AvatarImage src={film.director.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.director.name?.[0]}</AvatarFallback></Avatar>
+                      <div>
+                        <p className="text-sm font-semibold">{film.director.name} <span className={`${film.director.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.director.gender === 'female' ? '♀' : '♂'}</span></p>
+                        <p className="text-[10px] text-gray-400">{film.director.nationality}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {film.screenwriter && (
+                  <div className="p-2 rounded bg-white/5">
+                    <p className="text-[10px] text-gray-500 uppercase mb-1">Screenwriter</p>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-8 h-8"><AvatarImage src={film.screenwriter.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.screenwriter.name?.[0]}</AvatarFallback></Avatar>
+                      <div>
+                        <p className="text-sm font-semibold">{film.screenwriter.name} <span className={`${film.screenwriter.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.screenwriter.gender === 'female' ? '♀' : '♂'}</span></p>
+                        <p className="text-[10px] text-gray-400">{film.screenwriter.nationality}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Actors */}
+              {film.cast?.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase mb-2">Cast ({film.cast.length} actors)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {film.cast.map(actor => (
+                      <div key={actor.id || actor.actor_id} className="flex items-center gap-2 p-2 rounded bg-white/5">
+                        <Avatar className="w-8 h-8"><AvatarImage src={actor.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{actor.name?.[0]}</AvatarFallback></Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm font-semibold truncate">{actor.name}</p>
+                            <span className={`text-xs ${actor.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{actor.gender === 'female' ? '♀' : '♂'}</span>
+                          </div>
+                          <p className="text-[10px] text-gray-400">{actor.nationality}</p>
+                        </div>
+                        {actor.role && getRoleBadge(actor.role)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          {/* Box Office */}
           <Card className="bg-[#1A1A1A] border-white/10">
             <CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Globe className="w-4 h-4 text-yellow-500" /> {t('box_office')}</CardTitle></CardHeader>
             <CardContent>
@@ -1385,8 +1473,10 @@ const CinemaJournal = () => {
                               <AvatarFallback className="text-[8px] bg-yellow-500/20">{actor.name?.[0]}</AvatarFallback>
                             </Avatar>
                             <span className="text-xs">{actor.name}</span>
+                            <span className={`text-[10px] ${actor.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>
+                              {actor.gender === 'female' ? '♀' : '♂'}
+                            </span>
                             {getRoleBadge(actor.role)}
-                            <span className="text-[10px] text-gray-500">({actor.gender === 'female' ? '♀' : '♂'})</span>
                           </div>
                         ))}
                       </div>
@@ -1901,7 +1991,7 @@ const StatisticsPage = () => {
   );
 };
 
-// Profile Page
+// Profile Page with AI Avatar Generation
 const ProfilePage = () => {
   const { api, user, refreshUser, logout } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
@@ -1910,14 +2000,47 @@ const ProfilePage = () => {
   const [avatars, setAvatars] = useState([]);
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar_id);
   const [saving, setSaving] = useState(false);
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
 
   useEffect(() => { api.get('/avatars').then(r => setAvatars(r.data)); }, [api]);
 
   const saveProfile = async () => {
     setSaving(true);
-    try { await api.put('/auth/profile', { avatar_id: selectedAvatar, language }); await refreshUser(); toast.success('Saved!'); }
+    try { 
+      // If using custom avatar (AI generated or URL)
+      if (customAvatarUrl) {
+        await api.put('/auth/avatar', { avatar_url: customAvatarUrl, avatar_source: 'custom' });
+      } else if (selectedAvatar) {
+        const avatar = avatars.find(a => a.id === selectedAvatar);
+        if (avatar) {
+          await api.put('/auth/avatar', { avatar_url: avatar.url, avatar_source: 'preset' });
+        }
+      }
+      await api.put('/auth/profile', { avatar_id: selectedAvatar || 'custom', language }); 
+      await refreshUser(); 
+      toast.success('Saved!'); 
+    }
     catch (e) { toast.error('Failed'); }
     finally { setSaving(false); }
+  };
+
+  const generateAiAvatar = async () => {
+    if (!aiPrompt.trim()) { toast.error('Enter a description'); return; }
+    setGeneratingAi(true);
+    try {
+      const res = await api.post('/avatar/generate', { description: aiPrompt, style: 'portrait' });
+      setCustomAvatarUrl(res.data.avatar_url);
+      setSelectedAvatar(null);
+      setShowAiGenerator(false);
+      toast.success('Avatar generated!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Generation failed');
+    } finally {
+      setGeneratingAi(false);
+    }
   };
 
   const resetPlayer = async () => {
@@ -1926,38 +2049,119 @@ const ProfilePage = () => {
   };
 
   return (
-    <div className="pt-16 pb-20 px-3 max-w-2xl mx-auto" data-testid="profile-page">
-      <h1 className="font-['Bebas_Neue'] text-3xl mb-4">{t('profile')}</h1>
+    <div className="pt-16 pb-20 px-2 sm:px-3 max-w-2xl mx-auto" data-testid="profile-page">
+      <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl mb-4">{t('profile')}</h1>
       <Card className="bg-[#1A1A1A] border-white/10">
-        <CardContent className="p-4">
+        <CardContent className="p-3 sm:p-4">
           <div className="flex items-center gap-3 mb-4">
-            <Avatar className="w-16 h-16 border-2 border-yellow-500/30"><AvatarImage src={user?.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xl">{user?.nickname?.[0]}</AvatarFallback></Avatar>
-            <div><h2 className="text-lg font-bold">{user?.nickname}</h2><p className="text-sm text-gray-400">{user?.production_house_name}</p><p className="text-xs text-gray-500">Owner: {user?.owner_name}</p></div>
+            <Avatar className="w-14 sm:w-16 h-14 sm:h-16 border-2 border-yellow-500/30">
+              <AvatarImage src={customAvatarUrl || user?.avatar_url} />
+              <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xl">{user?.nickname?.[0]}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h2 className="text-base sm:text-lg font-bold">{user?.nickname}</h2>
+              <p className="text-xs sm:text-sm text-gray-400">{user?.production_house_name}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Owner: {user?.owner_name}</p>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-lg font-bold">{(user?.likeability_score || 50).toFixed(0)}</p><p className="text-xs text-gray-400">Like</p></div>
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-lg font-bold">{(user?.interaction_score || 50).toFixed(0)}</p><p className="text-xs text-gray-400">Social</p></div>
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-xs text-gray-400">Char</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.likeability_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Like</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.interaction_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Social</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
           </div>
+          
+          {/* Avatar Section */}
           <div className="space-y-3 mb-4">
-            <Label className="text-xs">Avatar</Label>
-            <div className="grid grid-cols-5 gap-1.5">{avatars.map(a => (
-              <button key={a.id} className={`p-0.5 rounded border-2 ${selectedAvatar === a.id ? 'border-yellow-500' : 'border-transparent hover:border-white/20'}`} onClick={() => setSelectedAvatar(a.id)}>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Avatar</Label>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] sm:text-xs px-2 border-yellow-500/30 text-yellow-400" onClick={() => setShowAiGenerator(true)}>
+                <Sparkles className="w-2.5 sm:w-3 h-2.5 sm:h-3 mr-1" /> Generate AI Avatar
+              </Button>
+            </div>
+            
+            {customAvatarUrl && (
+              <div className="p-2 bg-yellow-500/10 rounded border border-yellow-500/30 flex items-center gap-2">
+                <Avatar className="w-10 h-10"><AvatarImage src={customAvatarUrl} /></Avatar>
+                <span className="text-xs text-yellow-400 flex-1">Custom Avatar</span>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setCustomAvatarUrl('')}>
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-5 sm:grid-cols-7 gap-1">{avatars.map(a => (
+              <button key={a.id} className={`p-0.5 rounded border-2 ${selectedAvatar === a.id && !customAvatarUrl ? 'border-yellow-500' : 'border-transparent hover:border-white/20'}`} onClick={() => { setSelectedAvatar(a.id); setCustomAvatarUrl(''); }}>
                 <Avatar className="w-full aspect-square"><AvatarImage src={a.url} /></Avatar>
               </button>
             ))}</div>
+            
+            {/* Custom URL Input */}
+            <div className="pt-2 border-t border-white/10">
+              <Label className="text-[10px] text-gray-400 mb-1 block">Or paste a custom image URL</Label>
+              <div className="flex gap-2">
+                <Input 
+                  value={customAvatarUrl} 
+                  onChange={e => { setCustomAvatarUrl(e.target.value); setSelectedAvatar(null); }} 
+                  placeholder="https://..." 
+                  className="h-8 text-xs bg-black/20 border-white/10 flex-1"
+                />
+                {customAvatarUrl && (
+                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setCustomAvatarUrl('')}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
+          
           <div className="space-y-2 mb-4">
             <Label className="text-xs">Language</Label>
-            <Select value={language} onValueChange={setLanguage}><SelectTrigger className="bg-black/20 border-white/10 h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="it">Italiano</SelectItem><SelectItem value="es">Español</SelectItem><SelectItem value="fr">Français</SelectItem><SelectItem value="de">Deutsch</SelectItem></SelectContent></Select>
+            <Select value={language} onValueChange={setLanguage}><SelectTrigger className="bg-black/20 border-white/10 h-8 sm:h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="it">Italiano</SelectItem><SelectItem value="es">Español</SelectItem><SelectItem value="fr">Français</SelectItem><SelectItem value="de">Deutsch</SelectItem></SelectContent></Select>
           </div>
-          <Button onClick={saveProfile} disabled={saving} className="w-full bg-yellow-500 text-black mb-2 h-9">{saving ? 'Saving...' : 'Save Changes'}</Button>
+          <Button onClick={saveProfile} disabled={saving} className="w-full bg-yellow-500 text-black mb-2 h-8 sm:h-9 text-sm">{saving ? 'Saving...' : 'Save Changes'}</Button>
           <AlertDialog>
-            <AlertDialogTrigger asChild><Button variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 h-9"><RefreshCw className="w-3.5 h-3.5 mr-2" /> Reset Player</Button></AlertDialogTrigger>
-            <AlertDialogContent className="bg-[#1A1A1A] border-white/10"><AlertDialogHeader><AlertDialogTitle>Reset Player?</AlertDialogTitle><AlertDialogDescription>This deletes all films, resets funds to $10M, and clears progress.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={resetPlayer} className="bg-red-500">Reset</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+            <AlertDialogTrigger asChild><Button variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 h-8 sm:h-9 text-sm"><RefreshCw className="w-3 sm:w-3.5 h-3 sm:h-3.5 mr-2" /> Reset Player</Button></AlertDialogTrigger>
+            <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md"><AlertDialogHeader><AlertDialogTitle className="text-base">Reset Player?</AlertDialogTitle><AlertDialogDescription className="text-sm">This deletes all films, resets funds to $10M, and clears progress.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="h-8 text-sm">Cancel</AlertDialogCancel><AlertDialogAction onClick={resetPlayer} className="bg-red-500 h-8 text-sm">Reset</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
         </CardContent>
       </Card>
+      
+      {/* AI Avatar Generator Dialog */}
+      <Dialog open={showAiGenerator} onOpenChange={setShowAiGenerator}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-yellow-500" /> Generate AI Avatar
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs mb-2 block">Describe your avatar</Label>
+              <Input 
+                value={aiPrompt} 
+                onChange={e => setAiPrompt(e.target.value)} 
+                placeholder="e.g., professional film director, elegant actress with glasses..."
+                className="h-9 bg-black/20 border-white/10 text-sm"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Be specific: gender, age, style, profession...</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {['Young male producer', 'Elegant female director', 'Veteran actor with beard', 'Glamorous actress'].map(preset => (
+                <Button key={preset} variant="outline" size="sm" className="h-7 text-[10px] justify-start" onClick={() => setAiPrompt(preset)}>
+                  {preset}
+                </Button>
+              ))}
+            </div>
+            <Button 
+              onClick={generateAiAvatar} 
+              disabled={generatingAi || !aiPrompt.trim()} 
+              className="w-full bg-yellow-500 text-black h-9"
+            >
+              {generatingAi ? 'Generating...' : 'Generate Avatar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1483,6 +1483,22 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     opening_day_revenue = quality_score * 150000 * random.uniform(0.8, 1.5)
     
+    # Get director and screenwriter names to store with the film
+    director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
+    screenwriter_doc = await db.people.find_one({'id': film_data.screenwriter_id}, {'_id': 0, 'name': 1})
+    
+    # Enrich cast with names
+    enriched_cast = []
+    for actor_info in film_data.actors:
+        actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'name': 1, 'gender': 1})
+        enriched_actor = {
+            'actor_id': actor_info.get('actor_id'),
+            'role': actor_info.get('role', 'supporting'),
+            'name': actor_doc.get('name', 'Unknown Actor') if actor_doc else 'Unknown Actor',
+            'gender': actor_doc.get('gender', 'male') if actor_doc else 'male'
+        }
+        enriched_cast.append(enriched_actor)
+    
     film = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
@@ -1496,9 +1512,15 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'equipment_package': film_data.equipment_package,
         'locations': film_data.locations,
         'location_costs': location_costs,
-        'screenwriter': {'id': film_data.screenwriter_id},
-        'director': {'id': film_data.director_id},
-        'cast': film_data.actors,  # Now includes role for each actor
+        'screenwriter': {
+            'id': film_data.screenwriter_id,
+            'name': screenwriter_doc.get('name', 'Unknown') if screenwriter_doc else 'Unknown'
+        },
+        'director': {
+            'id': film_data.director_id,
+            'name': director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
+        },
+        'cast': enriched_cast,  # Now includes name for each actor
         'extras_count': film_data.extras_count,
         'extras_cost': film_data.extras_cost,
         'screenplay': film_data.screenplay,
@@ -1671,20 +1693,54 @@ async def get_cinema_journal(
         film['owner'] = owner
         
         # Get director details
-        director = await db.people.find_one({'id': film.get('director', {}).get('id')}, {'_id': 0})
-        film['director_details'] = director
+        director_id = film.get('director', {}).get('id')
+        director = await db.people.find_one({'id': director_id}, {'_id': 0})
+        if director:
+            film['director_details'] = director
+        else:
+            film['director_details'] = {
+                'id': director_id,
+                'name': film.get('director', {}).get('name', 'Director'),
+                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=dir{director_id[:6] if director_id else 'unknown'}",
+                'nationality': 'Unknown'
+            }
         
         # Get screenwriter details
-        screenwriter = await db.people.find_one({'id': film.get('screenwriter', {}).get('id')}, {'_id': 0})
-        film['screenwriter_details'] = screenwriter
+        screenwriter_id = film.get('screenwriter', {}).get('id')
+        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0})
+        if screenwriter:
+            film['screenwriter_details'] = screenwriter
+        else:
+            film['screenwriter_details'] = {
+                'id': screenwriter_id,
+                'name': film.get('screenwriter', {}).get('name', 'Screenwriter'),
+                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=scr{screenwriter_id[:6] if screenwriter_id else 'unknown'}",
+                'nationality': 'Unknown'
+            }
         
         # Get main cast (protagonists and co-protagonists)
         main_cast = []
         for actor_info in film.get('cast', [])[:5]:  # Top 5 actors
-            actor = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0})
+            actor_id = actor_info.get('actor_id')
+            actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
             if actor:
                 actor['role'] = actor_info.get('role', 'supporting')
                 main_cast.append(actor)
+            else:
+                # Create placeholder for missing actors
+                # Try to get name from actor_info if stored, otherwise generate placeholder
+                placeholder_name = actor_info.get('name', f"Actor #{len(main_cast)+1}")
+                main_cast.append({
+                    'id': actor_id,
+                    'name': placeholder_name,
+                    'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed={actor_id[:8]}",
+                    'gender': actor_info.get('gender', 'male'),
+                    'role': actor_info.get('role', 'supporting'),
+                    'nationality': 'Unknown',
+                    'fame_category': 'unknown',
+                    'stars': 3,
+                    'years_active': 0
+                })
         film['main_cast'] = main_cast
         
         # Get user's rating if exists

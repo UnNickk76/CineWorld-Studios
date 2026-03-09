@@ -524,16 +524,56 @@ const AuthPage = () => {
 };
 
 // Skill Badge Component
-const SkillBadge = ({ name, value, change }) => {
+// Skill translations map
+const SKILL_TRANSLATIONS = {
+  // Screenwriter skills
+  dialogue: { en: 'Dialogue', it: 'Dialoghi' },
+  plot_structure: { en: 'Plot Structure', it: 'Struttura Trama' },
+  character_development: { en: 'Character Dev.', it: 'Sviluppo Personaggi' },
+  originality: { en: 'Originality', it: 'Originalità' },
+  adaptation: { en: 'Adaptation', it: 'Adattamento' },
+  pacing: { en: 'Pacing', it: 'Ritmo' },
+  world_building: { en: 'World Building', it: 'Creazione Mondi' },
+  emotional_impact: { en: 'Emotional Impact', it: 'Impatto Emotivo' },
+  // Director skills
+  vision: { en: 'Vision', it: 'Visione' },
+  leadership: { en: 'Leadership', it: 'Leadership' },
+  actor_direction: { en: 'Actor Direction', it: 'Direzione Attori' },
+  visual_style: { en: 'Visual Style', it: 'Stile Visivo' },
+  storytelling: { en: 'Storytelling', it: 'Narrazione' },
+  technical: { en: 'Technical', it: 'Tecnico' },
+  innovation: { en: 'Innovation', it: 'Innovazione' },
+  // Composer skills
+  melodic: { en: 'Melodic Comp.', it: 'Comp. Melodica' },
+  orchestration: { en: 'Orchestration', it: 'Orchestrazione' },
+  emotional_scoring: { en: 'Emotional Scoring', it: 'Musica Emotiva' },
+  genre_versatility: { en: 'Genre Versatility', it: 'Versatilità Generi' },
+  sound_design: { en: 'Sound Design', it: 'Sound Design' },
+  theme_development: { en: 'Theme Dev.', it: 'Sviluppo Temi' },
+  // Actor skills
+  drama: { en: 'Drama', it: 'Dramma' },
+  comedy: { en: 'Comedy', it: 'Commedia' },
+  action: { en: 'Action', it: 'Azione' },
+  romance: { en: 'Romance', it: 'Romantico' },
+  horror: { en: 'Horror', it: 'Horror' },
+  sci_fi: { en: 'Sci-Fi', it: 'Fantascienza' },
+  voice_acting: { en: 'Voice Acting', it: 'Doppiaggio' },
+  improvisation: { en: 'Improvisation', it: 'Improvvisazione' },
+};
+
+const SkillBadge = ({ name, value, change, language = 'it' }) => {
   const getBgColor = () => {
     if (change > 0) return 'bg-green-500/20 border-green-500/30';
     if (change < 0) return 'bg-red-500/20 border-red-500/30';
     return 'bg-white/5 border-white/10';
   };
+  
+  // Translate skill name
+  const translatedName = SKILL_TRANSLATIONS[name]?.[language] || SKILL_TRANSLATIONS[name]?.['en'] || name;
 
   return (
     <div className={`flex items-center justify-between px-1.5 py-0.5 rounded border ${getBgColor()}`}>
-      <span className="text-xs truncate mr-1">{name}</span>
+      <span className="text-xs truncate mr-1">{translatedName}</span>
       <div className="flex items-center gap-0.5">
         <span className={`font-bold text-xs ${change > 0 ? 'text-green-500' : change < 0 ? 'text-red-500' : ''}`}>
           {value}
@@ -896,6 +936,15 @@ const FilmWizard = () => {
   const [composers, setComposers] = useState([]);
   const [genres, setGenres] = useState({});
   const [actorRoles, setActorRoles] = useState([]);
+  
+  // New states for cast filtering
+  const [castCategories, setCastCategories] = useState([]);
+  const [availableSkills, setAvailableSkills] = useState({
+    screenwriters: [], directors: [], actors: [], composers: []
+  });
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSkill, setSelectedSkill] = useState('all');
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
 
   const [filmData, setFilmData] = useState({
     title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
@@ -916,14 +965,44 @@ const FilmWizard = () => {
     api.get('/actor-roles').then(r=>setActorRoles(r.data));
   }, [api]);
   
-  const fetchPeople = async (type) => {
-    const res = await api.get(`/${type}`);
-    if(type==='screenwriters') setScreenwriters(res.data.screenwriters);
-    else if(type==='directors') setDirectors(res.data.directors);
-    else if(type==='actors') setActors(res.data.actors);
-    else if(type==='composers') setComposers(res.data.composers);
+  const fetchPeople = async (type, category = '', skill = '') => {
+    let url = `/${type}?limit=40`;
+    if (category && category !== 'all') url += `&category=${category}`;
+    if (skill && skill !== 'all') url += `&skill=${skill}`;
+    
+    const res = await api.get(url);
+    if(type==='screenwriters') {
+      setScreenwriters(res.data.screenwriters);
+      setAvailableSkills(prev => ({...prev, screenwriters: res.data.available_skills || []}));
+    }
+    else if(type==='directors') {
+      setDirectors(res.data.directors);
+      setAvailableSkills(prev => ({...prev, directors: res.data.available_skills || []}));
+    }
+    else if(type==='actors') {
+      setActors(res.data.actors);
+      setAvailableSkills(prev => ({...prev, actors: res.data.available_skills || []}));
+    }
+    else if(type==='composers') {
+      setComposers(res.data.composers);
+      setAvailableSkills(prev => ({...prev, composers: res.data.available_skills || []}));
+    }
+    if (res.data.categories) setCastCategories(res.data.categories);
   };
-  useEffect(() => { if(step===4)fetchPeople('screenwriters'); if(step===5)fetchPeople('directors'); if(step===6)fetchPeople('composers'); if(step===7)fetchPeople('actors'); }, [step]);
+  
+  useEffect(() => { 
+    if(step===4) { fetchPeople('screenwriters', selectedCategory, selectedSkill); }
+    if(step===5) { fetchPeople('directors', selectedCategory, selectedSkill); }
+    if(step===6) { fetchPeople('composers', selectedCategory, selectedSkill); }
+    if(step===7) { fetchPeople('actors', selectedCategory, selectedSkill); }
+  }, [step, selectedCategory, selectedSkill]);
+  
+  // Reset filters when changing steps
+  useEffect(() => {
+    setSelectedCategory('all');
+    setSelectedSkill('all');
+    setSkillSearchQuery('');
+  }, [step]);
 
   const generateScreenplay = async () => { setGenerating(true); try { const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); toast.success('Sceneggiatura generata!'); } catch(e) { toast.error('Errore'); } finally { setGenerating(false); }};
   const generatePoster = async () => { setGenerating(true); try { const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); setFilmData({...filmData, poster_url: res.data.poster_url}); toast.success('Poster generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
@@ -941,7 +1020,7 @@ const FilmWizard = () => {
     return role[langKey] || role.name;
   };
 
-  const PersonCard = ({ person, isSelected, onSelect, showRoleSelect = false, currentRole = null, onRoleChange = null }) => {
+  const PersonCard = ({ person, isSelected, onSelect, showRoleSelect = false, currentRole = null, onRoleChange = null, roleType = 'actor' }) => {
     // Generate star display
     const renderStars = (count) => {
       return Array(5).fill(0).map((_, i) => (
@@ -959,41 +1038,95 @@ const FilmWizard = () => {
       }
     };
     
+    const getCategoryColor = (category) => {
+      switch(category) {
+        case 'recommended': return 'text-emerald-400 bg-emerald-500/20';
+        case 'star': return 'text-purple-400 bg-purple-500/20';
+        case 'known': return 'text-blue-400 bg-blue-500/20';
+        case 'emerging': return 'text-orange-400 bg-orange-500/20';
+        case 'unknown': return 'text-gray-400 bg-gray-500/20';
+        default: return 'text-gray-400 bg-gray-500/20';
+      }
+    };
+    
+    const getCategoryName = (category) => {
+      const names = {
+        recommended: language === 'it' ? 'Consigliato' : 'Recommended',
+        star: 'Star',
+        known: language === 'it' ? 'Conosciuto' : 'Known',
+        emerging: language === 'it' ? 'Emergente' : 'Emerging',
+        unknown: language === 'it' ? 'Sconosciuto' : 'Unknown'
+      };
+      return names[category] || category;
+    };
+    
+    // Get primary skills display
+    const primarySkillsDisplay = person.primary_skills_translated || person.primary_skills || [];
+    const secondarySkillDisplay = person.secondary_skill_translated || person.secondary_skill;
+    
     return (
-      <Card className={`bg-[#1A1A1A] border-2 cursor-pointer ${isSelected ? 'border-yellow-500' : 'border-white/10'}`} onClick={onSelect}>
+      <Card className={`bg-[#1A1A1A] border-2 cursor-pointer transition-all ${isSelected ? 'border-yellow-500 ring-1 ring-yellow-500/50' : 'border-white/10 hover:border-white/20'}`} onClick={onSelect}>
         <CardContent className="p-2">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Avatar className="w-10 h-10"><AvatarImage src={person.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{person.name[0]}</AvatarFallback></Avatar>
+          {/* Header: Avatar, Name, Cost */}
+          <div className="flex items-start gap-2 mb-1.5">
+            <Avatar className="w-10 h-10 flex-shrink-0"><AvatarImage src={person.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{person.name[0]}</AvatarFallback></Avatar>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <h4 className="font-semibold text-xs truncate">{person.name}</h4>
+              <div className="flex items-center gap-1 flex-wrap">
+                <h4 className="font-semibold text-xs truncate max-w-[100px]">{person.name}</h4>
                 <span className="text-[10px] text-gray-400">{person.gender === 'female' ? '♀' : '♂'}</span>
                 {person.is_hidden_gem && <Sparkles className="w-2.5 h-2.5 text-green-500" title="Hidden Gem!" />}
+                {person.has_worked_with_us && (
+                  <Badge className="text-[8px] h-3.5 px-1 bg-cyan-500/20 text-cyan-400 whitespace-nowrap">
+                    {language === 'it' ? 'Ha lavorato con noi' : 'Worked with us'}
+                  </Badge>
+                )}
               </div>
-              <p className="text-[10px] text-gray-400">{person.nationality} • {person.age}yo</p>
+              {/* Primary & Secondary Skills inline */}
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                {primarySkillsDisplay.slice(0, 2).map((skill, idx) => (
+                  <span key={idx} className="text-[9px] text-yellow-400 bg-yellow-500/10 px-1 py-0.5 rounded">
+                    {skill}
+                  </span>
+                ))}
+                {secondarySkillDisplay && (
+                  <span className="text-[9px] text-gray-400 bg-white/5 px-1 py-0.5 rounded">
+                    {secondarySkillDisplay}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-0.5">{person.nationality} • {person.age}yo • {person.years_active}y exp</p>
             </div>
-            <p className="text-yellow-500 font-bold text-xs">${((person.cost_per_film || 0)/1000).toFixed(0)}K</p>
+            <p className="text-yellow-500 font-bold text-xs whitespace-nowrap">${((person.cost_per_film || 0)/1000).toFixed(0)}K</p>
           </div>
-          {/* Stars, Fame, Experience row */}
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+          
+          {/* Stars, Category row */}
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
             {person.stars && (
               <div className="flex items-center gap-0.5" title={`${person.stars} stelle`}>
                 {renderStars(person.stars)}
               </div>
             )}
-            {person.fame_category && (
-              <Badge className={`text-[9px] h-4 px-1 ${getFameColor(person.fame_category)}`}>
-                {person.fame_category === 'superstar' ? 'Superstar' : 
-                 person.fame_category === 'famous' ? 'Famoso' : 
-                 person.fame_category === 'rising' ? 'Emergente' : 
-                 person.fame_category === 'known' ? 'Conosciuto' : 'Sconosciuto'}
+            {person.category && (
+              <Badge className={`text-[8px] h-4 px-1 ${getCategoryColor(person.category)}`}>
+                {person.category_translated || getCategoryName(person.category)}
               </Badge>
             )}
-            {person.years_active && (
-              <span className="text-[9px] text-gray-400">{person.years_active} anni exp</span>
+            {person.fame_category && (
+              <Badge className={`text-[8px] h-4 px-1 ${getFameColor(person.fame_category)}`}>
+                {person.fame_category === 'superstar' ? 'Superstar' : 
+                 person.fame_category === 'famous' ? (language === 'it' ? 'Famoso' : 'Famous') : 
+                 person.fame_category === 'rising' ? (language === 'it' ? 'In Ascesa' : 'Rising') : 
+                 person.fame_category === 'known' ? (language === 'it' ? 'Noto' : 'Known') : 
+                 (language === 'it' ? 'Sconosciuto' : 'Unknown')}
+              </Badge>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-0.5">{Object.entries(person.skills||{}).slice(0,4).map(([s,v])=><SkillBadge key={s} name={s} value={v} change={person.skill_changes?.[s]||0} />)}</div>
+          
+          {/* Skills grid - show only 4 */}
+          <div className="grid grid-cols-2 gap-0.5">
+            {Object.entries(person.skills||{}).slice(0,4).map(([s,v])=><SkillBadge key={s} name={s} value={v} change={person.skill_changes?.[s]||0} language={language} />)}
+          </div>
+          
           {showRoleSelect && isSelected && (
             <div className="mt-2 pt-2 border-t border-white/10" onClick={e => e.stopPropagation()}>
               <Select value={currentRole} onValueChange={onRoleChange}>
@@ -1070,30 +1203,114 @@ const FilmWizard = () => {
       case 4: case 5:
         const people45 = step===4?screenwriters:directors;
         const selId = step===4?filmData.screenwriter_id:filmData.director_id;
+        const roleType45 = step===4?'screenwriters':'directors';
+        const skills45 = step===4?availableSkills.screenwriters:availableSkills.directors;
         return (<div className="space-y-2">
-          <div className="flex justify-between items-center"><p className="text-xs text-gray-400"></p><Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(step===4?'screenwriters':'directors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button></div>
-          <ScrollArea className="h-[400px] sm:h-[450px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
+          {/* Filters Row */}
+          <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-7 w-[140px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Categoria...' : 'Category...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte' : 'All'}</SelectItem>
+                <SelectItem value="recommended" className="text-xs">{language === 'it' ? 'Consigliati' : 'Recommended'}</SelectItem>
+                <SelectItem value="star" className="text-xs">Star</SelectItem>
+                <SelectItem value="known" className="text-xs">{language === 'it' ? 'Conosciuti' : 'Known'}</SelectItem>
+                <SelectItem value="emerging" className="text-xs">{language === 'it' ? 'Emergenti' : 'Emerging'}</SelectItem>
+                <SelectItem value="unknown" className="text-xs">{language === 'it' ? 'Sconosciuti' : 'Unknown'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedSkill} onValueChange={setSelectedSkill}>
+              <SelectTrigger className="h-7 w-[150px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Filtra skill...' : 'Filter skill...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte le skill' : 'All skills'}</SelectItem>
+                {skills45.map(sk => (
+                  <SelectItem key={sk} value={sk} className="text-xs">{sk}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleType45, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
+          <p className="text-xs text-gray-400">{people45.length} {step===4?(language==='it'?'sceneggiatori':'screenwriters'):(language==='it'?'registi':'directors')} {language==='it'?'trovati':'found'}</p>
+          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType={step===4?'screenwriter':'director'} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
         </div>);
       case 6:
         return (<div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-400"><Music className="w-3 h-3 inline mr-1" />Seleziona il compositore per la colonna sonora</p>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('composers')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          {/* Filters Row */}
+          <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-7 w-[140px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Categoria...' : 'Category...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte' : 'All'}</SelectItem>
+                <SelectItem value="recommended" className="text-xs">{language === 'it' ? 'Consigliati' : 'Recommended'}</SelectItem>
+                <SelectItem value="star" className="text-xs">Star</SelectItem>
+                <SelectItem value="known" className="text-xs">{language === 'it' ? 'Conosciuti' : 'Known'}</SelectItem>
+                <SelectItem value="emerging" className="text-xs">{language === 'it' ? 'Emergenti' : 'Emerging'}</SelectItem>
+                <SelectItem value="unknown" className="text-xs">{language === 'it' ? 'Sconosciuti' : 'Unknown'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedSkill} onValueChange={setSelectedSkill}>
+              <SelectTrigger className="h-7 w-[150px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Filtra skill...' : 'Filter skill...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte le skill' : 'All skills'}</SelectItem>
+                {availableSkills.composers.map(sk => (
+                  <SelectItem key={sk} value={sk} className="text-xs">{sk}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('composers', selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
           </div>
-          <ScrollArea className="h-[400px] sm:h-[450px]">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-400"><Music className="w-3 h-3 inline mr-1" />{composers.length} {language==='it'?'compositori trovati':'composers found'}</p>
+          </div>
+          <ScrollArea className="h-[380px] sm:h-[420px]">
             <div className="space-y-1.5 pr-2">
               {composers.map(p => {
                 const isSel = filmData.composer_id === p.id;
-                return <PersonCard key={p.id} person={p} isSelected={isSel} onSelect={() => setFilmData({...filmData, composer_id: p.id})} />;
+                return <PersonCard key={p.id} person={p} isSelected={isSel} roleType="composer" onSelect={() => setFilmData({...filmData, composer_id: p.id})} />;
               })}
             </div>
           </ScrollArea>
         </div>);
       case 7:
         return (<div className="space-y-2">
+          {/* Filters Row */}
+          <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-7 w-[140px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Categoria...' : 'Category...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte' : 'All'}</SelectItem>
+                <SelectItem value="recommended" className="text-xs">{language === 'it' ? 'Consigliati' : 'Recommended'}</SelectItem>
+                <SelectItem value="star" className="text-xs">Star</SelectItem>
+                <SelectItem value="known" className="text-xs">{language === 'it' ? 'Conosciuti' : 'Known'}</SelectItem>
+                <SelectItem value="emerging" className="text-xs">{language === 'it' ? 'Emergenti' : 'Emerging'}</SelectItem>
+                <SelectItem value="unknown" className="text-xs">{language === 'it' ? 'Sconosciuti' : 'Unknown'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedSkill} onValueChange={setSelectedSkill}>
+              <SelectTrigger className="h-7 w-[150px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Filtra skill...' : 'Filter skill...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte le skill' : 'All skills'}</SelectItem>
+                {availableSkills.actors.map(sk => (
+                  <SelectItem key={sk} value={sk} className="text-xs">{sk}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors', selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
           <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-400">Selected: {filmData.actors.length} actors</p>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <p className="text-xs text-gray-400">{language === 'it' ? 'Selezionati' : 'Selected'}: {filmData.actors.length} {language === 'it' ? 'attori' : 'actors'} • {actors.length} {language === 'it' ? 'disponibili' : 'available'}</p>
           </div>
           {filmData.actors.length > 0 && (
             <div className="flex flex-wrap gap-1 p-2 bg-black/20 rounded border border-white/10">
@@ -1108,7 +1325,7 @@ const FilmWizard = () => {
               })}
             </div>
           )}
-          <ScrollArea className="h-[350px] sm:h-[400px]">
+          <ScrollArea className="h-[320px] sm:h-[360px]">
             <div className="space-y-1.5 pr-2">
               {actors.map(p => {
                 const selectedActor = filmData.actors.find(a => a.actor_id === p.id);
@@ -1118,6 +1335,7 @@ const FilmWizard = () => {
                     key={p.id} 
                     person={p} 
                     isSelected={isSel}
+                    roleType="actor"
                     showRoleSelect={true}
                     currentRole={selectedActor?.role || 'protagonist'}
                     onRoleChange={(newRole) => {

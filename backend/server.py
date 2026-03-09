@@ -36,12 +36,15 @@ from game_systems import (
     calculate_tour_rating, generate_tour_review
 )
 
-# Import enhanced cast system
+# Import enhanced cast system v2
 from cast_system import (
-    generate_cast_member, generate_cast_pool, get_all_locations_flat,
+    generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
+    generate_cast_pool, get_all_locations_flat,
     calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL,
     calculate_stars, calculate_fame_from_career, get_fame_category_from_score, calculate_cast_cost,
-    EXPANDED_NAMES, FILMING_LOCATIONS
+    calculate_cast_film_bonus, get_skill_translation, get_category_translation,
+    EXPANDED_NAMES, FILMING_LOCATIONS, CAST_CATEGORIES,
+    ACTOR_SKILLS, DIRECTOR_SKILLS, SCREENWRITER_SKILLS, COMPOSER_SKILLS
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -1058,29 +1061,89 @@ def generate_person_name():
         'avatar_url': avatar_url
     }
 
+async def initialize_cast_pool_if_needed():
+    """Initialize the full cast pool (700 members) if not already done."""
+    counts = {
+        'actor': 400,
+        'director': 100,
+        'screenwriter': 100,
+        'composer': 100
+    }
+    
+    for role_type, target_count in counts.items():
+        existing_count = await db.people.count_documents({'type': role_type})
+        if existing_count < target_count:
+            needed = target_count - existing_count
+            logging.info(f"Generating {needed} {role_type}s...")
+            
+            cast_pool = generate_full_cast_pool(role_type, needed)
+            for member in cast_pool:
+                person = {
+                    'id': member['id'],
+                    'type': role_type,
+                    'name': member['name'],
+                    'age': member['age'],
+                    'nationality': member['nationality'],
+                    'gender': member['gender'],
+                    'avatar_url': member['avatar_url'],
+                    'skills': member['skills'],
+                    'primary_skills': member.get('primary_skills', []),
+                    'secondary_skill': member.get('secondary_skill'),
+                    'skill_changes': {k: 0 for k in member['skills']},
+                    'films_count': member['films_count'],
+                    'fame_category': member['fame_category'],
+                    'fame_score': member['fame'],
+                    'years_active': member['years_active'],
+                    'stars': member['stars'],
+                    'category': member.get('category', 'unknown'),
+                    'avg_film_quality': member['avg_film_quality'],
+                    'is_hidden_gem': member['fame_category'] == 'unknown' and member['stars'] >= 4,
+                    'star_potential': random.random() if member['fame_category'] in ['unknown', 'rising'] else 0,
+                    'is_discovered_star': False,
+                    'discovered_by': None,
+                    'trust_level': random.randint(0, 100),
+                    'cost_per_film': member['cost'],
+                    'times_used': 0,
+                    'films_worked': [],
+                    'created_at': member['created_at']
+                }
+                await db.people.insert_one(person)
+            logging.info(f"Generated {needed} {role_type}s successfully")
+
 async def get_or_create_person(person_type: str) -> dict:
-    """Get existing person from DB or create new one using enhanced cast system"""
+    """Get existing person from DB or create new one using enhanced cast system v2"""
+    # Target counts for each type
+    target_counts = {
+        'actor': 400,
+        'director': 100,
+        'screenwriter': 100,
+        'composer': 100
+    }
+    target = target_counts.get(person_type, 100)
     existing_count = await db.people.count_documents({'type': person_type})
     
-    if existing_count < 150:  # Increase pool size
-        # Use enhanced cast system for generation
-        cast_member = generate_cast_member(person_type, skill_tier='random')
+    if existing_count < target:
+        # Use enhanced cast system v2 for generation
+        cast_member = generate_cast_member_v2(person_type, category='random')
         
         person = {
             'id': cast_member['id'],
             'type': person_type,
             'name': cast_member['name'],
-            'age': random.randint(22, 65),
+            'age': cast_member['age'],
             'nationality': cast_member['nationality'],
             'gender': cast_member['gender'],
             'avatar_url': cast_member['avatar_url'],
             'skills': cast_member['skills'],
+            'primary_skills': cast_member.get('primary_skills', []),
+            'secondary_skill': cast_member.get('secondary_skill'),
             'skill_changes': {k: 0 for k in cast_member['skills']},
             'films_count': cast_member['films_count'],
             'fame_category': cast_member['fame_category'],
             'fame_score': cast_member['fame'],
             'years_active': cast_member['years_active'],
             'stars': cast_member['stars'],
+            'category': cast_member.get('category', 'unknown'),
             'avg_film_quality': cast_member['avg_film_quality'],
             'is_hidden_gem': cast_member['fame_category'] == 'unknown' and cast_member['stars'] >= 4,
             'star_potential': random.random() if cast_member['fame_category'] in ['unknown', 'rising'] else 0,
@@ -1089,17 +1152,9 @@ async def get_or_create_person(person_type: str) -> dict:
             'trust_level': random.randint(0, 100),
             'cost_per_film': cast_member['cost'],
             'times_used': 0,
+            'films_worked': [],
             'created_at': datetime.now(timezone.utc).isoformat()
         }
-        
-        if person_type == 'actor':
-            person['preferred_genres'] = random.sample(GENRE_LIST, 2)
-            person['alternate_genres'] = random.sample(GENRE_LIST, 2)
-        elif person_type == 'director':
-            person['style'] = random.choice(['Auteur', 'Commercial', 'Indie', 'Blockbuster', 'Art House'])
-            person['awards'] = random.randint(0, 10)
-        elif person_type == 'screenwriter':
-            person['writing_style'] = random.choice(['Character-driven', 'Plot-driven', 'Dialogue-heavy', 'Visual', 'Experimental'])
         
         await db.people.insert_one(person)
         return {k: v for k, v in person.items() if k != '_id'}
@@ -1466,89 +1521,199 @@ async def get_actors(
     page: int = 1,
     limit: int = 20,
     genre: Optional[str] = None,
+    category: Optional[str] = None,
+    skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
-    actors = []
-    for _ in range(limit):
-        actor = await get_or_create_person('actor')
-        if actor:
-            actors.append(actor)
+    """Get actors with filtering by category and skill search."""
+    user_id = user['id']
     
-    # Remove duplicates
-    seen_ids = set()
-    unique_actors = []
-    for a in actors:
-        if a['id'] not in seen_ids:
-            seen_ids.add(a['id'])
-            unique_actors.append(a)
+    # Build query
+    query = {'type': 'actor'}
+    if category and category in CAST_CATEGORIES:
+        query['category'] = category
     
-    if genre:
-        unique_actors = [a for a in unique_actors if genre in a.get('preferred_genres', []) or genre in a.get('alternate_genres', [])]
+    # Skill search - find actors that have this skill
+    if skill:
+        query[f'skills.{skill}'] = {'$exists': True}
     
-    return {'actors': unique_actors, 'total': await db.people.count_documents({'type': 'actor'}), 'page': page}
+    # Get actors
+    skip = (page - 1) * limit
+    actors = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.people.count_documents(query)
+    
+    # Get user's films to check "has worked with us"
+    user_films = await db.films.find({'user_id': user_id}, {'cast': 1}).to_list(1000)
+    worked_with_ids = set()
+    for film in user_films:
+        for actor in film.get('cast', []):
+            actor_id = actor.get('actor_id') or actor.get('id')
+            if actor_id:
+                worked_with_ids.add(actor_id)
+    
+    # Enrich with "has worked with us" and translate skills
+    language = user.get('language', 'en')
+    for actor in actors:
+        actor['has_worked_with_us'] = actor['id'] in worked_with_ids
+        # Translate primary/secondary skills
+        actor['primary_skills_translated'] = [
+            get_skill_translation(s, 'actor', language) for s in actor.get('primary_skills', [])
+        ]
+        if actor.get('secondary_skill'):
+            actor['secondary_skill_translated'] = get_skill_translation(actor['secondary_skill'], 'actor', language)
+        actor['category_translated'] = get_category_translation(actor.get('category', 'unknown'), language)
+    
+    return {
+        'actors': actors, 
+        'total': total, 
+        'page': page,
+        'categories': list(CAST_CATEGORIES.keys()),
+        'available_skills': list(ACTOR_SKILLS.keys())
+    }
 
 @api_router.get("/directors")
 async def get_directors(
     page: int = 1,
     limit: int = 20,
+    category: Optional[str] = None,
+    skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
-    directors = []
-    for _ in range(limit):
-        director = await get_or_create_person('director')
-        if director:
-            directors.append(director)
+    """Get directors with filtering by category and skill search."""
+    user_id = user['id']
     
-    seen_ids = set()
-    unique_directors = []
-    for d in directors:
-        if d['id'] not in seen_ids:
-            seen_ids.add(d['id'])
-            unique_directors.append(d)
+    query = {'type': 'director'}
+    if category and category in CAST_CATEGORIES:
+        query['category'] = category
+    if skill:
+        query[f'skills.{skill}'] = {'$exists': True}
     
-    return {'directors': unique_directors, 'total': await db.people.count_documents({'type': 'director'}), 'page': page}
+    skip = (page - 1) * limit
+    directors = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.people.count_documents(query)
+    
+    # Check "has worked with us"
+    user_films = await db.films.find({'user_id': user_id}, {'director': 1}).to_list(1000)
+    worked_with_ids = set()
+    for film in user_films:
+        dir_info = film.get('director', {})
+        dir_id = dir_info.get('id')
+        if dir_id:
+            worked_with_ids.add(dir_id)
+    
+    language = user.get('language', 'en')
+    for director in directors:
+        director['has_worked_with_us'] = director['id'] in worked_with_ids
+        director['primary_skills_translated'] = [
+            get_skill_translation(s, 'director', language) for s in director.get('primary_skills', [])
+        ]
+        if director.get('secondary_skill'):
+            director['secondary_skill_translated'] = get_skill_translation(director['secondary_skill'], 'director', language)
+        director['category_translated'] = get_category_translation(director.get('category', 'unknown'), language)
+    
+    return {
+        'directors': directors, 
+        'total': total, 
+        'page': page,
+        'categories': list(CAST_CATEGORIES.keys()),
+        'available_skills': list(DIRECTOR_SKILLS.keys())
+    }
 
 @api_router.get("/screenwriters")
 async def get_screenwriters(
     page: int = 1,
     limit: int = 20,
+    category: Optional[str] = None,
+    skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
-    screenwriters = []
-    for _ in range(limit):
-        sw = await get_or_create_person('screenwriter')
-        if sw:
-            screenwriters.append(sw)
+    """Get screenwriters with filtering by category and skill search."""
+    user_id = user['id']
     
-    seen_ids = set()
-    unique_sw = []
-    for s in screenwriters:
-        if s['id'] not in seen_ids:
-            seen_ids.add(s['id'])
-            unique_sw.append(s)
+    query = {'type': 'screenwriter'}
+    if category and category in CAST_CATEGORIES:
+        query['category'] = category
+    if skill:
+        query[f'skills.{skill}'] = {'$exists': True}
     
-    return {'screenwriters': unique_sw, 'total': await db.people.count_documents({'type': 'screenwriter'}), 'page': page}
+    skip = (page - 1) * limit
+    screenwriters = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.people.count_documents(query)
+    
+    # Check "has worked with us"
+    user_films = await db.films.find({'user_id': user_id}, {'screenwriter': 1}).to_list(1000)
+    worked_with_ids = set()
+    for film in user_films:
+        sw_info = film.get('screenwriter', {})
+        sw_id = sw_info.get('id')
+        if sw_id:
+            worked_with_ids.add(sw_id)
+    
+    language = user.get('language', 'en')
+    for sw in screenwriters:
+        sw['has_worked_with_us'] = sw['id'] in worked_with_ids
+        sw['primary_skills_translated'] = [
+            get_skill_translation(s, 'screenwriter', language) for s in sw.get('primary_skills', [])
+        ]
+        if sw.get('secondary_skill'):
+            sw['secondary_skill_translated'] = get_skill_translation(sw['secondary_skill'], 'screenwriter', language)
+        sw['category_translated'] = get_category_translation(sw.get('category', 'unknown'), language)
+    
+    return {
+        'screenwriters': screenwriters, 
+        'total': total, 
+        'page': page,
+        'categories': list(CAST_CATEGORIES.keys()),
+        'available_skills': list(SCREENWRITER_SKILLS.keys())
+    }
 
 @api_router.get("/composers")
 async def get_composers(
     page: int = 1,
     limit: int = 20,
+    category: Optional[str] = None,
+    skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
-    composers = []
-    for _ in range(limit):
-        comp = await get_or_create_person('composer')
-        if comp:
-            composers.append(comp)
+    """Get composers with filtering by category and skill search."""
+    user_id = user['id']
     
-    seen_ids = set()
-    unique_comp = []
-    for c in composers:
-        if c['id'] not in seen_ids:
-            seen_ids.add(c['id'])
-            unique_comp.append(c)
+    query = {'type': 'composer'}
+    if category and category in CAST_CATEGORIES:
+        query['category'] = category
+    if skill:
+        query[f'skills.{skill}'] = {'$exists': True}
     
-    return {'composers': unique_comp, 'total': await db.people.count_documents({'type': 'composer'}), 'page': page}
+    skip = (page - 1) * limit
+    composers = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.people.count_documents(query)
+    
+    # Check "has worked with us"
+    user_films = await db.films.find({'user_id': user_id}, {'composer': 1}).to_list(1000)
+    worked_with_ids = set()
+    for film in user_films:
+        comp_info = film.get('composer', {})
+        comp_id = comp_info.get('id')
+        if comp_id:
+            worked_with_ids.add(comp_id)
+    
+    language = user.get('language', 'en')
+    for comp in composers:
+        comp['has_worked_with_us'] = comp['id'] in worked_with_ids
+        comp['primary_skills_translated'] = [
+            get_skill_translation(s, 'composer', language) for s in comp.get('primary_skills', [])
+        ]
+        if comp.get('secondary_skill'):
+            comp['secondary_skill_translated'] = get_skill_translation(comp['secondary_skill'], 'composer', language)
+        comp['category_translated'] = get_category_translation(comp.get('category', 'unknown'), language)
+    
+    return {
+        'composers': composers, 
+        'total': total, 
+        'page': page,
+        'categories': list(CAST_CATEGORIES.keys()),
+        'available_skills': list(COMPOSER_SKILLS.keys())
+    }
 
 # Sponsors, Locations, Equipment
 @api_router.get("/sponsors")
@@ -1572,6 +1737,72 @@ async def get_countries():
 async def get_genres():
     """Get all genres with their sub-genres"""
     return GENRES
+
+@api_router.get("/cast/skills")
+async def get_cast_skills(
+    role_type: str = Query(..., description="Type: actor, director, screenwriter, composer"),
+    user: dict = Depends(get_current_user)
+):
+    """Get available skills for a role type, translated to user's language."""
+    language = user.get('language', 'en')
+    
+    skill_dicts = {
+        'actor': ACTOR_SKILLS,
+        'director': DIRECTOR_SKILLS,
+        'screenwriter': SCREENWRITER_SKILLS,
+        'composer': COMPOSER_SKILLS
+    }
+    
+    skills = skill_dicts.get(role_type, {})
+    translated_skills = []
+    for key, translations in skills.items():
+        translated_skills.append({
+            'key': key,
+            'name': translations.get(language, translations.get('en', key))
+        })
+    
+    return {
+        'role_type': role_type,
+        'skills': translated_skills,
+        'categories': [
+            {'key': k, 'name': v.get(language, v.get('en', k))} 
+            for k, v in CAST_CATEGORIES.items()
+        ]
+    }
+
+@api_router.post("/cast/initialize")
+async def initialize_cast(user: dict = Depends(get_current_user)):
+    """Initialize full cast pool (700 members). Admin function."""
+    await initialize_cast_pool_if_needed()
+    
+    counts = {
+        'actors': await db.people.count_documents({'type': 'actor'}),
+        'directors': await db.people.count_documents({'type': 'director'}),
+        'screenwriters': await db.people.count_documents({'type': 'screenwriter'}),
+        'composers': await db.people.count_documents({'type': 'composer'})
+    }
+    
+    return {'message': 'Cast pool initialized', 'counts': counts}
+
+@api_router.get("/cast/bonus-preview")
+async def preview_cast_bonus(
+    actor_id: str,
+    film_genre: str,
+    user: dict = Depends(get_current_user)
+):
+    """Preview the bonus/malus an actor would give for a specific film genre."""
+    actor = await db.people.find_one({'id': actor_id, 'type': 'actor'}, {'_id': 0})
+    if not actor:
+        raise HTTPException(status_code=404, detail="Actor not found")
+    
+    bonus_info = calculate_cast_film_bonus(actor.get('skills', {}), film_genre)
+    
+    return {
+        'actor_id': actor_id,
+        'actor_name': actor.get('name'),
+        'film_genre': film_genre,
+        'bonus': bonus_info
+    }
 
 # Actor Roles for films
 ACTOR_ROLES = [

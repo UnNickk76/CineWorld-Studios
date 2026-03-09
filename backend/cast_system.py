@@ -1,84 +1,87 @@
 """
-CineWorld Studio's - Enhanced Cast System
-Fame, Experience, Stars for Actors, Directors, Screenwriters
-Extended Locations
-Infrastructure Trading
+CineWorld Studio's - Enhanced Cast System v2
+700 Cast Members with Variable Skills, Categories, and Bonus/Malus System
 """
 import random
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 import uuid
 
-# ==================== CAST SKILL LEVELS WITH STARS ====================
+# ==================== SKILL DEFINITIONS ====================
 
-def calculate_stars(skills: dict) -> int:
-    """Calculate star rating (1-5) based on average skills."""
-    if not skills:
-        return 1
-    avg = sum(skills.values()) / len(skills)
-    if avg >= 9:
-        return 5
-    elif avg >= 7:
-        return 4
-    elif avg >= 5:
-        return 3
-    elif avg >= 3:
-        return 2
-    else:
-        return 1
+# All possible skills for each role - each cast member will have a SUBSET of these
+SCREENWRITER_SKILLS = {
+    'dialogue': {'en': 'Dialogue', 'it': 'Dialoghi', 'es': 'Diálogos', 'fr': 'Dialogues', 'de': 'Dialoge'},
+    'plot_structure': {'en': 'Plot Structure', 'it': 'Struttura Trama', 'es': 'Estructura Argumental', 'fr': 'Structure Narrative', 'de': 'Handlungsstruktur'},
+    'character_development': {'en': 'Character Dev.', 'it': 'Sviluppo Personaggi', 'es': 'Desarrollo Personajes', 'fr': 'Dév. Personnages', 'de': 'Charakterentwicklung'},
+    'originality': {'en': 'Originality', 'it': 'Originalità', 'es': 'Originalidad', 'fr': 'Originalité', 'de': 'Originalität'},
+    'adaptation': {'en': 'Adaptation', 'it': 'Adattamento', 'es': 'Adaptación', 'fr': 'Adaptation', 'de': 'Adaption'},
+    'pacing': {'en': 'Pacing', 'it': 'Ritmo', 'es': 'Ritmo', 'fr': 'Rythme', 'de': 'Tempo'},
+    'world_building': {'en': 'World Building', 'it': 'Creazione Mondi', 'es': 'Creación Mundos', 'fr': 'Création Univers', 'de': 'Weltenbau'},
+    'emotional_impact': {'en': 'Emotional Impact', 'it': 'Impatto Emotivo', 'es': 'Impacto Emocional', 'fr': 'Impact Émotionnel', 'de': 'Emotionale Wirkung'},
+}
 
-def calculate_fame_from_career(years_active: int, films_count: int, avg_film_quality: float) -> float:
-    """Calculate fame (0-100) based on career achievements."""
-    # Base from years (max 30 points from 15+ years)
-    years_score = min(years_active * 2, 30)
-    
-    # Films contribution (max 40 points from 20+ films)
-    films_score = min(films_count * 2, 40)
-    
-    # Quality contribution (max 30 points)
-    quality_score = (avg_film_quality / 100) * 30
-    
-    return min(100, years_score + films_score + quality_score)
+DIRECTOR_SKILLS = {
+    'vision': {'en': 'Vision', 'it': 'Visione', 'es': 'Visión', 'fr': 'Vision', 'de': 'Vision'},
+    'leadership': {'en': 'Leadership', 'it': 'Leadership', 'es': 'Liderazgo', 'fr': 'Leadership', 'de': 'Führung'},
+    'actor_direction': {'en': 'Actor Direction', 'it': 'Direzione Attori', 'es': 'Dirección Actores', 'fr': 'Direction Acteurs', 'de': 'Schauspielführung'},
+    'visual_style': {'en': 'Visual Style', 'it': 'Stile Visivo', 'es': 'Estilo Visual', 'fr': 'Style Visuel', 'de': 'Visueller Stil'},
+    'storytelling': {'en': 'Storytelling', 'it': 'Narrazione', 'es': 'Narrativa', 'fr': 'Narration', 'de': 'Erzählung'},
+    'technical': {'en': 'Technical', 'it': 'Tecnico', 'es': 'Técnico', 'fr': 'Technique', 'de': 'Technik'},
+    'innovation': {'en': 'Innovation', 'it': 'Innovazione', 'es': 'Innovación', 'fr': 'Innovation', 'de': 'Innovation'},
+    'pacing': {'en': 'Pacing', 'it': 'Ritmo', 'es': 'Ritmo', 'fr': 'Rythme', 'de': 'Tempo'},
+}
 
-def get_fame_category_from_score(fame: float) -> str:
-    """Get fame category name from score."""
-    if fame >= 90:
-        return 'superstar'
-    elif fame >= 70:
-        return 'famous'
-    elif fame >= 50:
-        return 'rising'
-    elif fame >= 30:
-        return 'known'
-    else:
-        return 'unknown'
+COMPOSER_SKILLS = {
+    'melodic': {'en': 'Melodic Comp.', 'it': 'Comp. Melodica', 'es': 'Comp. Melódica', 'fr': 'Comp. Mélodique', 'de': 'Melodische Komp.'},
+    'orchestration': {'en': 'Orchestration', 'it': 'Orchestrazione', 'es': 'Orquestación', 'fr': 'Orchestration', 'de': 'Orchestrierung'},
+    'emotional_scoring': {'en': 'Emotional Scoring', 'it': 'Musica Emotiva', 'es': 'Música Emotiva', 'fr': 'Musique Émotive', 'de': 'Emotionale Musik'},
+    'genre_versatility': {'en': 'Genre Versatility', 'it': 'Versatilità Generi', 'es': 'Versatilidad Géneros', 'fr': 'Polyvalence Genres', 'de': 'Genre-Vielseitigkeit'},
+    'sound_design': {'en': 'Sound Design', 'it': 'Sound Design', 'es': 'Diseño Sonoro', 'fr': 'Design Sonore', 'de': 'Sound Design'},
+    'theme_development': {'en': 'Theme Dev.', 'it': 'Sviluppo Temi', 'es': 'Desarrollo Temas', 'fr': 'Dév. Thèmes', 'de': 'Themenentwicklung'},
+}
 
-def calculate_cast_cost(stars: int, fame: float, role_type: str, years_active: int) -> int:
-    """Calculate hiring cost based on stars, fame, role and experience."""
-    # Base costs by role
-    base_costs = {
-        'actor': 50000,
-        'director': 100000,
-        'screenwriter': 40000
-    }
-    base = base_costs.get(role_type, 50000)
-    
-    # Star multiplier (exponential growth)
-    star_multipliers = {1: 0.5, 2: 1.0, 3: 2.0, 4: 4.0, 5: 8.0}
-    star_mult = star_multipliers.get(stars, 1.0)
-    
-    # Fame multiplier (linear growth)
-    fame_mult = 0.5 + (fame / 100) * 2.5  # 0.5x to 3.0x
-    
-    # Experience bonus (adds value)
-    exp_bonus = min(years_active * 5000, 100000)
-    
-    cost = int((base * star_mult * fame_mult) + exp_bonus)
-    
-    # Apply 20% increase as per earlier requirements
-    return int(cost * 1.2)
+ACTOR_SKILLS = {
+    'drama': {'en': 'Drama', 'it': 'Dramma', 'es': 'Drama', 'fr': 'Drame', 'de': 'Drama'},
+    'comedy': {'en': 'Comedy', 'it': 'Commedia', 'es': 'Comedia', 'fr': 'Comédie', 'de': 'Komödie'},
+    'action': {'en': 'Action', 'it': 'Azione', 'es': 'Acción', 'fr': 'Action', 'de': 'Action'},
+    'romance': {'en': 'Romance', 'it': 'Romantico', 'es': 'Romance', 'fr': 'Romance', 'de': 'Romantik'},
+    'horror': {'en': 'Horror', 'it': 'Horror', 'es': 'Terror', 'fr': 'Horreur', 'de': 'Horror'},
+    'sci_fi': {'en': 'Sci-Fi', 'it': 'Fantascienza', 'es': 'Ciencia Ficción', 'fr': 'Science-Fiction', 'de': 'Science-Fiction'},
+    'voice_acting': {'en': 'Voice Acting', 'it': 'Doppiaggio', 'es': 'Doblaje', 'fr': 'Doublage', 'de': 'Synchronsprechen'},
+    'improvisation': {'en': 'Improvisation', 'it': 'Improvvisazione', 'es': 'Improvisación', 'fr': 'Improvisation', 'de': 'Improvisation'},
+}
 
-# ==================== EXPANDED INTERNATIONAL NAMES ====================
+# Film genres and their matching actor skills for bonus/malus
+GENRE_SKILL_MAPPING = {
+    'action': ['action'],
+    'comedy': ['comedy'],
+    'drama': ['drama'],
+    'horror': ['horror'],
+    'sci_fi': ['sci_fi'],
+    'romance': ['romance'],
+    'thriller': ['drama', 'action'],
+    'animation': ['voice_acting'],
+    'documentary': ['drama'],
+    'fantasy': ['drama', 'action'],
+    'musical': ['voice_acting', 'comedy'],
+    'western': ['action', 'drama'],
+    'war': ['drama', 'action'],
+    'noir': ['drama'],
+    'adventure': ['action'],
+    'biographical': ['drama'],
+}
+
+# Categories and their star ranges
+CAST_CATEGORIES = {
+    'recommended': {'en': 'Recommended', 'it': 'Consigliati', 'es': 'Recomendados', 'fr': 'Recommandés', 'de': 'Empfohlen', 'stars_range': (4, 5), 'count_factor': 0.15},
+    'star': {'en': 'Star', 'it': 'Star', 'es': 'Estrella', 'fr': 'Star', 'de': 'Star', 'stars_range': (4, 5), 'count_factor': 0.2},
+    'known': {'en': 'Known', 'it': 'Conosciuti', 'es': 'Conocidos', 'fr': 'Connus', 'de': 'Bekannt', 'stars_range': (3, 4), 'count_factor': 0.25},
+    'emerging': {'en': 'Emerging', 'it': 'Emergenti', 'es': 'Emergentes', 'fr': 'Émergents', 'de': 'Aufsteigend', 'stars_range': (2, 3), 'count_factor': 0.25},
+    'unknown': {'en': 'Unknown', 'it': 'Sconosciuti', 'es': 'Desconocidos', 'fr': 'Inconnus', 'de': 'Unbekannt', 'stars_range': (1, 2), 'count_factor': 0.15},
+}
+
+# ==================== NAME GENERATION ====================
 
 EXPANDED_NAMES = {
     'USA': {
@@ -184,113 +187,159 @@ EXPANDED_NAMES = {
     }
 }
 
-# ==================== EXPANDED FILMING LOCATIONS ====================
+# ==================== FILMING LOCATIONS ====================
 
 FILMING_LOCATIONS = {
-    # Studios & Soundstages
     'studios': [
         {'id': 'hollywood_studios', 'name': 'Hollywood Studios', 'city': 'Los Angeles', 'country': 'USA', 'cost': 500000, 'quality_bonus': 15, 'type': 'studio'},
         {'id': 'pinewood', 'name': 'Pinewood Studios', 'city': 'London', 'country': 'UK', 'cost': 450000, 'quality_bonus': 14, 'type': 'studio'},
         {'id': 'cinecitta', 'name': 'Cinecittà Studios', 'city': 'Rome', 'country': 'Italy', 'cost': 380000, 'quality_bonus': 13, 'type': 'studio'},
         {'id': 'babelsberg', 'name': 'Studio Babelsberg', 'city': 'Berlin', 'country': 'Germany', 'cost': 400000, 'quality_bonus': 13, 'type': 'studio'},
         {'id': 'toho', 'name': 'Toho Studios', 'city': 'Tokyo', 'country': 'Japan', 'cost': 420000, 'quality_bonus': 14, 'type': 'studio'},
-        {'id': 'bollywood_studios', 'name': 'Film City Mumbai', 'city': 'Mumbai', 'country': 'India', 'cost': 280000, 'quality_bonus': 11, 'type': 'studio'},
-        {'id': 'madrid_studios', 'name': 'Ciudad de la Luz', 'city': 'Madrid', 'country': 'Spain', 'cost': 350000, 'quality_bonus': 12, 'type': 'studio'},
-        {'id': 'paramount_lot', 'name': 'Paramount Pictures Lot', 'city': 'Los Angeles', 'country': 'USA', 'cost': 550000, 'quality_bonus': 16, 'type': 'studio'},
-        {'id': 'warner_lot', 'name': 'Warner Bros. Studios', 'city': 'Burbank', 'country': 'USA', 'cost': 520000, 'quality_bonus': 15, 'type': 'studio'},
-        {'id': 'universal_lot', 'name': 'Universal Studios', 'city': 'Los Angeles', 'country': 'USA', 'cost': 540000, 'quality_bonus': 16, 'type': 'studio'},
     ],
-    # Urban Locations
     'urban': [
         {'id': 'nyc_manhattan', 'name': 'Manhattan, New York', 'city': 'New York', 'country': 'USA', 'cost': 450000, 'quality_bonus': 12, 'type': 'urban'},
         {'id': 'london_west_end', 'name': 'West End, London', 'city': 'London', 'country': 'UK', 'cost': 420000, 'quality_bonus': 11, 'type': 'urban'},
         {'id': 'paris_montmartre', 'name': 'Montmartre, Paris', 'city': 'Paris', 'country': 'France', 'cost': 380000, 'quality_bonus': 12, 'type': 'urban'},
         {'id': 'tokyo_shibuya', 'name': 'Shibuya, Tokyo', 'city': 'Tokyo', 'country': 'Japan', 'cost': 400000, 'quality_bonus': 11, 'type': 'urban'},
-        {'id': 'rome_trastevere', 'name': 'Trastevere, Rome', 'city': 'Rome', 'country': 'Italy', 'cost': 320000, 'quality_bonus': 10, 'type': 'urban'},
-        {'id': 'barcelona_gothic', 'name': 'Gothic Quarter, Barcelona', 'city': 'Barcelona', 'country': 'Spain', 'cost': 300000, 'quality_bonus': 10, 'type': 'urban'},
-        {'id': 'berlin_mitte', 'name': 'Mitte, Berlin', 'city': 'Berlin', 'country': 'Germany', 'cost': 280000, 'quality_bonus': 9, 'type': 'urban'},
-        {'id': 'shanghai_bund', 'name': 'The Bund, Shanghai', 'city': 'Shanghai', 'country': 'China', 'cost': 350000, 'quality_bonus': 10, 'type': 'urban'},
-        {'id': 'dubai_downtown', 'name': 'Downtown Dubai', 'city': 'Dubai', 'country': 'UAE', 'cost': 500000, 'quality_bonus': 13, 'type': 'urban'},
-        {'id': 'hong_kong_central', 'name': 'Central, Hong Kong', 'city': 'Hong Kong', 'country': 'China', 'cost': 420000, 'quality_bonus': 11, 'type': 'urban'},
-        {'id': 'singapore_marina', 'name': 'Marina Bay, Singapore', 'city': 'Singapore', 'country': 'Singapore', 'cost': 400000, 'quality_bonus': 11, 'type': 'urban'},
-        {'id': 'seoul_gangnam', 'name': 'Gangnam, Seoul', 'city': 'Seoul', 'country': 'South Korea', 'cost': 380000, 'quality_bonus': 10, 'type': 'urban'},
     ],
-    # Natural Landscapes
     'nature': [
         {'id': 'grand_canyon', 'name': 'Grand Canyon', 'city': 'Arizona', 'country': 'USA', 'cost': 200000, 'quality_bonus': 14, 'type': 'nature'},
-        {'id': 'scottish_highlands', 'name': 'Scottish Highlands', 'city': 'Scotland', 'country': 'UK', 'cost': 180000, 'quality_bonus': 12, 'type': 'nature'},
         {'id': 'swiss_alps', 'name': 'Swiss Alps', 'city': 'Zermatt', 'country': 'Switzerland', 'cost': 350000, 'quality_bonus': 15, 'type': 'nature'},
         {'id': 'new_zealand', 'name': 'New Zealand Landscapes', 'city': 'Wellington', 'country': 'New Zealand', 'cost': 400000, 'quality_bonus': 16, 'type': 'nature'},
-        {'id': 'iceland', 'name': 'Iceland Wilderness', 'city': 'Reykjavik', 'country': 'Iceland', 'cost': 380000, 'quality_bonus': 15, 'type': 'nature'},
-        {'id': 'amazon', 'name': 'Amazon Rainforest', 'city': 'Manaus', 'country': 'Brazil', 'cost': 300000, 'quality_bonus': 13, 'type': 'nature'},
-        {'id': 'sahara', 'name': 'Sahara Desert', 'city': 'Morocco', 'country': 'Morocco', 'cost': 250000, 'quality_bonus': 12, 'type': 'nature'},
-        {'id': 'australian_outback', 'name': 'Australian Outback', 'city': 'Alice Springs', 'country': 'Australia', 'cost': 280000, 'quality_bonus': 13, 'type': 'nature'},
-        {'id': 'norwegian_fjords', 'name': 'Norwegian Fjords', 'city': 'Bergen', 'country': 'Norway', 'cost': 320000, 'quality_bonus': 14, 'type': 'nature'},
-        {'id': 'patagonia', 'name': 'Patagonia', 'city': 'Ushuaia', 'country': 'Argentina', 'cost': 340000, 'quality_bonus': 14, 'type': 'nature'},
     ],
-    # Historical Sites
     'historical': [
         {'id': 'colosseum', 'name': 'Colosseum', 'city': 'Rome', 'country': 'Italy', 'cost': 600000, 'quality_bonus': 16, 'type': 'historical'},
         {'id': 'versailles', 'name': 'Palace of Versailles', 'city': 'Versailles', 'country': 'France', 'cost': 700000, 'quality_bonus': 17, 'type': 'historical'},
-        {'id': 'taj_mahal', 'name': 'Taj Mahal', 'city': 'Agra', 'country': 'India', 'cost': 500000, 'quality_bonus': 15, 'type': 'historical'},
-        {'id': 'great_wall', 'name': 'Great Wall of China', 'city': 'Beijing', 'country': 'China', 'cost': 450000, 'quality_bonus': 15, 'type': 'historical'},
-        {'id': 'machu_picchu', 'name': 'Machu Picchu', 'city': 'Cusco', 'country': 'Peru', 'cost': 550000, 'quality_bonus': 16, 'type': 'historical'},
-        {'id': 'pyramids', 'name': 'Pyramids of Giza', 'city': 'Cairo', 'country': 'Egypt', 'cost': 480000, 'quality_bonus': 15, 'type': 'historical'},
-        {'id': 'acropolis', 'name': 'Acropolis of Athens', 'city': 'Athens', 'country': 'Greece', 'cost': 420000, 'quality_bonus': 14, 'type': 'historical'},
-        {'id': 'angkor_wat', 'name': 'Angkor Wat', 'city': 'Siem Reap', 'country': 'Cambodia', 'cost': 380000, 'quality_bonus': 14, 'type': 'historical'},
-        {'id': 'petra', 'name': 'Petra', 'city': 'Petra', 'country': 'Jordan', 'cost': 400000, 'quality_bonus': 14, 'type': 'historical'},
-        {'id': 'castle_neuschwanstein', 'name': 'Neuschwanstein Castle', 'city': 'Bavaria', 'country': 'Germany', 'cost': 450000, 'quality_bonus': 15, 'type': 'historical'},
     ],
-    # Beach & Tropical
     'beach': [
         {'id': 'maldives', 'name': 'Maldives Islands', 'city': 'Malé', 'country': 'Maldives', 'cost': 600000, 'quality_bonus': 15, 'type': 'beach'},
         {'id': 'hawaii', 'name': 'Hawaiian Islands', 'city': 'Honolulu', 'country': 'USA', 'cost': 450000, 'quality_bonus': 14, 'type': 'beach'},
-        {'id': 'bali', 'name': 'Bali', 'city': 'Denpasar', 'country': 'Indonesia', 'cost': 300000, 'quality_bonus': 12, 'type': 'beach'},
-        {'id': 'caribbean', 'name': 'Caribbean Islands', 'city': 'Jamaica', 'country': 'Jamaica', 'cost': 380000, 'quality_bonus': 13, 'type': 'beach'},
-        {'id': 'french_riviera', 'name': 'French Riviera', 'city': 'Nice', 'country': 'France', 'cost': 420000, 'quality_bonus': 13, 'type': 'beach'},
-        {'id': 'amalfi_coast', 'name': 'Amalfi Coast', 'city': 'Amalfi', 'country': 'Italy', 'cost': 400000, 'quality_bonus': 14, 'type': 'beach'},
-        {'id': 'phuket', 'name': 'Phuket', 'city': 'Phuket', 'country': 'Thailand', 'cost': 280000, 'quality_bonus': 11, 'type': 'beach'},
-        {'id': 'santorini', 'name': 'Santorini', 'city': 'Santorini', 'country': 'Greece', 'cost': 380000, 'quality_bonus': 14, 'type': 'beach'},
     ],
-    # Industrial & Modern
-    'industrial': [
-        {'id': 'tokyo_akihabara', 'name': 'Akihabara District', 'city': 'Tokyo', 'country': 'Japan', 'cost': 300000, 'quality_bonus': 10, 'type': 'industrial'},
-        {'id': 'detroit_factories', 'name': 'Detroit Industrial', 'city': 'Detroit', 'country': 'USA', 'cost': 150000, 'quality_bonus': 8, 'type': 'industrial'},
-        {'id': 'london_docklands', 'name': 'London Docklands', 'city': 'London', 'country': 'UK', 'cost': 250000, 'quality_bonus': 9, 'type': 'industrial'},
-        {'id': 'ruhr_germany', 'name': 'Ruhr Industrial Area', 'city': 'Essen', 'country': 'Germany', 'cost': 180000, 'quality_bonus': 8, 'type': 'industrial'},
-        {'id': 'pittsburgh_steel', 'name': 'Pittsburgh Steel Mills', 'city': 'Pittsburgh', 'country': 'USA', 'cost': 160000, 'quality_bonus': 8, 'type': 'industrial'},
-    ],
-    # Exotic & Unique
-    'exotic': [
-        {'id': 'antarctica', 'name': 'Antarctica', 'city': 'McMurdo', 'country': 'Antarctica', 'cost': 1000000, 'quality_bonus': 18, 'type': 'exotic'},
-        {'id': 'north_pole', 'name': 'Arctic Circle', 'city': 'Svalbard', 'country': 'Norway', 'cost': 800000, 'quality_bonus': 17, 'type': 'exotic'},
-        {'id': 'space_simulation', 'name': 'Space Simulation Facility', 'city': 'Houston', 'country': 'USA', 'cost': 900000, 'quality_bonus': 16, 'type': 'exotic'},
-        {'id': 'underwater_studio', 'name': 'Underwater Studio', 'city': 'Los Angeles', 'country': 'USA', 'cost': 700000, 'quality_bonus': 15, 'type': 'exotic'},
-        {'id': 'volcanic_iceland', 'name': 'Active Volcanic Area', 'city': 'Iceland', 'country': 'Iceland', 'cost': 600000, 'quality_bonus': 15, 'type': 'exotic'},
-    ]
 }
 
 def get_all_locations_flat() -> List[dict]:
-    """Get all locations as a flat list with type included."""
+    """Get all locations as a flat list."""
     all_locations = []
     for category, locations in FILMING_LOCATIONS.items():
         for loc in locations:
             loc_copy = loc.copy()
             loc_copy['category'] = category
-            # Apply 20% cost increase and add cost_per_day for frontend compatibility
             loc_copy['cost'] = int(loc_copy['cost'] * 1.2)
-            loc_copy['cost_per_day'] = loc_copy['cost'] // 7  # Weekly cost divided by 7
+            loc_copy['cost_per_day'] = loc_copy['cost'] // 7
             all_locations.append(loc_copy)
     return all_locations
 
+# ==================== SKILL UTILITIES ====================
+
+def calculate_stars(skills: dict) -> int:
+    """Calculate star rating (1-5) based on average skills."""
+    if not skills:
+        return 1
+    avg = sum(skills.values()) / len(skills)
+    if avg >= 9:
+        return 5
+    elif avg >= 7:
+        return 4
+    elif avg >= 5:
+        return 3
+    elif avg >= 3:
+        return 2
+    else:
+        return 1
+
+def get_category_from_stars(stars: int) -> str:
+    """Get category name from star rating."""
+    if stars >= 5:
+        return 'star'
+    elif stars >= 4:
+        return 'known'
+    elif stars >= 3:
+        return 'emerging'
+    else:
+        return 'unknown'
+
+def calculate_fame_from_career(years_active: int, films_count: int, avg_film_quality: float) -> float:
+    """Calculate fame (0-100) based on career achievements."""
+    years_score = min(years_active * 2, 30)
+    films_score = min(films_count * 2, 40)
+    quality_score = (avg_film_quality / 100) * 30
+    return min(100, years_score + films_score + quality_score)
+
+def get_fame_category_from_score(fame: float) -> str:
+    """Get fame category name from score."""
+    if fame >= 90:
+        return 'superstar'
+    elif fame >= 70:
+        return 'famous'
+    elif fame >= 50:
+        return 'rising'
+    elif fame >= 30:
+        return 'known'
+    else:
+        return 'unknown'
+
+def calculate_cast_cost(stars: int, fame: float, role_type: str, years_active: int) -> int:
+    """Calculate hiring cost based on stars, fame, role and experience."""
+    base_costs = {
+        'actor': 50000,
+        'director': 100000,
+        'screenwriter': 40000,
+        'composer': 60000
+    }
+    base = base_costs.get(role_type, 50000)
+    
+    star_multipliers = {1: 0.5, 2: 1.0, 3: 2.0, 4: 4.0, 5: 8.0}
+    star_mult = star_multipliers.get(stars, 1.0)
+    
+    fame_mult = 0.5 + (fame / 100) * 2.5
+    exp_bonus = min(years_active * 5000, 100000)
+    
+    cost = int((base * star_mult * fame_mult) + exp_bonus)
+    return int(cost * 1.2)
+
 # ==================== CAST GENERATION ====================
 
-def generate_cast_member(role_type: str, skill_tier: str = 'random', nationality: str = None) -> dict:
+def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, int]:
     """
-    Generate a cast member with full details.
+    Generate a VARIABLE subset of skills for a cast member.
+    Not every member has the same skills!
+    """
+    skill_keys = list(all_skills.keys())
+    num_skills = random.randint(min_skills, max_skills)
+    selected_skill_keys = random.sample(skill_keys, min(num_skills, len(skill_keys)))
     
-    role_type: 'actor', 'director', 'screenwriter'
-    skill_tier: 'beginner' (1-3), 'intermediate' (4-6), 'advanced' (7-8), 'expert' (9-10), 'random'
+    skills = {}
+    for key in selected_skill_keys:
+        # Generate skill value with some variation
+        # Higher chance for medium values, rare extremes
+        roll = random.random()
+        if roll < 0.1:  # 10% chance for very high (8-10)
+            value = random.randint(8, 10)
+        elif roll < 0.3:  # 20% chance for high (6-7)
+            value = random.randint(6, 7)
+        elif roll < 0.7:  # 40% chance for medium (4-5)
+            value = random.randint(4, 5)
+        elif roll < 0.9:  # 20% chance for low (2-3)
+            value = random.randint(2, 3)
+        else:  # 10% chance for very low (1)
+            value = 1
+        skills[key] = value
+    
+    return skills
+
+def generate_cast_member_v2(
+    role_type: str, 
+    category: str = 'random',
+    nationality: str = None,
+    ensure_skills: List[str] = None
+) -> dict:
+    """
+    Generate a cast member with VARIABLE skills.
+    
+    role_type: 'actor', 'director', 'screenwriter', 'composer'
+    category: 'recommended', 'star', 'known', 'emerging', 'unknown', 'random'
+    ensure_skills: List of skill keys that MUST be present (optional)
     """
     
     # Pick nationality
@@ -298,200 +347,238 @@ def generate_cast_member(role_type: str, skill_tier: str = 'random', nationality
         nationality = random.choice(list(EXPANDED_NAMES.keys()))
     
     names = EXPANDED_NAMES.get(nationality, EXPANDED_NAMES['USA'])
-    
-    # Gender
     gender = random.choice(['male', 'female'])
     
-    # Name
     if gender == 'male':
         first_name = random.choice(names['first_male'])
     else:
         first_name = random.choice(names['first_female'])
     last_name = random.choice(names['last'])
     
-    # Skill ranges by tier
-    skill_ranges = {
-        'beginner': (1, 3),
-        'intermediate': (4, 6),
-        'advanced': (7, 8),
-        'expert': (9, 10),
-        'random': (1, 10)
-    }
-    
-    skill_range = skill_ranges.get(skill_tier, skill_ranges['random'])
-    
-    # Generate skills based on role type
+    # Get skill definitions based on role
     if role_type == 'actor':
-        skills = {
-            'Acting': random.randint(*skill_range),
-            'Emotional Range': random.randint(*skill_range),
-            'Action Sequences': random.randint(*skill_range),
-            'Comedy Timing': random.randint(*skill_range),
-            'Drama': random.randint(*skill_range),
-            'Chemistry': random.randint(*skill_range),
-        }
+        all_skills = ACTOR_SKILLS
+        min_skills, max_skills = 3, 6  # Out of 8 possible
     elif role_type == 'director':
-        skills = {
-            'Vision': random.randint(*skill_range),
-            'Leadership': random.randint(*skill_range),
-            'Technical': random.randint(*skill_range),
-            'Creativity': random.randint(*skill_range),
-            'Communication': random.randint(*skill_range),
-            'Efficiency': random.randint(*skill_range),
-        }
+        all_skills = DIRECTOR_SKILLS
+        min_skills, max_skills = 4, 6  # Out of 8 possible
     elif role_type == 'composer':
-        skills = {
-            'Melodic Composition': random.randint(*skill_range),
-            'Orchestration': random.randint(*skill_range),
-            'Emotional Impact': random.randint(*skill_range),
-            'Genre Versatility': random.randint(*skill_range),
-            'Sound Design': random.randint(*skill_range),
-            'Theme Development': random.randint(*skill_range),
-        }
+        all_skills = COMPOSER_SKILLS
+        min_skills, max_skills = 3, 5  # Out of 6 possible
     else:  # screenwriter
-        skills = {
-            'Storytelling': random.randint(*skill_range),
-            'Dialogue': random.randint(*skill_range),
-            'Character Development': random.randint(*skill_range),
-            'Plot Structure': random.randint(*skill_range),
-            'Originality': random.randint(*skill_range),
-            'Adaptation': random.randint(*skill_range),
-        }
+        all_skills = SCREENWRITER_SKILLS
+        min_skills, max_skills = 4, 6  # Out of 8 possible
     
-    # Calculate stars and experience
+    # Generate variable skills
+    skills = generate_variable_skills(all_skills, min_skills, max_skills)
+    
+    # If ensure_skills specified, make sure they're present
+    if ensure_skills:
+        for skill_key in ensure_skills:
+            if skill_key in all_skills and skill_key not in skills:
+                skills[skill_key] = random.randint(1, 10)
+    
+    # Adjust skills based on category (target star range)
+    if category != 'random' and category in CAST_CATEGORIES:
+        min_stars, max_stars = CAST_CATEGORIES[category]['stars_range']
+        target_avg = (min_stars + max_stars) / 2 * 2  # Convert stars to avg skill
+        
+        current_avg = sum(skills.values()) / len(skills) if skills else 5
+        adjustment = (target_avg - current_avg) * 0.5
+        
+        for key in skills:
+            new_val = skills[key] + int(adjustment) + random.randint(-1, 1)
+            skills[key] = max(1, min(10, new_val))
+    
+    # Calculate derived stats
     stars = calculate_stars(skills)
     
-    # Years active (correlates somewhat with skill)
-    avg_skill = sum(skills.values()) / len(skills)
+    avg_skill = sum(skills.values()) / len(skills) if skills else 5
     base_years = max(1, int(avg_skill * 1.5) + random.randint(-2, 5))
     years_active = min(40, max(1, base_years))
-    
-    # Films worked on (correlates with years)
     films_count = max(0, int(years_active * random.uniform(0.5, 2)))
-    
-    # Average quality of films (random but skill-influenced)
     avg_film_quality = min(100, max(20, avg_skill * 8 + random.randint(-10, 20)))
     
-    # Calculate fame
     fame = calculate_fame_from_career(years_active, films_count, avg_film_quality)
     fame_category = get_fame_category_from_score(fame)
-    
-    # Calculate cost
     cost = calculate_cast_cost(stars, fame, role_type, years_active)
     
     # Generate avatar
-    seed = f"{first_name}{last_name}".replace(' ', '')
+    seed = f"{first_name}{last_name}{role_type}".replace(' ', '')
     if gender == 'female':
-        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=ffd5dc&top=longHairStraight"
+        hair_styles = ['longHairStraight', 'longHairCurly', 'longHairBob', 'longHairStraight2']
+        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=ffd5dc,c0aede&top={random.choice(hair_styles)}"
     else:
-        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=b6e3f4&top=shortHairShortFlat&facialHair=beardLight"
+        hair_styles = ['shortHairShortFlat', 'shortHairShortWaved', 'shortHairTheCaesar']
+        facial_hair = ['', '&facialHair=beardLight', '&facialHair=beardMedium']
+        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=b6e3f4,ffdfbf&top={random.choice(hair_styles)}{random.choice(facial_hair)}"
+    
+    # Determine primary and secondary skills
+    sorted_skills = sorted(skills.items(), key=lambda x: x[1], reverse=True)
+    primary_skills = [s[0] for s in sorted_skills[:2]] if len(sorted_skills) >= 2 else [s[0] for s in sorted_skills]
+    secondary_skill = sorted_skills[2][0] if len(sorted_skills) >= 3 else None
     
     return {
         'id': str(uuid.uuid4()),
         'name': f"{first_name} {last_name}",
         'gender': gender,
         'nationality': nationality,
+        'age': random.randint(22, 65),
         'role_type': role_type,
         'skills': skills,
+        'primary_skills': primary_skills,
+        'secondary_skill': secondary_skill,
         'stars': stars,
         'years_active': years_active,
         'films_count': films_count,
         'avg_film_quality': round(avg_film_quality, 1),
         'fame': round(fame, 1),
         'fame_category': fame_category,
+        'category': category if category != 'random' else get_category_from_stars(stars),
         'cost': cost,
+        'cost_per_film': cost,
         'avatar_url': avatar_url,
+        'films_worked': [],  # Will track film IDs this person worked on
         'created_at': datetime.now(timezone.utc).isoformat()
     }
 
-def generate_cast_pool(role_type: str, count_per_tier: int = 10) -> dict:
-    """Generate a pool of cast members organized by skill tier."""
-    pool = {
-        'beginner': [],    # 1-3 stars
-        'intermediate': [], # 2-3 stars
-        'advanced': [],    # 3-4 stars
-        'expert': []       # 4-5 stars
+def generate_full_cast_pool(
+    role_type: str,
+    total_count: int = 100
+) -> List[dict]:
+    """
+    Generate a full pool of cast members distributed across categories.
+    """
+    cast_pool = []
+    
+    # Calculate counts per category
+    category_counts = {}
+    for cat_id, cat_info in CAST_CATEGORIES.items():
+        category_counts[cat_id] = int(total_count * cat_info['count_factor'])
+    
+    # Adjust to match total
+    current_total = sum(category_counts.values())
+    if current_total < total_count:
+        category_counts['known'] += (total_count - current_total)
+    
+    # Generate cast for each category
+    for category, count in category_counts.items():
+        for _ in range(count):
+            member = generate_cast_member_v2(role_type, category)
+            cast_pool.append(member)
+    
+    return cast_pool
+
+# ==================== BONUS/MALUS CALCULATION ====================
+
+def calculate_cast_film_bonus(actor_skills: dict, film_genre: str) -> dict:
+    """
+    Calculate bonus/malus for an actor based on film genre match.
+    Returns a dict with bonus percentage and explanation.
+    """
+    matching_skills = GENRE_SKILL_MAPPING.get(film_genre, [])
+    
+    if not matching_skills:
+        return {'bonus_percent': 0, 'type': 'neutral', 'reason': 'No specific skill match'}
+    
+    # Check if actor has any matching skills
+    matched = []
+    total_skill_value = 0
+    
+    for skill in matching_skills:
+        if skill in actor_skills:
+            matched.append(skill)
+            total_skill_value += actor_skills[skill]
+    
+    if not matched:
+        # Actor doesn't have any matching skills - MALUS
+        return {
+            'bonus_percent': -15,
+            'type': 'malus',
+            'reason': f'No {film_genre} skills'
+        }
+    
+    # Calculate bonus based on skill values
+    avg_matched = total_skill_value / len(matched)
+    
+    if avg_matched >= 8:
+        return {'bonus_percent': 20, 'type': 'major_bonus', 'reason': f'Expert in {film_genre}'}
+    elif avg_matched >= 6:
+        return {'bonus_percent': 10, 'type': 'bonus', 'reason': f'Skilled in {film_genre}'}
+    elif avg_matched >= 4:
+        return {'bonus_percent': 5, 'type': 'minor_bonus', 'reason': f'Adequate {film_genre} skills'}
+    else:
+        return {'bonus_percent': -5, 'type': 'minor_malus', 'reason': f'Weak {film_genre} skills'}
+
+def get_skill_translation(skill_key: str, role_type: str, language: str = 'en') -> str:
+    """Get translated skill name."""
+    skill_dicts = {
+        'actor': ACTOR_SKILLS,
+        'director': DIRECTOR_SKILLS,
+        'screenwriter': SCREENWRITER_SKILLS,
+        'composer': COMPOSER_SKILLS
     }
     
-    for tier in pool.keys():
-        for _ in range(count_per_tier):
-            member = generate_cast_member(role_type, tier)
-            pool[tier].append(member)
+    skill_dict = skill_dicts.get(role_type, {})
+    skill_info = skill_dict.get(skill_key, {})
     
-    return pool
+    return skill_info.get(language, skill_info.get('en', skill_key))
+
+def get_category_translation(category: str, language: str = 'en') -> str:
+    """Get translated category name."""
+    cat_info = CAST_CATEGORIES.get(category, {})
+    return cat_info.get(language, cat_info.get('en', category))
 
 # ==================== INFRASTRUCTURE TRADING ====================
 
 def calculate_infrastructure_value(infrastructure: dict, market_conditions: float = 1.0) -> dict:
-    """
-    Calculate the value of an infrastructure for trading.
-    
-    Factors:
-    - Base cost of infrastructure type
-    - Infrastructure level (upgrades, improvements)
-    - Infrastructure fame (from reviews, visits)
-    - Location prestige (city wealth)
-    - Revenue history
-    - Films showing
-    - Time owned
-    """
-    
+    """Calculate the value of an infrastructure for trading."""
     from game_systems import INFRASTRUCTURE_TYPES
     
     infra_type_info = INFRASTRUCTURE_TYPES.get(infrastructure.get('type', 'cinema'), {})
-    
-    # Base value = original purchase cost
     base_value = infrastructure.get('purchase_cost', infra_type_info.get('base_cost', 1000000))
     
-    # Infrastructure level (from improvements, 1-10 scale)
     infra_level = infrastructure.get('infra_level', 1)
-    level_multiplier = 1 + (infra_level - 1) * 0.15  # +15% per level
+    level_multiplier = 1 + (infra_level - 1) * 0.15
     
-    # Infrastructure fame (from reviews, 0-100)
-    infra_fame = infrastructure.get('average_review', 3.0) * 20  # Convert 1-5 to 0-100
-    fame_multiplier = 0.8 + (infra_fame / 100) * 0.4  # 0.8x to 1.2x
+    infra_fame = infrastructure.get('average_review', 3.0) * 20
+    fame_multiplier = 0.8 + (infra_fame / 100) * 0.4
     
-    # Location prestige
     city = infrastructure.get('city', {})
     location_multiplier = city.get('wealth', 1.0)
     
-    # Revenue bonus (total revenue affects value)
     total_revenue = infrastructure.get('total_revenue', 0)
-    revenue_bonus = min(total_revenue * 0.01, base_value * 0.3)  # Max 30% bonus from revenue
+    revenue_bonus = min(total_revenue * 0.01, base_value * 0.3)
     
-    # Time owned penalty/bonus (depreciation or appreciation)
     purchase_date = infrastructure.get('purchase_date')
     if purchase_date:
         try:
+            from datetime import datetime, timezone
             purchased = datetime.fromisoformat(purchase_date.replace('Z', '+00:00'))
             days_owned = (datetime.now(timezone.utc) - purchased).days
-            # First 30 days: slight depreciation, then appreciation
             if days_owned <= 30:
-                time_multiplier = 0.9 + (days_owned / 30) * 0.1  # 0.9x to 1.0x
+                time_multiplier = 0.9 + (days_owned / 30) * 0.1
             else:
-                time_multiplier = 1.0 + min((days_owned - 30) / 365, 0.2)  # Up to +20% per year
+                time_multiplier = 1.0 + min((days_owned - 30) / 365, 0.2)
         except:
             time_multiplier = 1.0
     else:
         time_multiplier = 1.0
     
-    # Calculate final value
     calculated_value = base_value * level_multiplier * fame_multiplier * location_multiplier * time_multiplier
     calculated_value += revenue_bonus
     calculated_value *= market_conditions
     
-    # Round to nearest 10,000
     calculated_value = round(calculated_value / 10000) * 10000
     
-    # Min/max bounds
-    min_value = int(base_value * 0.5)  # Can't sell for less than 50% of original
-    max_value = int(base_value * 3.0)  # Can't sell for more than 300% of original
+    min_value = int(base_value * 0.5)
+    max_value = int(base_value * 3.0)
     
     final_value = max(min_value, min(max_value, int(calculated_value)))
     
     return {
         'calculated_value': final_value,
-        'min_price': int(final_value * 0.8),  # Can list for 80% to 120% of calculated
+        'min_price': int(final_value * 0.8),
         'max_price': int(final_value * 1.2),
         'suggested_price': final_value,
         'factors': {
@@ -508,7 +595,43 @@ def calculate_infrastructure_value(infrastructure: dict, market_conditions: floa
 
 def check_can_trade_infrastructure(user_level: int) -> bool:
     """Check if user has reached the level required for infrastructure trading."""
-    TRADE_REQUIRED_LEVEL = 15  # Medium level requirement
+    TRADE_REQUIRED_LEVEL = 15
     return user_level >= TRADE_REQUIRED_LEVEL
 
-TRADE_REQUIRED_LEVEL = 15  # Export for use in server
+TRADE_REQUIRED_LEVEL = 15
+
+# Legacy function for compatibility
+def generate_cast_member(role_type: str, skill_tier: str = 'random', nationality: str = None) -> dict:
+    """Legacy function - redirects to new system."""
+    category_map = {
+        'beginner': 'unknown',
+        'intermediate': 'emerging',
+        'advanced': 'known',
+        'expert': 'star',
+        'random': 'random'
+    }
+    category = category_map.get(skill_tier, 'random')
+    return generate_cast_member_v2(role_type, category, nationality)
+
+def generate_cast_pool(role_type: str, count_per_tier: int = 10) -> dict:
+    """Legacy function - generates pool organized by old tier names."""
+    pool = {
+        'beginner': [],
+        'intermediate': [],
+        'advanced': [],
+        'expert': []
+    }
+    
+    tier_to_category = {
+        'beginner': 'unknown',
+        'intermediate': 'emerging', 
+        'advanced': 'known',
+        'expert': 'star'
+    }
+    
+    for tier, category in tier_to_category.items():
+        for _ in range(count_per_tier):
+            member = generate_cast_member_v2(role_type, category)
+            pool[tier].append(member)
+    
+    return pool

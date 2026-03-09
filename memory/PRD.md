@@ -3,9 +3,17 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.051
+## Versione Attuale: v0.052
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.052 - Dashboard Finanziaria Completa - 09/03/2026 (COMPLETATO)
+- **Pulsante "Riscuoti Tutto"**: Raccoglie incassi da tutti i film in sala + infrastrutture in un click
+- **Box Pending Revenue**: Mostra totale da riscuotere diviso per Film e Infrastrutture
+- **Bilancio Finanziario**: 3 box con Speso (rosso), Guadagnato (verde), Profitto/Perdita
+- **Breakdown dettagliato**: Costi film vs infrastrutture, revenue film vs infrastrutture
+- **Indicatore visivo**: TrendingUp verde se in profitto, TrendingDown arancione se in perdita
+- **Aggiornamento auto**: Pending revenue aggiornato ogni minuto
 
 ### v0.051 - Sistema Feedback & Bug Report - 09/03/2026 (COMPLETATO)
 - **Nuova pagina** `/feedback` per suggerimenti e segnalazione bug

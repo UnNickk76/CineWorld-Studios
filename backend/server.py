@@ -5069,6 +5069,18 @@ async def get_my_statistics(user: dict = Depends(get_current_user)):
     total_likes = sum(f.get('likes_count', 0) for f in films)
     avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
     
+    # Calculate total spent (film budgets + infrastructure purchases)
+    total_film_costs = sum(f.get('budget', 0) for f in films)
+    
+    # Get infrastructure costs
+    infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1}).to_list(100)
+    total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
+    total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
+    
+    total_spent = total_film_costs + total_infra_costs
+    total_earned = total_revenue + total_infra_revenue
+    profit_loss = total_earned - total_spent
+    
     return {
         'total_films': len(films),
         'total_revenue': total_revenue,
@@ -5078,7 +5090,223 @@ async def get_my_statistics(user: dict = Depends(get_current_user)):
         'production_house': user['production_house_name'],
         'likeability_score': user.get('likeability_score', 50),
         'interaction_score': user.get('interaction_score', 50),
-        'character_score': user.get('character_score', 50)
+        'character_score': user.get('character_score', 50),
+        # New financial stats
+        'total_spent': total_spent,
+        'total_earned': total_earned,
+        'profit_loss': profit_loss,
+        'total_film_costs': total_film_costs,
+        'total_infra_costs': total_infra_costs,
+        'total_infra_revenue': total_infra_revenue,
+        'infrastructure_count': len(infrastructure)
+    }
+
+# ==================== COLLECT ALL REVENUE (Films + Infrastructure) ====================
+
+@api_router.get("/revenue/pending-all")
+async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
+    """Get all pending revenue from films and infrastructure."""
+    now = datetime.now(timezone.utc)
+    
+    # Get pending film revenue (films in theaters)
+    films_in_theaters = await db.films.find({
+        'user_id': user['id'],
+        'status': 'in_theaters'
+    }, {'_id': 0}).to_list(100)
+    
+    film_pending = 0
+    film_details = []
+    for film in films_in_theaters:
+        # Calculate daily revenue that hasn't been collected yet
+        last_collected = datetime.fromisoformat(
+            film.get('last_revenue_collected', film.get('release_date', now.isoformat())).replace('Z', '+00:00')
+        )
+        hours_since_collection = (now - last_collected).total_seconds() / 3600
+        
+        if hours_since_collection >= 1:
+            # Calculate hourly revenue based on quality and week
+            quality = film.get('quality_score', 50)
+            week = film.get('current_week', 1)
+            base_hourly = film.get('opening_day_revenue', 100000) / 24
+            decay = 0.85 ** (week - 1)
+            hourly_revenue = base_hourly * decay * (quality / 100)
+            pending = int(hourly_revenue * min(24, hours_since_collection))
+            
+            film_pending += pending
+            film_details.append({
+                'id': film['id'],
+                'title': film.get('title'),
+                'pending': pending,
+                'hours': round(hours_since_collection, 1)
+            })
+    
+    # Get pending infrastructure revenue
+    infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0}).to_list(100)
+    
+    infra_pending = 0
+    infra_details = []
+    for infra in infrastructure:
+        infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+        if not infra_type:
+            continue
+            
+        last_update = datetime.fromisoformat(
+            infra.get('last_revenue_update', now.isoformat()).replace('Z', '+00:00')
+        )
+        hours_passed = min(4, (now - last_update).total_seconds() / 3600)
+        
+        if hours_passed >= 0.1:
+            # Calculate hourly revenue
+            films_showing = infra.get('films_showing', [])
+            hourly_revenue = 0
+            
+            if infra_type.get('screens', 0) > 0 and films_showing:
+                prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+                ticket_price = prices.get('ticket', 12)
+                for film in films_showing:
+                    quality = film.get('quality_score', 50)
+                    visitors_per_hour = int(10 + (quality * 0.5) + 30)
+                    hourly_revenue += visitors_per_hour * ticket_price
+            else:
+                hourly_revenue = infra_type.get('passive_income', 500)
+            
+            city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
+            hourly_revenue *= city_multiplier
+            pending = int(hourly_revenue * hours_passed)
+            
+            if pending > 0:
+                infra_pending += pending
+                infra_details.append({
+                    'id': infra['id'],
+                    'name': infra.get('custom_name'),
+                    'type': infra.get('type'),
+                    'pending': pending,
+                    'hours': round(hours_passed, 1)
+                })
+    
+    total_pending = film_pending + infra_pending
+    
+    return {
+        'total_pending': total_pending,
+        'film_pending': film_pending,
+        'infra_pending': infra_pending,
+        'film_details': film_details,
+        'infra_details': infra_details,
+        'can_collect': total_pending > 0
+    }
+
+@api_router.post("/revenue/collect-all")
+async def collect_all_revenue(user: dict = Depends(get_current_user)):
+    """Collect all pending revenue from films and infrastructure at once."""
+    now = datetime.now(timezone.utc)
+    
+    total_collected = 0
+    collected_from_films = 0
+    collected_from_infra = 0
+    films_collected = 0
+    infra_collected = 0
+    
+    # Collect from films in theaters
+    films_in_theaters = await db.films.find({
+        'user_id': user['id'],
+        'status': 'in_theaters'
+    }).to_list(100)
+    
+    for film in films_in_theaters:
+        last_collected = datetime.fromisoformat(
+            film.get('last_revenue_collected', film.get('release_date', now.isoformat())).replace('Z', '+00:00')
+        )
+        hours_since_collection = (now - last_collected).total_seconds() / 3600
+        
+        if hours_since_collection >= 1:
+            quality = film.get('quality_score', 50)
+            week = film.get('current_week', 1)
+            base_hourly = film.get('opening_day_revenue', 100000) / 24
+            decay = 0.85 ** (week - 1)
+            hourly_revenue = base_hourly * decay * (quality / 100)
+            revenue = int(hourly_revenue * min(24, hours_since_collection))
+            
+            if revenue > 0:
+                await db.films.update_one(
+                    {'id': film['id']},
+                    {
+                        '$inc': {'total_revenue': revenue},
+                        '$set': {'last_revenue_collected': now.isoformat()}
+                    }
+                )
+                collected_from_films += revenue
+                films_collected += 1
+    
+    # Collect from infrastructure
+    infrastructure = await db.infrastructure.find({'owner_id': user['id']}).to_list(100)
+    
+    for infra in infrastructure:
+        infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+        if not infra_type:
+            continue
+            
+        last_update = datetime.fromisoformat(
+            infra.get('last_revenue_update', now.isoformat()).replace('Z', '+00:00')
+        )
+        hours_passed = min(4, (now - last_update).total_seconds() / 3600)
+        
+        if hours_passed >= 0.1:
+            films_showing = infra.get('films_showing', [])
+            hourly_revenue = 0
+            
+            if infra_type.get('screens', 0) > 0 and films_showing:
+                prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+                ticket_price = prices.get('ticket', 12)
+                for film in films_showing:
+                    quality = film.get('quality_score', 50)
+                    visitors_per_hour = int(10 + (quality * 0.5) + 30)
+                    hourly_revenue += visitors_per_hour * ticket_price
+            else:
+                hourly_revenue = infra_type.get('passive_income', 500)
+            
+            city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
+            hourly_revenue *= city_multiplier
+            revenue = int(hourly_revenue * hours_passed)
+            
+            if revenue > 0:
+                await db.infrastructure.update_one(
+                    {'id': infra['id']},
+                    {
+                        '$inc': {'total_revenue': revenue},
+                        '$set': {
+                            'last_revenue_update': now.isoformat(),
+                            'last_collection': now.isoformat()
+                        }
+                    }
+                )
+                collected_from_infra += revenue
+                infra_collected += 1
+    
+    total_collected = collected_from_films + collected_from_infra
+    
+    if total_collected > 0:
+        # Update user funds and XP
+        xp_earned = max(1, total_collected // 5000)
+        await db.users.update_one(
+            {'id': user['id']},
+            {
+                '$inc': {
+                    'funds': total_collected,
+                    'total_xp': xp_earned,
+                    'total_lifetime_revenue': total_collected
+                }
+            }
+        )
+    
+    return {
+        'success': True,
+        'total_collected': total_collected,
+        'collected_from_films': collected_from_films,
+        'collected_from_infra': collected_from_infra,
+        'films_collected': films_collected,
+        'infra_collected': infra_collected,
+        'xp_earned': max(1, total_collected // 5000) if total_collected > 0 else 0,
+        'message': f'Riscossi ${total_collected:,} totali!' if total_collected > 0 else 'Nessun incasso da riscuotere al momento.'
     }
 
 # Online Users Tracking

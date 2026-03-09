@@ -1054,7 +1054,7 @@ const FilmWizard = () => {
         const selId = step===4?filmData.screenwriter_id:filmData.director_id;
         return (<div className="space-y-2">
           <div className="flex justify-between items-center"><p className="text-xs text-gray-400"></p><Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(step===4?'screenwriters':'directors')}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button></div>
-          <ScrollArea className="h-[280px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
+          <ScrollArea className="h-[400px] sm:h-[450px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
         </div>);
       case 6:
         return (<div className="space-y-2">
@@ -1075,7 +1075,7 @@ const FilmWizard = () => {
               })}
             </div>
           )}
-          <ScrollArea className="h-[200px]">
+          <ScrollArea className="h-[350px] sm:h-[400px]">
             <div className="space-y-1.5 pr-2">
               {actors.map(p => {
                 const selectedActor = filmData.actors.find(a => a.actor_id === p.id);
@@ -1265,16 +1265,20 @@ const FilmDetail = () => {
   const [hourlyRevenue, setHourlyRevenue] = useState(null);
   const [durationStatus, setDurationStatus] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [trailerStatus, setTrailerStatus] = useState(null);
+  const [generatingTrailer, setGeneratingTrailer] = useState(false);
   const navigate = useNavigate();
 
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    const [filmRes, rolesRes] = await Promise.all([
+    const [filmRes, rolesRes, trailerRes] = await Promise.all([
       api.get(`/films/${id}`),
-      api.get('/actor-roles').catch(() => ({ data: [] }))
+      api.get('/actor-roles').catch(() => ({ data: [] })),
+      api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null }))
     ]);
     setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
+    if (trailerRes.data) setTrailerStatus(trailerRes.data);
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -1343,6 +1347,42 @@ const FilmDetail = () => {
       }
     } catch (e) {
       toast.error('Errore nell\'evoluzione skill');
+    }
+  };
+
+  const generateTrailer = async () => {
+    setGeneratingTrailer(true);
+    try {
+      const res = await api.post('/ai/generate-trailer', { film_id: film.id, duration: 15 });
+      if (res.data.status === 'exists') {
+        toast.info('Il trailer esiste già!');
+        setTrailerStatus({ has_trailer: true, trailer_url: res.data.trailer_url });
+      } else {
+        toast.success(res.data.message);
+        // Poll for trailer status
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await api.get(`/films/${film.id}/trailer-status`);
+            setTrailerStatus(statusRes.data);
+            if (statusRes.data.has_trailer || statusRes.data.error) {
+              clearInterval(pollInterval);
+              setGeneratingTrailer(false);
+              if (statusRes.data.has_trailer) {
+                toast.success('Trailer generato con successo! +5 bonus qualità');
+                loadFilm();
+              } else if (statusRes.data.error) {
+                toast.error('Errore nella generazione del trailer');
+              }
+            }
+          } catch (e) {
+            clearInterval(pollInterval);
+            setGeneratingTrailer(false);
+          }
+        }, 10000); // Poll ogni 10 secondi
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nella generazione del trailer');
+      setGeneratingTrailer(false);
     }
   };
 
@@ -1550,6 +1590,66 @@ const FilmDetail = () => {
                     {expandedCountry===country&&<div className="p-2 pt-0 border-t border-white/10 bg-black/20">{Object.entries(data.cities||{}).map(([city,cd])=><div key={city} className="flex justify-between py-0.5 text-xs"><span>{city}</span><span className="text-green-400">${cd.revenue?.toLocaleString()}</span></div>)}</div>}
                   </div>
                 ))}</div></ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Trailer Section */}
+          <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30" data-testid="trailer-section">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Film className="w-5 h-5 text-purple-400" /> Trailer Video
+                {trailerStatus?.has_trailer && <Badge className="bg-green-500/20 text-green-400 text-xs ml-2">Generato</Badge>}
+              </CardTitle>
+              <CardDescription className="text-xs">Genera un trailer AI per il tuo film (+5 bonus qualità)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {trailerStatus?.has_trailer && trailerStatus.trailer_url ? (
+                <div className="space-y-3">
+                  <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                    <video 
+                      src={`${BACKEND_URL}${trailerStatus.trailer_url}`} 
+                      controls 
+                      className="w-full h-full"
+                      poster={film.poster_url}
+                    >
+                      Il tuo browser non supporta i video.
+                    </video>
+                  </div>
+                  <p className="text-xs text-green-400 text-center">Trailer generato! Il tuo film ha ricevuto +5 bonus qualità.</p>
+                </div>
+              ) : trailerStatus?.generating || generatingTrailer ? (
+                <div className="text-center py-8 space-y-3">
+                  <RefreshCw className="w-10 h-10 mx-auto text-purple-400 animate-spin" />
+                  <p className="text-purple-300">Generazione trailer in corso...</p>
+                  <p className="text-xs text-gray-400">Questo processo richiede 2-5 minuti. Puoi tornare più tardi.</p>
+                  <Progress value={33} className="h-1.5 max-w-xs mx-auto" />
+                </div>
+              ) : trailerStatus?.error ? (
+                <div className="text-center py-6 space-y-3">
+                  <AlertTriangle className="w-10 h-10 mx-auto text-red-400" />
+                  <p className="text-red-400">Errore nella generazione del trailer</p>
+                  <Button onClick={generateTrailer} variant="outline" className="border-purple-500/30 text-purple-400">
+                    Riprova
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-6 space-y-3">
+                  <Film className="w-12 h-12 mx-auto text-purple-400/50" />
+                  <p className="text-gray-400 text-sm">Nessun trailer generato per questo film</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <Button 
+                      onClick={generateTrailer} 
+                      disabled={generatingTrailer}
+                      className="bg-purple-600 hover:bg-purple-500"
+                      data-testid="generate-trailer-btn"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Genera Trailer AI ($50,000)
+                    </Button>
+                    <p className="text-[10px] text-gray-500">Durata: 15 secondi • Generato da Sora 2</p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

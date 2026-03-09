@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -3203,6 +3204,166 @@ async def generate_soundtrack_description(request: SoundtrackRequest, user: dict
     except Exception as e:
         logging.error(f"Soundtrack generation error: {e}")
         return {'description': f"An original {request.mood} soundtrack for {request.title}"}
+
+class TrailerRequest(BaseModel):
+    film_id: str
+    style: str = 'cinematic'  # cinematic, action, dramatic, comedy, horror
+    duration: int = 4  # 4, 8, or 12 seconds
+
+@api_router.post("/ai/generate-trailer")
+async def generate_trailer(request: TrailerRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Generate a video trailer for a film using Sora 2."""
+    film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    # Check if trailer already exists
+    if film.get('trailer_url'):
+        return {'trailer_url': film['trailer_url'], 'status': 'exists'}
+    
+    # Check if generation is in progress
+    if film.get('trailer_generating'):
+        return {'status': 'generating', 'message': 'Trailer in generazione...'}
+    
+    # Cost for trailer generation
+    trailer_cost = 50000  # $50k per trailer
+    if user.get('funds', 0) < trailer_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${trailer_cost:,}")
+    
+    # Deduct cost
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -trailer_cost}})
+    
+    # Mark as generating
+    await db.films.update_one({'id': request.film_id}, {'$set': {'trailer_generating': True}})
+    
+    # Generate prompt based on film details
+    genre = film.get('genre', 'drama')
+    title = film.get('title', 'Film')
+    quality = film.get('quality_score', 50)
+    
+    style_prompts = {
+        'cinematic': 'Epic cinematic shots with dramatic lighting, slow motion moments',
+        'action': 'Fast-paced action sequences, explosions, intense chase scenes',
+        'dramatic': 'Emotional close-ups, atmospheric scenes, powerful moments',
+        'comedy': 'Funny situations, comedic timing, lighthearted scenes',
+        'horror': 'Dark atmosphere, suspenseful moments, mysterious shadows'
+    }
+    
+    style_desc = style_prompts.get(request.style, style_prompts['cinematic'])
+    
+    prompt = f"""A professional movie trailer for "{title}", a {genre} film. 
+    {style_desc}. 
+    High quality Hollywood production, widescreen format, professional color grading.
+    Movie trailer style with dramatic moments and captivating visuals."""
+    
+    # Start background task
+    background_tasks.add_task(generate_trailer_task, request.film_id, prompt, request.duration, user['id'])
+    
+    return {
+        'status': 'started',
+        'message': f'Generazione trailer avviata! Ci vorranno 2-5 minuti.',
+        'film_id': request.film_id
+    }
+
+async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_id: str):
+    """Background task to generate trailer."""
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    try:
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+        
+        video_gen = OpenAIVideoGeneration(api_key=os.environ.get('EMERGENT_LLM_KEY'))
+        
+        output_path = f'/app/trailers/{film_id}.mp4'
+        os.makedirs('/app/trailers', exist_ok=True)
+        
+        video_bytes = video_gen.text_to_video(
+            prompt=prompt,
+            model="sora-2",
+            size="1280x720",
+            duration=duration,
+            max_wait_time=600
+        )
+        
+        if video_bytes:
+            video_gen.save_video(video_bytes, output_path)
+            
+            # Update film with trailer URL
+            # In production, you'd upload to cloud storage and get a public URL
+            trailer_url = f"/api/trailers/{film_id}.mp4"
+            
+            await db.films.update_one(
+                {'id': film_id},
+                {
+                    '$set': {
+                        'trailer_url': trailer_url,
+                        'trailer_generating': False,
+                        'trailer_generated_at': datetime.now(timezone.utc).isoformat()
+                    },
+                    '$inc': {'quality_score': 5}  # Bonus for having a trailer
+                }
+            )
+            
+            # Create notification
+            await db.notifications.insert_one({
+                'id': str(uuid.uuid4()),
+                'user_id': user_id,
+                'type': 'trailer_ready',
+                'title': 'Trailer Pronto!',
+                'message': f'Il trailer del tuo film è pronto! +5 bonus qualità.',
+                'data': {'film_id': film_id},
+                'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            })
+        else:
+            await db.films.update_one(
+                {'id': film_id},
+                {'$set': {'trailer_generating': False, 'trailer_error': 'Generation failed'}}
+            )
+            
+            # Refund
+            await db.users.update_one({'id': user_id}, {'$inc': {'funds': 50000}})
+            
+    except Exception as e:
+        logging.error(f"Trailer generation error: {e}")
+        await db.films.update_one(
+            {'id': film_id},
+            {'$set': {'trailer_generating': False, 'trailer_error': str(e)}}
+        )
+        # Refund on error
+        await db.users.update_one({'id': user_id}, {'$inc': {'funds': 50000}})
+
+@api_router.get("/trailers/{film_id}.mp4")
+async def get_trailer(film_id: str):
+    """Serve trailer video file."""
+    from fastapi.responses import FileResponse
+    import os
+    
+    path = f'/app/trailers/{film_id}.mp4'
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Trailer non trovato")
+    
+    return FileResponse(path, media_type='video/mp4')
+
+@api_router.get("/films/{film_id}/trailer-status")
+async def get_trailer_status(film_id: str, user: dict = Depends(get_current_user)):
+    """Check trailer generation status."""
+    # First check if film exists
+    film_exists = await db.films.find_one({'id': film_id}, {'_id': 0, 'id': 1})
+    if not film_exists:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    # Get trailer-related fields (may return {} if fields don't exist yet)
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'trailer_url': 1, 'trailer_generating': 1, 'trailer_error': 1})
+    
+    return {
+        'has_trailer': bool(film.get('trailer_url') if film else False),
+        'trailer_url': film.get('trailer_url') if film else None,
+        'generating': film.get('trailer_generating', False) if film else False,
+        'error': film.get('trailer_error') if film else None
+    }
 
 # Initialize default chat rooms
 @app.on_event("startup")

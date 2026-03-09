@@ -6449,15 +6449,42 @@ const MajorPage = () => {
           <CardContent className="p-6 text-center">
             <Crown className="w-16 h-16 mx-auto text-purple-500/50 mb-4" />
             <h2 className="text-xl font-semibold mb-2">{t('noMajor')}</h2>
-            <p className="text-gray-400 mb-4">{t('levelRequired')}</p>
+            <p className="text-gray-400 mb-4">
+              {language === 'it' 
+                ? 'Crea la tua Major e unisci altri produttori!' 
+                : 'Create your Major and unite other producers!'}
+            </p>
+            
+            {/* Requirements */}
+            <div className="flex justify-center gap-4 mb-4">
+              <div className={`p-2 rounded-lg ${(majorData?.user_level || 0) >= (majorData?.required_level || 20) ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Livello' : 'Level'}</p>
+                <p className={`font-bold ${(majorData?.user_level || 0) >= (majorData?.required_level || 20) ? 'text-green-400' : 'text-red-400'}`}>
+                  {majorData?.user_level || 0}/{majorData?.required_level || 20}
+                </p>
+              </div>
+              <div className={`p-2 rounded-lg ${majorData?.user_funds >= (majorData?.creation_cost || 5000000) ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Costo' : 'Cost'}</p>
+                <p className={`font-bold ${majorData?.user_funds >= (majorData?.creation_cost || 5000000) ? 'text-green-400' : 'text-red-400'}`}>
+                  ${((majorData?.creation_cost || 5000000) / 1000000).toFixed(0)}M
+                </p>
+              </div>
+            </div>
+            
             {majorData?.can_create ? (
               <Button className="bg-purple-600 hover:bg-purple-500" onClick={() => setShowCreateModal(true)}>
                 <Plus className="w-4 h-4 mr-2" /> {t('createMajor')}
               </Button>
             ) : (
-              <Badge className="bg-gray-500/20 text-gray-400">
-                {language === 'it' ? `Livello ${user?.level || 0}/20` : `Level ${user?.level || 0}/20`}
-              </Badge>
+              <div className="space-y-2">
+                <Badge className="bg-gray-500/20 text-gray-400">
+                  {language === 'it' ? 'Requisiti non soddisfatti' : 'Requirements not met'}
+                </Badge>
+                <p className="text-xs text-gray-500">
+                  {language === 'it' ? 'Fondi disponibili: ' : 'Available funds: '}
+                  ${(majorData?.user_funds || 0).toLocaleString()}
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -6598,6 +6625,13 @@ const MajorPage = () => {
             <div>
               <Label>{language === 'it' ? 'Max Membri' : 'Max Members'} ({createForm.max_members})</Label>
               <Slider value={[createForm.max_members]} onValueChange={([v]) => setCreateForm({...createForm, max_members: v})} min={5} max={50} step={5} />
+            </div>
+            <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
+              <p className="text-sm text-purple-400 text-center">
+                <DollarSign className="w-4 h-4 inline mr-1" />
+                {language === 'it' ? 'Costo creazione: ' : 'Creation cost: '}
+                <span className="font-bold">${(majorData?.creation_cost || 5000000).toLocaleString()}</span>
+              </p>
             </div>
             <Button className="w-full bg-purple-600 hover:bg-purple-500" onClick={createMajor}>
               {t('createMajor')}

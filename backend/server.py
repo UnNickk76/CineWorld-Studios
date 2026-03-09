@@ -7713,12 +7713,26 @@ async def get_my_tour_visits(user: dict = Depends(get_current_user)):
 async def get_my_major(user: dict = Depends(get_current_user)):
     """Get current user's Major (alliance)."""
     user_id = user['id']
+    user_funds = user.get('funds', 0)
+    user_level = user.get('level', 0)
+    
+    # Cost to create a Major
+    MAJOR_CREATION_COST = 5000000  # $5 million
     
     # Check if user is in a Major
     membership = await db.major_members.find_one({'user_id': user_id, 'status': 'active'}, {'_id': 0})
     
     if not membership:
-        return {'has_major': False, 'can_create': user.get('level', 0) >= MAJOR_LEVEL_REQUIRED}
+        can_afford = user_funds >= MAJOR_CREATION_COST
+        has_level = user_level >= MAJOR_LEVEL_REQUIRED
+        return {
+            'has_major': False, 
+            'can_create': can_afford and has_level,
+            'creation_cost': MAJOR_CREATION_COST,
+            'user_funds': user_funds,
+            'required_level': MAJOR_LEVEL_REQUIRED,
+            'user_level': user_level
+        }
     
     # Get Major details
     major = await db.majors.find_one({'id': membership['major_id']}, {'_id': 0})
@@ -7773,17 +7787,35 @@ async def get_my_major(user: dict = Depends(get_current_user)):
 
 @api_router.post("/major/create")
 async def create_major(request: CreateMajorRequest, user: dict = Depends(get_current_user)):
-    """Create a new Major (alliance). Requires level 20."""
+    """Create a new Major (alliance). Requires level 20 + $5,000,000."""
     user_id = user['id']
+    user_funds = user.get('funds', 0)
     user_level = user.get('level', 0)
     
+    # Cost to create a Major
+    MAJOR_CREATION_COST = 5000000  # $5 million
+    
+    # Check level requirement
     if user_level < MAJOR_LEVEL_REQUIRED:
-        raise HTTPException(status_code=400, detail=f"Level {MAJOR_LEVEL_REQUIRED} required to create a Major")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Livello {MAJOR_LEVEL_REQUIRED} richiesto per creare una Major. Sei livello {user_level}."
+        )
+    
+    # Check if user can afford
+    if user_funds < MAJOR_CREATION_COST:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Fondi insufficienti. Servono ${MAJOR_CREATION_COST:,} per creare una Major. Hai ${user_funds:,.0f}."
+        )
     
     # Check if user already in a Major
     existing = await db.major_members.find_one({'user_id': user_id, 'status': 'active'})
     if existing:
-        raise HTTPException(status_code=400, detail="You are already in a Major")
+        raise HTTPException(status_code=400, detail="Sei già in una Major")
+    
+    # Deduct cost
+    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -MAJOR_CREATION_COST}})
     
     # Validate max members
     max_members = max(MAJOR_MIN_MEMBERS, min(MAJOR_MAX_MEMBERS, request.max_members))

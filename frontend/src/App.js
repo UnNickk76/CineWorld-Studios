@@ -9,7 +9,7 @@ import {
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
-  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal
+  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -309,6 +309,7 @@ const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login, register } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
@@ -382,15 +383,25 @@ const AuthPage = () => {
               
               <div className="space-y-1">
                 <Label className="text-xs">Password</Label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={e => setFormData({ ...formData, password: e.target.value })}
-                  className="h-8 text-sm bg-black/20 border-white/10"
-                  required
-                  data-testid="password-input"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                    className="h-8 text-sm bg-black/20 border-white/10 pr-10"
+                    required
+                    data-testid="password-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                    data-testid="toggle-password"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {!isLogin && (

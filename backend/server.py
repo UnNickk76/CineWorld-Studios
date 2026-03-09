@@ -3424,15 +3424,26 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
             # In production, you'd upload to cloud storage and get a public URL
             trailer_url = f"/api/trailers/{film_id}.mp4"
             
+            # Calculate trailer bonus based on film rating (1-15%)
+            film_data = await db.films.find_one({'id': film_id}, {'_id': 0, 'imdb_rating': 1, 'quality_score': 1})
+            film_rating = film_data.get('imdb_rating', 5.0) if film_data else 5.0
+            
+            # Bonus: 1% at rating 1, up to 15% at rating 10
+            bonus_percentage = min(15, max(1, 1 + (film_rating - 1) * 1.556))
+            current_quality = film_data.get('quality_score', 50) if film_data else 50
+            quality_bonus = int(current_quality * bonus_percentage / 100)
+            quality_bonus = max(5, quality_bonus)  # Minimum 5 bonus
+            
             await db.films.update_one(
                 {'id': film_id},
                 {
                     '$set': {
                         'trailer_url': trailer_url,
                         'trailer_generating': False,
-                        'trailer_generated_at': datetime.now(timezone.utc).isoformat()
+                        'trailer_generated_at': datetime.now(timezone.utc).isoformat(),
+                        'trailer_bonus_percentage': bonus_percentage
                     },
-                    '$inc': {'quality_score': 5}  # Bonus for having a trailer
+                    '$inc': {'quality_score': quality_bonus}
                 }
             )
             
@@ -3442,7 +3453,7 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
                 'user_id': user_id,
                 'type': 'trailer_ready',
                 'title': 'Trailer Pronto!',
-                'message': f'Il trailer del tuo film è pronto! +5 bonus qualità.',
+                'message': f'Il trailer del tuo film è pronto! +{quality_bonus} bonus qualità ({bonus_percentage:.1f}%).',
                 'data': {'film_id': film_id},
                 'read': False,
                 'created_at': datetime.now(timezone.utc).isoformat()

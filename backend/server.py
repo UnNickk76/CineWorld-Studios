@@ -513,6 +513,7 @@ TRANSLATIONS = {
         'my_films': 'My Films',
         'create_film': 'Create Film',
         'social': 'Social',
+        'cineboard': 'CineBoard',
         'chat': 'Chat',
         'statistics': 'Statistics',
         'profile': 'Profile',
@@ -565,6 +566,7 @@ TRANSLATIONS = {
         'my_films': 'I Miei Film',
         'create_film': 'Crea Film',
         'social': 'Social',
+        'cineboard': 'CineBoard',
         'chat': 'Chat',
         'statistics': 'Statistiche',
         'profile': 'Profilo',
@@ -973,6 +975,10 @@ class FilmResponse(BaseModel):
     opening_day_revenue: float = 0
     total_revenue: float = 0
     created_at: str
+    # New fields
+    synopsis: Optional[str] = None
+    cineboard_score: Optional[float] = None
+    imdb_rating: Optional[float] = None
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -2377,6 +2383,44 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     # Calculate IMDb-style rating
     film['imdb_rating'] = calculate_imdb_rating(film)
     
+    # Generate synopsis/plot summary from screenplay
+    if film_data.screenplay:
+        try:
+            from emergentintegrations.llm.openai import OpenAILLM
+            llm = OpenAILLM(api_key=EMERGENT_LLM_KEY)
+            
+            genre_name = film_data.genre
+            cast_names = ", ".join([c.get('name', 'Unknown') for c in enriched_cast[:3]])
+            director_name = director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
+            
+            synopsis_prompt = f"""Create a compelling movie synopsis/plot summary for a {genre_name} film.
+
+Title: {film_data.title}
+Director: {director_name}
+Cast: {cast_names}
+Screenplay excerpt: {film_data.screenplay[:500]}
+
+Write a 2-3 paragraph synopsis that:
+1. Sets up the premise and main characters
+2. Hints at the central conflict without major spoilers
+3. Creates intrigue and makes people want to watch it
+4. Matches the tone of the genre ({genre_name})
+
+Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
+
+            synopsis_result = await llm.completion(
+                prompt=synopsis_prompt,
+                model="gpt-4o-mini",
+                max_tokens=400
+            )
+            film['synopsis'] = synopsis_result.strip()
+        except Exception as e:
+            logging.error(f"Synopsis generation error: {e}")
+            # Fallback synopsis
+            film['synopsis'] = f"Un avvincente {genre_name} diretto da {director_doc.get('name', 'un regista visionario') if director_doc else 'un regista visionario'}. {film_data.title} racconta una storia che vi terrà col fiato sospeso dall'inizio alla fine."
+    else:
+        film['synopsis'] = f"Un film {genre_name} che promette emozioni e intrattenimento."
+    
     # Generate initial AI interactions
     film['ai_interactions'] = generate_ai_interactions(film, 0)
     film['ratings'] = {'user_ratings': [], 'ai_ratings': film['ai_interactions']}
@@ -2735,6 +2779,223 @@ async def get_social_feed(
     total = await db.films.count_documents({'user_id': {'$ne': user['id']}})
     return {'films': films, 'total': total, 'page': page}
 
+# ==================== FILM RANKINGS (CineBoard) ====================
+
+def calculate_film_score(film: dict) -> float:
+    """
+    Calculate composite score for film ranking.
+    Variables:
+    - Quality Score (30%): Film production quality
+    - Revenue Performance (25%): Total revenue vs budget ratio
+    - Popularity (20%): Likes and engagement
+    - Critical Acclaim (15%): Festival awards and nominations
+    - Longevity (10%): Days in theaters and re-releases
+    """
+    score = 0.0
+    
+    # Quality Score (30%) - Max 30 points
+    quality = film.get('quality_score', 50)
+    score += (quality / 100) * 30
+    
+    # Revenue Performance (25%) - Max 25 points
+    budget = film.get('budget', 1000000)
+    revenue = film.get('total_revenue', 0)
+    roi = revenue / budget if budget > 0 else 0
+    # Cap ROI at 10x for scoring
+    roi_score = min(roi / 10, 1.0) * 25
+    score += roi_score
+    
+    # Popularity (20%) - Max 20 points
+    likes = film.get('likes', 0)
+    # Logarithmic scale for likes (1000 likes = max)
+    import math
+    likes_score = min(math.log10(likes + 1) / 3, 1.0) * 20
+    score += likes_score
+    
+    # Critical Acclaim (15%) - Max 15 points
+    awards = film.get('awards', [])
+    nominations = film.get('nominations', [])
+    awards_score = min((len(awards) * 3 + len(nominations)) / 15, 1.0) * 15
+    score += awards_score
+    
+    # Longevity (10%) - Max 10 points
+    times_released = film.get('times_released', 1)
+    theater_days = film.get('theater_days_total', 0)
+    longevity_score = min((theater_days / 30 + times_released - 1) / 5, 1.0) * 10
+    score += longevity_score
+    
+    return round(score, 2)
+
+def calculate_imdb_rating(film: dict) -> float:
+    """
+    Calculate IMDb-style rating (1-10 scale).
+    Based on weighted average of multiple factors.
+    """
+    # Base from quality (40%)
+    quality_rating = (film.get('quality_score', 50) / 100) * 4
+    
+    # User engagement - likes ratio (30%)
+    likes = film.get('likes', 0)
+    import math
+    engagement_rating = min(math.log10(likes + 1) / 2.5, 1.0) * 3
+    
+    # Critical reception - awards (20%)
+    awards = len(film.get('awards', []))
+    nominations = len(film.get('nominations', []))
+    critical_rating = min((awards * 0.5 + nominations * 0.2) / 2, 1.0) * 2
+    
+    # Revenue success (10%)
+    budget = film.get('budget', 1000000)
+    revenue = film.get('total_revenue', 0)
+    roi = revenue / budget if budget > 0 else 0
+    revenue_rating = min(roi / 5, 1.0) * 1
+    
+    total = quality_rating + engagement_rating + critical_rating + revenue_rating
+    # Add base of 4 to shift range to 4-10 (more realistic IMDb range)
+    imdb_rating = 4 + (total / 10) * 6
+    
+    return round(min(imdb_rating, 10.0), 1)
+
+@api_router.get("/cineboard/now-playing")
+async def get_cineboard_now_playing(
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """Get top 50 films currently in theaters, ranked by composite score."""
+    films = await db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(500)
+    
+    # Calculate scores and ratings for each film
+    for film in films:
+        film['cineboard_score'] = calculate_film_score(film)
+        film['imdb_rating'] = calculate_imdb_rating(film)
+        
+        # Get owner
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        film['owner'] = owner
+        
+        # Check user like
+        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
+        film['user_liked'] = like is not None
+    
+    # Sort by composite score
+    films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
+    
+    # Add rank
+    for i, film in enumerate(films[:limit]):
+        film['rank'] = i + 1
+    
+    return {
+        'films': films[:limit],
+        'total': len(films),
+        'category': 'now_playing'
+    }
+
+@api_router.get("/cineboard/hall-of-fame")
+async def get_cineboard_hall_of_fame(
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """Get top 50 films of all time (all statuses), ranked by composite score."""
+    films = await db.films.find(
+        {},
+        {'_id': 0}
+    ).to_list(1000)
+    
+    # Calculate scores and ratings for each film
+    for film in films:
+        film['cineboard_score'] = calculate_film_score(film)
+        film['imdb_rating'] = calculate_imdb_rating(film)
+        
+        # Get owner
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        film['owner'] = owner
+        
+        # Check user like
+        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
+        film['user_liked'] = like is not None
+    
+    # Sort by composite score
+    films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
+    
+    # Add rank
+    for i, film in enumerate(films[:limit]):
+        film['rank'] = i + 1
+        # Mark hall of fame eligible (completed films with high scores)
+        film['hall_of_fame'] = film.get('status') in ['completed', 'withdrawn'] and film.get('cineboard_score', 0) > 50
+    
+    return {
+        'films': films[:limit],
+        'total': len(films),
+        'category': 'hall_of_fame'
+    }
+
+@api_router.post("/films/{film_id}/user-rating")
+async def submit_user_rating(film_id: str, rating: float, user: dict = Depends(get_current_user)):
+    """Submit user rating for a film (1-10 scale)."""
+    if rating < 1 or rating > 10:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 10")
+    
+    film = await db.films.find_one({'id': film_id})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Upsert user rating
+    await db.film_ratings.update_one(
+        {'film_id': film_id, 'user_id': user['id']},
+        {
+            '$set': {
+                'rating': rating,
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            },
+            '$setOnInsert': {
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+        },
+        upsert=True
+    )
+    
+    # Calculate new average rating
+    ratings = await db.film_ratings.find({'film_id': film_id}).to_list(10000)
+    avg_rating = sum(r['rating'] for r in ratings) / len(ratings) if ratings else 0
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'user_avg_rating': round(avg_rating, 1),
+            'rating_count': len(ratings)
+        }}
+    )
+    
+    return {
+        'success': True,
+        'new_average': round(avg_rating, 1),
+        'total_ratings': len(ratings)
+    }
+
+@api_router.get("/films/{film_id}/ratings")
+async def get_film_ratings(film_id: str, user: dict = Depends(get_current_user)):
+    """Get film ratings summary."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Get user's rating
+    user_rating = await db.film_ratings.find_one(
+        {'film_id': film_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    
+    return {
+        'imdb_rating': calculate_imdb_rating(film),
+        'user_avg_rating': film.get('user_avg_rating', 0),
+        'rating_count': film.get('rating_count', 0),
+        'user_rating': user_rating.get('rating') if user_rating else None,
+        'cineboard_score': calculate_film_score(film)
+    }
+
 # Cinema Journal - Film newspaper style
 @api_router.get("/films/cinema-journal")
 async def get_cinema_journal(
@@ -2900,6 +3161,10 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
         raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Calculate and add cineboard_score
+    film['cineboard_score'] = calculate_cineboard_score(film)
+    
     return FilmResponse(**film)
 
 @api_router.delete("/films/{film_id}")
@@ -4109,7 +4374,7 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     
     # Mark as generating and reset error (for retry)
     await db.films.update_one({'id': request.film_id}, {
-        '$set': {'trailer_generating': True},
+        '$set': {'trailer_generating': True, 'trailer_started_at': datetime.now(timezone.utc).isoformat()},
         '$unset': {'trailer_error': ''}
     })
     
@@ -4244,14 +4509,43 @@ async def get_trailer_status(film_id: str, user: dict = Depends(get_current_user
         raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Get trailer-related fields (may return {} if fields don't exist yet)
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'trailer_url': 1, 'trailer_generating': 1, 'trailer_error': 1})
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'trailer_url': 1, 'trailer_generating': 1, 'trailer_error': 1, 'trailer_started_at': 1})
+    
+    # Auto-reset if stuck for more than 15 minutes
+    is_generating = film.get('trailer_generating', False) if film else False
+    if is_generating and film.get('trailer_started_at'):
+        started_at = datetime.fromisoformat(film['trailer_started_at'].replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) - started_at > timedelta(minutes=15):
+            # Auto-reset stuck trailer
+            await db.films.update_one(
+                {'id': film_id},
+                {'$set': {'trailer_generating': False, 'trailer_error': 'Generazione scaduta. Puoi riprovare.'}}
+            )
+            is_generating = False
     
     return {
         'has_trailer': bool(film.get('trailer_url') if film else False),
         'trailer_url': film.get('trailer_url') if film else None,
-        'generating': film.get('trailer_generating', False) if film else False,
+        'generating': is_generating,
         'error': film.get('trailer_error') if film else None
     }
+
+@api_router.post("/films/{film_id}/reset-trailer")
+async def reset_stuck_trailer(film_id: str, user: dict = Depends(get_current_user)):
+    """Reset a stuck trailer generation. Owner only."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0, 'trailer_generating': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato o non sei il proprietario")
+    
+    if not film.get('trailer_generating'):
+        return {'status': 'ok', 'message': 'Il trailer non era bloccato'}
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {'trailer_generating': False, 'trailer_error': 'Generazione resettata. Puoi riprovare.'}}
+    )
+    
+    return {'status': 'ok', 'message': 'Trailer resettato. Puoi riprovare la generazione.'}
 
 # Exclusive Premiere System
 class PremierInviteRequest(BaseModel):
@@ -6811,6 +7105,105 @@ async def get_local_leaderboard(country: str, limit: int = 50):
         user['rank'] = i + 1
     
     return {'leaderboard': sorted_users, 'country': country}
+
+# ==================== CINEBOARD - FILM RANKINGS ====================
+
+def calculate_cineboard_score(film: dict) -> float:
+    """
+    Calculate CineBoard score for a film based on multiple factors:
+    - Quality: 30%
+    - Revenue: 25%
+    - Popularity (likes): 20%
+    - Awards: 15%
+    - Longevity: 10%
+    """
+    quality = film.get('quality_score', 0)
+    revenue = film.get('total_revenue', 0)
+    likes = film.get('likes_count', 0)
+    awards_count = len(film.get('awards', []))
+    
+    # Normalize values to 0-100 scale
+    quality_score = min(100, quality)  # Already 0-100
+    
+    # Revenue: $10M = 100 points
+    revenue_score = min(100, (revenue / 10000000) * 100)
+    
+    # Likes: 100 likes = 100 points
+    likes_score = min(100, likes * 1)
+    
+    # Awards: each award = 25 points, max 100
+    awards_score = min(100, awards_count * 25)
+    
+    # Longevity: based on weeks in theater
+    weeks = film.get('actual_weeks_in_theater', film.get('weeks_in_theater', 1))
+    longevity_score = min(100, weeks * 10)
+    
+    # Weighted average
+    total_score = (
+        quality_score * 0.30 +
+        revenue_score * 0.25 +
+        likes_score * 0.20 +
+        awards_score * 0.15 +
+        longevity_score * 0.10
+    )
+    
+    return round(total_score, 2)
+
+@api_router.get("/cineboard/now-playing")
+async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
+    """Get top 50 films currently in theaters, ranked by CineBoard score."""
+    # Get films that are 'in_theaters' status
+    films = await db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(500)
+    
+    # Calculate scores and enrich data
+    for film in films:
+        film['cineboard_score'] = calculate_cineboard_score(film)
+        # Get owner info
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
+        film['owner'] = owner
+        # Check if current user liked
+        film['user_liked'] = user['id'] in film.get('liked_by', [])
+    
+    # Sort by score and take top 50
+    sorted_films = sorted(films, key=lambda x: x['cineboard_score'], reverse=True)[:50]
+    
+    # Add ranks
+    for i, film in enumerate(sorted_films):
+        film['rank'] = i + 1
+    
+    return {'films': sorted_films}
+
+@api_router.get("/cineboard/hall-of-fame")
+async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
+    """Get all-time top films (Hall of Fame), ranked by CineBoard score."""
+    # Get all completed films (not just in theaters)
+    films = await db.films.find(
+        {'status': {'$in': ['completed', 'in_theaters']}},
+        {'_id': 0}
+    ).to_list(1000)
+    
+    # Calculate scores and enrich data
+    for film in films:
+        film['cineboard_score'] = calculate_cineboard_score(film)
+        # Get owner info
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
+        film['owner'] = owner
+        # Check if current user liked
+        film['user_liked'] = user['id'] in film.get('liked_by', [])
+        # Mark if high enough score for Hall of Fame
+        film['hall_of_fame'] = film['cineboard_score'] >= 60
+    
+    # Sort by score and take top 100
+    sorted_films = sorted(films, key=lambda x: x['cineboard_score'], reverse=True)[:100]
+    
+    # Add ranks
+    for i, film in enumerate(sorted_films):
+        film['rank'] = i + 1
+    
+    return {'films': sorted_films}
 
 # ==================== PLAYER PROFILE (PUBLIC) ====================
 

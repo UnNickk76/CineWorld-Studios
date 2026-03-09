@@ -43,6 +43,7 @@ from cast_system import (
     calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL,
     calculate_stars, calculate_fame_from_career, get_fame_category_from_score, calculate_cast_cost,
     calculate_cast_film_bonus, get_skill_translation, get_category_translation,
+    calculate_cast_affinity, get_affinity_description,
     EXPANDED_NAMES, FILMING_LOCATIONS, CAST_CATEGORIES,
     ACTOR_SKILLS, DIRECTOR_SKILLS, SCREENWRITER_SKILLS, COMPOSER_SKILLS
 )
@@ -1804,6 +1805,211 @@ async def preview_cast_bonus(
         'bonus': bonus_info
     }
 
+class AffinityPreviewRequest(BaseModel):
+    cast_ids: List[str] = []
+
+@api_router.post("/cast/affinity-preview")
+async def preview_cast_affinity(
+    request: AffinityPreviewRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Preview affinity bonus for a group of cast members based on their collaboration history.
+    cast_ids: List of person IDs (actors, director, screenwriter, composer)
+    """
+    cast_ids = request.cast_ids
+    user_id = user['id']
+    language = user.get('language', 'en')
+    
+    # Get all user's films to build collaboration history
+    user_films = await db.films.find({'user_id': user_id}, {'_id': 0, 'cast': 1, 'director': 1, 'screenwriter': 1, 'composer': 1}).to_list(1000)
+    
+    # Build collaboration history
+    collaboration_history = {}
+    
+    for film in user_films:
+        # Collect all cast IDs from this film
+        film_cast_ids = []
+        
+        # Actors
+        for actor in film.get('cast', []):
+            actor_id = actor.get('actor_id') or actor.get('id')
+            if actor_id:
+                film_cast_ids.append(actor_id)
+        
+        # Director
+        dir_info = film.get('director', {})
+        dir_id = dir_info.get('id')
+        if dir_id:
+            film_cast_ids.append(dir_id)
+        
+        # Screenwriter
+        sw_info = film.get('screenwriter', {})
+        sw_id = sw_info.get('id')
+        if sw_id:
+            film_cast_ids.append(sw_id)
+        
+        # Composer
+        comp_info = film.get('composer', {})
+        comp_id = comp_info.get('id')
+        if comp_id:
+            film_cast_ids.append(comp_id)
+        
+        # Count collaborations between all pairs in this film
+        for i, id1 in enumerate(film_cast_ids):
+            if id1 not in collaboration_history:
+                collaboration_history[id1] = {}
+            for id2 in film_cast_ids[i+1:]:
+                if id2 not in collaboration_history[id1]:
+                    collaboration_history[id1][id2] = 0
+                collaboration_history[id1][id2] += 1
+                
+                # Bidirectional
+                if id2 not in collaboration_history:
+                    collaboration_history[id2] = {}
+                if id1 not in collaboration_history[id2]:
+                    collaboration_history[id2][id1] = 0
+                collaboration_history[id2][id1] += 1
+    
+    # Filter to only include the requested cast_ids
+    filtered_history = {}
+    for person_id in cast_ids:
+        if person_id in collaboration_history:
+            filtered_history[person_id] = {
+                k: v for k, v in collaboration_history[person_id].items() 
+                if k in cast_ids
+            }
+    
+    # Calculate affinity
+    affinity_result = calculate_cast_affinity(filtered_history)
+    
+    # Enrich with names and descriptions
+    enriched_pairs = []
+    for pair_info in affinity_result['affinity_pairs']:
+        pair_ids = pair_info['pair']
+        
+        # Get names
+        person1 = await db.people.find_one({'id': pair_ids[0]}, {'_id': 0, 'name': 1, 'type': 1})
+        person2 = await db.people.find_one({'id': pair_ids[1]}, {'_id': 0, 'name': 1, 'type': 1})
+        
+        enriched_pairs.append({
+            'person1': {'id': pair_ids[0], 'name': person1.get('name') if person1 else 'Unknown', 'type': person1.get('type') if person1 else 'unknown'},
+            'person2': {'id': pair_ids[1], 'name': person2.get('name') if person2 else 'Unknown', 'type': person2.get('type') if person2 else 'unknown'},
+            'films_together': pair_info['films_together'],
+            'bonus_percent': pair_info['bonus_percent'],
+            'affinity_level': get_affinity_description(pair_info['films_together'], language)
+        })
+    
+    return {
+        'total_bonus_percent': affinity_result['total_bonus_percent'],
+        'affinity_pairs': enriched_pairs,
+        'was_capped': affinity_result['was_capped']
+    }
+
+@api_router.get("/stats/detailed")
+async def get_detailed_stats(user: dict = Depends(get_current_user)):
+    """Get detailed statistics breakdown for the dashboard."""
+    user_id = user['id']
+    
+    # Get all films
+    all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(1000)
+    
+    # Films breakdown
+    films_by_genre = {}
+    films_by_month = {}
+    films_by_quality = {'excellent': 0, 'good': 0, 'average': 0, 'poor': 0}
+    
+    for film in all_films:
+        # By genre
+        genre = film.get('genre', 'unknown')
+        films_by_genre[genre] = films_by_genre.get(genre, 0) + 1
+        
+        # By month
+        created = film.get('created_at', '')
+        if created:
+            month_key = created[:7]  # YYYY-MM
+            films_by_month[month_key] = films_by_month.get(month_key, 0) + 1
+        
+        # By quality
+        quality = film.get('quality_score', 0)
+        if quality >= 80:
+            films_by_quality['excellent'] += 1
+        elif quality >= 60:
+            films_by_quality['good'] += 1
+        elif quality >= 40:
+            films_by_quality['average'] += 1
+        else:
+            films_by_quality['poor'] += 1
+    
+    # Revenue breakdown
+    total_revenue = sum(f.get('revenue', 0) for f in all_films)
+    revenue_by_genre = {}
+    for film in all_films:
+        genre = film.get('genre', 'unknown')
+        revenue_by_genre[genre] = revenue_by_genre.get(genre, 0) + film.get('revenue', 0)
+    
+    # Top 5 films by revenue
+    top_films_revenue = sorted(all_films, key=lambda x: x.get('revenue', 0), reverse=True)[:5]
+    
+    # Likes breakdown
+    total_likes = sum(f.get('likes', 0) for f in all_films)
+    top_films_likes = sorted(all_films, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+    
+    # Quality breakdown
+    avg_quality = sum(f.get('quality_score', 0) for f in all_films) / len(all_films) if all_films else 0
+    
+    # Social stats
+    social_score = user.get('social_score', 0)
+    charm_score = user.get('charm_score', 0)
+    
+    # Infrastructure stats
+    infrastructure = user.get('infrastructure', [])
+    infra_by_type = {}
+    total_infra_value = 0
+    for infra in infrastructure:
+        infra_type = infra.get('type', 'cinema')
+        infra_by_type[infra_type] = infra_by_type.get(infra_type, 0) + 1
+        total_infra_value += infra.get('purchase_cost', 0)
+    
+    return {
+        'films': {
+            'total': len(all_films),
+            'by_genre': films_by_genre,
+            'by_month': films_by_month,
+            'by_quality': films_by_quality,
+            'top_by_revenue': [{'id': f.get('id'), 'title': f.get('title'), 'revenue': f.get('revenue', 0)} for f in top_films_revenue],
+            'top_by_likes': [{'id': f.get('id'), 'title': f.get('title'), 'likes': f.get('likes', 0)} for f in top_films_likes]
+        },
+        'revenue': {
+            'total': total_revenue,
+            'by_genre': revenue_by_genre,
+            'average_per_film': total_revenue / len(all_films) if all_films else 0
+        },
+        'likes': {
+            'total': total_likes,
+            'average_per_film': total_likes / len(all_films) if all_films else 0
+        },
+        'quality': {
+            'average': round(avg_quality, 1),
+            'distribution': films_by_quality
+        },
+        'social': {
+            'social_score': social_score,
+            'charm_score': charm_score
+        },
+        'infrastructure': {
+            'total_count': len(infrastructure),
+            'by_type': infra_by_type,
+            'total_value': total_infra_value
+        },
+        'progression': {
+            'level': user.get('level', 1),
+            'xp': user.get('xp', 0),
+            'fame': user.get('fame', 0),
+            'xp_to_next_level': calculate_xp_for_level(user.get('level', 1) + 1) - user.get('xp', 0)
+        }
+    }
+
 # Actor Roles for films
 ACTOR_ROLES = [
     {'id': 'protagonist', 'name': 'Protagonist', 'name_it': 'Protagonista', 'name_es': 'Protagonista', 'name_fr': 'Protagoniste', 'name_de': 'Hauptdarsteller'},
@@ -1817,6 +2023,221 @@ ACTOR_ROLES = [
 async def get_actor_roles():
     """Get available actor roles for film casting"""
     return ACTOR_ROLES
+
+# ==================== FILM ONE-TIME ACTIONS ====================
+
+@api_router.get("/films/{film_id}/actions")
+async def get_film_actions(film_id: str, user: dict = Depends(get_current_user)):
+    """Get the status of one-time actions for a film."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'user_id': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    is_owner = film.get('user_id') == user['id']
+    actions_performed = film.get('actions_performed', {})
+    
+    return {
+        'film_id': film_id,
+        'is_owner': is_owner,
+        'actions': {
+            'create_star': {
+                'performed': actions_performed.get('create_star', False),
+                'performed_at': actions_performed.get('create_star_at'),
+                'available': is_owner and not actions_performed.get('create_star', False)
+            },
+            'skill_boost': {
+                'performed': actions_performed.get('skill_boost', False),
+                'performed_at': actions_performed.get('skill_boost_at'),
+                'available': is_owner and not actions_performed.get('skill_boost', False)
+            },
+            'generate_trailer': {
+                'performed': bool(film.get('trailer_url')),
+                'trailer_url': film.get('trailer_url'),
+                'available': is_owner and not film.get('trailer_url')
+            }
+        }
+    }
+
+@api_router.post("/films/{film_id}/action/create-star")
+async def perform_create_star_action(film_id: str, actor_id: str = Query(...), user: dict = Depends(get_current_user)):
+    """Promote an actor from this film to star status. Can only be done once per film."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+    
+    # Check if action already performed
+    actions_performed = film.get('actions_performed', {})
+    if actions_performed.get('create_star'):
+        raise HTTPException(status_code=400, detail="Create Star action already used for this film")
+    
+    # Find the actor in the film's cast
+    actor_in_film = None
+    for actor in film.get('cast', []):
+        if actor.get('actor_id') == actor_id or actor.get('id') == actor_id:
+            actor_in_film = actor
+            break
+    
+    if not actor_in_film:
+        raise HTTPException(status_code=404, detail="Actor not found in this film's cast")
+    
+    # Get actor from DB
+    actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
+    if not actor:
+        raise HTTPException(status_code=404, detail="Actor not found")
+    
+    # Promote to star
+    await db.people.update_one(
+        {'id': actor_id},
+        {
+            '$set': {
+                'is_discovered_star': True,
+                'discovered_by': user['id'],
+                'discovered_at': datetime.now(timezone.utc).isoformat(),
+                'fame_category': 'famous',
+                'category': 'star'
+            },
+            '$inc': {'fame_score': 30}
+        }
+    )
+    
+    # Mark action as performed
+    await db.films.update_one(
+        {'id': film_id},
+        {
+            '$set': {
+                'actions_performed.create_star': True,
+                'actions_performed.create_star_at': datetime.now(timezone.utc).isoformat(),
+                'actions_performed.create_star_actor_id': actor_id
+            }
+        }
+    )
+    
+    # Award XP to user
+    await db.users.update_one({'id': user['id']}, {'$inc': {'xp': 500, 'fame': 10}})
+    
+    return {
+        'success': True,
+        'message': f"{actor.get('name')} is now a star!",
+        'actor_name': actor.get('name'),
+        'new_category': 'star'
+    }
+
+@api_router.post("/films/{film_id}/action/skill-boost")
+async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_current_user)):
+    """Boost skills of all cast members in this film. Can only be done once per film."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+    
+    # Check if action already performed
+    actions_performed = film.get('actions_performed', {})
+    if actions_performed.get('skill_boost'):
+        raise HTTPException(status_code=400, detail="Skill Boost action already used for this film")
+    
+    boosted_cast = []
+    
+    # Boost actors
+    for actor in film.get('cast', []):
+        actor_id = actor.get('actor_id') or actor.get('id')
+        if actor_id:
+            actor_doc = await db.people.find_one({'id': actor_id}, {'_id': 0, 'skills': 1, 'name': 1})
+            if actor_doc and actor_doc.get('skills'):
+                # Boost random skill by 1-2 points
+                skill_keys = list(actor_doc['skills'].keys())
+                if skill_keys:
+                    skill_to_boost = random.choice(skill_keys)
+                    boost_amount = random.randint(1, 2)
+                    new_value = min(10, actor_doc['skills'][skill_to_boost] + boost_amount)
+                    await db.people.update_one(
+                        {'id': actor_id},
+                        {'$set': {f'skills.{skill_to_boost}': new_value}}
+                    )
+                    boosted_cast.append({
+                        'name': actor_doc.get('name'),
+                        'type': 'actor',
+                        'skill': skill_to_boost,
+                        'boost': boost_amount
+                    })
+    
+    # Boost director
+    director = film.get('director', {})
+    if director.get('id'):
+        dir_doc = await db.people.find_one({'id': director['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+        if dir_doc and dir_doc.get('skills'):
+            skill_keys = list(dir_doc['skills'].keys())
+            if skill_keys:
+                skill_to_boost = random.choice(skill_keys)
+                boost_amount = random.randint(1, 2)
+                new_value = min(10, dir_doc['skills'][skill_to_boost] + boost_amount)
+                await db.people.update_one(
+                    {'id': director['id']},
+                    {'$set': {f'skills.{skill_to_boost}': new_value}}
+                )
+                boosted_cast.append({
+                    'name': dir_doc.get('name'),
+                    'type': 'director',
+                    'skill': skill_to_boost,
+                    'boost': boost_amount
+                })
+    
+    # Boost screenwriter
+    sw = film.get('screenwriter', {})
+    if sw.get('id'):
+        sw_doc = await db.people.find_one({'id': sw['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+        if sw_doc and sw_doc.get('skills'):
+            skill_keys = list(sw_doc['skills'].keys())
+            if skill_keys:
+                skill_to_boost = random.choice(skill_keys)
+                boost_amount = random.randint(1, 2)
+                new_value = min(10, sw_doc['skills'][skill_to_boost] + boost_amount)
+                await db.people.update_one(
+                    {'id': sw['id']},
+                    {'$set': {f'skills.{skill_to_boost}': new_value}}
+                )
+                boosted_cast.append({
+                    'name': sw_doc.get('name'),
+                    'type': 'screenwriter',
+                    'skill': skill_to_boost,
+                    'boost': boost_amount
+                })
+    
+    # Boost composer
+    comp = film.get('composer', {})
+    if comp.get('id'):
+        comp_doc = await db.people.find_one({'id': comp['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+        if comp_doc and comp_doc.get('skills'):
+            skill_keys = list(comp_doc['skills'].keys())
+            if skill_keys:
+                skill_to_boost = random.choice(skill_keys)
+                boost_amount = random.randint(1, 2)
+                new_value = min(10, comp_doc['skills'][skill_to_boost] + boost_amount)
+                await db.people.update_one(
+                    {'id': comp['id']},
+                    {'$set': {f'skills.{skill_to_boost}': new_value}}
+                )
+                boosted_cast.append({
+                    'name': comp_doc.get('name'),
+                    'type': 'composer',
+                    'skill': skill_to_boost,
+                    'boost': boost_amount
+                })
+    
+    # Mark action as performed
+    await db.films.update_one(
+        {'id': film_id},
+        {
+            '$set': {
+                'actions_performed.skill_boost': True,
+                'actions_performed.skill_boost_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {
+        'success': True,
+        'message': f"Boosted skills for {len(boosted_cast)} cast members!",
+        'boosted_cast': boosted_cast
+    }
 
 
 # Film Management
@@ -3260,6 +3681,63 @@ async def get_user_profile(user_id: str, user: dict = Depends(get_current_user))
     profile['is_online'] = user_id in online_users
     
     return profile
+
+@api_router.get("/users/{user_id}/full-profile")
+async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_user)):
+    """Get full detailed profile of a user including all stats and films."""
+    profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get all films
+    all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(100)
+    
+    # Calculate detailed stats
+    total_films = len(all_films)
+    total_revenue = sum(f.get('revenue', 0) for f in all_films)
+    total_likes = sum(f.get('likes', 0) for f in all_films)
+    total_views = sum(f.get('views', 0) for f in all_films)
+    avg_quality = sum(f.get('quality_score', 0) for f in all_films) / total_films if total_films > 0 else 0
+    
+    # Genre breakdown
+    genre_counts = {}
+    for f in all_films:
+        genre = f.get('genre', 'unknown')
+        genre_counts[genre] = genre_counts.get(genre, 0) + 1
+    
+    # Best performing film
+    best_film = max(all_films, key=lambda x: x.get('revenue', 0)) if all_films else None
+    
+    # Awards count
+    awards = profile.get('awards', [])
+    
+    # Infrastructure count
+    infrastructure = profile.get('infrastructure', [])
+    
+    return {
+        'user': profile,
+        'is_online': user_id in online_users,
+        'is_own_profile': user_id == user['id'],
+        'stats': {
+            'total_films': total_films,
+            'total_revenue': total_revenue,
+            'total_likes': total_likes,
+            'total_views': total_views,
+            'avg_quality': round(avg_quality, 1),
+            'awards_count': len(awards),
+            'infrastructure_count': len(infrastructure),
+            'level': profile.get('level', 1),
+            'xp': profile.get('xp', 0),
+            'fame': profile.get('fame', 0),
+            'funds': profile.get('funds', 0)
+        },
+        'genre_breakdown': genre_counts,
+        'best_film': best_film,
+        'recent_films': all_films[:10],
+        'all_films': all_films,
+        'awards': awards,
+        'infrastructure': infrastructure
+    }
 
 # Chat System
 @api_router.get("/chat/rooms")

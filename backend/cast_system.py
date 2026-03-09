@@ -529,6 +529,85 @@ def get_category_translation(category: str, language: str = 'en') -> str:
     cat_info = CAST_CATEGORIES.get(category, {})
     return cat_info.get(language, cat_info.get('en', category))
 
+# ==================== CAST AFFINITY SYSTEM ====================
+
+def calculate_cast_affinity(cast_collaboration_history: Dict[str, Dict[str, int]]) -> Dict:
+    """
+    Calculate affinity bonus based on how many times cast members have worked together.
+    
+    cast_collaboration_history: {
+        'actor1_id': {'actor2_id': 3, 'director_id': 2, ...},
+        'director_id': {'actor1_id': 2, ...}
+    }
+    
+    Returns: {
+        'total_bonus_percent': float,
+        'affinity_pairs': [{'pair': [id1, id2], 'films_together': int, 'bonus': float}, ...]
+    }
+    """
+    affinity_pairs = []
+    processed_pairs = set()
+    total_bonus = 0.0
+    
+    AFFINITY_BONUS_PER_FILM = 2.0  # +2% per ogni film fatto insieme
+    MAX_AFFINITY_BONUS_PER_PAIR = 10.0  # Max +10% per coppia
+    
+    for person1_id, collaborators in cast_collaboration_history.items():
+        for person2_id, films_together in collaborators.items():
+            # Create a sorted tuple to avoid counting pairs twice
+            pair_key = tuple(sorted([person1_id, person2_id]))
+            
+            if pair_key not in processed_pairs and films_together > 0:
+                processed_pairs.add(pair_key)
+                
+                # Calculate bonus for this pair
+                pair_bonus = min(films_together * AFFINITY_BONUS_PER_FILM, MAX_AFFINITY_BONUS_PER_PAIR)
+                total_bonus += pair_bonus
+                
+                affinity_pairs.append({
+                    'pair': list(pair_key),
+                    'films_together': films_together,
+                    'bonus_percent': pair_bonus
+                })
+    
+    # Cap total affinity bonus at 30%
+    MAX_TOTAL_AFFINITY_BONUS = 30.0
+    capped_total = min(total_bonus, MAX_TOTAL_AFFINITY_BONUS)
+    
+    return {
+        'total_bonus_percent': capped_total,
+        'affinity_pairs': affinity_pairs,
+        'uncapped_bonus': total_bonus,
+        'was_capped': total_bonus > MAX_TOTAL_AFFINITY_BONUS
+    }
+
+def get_affinity_description(films_together: int, language: str = 'en') -> str:
+    """Get a description for the affinity level."""
+    descriptions = {
+        'en': {
+            1: 'Acquaintances',
+            2: 'Colleagues',
+            3: 'Regular Partners',
+            5: 'Close Collaborators',
+            8: 'Dream Team'
+        },
+        'it': {
+            1: 'Conoscenti',
+            2: 'Colleghi',
+            3: 'Partner Abituali',
+            5: 'Collaboratori Affiatati',
+            8: 'Dream Team'
+        }
+    }
+    
+    lang_desc = descriptions.get(language, descriptions['en'])
+    
+    for threshold in sorted(lang_desc.keys(), reverse=True):
+        if films_together >= threshold:
+            return lang_desc[threshold]
+    
+    return lang_desc.get(1, 'Unknown')
+
 # ==================== INFRASTRUCTURE TRADING ====================
 
 def calculate_infrastructure_value(infrastructure: dict, market_conditions: float = 1.0) -> dict:

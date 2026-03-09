@@ -585,6 +585,389 @@ const SkillBadge = ({ name, value, change, language = 'it' }) => {
   );
 };
 
+// User Profile Modal Component
+const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
+  const { language } = useContext(LanguageContext);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (isOpen && userId) {
+      setLoading(true);
+      api.get(`/users/${userId}/full-profile`)
+        .then(res => {
+          setProfile(res.data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setLoading(false);
+        });
+    }
+  }, [isOpen, userId, api]);
+  
+  if (!isOpen) return null;
+  
+  const t = (key) => {
+    const translations = {
+      level: language === 'it' ? 'Livello' : 'Level',
+      films: language === 'it' ? 'Film' : 'Films',
+      revenue: language === 'it' ? 'Incassi' : 'Revenue',
+      likes: language === 'it' ? 'Like' : 'Likes',
+      quality: language === 'it' ? 'Qualità Media' : 'Avg Quality',
+      awards: language === 'it' ? 'Premi' : 'Awards',
+      infrastructure: language === 'it' ? 'Infrastrutture' : 'Infrastructure',
+      sendMessage: language === 'it' ? 'Invia Messaggio' : 'Send Message',
+      viewFilms: language === 'it' ? 'Vedi Film' : 'View Films',
+      close: language === 'it' ? 'Chiudi' : 'Close',
+      online: language === 'it' ? 'Online' : 'Online',
+      offline: language === 'it' ? 'Offline' : 'Offline',
+      bestFilm: language === 'it' ? 'Miglior Film' : 'Best Film',
+      recentFilms: language === 'it' ? 'Film Recenti' : 'Recent Films'
+    };
+    return translations[key] || key;
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="user-profile-modal">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : profile ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16">
+                  <AvatarImage src={profile.user?.avatar_url} />
+                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xl">{profile.user?.nickname?.[0]}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <DialogTitle className="text-xl flex items-center gap-2">
+                    {profile.user?.nickname}
+                    {profile.is_online ? (
+                      <Badge className="bg-green-500/20 text-green-400 text-xs">{t('online')}</Badge>
+                    ) : (
+                      <Badge className="bg-gray-500/20 text-gray-400 text-xs">{t('offline')}</Badge>
+                    )}
+                  </DialogTitle>
+                  <p className="text-sm text-gray-400">{profile.user?.production_house_name}</p>
+                  <p className="text-xs text-yellow-500">{t('level')} {profile.stats?.level}</p>
+                </div>
+              </div>
+            </DialogHeader>
+            
+            {/* Stats Grid */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 my-4">
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-yellow-500">{profile.stats?.total_films}</p>
+                <p className="text-xs text-gray-400">{t('films')}</p>
+              </div>
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-green-500">${(profile.stats?.total_revenue / 1000000).toFixed(1)}M</p>
+                <p className="text-xs text-gray-400">{t('revenue')}</p>
+              </div>
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-pink-500">{profile.stats?.total_likes}</p>
+                <p className="text-xs text-gray-400">{t('likes')}</p>
+              </div>
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-blue-500">{profile.stats?.avg_quality}%</p>
+                <p className="text-xs text-gray-400">{t('quality')}</p>
+              </div>
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-purple-500">{profile.stats?.awards_count}</p>
+                <p className="text-xs text-gray-400">{t('awards')}</p>
+              </div>
+              <div className="bg-black/30 rounded p-2 text-center">
+                <p className="text-lg font-bold text-orange-500">{profile.stats?.infrastructure_count}</p>
+                <p className="text-xs text-gray-400">{t('infrastructure')}</p>
+              </div>
+            </div>
+            
+            {/* Best Film */}
+            {profile.best_film && (
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-yellow-500" />
+                  {t('bestFilm')}
+                </h4>
+                <Card className="bg-black/30 border-yellow-500/30">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    {profile.best_film.poster_url && (
+                      <img src={profile.best_film.poster_url} alt="" className="w-12 h-16 object-cover rounded" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold">{profile.best_film.title}</p>
+                      <p className="text-xs text-gray-400">{profile.best_film.genre} • {profile.best_film.quality_score}% quality</p>
+                      <p className="text-xs text-green-500">${(profile.best_film.revenue / 1000000).toFixed(2)}M revenue</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            
+            {/* Recent Films */}
+            {profile.recent_films?.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Film className="w-4 h-4 text-blue-500" />
+                  {t('recentFilms')}
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {profile.recent_films.slice(0, 4).map(film => (
+                    <Card key={film.id} className="bg-black/30 border-white/10">
+                      <CardContent className="p-2">
+                        <p className="text-xs font-semibold truncate">{film.title}</p>
+                        <p className="text-[10px] text-gray-400">{film.genre}</p>
+                        <p className="text-[10px] text-yellow-500">{film.quality_score}%</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Actions */}
+            {!profile.is_own_profile && (
+              <div className="flex gap-2 mt-4">
+                <Button 
+                  className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400"
+                  onClick={() => {
+                    onClose();
+                    navigate('/chat');
+                  }}
+                  data-testid="send-message-btn"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  {t('sendMessage')}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-12 text-gray-400">User not found</div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Stats Detail Modal Component
+const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
+  const { language } = useContext(LanguageContext);
+  const [detailedStats, setDetailedStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      api.get('/stats/detailed')
+        .then(res => {
+          setDetailedStats(res.data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setLoading(false);
+        });
+    }
+  }, [isOpen, api]);
+  
+  if (!isOpen) return null;
+  
+  const t = (key) => {
+    const translations = {
+      films: language === 'it' ? 'Film' : 'Films',
+      revenue: language === 'it' ? 'Incassi' : 'Revenue',
+      likes: language === 'it' ? 'Like' : 'Likes',
+      quality: language === 'it' ? 'Qualità' : 'Quality',
+      byGenre: language === 'it' ? 'Per Genere' : 'By Genre',
+      topFilms: language === 'it' ? 'Top Film' : 'Top Films',
+      distribution: language === 'it' ? 'Distribuzione' : 'Distribution',
+      excellent: language === 'it' ? 'Eccellente' : 'Excellent',
+      good: language === 'it' ? 'Buono' : 'Good',
+      average: language === 'it' ? 'Medio' : 'Average',
+      poor: language === 'it' ? 'Scarso' : 'Poor',
+      total: language === 'it' ? 'Totale' : 'Total',
+      avgPerFilm: language === 'it' ? 'Media per Film' : 'Average per Film'
+    };
+    return translations[key] || key;
+  };
+  
+  const renderContent = () => {
+    if (!detailedStats) return null;
+    
+    switch(statType) {
+      case 'films':
+        return (
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('byGenre')}</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(detailedStats.films?.by_genre || {}).map(([genre, count]) => (
+                  <div key={genre} className="bg-black/30 rounded p-2 flex justify-between">
+                    <span className="text-xs text-gray-400">{genre}</span>
+                    <span className="text-xs font-bold text-yellow-500">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('quality')} {t('distribution')}</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-green-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-green-500">{detailedStats.films?.by_quality?.excellent || 0}</p>
+                  <p className="text-xs text-gray-400">{t('excellent')} (80%+)</p>
+                </div>
+                <div className="bg-blue-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-blue-500">{detailedStats.films?.by_quality?.good || 0}</p>
+                  <p className="text-xs text-gray-400">{t('good')} (60-79%)</p>
+                </div>
+                <div className="bg-yellow-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-yellow-500">{detailedStats.films?.by_quality?.average || 0}</p>
+                  <p className="text-xs text-gray-400">{t('average')} (40-59%)</p>
+                </div>
+                <div className="bg-red-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-red-500">{detailedStats.films?.by_quality?.poor || 0}</p>
+                  <p className="text-xs text-gray-400">{t('poor')} (&lt;40%)</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('revenue')})</h4>
+              <div className="space-y-1">
+                {(detailedStats.films?.top_by_revenue || []).map((film, i) => (
+                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center">
+                    <span className="text-xs">{i + 1}. {film.title}</span>
+                    <span className="text-xs text-green-500">${(film.revenue / 1000000).toFixed(2)}M</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'revenue':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-green-500/10 rounded p-3 text-center">
+                <p className="text-2xl font-bold text-green-500">${((detailedStats.revenue?.total || 0) / 1000000).toFixed(2)}M</p>
+                <p className="text-xs text-gray-400">{t('total')}</p>
+              </div>
+              <div className="bg-blue-500/10 rounded p-3 text-center">
+                <p className="text-2xl font-bold text-blue-500">${((detailedStats.revenue?.average_per_film || 0) / 1000000).toFixed(2)}M</p>
+                <p className="text-xs text-gray-400">{t('avgPerFilm')}</p>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('byGenre')}</h4>
+              <div className="space-y-1">
+                {Object.entries(detailedStats.revenue?.by_genre || {}).sort((a, b) => b[1] - a[1]).map(([genre, amount]) => (
+                  <div key={genre} className="bg-black/30 rounded p-2 flex justify-between">
+                    <span className="text-xs text-gray-400">{genre}</span>
+                    <span className="text-xs font-bold text-green-500">${(amount / 1000000).toFixed(2)}M</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'likes':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-pink-500/10 rounded p-3 text-center">
+                <p className="text-2xl font-bold text-pink-500">{detailedStats.likes?.total || 0}</p>
+                <p className="text-xs text-gray-400">{t('total')} {t('likes')}</p>
+              </div>
+              <div className="bg-blue-500/10 rounded p-3 text-center">
+                <p className="text-2xl font-bold text-blue-500">{(detailedStats.likes?.average_per_film || 0).toFixed(1)}</p>
+                <p className="text-xs text-gray-400">{t('avgPerFilm')}</p>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('likes')})</h4>
+              <div className="space-y-1">
+                {(detailedStats.films?.top_by_likes || []).map((film, i) => (
+                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center">
+                    <span className="text-xs">{i + 1}. {film.title}</span>
+                    <span className="text-xs text-pink-500">{film.likes} likes</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'quality':
+        return (
+          <div className="space-y-4">
+            <div className="bg-blue-500/10 rounded p-4 text-center">
+              <p className="text-3xl font-bold text-blue-500">{(detailedStats.quality?.average || 0).toFixed(1)}%</p>
+              <p className="text-sm text-gray-400">{t('average')} {t('quality')}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">{t('distribution')}</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-green-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-green-500">{detailedStats.quality?.distribution?.excellent || 0}</p>
+                  <p className="text-xs text-gray-400">{t('excellent')} (80%+)</p>
+                </div>
+                <div className="bg-blue-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-blue-500">{detailedStats.quality?.distribution?.good || 0}</p>
+                  <p className="text-xs text-gray-400">{t('good')} (60-79%)</p>
+                </div>
+                <div className="bg-yellow-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-yellow-500">{detailedStats.quality?.distribution?.average || 0}</p>
+                  <p className="text-xs text-gray-400">{t('average')} (40-59%)</p>
+                </div>
+                <div className="bg-red-500/10 rounded p-2 text-center">
+                  <p className="text-lg font-bold text-red-500">{detailedStats.quality?.distribution?.poor || 0}</p>
+                  <p className="text-xs text-gray-400">{t('poor')} (&lt;40%)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+        
+      default:
+        return <p className="text-gray-400 text-center py-8">Select a stat to view details</p>;
+    }
+  };
+  
+  const getTitleForStat = () => {
+    const titles = {
+      films: language === 'it' ? 'Dettagli Film' : 'Films Details',
+      revenue: language === 'it' ? 'Dettagli Incassi' : 'Revenue Details',
+      likes: language === 'it' ? 'Dettagli Like' : 'Likes Details',
+      quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details'
+    };
+    return titles[statType] || 'Details';
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md" data-testid="stats-detail-modal">
+        <DialogHeader>
+          <DialogTitle>{getTitleForStat()}</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : (
+          renderContent()
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Dashboard Page
 const Dashboard = () => {
   const { user, api } = useContext(AuthContext);
@@ -593,6 +976,15 @@ const Dashboard = () => {
   const [films, setFilms] = useState([]);
   const [challenges, setChallenges] = useState({ daily: [], weekly: [] });
   const navigate = useNavigate();
+  
+  // Stats detail modal state
+  const [showStatsDetail, setShowStatsDetail] = useState(false);
+  const [selectedStatType, setSelectedStatType] = useState(null);
+  
+  const openStatDetail = (statType) => {
+    setSelectedStatType(statType);
+    setShowStatsDetail(true);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -623,18 +1015,24 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         {[
-          { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow' },
-          { label: 'Revenue', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green' },
-          { label: 'Likes', value: stats?.total_likes || 0, icon: Heart, color: 'red' },
-          { label: 'Quality', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue' }
+          { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow', statType: 'films' },
+          { label: 'Revenue', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
+          { label: 'Likes', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
+          { label: 'Quality', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
         ].map((stat, i) => (
-          <Card key={stat.label} className="bg-[#1A1A1A] border-white/5">
+          <Card 
+            key={stat.label} 
+            className="bg-[#1A1A1A] border-white/5 cursor-pointer hover:border-white/20 transition-colors"
+            onClick={() => openStatDetail(stat.statType)}
+            data-testid={`stat-card-${stat.statType}`}
+          >
             <CardContent className="p-2.5 flex items-center gap-2">
               <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
               <div>
                 <p className="text-lg font-bold">{stat.value}</p>
                 <p className="text-xs text-gray-400">{stat.label}</p>
               </div>
+              <ChevronRight className="w-4 h-4 text-gray-500 ml-auto" />
             </CardContent>
           </Card>
         ))}
@@ -725,6 +1123,14 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      
+      {/* Stats Detail Modal */}
+      <StatsDetailModal
+        isOpen={showStatsDetail}
+        onClose={() => setShowStatsDetail(false)}
+        statType={selectedStatType}
+        api={api}
+      />
     </div>
   );
 };
@@ -1537,17 +1943,23 @@ const FilmDetail = () => {
   const [trailerStatus, setTrailerStatus] = useState(null);
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
   const navigate = useNavigate();
+  
+  // One-time actions state
+  const [filmActions, setFilmActions] = useState(null);
+  const [performingAction, setPerformingAction] = useState(null);
 
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    const [filmRes, rolesRes, trailerRes] = await Promise.all([
+    const [filmRes, rolesRes, trailerRes, actionsRes] = await Promise.all([
       api.get(`/films/${id}`),
       api.get('/actor-roles').catch(() => ({ data: [] })),
-      api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null }))
+      api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
+      api.get(`/films/${id}/actions`).catch(() => ({ data: null }))
     ]);
     setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
     if (trailerRes.data) setTrailerStatus(trailerRes.data);
+    if (actionsRes.data) setFilmActions(actionsRes.data);
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -1563,6 +1975,54 @@ const FilmDetail = () => {
   useEffect(() => { loadFilm(); }, [api]);
   
   if (!film) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
+  
+  // Check if current user is the owner
+  const isOwner = filmActions?.is_owner || film.user_id === user?.id;
+  
+  // Check if action is available
+  const isActionAvailable = (actionName) => {
+    if (!isOwner) return false;
+    if (!filmActions) return true; // Default to available if not loaded
+    return filmActions.actions?.[actionName]?.available;
+  };
+  
+  // Perform create star action
+  const performCreateStar = async (actorId) => {
+    if (!isActionAvailable('create_star')) {
+      toast.error(language === 'it' ? 'Azione già utilizzata' : 'Action already used');
+      return;
+    }
+    setPerformingAction('create_star');
+    try {
+      const res = await api.post(`/films/${film.id}/action/create-star?actor_id=${actorId}`);
+      toast.success(res.data.message);
+      loadFilm(); // Reload to update actions state
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+    setPerformingAction(null);
+  };
+  
+  // Perform skill boost action
+  const performSkillBoost = async () => {
+    if (!isActionAvailable('skill_boost')) {
+      toast.error(language === 'it' ? 'Azione già utilizzata' : 'Action already used');
+      return;
+    }
+    setPerformingAction('skill_boost');
+    try {
+      const res = await api.post(`/films/${film.id}/action/skill-boost`);
+      toast.success(res.data.message);
+      // Show individual boosts
+      res.data.boosted_cast?.forEach(b => {
+        toast.info(`${b.name}: ${b.skill} +${b.boost}`);
+      });
+      loadFilm();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+    setPerformingAction(null);
+  };
 
   const processHourlyRevenue = async () => {
     setProcessing(true);
@@ -1728,16 +2188,40 @@ const FilmDetail = () => {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={processHourlyRevenue} disabled={processing} className="bg-green-600 hover:bg-green-500">
-                    {processing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <DollarSign className="w-4 h-4 mr-1" />}
-                    Incassa Ora
-                  </Button>
-                  <Button variant="outline" onClick={checkStarDiscoveries} className="border-yellow-500/30 text-yellow-400">
-                    <Star className="w-4 h-4 mr-1" /> Cerca Stelle
-                  </Button>
-                  <Button variant="outline" onClick={evolveSkills} className="border-blue-500/30 text-blue-400">
-                    <TrendingUp className="w-4 h-4 mr-1" /> Evolvi Skill Cast
-                  </Button>
+                  {/* Hourly revenue - always available for owner */}
+                  {isOwner && (
+                    <Button onClick={processHourlyRevenue} disabled={processing} className="bg-green-600 hover:bg-green-500">
+                      {processing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <DollarSign className="w-4 h-4 mr-1" />}
+                      {language === 'it' ? 'Incassa Ora' : 'Collect Now'}
+                    </Button>
+                  )}
+                  {/* Create Star - ONE TIME */}
+                  {isOwner && (
+                    <Button 
+                      variant="outline" 
+                      onClick={checkStarDiscoveries} 
+                      disabled={!isActionAvailable('create_star') || performingAction === 'create_star'}
+                      className={`border-yellow-500/30 ${!isActionAvailable('create_star') ? 'opacity-50 cursor-not-allowed' : 'text-yellow-400'}`}
+                      title={!isActionAvailable('create_star') ? (language === 'it' ? 'Già utilizzato' : 'Already used') : ''}
+                    >
+                      <Star className="w-4 h-4 mr-1" /> {language === 'it' ? 'Crea Stella' : 'Create Star'}
+                      {!isActionAvailable('create_star') && <Lock className="w-3 h-3 ml-1" />}
+                    </Button>
+                  )}
+                  {/* Skill Boost - ONE TIME */}
+                  {isOwner && (
+                    <Button 
+                      variant="outline" 
+                      onClick={performSkillBoost} 
+                      disabled={!isActionAvailable('skill_boost') || performingAction === 'skill_boost'}
+                      className={`border-blue-500/30 ${!isActionAvailable('skill_boost') ? 'opacity-50 cursor-not-allowed' : 'text-blue-400'}`}
+                      title={!isActionAvailable('skill_boost') ? (language === 'it' ? 'Già utilizzato' : 'Already used') : ''}
+                    >
+                      {performingAction === 'skill_boost' ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <TrendingUp className="w-4 h-4 mr-1" />}
+                      {language === 'it' ? 'Boost Skill Cast' : 'Boost Cast Skills'}
+                      {!isActionAvailable('skill_boost') && <Lock className="w-3 h-3 ml-1" />}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1905,39 +2389,49 @@ const FilmDetail = () => {
               ) : (
                 <div className="text-center py-6 space-y-3">
                   <Film className="w-12 h-12 mx-auto text-purple-400/50" />
-                  <p className="text-gray-400 text-sm">Nessun trailer generato per questo film</p>
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={() => generateTrailer(4)} 
-                        disabled={generatingTrailer}
-                        variant="outline"
-                        className="border-purple-500/30 text-purple-400"
-                        data-testid="generate-trailer-4s"
-                      >
-                        4 sec
-                      </Button>
-                      <Button 
-                        onClick={() => generateTrailer(8)} 
-                        disabled={generatingTrailer}
-                        className="bg-purple-600 hover:bg-purple-500"
-                        data-testid="generate-trailer-btn"
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        8 sec ($50,000)
-                      </Button>
-                      <Button 
-                        onClick={() => generateTrailer(12)} 
-                        disabled={generatingTrailer}
-                        variant="outline"
-                        className="border-purple-500/30 text-purple-400"
-                        data-testid="generate-trailer-12s"
-                      >
-                        12 sec
-                      </Button>
+                  <p className="text-gray-400 text-sm">
+                    {language === 'it' ? 'Nessun trailer generato per questo film' : 'No trailer generated for this film'}
+                  </p>
+                  {/* Only show generation buttons if owner */}
+                  {isOwner && (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => generateTrailer(4)} 
+                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
+                          variant="outline"
+                          className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
+                          data-testid="generate-trailer-4s"
+                        >
+                          4 sec
+                        </Button>
+                        <Button 
+                          onClick={() => generateTrailer(8)} 
+                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
+                          className={`${!isActionAvailable('generate_trailer') ? 'opacity-50 bg-purple-600/50' : 'bg-purple-600 hover:bg-purple-500'}`}
+                          data-testid="generate-trailer-btn"
+                        >
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          8 sec ($50,000)
+                        </Button>
+                        <Button 
+                          onClick={() => generateTrailer(12)} 
+                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
+                          variant="outline"
+                          className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
+                          data-testid="generate-trailer-12s"
+                        >
+                          12 sec
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-gray-500">Generato da Sora 2 • +5 bonus qualità</p>
                     </div>
-                    <p className="text-[10px] text-gray-500">Generato da Sora 2 • +5 bonus qualità</p>
-                  </div>
+                  )}
+                  {!isOwner && (
+                    <p className="text-xs text-gray-500">
+                      {language === 'it' ? 'Solo il proprietario può generare il trailer' : 'Only the owner can generate the trailer'}
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -2351,6 +2845,10 @@ const ChatPage = () => {
   const [activeTab, setActiveTab] = useState('public');
   const [showUsers, setShowUsers] = useState(false);
   const [loadingDM, setLoadingDM] = useState(null);
+  
+  // User profile modal state
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [showUserProfile, setShowUserProfile] = useState(false);
 
   // Fetch rooms and online users
   useEffect(() => {
@@ -2467,32 +2965,49 @@ const ChatPage = () => {
                     <p className="text-xs text-gray-500 text-center py-4">No users online</p>
                   ) : (
                     onlineUsers.map(u => (
-                      <button
+                      <div
                         key={u.id}
-                        onClick={() => startDirectMessage(u.id)}
-                        disabled={loadingDM === u.id}
-                        className="w-full flex items-center gap-2 p-2 rounded hover:bg-white/5 text-left"
-                        data-testid={`dm-user-${u.id}`}
+                        className="w-full flex items-center gap-2 p-2 rounded hover:bg-white/5"
+                        data-testid={`user-row-${u.id}`}
                       >
-                        <Avatar className="w-7 h-7">
-                          <AvatarImage src={u.avatar_url} />
-                          <AvatarFallback className="text-xs bg-yellow-500/20 text-yellow-500">{u.nickname?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <OnlineIndicator isOnline={true} />
-                            <span className="text-xs font-semibold truncate">{u.nickname}</span>
-                            {u.is_bot && u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-red-500/20 text-red-400">MOD</Badge>}
-                            {u.is_bot && !u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-blue-500/20 text-blue-400">BOT</Badge>}
+                        {/* Clickable avatar and name - opens profile */}
+                        <button 
+                          onClick={() => { if (!u.is_bot) { setSelectedUserId(u.id); setShowUserProfile(true); }}}
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                          disabled={u.is_bot}
+                        >
+                          <Avatar className="w-7 h-7 cursor-pointer">
+                            <AvatarImage src={u.avatar_url} />
+                            <AvatarFallback className="text-xs bg-yellow-500/20 text-yellow-500">{u.nickname?.[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <OnlineIndicator isOnline={true} />
+                              <span className="text-xs font-semibold truncate hover:text-yellow-500 cursor-pointer">{u.nickname}</span>
+                              {u.is_bot && u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-red-500/20 text-red-400">MOD</Badge>}
+                              {u.is_bot && !u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-blue-500/20 text-blue-400">BOT</Badge>}
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">{u.is_bot ? u.role : u.production_house_name}</p>
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{u.is_bot ? u.role : u.production_house_name}</p>
-                        </div>
-                        {!u.is_bot && (loadingDM === u.id ? (
-                          <span className="text-xs text-gray-400">...</span>
-                        ) : (
-                          <MessageSquare className="w-3 h-3 text-gray-400" />
-                        ))}
-                      </button>
+                        </button>
+                        {/* DM button */}
+                        {!u.is_bot && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 w-7 p-0"
+                            onClick={() => startDirectMessage(u.id)}
+                            disabled={loadingDM === u.id}
+                            data-testid={`dm-user-${u.id}`}
+                          >
+                            {loadingDM === u.id ? (
+                              <span className="text-xs text-gray-400">...</span>
+                            ) : (
+                              <MessageSquare className="w-3.5 h-3.5 text-gray-400 hover:text-yellow-500" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     ))
                   )}
                   
@@ -2500,25 +3015,39 @@ const ChatPage = () => {
                     <>
                       <p className="text-xs text-gray-400 mt-3 mb-2 px-1 border-t border-white/10 pt-2">All Users</p>
                       {allUsers.filter(u => !onlineUsers.some(o => o.id === u.id)).slice(0, 10).map(u => (
-                        <button
+                        <div
                           key={u.id}
-                          onClick={() => startDirectMessage(u.id)}
-                          disabled={loadingDM === u.id}
-                          className="w-full flex items-center gap-2 p-2 rounded hover:bg-white/5 text-left opacity-60"
-                          data-testid={`dm-user-${u.id}`}
+                          className="w-full flex items-center gap-2 p-2 rounded hover:bg-white/5 opacity-60"
+                          data-testid={`user-row-${u.id}`}
                         >
-                          <Avatar className="w-7 h-7">
-                            <AvatarImage src={u.avatar_url} />
-                            <AvatarFallback className="text-xs bg-gray-500/20">{u.nickname?.[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              <OnlineIndicator isOnline={false} />
-                              <span className="text-xs truncate">{u.nickname}</span>
+                          {/* Clickable avatar and name - opens profile */}
+                          <button 
+                            onClick={() => { setSelectedUserId(u.id); setShowUserProfile(true); }}
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                          >
+                            <Avatar className="w-7 h-7 cursor-pointer">
+                              <AvatarImage src={u.avatar_url} />
+                              <AvatarFallback className="text-xs bg-gray-500/20">{u.nickname?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1">
+                                <OnlineIndicator isOnline={false} />
+                                <span className="text-xs truncate hover:text-yellow-500 cursor-pointer">{u.nickname}</span>
+                              </div>
                             </div>
-                          </div>
-                          <MessageSquare className="w-3 h-3 text-gray-500" />
-                        </button>
+                          </button>
+                          {/* DM button */}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 w-7 p-0"
+                            onClick={() => startDirectMessage(u.id)}
+                            disabled={loadingDM === u.id}
+                            data-testid={`dm-user-${u.id}`}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-gray-500 hover:text-yellow-500" />
+                          </Button>
+                        </div>
                       ))}
                     </>
                   )}
@@ -2667,6 +3196,14 @@ const ChatPage = () => {
           )}
         </Card>
       </div>
+      
+      {/* User Profile Modal */}
+      <UserProfileModal 
+        userId={selectedUserId} 
+        isOpen={showUserProfile} 
+        onClose={() => setShowUserProfile(false)} 
+        api={api}
+      />
     </div>
   );
 };

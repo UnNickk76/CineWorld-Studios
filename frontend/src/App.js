@@ -6374,6 +6374,14 @@ const CinemaTourPage = () => {
   );
 };
 
+// ==================== MAJOR ROLES DEFINITION ====================
+const MAJOR_ROLES = {
+  founder: { en: 'Founder', it: 'Fondatore' },
+  vice: { en: 'Vice President', it: 'Vice Presidente' },
+  senior_producer: { en: 'Senior Producer', it: 'Produttore Senior' },
+  member: { en: 'Member', it: 'Membro' }
+};
+
 // ==================== MAJOR PAGE ====================
 const MajorPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -6382,7 +6390,8 @@ const MajorPage = () => {
   const [majorData, setMajorData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: '', description: '', max_members: 20 });
+  const [createForm, setCreateForm] = useState({ name: '', description: '', max_members: 20, logo_prompt: '' });
+  const [creating, setCreating] = useState(false);
   const [inviteUserId, setInviteUserId] = useState('');
   const [allUsers, setAllUsers] = useState([]);
   
@@ -6416,13 +6425,19 @@ const MajorPage = () => {
   
   const createMajor = async () => {
     try {
+      setCreating(true);
+      if (createForm.logo_prompt) {
+        toast.info(language === 'it' ? 'Generazione logo in corso...' : 'Generating logo...', { duration: 10000 });
+      }
       const res = await api.post('/major/create', createForm);
-      toast.success(language === 'it' ? 'Major creata!' : 'Major created!');
+      toast.success(language === 'it' ? 'Major creata con successo!' : 'Major created successfully!');
       setShowCreateModal(false);
       const major = await api.get('/major/my');
       setMajorData(major.data);
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore nella creazione');
+    } finally {
+      setCreating(false);
     }
   };
   
@@ -6547,8 +6562,8 @@ const MajorPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <h3 className="font-semibold">{majorData.weekly_challenge.name}</h3>
-                <p className="text-sm text-gray-400 mb-2">{majorData.weekly_challenge.description}</p>
+                <h3 className="font-semibold">{majorData.weekly_challenge.name?.[language] || majorData.weekly_challenge.name?.en || majorData.weekly_challenge.name}</h3>
+                <p className="text-sm text-gray-400 mb-2">{majorData.weekly_challenge.description?.[language] || majorData.weekly_challenge.description?.en || majorData.weekly_challenge.description}</p>
                 <div className="flex gap-2">
                   <Badge className="bg-yellow-500/20 text-yellow-400">+{majorData.weekly_challenge.rewards?.xp} XP</Badge>
                   <Badge className="bg-green-500/20 text-green-400">+${(majorData.weekly_challenge.rewards?.funds / 1000).toFixed(0)}K</Badge>
@@ -6626,6 +6641,23 @@ const MajorPage = () => {
               <Label>{language === 'it' ? 'Max Membri' : 'Max Members'} ({createForm.max_members})</Label>
               <Slider value={[createForm.max_members]} onValueChange={([v]) => setCreateForm({...createForm, max_members: v})} min={5} max={50} step={5} />
             </div>
+            <div>
+              <Label className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                {language === 'it' ? 'Logo AI (opzionale)' : 'AI Logo (optional)'}
+              </Label>
+              <Input 
+                value={createForm.logo_prompt} 
+                onChange={e => setCreateForm({...createForm, logo_prompt: e.target.value})} 
+                placeholder={language === 'it' ? 'Es: Leone dorato, stile classico Hollywood...' : 'E.g: Golden lion, classic Hollywood style...'} 
+                className="bg-black/30 border-white/10" 
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {language === 'it' 
+                  ? 'Descrivi lo stile del logo che vuoi generare con AI' 
+                  : 'Describe the logo style you want to generate with AI'}
+              </p>
+            </div>
             <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
               <p className="text-sm text-purple-400 text-center">
                 <DollarSign className="w-4 h-4 inline mr-1" />
@@ -6633,21 +6665,22 @@ const MajorPage = () => {
                 <span className="font-bold">${(majorData?.creation_cost || 5000000).toLocaleString()}</span>
               </p>
             </div>
-            <Button className="w-full bg-purple-600 hover:bg-purple-500" onClick={createMajor}>
-              {t('createMajor')}
+            <Button 
+              className="w-full bg-purple-600 hover:bg-purple-500" 
+              onClick={createMajor}
+              disabled={creating || !createForm.name.trim()}
+            >
+              {creating ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> {language === 'it' ? 'Creazione in corso...' : 'Creating...'}</>
+              ) : (
+                t('createMajor')
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
     </div>
   );
-};
-
-const MAJOR_ROLES = {
-  founder: { en: 'Founder', it: 'Fondatore' },
-  vice: { en: 'Vice President', it: 'Vice Presidente' },
-  senior_producer: { en: 'Senior Producer', it: 'Produttore Senior' },
-  member: { en: 'Member', it: 'Membro' }
 };
 
 // ==================== FRIENDS PAGE ====================

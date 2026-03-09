@@ -1824,6 +1824,7 @@ class CreateMajorRequest(BaseModel):
     name: str
     description: Optional[str] = ""
     max_members: int = 20
+    logo_prompt: Optional[str] = ""  # User's prompt for AI logo generation
 
 class MajorInviteRequest(BaseModel):
     user_id: str
@@ -7820,6 +7821,34 @@ async def create_major(request: CreateMajorRequest, user: dict = Depends(get_cur
     # Validate max members
     max_members = max(MAJOR_MIN_MEMBERS, min(MAJOR_MAX_MEMBERS, request.max_members))
     
+    # Generate logo with AI if prompt provided
+    logo_url = None
+    if request.logo_prompt and request.logo_prompt.strip():
+        try:
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            
+            image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+            
+            # Build comprehensive prompt for logo
+            full_prompt = f"""Professional film studio logo design for "{request.name}". 
+            Style guidelines from user: {request.logo_prompt}
+            Requirements: Clean, modern, cinematic feel. Suitable for a movie production company. 
+            High quality vector-style logo on dark background. No text in the image."""
+            
+            images = await image_gen.generate_images(
+                prompt=full_prompt,
+                model="gpt-image-1",
+                number_of_images=1
+            )
+            
+            if images and len(images) > 0:
+                image_base64 = base64.b64encode(images[0]).decode('utf-8')
+                logo_url = f"data:image/png;base64,{image_base64}"
+                logging.info(f"Generated logo for Major: {request.name}")
+        except Exception as e:
+            logging.error(f"Logo generation error: {e}")
+            # Continue without logo - not a fatal error
+    
     # Create Major
     major_id = str(uuid.uuid4())
     major = {
@@ -7828,7 +7857,8 @@ async def create_major(request: CreateMajorRequest, user: dict = Depends(get_cur
         'description': request.description,
         'founder_id': user_id,
         'max_members': max_members,
-        'logo_url': None,  # Can be generated later
+        'logo_url': logo_url,
+        'logo_prompt': request.logo_prompt,
         'created_at': datetime.now(timezone.utc).isoformat(),
         'level': 1,
         'total_films': 0,

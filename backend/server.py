@@ -28,7 +28,9 @@ from game_systems import (
     calculate_cinema_daily_revenue,
     generate_student_actor, train_student, graduate_student,
     calculate_imdb_rating, generate_ai_interactions,
-    calculate_leaderboard_score
+    calculate_leaderboard_score,
+    calculate_hourly_film_revenue, calculate_film_duration_factors,
+    calculate_star_discovery_chance, evolve_cast_skills, calculate_negative_rating_penalty
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -2004,14 +2006,12 @@ async def rate_film(film_id: str, rating_data: FilmRating, user: dict = Depends(
     
     if existing_rating:
         # Update existing rating
-        old_rating = existing_rating['rating']
         await db.film_ratings.update_one(
             {'film_id': film_id, 'user_id': user['id']},
             {'$set': {'rating': rating_data.rating, 'updated_at': datetime.now(timezone.utc).isoformat()}}
         )
     else:
         # Create new rating
-        old_rating = None
         await db.film_ratings.insert_one({
             'id': str(uuid.uuid4()),
             'film_id': film_id,
@@ -3469,6 +3469,488 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'total_likes_received': player.get('total_likes_received', 0),
         'leaderboard_score': calculate_leaderboard_score(player),
         'created_at': player.get('created_at')
+    }
+
+# ==================== HOURLY REVENUE SYSTEM ====================
+
+def parse_date_with_timezone(date_str: str) -> datetime:
+    """Parse date string and ensure it has UTC timezone."""
+    if not date_str:
+        return datetime.now(timezone.utc)
+    
+    # Handle various date formats
+    date_str = date_str.replace('Z', '+00:00')
+    
+    try:
+        dt = datetime.fromisoformat(date_str)
+    except ValueError:
+        # Try parsing just date format
+        try:
+            dt = datetime.strptime(date_str[:10], '%Y-%m-%d')
+        except ValueError:
+            return datetime.now(timezone.utc)
+    
+    # If no timezone info, assume UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    return dt
+
+@api_router.get("/films/{film_id}/hourly-revenue")
+async def calculate_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
+    """Calculate current hourly revenue for a film."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film.get('status') != 'in_theaters':
+        return {'revenue': 0, 'status': film.get('status'), 'message': 'Film not in theaters'}
+    
+    # Calculate days in theater
+    release_date = parse_date_with_timezone(film.get('release_date'))
+    days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+    
+    # Get current hour and day
+    now = datetime.now(timezone.utc)
+    hour = now.hour
+    day_of_week = now.weekday()
+    
+    # Count competing films
+    competing_films = await db.films.count_documents({
+        'status': 'in_theaters',
+        'id': {'$ne': film_id}
+    })
+    
+    revenue_data = calculate_hourly_film_revenue(
+        film, hour, day_of_week, days_in_theater, competing_films
+    )
+    
+    return revenue_data
+
+@api_router.post("/films/{film_id}/process-hourly-revenue")
+async def process_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
+    """Process hourly revenue for a film and update totals."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film.get('status') != 'in_theaters':
+        return {'processed': False, 'status': film.get('status')}
+    
+    # Check last processing time
+    last_processed = film.get('last_hourly_processed')
+    if last_processed:
+        last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
+        time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
+        if time_diff < 3500:  # Less than ~58 minutes
+            return {'processed': False, 'wait_seconds': int(3600 - time_diff)}
+    
+    # Calculate days in theater
+    release_date = parse_date_with_timezone(film.get('release_date'))
+    days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+    
+    now = datetime.now(timezone.utc)
+    hour = now.hour
+    day_of_week = now.weekday()
+    
+    competing_films = await db.films.count_documents({
+        'status': 'in_theaters',
+        'id': {'$ne': film_id}
+    })
+    
+    revenue_data = calculate_hourly_film_revenue(
+        film, hour, day_of_week, days_in_theater, competing_films
+    )
+    
+    # Update film revenue
+    new_total = film.get('total_revenue', 0) + revenue_data['revenue']
+    hourly_history = film.get('hourly_revenues', [])
+    hourly_history.append({
+        'timestamp': now.isoformat(),
+        'revenue': revenue_data['revenue'],
+        'factors': revenue_data['factors'],
+        'special_event': revenue_data.get('special_event')
+    })
+    
+    # Keep only last 168 hours (1 week) of history
+    if len(hourly_history) > 168:
+        hourly_history = hourly_history[-168:]
+    
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'total_revenue': new_total,
+            'hourly_revenues': hourly_history,
+            'last_hourly_processed': now.isoformat()
+        }}
+    )
+    
+    # Update user funds
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': revenue_data['revenue'], 'total_lifetime_revenue': revenue_data['revenue']}}
+    )
+    
+    return {
+        'processed': True,
+        'revenue': revenue_data['revenue'],
+        'new_total': new_total,
+        'factors': revenue_data['factors'],
+        'special_event': revenue_data.get('special_event')
+    }
+
+@api_router.get("/films/{film_id}/duration-status")
+async def get_film_duration_status(film_id: str, user: dict = Depends(get_current_user)):
+    """Check if a film should be extended or withdrawn early."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film.get('status') != 'in_theaters':
+        return {'status': film.get('status'), 'can_extend': False}
+    
+    release_date = parse_date_with_timezone(film.get('release_date'))
+    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
+    planned_days = film.get('weeks_in_theater', 4) * 7
+    
+    duration_data = calculate_film_duration_factors(film, current_days, planned_days)
+    
+    return {
+        **duration_data,
+        'current_days': current_days,
+        'planned_days': planned_days,
+        'days_remaining': max(0, planned_days - current_days)
+    }
+
+@api_router.post("/films/{film_id}/extend")
+async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, le=14), user: dict = Depends(get_current_user)):
+    """Extend a film's theater run."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film.get('status') != 'in_theaters':
+        raise HTTPException(status_code=400, detail="Film not in theaters")
+    
+    # Check eligibility
+    release_date = parse_date_with_timezone(film.get('release_date'))
+    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
+    planned_days = film.get('weeks_in_theater', 4) * 7
+    
+    duration_data = calculate_film_duration_factors(film, current_days, planned_days)
+    
+    if duration_data['status'] != 'extend':
+        raise HTTPException(status_code=400, detail="Film not eligible for extension")
+    
+    max_extension = duration_data['extension_days']
+    actual_extension = min(extra_days, max_extension)
+    
+    # Update film
+    new_weeks = film.get('weeks_in_theater', 4) + (actual_extension / 7)
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'weeks_in_theater': new_weeks,
+            'extended': True,
+            'extension_days': film.get('extension_days', 0) + actual_extension
+        }}
+    )
+    
+    # Add fame bonus
+    fame_bonus = actual_extension * 0.5
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'fame': fame_bonus}}
+    )
+    
+    # Add XP
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': actual_extension * 10}}
+    )
+    
+    return {
+        'extended': True,
+        'extra_days': actual_extension,
+        'new_total_weeks': new_weeks,
+        'fame_bonus': fame_bonus,
+        'xp_bonus': actual_extension * 10
+    }
+
+@api_router.post("/films/{film_id}/early-withdraw")
+async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Withdraw a film early from theaters."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    if film.get('status') != 'in_theaters':
+        raise HTTPException(status_code=400, detail="Film not in theaters")
+    
+    release_date = parse_date_with_timezone(film.get('release_date'))
+    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
+    planned_days = film.get('weeks_in_theater', 4) * 7
+    
+    days_early = planned_days - current_days
+    
+    # Calculate penalties
+    fame_penalty = days_early * 0.3
+    revenue_penalty = days_early * 20000  # $20k per day early
+    
+    # Update film
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'status': 'withdrawn',
+            'withdrawn_at': datetime.now(timezone.utc).isoformat(),
+            'withdrawn_early': True,
+            'days_early': days_early
+        }}
+    )
+    
+    # Apply penalties
+    current_fame = user.get('fame', 50)
+    new_fame = max(0, current_fame - fame_penalty)
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'fame': new_fame}, '$inc': {'funds': -revenue_penalty}}
+    )
+    
+    return {
+        'withdrawn': True,
+        'days_early': days_early,
+        'fame_penalty': fame_penalty,
+        'revenue_penalty': revenue_penalty
+    }
+
+# ==================== STAR DISCOVERY & SKILL EVOLUTION ====================
+
+@api_router.post("/films/{film_id}/check-star-discoveries")
+async def check_film_star_discoveries(film_id: str, user: dict = Depends(get_current_user)):
+    """Check for star discoveries among the cast of a film."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    quality = film.get('quality_score', 50)
+    discoveries = []
+    
+    cast = film.get('cast', [])
+    for actor_info in cast:
+        actor_id = actor_info.get('actor_id') or actor_info.get('id')
+        if not actor_id:
+            continue
+        
+        actor = await db.people.find_one({'id': actor_id})
+        if not actor:
+            continue
+        
+        discovery = calculate_star_discovery_chance(actor, quality)
+        if discovery['discovered']:
+            # Update actor fame
+            await db.people.update_one(
+                {'id': actor_id},
+                {'$set': {
+                    'fame_category': discovery['new_fame_category'],
+                    'discovered_by': user['id'],
+                    'discovered_at': datetime.now(timezone.utc).isoformat(),
+                    'discovery_film': film_id
+                }}
+            )
+            
+            # Add fame bonus to player
+            await db.users.update_one(
+                {'id': user['id']},
+                {'$inc': {'fame': discovery['fame_bonus_to_player']}}
+            )
+            
+            discoveries.append({
+                'actor_name': actor.get('name'),
+                'announcement': discovery['announcement'],
+                'fame_bonus': discovery['fame_bonus_to_player']
+            })
+            
+            # Broadcast announcement via chat
+            news_bot = CHAT_BOTS[2]
+            bot_message = {
+                'id': str(uuid.uuid4()),
+                'room_id': 'general',
+                'sender_id': news_bot['id'],
+                'content': discovery['announcement'],
+                'message_type': 'text',
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.chat_messages.insert_one(bot_message)
+    
+    return {'discoveries': discoveries, 'total_found': len(discoveries)}
+
+@api_router.post("/films/{film_id}/evolve-cast-skills")
+async def evolve_film_cast_skills(film_id: str, user: dict = Depends(get_current_user)):
+    """Evolve the skills of all cast members based on film performance."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    quality = film.get('quality_score', 50)
+    evolutions = []
+    
+    cast = film.get('cast', [])
+    for actor_info in cast:
+        actor_id = actor_info.get('actor_id') or actor_info.get('id')
+        role = actor_info.get('role', 'supporting')
+        if not actor_id:
+            continue
+        
+        actor = await db.people.find_one({'id': actor_id})
+        if not actor:
+            continue
+        
+        evolution = evolve_cast_skills(actor, quality, role)
+        
+        if evolution['had_changes']:
+            await db.people.update_one(
+                {'id': actor_id},
+                {'$set': {'skills': evolution['updated_skills']}}
+            )
+            
+            evolutions.append({
+                'actor_name': actor.get('name'),
+                'role': role,
+                'changes': evolution['changes']
+            })
+    
+    # Also evolve director
+    director = film.get('director', {})
+    director_id = director.get('id')
+    if director_id:
+        director_doc = await db.people.find_one({'id': director_id})
+        if director_doc:
+            evolution = evolve_cast_skills(director_doc, quality, 'director')
+            if evolution['had_changes']:
+                await db.people.update_one(
+                    {'id': director_id},
+                    {'$set': {'skills': evolution['updated_skills']}}
+                )
+                evolutions.append({
+                    'actor_name': director_doc.get('name'),
+                    'role': 'director',
+                    'changes': evolution['changes']
+                })
+    
+    return {'evolutions': evolutions, 'total_evolved': len(evolutions)}
+
+# ==================== NEGATIVE RATING PENALTY ====================
+
+@api_router.get("/player/rating-stats")
+async def get_player_rating_stats(user: dict = Depends(get_current_user)):
+    """Get player's rating statistics and any active penalties."""
+    total = user.get('total_ratings_given', 0)
+    negative = user.get('negative_ratings_given', 0)
+    ratio = negative / max(total, 1)
+    
+    penalty = 0
+    warning = None
+    if total >= 10:
+        if ratio > 0.8:
+            penalty = 10
+            warning = "SEVERE: Your films receive -10% quality penalty due to excessive negative ratings."
+        elif ratio > 0.6:
+            penalty = 5
+            warning = "WARNING: Your films receive -5% quality penalty due to many negative ratings."
+    
+    return {
+        'total_ratings_given': total,
+        'negative_ratings_given': negative,
+        'negative_ratio': round(ratio, 2),
+        'quality_penalty': penalty,
+        'warning': warning
+    }
+
+# ==================== ALL FILMS HOURLY PROCESSOR ====================
+
+@api_router.post("/films/process-all-hourly")
+async def process_all_films_hourly(user: dict = Depends(get_current_user)):
+    """Process hourly revenue for all user's films in theaters."""
+    films = await db.films.find({
+        'user_id': user['id'],
+        'status': 'in_theaters'
+    }).to_list(100)
+    
+    results = []
+    total_revenue = 0
+    
+    for film in films:
+        # Check last processing time
+        last_processed = film.get('last_hourly_processed')
+        if last_processed:
+            last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
+            time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
+            if time_diff < 3500:
+                results.append({
+                    'film_id': film['id'],
+                    'title': film['title'],
+                    'skipped': True,
+                    'wait_seconds': int(3600 - time_diff)
+                })
+                continue
+        
+        # Calculate revenue
+        release_date = parse_date_with_timezone(film.get('release_date'))
+        days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+        
+        now = datetime.now(timezone.utc)
+        hour = now.hour
+        day_of_week = now.weekday()
+        
+        competing_films = await db.films.count_documents({
+            'status': 'in_theaters',
+            'id': {'$ne': film['id']}
+        })
+        
+        revenue_data = calculate_hourly_film_revenue(
+            film, hour, day_of_week, days_in_theater, competing_films
+        )
+        
+        # Update film
+        new_total = film.get('total_revenue', 0) + revenue_data['revenue']
+        hourly_history = film.get('hourly_revenues', [])
+        hourly_history.append({
+            'timestamp': now.isoformat(),
+            'revenue': revenue_data['revenue']
+        })
+        if len(hourly_history) > 168:
+            hourly_history = hourly_history[-168:]
+        
+        await db.films.update_one(
+            {'id': film['id']},
+            {'$set': {
+                'total_revenue': new_total,
+                'hourly_revenues': hourly_history,
+                'last_hourly_processed': now.isoformat()
+            }}
+        )
+        
+        total_revenue += revenue_data['revenue']
+        results.append({
+            'film_id': film['id'],
+            'title': film['title'],
+            'revenue': revenue_data['revenue'],
+            'special_event': revenue_data.get('special_event')
+        })
+    
+    # Update user funds
+    if total_revenue > 0:
+        await db.users.update_one(
+            {'id': user['id']},
+            {'$inc': {'funds': total_revenue, 'total_lifetime_revenue': total_revenue}}
+        )
+    
+    return {
+        'processed': len([r for r in results if not r.get('skipped')]),
+        'skipped': len([r for r in results if r.get('skipped')]),
+        'total_revenue': total_revenue,
+        'results': results
     }
 
 # Include router and middleware

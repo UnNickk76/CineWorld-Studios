@@ -666,3 +666,486 @@ def get_leaderboard_rank(score: float, all_scores: List[float]) -> int:
         return sorted_scores.index(score) + 1
     except ValueError:
         return len(sorted_scores) + 1
+
+
+# ==================== HOURLY FILM REVENUE SYSTEM ====================
+
+# Genre popularity factors (seasonal and general appeal)
+GENRE_POPULARITY = {
+    'action': {'base': 1.2, 'summer_bonus': 0.3, 'winter_bonus': 0.1},
+    'comedy': {'base': 1.1, 'summer_bonus': 0.1, 'winter_bonus': 0.2},
+    'drama': {'base': 1.0, 'summer_bonus': 0.0, 'winter_bonus': 0.2},
+    'horror': {'base': 0.9, 'summer_bonus': 0.1, 'winter_bonus': 0.3},
+    'sci_fi': {'base': 1.1, 'summer_bonus': 0.2, 'winter_bonus': 0.1},
+    'romance': {'base': 0.9, 'summer_bonus': 0.0, 'winter_bonus': 0.3},
+    'thriller': {'base': 1.0, 'summer_bonus': 0.1, 'winter_bonus': 0.2},
+    'animation': {'base': 1.3, 'summer_bonus': 0.4, 'winter_bonus': 0.3},
+    'documentary': {'base': 0.7, 'summer_bonus': 0.0, 'winter_bonus': 0.1},
+    'fantasy': {'base': 1.2, 'summer_bonus': 0.2, 'winter_bonus': 0.3},
+    'musical': {'base': 0.8, 'summer_bonus': 0.1, 'winter_bonus': 0.3},
+    'western': {'base': 0.6, 'summer_bonus': 0.1, 'winter_bonus': 0.0},
+    'war': {'base': 0.8, 'summer_bonus': 0.0, 'winter_bonus': 0.1},
+    'noir': {'base': 0.7, 'summer_bonus': 0.0, 'winter_bonus': 0.2},
+    'adventure': {'base': 1.2, 'summer_bonus': 0.3, 'winter_bonus': 0.1},
+    'biographical': {'base': 0.8, 'summer_bonus': 0.0, 'winter_bonus': 0.2}
+}
+
+# Time of day factors for cinema attendance
+HOUR_FACTORS = {
+    0: 0.05, 1: 0.02, 2: 0.01, 3: 0.01, 4: 0.01, 5: 0.02,
+    6: 0.05, 7: 0.08, 8: 0.10, 9: 0.12, 10: 0.20, 11: 0.30,
+    12: 0.40, 13: 0.45, 14: 0.50, 15: 0.55, 16: 0.60, 17: 0.70,
+    18: 0.85, 19: 1.00, 20: 1.00, 21: 0.90, 22: 0.70, 23: 0.30
+}
+
+# Day of week factors
+DAY_FACTORS = {
+    0: 0.7,   # Monday
+    1: 0.7,   # Tuesday
+    2: 0.8,   # Wednesday
+    3: 0.8,   # Thursday
+    4: 1.0,   # Friday
+    5: 1.3,   # Saturday
+    6: 1.2    # Sunday
+}
+
+def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int, 
+                                   days_in_theater: int, competition_count: int = 0) -> dict:
+    """
+    Calculate hourly revenue for a film based on multiple factors.
+    
+    Factors:
+    - Quality score
+    - IMDb rating
+    - Cast fame average
+    - Director skill
+    - Genre popularity (seasonal)
+    - Time of day
+    - Day of week
+    - Days since release (decay curve)
+    - Competition (other films)
+    - Random unpredictability (±25%)
+    - Weather factor (random)
+    - Special events (random chance)
+    """
+    
+    quality = film.get('quality_score', 50)
+    imdb_rating = film.get('imdb_rating', 5.0)
+    genre = film.get('genre', 'drama')
+    
+    # Base revenue from quality (scales with quality)
+    base_revenue = 5000 + (quality * 200)  # $5k-$25k base per hour
+    
+    # Quality multiplier (exponential for high quality)
+    if quality >= 90:
+        quality_mult = 2.5
+    elif quality >= 80:
+        quality_mult = 1.8
+    elif quality >= 70:
+        quality_mult = 1.3
+    elif quality >= 50:
+        quality_mult = 1.0
+    elif quality >= 30:
+        quality_mult = 0.6
+    else:
+        quality_mult = 0.3
+    
+    # IMDb rating bonus
+    imdb_mult = 0.5 + (imdb_rating / 10)  # 0.6x to 1.5x
+    
+    # Cast fame bonus
+    cast = film.get('cast', [])
+    if cast:
+        cast_fame_scores = []
+        for actor in cast:
+            fame_cat = actor.get('fame_category', 'unknown')
+            if fame_cat == 'superstar':
+                cast_fame_scores.append(1.5)
+            elif fame_cat == 'famous':
+                cast_fame_scores.append(1.2)
+            elif fame_cat == 'rising':
+                cast_fame_scores.append(1.1)
+            else:
+                cast_fame_scores.append(1.0)
+        cast_mult = sum(cast_fame_scores) / len(cast_fame_scores)
+    else:
+        cast_mult = 1.0
+    
+    # Director skill bonus
+    director = film.get('director', {})
+    director_skills = director.get('skills', {})
+    if director_skills:
+        avg_skill = sum(director_skills.values()) / len(director_skills)
+        director_mult = 0.8 + (avg_skill / 25)  # 0.84x to 1.2x
+    else:
+        director_mult = 1.0
+    
+    # Genre popularity (with seasonal variation)
+    genre_data = GENRE_POPULARITY.get(genre, {'base': 1.0, 'summer_bonus': 0, 'winter_bonus': 0})
+    month = datetime.now(timezone.utc).month
+    is_summer = month in [6, 7, 8]
+    is_winter = month in [12, 1, 2]
+    genre_mult = genre_data['base']
+    if is_summer:
+        genre_mult += genre_data['summer_bonus']
+    elif is_winter:
+        genre_mult += genre_data['winter_bonus']
+    
+    # Time of day factor
+    hour_mult = HOUR_FACTORS.get(hour, 0.5)
+    
+    # Day of week factor
+    day_mult = DAY_FACTORS.get(day_of_week, 0.8)
+    
+    # Days in theater decay (films lose appeal over time)
+    # First 3 days: bonus, then gradual decay
+    if days_in_theater <= 3:
+        decay_mult = 1.2 + (0.1 * (3 - days_in_theater))  # 1.3x day 1, 1.2x day 3
+    elif days_in_theater <= 7:
+        decay_mult = 1.0 - ((days_in_theater - 3) * 0.05)  # Slow decay
+    elif days_in_theater <= 14:
+        decay_mult = 0.8 - ((days_in_theater - 7) * 0.04)  # Faster decay
+    elif days_in_theater <= 21:
+        decay_mult = 0.52 - ((days_in_theater - 14) * 0.03)  # Even faster
+    else:
+        decay_mult = max(0.1, 0.31 - ((days_in_theater - 21) * 0.02))  # Minimum 0.1x
+    
+    # Competition factor (more films = less revenue per film)
+    competition_mult = 1.0 / (1 + (competition_count * 0.1))
+    
+    # Unpredictability factor (±25%)
+    unpredictability = random.uniform(0.75, 1.25)
+    
+    # Weather factor (random - bad weather = more cinema, good = less)
+    weather_roll = random.random()
+    if weather_roll < 0.1:  # 10% great weather
+        weather_mult = 0.8
+    elif weather_roll > 0.9:  # 10% bad weather
+        weather_mult = 1.3
+    else:
+        weather_mult = 1.0
+    
+    # Special event chance (premiere, discount day, etc.)
+    event_mult = 1.0
+    event_name = None
+    if random.random() < 0.02:  # 2% chance of special event
+        events = [
+            ('Premiere Night', 2.0),
+            ('Discount Tuesday', 1.5),
+            ('Film Festival', 1.8),
+            ('Celebrity Visit', 2.5),
+            ('Anniversary Screening', 1.4)
+        ]
+        event_name, event_mult = random.choice(events)
+    
+    # Calculate final revenue
+    final_revenue = base_revenue * quality_mult * imdb_mult * cast_mult * director_mult
+    final_revenue *= genre_mult * hour_mult * day_mult * decay_mult
+    final_revenue *= competition_mult * unpredictability * weather_mult * event_mult
+    
+    final_revenue = max(100, int(final_revenue))  # Minimum $100
+    
+    return {
+        'revenue': final_revenue,
+        'factors': {
+            'base': base_revenue,
+            'quality_mult': round(quality_mult, 2),
+            'imdb_mult': round(imdb_mult, 2),
+            'cast_mult': round(cast_mult, 2),
+            'director_mult': round(director_mult, 2),
+            'genre_mult': round(genre_mult, 2),
+            'hour_mult': round(hour_mult, 2),
+            'day_mult': round(day_mult, 2),
+            'decay_mult': round(decay_mult, 2),
+            'competition_mult': round(competition_mult, 2),
+            'unpredictability': round(unpredictability, 2),
+            'weather_mult': round(weather_mult, 2),
+            'event_mult': round(event_mult, 2)
+        },
+        'special_event': event_name,
+        'days_in_theater': days_in_theater
+    }
+
+
+def calculate_film_duration_factors(film: dict, current_days: int, planned_days: int) -> dict:
+    """
+    Calculate whether a film should continue, be extended, or be withdrawn.
+    
+    Factors for EXTENSION:
+    - High quality (80+)
+    - High IMDb rating (7+)
+    - Strong audience satisfaction (70+)
+    - Good revenue trend
+    - Star cast
+    - Award buzz
+    
+    Factors for EARLY WITHDRAWAL:
+    - Low quality (<40)
+    - Poor IMDb rating (<4)
+    - Low audience satisfaction (<30)
+    - Declining revenue
+    - Bad reviews
+    - Competition from blockbusters
+    """
+    
+    quality = film.get('quality_score', 50)
+    imdb = film.get('imdb_rating', 5.0)
+    satisfaction = film.get('audience_satisfaction', 50)
+    total_revenue = film.get('total_revenue', 0)
+    likes = film.get('likes_count', 0)
+    
+    # Calculate continuation score (-100 to +100)
+    score = 0
+    reasons = []
+    
+    # Quality impact (-30 to +30)
+    if quality >= 90:
+        score += 30
+        reasons.append('Exceptional quality (+30)')
+    elif quality >= 80:
+        score += 20
+        reasons.append('High quality (+20)')
+    elif quality >= 70:
+        score += 10
+        reasons.append('Good quality (+10)')
+    elif quality >= 50:
+        score += 0
+    elif quality >= 30:
+        score -= 15
+        reasons.append('Poor quality (-15)')
+    else:
+        score -= 30
+        reasons.append('Very poor quality (-30)')
+    
+    # IMDb rating impact (-20 to +20)
+    if imdb >= 8.0:
+        score += 20
+        reasons.append(f'Excellent IMDb {imdb} (+20)')
+    elif imdb >= 7.0:
+        score += 10
+        reasons.append(f'Good IMDb {imdb} (+10)')
+    elif imdb >= 5.0:
+        score += 0
+    elif imdb >= 3.0:
+        score -= 10
+        reasons.append(f'Poor IMDb {imdb} (-10)')
+    else:
+        score -= 20
+        reasons.append(f'Terrible IMDb {imdb} (-20)')
+    
+    # Audience satisfaction impact (-20 to +20)
+    if satisfaction >= 80:
+        score += 20
+        reasons.append('Audience loves it (+20)')
+    elif satisfaction >= 60:
+        score += 10
+        reasons.append('Audience satisfied (+10)')
+    elif satisfaction >= 40:
+        score += 0
+    elif satisfaction >= 20:
+        score -= 10
+        reasons.append('Audience disappointed (-10)')
+    else:
+        score -= 20
+        reasons.append('Audience hates it (-20)')
+    
+    # Likes/social buzz impact (-10 to +15)
+    expected_likes = current_days * 5  # Expect ~5 likes per day
+    like_ratio = likes / max(expected_likes, 1)
+    if like_ratio >= 2.0:
+        score += 15
+        reasons.append('Viral social buzz (+15)')
+    elif like_ratio >= 1.0:
+        score += 5
+        reasons.append('Good social engagement (+5)')
+    elif like_ratio < 0.3:
+        score -= 10
+        reasons.append('No social engagement (-10)')
+    
+    # Revenue performance
+    expected_revenue = current_days * 24 * 10000  # ~$10k/hour expected
+    revenue_ratio = total_revenue / max(expected_revenue, 1)
+    if revenue_ratio >= 2.0:
+        score += 15
+        reasons.append('Box office hit (+15)')
+    elif revenue_ratio >= 1.0:
+        score += 5
+    elif revenue_ratio < 0.3:
+        score -= 15
+        reasons.append('Box office flop (-15)')
+    
+    # Random factor (critic reviews, word of mouth, etc.)
+    random_factor = random.randint(-10, 10)
+    if random_factor > 5:
+        reasons.append('Positive word of mouth (+{})'.format(random_factor))
+    elif random_factor < -5:
+        reasons.append('Negative buzz ({})'.format(random_factor))
+    score += random_factor
+    
+    # Determine outcome
+    if score >= 30:
+        status = 'extend'
+        extension_days = min(14, int(score / 10))  # Up to 2 weeks extension
+        fame_change = extension_days * 0.5  # +0.5 fame per extra day
+    elif score <= -30:
+        status = 'withdraw_early'
+        early_days = min(current_days - 1, int(abs(score) / 15))  # How many days early
+        fame_change = -early_days * 0.3  # -0.3 fame per day early
+    else:
+        status = 'normal'
+        extension_days = 0
+        early_days = 0
+        fame_change = 0
+    
+    return {
+        'score': score,
+        'status': status,
+        'reasons': reasons,
+        'extension_days': extension_days if score >= 30 else 0,
+        'early_withdrawal_days': early_days if score <= -30 else 0,
+        'fame_change': round(fame_change, 2),
+        'revenue_bonus': extension_days * 50000 if score >= 30 else 0,
+        'revenue_penalty': early_days * 20000 if score <= -30 else 0
+    }
+
+
+def calculate_star_discovery_chance(actor: dict, film_quality: float) -> dict:
+    """
+    Check if an unknown actor becomes a star.
+    Happens when:
+    - Actor is 'unknown' fame category
+    - Film quality is 80+
+    - Random chance based on actor potential
+    """
+    
+    fame_category = actor.get('fame_category', 'unknown')
+    if fame_category != 'unknown':
+        return {'discovered': False, 'reason': 'Already famous'}
+    
+    if film_quality < 75:
+        return {'discovered': False, 'reason': 'Film not successful enough'}
+    
+    # Base chance: 5% for 75 quality, up to 25% for 100 quality
+    base_chance = 0.05 + ((film_quality - 75) * 0.008)
+    
+    # Skill bonus (higher skills = higher chance)
+    skills = actor.get('skills', {})
+    if skills:
+        avg_skill = sum(skills.values()) / len(skills)
+        skill_bonus = avg_skill * 0.02  # Up to +20% for skill 10
+    else:
+        skill_bonus = 0
+    
+    total_chance = base_chance + skill_bonus
+    
+    if random.random() < total_chance:
+        return {
+            'discovered': True,
+            'reason': 'Breakthrough performance!',
+            'new_fame_category': 'rising',
+            'announcement': f"⭐ STAR DISCOVERY! {actor.get('name', 'Unknown')} has been discovered as a rising star!",
+            'fame_bonus_to_player': 5.0
+        }
+    
+    return {'discovered': False, 'reason': 'Not discovered this time'}
+
+
+def evolve_cast_skills(cast_member: dict, film_quality: float, role: str) -> dict:
+    """
+    Evolve a cast member's skills based on film performance.
+    
+    - Good films improve skills
+    - Bad films may decrease skills
+    - Leading roles have more impact
+    - Random chance for breakthrough or decline
+    """
+    
+    skills = cast_member.get('skills', {}).copy()
+    changes = {}
+    
+    # Role importance
+    role_multiplier = {
+        'protagonist': 1.5,
+        'co_protagonist': 1.2,
+        'antagonist': 1.3,
+        'supporting': 1.0,
+        'cameo': 0.5
+    }.get(role, 1.0)
+    
+    for skill_name, skill_value in skills.items():
+        change = 0
+        
+        # Quality-based change
+        if film_quality >= 85:
+            change = random.uniform(0.2, 0.5) * role_multiplier
+        elif film_quality >= 70:
+            change = random.uniform(0.1, 0.3) * role_multiplier
+        elif film_quality >= 50:
+            change = random.uniform(-0.1, 0.2) * role_multiplier
+        elif film_quality >= 30:
+            change = random.uniform(-0.3, 0) * role_multiplier
+        else:
+            change = random.uniform(-0.5, -0.1) * role_multiplier
+        
+        # Breakthrough chance (sudden improvement)
+        if random.random() < 0.05:  # 5% chance
+            change += random.uniform(0.5, 1.0)
+        
+        # Decline chance (injury, burnout, etc.)
+        if random.random() < 0.02:  # 2% chance
+            change -= random.uniform(0.3, 0.7)
+        
+        # Apply change with limits
+        new_value = max(1, min(10, skill_value + change))
+        if abs(new_value - skill_value) > 0.05:
+            changes[skill_name] = {
+                'old': round(skill_value, 1),
+                'new': round(new_value, 1),
+                'change': round(change, 2)
+            }
+        skills[skill_name] = new_value
+    
+    return {
+        'updated_skills': skills,
+        'changes': changes,
+        'had_changes': len(changes) > 0
+    }
+
+
+def calculate_negative_rating_penalty(user: dict, film: dict, rating: float) -> dict:
+    """
+    Check if a user giving too many negative ratings should be penalized.
+    
+    Rules:
+    - Track ratio of negative ratings given
+    - If > 60% ratings are negative (< 2.5 stars), penalize
+    - Penalty: their own films receive a -5% quality penalty
+    - Repeated offense: -10% quality penalty
+    """
+    
+    total_ratings_given = user.get('total_ratings_given', 0) + 1
+    negative_ratings_given = user.get('negative_ratings_given', 0)
+    
+    if rating < 2.5:
+        negative_ratings_given += 1
+    
+    negative_ratio = negative_ratings_given / max(total_ratings_given, 1)
+    
+    penalty = 0
+    warning = None
+    
+    if total_ratings_given >= 10:  # Need at least 10 ratings to trigger
+        if negative_ratio > 0.8:
+            penalty = 10  # -10% quality on their films
+            warning = "SEVERE: Too many negative ratings! Your films now receive -10% quality penalty."
+        elif negative_ratio > 0.6:
+            penalty = 5  # -5% quality on their films
+            warning = "WARNING: Many negative ratings detected. Your films receive -5% quality penalty."
+    
+    return {
+        'total_ratings_given': total_ratings_given,
+        'negative_ratings_given': negative_ratings_given,
+        'negative_ratio': round(negative_ratio, 2),
+        'quality_penalty': penalty,
+        'warning': warning
+    }

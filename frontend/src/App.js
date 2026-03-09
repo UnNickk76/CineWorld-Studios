@@ -1213,19 +1213,94 @@ const MyFilms = () => {
 
 // Film Detail
 const FilmDetail = () => {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const [film, setFilm] = useState(null);
   const [expandedCountry, setExpandedCountry] = useState(null);
   const [actorRoles, setActorRoles] = useState([]);
+  const [hourlyRevenue, setHourlyRevenue] = useState(null);
+  const [durationStatus, setDurationStatus] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const navigate = useNavigate();
 
-  useEffect(() => { 
+  const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    api.get(`/films/${id}`).then(r=>setFilm(r.data)); 
-    api.get('/actor-roles').then(r => setActorRoles(r.data)).catch(()=>{});
-  }, [api]);
+    const [filmRes, rolesRes] = await Promise.all([
+      api.get(`/films/${id}`),
+      api.get('/actor-roles').catch(() => ({ data: [] }))
+    ]);
+    setFilm(filmRes.data);
+    setActorRoles(rolesRes.data);
+    
+    // Load hourly revenue and duration status for in-theater films
+    if (filmRes.data.status === 'in_theaters') {
+      const [hourlyRes, durationRes] = await Promise.all([
+        api.get(`/films/${id}/hourly-revenue`).catch(() => null),
+        api.get(`/films/${id}/duration-status`).catch(() => null)
+      ]);
+      if (hourlyRes) setHourlyRevenue(hourlyRes.data);
+      if (durationRes) setDurationStatus(durationRes.data);
+    }
+  };
+
+  useEffect(() => { loadFilm(); }, [api]);
   
-  if (!film) return <div className="pt-16 p-4 text-center">Loading...</div>;
+  if (!film) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
+
+  const processHourlyRevenue = async () => {
+    setProcessing(true);
+    try {
+      const res = await api.post(`/films/${film.id}/process-hourly-revenue`);
+      if (res.data.processed) {
+        toast.success(`Incasso orario: $${res.data.revenue.toLocaleString()}!`);
+        if (res.data.special_event) {
+          toast.success(`Evento speciale: ${res.data.special_event}!`);
+        }
+        loadFilm();
+      } else {
+        toast.info(`Attendi ${Math.ceil(res.data.wait_seconds / 60)} minuti per il prossimo incasso.`);
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+    setProcessing(false);
+  };
+
+  const extendFilm = async () => {
+    try {
+      const res = await api.post(`/films/${film.id}/extend?extra_days=7`);
+      toast.success(`Film esteso di ${res.data.extra_days} giorni! Fame +${res.data.fame_bonus}`);
+      loadFilm();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Impossibile estendere');
+    }
+  };
+
+  const checkStarDiscoveries = async () => {
+    try {
+      const res = await api.post(`/films/${film.id}/check-star-discoveries`);
+      if (res.data.total_found > 0) {
+        res.data.discoveries.forEach(d => toast.success(d.announcement));
+      } else {
+        toast.info('Nessuna nuova stella scoperta questa volta.');
+      }
+    } catch (e) {
+      toast.error('Errore nel controllo scoperte');
+    }
+  };
+
+  const evolveSkills = async () => {
+    try {
+      const res = await api.post(`/films/${film.id}/evolve-cast-skills`);
+      if (res.data.total_evolved > 0) {
+        toast.success(`${res.data.total_evolved} membri del cast hanno evoluto le loro skill!`);
+      } else {
+        toast.info('Nessun cambiamento nelle skill del cast.');
+      }
+    } catch (e) {
+      toast.error('Errore nell\'evoluzione skill');
+    }
+  };
 
   const getRoleName = (roleId) => {
     const role = actorRoles.find(r => r.id === roleId);
@@ -1257,6 +1332,7 @@ const FilmDetail = () => {
               <Badge className="bg-yellow-500/20 text-yellow-500 text-xs">{t(film.genre)}</Badge>
               {film.subgenres?.map(sg => <Badge key={sg} variant="outline" className="text-[10px] h-4 border-gray-600">{sg}</Badge>)}
               <Badge className={`text-xs ${film.status==='in_theaters'?'bg-green-500':film.status==='withdrawn'?'bg-orange-500':'bg-gray-500'}`}>{film.status}</Badge>
+              {film.imdb_rating && <Badge className="bg-yellow-600/20 text-yellow-600 text-xs">IMDb {film.imdb_rating}</Badge>}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="text-center p-2 rounded bg-white/5"><Heart className="w-4 h-4 mx-auto mb-0.5 text-red-400" /><p className="font-bold text-sm">{film.likes_count}</p></div>
@@ -1269,6 +1345,102 @@ const FilmDetail = () => {
           </CardContent>
         </Card>
         <div className="lg:col-span-2 space-y-4">
+          {/* Hourly Revenue Section - Only for films in theaters */}
+          {film.status === 'in_theaters' && (
+            <Card className="bg-gradient-to-r from-green-500/10 to-yellow-500/10 border-green-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-400" /> Incassi Orari
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {hourlyRevenue && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                    <div className="p-2 rounded bg-black/20 text-center">
+                      <p className="text-[10px] text-gray-400">Stima Oraria</p>
+                      <p className="text-lg font-bold text-green-400">${hourlyRevenue.revenue?.toLocaleString()}</p>
+                    </div>
+                    <div className="p-2 rounded bg-black/20 text-center">
+                      <p className="text-[10px] text-gray-400">Giorni in Sala</p>
+                      <p className="text-lg font-bold">{hourlyRevenue.days_in_theater || durationStatus?.current_days || 1}</p>
+                    </div>
+                    <div className="p-2 rounded bg-black/20 text-center">
+                      <p className="text-[10px] text-gray-400">Moltiplicatore</p>
+                      <p className="text-lg font-bold text-yellow-400">x{((hourlyRevenue.factors?.quality_mult || 1) * (hourlyRevenue.factors?.genre_mult || 1)).toFixed(2)}</p>
+                    </div>
+                    <div className="p-2 rounded bg-black/20 text-center">
+                      <p className="text-[10px] text-gray-400">Imprevedibilità</p>
+                      <p className="text-lg font-bold">{((hourlyRevenue.factors?.unpredictability || 1) * 100).toFixed(0)}%</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={processHourlyRevenue} disabled={processing} className="bg-green-600 hover:bg-green-500">
+                    {processing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <DollarSign className="w-4 h-4 mr-1" />}
+                    Incassa Ora
+                  </Button>
+                  <Button variant="outline" onClick={checkStarDiscoveries} className="border-yellow-500/30 text-yellow-400">
+                    <Star className="w-4 h-4 mr-1" /> Cerca Stelle
+                  </Button>
+                  <Button variant="outline" onClick={evolveSkills} className="border-blue-500/30 text-blue-400">
+                    <TrendingUp className="w-4 h-4 mr-1" /> Evolvi Skill Cast
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Duration Status */}
+          {film.status === 'in_theaters' && durationStatus && (
+            <Card className={`border ${durationStatus.status === 'extend' ? 'bg-green-500/10 border-green-500/30' : durationStatus.status === 'withdraw_early' ? 'bg-red-500/10 border-red-500/30' : 'bg-[#1A1A1A] border-white/10'}`}>
+              <CardHeader className="pb-2">
+                <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-yellow-500" /> Stato Programmazione
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{durationStatus.current_days}</p>
+                    <p className="text-[10px] text-gray-400">Giorni trascorsi</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{durationStatus.planned_days}</p>
+                    <p className="text-[10px] text-gray-400">Giorni pianificati</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-yellow-400">{durationStatus.days_remaining}</p>
+                    <p className="text-[10px] text-gray-400">Giorni rimanenti</p>
+                  </div>
+                </div>
+                <div className="p-2 rounded bg-black/20 mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm">Performance Score:</span>
+                    <span className={`font-bold ${durationStatus.score > 0 ? 'text-green-400' : durationStatus.score < 0 ? 'text-red-400' : 'text-gray-400'}`}>{durationStatus.score > 0 ? '+' : ''}{durationStatus.score}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400">
+                    {durationStatus.reasons?.slice(0, 3).map((r, i) => <div key={i}>{r}</div>)}
+                  </div>
+                </div>
+                {durationStatus.status === 'extend' && (
+                  <div className="p-3 rounded bg-green-500/20 border border-green-500/30 mb-3">
+                    <p className="text-green-400 font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Film idoneo per estensione!</p>
+                    <p className="text-xs text-gray-300">Puoi estendere fino a {durationStatus.extension_days} giorni extra.</p>
+                    <p className="text-xs text-green-300">Fame bonus: +{durationStatus.fame_change}</p>
+                    <Button onClick={extendFilm} size="sm" className="mt-2 bg-green-600">Estendi di 7 giorni</Button>
+                  </div>
+                )}
+                {durationStatus.status === 'withdraw_early' && (
+                  <div className="p-3 rounded bg-red-500/20 border border-red-500/30">
+                    <p className="text-red-400 font-semibold flex items-center gap-2"><TrendingDown className="w-4 h-4" /> Performance scarsa</p>
+                    <p className="text-xs text-gray-300">Il film potrebbe essere ritirato anticipatamente.</p>
+                    <p className="text-xs text-red-300">Fame penalty: {durationStatus.fame_change}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Cast Section */}
           <Card className="bg-[#1A1A1A] border-white/10">
             <CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Users className="w-4 h-4 text-yellow-500" /> Cast & Crew</CardTitle></CardHeader>

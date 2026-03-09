@@ -1,182 +1,126 @@
 # CineWorld Studio's - Product Requirements Document
 
 ## Overview
-CineWorld Studio's is a multiplayer online film production simulation game with strong social features, level progression, and infrastructure management.
+CineWorld Studio's is a multiplayer online film production simulation game with level progression, infrastructure ownership, hourly revenue system, and social features.
 
-## Original Problem Statement
-Create a multiplayer online film production game with user profiles, film creation wizard, mini-games, social interactions, level progression system, infrastructure ownership, and AI-powered content generation.
-
-## What's Been Implemented
+## What's Been Implemented (March 2026)
 
 ### Authentication & Profile
-- [x] JWT-based authentication (register/login)
-- [x] Age verification (18+ required)
-- [x] Gender selection (male/female)
-- [x] 20 Modern Avatars (DiceBear v9)
-- [x] AI Avatar Generation (GPT Image 1)
-- [x] Custom Avatar URL Input
+- [x] JWT-based authentication
+- [x] Age/gender verification
+- [x] 20 Modern Avatars + AI Generation + Custom URL
 - [x] Multi-language support (IT, EN, ES, FR, DE)
-- [x] Auto-login via localStorage
-- [x] Player reset function
 
-### Level & XP System (NEW - March 2026)
-- [x] **Infinite level system** starting from Level 0
-- [x] **Exponential XP growth**: 100 XP for Lv1, +50% each level
-- [x] **XP Sources**:
-  - Mini-games: 5 XP per play, +15 XP for winning (80%+ correct)
-  - Film release: 50 XP base, +200 for hit (80%+), +500 for blockbuster (90%+)
-  - Likes given/received: 2-3 XP
-  - Infrastructure purchase: 100 XP
-  - Daily login: 25 XP
-- [x] **Level visible in navbar** with progress bar
-- [x] **Level badge** next to player name
+### Level & XP System
+- [x] Infinite level system from Level 0
+- [x] Exponential XP growth (+50% per level)
+- [x] XP from: mini-games, films, likes, infrastructure
+- [x] Level visible in navbar with progress bar
 
-### Fame System (NEW)
-- [x] **Fame score 0-100** starting at 50
-- [x] **Fame tiers**: Unknown, Emerging, Notable, Famous, Star, Legend
-- [x] **Fame changes based on film performance**:
-  - Quality 90+: +15-25 fame
-  - Quality 80-89: +8-13 fame
-  - Quality 70-79: +3-6 fame
-  - Quality 30-49: -5 to -8 fame
-  - Quality <30: -10 to -15 fame
-- [x] **Fame affects infrastructure revenue** (multiplier 0.8x to 1.5x)
+### Fame System (0-100)
+- [x] 6 tiers: Unknown → Legend
+- [x] Fame changes based on film performance
+- [x] Fame affects infrastructure revenue (0.8x to 1.5x)
 
-### Mini-Games System (UPDATED)
-- [x] **5 Games**: Film Trivia, Guess the Genre, Director Match, Box Office Bet, Release Year
-- [x] **NEW: 4 plays per game every 4 hours** (cooldown system)
-- [x] **Translated in 5 languages**
-- [x] **XP rewards** for playing and winning
+### Hourly Revenue System (NEW)
+- [x] **Revenue calculated HOURLY** (not daily)
+- [x] **15+ Factors affecting revenue:**
+  - Quality score, IMDb rating
+  - Cast fame average, Director skill
+  - Genre popularity (seasonal bonuses)
+  - Time of day (peak: 19:00-21:00)
+  - Day of week (weekend bonus)
+  - Days in theater decay curve
+  - Competition from other films
+  - Unpredictability (±25%)
+  - Weather factor
+  - Special events (2% chance: Premiere, Festival, Celebrity Visit)
+- [x] "Incassa Ora" button to collect hourly revenue
 
-### Infrastructure System (NEW)
-- [x] **11 Infrastructure Types**:
-  1. Cinema (Lv.5, Fame 20) - $2M - 4 screens
-  2. Drive-In Theater (Lv.8, Fame 25) - $1.5M - 2 screens
-  3. Small Shopping Mall Cinema (Lv.10, Fame 30) - $5M - 6 screens, 3D
-  4. Production Studio (Lv.15, Fame 40) - $8M - 15% production discount
-  5. Medium Shopping Mall Multiplex (Lv.20, Fame 50) - $15M - 10 screens
-  6. Cinema School (Lv.25, Fame 55) - $12M - Train actors
-  7. Cinema Museum (Lv.30, Fame 60) - $20M - Fame bonus
-  8. Large Shopping Mall IMAX (Lv.35, Fame 65) - $35M - 16 screens, IMAX
-  9. VIP Luxury Cinema (Lv.40, Fame 70) - $25M - 3x ticket prices
-  10. Film Festival Venue (Lv.45, Fame 75) - $40M - Host festivals
-  11. Theme Park (Lv.50, Fame 80) - $100M - Full attraction park
+### Film Duration System (NEW)
+- [x] **Dynamic film duration** based on performance score
+- [x] **Extension** (up to 14 days) for successful films:
+  - Quality 80+, IMDb 7+, high satisfaction
+  - Earns extra fame (+0.5 per day)
+  - Earns extra revenue bonus
+- [x] **Early withdrawal** for failing films:
+  - Quality <40, IMDb <4, poor satisfaction
+  - Fame penalty (-0.3 per day early)
+  - Revenue penalty ($20k per day)
+- [x] Performance reasons displayed in UI
 
-- [x] **World Cities** in 10 countries with different wealth/cost multipliers
-- [x] **First cinema must be in player's language country**
-- [x] **Cinema Management**:
-  - Set ticket prices (adult, child, 3D, IMAX)
-  - Set food/drink prices
-  - Show own films or buy from other players
-  - Daily revenue based on fame, film quality, city wealth
+### Star Discovery System (NEW)
+- [x] Unknown actors can become "Rising Stars"
+- [x] Chance based on film quality (75+) and actor skills
+- [x] Announcement broadcast in chat
+- [x] Fame bonus to discovering player (+5)
 
-### Cinema School (NEW)
-- [x] **Enroll students** with random characteristics
-- [x] **Train students daily** to improve skills
-- [x] **Give attention** to prevent students from leaving
-- [x] **Graduate students** (min 30 days) to become personal actors
-- [x] **Personal actors** can be used in your films at reduced cost
+### Skill Evolution System (NEW)
+- [x] Cast skills evolve based on film quality
+- [x] Role importance affects changes (protagonist > cameo)
+- [x] Breakthrough chance (+0.5-1.0 skill)
+- [x] Decline chance (injury/burnout: -0.3-0.7)
 
-### Leaderboard System (NEW)
-- [x] **Global leaderboard** ranking all players
-- [x] **Local leaderboard** by country (where player has infrastructure)
-- [x] **Composite score**: Level (30%) + Fame (40%) + Revenue (30%)
-- [x] **Top player is NOT necessarily highest level**
-- [x] **Medals** for top 3 (gold/silver/bronze)
+### Negative Rating Penalty (NEW)
+- [x] Track ratio of negative ratings (<2.5 stars)
+- [x] If >60% negative: -5% quality penalty on own films
+- [x] If >80% negative: -10% quality penalty
+- [x] Encourages fair rating behavior
 
-### Player Public Profiles (NEW)
-- [x] **View other players' stats**
-- [x] **See level, fame, films count, infrastructure count**
-- [x] **Send direct messages** from profile
+### Infrastructure System
+- [x] 11 types from Cinema (Lv5) to Theme Park (Lv50)
+- [x] World cities with wealth/cost multipliers
+- [x] Cinema management (tickets, food prices)
+- [x] Cinema School for training personal actors
 
-### Film Production
-- [x] 10-step wizard for film creation
-- [x] 16 genres with 6 sub-genres each
-- [x] **IMDb-style rating** (1-10) for each film
-- [x] **AI-generated user interactions** (less weight on sales)
-- [x] **Fame changes** based on film success/failure
-- [x] **XP rewards** for film releases
-- [x] Sponsor selection, equipment, locations
-- [x] Cast with roles and fame categories
-- [x] Gender visible next to all cast names
-- [x] AI screenplay and poster generation
+### Mini-Games
+- [x] 5 games with 4 plays per type every 4 hours
+- [x] XP rewards for playing and winning
+- [x] Translated in 5 languages
 
 ### Social Features
-- [x] Social feed with film likes
 - [x] Chat with public/private rooms
 - [x] Bot moderators
-- [x] Cinema Journal with rankings and voting
+- [x] Cinema Journal with star ratings
+- [x] Leaderboard (global/local)
+- [x] Player public profiles
 
-## Technical Architecture
+## API Endpoints
 
-```
-/app/
-├── backend/
-│   ├── server.py           # Main FastAPI app (~3500 lines)
-│   ├── game_systems.py     # Level, Fame, Infrastructure logic (NEW)
-│   ├── requirements.txt
-│   └── .env
-├── frontend/
-│   ├── src/
-│   │   ├── App.js          # Main React app (~2500 lines)
-│   │   └── components/ui/  # Shadcn components
-│   └── .env
-└── memory/
-    └── PRD.md
-```
+### Hourly Revenue (NEW)
+- `GET /api/films/{id}/hourly-revenue` - Get current hourly estimate
+- `POST /api/films/{id}/process-hourly-revenue` - Collect hourly revenue
+- `POST /api/films/process-all-hourly` - Process all films at once
 
-## API Endpoints Summary
+### Film Duration (NEW)
+- `GET /api/films/{id}/duration-status` - Get extension/withdrawal status
+- `POST /api/films/{id}/extend` - Extend successful film
+- `POST /api/films/{id}/early-withdraw` - Withdraw failing film
 
-### Level/Fame/Infrastructure (NEW)
-- `GET /api/player/level-info` - Get level, XP, fame, progress
-- `GET /api/player/fame` - Get fame tier and benefits
-- `GET /api/infrastructure/types` - All 11 infrastructure types
-- `GET /api/infrastructure/cities` - World cities with costs
-- `GET /api/infrastructure/my` - Player's owned infrastructure
-- `POST /api/infrastructure/purchase` - Buy new infrastructure
-- `GET /api/infrastructure/{id}` - Infrastructure details
-- `PUT /api/infrastructure/{id}/prices` - Update prices
-- `POST /api/infrastructure/{id}/add-film` - Add film to cinema
-- `POST /api/infrastructure/{id}/buy-film` - Buy other player's film
-- `GET /api/minigames/cooldowns` - Cooldown status for all games
+### Cast Evolution (NEW)
+- `POST /api/films/{id}/check-star-discoveries` - Find new stars
+- `POST /api/films/{id}/evolve-cast-skills` - Evolve skills
 
-### Cinema School (NEW)
-- `GET /api/cinema-school/{id}/students` - List students
-- `POST /api/cinema-school/{id}/enroll` - Enroll new student
-- `POST /api/cinema-school/{id}/train` - Train all students
-- `POST /api/cinema-school/{id}/give-attention/{student_id}` - Prevent leaving
-- `POST /api/cinema-school/{id}/graduate/{student_id}` - Graduate to actor
-- `GET /api/actors/personal` - Your trained actors
-
-### Leaderboard (NEW)
-- `GET /api/leaderboard/global` - Global rankings
-- `GET /api/leaderboard/local/{country}` - Country rankings
-- `GET /api/players/{id}/profile` - Public player profile
+### Rating Penalty (NEW)
+- `GET /api/player/rating-stats` - Check penalty status
 
 ## Test Results (March 9, 2026)
-- Backend: 100% (12/12 tests passed)
+- Backend: 100% (16 tests passed)
 - Frontend: 100% (all features verified)
-- Level/XP system: PASS
-- Infrastructure system: PASS
-- Leaderboard system: PASS
-- Cinema School: PASS
+- Critical bug fixed: datetime parsing
 
-## P1 Features (Next Phase)
-- [ ] Star Discovery System with news announcements
-- [ ] Skill evolution over time for cast
-- [ ] Negative rating penalty system
+## P1 Features (Next)
 - [ ] Image sharing in chat
 - [ ] Automatic chat translation
+- [ ] Tour of other players' cinemas
 
 ## P2 Features (Backlog)
-- [ ] Voice messages in chat
-- [ ] Detailed box office by state/city
-- [ ] PvP challenges
+- [ ] Voice messages
 - [ ] Film trailers
 - [ ] Award ceremonies
-- [ ] Seasonal events
+- [ ] PvP challenges
 
-## 3rd Party Integrations
-- OpenAI GPT-5.2 (Text) via Emergent LLM Key
-- GPT Image 1 (Images) via Emergent LLM Key
-- Google Translate API (Planned)
+## Tech Stack
+- **Backend**: FastAPI, Python, MongoDB, WebSockets
+- **Frontend**: React, TailwindCSS, Shadcn/UI
+- **AI**: GPT-5.2 (text), GPT Image 1 (images)

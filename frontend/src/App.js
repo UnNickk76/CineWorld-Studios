@@ -5,11 +5,11 @@ import { Toaster, toast } from 'sonner';
 import { 
   Film, Home, Users, MessageSquare, BarChart3, User, LogOut, Plus, Heart, 
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
-  Send, Image, ChevronRight, ChevronDown, Menu, X, Settings, 
+  Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings, 
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
-  Wallet, Bell, HelpCircle, Info, Music, BookOpen
+  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -151,6 +151,7 @@ const TopNavbar = () => {
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace' },
     { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
+    { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Users, label: 'social' },
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
@@ -3892,6 +3893,300 @@ const TutorialPage = () => {
   );
 };
 
+// Festivals Page
+const FestivalsPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { language } = useTranslations();
+  const [festivals, setFestivals] = useState([]);
+  const [selectedFestival, setSelectedFestival] = useState(null);
+  const [currentEdition, setCurrentEdition] = useState(null);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState('all_time');
+  const [myAwards, setMyAwards] = useState(null);
+  const [activeTab, setActiveTab] = useState('festivals');
+  const [voting, setVoting] = useState(false);
+
+  const periodLabels = {
+    'monthly': language === 'it' ? 'Questo Mese' : language === 'es' ? 'Este Mes' : 'This Month',
+    'yearly': language === 'it' ? 'Quest\'Anno' : language === 'es' ? 'Este Año' : 'This Year',
+    'all_time': language === 'it' ? 'Di Sempre' : language === 'es' ? 'De Todos Los Tiempos' : 'All Time'
+  };
+
+  useEffect(() => {
+    loadFestivals();
+    loadLeaderboard();
+    loadMyAwards();
+  }, [language]);
+
+  const loadFestivals = async () => {
+    try {
+      const res = await api.get(`/festivals?language=${language}`);
+      setFestivals(res.data.festivals);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadFestivalEdition = async (festivalId) => {
+    try {
+      const res = await api.get(`/festivals/${festivalId}/current?language=${language}`);
+      setCurrentEdition(res.data);
+      setSelectedFestival(festivalId);
+    } catch (e) {
+      toast.error('Errore caricamento festival');
+    }
+  };
+
+  const loadLeaderboard = async (period = leaderboardPeriod) => {
+    try {
+      const res = await api.get(`/festivals/awards/leaderboard?period=${period}&language=${language}`);
+      setLeaderboard(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadMyAwards = async () => {
+    try {
+      const res = await api.get(`/festivals/my-awards?language=${language}`);
+      setMyAwards(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleVote = async (categoryId, nomineeId) => {
+    if (!currentEdition || voting) return;
+    setVoting(true);
+    try {
+      await api.post('/festivals/vote', {
+        festival_id: selectedFestival,
+        edition_id: currentEdition.id,
+        category: categoryId,
+        nominee_id: nomineeId
+      });
+      toast.success('+5 XP per il voto!');
+      loadFestivalEdition(selectedFestival);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore votazione');
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  const getPrestigeStars = (prestige) => '⭐'.repeat(prestige);
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto" data-testid="festivals-page">
+      <div className="text-center mb-6">
+        <Award className="w-12 h-12 text-yellow-500 mx-auto mb-2" />
+        <h1 className="font-['Bebas_Neue'] text-3xl">{language === 'it' ? 'Festival del Cinema' : language === 'es' ? 'Festivales de Cine' : 'Film Festivals'}</h1>
+        <p className="text-gray-400 text-sm">{language === 'it' ? 'Vota i migliori film e vinci premi!' : 'Vote for the best films and win awards!'}</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 justify-center flex-wrap">
+        <Button variant={activeTab === 'festivals' ? 'default' : 'outline'} onClick={() => setActiveTab('festivals')} className={activeTab === 'festivals' ? 'bg-yellow-500 text-black' : ''}>
+          <Star className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival' : 'Festivals'}
+        </Button>
+        <Button variant={activeTab === 'leaderboard' ? 'default' : 'outline'} onClick={() => setActiveTab('leaderboard')} className={activeTab === 'leaderboard' ? 'bg-yellow-500 text-black' : ''}>
+          <Trophy className="w-4 h-4 mr-2" />{language === 'it' ? 'Classifica Premi' : 'Awards Leaderboard'}
+        </Button>
+        <Button variant={activeTab === 'my_awards' ? 'default' : 'outline'} onClick={() => setActiveTab('my_awards')} className={activeTab === 'my_awards' ? 'bg-yellow-500 text-black' : ''}>
+          <Medal className="w-4 h-4 mr-2" />{language === 'it' ? 'I Miei Premi' : 'My Awards'}
+        </Button>
+      </div>
+
+      {/* Festivals Tab */}
+      {activeTab === 'festivals' && (
+        <div className="space-y-4">
+          {!selectedFestival ? (
+            <div className="grid md:grid-cols-3 gap-4">
+              {festivals.map(fest => (
+                <Card key={fest.id} className={`bg-[#1A1A1A] border-white/10 cursor-pointer hover:border-yellow-500/50 transition-colors ${fest.is_active ? 'ring-2 ring-yellow-500' : ''}`} onClick={() => loadFestivalEdition(fest.id)}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="font-['Bebas_Neue'] text-lg text-yellow-400">{fest.name}</CardTitle>
+                      <span className="text-lg">{getPrestigeStars(fest.prestige)}</span>
+                    </div>
+                    {fest.is_active && <Badge className="bg-green-500/20 text-green-400 w-fit">{language === 'it' ? 'IN CORSO' : 'ACTIVE'}</Badge>}
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-400 text-xs mb-3">{fest.description}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">{language === 'it' ? 'Prossimo' : 'Next'}: {fest.next_date}</span>
+                      <Badge variant="outline" className={fest.voting_type === 'player' ? 'border-purple-500 text-purple-400' : 'border-blue-500 text-blue-400'}>
+                        {fest.voting_type === 'player' ? (language === 'it' ? 'Voto Giocatori' : 'Player Vote') : 'AI'}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-center text-xs">
+                      <div><p className="text-yellow-400 font-bold">+{fest.rewards.xp}</p><p className="text-gray-500">XP</p></div>
+                      <div><p className="text-purple-400 font-bold">+{fest.rewards.fame}</p><p className="text-gray-500">{language === 'it' ? 'Fama' : 'Fame'}</p></div>
+                      <div><p className="text-green-400 font-bold">${(fest.rewards.money/1000).toFixed(0)}K</p><p className="text-gray-500">{language === 'it' ? 'Denaro' : 'Money'}</p></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : currentEdition && (
+            <div>
+              <Button variant="ghost" onClick={() => {setSelectedFestival(null); setCurrentEdition(null);}} className="mb-4">
+                <ChevronLeft className="w-4 h-4 mr-1" />{language === 'it' ? 'Torna ai Festival' : 'Back to Festivals'}
+              </Button>
+              
+              <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30 mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="font-['Bebas_Neue'] text-2xl text-yellow-400">{currentEdition.festival_name}</CardTitle>
+                    {currentEdition.can_vote && <Badge className="bg-purple-500/20 text-purple-400">{language === 'it' ? 'VOTA ORA' : 'VOTE NOW'}</Badge>}
+                  </div>
+                  <CardDescription>{language === 'it' ? `Edizione ${currentEdition.month}/${currentEdition.year}` : `Edition ${currentEdition.month}/${currentEdition.year}`}</CardDescription>
+                </CardHeader>
+              </Card>
+
+              <div className="space-y-4">
+                {currentEdition.categories?.map(cat => (
+                  <Card key={cat.category_id} className="bg-[#1A1A1A] border-white/10">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                        <Award className="w-5 h-5 text-yellow-500" />
+                        {cat.name}
+                        {cat.user_voted && <Badge className="bg-green-500/20 text-green-400 text-xs ml-2">{language === 'it' ? 'Votato' : 'Voted'}</Badge>}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                        {cat.nominees?.map(nom => (
+                          <div key={nom.id} className={`p-3 rounded-lg border ${cat.user_voted === nom.id ? 'bg-yellow-500/20 border-yellow-500' : 'bg-white/5 border-white/10 hover:border-white/30'} ${currentEdition.can_vote && !cat.user_voted ? 'cursor-pointer' : ''}`}
+                            onClick={() => currentEdition.can_vote && !cat.user_voted && handleVote(cat.category_id, nom.id)}>
+                            <div className="flex items-center gap-2 mb-2">
+                              {nom.poster_url || nom.avatar_url ? (
+                                <img src={nom.poster_url || nom.avatar_url} alt="" className="w-10 h-10 rounded object-cover" />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-white/10 flex items-center justify-center"><User className="w-5 h-5 text-gray-500" /></div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{nom.name}</p>
+                                {nom.film_title && <p className="text-xs text-gray-400 truncate">{nom.film_title}</p>}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">{nom.votes || 0} {language === 'it' ? 'voti' : 'votes'}</span>
+                              {currentEdition.can_vote && !cat.user_voted && <Button size="sm" className="h-6 text-xs bg-yellow-500 text-black hover:bg-yellow-400" disabled={voting}>{language === 'it' ? 'Vota' : 'Vote'}</Button>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Leaderboard Tab */}
+      {activeTab === 'leaderboard' && (
+        <div>
+          <div className="flex gap-2 mb-4 justify-center">
+            {['monthly', 'yearly', 'all_time'].map(p => (
+              <Button key={p} variant={leaderboardPeriod === p ? 'default' : 'outline'} size="sm" onClick={() => {setLeaderboardPeriod(p); loadLeaderboard(p);}} className={leaderboardPeriod === p ? 'bg-yellow-500 text-black' : ''}>
+                {periodLabels[p]}
+              </Button>
+            ))}
+          </div>
+          
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader><CardTitle className="font-['Bebas_Neue'] text-xl">{language === 'it' ? 'Classifica Premi' : 'Awards Leaderboard'} - {periodLabels[leaderboardPeriod]}</CardTitle></CardHeader>
+            <CardContent>
+              {leaderboard?.leaderboard?.length > 0 ? (
+                <div className="space-y-2">
+                  {leaderboard.leaderboard.map((entry, i) => (
+                    <div key={entry.user_id} className={`flex items-center gap-3 p-3 rounded ${i < 3 ? 'bg-yellow-500/10' : 'bg-white/5'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${i === 0 ? 'bg-yellow-500 text-black' : i === 1 ? 'bg-gray-400 text-black' : i === 2 ? 'bg-amber-600 text-black' : 'bg-white/10'}`}>
+                        {entry.rank}
+                      </div>
+                      <img src={entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.nickname}`} alt="" className="w-10 h-10 rounded-full" />
+                      <div className="flex-1">
+                        <p className="font-semibold">{entry.nickname}</p>
+                        <p className="text-xs text-gray-400">Lv.{entry.level} • {entry.fame} {language === 'it' ? 'Fama' : 'Fame'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-yellow-400 font-bold">{entry.total_awards} <Trophy className="w-4 h-4 inline" /></p>
+                        <p className="text-xs text-gray-500">{entry.total_prestige} prestige</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-8">{language === 'it' ? 'Nessun premio assegnato ancora' : 'No awards yet'}</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* My Awards Tab */}
+      {activeTab === 'my_awards' && (
+        <div>
+          {myAwards?.stats && (
+            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 mb-6">
+              <CardContent className="p-6">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-1" />
+                    <p className="text-2xl font-bold text-yellow-400">{myAwards.stats.total_awards}</p>
+                    <p className="text-xs text-gray-400">{language === 'it' ? 'Premi Totali' : 'Total Awards'}</p>
+                  </div>
+                  <div>
+                    <Star className="w-8 h-8 text-purple-400 mx-auto mb-1" />
+                    <p className="text-2xl font-bold text-purple-400">{Object.keys(myAwards.stats.by_festival).length}</p>
+                    <p className="text-xs text-gray-400">{language === 'it' ? 'Festival Vinti' : 'Festivals Won'}</p>
+                  </div>
+                  <div>
+                    <Award className="w-8 h-8 text-pink-400 mx-auto mb-1" />
+                    <p className="text-2xl font-bold text-pink-400">{Object.keys(myAwards.stats.by_category).length}</p>
+                    <p className="text-xs text-gray-400">{language === 'it' ? 'Categorie' : 'Categories'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader><CardTitle className="font-['Bebas_Neue'] text-xl">{language === 'it' ? 'I Miei Premi' : 'My Awards'}</CardTitle></CardHeader>
+            <CardContent>
+              {myAwards?.awards?.length > 0 ? (
+                <div className="space-y-2">
+                  {myAwards.awards.map(award => (
+                    <div key={award.id} className="flex items-center gap-3 p-3 bg-white/5 rounded">
+                      <Award className="w-8 h-8 text-yellow-500" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-yellow-400">{award.category_name}</p>
+                        <p className="text-sm">{award.winner_name}</p>
+                        <p className="text-xs text-gray-400">{award.festival_name} • {award.film_title}</p>
+                      </div>
+                      <div className="text-right text-xs text-gray-500">
+                        {award.month}/{award.year}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Trophy className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-400">{language === 'it' ? 'Non hai ancora vinto premi. Partecipa ai festival!' : 'No awards yet. Participate in festivals!'}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Credits Page
 const CreditsPage = () => {
   const { api } = useContext(AuthContext);
@@ -4487,6 +4782,7 @@ function App() {
               <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
               <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
               <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
+              <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
               <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
               <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />

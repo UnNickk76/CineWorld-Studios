@@ -1,98 +1,74 @@
 # CineWorld Studio's - Product Requirements Document
 
 ## Descrizione
-Gioco multiplayer online di produzione cinematografica.
+Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
 ## Funzionalità Implementate
 
-### Sessione 09/03/2025 - Aggiornamento Completo
+### Sessione 09/03/2025 - Festival Cinematografici
 
-#### Nuove Feature Implementate
-- [x] **Compositore/Produttore Musicale**: Nuovo tipo di cast con skills musicali (Melodic Composition, Orchestration, Emotional Impact, Genre Versatility)
-- [x] **Colonna Sonora AI**: Step 9 nel wizard per generare descrizioni della colonna sonora con prompt personalizzato (GPT-5.2)
-- [x] **Fix Trailer Video**: Durata corretta a 4/8/12 secondi (Sora 2)
-- [x] **Sistema Anteprime Esclusive**: Invita amici alla premiere del trailer, guadagna XP e Fama
-- [x] **Wizard 12 Step**: Aggiornato da 10 a 12 step
+#### Sistema Festival (NUOVO)
+- [x] **3 Festival ogni 10 giorni:**
+  - **Golden Stars Awards** ⭐⭐⭐ (Voto Player) - +500 XP, +50 Fama, $100K
+  - **Spotlight Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K  
+  - **Cinema Excellence Awards** ⭐⭐ (AI) - +300 XP, +30 Fama, $50K
 
-#### Wizard Creazione Film (12 Step)
-1. Title - Titolo e genere
-2. Sponsor - Selezione sponsor
-3. Equipment - Attrezzature e location
-4. Writer - Sceneggiatore
-5. Director - Regista
-6. **Composer** - Compositore (NUOVO)
-7. Cast - Attori con ruoli
-8. Script - Sceneggiatura (con AI)
-9. **Soundtrack** - Colonna sonora AI (NUOVO)
-10. Poster - Generazione poster AI
-11. Ads - Pubblicità
-12. Review - Riepilogo e conferma
+- [x] **10 Categorie Premio:**
+  1. Miglior Film
+  2. Miglior Regia
+  3. Miglior Attore
+  4. Miglior Attrice
+  5. Miglior Attore Non Protagonista
+  6. Miglior Attrice Non Protagonista
+  7. Miglior Sceneggiatura
+  8. Miglior Colonna Sonora
+  9. Miglior Fotografia
+  10. Premio del Pubblico
 
-### Funzionalità Core (Completate)
-- [x] Sistema XP Esponenziale: 50 * (1.037^level)
-- [x] Incassi Bilanciati: quality^1.5×1000
-- [x] Voti Non Modificabili
-- [x] Tutorial 8 step, Credits
-- [x] Notifiche real-time
-- [x] Riscossione Incassi (max 4h)
-- [x] Prompt Sceneggiatura AI
-- [x] Sfide Versus
-- [x] Saghe/Sequel (Lv.15+), Serie TV (Lv.20+), Anime (Lv.25+)
-- [x] Noleggio Film nei cinema
+- [x] **Classifiche Premi:** Mensili, Annuali, Di Sempre
+- [x] **Traduzioni complete** in 5 lingue (EN, IT, ES, FR, DE)
 
-### Sistema Cast Completo
-- [x] Attori con ruoli (protagonista, antagonista, etc.)
-- [x] Registi
-- [x] Sceneggiatori
-- [x] **Compositori** (NUOVO) - Skills: Melodic Composition, Orchestration, Emotional Impact, Genre Versatility
+#### Altre Feature Completate
+- [x] Compositore/Produttore Musicale (Step 6 wizard)
+- [x] Colonna Sonora AI con prompt (Step 9 wizard)
+- [x] Fix Trailer Video (4/8/12 sec - Sora 2)
+- [x] Sistema Anteprime Esclusive
+- [x] Pagina Crediti con Andreola Fabio e diritti riservati
 
-## Backlog Rimanente
+### Wizard Creazione Film (12 Step)
+1. Title, 2. Sponsor, 3. Equipment, 4. Writer, 5. Director, 
+6. **Composer**, 7. Cast, 8. Script, 9. **Soundtrack**, 10. Poster, 11. Ads, 12. Review
 
-### P1 - Prossime Task
-- [ ] Mini-giochi Versus dalla chat privata
-- [ ] UI Saghe/Serie TV (endpoint pronti)
-- [ ] Bonus trailer collegato agli incassi
+### Funzionalità Core
+- Sistema XP Esponenziale, Incassi Bilanciati, Voti Non Modificabili
+- Tutorial 8 step, Credits, Notifiche, Riscossione Incassi
+- Saghe/Sequel, Serie TV, Anime, Noleggio Film
+
+## API Endpoints Festival
+
+```
+GET  /api/festivals                    - Lista 3 festival
+GET  /api/festivals/{id}/current       - Edizione corrente con nominati
+POST /api/festivals/vote               - Vota (solo Golden Stars)
+POST /api/festivals/{edition_id}/finalize - Assegna premi
+GET  /api/festivals/awards/leaderboard - Classifica premi
+GET  /api/festivals/my-awards          - Premi vinti
+```
+
+## Backlog
+
+### P1 - Prossime
+- [ ] Mini-giochi Versus dalla chat
+- [ ] UI Saghe/Serie TV
 
 ### P2 - Future
-- [ ] Evoluzione abilità cast nel tempo
-- [ ] Messaggi vocali/immagini in chat
-- [ ] Statistiche incassi per stato/città
-
-## API Endpoints Nuovi
-
-### Compositori
-- `GET /api/composers` - Lista compositori con skills musicali
-
-### Colonna Sonora AI
-- `POST /api/ai/soundtrack-description` - Genera descrizione colonna sonora
-  - Params: title, genre, mood, custom_prompt
-
-### Trailer Video
-- `POST /api/ai/generate-trailer` - Genera trailer (4/8/12 sec)
-- `GET /api/films/{id}/trailer-status` - Stato generazione
-
-### Anteprime Esclusive
-- `POST /api/premiere/invite` - Invita amico (friend_nickname)
-- `GET /api/premiere/invites` - Lista inviti ricevuti
-- `POST /api/premiere/view/{id}` - Visualizza e guadagna XP (+10 viewer, +25 inviter)
-
-## Architettura
-```
-/app/
-├── backend/
-│   ├── server.py (5600+ righe)
-│   ├── game_systems.py
-│   └── cast_system.py
-├── frontend/
-│   └── src/App.js (4500+ righe)
-└── memory/
-    └── PRD.md
-```
+- [ ] Bonus trailer collegato agli incassi
+- [ ] Evoluzione abilità cast
 
 ## 3rd Party Integrations
-- **OpenAI GPT-5.2**: Sceneggiature, descrizioni colonne sonore
-- **Gemini Nano Banana**: Avatar/poster AI
-- **Sora 2**: Trailer video (4/8/12 sec)
+- OpenAI GPT-5.2 (Sceneggiature, Colonne sonore)
+- Gemini Nano Banana (Avatar/Poster)
+- Sora 2 (Trailer video)
 
 ## Test Reports
-- `/app/test_reports/iteration_12.json` - 100% pass rate
+- `/app/test_reports/iteration_13.json` - 100% pass (21/21 backend, frontend OK)

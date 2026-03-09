@@ -31,20 +31,22 @@ Gioco multiplayer online di produzione cinematografica dove i giocatori creano f
 
 ### Location Espanse (COMPLETATO - 09/03/2025)
 - [x] 60+ location in 7 categorie
-- [x] Studios: Hollywood, Warner Bros, Universal, Pinewood, Cinecittà, Babelsberg
-- [x] Urban: Manhattan, West End, Montmartre, Shibuya, Dubai, Hong Kong
-- [x] Nature: Grand Canyon, Swiss Alps, New Zealand, Amazon, Sahara
-- [x] Historical: Colosseum, Versailles, Taj Mahal, Great Wall, Machu Picchu
-- [x] Beach: Maldives, Hawaii, Bali, Caribbean, Santorini
-- [x] Industrial: Akihabara, Detroit, London Docklands
-- [x] Exotic: Antarctica, Arctic Circle, Space Simulation, Underwater Studio
+- [x] Studios, Urban, Nature, Historical, Beach, Industrial, Exotic
 
 ### Marketplace Infrastrutture (COMPLETATO - 09/03/2025)
 - [x] Compravendita tra giocatori (richiede livello 15)
 - [x] Valutazione automatica basata su livello, fama, ricavi
 - [x] Sistema offerte con accettazione/rifiuto
 - [x] Trasferimento proprietà e fondi
-- [x] Storico annunci e offerte
+
+### Sistema Scoperta delle Stelle (COMPLETATO - 09/03/2025)
+- [x] Hidden Gems: attori sconosciuti con alto potenziale (stelle >= 4)
+- [x] Scoperta automatica quando usati in film di successo
+- [x] News nel Cinema Journal per ogni scoperta
+- [x] Annuncio nella chat pubblica
+- [x] Ricompensa scopritore: $500K + 200 XP + 5 likeability
+- [x] Hall of Fame delle stelle scoperte
+- [x] L'attore scoperto diventa superstar
 
 ### Sistema Progressione
 - [x] Livelli senza limite massimo
@@ -80,7 +82,6 @@ Gioco multiplayer online di produzione cinematografica dove i giocatori creano f
 ## Backlog (Prossime Task)
 
 ### P0 - Alta Priorità
-- [ ] Sistema "scoperta di una stella": annuncio nelle news quando un attore sconosciuto si rivela un talento
 - [ ] Miglioramento/peggioramento abilità cast nel tempo
 
 ### P1 - Media Priorità
@@ -113,6 +114,20 @@ Gioco multiplayer online di produzione cinematografica dove i giocatori creano f
 - **Gemini Nano Banana**: Generazione avatar AI (Emergent LLM Key)
 - **MongoDB**: Database principale
 
-## Note Refactoring
-- `frontend/src/App.js` è molto grande (3600+ righe) - considerare estrazione componenti in `/pages/`
-- `backend/server.py` è il file principale - modularizzazione in corso con `game_systems.py` e `cast_system.py`
+## API Endpoints Principali
+
+### Cinema News & Stars
+- `GET /api/cinema-news` - News delle scoperte
+- `GET /api/discovered-stars` - Stelle scoperte
+
+### Marketplace
+- `GET /api/marketplace` - Lista annunci
+- `POST /api/marketplace/list` - Metti in vendita
+- `POST /api/marketplace/offer` - Fai offerta
+- `GET /api/infrastructure/{id}/valuation` - Valutazione
+
+### Cast
+- `GET /api/actors` - Lista attori con stelle, fama, exp
+- `GET /api/directors` - Lista registi
+- `GET /api/screenwriters` - Lista sceneggiatori
+- `GET /api/locations` - 60+ location disponibili

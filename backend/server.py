@@ -542,6 +542,8 @@ TRANSLATIONS = {
         'mini_games': 'Mini Games',
         'sagas_series': 'Sagas & Series',
         'cinema_journal': 'Cinema Journal',
+        'discovered_stars': 'Discovered Stars',
+        'release_notes': 'Release Notes',
         'challenges': 'Challenges',
         'daily': 'Daily',
         'weekly': 'Weekly',
@@ -596,6 +598,8 @@ TRANSLATIONS = {
         'mini_games': 'Mini Giochi',
         'sagas_series': 'Saghe e Serie',
         'cinema_journal': 'Giornale del Cinema',
+        'discovered_stars': 'Stelle Scoperte',
+        'release_notes': 'Note di Rilascio',
         'challenges': 'Sfide',
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
@@ -649,6 +653,8 @@ TRANSLATIONS = {
         'mini_games': 'Mini Juegos',
         'sagas_series': 'Sagas y Series',
         'cinema_journal': 'Diario del Cine',
+        'discovered_stars': 'Estrellas Descubiertas',
+        'release_notes': 'Notas de Versión',
         'challenges': 'Desafíos',
         'daily': 'Diarios',
         'weekly': 'Semanales',
@@ -695,6 +701,8 @@ TRANSLATIONS = {
         'mini_games': 'Mini Jeux',
         'sagas_series': 'Sagas et Séries',
         'cinema_journal': 'Journal du Cinéma',
+        'discovered_stars': 'Étoiles Découvertes',
+        'release_notes': 'Notes de Version',
         'challenges': 'Défis',
         'daily': 'Quotidiens',
         'weekly': 'Hebdomadaires',
@@ -741,6 +749,8 @@ TRANSLATIONS = {
         'mini_games': 'Mini Spiele',
         'sagas_series': 'Sagen & Serien',
         'cinema_journal': 'Kino Zeitung',
+        'discovered_stars': 'Entdeckte Stars',
+        'release_notes': 'Versionshinweise',
         'challenges': 'Herausforderungen',
         'daily': 'Täglich',
         'weekly': 'Wöchentlich',
@@ -3605,23 +3615,215 @@ async def get_cinema_news(
 
 # Get discovered stars
 @api_router.get("/discovered-stars")
-async def get_discovered_stars(user: dict = Depends(get_current_user)):
-    """Get list of discovered stars"""
+async def get_discovered_stars(user: dict = Depends(get_current_user), limit: int = 50):
+    """Get list of discovered stars with full details"""
     stars = await db.people.find(
         {'is_discovered_star': True},
         {'_id': 0}
-    ).sort('discovered_at', -1).limit(20).to_list(20)
+    ).sort('discovered_at', -1).limit(limit).to_list(limit)
     
-    # Get discoverer details
+    # Get discoverer details and check if hired by current user
+    user_hired = await db.hired_stars.find({'user_id': user['id']}, {'star_id': 1}).to_list(100)
+    hired_star_ids = {h['star_id'] for h in user_hired}
+    
     for star in stars:
         if star.get('discovered_by'):
             discoverer = await db.users.find_one(
                 {'id': star['discovered_by']}, 
-                {'_id': 0, 'nickname': 1, 'avatar_url': 1}
+                {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1}
             )
             star['discoverer'] = discoverer
+        
+        # Calculate hire cost based on fame and skills
+        base_cost = 100000  # $100k base
+        fame_mult = 1 + (star.get('fame_score', 50) / 100)
+        skill_avg = sum(star.get('skills', {}).values()) / max(len(star.get('skills', {})), 1)
+        skill_mult = 1 + (skill_avg / 100)
+        star['hire_cost'] = int(base_cost * fame_mult * skill_mult * star.get('stars', 3))
+        star['is_hired_by_user'] = star['id'] in hired_star_ids
     
-    return {'stars': stars}
+    return {'stars': stars, 'total': len(stars)}
+
+@api_router.post("/stars/{star_id}/hire")
+async def hire_star(star_id: str, user: dict = Depends(get_current_user)):
+    """Hire a discovered star for your next film"""
+    # Check if star exists and is discovered
+    star = await db.people.find_one({'id': star_id, 'is_discovered_star': True}, {'_id': 0})
+    if not star:
+        raise HTTPException(status_code=404, detail="Star non trovata o non è una stella scoperta")
+    
+    # Check if already hired by this user
+    existing = await db.hired_stars.find_one({'user_id': user['id'], 'star_id': star_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Hai già ingaggiato questa star")
+    
+    # Calculate cost
+    base_cost = 100000
+    fame_mult = 1 + (star.get('fame_score', 50) / 100)
+    skill_avg = sum(star.get('skills', {}).values()) / max(len(star.get('skills', {})), 1)
+    skill_mult = 1 + (skill_avg / 100)
+    hire_cost = int(base_cost * fame_mult * skill_mult * star.get('stars', 3))
+    
+    # Check funds
+    if user['funds'] < hire_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${hire_cost:,}")
+    
+    # Deduct funds and save hire
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -hire_cost}})
+    
+    await db.hired_stars.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'star_id': star_id,
+        'star_name': star['name'],
+        'star_type': star['type'],
+        'hire_cost': hire_cost,
+        'hired_at': datetime.now(timezone.utc).isoformat(),
+        'used': False  # Will be set to True when used in a film
+    })
+    
+    return {
+        'success': True,
+        'message': f"{star['name']} ingaggiata per ${hire_cost:,}! Sarà disponibile nel tuo prossimo film.",
+        'hire_cost': hire_cost
+    }
+
+@api_router.get("/stars/hired")
+async def get_hired_stars(user: dict = Depends(get_current_user)):
+    """Get list of stars hired by the user (not yet used)"""
+    hired = await db.hired_stars.find(
+        {'user_id': user['id'], 'used': False},
+        {'_id': 0}
+    ).to_list(100)
+    
+    # Get full star details
+    for hire in hired:
+        star = await db.people.find_one({'id': hire['star_id']}, {'_id': 0})
+        if star:
+            hire['star_details'] = star
+    
+    return {'hired_stars': hired}
+
+@api_router.delete("/stars/hired/{hire_id}")
+async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user)):
+    """Release a hired star (no refund)"""
+    result = await db.hired_stars.delete_one({'id': hire_id, 'user_id': user['id']})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Ingaggio non trovato")
+    
+    return {'success': True, 'message': 'Star rilasciata'}
+
+# ==================== RELEASE NOTES ====================
+
+RELEASE_NOTES = [
+    # Latest first
+    {'version': '0.047', 'date': '2026-03-09', 'title': 'Sistema Ingaggio Star', 
+     'changes': ['Sezione dedicata Stelle Scoperte', 'Ingaggio anticipato star per prossimo film', 'Visualizzazione skill dettagliate', 'Pagina Release Notes']},
+    {'version': '0.046', 'date': '2026-03-09', 'title': 'Trailer in Chat & Giornale', 
+     'changes': ['Annunci trailer automatici in chat via CineBot', 'Sezione "Nuovi Trailer" nel Cinema Journal', 'Click su trailer naviga al film']},
+    {'version': '0.045', 'date': '2026-03-09', 'title': 'Boost Introiti & Sponsor', 
+     'changes': ['+30% introiti primo giorno', '+10% introiti giorni successivi', '200 sponsor totali (40 a rotazione)', 'Budget sponsor aumentato +40%']},
+    {'version': '0.044', 'date': '2026-03-09', 'title': 'Cast Pool Espanso', 
+     'changes': ['200 cast members per tipo nel wizard', '2000+ membri totali nel database', 'Generazione automatica giornaliera 40-80 nuovi']},
+    {'version': '0.043', 'date': '2026-03-09', 'title': 'Autosave Film', 
+     'changes': ['Salvataggio automatico ogni 30 secondi', 'Salvataggio su chiusura browser', 'Indicatore visivo ultimo salvataggio']},
+    {'version': '0.042', 'date': '2026-03-09', 'title': 'Film Incompleti', 
+     'changes': ['Board Film Incompleti (Bozze)', 'Pausa/Riprendi creazione film', 'Badge stato: In Pausa, Auto-salvato, Recuperato']},
+    {'version': '0.041', 'date': '2026-03-09', 'title': 'Fix Trailer Bloccati', 
+     'changes': ['Timeout automatico 15 minuti', 'Reset manuale trailer stuck', 'Campo trailer_started_at per tracking']},
+    {'version': '0.040', 'date': '2026-03-09', 'title': 'CineBoard & Classifiche', 
+     'changes': ['CineBoard con Top 50 in Sala', 'Hall of Fame tutti i film', 'Punteggio multi-variabile (Qualità, Incassi, Popolarità, Premi, Longevità)']},
+    {'version': '0.039', 'date': '2026-03-09', 'title': 'Sinossi AI & IMDb Rating', 
+     'changes': ['Sinossi generata automaticamente via GPT-4o', 'Valutazione stile IMDb per ogni film', 'CineBoard Score nella pagina film']},
+    {'version': '0.038', 'date': '2026-03-08', 'title': 'Attività Major', 
+     'changes': ['Sfide Settimanali (6 tipi)', '5 Attività: Co-Produzione, Condivisione Risorse, Premiere, Scambio Talenti, Proiezione Collettiva', 'UI con bonus e cooldown']},
+    {'version': '0.037', 'date': '2026-03-08', 'title': 'PWA Mobile', 
+     'changes': ['App installabile su iOS e Android', 'Pagina download con istruzioni', 'Manifest.json e icone PWA']},
+    {'version': '0.036', 'date': '2026-03-08', 'title': 'Re-Release Film', 
+     'changes': ['Ripubblicazione film terminati', 'Costo basato sul successo precedente', 'Nuova programmazione in sala']},
+    {'version': '0.035', 'date': '2026-03-08', 'title': 'Pulsanti Azione Profilo', 
+     'changes': ['Aggiungi Amico dal profilo utente', 'Invita in Major dal profilo', 'Titoli film cliccabili ovunque']},
+    {'version': '0.034', 'date': '2026-03-08', 'title': 'Inviti Major Offline', 
+     'changes': ['Invita utenti anche se offline', 'Lista completa giocatori per inviti', 'Filtri per stato online/offline']},
+    {'version': '0.033', 'date': '2026-03-08', 'title': 'Logo Major AI', 
+     'changes': ['Generazione logo tramite Gemini Nano Banana', 'Prompt personalizzato dall\'utente', 'Logo visualizzato nella pagina Major']},
+    {'version': '0.032', 'date': '2026-03-08', 'title': 'Sistema Catch-Up', 
+     'changes': ['Calcolo incassi mentre server offline', 'Continuità del gioco garantita', 'Tracking last_activity utente']},
+    {'version': '0.031', 'date': '2026-03-07', 'title': 'Sistema Social Completo', 
+     'changes': ['Major (Alleanze) con livelli e bonus', 'Amici & Follower con 4 tab', 'Centro Notifiche con badge']},
+    {'version': '0.030', 'date': '2026-03-07', 'title': 'Festival Personalizzati', 
+     'changes': ['Creazione festival custom', 'Categorie personalizzabili', 'Sistema votazione e premi']},
+    {'version': '0.029', 'date': '2026-03-06', 'title': 'Saghe & Serie TV', 
+     'changes': ['Creazione saghe cinematografiche', 'Serie TV multi-stagione', 'Bonus per continuità narrativa']},
+    {'version': '0.028', 'date': '2026-03-06', 'title': 'Sistema Affinità Cast', 
+     'changes': ['+2% per ogni film insieme', 'Max +10% per coppia', 'Livelli: Conoscenti → Dream Team']},
+    {'version': '0.027', 'date': '2026-03-05', 'title': 'Azioni One-Time Film', 
+     'changes': ['Crea Star (promuovi attore)', 'Skill Boost cast', 'Genera Trailer (Sora 2)']},
+    {'version': '0.026', 'date': '2026-03-05', 'title': 'Trailer AI Sora 2', 
+     'changes': ['Generazione trailer video tramite Sora 2', 'Bonus qualità +5-15%', 'Anteprima nella pagina film']},
+    {'version': '0.025', 'date': '2026-03-04', 'title': 'Poster AI', 
+     'changes': ['Generazione poster tramite Gemini Nano Banana', 'Prompt personalizzato', 'Anteprima in tempo reale']},
+    {'version': '0.024', 'date': '2026-03-04', 'title': 'Screenplay AI', 
+     'changes': ['Generazione sceneggiatura tramite GPT-4o', 'Basata su genere, cast, trama', 'Editing manuale possibile']},
+    {'version': '0.023', 'date': '2026-03-03', 'title': 'Soundtrack AI', 
+     'changes': ['Descrizione colonna sonora AI', 'Integrazione con genere film', 'Bonus qualità per coerenza']},
+    {'version': '0.022', 'date': '2026-03-03', 'title': 'Mini Games', 
+     'changes': ['Trivia cinematografico', 'Box Office Prediction', 'Cast Match challenge']},
+    {'version': '0.021', 'date': '2026-03-02', 'title': 'Leaderboard Globale', 
+     'changes': ['Classifica giocatori per incassi', 'Leaderboard per paese', 'Badge per top producer']},
+    {'version': '0.020', 'date': '2026-03-02', 'title': 'Festival Ufficiali', 
+     'changes': ['Cannes, Venice, Berlin, Toronto, Sundance', 'Nomination automatiche', 'Premi e bonus']},
+    {'version': '0.019', 'date': '2026-03-01', 'title': 'Cinema Journal', 
+     'changes': ['Giornale del cinema stile newspaper', 'News su film in uscita', 'Scoperta nuove star']},
+    {'version': '0.018', 'date': '2026-03-01', 'title': 'Sistema Chat', 
+     'changes': ['Chat generale', 'Stanze private', 'Bot moderatore']},
+    {'version': '0.017', 'date': '2026-02-28', 'title': 'Profile & Stats', 
+     'changes': ['Pagina profilo dettagliata', 'Statistiche carriera', 'Cronologia film']},
+    {'version': '0.016', 'date': '2026-02-28', 'title': 'Like & Commenti', 
+     'changes': ['Like sui film', 'Sistema commenti', 'Notifiche interazioni']},
+    {'version': '0.015', 'date': '2026-02-27', 'title': 'Advertising System', 
+     'changes': ['Piattaforme pubblicitarie', 'Boost revenue temporaneo', 'ROI tracking']},
+    {'version': '0.014', 'date': '2026-02-27', 'title': 'Box Office Dettagliato', 
+     'changes': ['Revenue giornaliero', 'Grafici andamento', 'Previsioni AI']},
+    {'version': '0.013', 'date': '2026-02-26', 'title': 'Cast Skills v2', 
+     'changes': ['Skills multiple per attore', 'Specializzazioni per genere', 'Evoluzione skills']},
+    {'version': '0.012', 'date': '2026-02-26', 'title': 'Hidden Gems', 
+     'changes': ['Attori sconosciuti di talento', 'Scoperta star nascoste', 'Bonus per scoperta']},
+    {'version': '0.011', 'date': '2026-02-25', 'title': 'Quality Score v2', 
+     'changes': ['Formula qualità migliorata', 'Fattori multipli', 'Bonus sinergia cast']},
+    {'version': '0.010', 'date': '2026-02-25', 'title': 'Sponsor System', 
+     'changes': ['Sponsor per i film', 'Budget aggiuntivo', 'Revenue share']},
+    {'version': '0.009', 'date': '2026-02-24', 'title': 'Location System', 
+     'changes': ['Multiple location per film', 'Costi variabili per location', 'Bonus qualità']},
+    {'version': '0.008', 'date': '2026-02-24', 'title': 'Equipment Packages', 
+     'changes': ['Basic, Standard, Premium, IMAX', 'Effetti sulla qualità', 'Costi progressivi']},
+    {'version': '0.007', 'date': '2026-02-23', 'title': 'Extras System', 
+     'changes': ['Comparse per i film', 'Costi variabili', 'Impatto su qualità']},
+    {'version': '0.006', 'date': '2026-02-23', 'title': 'Compositori', 
+     'changes': ['Sistema compositori', 'Colonne sonore', 'Bonus qualità musica']},
+    {'version': '0.005', 'date': '2026-02-22', 'title': 'Cast System', 
+     'changes': ['Attori, Registi, Sceneggiatori', 'Skills e fama', 'Costi ingaggio']},
+    {'version': '0.004', 'date': '2026-02-22', 'title': 'Genre System', 
+     'changes': ['20+ generi cinematografici', 'Sub-generi', 'Bonus per combinazioni']},
+    {'version': '0.003', 'date': '2026-02-21', 'title': 'Film Wizard', 
+     'changes': ['Wizard creazione film 12 step', 'Preview costi', 'Validazione budget']},
+    {'version': '0.002', 'date': '2026-02-21', 'title': 'Dashboard', 
+     'changes': ['Dashboard principale', 'Overview finanze', 'Film in produzione']},
+    {'version': '0.001', 'date': '2026-02-20', 'title': 'Auth & Base', 
+     'changes': ['Sistema autenticazione', 'Registrazione utenti', 'Profilo base']},
+    {'version': '0.000', 'date': '2026-02-20', 'title': 'Creazione Progetto', 
+     'changes': ['Setup iniziale', 'Architettura FastAPI + React', 'Database MongoDB']},
+]
+
+@api_router.get("/release-notes")
+async def get_release_notes():
+    """Get all release notes with version history"""
+    current_version = RELEASE_NOTES[0]['version'] if RELEASE_NOTES else '0.000'
+    return {
+        'current_version': current_version,
+        'releases': RELEASE_NOTES,
+        'total_releases': len(RELEASE_NOTES)
+    }
 
 # Advertise a film
 class AdvertisingCampaign(BaseModel):

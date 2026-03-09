@@ -3,78 +3,89 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Funzionalità Implementate
+## Versione Attuale: v0.047
 
-### Trailer nel Giornale e Chat - 09/03/2026 (COMPLETATO)
-- **Sezione "Nuovi Trailer"** nel Cinema Journal con anteprima poster
-- **Annunci trailer in chat** tramite CineBot nella chat generale
-- **Click per navigare** al film sia dal giornale che dalla chat
-- Badge "TRAILER" sui film con trailer disponibile
+## Funzionalità Implementate (Ultime)
 
-### Aumento Introiti Film - 09/03/2026 (COMPLETATO)
-- **+30% primo giorno** di uscita
-- **+10% giorni successivi**
-- Modifiche applicate in `server.py` e `game_systems.py`
+### v0.047 - Sistema Ingaggio Star - 09/03/2026 (COMPLETATO)
+- **Sezione dedicata "Stelle Scoperte"** con pagina completa
+- **Card star cliccabili** per vedere skill dettagliate
+- **Sistema ingaggio anticipato**: paghi ora, disponibile nel prossimo film
+- **Costo calcolato** su fama, skill e stelle
+- **Star ingaggiate** mostrate in verde nel wizard
+- **Pagina Release Notes** con versioning (0.000 → 0.047)
+- **48 release documentate** nella storia
 
-### Sponsor Espansi - 09/03/2026 (COMPLETATO)
-- **200 sponsor totali** (da 10 a 200)
-- **40 sponsor a rotazione** per ogni film (randomizzati)
-- **+40% guadagno** nei budget offerti
-- 5 tier di sponsor: Entry ($50K-150K), Low-Medium ($150K-300K), Medium ($300K-500K), High ($500K-800K), Premium ($800K-1.8M)
+### v0.046 - Trailer in Chat & Giornale
+- Annunci trailer automatici in chat via CineBot
+- Sezione "Nuovi Trailer" nel Cinema Journal
+- Click su trailer naviga al film
 
-### Cast Espanso nel Wizard - 09/03/2026 (COMPLETATO)
-- **200 membri per tipo** mostrati nel wizard di creazione film
-- Totale pool: 500+ attori, 500+ registi, 500+ sceneggiatori, 500+ compositori
+### v0.045 - Boost Introiti & Sponsor
+- +30% introiti primo giorno
+- +10% introiti giorni successivi
+- 200 sponsor totali (40 a rotazione)
+- Budget sponsor aumentato +40%
 
-### Sistema Film Incompleti (Pausa/Riprendi) - 09/03/2026 (COMPLETATO)
-- **Pulsante "Metti in Pausa"** nel wizard
-- **Board "Film Incompleti"** (navbar: Bozze)
-- **Autosave ogni 30 secondi**
-- **Salvataggio su chiusura browser**
+### v0.044 - Cast Pool Espanso
+- 200 cast members per tipo nel wizard
+- 2000+ membri totali nel database
+- Generazione automatica giornaliera
 
-### Bug Fix Creazione Film - 09/03/2026 (COMPLETATO)
-- Corretto errore `genre_name` non definito nell'ultimo step
+### v0.043-v0.042 - Sistema Film Incompleti
+- Autosave ogni 30 secondi
+- Board Film Incompleti (Bozze)
+- Pausa/Riprendi creazione film
 
-### Sistema Cast con Generazione Giornaliera - 09/03/2026 (COMPLETATO)
-- **2000+ membri totali**
-- **40-80 nuovi cast** generati automaticamente ogni giorno
-- **Skill sempre interi** (fix decimali)
+### v0.041-v0.040 - CineBoard & Fix Trailer
+- CineBoard classifiche
+- Timeout automatico trailer stuck
 
-### CineBoard - 09/03/2026 (COMPLETATO)
-- Top 50 film in sala
-- Hall of Fame tutti i film
-- Punteggio multi-variabile
+## API Endpoints Nuovi
 
-## API Endpoints Principali
-
-### Sponsor
+### Stelle Scoperte & Ingaggio
 ```
-GET /api/sponsors - Ritorna 40 sponsor randomizzati da pool di 200
+GET  /api/discovered-stars     - Lista star scoperte con costo ingaggio
+POST /api/stars/{id}/hire      - Ingaggia star per prossimo film
+GET  /api/stars/hired          - Star ingaggiate (non ancora usate)
+DELETE /api/stars/hired/{id}   - Rilascia star ingaggiata
 ```
 
-### Trailer Annunci
-- Il trailer completato viene automaticamente pubblicato:
-  - Come notifica all'utente
-  - Nel Cinema Journal (sezione "Nuovi Trailer")
-  - Nella chat generale via CineBot
+### Release Notes
+```
+GET  /api/release-notes        - Storico versioni e cambiamenti
+```
 
-### Film Drafts
-```
-POST   /api/films/drafts              - Salva bozza
-GET    /api/films/drafts              - Lista bozze
-DELETE /api/films/drafts/{id}         - Elimina
-POST   /api/films/drafts/{id}/resume  - Riprendi
-```
+## Menu Principale
+1. Dashboard
+2. I Miei Film
+3. Crea Film
+4. Bozze
+5. Saghe e Serie
+6. Infrastrutture
+7. Mercato
+8. Tour Cinema
+9. **Giornale del Cinema**
+10. **Stelle Scoperte** (NUOVO)
+11. Festival
+12. CineBoard
+13. Mini Giochi
+14. Classifica
+15. Chat
+16. **Note di Rilascio** (NUOVO)
+17. Tutorial
+18. Crediti
 
 ## Architettura
 - Backend: FastAPI + MongoDB
 - Frontend: React + TailwindCSS + Shadcn/UI
-- Integrations: OpenAI GPT-4o, Gemini Nano Banana, Sora 2
+- AI: OpenAI GPT-4o, Gemini Nano Banana, Sora 2
+- Versione: v0.047
 
 ## Backlog
 
 ### P1 - Priorità Alta
-- [ ] **Refactoring Critico**: `server.py` (~9400 righe) e `App.js` (~8300 righe)
+- [ ] **Refactoring Critico**: `server.py` (~9600 righe) e `App.js` (~8700 righe)
 
 ### P2 - Future
 - [ ] Mini-giochi Versus tra giocatori
@@ -82,15 +93,15 @@ POST   /api/films/drafts/{id}/resume  - Riprendi
 
 ## Note Tecniche
 
-### Formula Introiti
-- Primo giorno: `base_revenue * 1.30` (+30%)
-- Giorni successivi: `final_revenue * 1.10` (+10%)
+### Formula Costo Ingaggio Star
+```python
+base_cost = 100000  # $100k
+fame_mult = 1 + (fame_score / 100)
+skill_mult = 1 + (avg_skill / 100)
+hire_cost = base_cost * fame_mult * skill_mult * stars
+```
 
-### Sponsor Tier
-| Tier | Budget Range | Revenue Share |
-|------|-------------|---------------|
-| 5★ Premium | $800K-1.8M | 8-18% |
-| 4★ High | $500K-910K | 6-10% |
-| 3★ Medium | $280K-560K | 3-6% |
-| 2★ Low-Med | $140K-280K | 2-3% |
-| 1★ Entry | $56K-140K | 1-2% |
+### Versioning
+- Formato: `0.XXX`
+- Incremento: +0.001 per ogni feature/fix
+- Storia: 48 release dalla v0.000

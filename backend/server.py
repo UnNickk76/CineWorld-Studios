@@ -4807,19 +4807,20 @@ async def get_tutorial():
 @api_router.get("/game/credits")
 async def get_credits():
     """Get game credits."""
+    current_year = datetime.now().year
     return {
-        'game_title': 'CineWorld Studios',
+        'game_title': "CineWorld Studio's",
         'version': '1.0.0',
         'credits': [
             {
                 'role': 'Ideatore e Proprietario',
-                'name': 'Tu',  # Will be replaced by actual name
-                'description': 'Concept, Game Design, Creative Direction'
+                'name': 'Andreola Fabio',
+                'description': 'Concept, Game Design, Creative Direction, Project Owner'
             },
             {
-                'role': 'Sviluppatore',
+                'role': 'Sviluppo Tecnico',
                 'name': 'Emergent AI',
-                'description': 'Full-Stack Development, AI Integration'
+                'description': 'Full-Stack Development, AI Integration, Backend & Frontend'
             }
         ],
         'technologies': [
@@ -4827,14 +4828,26 @@ async def get_credits():
             'FastAPI + Python',
             'MongoDB',
             'OpenAI GPT-5.2',
-            'Gemini Nano Banana',
-            'Socket.IO'
+            'Gemini Nano Banana (Image Generation)',
+            'Sora 2 (Video Generation)',
+            'Socket.IO (Real-time)'
         ],
         'special_thanks': [
             'Tutti i giocatori beta tester',
             'La community di CineWorld'
         ],
-        'copyright': f'© {datetime.now().year} CineWorld Studios. All rights reserved.'
+        'legal': {
+            'copyright': f"© {current_year} CineWorld Studio's. Tutti i diritti riservati.",
+            'owner': 'Andreola Fabio',
+            'trademark': f"CineWorld Studio's™ è un marchio di proprietà di Andreola Fabio.",
+            'disclaimer': "Questo gioco è un prodotto di fantasia. Qualsiasi riferimento a persone, luoghi o eventi reali è puramente casuale.",
+            'rights': [
+                "È vietata la riproduzione, anche parziale, dei contenuti senza autorizzazione scritta del proprietario.",
+                "Tutti i contenuti generati dagli utenti rimangono di proprietà dei rispettivi autori.",
+                "L'uso del gioco implica l'accettazione dei termini di servizio."
+            ]
+        },
+        'copyright': f"© {current_year} CineWorld Studio's - Andreola Fabio. Tutti i diritti riservati."
     }
 
 # ==================== LEADERBOARD ====================

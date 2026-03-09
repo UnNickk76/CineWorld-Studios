@@ -2509,6 +2509,18 @@ const InfrastructurePage = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [prices, setPrices] = useState({});
   const [savingPrices, setSavingPrices] = useState(false);
+  
+  // Film management state
+  const [showAddFilmDialog, setShowAddFilmDialog] = useState(false);
+  const [showRentFilmDialog, setShowRentFilmDialog] = useState(false);
+  const [myFilms, setMyFilms] = useState([]);
+  const [rentalFilms, setRentalFilms] = useState([]);
+  const [selectedFilmToAdd, setSelectedFilmToAdd] = useState(null);
+  const [selectedFilmToRent, setSelectedFilmToRent] = useState(null);
+  const [rentalWeeks, setRentalWeeks] = useState(1);
+  const [addingFilm, setAddingFilm] = useState(false);
+  const [rentingFilm, setRentingFilm] = useState(false);
+  const [removingFilm, setRemovingFilm] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -2587,6 +2599,87 @@ const InfrastructurePage = () => {
       toast.error(e.response?.data?.detail || 'Errore nel salvataggio');
     } finally {
       setSavingPrices(false);
+    }
+  };
+
+  const openAddFilmDialog = async () => {
+    try {
+      const res = await api.get('/films/my-available');
+      setMyFilms(res.data);
+      setShowAddFilmDialog(true);
+    } catch (e) {
+      toast.error('Errore nel caricamento dei film');
+    }
+  };
+
+  const openRentFilmDialog = async () => {
+    try {
+      const res = await api.get('/films/available-for-rental');
+      setRentalFilms(res.data);
+      setShowRentFilmDialog(true);
+    } catch (e) {
+      toast.error('Errore nel caricamento dei film');
+    }
+  };
+
+  const addFilmToCinema = async () => {
+    if (!selectedFilmToAdd || !selectedInfra) return;
+    setAddingFilm(true);
+    try {
+      const res = await api.post(`/infrastructure/${selectedInfra.id}/add-film`, {
+        film_id: selectedFilmToAdd.id
+      });
+      toast.success(`"${selectedFilmToAdd.title}" aggiunto alla programmazione!`);
+      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
+      setShowAddFilmDialog(false);
+      setSelectedFilmToAdd(null);
+      // Refresh my infra
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setAddingFilm(false);
+    }
+  };
+
+  const rentFilmForCinema = async () => {
+    if (!selectedFilmToRent || !selectedInfra) return;
+    setRentingFilm(true);
+    try {
+      const res = await api.post(`/infrastructure/${selectedInfra.id}/rent-film`, {
+        film_id: selectedFilmToRent.id,
+        weeks: rentalWeeks
+      });
+      toast.success(`"${selectedFilmToRent.title}" affittato per ${rentalWeeks} settimane! ${res.data.owner_name} ha ricevuto $${res.data.owner_received.toLocaleString()}`);
+      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
+      setShowRentFilmDialog(false);
+      setSelectedFilmToRent(null);
+      setRentalWeeks(1);
+      // Refresh my infra and user
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setRentingFilm(false);
+    }
+  };
+
+  const removeFilmFromCinema = async (filmId) => {
+    if (!selectedInfra) return;
+    setRemovingFilm(filmId);
+    try {
+      const res = await api.delete(`/infrastructure/${selectedInfra.id}/films/${filmId}`);
+      toast.success('Film rimosso dalla programmazione');
+      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
+      // Refresh
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setRemovingFilm(null);
     }
   };
 
@@ -2846,16 +2939,74 @@ const InfrastructurePage = () => {
                 </div>
               )}
 
-              {/* Films showing */}
-              {infraDetail.films_showing?.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Film in Programmazione</h4>
-                  {infraDetail.films_showing.map(film => (
-                    <div key={film.film_id} className="flex items-center justify-between p-2 bg-white/5 rounded">
-                      <span className="text-sm">{film.title || 'Film'}</span>
-                      <span className="text-xs text-gray-400">{film.showtimes?.length || 0} proiezioni</span>
+              {/* Film Management Section */}
+              {['cinema', 'megaplex', 'drive_in', 'mall', 'multiplex_small', 'multiplex_medium', 'multiplex_large'].includes(selectedInfra?.type) && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Film className="w-4 h-4 text-yellow-500" /> Programmazione Film
+                    </h4>
+                    <span className="text-xs text-gray-400">
+                      {infraDetail?.films_showing?.length || 0} / {infraDetail?.type_info?.screens || 4} schermi
+                    </span>
+                  </div>
+                  
+                  {/* Films showing */}
+                  {infraDetail?.films_showing?.length > 0 ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {infraDetail.films_showing.map(film => (
+                        <div key={film.film_id} className="flex items-center gap-2 p-2 bg-white/5 rounded border border-white/10">
+                          {film.poster_url && (
+                            <img src={film.poster_url} alt="" className="w-10 h-14 object-cover rounded" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{film.title}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                              <span>⭐ {film.imdb_rating || '?'}</span>
+                              <Badge className={`text-[9px] h-4 ${film.is_owned ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                {film.is_owned ? '100% ricavi' : `${film.revenue_share_renter || 70}% ricavi`}
+                              </Badge>
+                              {film.is_rented && film.rental_end && (
+                                <span className="text-yellow-400">
+                                  Scade: {new Date(film.rental_end).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            className="h-7 w-7 p-0"
+                            disabled={removingFilm === film.film_id}
+                            onClick={() => removeFilmFromCinema(film.film_id)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-center text-gray-500 text-sm py-3">Nessun film in programmazione</p>
+                  )}
+                  
+                  {/* Add Film Buttons */}
+                  {(infraDetail?.films_showing?.length || 0) < (infraDetail?.type_info?.screens || 4) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="h-9 text-xs"
+                        onClick={openAddFilmDialog}
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> I Miei Film
+                      </Button>
+                      <Button 
+                        className="h-9 text-xs bg-blue-500 hover:bg-blue-400"
+                        onClick={openRentFilmDialog}
+                      >
+                        <ShoppingBag className="w-3 h-3 mr-1" /> Affitta Film
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2863,6 +3014,147 @@ const InfrastructurePage = () => {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Chiudi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Own Film Dialog */}
+      <Dialog open={showAddFilmDialog} onOpenChange={setShowAddFilmDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Film className="w-5 h-5 text-yellow-500" /> Aggiungi i Tuoi Film
+            </DialogTitle>
+            <DialogDescription>Seleziona un tuo film da proiettare. Riceverai il 100% dei ricavi.</DialogDescription>
+          </DialogHeader>
+          
+          {myFilms.length === 0 ? (
+            <div className="text-center py-6">
+              <Film className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+              <p className="text-gray-400">Non hai ancora creato nessun film.</p>
+              <Button className="mt-3" onClick={() => { setShowAddFilmDialog(false); setShowDetailDialog(false); navigate('/create'); }}>
+                Crea un Film
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {myFilms.map(film => (
+                <div 
+                  key={film.id} 
+                  className={`flex items-center gap-3 p-2 rounded border cursor-pointer transition-colors ${
+                    selectedFilmToAdd?.id === film.id 
+                      ? 'bg-yellow-500/20 border-yellow-500' 
+                      : 'bg-white/5 border-white/10 hover:border-yellow-500/50'
+                  }`}
+                  onClick={() => setSelectedFilmToAdd(film)}
+                >
+                  {film.poster_url && (
+                    <img src={film.poster_url} alt="" className="w-12 h-16 object-cover rounded" />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">{film.title}</p>
+                    <p className="text-xs text-gray-400">{film.genre} • ⭐ {film.imdb_rating}</p>
+                    <p className="text-xs text-green-400">Ricavi: ${(film.total_revenue || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddFilmDialog(false)}>Annulla</Button>
+            <Button 
+              onClick={addFilmToCinema} 
+              disabled={!selectedFilmToAdd || addingFilm}
+              className="bg-yellow-500 text-black"
+            >
+              {addingFilm ? 'Aggiungendo...' : 'Aggiungi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rent Film Dialog */}
+      <Dialog open={showRentFilmDialog} onOpenChange={setShowRentFilmDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-blue-500" /> Affitta Film di Altri Giocatori
+            </DialogTitle>
+            <DialogDescription>Affitta film popolari. Paghi l'affitto e ricevi il 70% dei ricavi.</DialogDescription>
+          </DialogHeader>
+          
+          {rentalFilms.length === 0 ? (
+            <div className="text-center py-6">
+              <Film className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+              <p className="text-gray-400">Nessun film disponibile per l'affitto al momento.</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {rentalFilms.map(film => (
+                  <div 
+                    key={film.id} 
+                    className={`flex items-center gap-3 p-2 rounded border cursor-pointer transition-colors ${
+                      selectedFilmToRent?.id === film.id 
+                        ? 'bg-blue-500/20 border-blue-500' 
+                        : 'bg-white/5 border-white/10 hover:border-blue-500/50'
+                    }`}
+                    onClick={() => setSelectedFilmToRent(film)}
+                  >
+                    {film.poster_url && (
+                      <img src={film.poster_url} alt="" className="w-12 h-16 object-cover rounded" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{film.title}</p>
+                      <p className="text-xs text-gray-400">{film.genre} • ⭐ {film.imdb_rating} • ❤️ {film.likes_count}</p>
+                      <p className="text-xs text-gray-500">di {film.owner?.nickname || 'Unknown'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-yellow-500 font-bold text-sm">${film.weekly_rental?.toLocaleString()}</p>
+                      <p className="text-[10px] text-gray-400">/settimana</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {selectedFilmToRent && (
+                <div className="p-3 bg-blue-500/10 rounded border border-blue-500/20 mt-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Durata affitto:</span>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setRentalWeeks(Math.max(1, rentalWeeks - 1))}>-</Button>
+                      <span className="w-8 text-center font-bold">{rentalWeeks}</span>
+                      <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setRentalWeeks(Math.min(12, rentalWeeks + 1))}>+</Button>
+                      <span className="text-sm">settimane</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Costo totale:</span>
+                    <span className="text-yellow-500 font-bold">${(selectedFilmToRent.weekly_rental * rentalWeeks).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Al proprietario (30%):</span>
+                    <span>${(selectedFilmToRent.weekly_rental * rentalWeeks * 0.3).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-green-400 mt-1">
+                    <span>Tuoi ricavi futuri:</span>
+                    <span>70% degli incassi</span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowRentFilmDialog(false); setSelectedFilmToRent(null); }}>Annulla</Button>
+            <Button 
+              onClick={rentFilmForCinema} 
+              disabled={!selectedFilmToRent || rentingFilm || (user?.funds < (selectedFilmToRent?.weekly_rental * rentalWeeks))}
+              className="bg-blue-500 hover:bg-blue-400"
+            >
+              {rentingFilm ? 'Affittando...' : `Affitta per $${selectedFilmToRent ? (selectedFilmToRent.weekly_rental * rentalWeeks).toLocaleString() : 0}`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

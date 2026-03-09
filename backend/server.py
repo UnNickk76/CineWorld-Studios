@@ -1773,6 +1773,63 @@ async def get_cinema_journal(
     total = await db.films.count_documents({})
     return {'films': films, 'total': total, 'page': page}
 
+# Films available for rental (must be before /films/{film_id})
+@api_router.get("/films/available-for-rental")
+async def get_films_for_rental(user: dict = Depends(get_current_user)):
+    """Get films from other players available for rental."""
+    films = await db.films.find(
+        {'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(50)
+    
+    result = []
+    for film in films:
+        # Calculate rental price based on rating and quality
+        quality = film.get('quality_score', 50)
+        imdb_rating = film.get('imdb_rating', calculate_imdb_rating(film))
+        likes = film.get('likes_count', 0)
+        
+        # Formula: Rating × Quality × 100 + popularity bonus
+        weekly_rental = int((imdb_rating * quality * 100) + (likes * 500))
+        weekly_rental = max(5000, min(weekly_rental, 100000))  # Between $5k-$100k/week
+        
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1})
+        
+        result.append({
+            'id': film['id'],
+            'title': film['title'],
+            'genre': film['genre'],
+            'subgenres': film.get('subgenres', []),
+            'quality_score': quality,
+            'imdb_rating': round(imdb_rating, 1),
+            'likes_count': likes,
+            'poster_url': film.get('poster_url'),
+            'owner': owner,
+            'owner_id': film['user_id'],
+            'weekly_rental': weekly_rental,
+            'revenue_share': 70  # Renter gets 70%, owner gets 30%
+        })
+    
+    return sorted(result, key=lambda x: x['imdb_rating'], reverse=True)
+
+@api_router.get("/films/my-available")
+async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
+    """Get own films available to show in cinemas."""
+    films = await db.films.find(
+        {'user_id': user['id']},
+        {'_id': 0}
+    ).to_list(100)
+    
+    return [{
+        'id': f['id'],
+        'title': f['title'],
+        'genre': f['genre'],
+        'quality_score': f.get('quality_score', 50),
+        'imdb_rating': round(f.get('imdb_rating', calculate_imdb_rating(f)), 1),
+        'poster_url': f.get('poster_url'),
+        'total_revenue': f.get('total_revenue', 0)
+    } for f in films]
+
 # Parameterized film routes - MUST be after specific routes
 @api_router.get("/films/{film_id}", response_model=FilmResponse)
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
@@ -3208,26 +3265,35 @@ async def add_film_to_cinema(infra_id: str, request: AddFilmToCinemaRequest, use
     """Add own film to cinema."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
     if not infra_type or infra_type.get('screens', 0) == 0:
-        raise HTTPException(status_code=400, detail="This infrastructure cannot show films")
+        raise HTTPException(status_code=400, detail="Questa infrastruttura non può proiettare film")
     
     film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned")
+        raise HTTPException(status_code=404, detail="Film non trovato o non di tua proprietà")
     
     films_showing = infra.get('films_showing', [])
     if len(films_showing) >= infra_type.get('screens', 4):
-        raise HTTPException(status_code=400, detail="All screens occupied")
+        raise HTTPException(status_code=400, detail="Tutti gli schermi sono occupati")
+    
+    # Check if already showing this film
+    if any(f['film_id'] == request.film_id for f in films_showing):
+        raise HTTPException(status_code=400, detail="Questo film è già in programmazione")
     
     films_showing.append({
         'film_id': film['id'],
         'title': film['title'],
+        'genre': film.get('genre'),
+        'poster_url': film.get('poster_url'),
         'quality_score': film.get('quality_score', 50),
+        'imdb_rating': round(film.get('imdb_rating', calculate_imdb_rating(film)), 1),
         'added_at': datetime.now(timezone.utc).isoformat(),
-        'is_owned': True
+        'is_owned': True,
+        'is_rented': False,
+        'revenue_share_owner': 100  # Owner gets 100% revenue
     })
     
     await db.infrastructure.update_one(
@@ -3237,69 +3303,67 @@ async def add_film_to_cinema(infra_id: str, request: AddFilmToCinemaRequest, use
     
     return {'success': True, 'films_showing': films_showing}
 
-@api_router.get("/films/available-for-purchase")
-async def get_films_for_purchase(user: dict = Depends(get_current_user)):
-    """Get films from other players available for purchase."""
-    films = await db.films.find(
-        {'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
-        {'_id': 0}
-    ).to_list(50)
-    
-    result = []
-    for film in films:
-        # Price based on quality
-        quality = film.get('quality_score', 50)
-        price = int(50000 + (quality * 1000))  # $50k-$150k
-        
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-        
-        result.append({
-            'id': film['id'],
-            'title': film['title'],
-            'genre': film['genre'],
-            'quality_score': quality,
-            'imdb_rating': film.get('imdb_rating', calculate_imdb_rating(film)),
-            'owner': owner,
-            'purchase_price': price
-        })
-    
-    return result
+class RentFilmRequest(BaseModel):
+    film_id: str
+    weeks: int = 1
 
-@api_router.post("/infrastructure/{infra_id}/buy-film")
-async def buy_film_for_cinema(infra_id: str, request: BuyFilmRequest, user: dict = Depends(get_current_user)):
-    """Buy another player's film to show in cinema."""
+@api_router.post("/infrastructure/{infra_id}/rent-film")
+async def rent_film_for_cinema(infra_id: str, request: RentFilmRequest, user: dict = Depends(get_current_user)):
+    """Rent another player's film to show in cinema."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type or infra_type.get('screens', 0) == 0:
+        raise HTTPException(status_code=400, detail="Questa infrastruttura non può proiettare film")
     
     film = await db.films.find_one({'id': request.film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film['user_id'] == user['id']:
-        raise HTTPException(status_code=400, detail="Cannot buy your own film")
+        raise HTTPException(status_code=400, detail="Usa 'Aggiungi Film' per i tuoi film")
     
-    # Calculate price
+    # Calculate rental price
     quality = film.get('quality_score', 50)
-    price = int(50000 + (quality * 1000))
+    imdb_rating = film.get('imdb_rating', calculate_imdb_rating(film))
+    likes = film.get('likes_count', 0)
+    weekly_rental = int((imdb_rating * quality * 100) + (likes * 500))
+    weekly_rental = max(5000, min(weekly_rental, 100000))
     
-    if user.get('funds', 0) < price:
-        raise HTTPException(status_code=400, detail=f"Insufficient funds. Need ${price:,}")
+    total_rental = weekly_rental * request.weeks
     
-    # Add to cinema
+    if user.get('funds', 0) < total_rental:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_rental:,}")
+    
+    # Check screen availability
     films_showing = infra.get('films_showing', [])
-    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
-    
     if len(films_showing) >= infra_type.get('screens', 4):
-        raise HTTPException(status_code=400, detail="All screens occupied")
+        raise HTTPException(status_code=400, detail="Tutti gli schermi sono occupati")
+    
+    # Check if already showing this film
+    if any(f['film_id'] == request.film_id for f in films_showing):
+        raise HTTPException(status_code=400, detail="Questo film è già in programmazione")
+    
+    rental_end = datetime.now(timezone.utc) + timedelta(weeks=request.weeks)
     
     films_showing.append({
         'film_id': film['id'],
         'title': film['title'],
+        'genre': film['genre'],
+        'poster_url': film.get('poster_url'),
         'quality_score': quality,
+        'imdb_rating': round(imdb_rating, 1),
         'added_at': datetime.now(timezone.utc).isoformat(),
+        'rental_end': rental_end.isoformat(),
+        'rental_weeks': request.weeks,
+        'weekly_rental': weekly_rental,
         'is_owned': False,
-        'purchase_price': price
+        'is_rented': True,
+        'owner_id': film['user_id'],
+        'revenue_share_renter': 70,
+        'revenue_share_owner': 30
     })
     
     await db.infrastructure.update_one(
@@ -3307,23 +3371,29 @@ async def buy_film_for_cinema(infra_id: str, request: BuyFilmRequest, user: dict
         {'$set': {'films_showing': films_showing}}
     )
     
-    # Pay film owner 70% of price
-    owner_payment = int(price * 0.7)
+    # Pay 30% upfront to film owner as rental fee
+    owner_payment = int(total_rental * 0.3)
     await db.users.update_one(
         {'id': film['user_id']},
-        {'$inc': {'funds': owner_payment}}
+        {'$inc': {'funds': owner_payment, 'total_xp': 25}}
     )
     
-    # Deduct from buyer
+    # Deduct from renter
     await db.users.update_one(
         {'id': user['id']},
-        {'$inc': {'funds': -price}}
+        {'$inc': {'funds': -total_rental}}
     )
+    
+    # Get owner info for response
+    owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1})
     
     return {
         'success': True,
-        'price_paid': price,
+        'rental_paid': total_rental,
         'owner_received': owner_payment,
+        'owner_name': owner.get('nickname') if owner else 'Unknown',
+        'rental_weeks': request.weeks,
+        'rental_end': rental_end.isoformat(),
         'films_showing': films_showing
     }
 

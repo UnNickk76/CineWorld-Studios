@@ -1,121 +1,118 @@
 # CineWorld Studio's - Product Requirements Document
 
-## Overview
-CineWorld Studio's is a multiplayer online film production simulation game with level progression, infrastructure ownership, hourly revenue system, world events, and cinema touring.
+## Descrizione
+Gioco multiplayer online di produzione cinematografica dove i giocatori creano film, gestiscono cast, infrastrutture e competono per fama e incassi.
 
-## What's Been Implemented (March 2026)
+## Funzionalità Implementate
 
-### Authentication & Profile
-- [x] JWT-based authentication
-- [x] Age/gender verification (18+)
-- [x] **AI-Generated Avatars** (default at registration)
-- [x] **Custom URL Avatars** (paste any image URL)
-- [x] **No preset avatars** - only AI or custom
-- [x] Multi-language support (IT, EN, ES, FR, DE)
+### Sistema di Autenticazione
+- [x] Login/Registrazione con JWT
+- [x] Profilo utente personalizzabile
+- [x] Avatar generati via AI (Gemini Nano Banana)
 
-### Level & XP System
-- [x] Infinite level system from Level 0
-- [x] Exponential XP growth (+50% per level)
-- [x] XP from: mini-games, films, likes, infrastructure, tours
-- [x] Level visible in navbar with progress bar
+### Creazione Film (Wizard 10 step)
+- [x] Titolo, genere e sottogeneri
+- [x] Sponsor e attrezzature
+- [x] 60+ location (studios, urban, nature, historical, beach, industrial, exotic)
+- [x] Sceneggiatori con stelle, fama, esperienza
+- [x] Registi con stelle, fama, esperienza
+- [x] Attori con stelle, fama, esperienza e ruoli
+- [x] Sceneggiatura (manuale o AI con GPT-4o)
+- [x] Campagna marketing
+- [x] Pubblicità e riepilogo
 
-### Fame System (0-100)
-- [x] 6 tiers: Unknown → Legend
-- [x] Fame changes based on film performance
-- [x] Fame affects infrastructure revenue
+### Sistema Cast Migliorato (COMPLETATO - 09/03/2025)
+- [x] Rating a stelle (1-5) basato su skill
+- [x] Categoria fama: unknown, known, rising, famous, superstar
+- [x] Anni di esperienza (0-40)
+- [x] Costo calcolato su stelle + fama + esperienza
+- [x] 12 nazionalità con nomi autentici
+- [x] Hidden Gems: talenti sconosciuti con alto potenziale
 
-### World Events System (NEW)
-- [x] **8 World Events** with seasonal bonuses:
-  1. **Cannes Film Festival** (May) - Drama +50%, Art +100%, France cinema +100%
-  2. **Oscar Season** (Feb) - All genres +20%, USA cinema +80%, Fame +50%
-  3. **Venice Film Festival** (Sep) - Drama +40%, Documentary +60%, Italy cinema +100%
-  4. **Berlin Festival** (Feb) - Indie +50%, Germany cinema +80%
-  5. **Summer Blockbuster** (Jun-Aug) - Action +60%, Animation +70%, Revenue +30%
-  6. **Holiday Season** (Dec-Jan) - Family +80%, Comedy +40%, Revenue +50%
-  7. **Halloween Horror** (Oct) - Horror +150%, Night screenings +40%
-  8. **Valentine's Day** (Feb) - Romance +100%, Couples attendance +60%
-- [x] Events affect revenue multipliers for genres and countries
-- [x] Active events shown in Tour page banner
+### Location Espanse (COMPLETATO - 09/03/2025)
+- [x] 60+ location in 7 categorie
+- [x] Studios: Hollywood, Warner Bros, Universal, Pinewood, Cinecittà, Babelsberg
+- [x] Urban: Manhattan, West End, Montmartre, Shibuya, Dubai, Hong Kong
+- [x] Nature: Grand Canyon, Swiss Alps, New Zealand, Amazon, Sahara
+- [x] Historical: Colosseum, Versailles, Taj Mahal, Great Wall, Machu Picchu
+- [x] Beach: Maldives, Hawaii, Bali, Caribbean, Santorini
+- [x] Industrial: Akihabara, Detroit, London Docklands
+- [x] Exotic: Antarctica, Arctic Circle, Space Simulation, Underwater Studio
 
-### Cinema Tour System (NEW)
-- [x] **Visit other players' cinemas** for XP
-- [x] **Leave reviews** (1-5 stars + comment)
-- [x] **Tour Rating Score** (0-100) based on:
-  - Infrastructure type, custom logo, films showing
-  - Visitor count, city prestige, reviews
-- [x] **Tier system**: Legendary, Excellent, Great, Good, Average, Needs Improvement
-- [x] **Featured cinemas list** sorted by rating
-- [x] **My visits today** tracking
-- [x] XP rewards: +5 for visiting, +10 for reviewing
-- [x] Fame bonus for cinema owners with good reviews
+### Marketplace Infrastrutture (COMPLETATO - 09/03/2025)
+- [x] Compravendita tra giocatori (richiede livello 15)
+- [x] Valutazione automatica basata su livello, fama, ricavi
+- [x] Sistema offerte con accettazione/rifiuto
+- [x] Trasferimento proprietà e fondi
+- [x] Storico annunci e offerte
 
-### Hourly Revenue System
-- [x] Revenue calculated hourly (not daily)
-- [x] 15+ factors including quality, cast, genre, time, weather, events
-- [x] World event bonuses applied automatically
+### Sistema Progressione
+- [x] Livelli senza limite massimo
+- [x] XP da mini-giochi, interazioni, film
+- [x] Fama del giocatore che influenza incassi
+- [x] Barra progressione sempre visibile
 
-### Film Duration System
-- [x] Dynamic film duration based on performance
-- [x] Extension for successful films (+fame, +revenue)
-- [x] Early withdrawal for failing films (-fame, -revenue penalty)
+### Infrastrutture
+- [x] 9 tipi: Cinema, Drive-In, Mall, Scuola Cinema, Studio, Megaplex, Arena, Studio Indie, Centro Post-Produzione
+- [x] Acquisto in città mondiali con moltiplicatori
+- [x] Gestione cinema (prezzi, programmazione film)
 
-### Star Discovery & Skill Evolution
-- [x] Unknown actors can become stars
-- [x] Cast skills evolve based on film quality
-- [x] Breakthrough and decline chances
+### Social
+- [x] Feed con like, commenti, voti
+- [x] Chat privata tra giocatori
+- [x] Classifica globale e locale
+- [x] Profili pubblici visitabili
+- [x] Tour dei Cinema di altri giocatori
 
-### Infrastructure System
-- [x] 11 types from Cinema (Lv5) to Theme Park (Lv50)
-- [x] World cities with wealth/cost multipliers
-- [x] Cinema School for training personal actors
+### Mini-Giochi
+- [x] 4 partite ogni 4 ore
+- [x] Ricompense in denaro e XP
 
-### Mini-Games
-- [x] 5 games with 4 plays per type every 4 hours
-- [x] XP and monetary rewards
+### Economia
+- [x] Incassi orari per i film
+- [x] Durata programmazione dinamica
+- [x] Rating IMDb simulato
+- [x] Interazioni AI fittizie
 
-### Social Features
-- [x] Chat with public/private rooms
-- [x] Bot moderators
-- [x] Cinema Journal with star ratings
-- [x] Leaderboard (global/local)
+### Eventi
+- [x] Eventi Mondiali che influenzano il gameplay
 
-## API Endpoints
+## Backlog (Prossime Task)
 
-### World Events (NEW)
-- `GET /api/events/active` - Currently active events
-- `GET /api/events/all` - All possible events
-- `GET /api/films/{id}/event-bonus` - Event bonuses for a film
+### P0 - Alta Priorità
+- [ ] Sistema "scoperta di una stella": annuncio nelle news quando un attore sconosciuto si rivela un talento
+- [ ] Miglioramento/peggioramento abilità cast nel tempo
 
-### Cinema Tour (NEW)
-- `GET /api/tour/featured` - Featured cinemas
-- `GET /api/tour/cinema/{id}` - Cinema details
-- `POST /api/tour/cinema/{id}/visit` - Record visit (+5 XP)
-- `POST /api/tour/cinema/{id}/review` - Leave review (+10 XP)
-- `GET /api/tour/my-visits` - User's tour history
+### P1 - Media Priorità
+- [ ] Penalità per troppe valutazioni negative
+- [ ] Immagini e messaggi vocali nelle chat
+- [ ] Traduzione automatica chat
 
-### Avatars (UPDATED)
-- `GET /api/avatars` - Returns AI/URL options only (no presets)
-- `POST /api/avatar/generate` - Generate AI avatar
-- `PUT /api/auth/avatar` - Update avatar URL
+### P2 - Bassa Priorità
+- [ ] Statistiche incassi per stato/città
+- [ ] Sfide PvP tra giocatori
 
-## Test Results (March 9, 2026)
-- Backend: 100% (12 tests passed)
-- Frontend: 100% (all features verified)
-- World Events: 8 events defined, date-based activation
-- Cinema Tour: Full functionality ready
-- Avatars: Presets removed, AI/URL only
+## Architettura Tecnica
 
-## P1 Features (Next)
-- [ ] Image sharing in chat
-- [ ] Automatic chat translation
-- [ ] Film trailers
+```
+/app/
+├── backend/
+│   ├── server.py         # FastAPI, API routes, WebSocket
+│   ├── game_systems.py   # Livelli, infrastrutture, eventi
+│   ├── cast_system.py    # Cast migliorato (stelle, fama, exp)
+│   └── requirements.txt
+├── frontend/
+│   ├── src/App.js        # React SPA monolitico
+│   └── package.json
+└── memory/
+    └── PRD.md
+```
 
-## P2 Features (Backlog)
-- [ ] Voice messages
-- [ ] Award ceremonies
-- [ ] PvP challenges
+## Integrazioni
+- **OpenAI GPT-4o**: Generazione sceneggiature (Emergent LLM Key)
+- **Gemini Nano Banana**: Generazione avatar AI (Emergent LLM Key)
+- **MongoDB**: Database principale
 
-## Tech Stack
-- **Backend**: FastAPI, Python, MongoDB, WebSockets
-- **Frontend**: React, TailwindCSS, Shadcn/UI
-- **AI**: GPT-5.2 (text), GPT Image 1 (avatars)
+## Note Refactoring
+- `frontend/src/App.js` è molto grande (3600+ righe) - considerare estrazione componenti in `/pages/`
+- `backend/server.py` è il file principale - modularizzazione in corso con `game_systems.py` e `cast_system.py`

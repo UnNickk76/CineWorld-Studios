@@ -48,6 +48,16 @@ from cast_system import (
     ACTOR_SKILLS, DIRECTOR_SKILLS, SCREENWRITER_SKILLS, COMPOSER_SKILLS
 )
 
+# Import social system (Major, Friends, Notifications)
+from social_system import (
+    MAJOR_LEVEL_REQUIRED, MAJOR_MIN_MEMBERS, MAJOR_MAX_MEMBERS, MAJOR_ROLES,
+    MAJOR_LEVEL_BONUSES, calculate_major_level, get_major_bonus,
+    MAJOR_CHALLENGES, get_weekly_challenge, MAJOR_ACTIVITIES,
+    NOTIFICATION_TYPES, create_notification,
+    FRIENDSHIP_STATUS, get_relationship_description,
+    generate_major_logo_prompt
+)
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -1807,6 +1817,22 @@ async def preview_cast_bonus(
 
 class AffinityPreviewRequest(BaseModel):
     cast_ids: List[str] = []
+
+# ==================== SOCIAL SYSTEM MODELS ====================
+
+class CreateMajorRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    max_members: int = 20
+
+class MajorInviteRequest(BaseModel):
+    user_id: str
+
+class FriendRequest(BaseModel):
+    user_id: str
+
+class NotificationMarkReadRequest(BaseModel):
+    notification_ids: List[str] = []
 
 @api_router.post("/cast/affinity-preview")
 async def preview_cast_affinity(
@@ -7509,6 +7535,581 @@ async def get_my_tour_visits(user: dict = Depends(get_current_user)):
     return {
         'visits_today': len(visited_cinemas),
         'cinemas': visited_cinemas
+    }
+
+# ==================== MAJOR (ALLIANCE) SYSTEM ENDPOINTS ====================
+
+@api_router.get("/major/my")
+async def get_my_major(user: dict = Depends(get_current_user)):
+    """Get current user's Major (alliance)."""
+    user_id = user['id']
+    
+    # Check if user is in a Major
+    membership = await db.major_members.find_one({'user_id': user_id, 'status': 'active'}, {'_id': 0})
+    
+    if not membership:
+        return {'has_major': False, 'can_create': user.get('level', 0) >= MAJOR_LEVEL_REQUIRED}
+    
+    # Get Major details
+    major = await db.majors.find_one({'id': membership['major_id']}, {'_id': 0})
+    if not major:
+        return {'has_major': False}
+    
+    # Get all members
+    members = await db.major_members.find({'major_id': major['id'], 'status': 'active'}, {'_id': 0}).to_list(100)
+    member_ids = [m['user_id'] for m in members]
+    
+    # Get member details
+    member_users = await db.users.find({'id': {'$in': member_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(100)
+    member_map = {u['id']: u for u in member_users}
+    
+    enriched_members = []
+    for m in members:
+        user_data = member_map.get(m['user_id'], {})
+        enriched_members.append({
+            **m,
+            'nickname': user_data.get('nickname'),
+            'avatar_url': user_data.get('avatar_url'),
+            'level': user_data.get('level', 0)
+        })
+    
+    # Calculate Major level and stats
+    total_films = sum(u.get('total_films', 0) for u in member_users)
+    total_revenue = sum(u.get('total_lifetime_revenue', 0) for u in member_users)
+    total_awards = sum(len(u.get('awards', [])) for u in member_users)
+    
+    major_level = calculate_major_level(total_films, int(total_revenue), total_awards)
+    major_bonus = get_major_bonus(major_level)
+    
+    # Get current challenge
+    weekly_challenge = get_weekly_challenge()
+    
+    return {
+        'has_major': True,
+        'major': major,
+        'members': enriched_members,
+        'my_role': membership['role'],
+        'stats': {
+            'total_films': total_films,
+            'total_revenue': total_revenue,
+            'total_awards': total_awards,
+            'member_count': len(members)
+        },
+        'level': major_level,
+        'bonuses': major_bonus,
+        'weekly_challenge': weekly_challenge,
+        'activities': MAJOR_ACTIVITIES
+    }
+
+@api_router.post("/major/create")
+async def create_major(request: CreateMajorRequest, user: dict = Depends(get_current_user)):
+    """Create a new Major (alliance). Requires level 20."""
+    user_id = user['id']
+    user_level = user.get('level', 0)
+    
+    if user_level < MAJOR_LEVEL_REQUIRED:
+        raise HTTPException(status_code=400, detail=f"Level {MAJOR_LEVEL_REQUIRED} required to create a Major")
+    
+    # Check if user already in a Major
+    existing = await db.major_members.find_one({'user_id': user_id, 'status': 'active'})
+    if existing:
+        raise HTTPException(status_code=400, detail="You are already in a Major")
+    
+    # Validate max members
+    max_members = max(MAJOR_MIN_MEMBERS, min(MAJOR_MAX_MEMBERS, request.max_members))
+    
+    # Create Major
+    major_id = str(uuid.uuid4())
+    major = {
+        'id': major_id,
+        'name': request.name,
+        'description': request.description,
+        'founder_id': user_id,
+        'max_members': max_members,
+        'logo_url': None,  # Can be generated later
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'level': 1,
+        'total_films': 0,
+        'total_revenue': 0
+    }
+    
+    await db.majors.insert_one(major)
+    
+    # Add founder as member
+    membership = {
+        'id': str(uuid.uuid4()),
+        'major_id': major_id,
+        'user_id': user_id,
+        'role': 'founder',
+        'status': 'active',
+        'joined_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.major_members.insert_one(membership)
+    
+    return {'success': True, 'major': {k: v for k, v in major.items() if k != '_id'}}
+
+@api_router.post("/major/invite")
+async def invite_to_major(request: MajorInviteRequest, user: dict = Depends(get_current_user)):
+    """Invite a user to your Major."""
+    user_id = user['id']
+    target_user_id = request.user_id
+    
+    # Get user's Major and role
+    membership = await db.major_members.find_one({'user_id': user_id, 'status': 'active'})
+    if not membership:
+        raise HTTPException(status_code=400, detail="You are not in a Major")
+    
+    role_perms = MAJOR_ROLES.get(membership['role'], {}).get('permissions', [])
+    if 'all' not in role_perms and 'invite' not in role_perms:
+        raise HTTPException(status_code=403, detail="You don't have permission to invite")
+    
+    # Check if target is already in a Major
+    target_membership = await db.major_members.find_one({'user_id': target_user_id, 'status': 'active'})
+    if target_membership:
+        raise HTTPException(status_code=400, detail="User is already in a Major")
+    
+    # Check max members
+    major = await db.majors.find_one({'id': membership['major_id']})
+    current_count = await db.major_members.count_documents({'major_id': membership['major_id'], 'status': 'active'})
+    if current_count >= major.get('max_members', 20):
+        raise HTTPException(status_code=400, detail="Major is full")
+    
+    # Create invite notification
+    notification = create_notification(
+        target_user_id,
+        'major_invite',
+        'Major Invite',
+        f"You've been invited to join {major.get('name')}",
+        {'major_id': membership['major_id'], 'inviter_id': user_id},
+        f"/major/{membership['major_id']}"
+    )
+    await db.notifications.insert_one(notification)
+    
+    # Store pending invite
+    invite = {
+        'id': str(uuid.uuid4()),
+        'major_id': membership['major_id'],
+        'user_id': target_user_id,
+        'inviter_id': user_id,
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.major_invites.insert_one(invite)
+    
+    return {'success': True, 'message': 'Invite sent'}
+
+@api_router.post("/major/invite/{invite_id}/accept")
+async def accept_major_invite(invite_id: str, user: dict = Depends(get_current_user)):
+    """Accept a Major invite."""
+    user_id = user['id']
+    
+    invite = await db.major_invites.find_one({'id': invite_id, 'user_id': user_id, 'status': 'pending'})
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    
+    # Check if already in a Major
+    existing = await db.major_members.find_one({'user_id': user_id, 'status': 'active'})
+    if existing:
+        raise HTTPException(status_code=400, detail="You are already in a Major")
+    
+    # Add as member
+    membership = {
+        'id': str(uuid.uuid4()),
+        'major_id': invite['major_id'],
+        'user_id': user_id,
+        'role': 'member',
+        'status': 'active',
+        'joined_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.major_members.insert_one(membership)
+    
+    # Update invite status
+    await db.major_invites.update_one({'id': invite_id}, {'$set': {'status': 'accepted'}})
+    
+    # Auto-add as friends with all members
+    members = await db.major_members.find({'major_id': invite['major_id'], 'status': 'active', 'user_id': {'$ne': user_id}}).to_list(100)
+    for member in members:
+        # Create bidirectional friendship
+        await db.friendships.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': user_id,
+            'friend_id': member['user_id'],
+            'status': 'accepted',
+            'source': 'major',
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+        await db.friendships.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': member['user_id'],
+            'friend_id': user_id,
+            'status': 'accepted',
+            'source': 'major',
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Notify Major members
+    major = await db.majors.find_one({'id': invite['major_id']}, {'_id': 0, 'name': 1})
+    for member in members:
+        notification = create_notification(
+            member['user_id'],
+            'major_joined',
+            'New Member',
+            f"{user.get('nickname')} has joined {major.get('name')}",
+            {'user_id': user_id},
+            '/major'
+        )
+        await db.notifications.insert_one(notification)
+    
+    return {'success': True, 'message': 'Joined Major successfully'}
+
+@api_router.get("/major/challenge")
+async def get_major_challenge(user: dict = Depends(get_current_user)):
+    """Get current weekly Major challenge and rankings."""
+    challenge = get_weekly_challenge()
+    language = user.get('language', 'en')
+    
+    # Get all Majors' progress for this week
+    week_start = datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday())
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    majors = await db.majors.find({}, {'_id': 0}).to_list(100)
+    rankings = []
+    
+    for major in majors:
+        members = await db.major_members.find({'major_id': major['id'], 'status': 'active'}).to_list(100)
+        member_ids = [m['user_id'] for m in members]
+        
+        # Calculate metric based on challenge type
+        metric_value = 0
+        if challenge['metric'] == 'films_count':
+            metric_value = await db.films.count_documents({
+                'user_id': {'$in': member_ids},
+                'created_at': {'$gte': week_start.isoformat()}
+            })
+        elif challenge['metric'] == 'total_revenue':
+            films = await db.films.find({
+                'user_id': {'$in': member_ids},
+                'created_at': {'$gte': week_start.isoformat()}
+            }, {'revenue': 1}).to_list(1000)
+            metric_value = sum(f.get('revenue', 0) for f in films)
+        elif challenge['metric'] == 'total_likes':
+            films = await db.films.find({
+                'user_id': {'$in': member_ids},
+                'created_at': {'$gte': week_start.isoformat()}
+            }, {'likes': 1}).to_list(1000)
+            metric_value = sum(f.get('likes', 0) for f in films)
+        
+        rankings.append({
+            'major_id': major['id'],
+            'major_name': major['name'],
+            'logo_url': major.get('logo_url'),
+            'metric_value': metric_value,
+            'member_count': len(members)
+        })
+    
+    rankings.sort(key=lambda x: x['metric_value'], reverse=True)
+    
+    return {
+        'challenge': {
+            'id': challenge['id'],
+            'name': challenge['name'].get(language, challenge['name']['en']),
+            'description': challenge['description'].get(language, challenge['description']['en']),
+            'rewards': challenge['rewards']
+        },
+        'rankings': rankings[:10],
+        'week_ends_in': (week_start + timedelta(days=7) - datetime.now(timezone.utc)).total_seconds()
+    }
+
+# ==================== FRIENDS & FOLLOWERS ENDPOINTS ====================
+
+@api_router.get("/friends")
+async def get_friends(user: dict = Depends(get_current_user)):
+    """Get user's friends list."""
+    user_id = user['id']
+    
+    friendships = await db.friendships.find({'user_id': user_id, 'status': 'accepted'}, {'_id': 0}).to_list(1000)
+    friend_ids = [f['friend_id'] for f in friendships]
+    
+    friends = await db.users.find({'id': {'$in': friend_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(1000)
+    
+    # Add online status
+    for friend in friends:
+        friend['is_online'] = friend['id'] in online_users
+    
+    return {'friends': friends, 'count': len(friends)}
+
+@api_router.get("/friends/requests")
+async def get_friend_requests(user: dict = Depends(get_current_user)):
+    """Get pending friend requests."""
+    user_id = user['id']
+    
+    # Incoming requests
+    incoming = await db.friendships.find({'friend_id': user_id, 'status': 'pending'}, {'_id': 0}).to_list(100)
+    incoming_ids = [f['user_id'] for f in incoming]
+    incoming_users = await db.users.find({'id': {'$in': incoming_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(100)
+    
+    # Outgoing requests
+    outgoing = await db.friendships.find({'user_id': user_id, 'status': 'pending'}, {'_id': 0}).to_list(100)
+    outgoing_ids = [f['friend_id'] for f in outgoing]
+    outgoing_users = await db.users.find({'id': {'$in': outgoing_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(100)
+    
+    return {
+        'incoming': [{'request': r, 'user': next((u for u in incoming_users if u['id'] == r['user_id']), None)} for r in incoming],
+        'outgoing': [{'request': r, 'user': next((u for u in outgoing_users if u['id'] == r['friend_id']), None)} for r in outgoing]
+    }
+
+@api_router.post("/friends/request")
+async def send_friend_request(request: FriendRequest, user: dict = Depends(get_current_user)):
+    """Send a friend request."""
+    user_id = user['id']
+    target_id = request.user_id
+    
+    if user_id == target_id:
+        raise HTTPException(status_code=400, detail="Cannot friend yourself")
+    
+    # Check if already friends or pending
+    existing = await db.friendships.find_one({
+        '$or': [
+            {'user_id': user_id, 'friend_id': target_id},
+            {'user_id': target_id, 'friend_id': user_id}
+        ]
+    })
+    if existing:
+        if existing['status'] == 'accepted':
+            raise HTTPException(status_code=400, detail="Already friends")
+        elif existing['status'] == 'pending':
+            raise HTTPException(status_code=400, detail="Request already pending")
+    
+    # Create friend request
+    friendship = {
+        'id': str(uuid.uuid4()),
+        'user_id': user_id,
+        'friend_id': target_id,
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.friendships.insert_one(friendship)
+    
+    # Create notification
+    notification = create_notification(
+        target_id,
+        'friend_request',
+        'Friend Request',
+        f"{user.get('nickname')} wants to be your friend",
+        {'user_id': user_id, 'request_id': friendship['id']},
+        '/friends'
+    )
+    await db.notifications.insert_one(notification)
+    
+    return {'success': True, 'message': 'Friend request sent'}
+
+@api_router.post("/friends/request/{request_id}/accept")
+async def accept_friend_request(request_id: str, user: dict = Depends(get_current_user)):
+    """Accept a friend request."""
+    user_id = user['id']
+    
+    request_doc = await db.friendships.find_one({'id': request_id, 'friend_id': user_id, 'status': 'pending'})
+    if not request_doc:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Update to accepted
+    await db.friendships.update_one({'id': request_id}, {'$set': {'status': 'accepted'}})
+    
+    # Create reverse friendship
+    reverse = {
+        'id': str(uuid.uuid4()),
+        'user_id': user_id,
+        'friend_id': request_doc['user_id'],
+        'status': 'accepted',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.friendships.insert_one(reverse)
+    
+    # Notify
+    notification = create_notification(
+        request_doc['user_id'],
+        'friend_accepted',
+        'Friend Request Accepted',
+        f"{user.get('nickname')} accepted your friend request",
+        {'user_id': user_id},
+        f"/profile/{user_id}"
+    )
+    await db.notifications.insert_one(notification)
+    
+    return {'success': True, 'message': 'Friend request accepted'}
+
+@api_router.post("/friends/request/{request_id}/reject")
+async def reject_friend_request(request_id: str, user: dict = Depends(get_current_user)):
+    """Reject a friend request."""
+    user_id = user['id']
+    
+    result = await db.friendships.delete_one({'id': request_id, 'friend_id': user_id, 'status': 'pending'})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    return {'success': True, 'message': 'Friend request rejected'}
+
+@api_router.delete("/friends/{friend_id}")
+async def remove_friend(friend_id: str, user: dict = Depends(get_current_user)):
+    """Remove a friend."""
+    user_id = user['id']
+    
+    await db.friendships.delete_many({
+        '$or': [
+            {'user_id': user_id, 'friend_id': friend_id},
+            {'user_id': friend_id, 'friend_id': user_id}
+        ]
+    })
+    
+    return {'success': True, 'message': 'Friend removed'}
+
+# ==================== FOLLOWERS ENDPOINTS ====================
+
+@api_router.get("/followers")
+async def get_followers(user: dict = Depends(get_current_user)):
+    """Get user's followers."""
+    user_id = user['id']
+    
+    followers = await db.follows.find({'following_id': user_id}, {'_id': 0}).to_list(1000)
+    follower_ids = [f['follower_id'] for f in followers]
+    
+    follower_users = await db.users.find({'id': {'$in': follower_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(1000)
+    
+    return {'followers': follower_users, 'count': len(follower_users)}
+
+@api_router.get("/following")
+async def get_following(user: dict = Depends(get_current_user)):
+    """Get users that current user is following."""
+    user_id = user['id']
+    
+    following = await db.follows.find({'follower_id': user_id}, {'_id': 0}).to_list(1000)
+    following_ids = [f['following_id'] for f in following]
+    
+    following_users = await db.users.find({'id': {'$in': following_ids}}, {'_id': 0, 'password': 0, 'email': 0}).to_list(1000)
+    
+    return {'following': following_users, 'count': len(following_users)}
+
+@api_router.post("/follow/{user_id}")
+async def follow_user(user_id: str, user: dict = Depends(get_current_user)):
+    """Follow a user."""
+    current_user_id = user['id']
+    
+    if current_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    
+    # Check if already following
+    existing = await db.follows.find_one({'follower_id': current_user_id, 'following_id': user_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Already following")
+    
+    follow = {
+        'id': str(uuid.uuid4()),
+        'follower_id': current_user_id,
+        'following_id': user_id,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.follows.insert_one(follow)
+    
+    # Notify
+    notification = create_notification(
+        user_id,
+        'new_follower',
+        'New Follower',
+        f"{user.get('nickname')} started following you",
+        {'user_id': current_user_id},
+        f"/profile/{current_user_id}"
+    )
+    await db.notifications.insert_one(notification)
+    
+    return {'success': True, 'message': 'Now following user'}
+
+@api_router.delete("/follow/{user_id}")
+async def unfollow_user(user_id: str, user: dict = Depends(get_current_user)):
+    """Unfollow a user."""
+    current_user_id = user['id']
+    
+    await db.follows.delete_one({'follower_id': current_user_id, 'following_id': user_id})
+    
+    return {'success': True, 'message': 'Unfollowed user'}
+
+# ==================== NOTIFICATIONS ENDPOINTS ====================
+
+@api_router.get("/notifications")
+async def get_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """Get user's notifications."""
+    user_id = user['id']
+    
+    query = {'user_id': user_id}
+    if unread_only:
+        query['read'] = False
+    
+    notifications = await db.notifications.find(query, {'_id': 0}).sort('created_at', -1).limit(limit).to_list(limit)
+    unread_count = await db.notifications.count_documents({'user_id': user_id, 'read': False})
+    
+    return {
+        'notifications': notifications,
+        'unread_count': unread_count
+    }
+
+@api_router.get("/notifications/count")
+async def get_notification_count(user: dict = Depends(get_current_user)):
+    """Get unread notification count."""
+    user_id = user['id']
+    count = await db.notifications.count_documents({'user_id': user_id, 'read': False})
+    return {'unread_count': count}
+
+@api_router.post("/notifications/read")
+async def mark_notifications_read(request: NotificationMarkReadRequest, user: dict = Depends(get_current_user)):
+    """Mark notifications as read."""
+    user_id = user['id']
+    
+    if request.notification_ids:
+        await db.notifications.update_many(
+            {'id': {'$in': request.notification_ids}, 'user_id': user_id},
+            {'$set': {'read': True}}
+        )
+    else:
+        # Mark all as read
+        await db.notifications.update_many(
+            {'user_id': user_id, 'read': False},
+            {'$set': {'read': True}}
+        )
+    
+    return {'success': True}
+
+@api_router.delete("/notifications/{notification_id}")
+async def delete_notification(notification_id: str, user: dict = Depends(get_current_user)):
+    """Delete a notification."""
+    user_id = user['id']
+    await db.notifications.delete_one({'id': notification_id, 'user_id': user_id})
+    return {'success': True}
+
+# ==================== SOCIAL STATS ENDPOINT ====================
+
+@api_router.get("/social/stats")
+async def get_social_stats(user: dict = Depends(get_current_user)):
+    """Get user's social statistics."""
+    user_id = user['id']
+    language = user.get('language', 'en')
+    
+    friends_count = await db.friendships.count_documents({'user_id': user_id, 'status': 'accepted'})
+    followers_count = await db.follows.count_documents({'following_id': user_id})
+    following_count = await db.follows.count_documents({'follower_id': user_id})
+    
+    # Check Major membership
+    major_membership = await db.major_members.find_one({'user_id': user_id, 'status': 'active'}, {'_id': 0})
+    
+    return {
+        'friends_count': friends_count,
+        'followers_count': followers_count,
+        'following_count': following_count,
+        'social_level': get_relationship_description(friends_count, following_count, followers_count, language),
+        'in_major': major_membership is not None,
+        'major_role': major_membership.get('role') if major_membership else None
     }
 
 # Include router and middleware

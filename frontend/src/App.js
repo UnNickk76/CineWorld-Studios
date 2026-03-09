@@ -9,7 +9,8 @@ import {
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
-  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff
+  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
+  ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -75,6 +76,9 @@ const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
     localStorage.setItem('cineworld_token', res.data.access_token);
+    if (res.data.user?.language) {
+      localStorage.setItem('cineworld_lang', res.data.user.language);
+    }
     setToken(res.data.access_token);
     setUser(res.data.user);
     return res.data;
@@ -83,6 +87,9 @@ const AuthProvider = ({ children }) => {
   const register = async (data) => {
     const res = await api.post('/auth/register', data);
     localStorage.setItem('cineworld_token', res.data.access_token);
+    if (res.data.user?.language) {
+      localStorage.setItem('cineworld_lang', res.data.user.language);
+    }
     setToken(res.data.access_token);
     setUser(res.data.user);
     return res.data;
@@ -115,6 +122,30 @@ const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(localStorage.getItem('cineworld_lang') || 'en');
   const [translations, setTranslations] = useState({});
 
+  // Listen for localStorage changes (from login/register)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedLang = localStorage.getItem('cineworld_lang');
+      if (storedLang && storedLang !== language) {
+        setLanguage(storedLang);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    // Also check periodically for same-tab changes
+    const interval = setInterval(() => {
+      const storedLang = localStorage.getItem('cineworld_lang');
+      if (storedLang && storedLang !== language) {
+        setLanguage(storedLang);
+      }
+    }, 500);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [language]);
+
   useEffect(() => {
     axios.get(`${API}/translations/${language}`)
       .then(res => setTranslations(res.data))
@@ -138,10 +169,14 @@ const TopNavbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [majorInfo, setMajorInfo] = useState(null);
 
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
-  }, [api, user?.total_xp]);
+    api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
+    api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
+  }, [api, user?.total_xp, location.pathname]);
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
@@ -164,13 +199,32 @@ const TopNavbar = () => {
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
   });
+  
+  // Check if we can go back
+  const canGoBack = location.pathname !== '/dashboard' && window.history.length > 1;
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-b border-white/10 z-50">
       <div className="max-w-7xl mx-auto h-full px-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')} data-testid="logo">
-          <Clapperboard className="w-7 h-7 text-yellow-500" />
-          <span className="font-['Bebas_Neue'] text-lg tracking-wide hidden sm:block">CineWorld</span>
+        {/* Left section: Back button + Logo */}
+        <div className="flex items-center gap-2">
+          {/* Back Button */}
+          {canGoBack && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+              onClick={() => navigate(-1)}
+              data-testid="back-btn"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')} data-testid="logo">
+            <Clapperboard className="w-7 h-7 text-yellow-500" />
+            <span className="font-['Bebas_Neue'] text-lg tracking-wide hidden sm:block">CineWorld</span>
+          </div>
         </div>
 
         <div className="hidden lg:flex items-center gap-0.5">
@@ -190,6 +244,48 @@ const TopNavbar = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Major Icon */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-8 w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            onClick={() => navigate('/major')}
+            data-testid="major-btn"
+            title={majorInfo?.has_major ? majorInfo.major?.name : (language === 'it' ? 'Major' : 'Major')}
+          >
+            <Crown className="w-4 h-4" />
+            {majorInfo?.has_major && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full"></span>
+            )}
+          </Button>
+          
+          {/* Notifications Icon */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-8 w-8 p-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/notifications')}
+            data-testid="notifications-btn"
+          >
+            <Bell className="w-4 h-4" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            )}
+          </Button>
+          
+          {/* Friends Icon */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
+            onClick={() => navigate('/friends')}
+            data-testid="friends-btn"
+          >
+            <UserPlus className="w-4 h-4" />
+          </Button>
+          
           {/* Level Badge */}
           {levelInfo && (
             <div className="hidden md:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')} title={`${levelInfo.current_xp}/${levelInfo.xp_for_next_level} XP`}>
@@ -6244,6 +6340,646 @@ const CinemaTourPage = () => {
   );
 };
 
+// ==================== MAJOR PAGE ====================
+const MajorPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+  const [majorData, setMajorData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', description: '', max_members: 20 });
+  const [inviteUserId, setInviteUserId] = useState('');
+  const [allUsers, setAllUsers] = useState([]);
+  
+  const t = (key) => {
+    const translations = {
+      major: language === 'it' ? 'Major' : 'Major',
+      createMajor: language === 'it' ? 'Crea Major' : 'Create Major',
+      yourMajor: language === 'it' ? 'La Tua Major' : 'Your Major',
+      noMajor: language === 'it' ? 'Non sei in una Major' : "You're not in a Major",
+      levelRequired: language === 'it' ? 'Richiesto livello 20 per creare' : 'Level 20 required to create',
+      members: language === 'it' ? 'Membri' : 'Members',
+      invite: language === 'it' ? 'Invita' : 'Invite',
+      weeklyChallenge: language === 'it' ? 'Sfida Settimanale' : 'Weekly Challenge',
+      bonuses: language === 'it' ? 'Bonus' : 'Bonuses',
+      activities: language === 'it' ? 'Attività' : 'Activities',
+      rankings: language === 'it' ? 'Classifiche' : 'Rankings'
+    };
+    return translations[key] || key;
+  };
+  
+  useEffect(() => {
+    Promise.all([
+      api.get('/major/my'),
+      api.get('/users/online')
+    ]).then(([major, users]) => {
+      setMajorData(major.data);
+      setAllUsers(users.data || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [api]);
+  
+  const createMajor = async () => {
+    try {
+      const res = await api.post('/major/create', createForm);
+      toast.success(language === 'it' ? 'Major creata!' : 'Major created!');
+      setShowCreateModal(false);
+      const major = await api.get('/major/my');
+      setMajorData(major.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+  };
+  
+  const inviteUser = async (userId) => {
+    try {
+      await api.post('/major/invite', { user_id: userId });
+      toast.success(language === 'it' ? 'Invito inviato!' : 'Invite sent!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+  };
+  
+  if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
+  
+  return (
+    <div className="pt-16 pb-6 px-3 max-w-4xl mx-auto">
+      <h1 className="font-['Bebas_Neue'] text-3xl mb-4 flex items-center gap-2">
+        <Crown className="w-8 h-8 text-purple-500" />
+        {t('major')}
+      </h1>
+      
+      {!majorData?.has_major ? (
+        <Card className="bg-[#1A1A1A] border-white/10">
+          <CardContent className="p-6 text-center">
+            <Crown className="w-16 h-16 mx-auto text-purple-500/50 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">{t('noMajor')}</h2>
+            <p className="text-gray-400 mb-4">{t('levelRequired')}</p>
+            {majorData?.can_create ? (
+              <Button className="bg-purple-600 hover:bg-purple-500" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" /> {t('createMajor')}
+              </Button>
+            ) : (
+              <Badge className="bg-gray-500/20 text-gray-400">
+                {language === 'it' ? `Livello ${user?.level || 0}/20` : `Level ${user?.level || 0}/20`}
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {/* Major Header */}
+          <Card className="bg-gradient-to-r from-purple-900/30 to-purple-600/10 border-purple-500/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                {majorData.major?.logo_url ? (
+                  <img src={majorData.major.logo_url} alt="" className="w-16 h-16 rounded-lg" />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <Crown className="w-8 h-8 text-purple-500" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold">{majorData.major?.name}</h2>
+                  <p className="text-sm text-gray-400">{majorData.major?.description}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className="bg-purple-500/20 text-purple-400">Level {majorData.level}</Badge>
+                    <Badge className="bg-white/10 text-gray-300">{majorData.members?.length}/{majorData.major?.max_members} {t('members')}</Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Bonuses */}
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-yellow-500" />
+                {t('bonuses')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded bg-green-500/10 text-center">
+                <p className="text-2xl font-bold text-green-500">+{majorData.bonuses?.quality_bonus}%</p>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Qualità' : 'Quality'}</p>
+              </div>
+              <div className="p-3 rounded bg-yellow-500/10 text-center">
+                <p className="text-2xl font-bold text-yellow-500">+{majorData.bonuses?.revenue_bonus}%</p>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Incassi' : 'Revenue'}</p>
+              </div>
+              <div className="p-3 rounded bg-purple-500/10 text-center">
+                <p className="text-2xl font-bold text-purple-500">+{majorData.bonuses?.xp_bonus}%</p>
+                <p className="text-xs text-gray-400">XP</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Weekly Challenge */}
+          {majorData.weekly_challenge && (
+            <Card className="bg-[#1A1A1A] border-yellow-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Target className="w-5 h-5 text-yellow-500" />
+                  {t('weeklyChallenge')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <h3 className="font-semibold">{majorData.weekly_challenge.name}</h3>
+                <p className="text-sm text-gray-400 mb-2">{majorData.weekly_challenge.description}</p>
+                <div className="flex gap-2">
+                  <Badge className="bg-yellow-500/20 text-yellow-400">+{majorData.weekly_challenge.rewards?.xp} XP</Badge>
+                  <Badge className="bg-green-500/20 text-green-400">+${(majorData.weekly_challenge.rewards?.funds / 1000).toFixed(0)}K</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Members */}
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span className="flex items-center gap-2"><Users className="w-5 h-5" /> {t('members')}</span>
+                {(majorData.my_role === 'founder' || majorData.my_role === 'vice') && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button size="sm" variant="outline" className="border-purple-500/30 text-purple-400">
+                        <UserPlus className="w-4 h-4 mr-1" /> {t('invite')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="bg-[#1A1A1A] border-white/10 w-64">
+                      <p className="text-sm mb-2">{language === 'it' ? 'Invita utente' : 'Invite user'}</p>
+                      <ScrollArea className="h-40">
+                        {allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).map(u => (
+                          <Button key={u.id} variant="ghost" size="sm" className="w-full justify-between h-8 mb-1" onClick={() => inviteUser(u.id)}>
+                            <span className="text-xs">{u.nickname}</span>
+                            <Send className="w-3 h-3" />
+                          </Button>
+                        ))}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {majorData.members?.map(member => (
+                  <div key={member.user_id} className="flex items-center gap-3 p-2 rounded bg-white/5">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={member.avatar_url} />
+                      <AvatarFallback className="bg-purple-500/20 text-purple-500">{member.nickname?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{member.nickname}</p>
+                      <Badge className={`text-[10px] h-4 ${member.role === 'founder' ? 'bg-yellow-500/20 text-yellow-400' : member.role === 'vice' ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'}`}>
+                        {MAJOR_ROLES[member.role]?.[language] || member.role}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-gray-400">Lv.{member.level}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* Create Major Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10">
+          <DialogHeader>
+            <DialogTitle>{t('createMajor')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>{language === 'it' ? 'Nome' : 'Name'}</Label>
+              <Input value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} placeholder="Major Studios" className="bg-black/30 border-white/10" />
+            </div>
+            <div>
+              <Label>{language === 'it' ? 'Descrizione' : 'Description'}</Label>
+              <Input value={createForm.description} onChange={e => setCreateForm({...createForm, description: e.target.value})} placeholder={language === 'it' ? 'La nostra missione...' : 'Our mission...'} className="bg-black/30 border-white/10" />
+            </div>
+            <div>
+              <Label>{language === 'it' ? 'Max Membri' : 'Max Members'} ({createForm.max_members})</Label>
+              <Slider value={[createForm.max_members]} onValueChange={([v]) => setCreateForm({...createForm, max_members: v})} min={5} max={50} step={5} />
+            </div>
+            <Button className="w-full bg-purple-600 hover:bg-purple-500" onClick={createMajor}>
+              {t('createMajor')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+const MAJOR_ROLES = {
+  founder: { en: 'Founder', it: 'Fondatore' },
+  vice: { en: 'Vice President', it: 'Vice Presidente' },
+  senior_producer: { en: 'Senior Producer', it: 'Produttore Senior' },
+  member: { en: 'Member', it: 'Membro' }
+};
+
+// ==================== FRIENDS PAGE ====================
+const FriendsPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('friends');
+  const [friends, setFriends] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
+  const [loading, setLoading] = useState(true);
+  const [allUsers, setAllUsers] = useState([]);
+  
+  const t = (key) => {
+    const translations = {
+      friends: language === 'it' ? 'Amici' : 'Friends',
+      followers: language === 'it' ? 'Follower' : 'Followers',
+      following: language === 'it' ? 'Seguiti' : 'Following',
+      requests: language === 'it' ? 'Richieste' : 'Requests',
+      addFriend: language === 'it' ? 'Aggiungi Amico' : 'Add Friend',
+      accept: language === 'it' ? 'Accetta' : 'Accept',
+      reject: language === 'it' ? 'Rifiuta' : 'Reject',
+      follow: language === 'it' ? 'Segui' : 'Follow',
+      unfollow: language === 'it' ? 'Non Seguire' : 'Unfollow',
+      removeFriend: language === 'it' ? 'Rimuovi' : 'Remove',
+      pending: language === 'it' ? 'In attesa' : 'Pending'
+    };
+    return translations[key] || key;
+  };
+  
+  useEffect(() => {
+    loadData();
+  }, [api]);
+  
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [friendsRes, followersRes, followingRes, requestsRes, usersRes] = await Promise.all([
+        api.get('/friends'),
+        api.get('/followers'),
+        api.get('/following'),
+        api.get('/friends/requests'),
+        api.get('/users/online')
+      ]);
+      setFriends(friendsRes.data.friends);
+      setFollowers(followersRes.data.followers);
+      setFollowing(followingRes.data.following);
+      setRequests(requestsRes.data);
+      setAllUsers(usersRes.data || []);
+    } catch (e) {}
+    setLoading(false);
+  };
+  
+  const sendFriendRequest = async (userId) => {
+    try {
+      await api.post('/friends/request', { user_id: userId });
+      toast.success(language === 'it' ? 'Richiesta inviata!' : 'Request sent!');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+  };
+  
+  const acceptRequest = async (requestId) => {
+    try {
+      await api.post(`/friends/request/${requestId}/accept`);
+      toast.success(language === 'it' ? 'Amicizia accettata!' : 'Friendship accepted!');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+  };
+  
+  const rejectRequest = async (requestId) => {
+    try {
+      await api.post(`/friends/request/${requestId}/reject`);
+      loadData();
+    } catch (e) {}
+  };
+  
+  const followUser = async (userId) => {
+    try {
+      await api.post(`/follow/${userId}`);
+      toast.success(language === 'it' ? 'Ora segui questo utente!' : 'Now following!');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error');
+    }
+  };
+  
+  const unfollowUser = async (userId) => {
+    try {
+      await api.delete(`/follow/${userId}`);
+      loadData();
+    } catch (e) {}
+  };
+  
+  const removeFriend = async (friendId) => {
+    try {
+      await api.delete(`/friends/${friendId}`);
+      loadData();
+    } catch (e) {}
+  };
+  
+  if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
+  
+  return (
+    <div className="pt-16 pb-6 px-3 max-w-2xl mx-auto">
+      <h1 className="font-['Bebas_Neue'] text-3xl mb-4 flex items-center gap-2">
+        <Users className="w-8 h-8 text-blue-500" />
+        {t('friends')} & {t('followers')}
+      </h1>
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-4 mb-4">
+          <TabsTrigger value="friends" className="text-xs">
+            {t('friends')} ({friends.length})
+          </TabsTrigger>
+          <TabsTrigger value="followers" className="text-xs">
+            {t('followers')} ({followers.length})
+          </TabsTrigger>
+          <TabsTrigger value="following" className="text-xs">
+            {t('following')} ({following.length})
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="text-xs relative">
+            {t('requests')}
+            {requests.incoming?.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-[10px] rounded-full flex items-center justify-center">{requests.incoming.length}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="friends">
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardContent className="p-4">
+              {friends.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">{language === 'it' ? 'Nessun amico' : 'No friends yet'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {friends.map(friend => (
+                    <div key={friend.id} className="flex items-center gap-3 p-2 rounded bg-white/5 cursor-pointer" onClick={() => navigate(`/player/${friend.id}`)}>
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={friend.avatar_url} />
+                        <AvatarFallback className="bg-blue-500/20 text-blue-500">{friend.nickname?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{friend.nickname}</p>
+                        <p className="text-xs text-gray-400">{friend.production_house_name}</p>
+                      </div>
+                      {friend.is_online && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                      <Button size="sm" variant="ghost" className="h-8 text-red-400" onClick={(e) => { e.stopPropagation(); removeFriend(friend.id); }}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="followers">
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardContent className="p-4">
+              {followers.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">{language === 'it' ? 'Nessun follower' : 'No followers yet'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {followers.map(follower => (
+                    <div key={follower.id} className="flex items-center gap-3 p-2 rounded bg-white/5 cursor-pointer" onClick={() => navigate(`/player/${follower.id}`)}>
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={follower.avatar_url} />
+                        <AvatarFallback className="bg-pink-500/20 text-pink-500">{follower.nickname?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{follower.nickname}</p>
+                        <p className="text-xs text-gray-400">{follower.production_house_name}</p>
+                      </div>
+                      {!following.some(f => f.id === follower.id) && (
+                        <Button size="sm" variant="outline" className="h-8 border-blue-500/30 text-blue-400" onClick={(e) => { e.stopPropagation(); followUser(follower.id); }}>
+                          {t('follow')}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="following">
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardContent className="p-4">
+              {following.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">{language === 'it' ? 'Non segui nessuno' : 'Not following anyone'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {following.map(user => (
+                    <div key={user.id} className="flex items-center gap-3 p-2 rounded bg-white/5 cursor-pointer" onClick={() => navigate(`/player/${user.id}`)}>
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={user.avatar_url} />
+                        <AvatarFallback className="bg-blue-500/20 text-blue-500">{user.nickname?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{user.nickname}</p>
+                        <p className="text-xs text-gray-400">{user.production_house_name}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-8 text-gray-400" onClick={(e) => { e.stopPropagation(); unfollowUser(user.id); }}>
+                        {t('unfollow')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="requests">
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardContent className="p-4">
+              <h3 className="font-semibold mb-3">{language === 'it' ? 'Richieste Ricevute' : 'Incoming Requests'}</h3>
+              {requests.incoming?.length === 0 ? (
+                <p className="text-center text-gray-400 py-4">{language === 'it' ? 'Nessuna richiesta' : 'No requests'}</p>
+              ) : (
+                <div className="space-y-2 mb-6">
+                  {requests.incoming.map(req => (
+                    <div key={req.request.id} className="flex items-center gap-3 p-2 rounded bg-white/5">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={req.user?.avatar_url} />
+                        <AvatarFallback className="bg-blue-500/20 text-blue-500">{req.user?.nickname?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{req.user?.nickname}</p>
+                      </div>
+                      <Button size="sm" className="h-8 bg-green-600" onClick={() => acceptRequest(req.request.id)}>
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-red-400" onClick={() => rejectRequest(req.request.id)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <h3 className="font-semibold mb-3">{language === 'it' ? 'Richieste Inviate' : 'Sent Requests'}</h3>
+              {requests.outgoing?.length === 0 ? (
+                <p className="text-center text-gray-400 py-4">{language === 'it' ? 'Nessuna richiesta inviata' : 'No sent requests'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {requests.outgoing.map(req => (
+                    <div key={req.request.id} className="flex items-center gap-3 p-2 rounded bg-white/5">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={req.user?.avatar_url} />
+                        <AvatarFallback className="bg-gray-500/20">{req.user?.nickname?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{req.user?.nickname}</p>
+                      </div>
+                      <Badge className="bg-yellow-500/20 text-yellow-400">{t('pending')}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+// ==================== NOTIFICATIONS PAGE ====================
+const NotificationsPage = () => {
+  const { api, user } = useContext(AuthContext);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const t = (key) => ({
+    notifications: language === 'it' ? 'Notifiche' : 'Notifications',
+    markAllRead: language === 'it' ? 'Segna tutto letto' : 'Mark all read',
+    noNotifications: language === 'it' ? 'Nessuna notifica' : 'No notifications'
+  }[key] || key);
+  
+  useEffect(() => {
+    loadNotifications();
+  }, [api]);
+  
+  const loadNotifications = async () => {
+    try {
+      const res = await api.get('/notifications?limit=50');
+      setNotifications(res.data.notifications);
+    } catch (e) {}
+    setLoading(false);
+  };
+  
+  const markAllRead = async () => {
+    try {
+      await api.post('/notifications/read', { notification_ids: [] });
+      loadNotifications();
+    } catch (e) {}
+  };
+  
+  const markAsRead = async (id) => {
+    try {
+      await api.post('/notifications/read', { notification_ids: [id] });
+      loadNotifications();
+    } catch (e) {}
+  };
+  
+  const deleteNotification = async (id) => {
+    try {
+      await api.delete(`/notifications/${id}`);
+      loadNotifications();
+    } catch (e) {}
+  };
+  
+  const getIconForType = (type) => {
+    const icons = {
+      friend_request: <UserPlus className="w-5 h-5 text-blue-400" />,
+      friend_accepted: <UserCheck className="w-5 h-5 text-green-400" />,
+      major_invite: <Crown className="w-5 h-5 text-purple-400" />,
+      major_joined: <Users className="w-5 h-5 text-purple-400" />,
+      new_film: <Film className="w-5 h-5 text-yellow-400" />,
+      new_follower: <UserPlus className="w-5 h-5 text-pink-400" />,
+      message: <MessageSquare className="w-5 h-5 text-blue-400" />,
+      festival: <Award className="w-5 h-5 text-yellow-400" />,
+      festival_countdown: <Clock className="w-5 h-5 text-orange-400" />,
+      award_won: <Trophy className="w-5 h-5 text-yellow-400" />,
+      achievement: <Star className="w-5 h-5 text-yellow-400" />,
+      major_challenge: <Target className="w-5 h-5 text-red-400" />,
+      level_up: <TrendingUp className="w-5 h-5 text-green-400" />,
+      system: <Info className="w-5 h-5 text-gray-400" />
+    };
+    return icons[type] || icons.system;
+  };
+  
+  if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
+  
+  return (
+    <div className="pt-16 pb-6 px-3 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
+          <Bell className="w-8 h-8 text-yellow-500" />
+          {t('notifications')}
+        </h1>
+        {notifications.some(n => !n.read) && (
+          <Button size="sm" variant="outline" onClick={markAllRead}>
+            <Check className="w-4 h-4 mr-1" /> {t('markAllRead')}
+          </Button>
+        )}
+      </div>
+      
+      <Card className="bg-[#1A1A1A] border-white/10">
+        <CardContent className="p-4">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12">
+              <Bell className="w-12 h-12 mx-auto text-gray-500/50 mb-3" />
+              <p className="text-gray-400">{t('noNotifications')}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map(notif => (
+                <div 
+                  key={notif.id} 
+                  className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${notif.read ? 'bg-white/5' : 'bg-yellow-500/10 border border-yellow-500/20'}`}
+                  onClick={() => { 
+                    if (!notif.read) markAsRead(notif.id);
+                    if (notif.link) navigate(notif.link);
+                  }}
+                >
+                  <div className="flex-shrink-0 mt-0.5">
+                    {getIconForType(notif.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{notif.title}</p>
+                    <p className="text-xs text-gray-400">{notif.message}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {new Date(notif.created_at).toLocaleDateString(language === 'it' ? 'it-IT' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400" onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 // Protected Route
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -6281,6 +7017,9 @@ function App() {
               <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
               <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
               <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
+              <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
+              <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

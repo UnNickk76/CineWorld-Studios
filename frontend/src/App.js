@@ -8,7 +8,8 @@ import {
   Send, Image, ChevronRight, ChevronDown, Menu, X, Settings, 
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
-  Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock
+  Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
+  Wallet, Bell, HelpCircle, Info, Music, BookOpen
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -154,6 +155,8 @@ const TopNavbar = () => {
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
+    { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
+    { path: '/credits', icon: Info, label: 'credits' },
   ];
 
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {
@@ -884,7 +887,7 @@ const FilmWizard = () => {
     title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
     screenwriter_id: '', director_id: '', actors: [], extras_count: 50, extras_cost: 50000,
-    screenplay: '', screenplay_source: 'manual', poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
+    screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
   });
   const [releaseDate, setReleaseDate] = useState(new Date());
   const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Cast'},{num:7,title:'Script'},{num:8,title:'Poster'},{num:9,title:'Ads'},{num:10,title:'Review'}];
@@ -905,7 +908,7 @@ const FilmWizard = () => {
   };
   useEffect(() => { if(step===4)fetchPeople('screenwriters'); if(step===5)fetchPeople('directors'); if(step===6)fetchPeople('actors'); }, [step]);
 
-  const generateScreenplay = async () => { setGenerating(true); try { const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium' }); setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); toast.success('Screenplay generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
+  const generateScreenplay = async () => { setGenerating(true); try { const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); toast.success('Sceneggiatura generata!'); } catch(e) { toast.error('Errore'); } finally { setGenerating(false); }};
   const generatePoster = async () => { setGenerating(true); try { const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); setFilmData({...filmData, poster_url: res.data.poster_url}); toast.success('Poster generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
   
   const calculateBudget = () => { const eq = equipment.find(e=>e.name===filmData.equipment_package)||{cost:0}; let loc=0; filmData.locations.forEach(l=>{const lo=locations.find(x=>x.name===l); if(lo)loc+=lo.cost_per_day*(filmData.location_days[l]||7);}); return eq.cost+loc+filmData.extras_cost; };
@@ -1105,8 +1108,9 @@ const FilmWizard = () => {
           <div><Label className="text-xs">Extras: {filmData.extras_count} (${filmData.extras_cost.toLocaleString()})</Label><Slider value={[filmData.extras_count]} onValueChange={([v])=>setFilmData({...filmData,extras_count:v,extras_cost:v*1000})} min={0} max={500} step={10} /></div>
         </div>);
       case 7: return (<div className="space-y-3">
-        <div className="flex gap-2"><Button variant={filmData.screenplay_source==='manual'?'default':'outline'} size="sm" onClick={()=>setFilmData({...filmData,screenplay_source:'manual'})} className={filmData.screenplay_source==='manual'?'bg-yellow-500 text-black':''}>Manual</Button><Button variant="outline" size="sm" onClick={generateScreenplay} disabled={generating||!filmData.title}><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'AI Generate'}</Button></div>
-        <Textarea value={filmData.screenplay} onChange={e=>setFilmData({...filmData,screenplay:e.target.value})} placeholder="Screenplay..." className="min-h-[200px] bg-black/20 border-white/10" />
+        <div className="flex gap-2"><Button variant={filmData.screenplay_source==='manual'?'default':'outline'} size="sm" onClick={()=>setFilmData({...filmData,screenplay_source:'manual'})} className={filmData.screenplay_source==='manual'?'bg-yellow-500 text-black':''}>Manuale</Button><Button variant="outline" size="sm" onClick={generateScreenplay} disabled={generating||!filmData.title}><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'Genera con AI'}</Button></div>
+        <Input value={filmData.screenplay_prompt} onChange={e=>setFilmData({...filmData,screenplay_prompt:e.target.value})} placeholder="La tua idea per la sceneggiatura... (opzionale per AI)" className="bg-black/20 border-white/10 text-sm" />
+        <Textarea value={filmData.screenplay} onChange={e=>setFilmData({...filmData,screenplay:e.target.value})} placeholder="Sceneggiatura..." className="min-h-[200px] bg-black/20 border-white/10" />
       </div>);
       case 8: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
@@ -2683,6 +2687,43 @@ const InfrastructurePage = () => {
     }
   };
 
+  const [pendingRevenue, setPendingRevenue] = useState(null);
+  const [collectingRevenue, setCollectingRevenue] = useState(false);
+
+  const loadPendingRevenue = async (infraId) => {
+    try {
+      const res = await api.get(`/infrastructure/${infraId}/pending-revenue`);
+      setPendingRevenue(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const collectRevenue = async () => {
+    if (!selectedInfra) return;
+    setCollectingRevenue(true);
+    try {
+      const res = await api.post(`/infrastructure/${selectedInfra.id}/collect-revenue`);
+      toast.success(`Riscossi $${res.data.collected.toLocaleString()}! (${res.data.hours_accumulated}h accumulate)`);
+      setPendingRevenue({...pendingRevenue, pending: 0, hours_accumulated: 0});
+      // Refresh
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+      refreshUser();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setCollectingRevenue(false);
+    }
+  };
+
+  // Load pending revenue when opening detail dialog
+  useEffect(() => {
+    if (showDetailDialog && selectedInfra) {
+      loadPendingRevenue(selectedInfra.id);
+    }
+  }, [showDetailDialog, selectedInfra]);
+
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="infrastructure-page">
       {/* Level Progress */}
@@ -2876,6 +2917,36 @@ const InfrastructurePage = () => {
                   <p className="text-lg font-bold text-yellow-500">{infraDetail.films_showing?.length || 0}</p>
                 </div>
               </div>
+
+              {/* Revenue Collection */}
+              {pendingRevenue && (
+                <div className="p-3 bg-gradient-to-r from-green-500/10 to-yellow-500/10 rounded border border-green-500/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-green-500" /> Incassi da Riscuotere
+                    </h4>
+                    <Badge className={pendingRevenue.is_maxed ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}>
+                      {pendingRevenue.hours_accumulated?.toFixed(1)}h / 4h
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-green-400">${pendingRevenue.pending?.toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">${pendingRevenue.hourly_rate?.toLocaleString()}/ora</p>
+                    </div>
+                    <Button 
+                      onClick={collectRevenue}
+                      disabled={collectingRevenue || pendingRevenue.pending < 1}
+                      className="bg-green-500 hover:bg-green-400 text-black font-bold"
+                    >
+                      {collectingRevenue ? 'Riscuotendo...' : 'Riscuoti Ora'}
+                    </Button>
+                  </div>
+                  {pendingRevenue.is_maxed && (
+                    <p className="text-xs text-red-400 mt-2">⚠️ Incassi al massimo! Riscuoti per continuare ad accumulare.</p>
+                  )}
+                </div>
+              )}
 
               {/* Prices Section */}
               {['cinema', 'megaplex', 'drive_in', 'mall'].includes(selectedInfra?.type) && (
@@ -3609,6 +3680,115 @@ const MarketplacePage = () => {
   );
 };
 
+// Tutorial Page
+const TutorialPage = () => {
+  const { api } = useContext(AuthContext);
+  const [tutorial, setTutorial] = useState({ steps: [] });
+  const [currentStep, setCurrentStep] = useState(0);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get('/game/tutorial').then(r => setTutorial(r.data)).catch(console.error);
+  }, [api]);
+
+  const iconMap = {
+    film: Film, clapperboard: Clapperboard, users: Users, trophy: Trophy,
+    building: Building, 'dollar-sign': DollarSign, gamepad: Gamepad2
+  };
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="tutorial-page">
+      <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2 mb-6">
+        <HelpCircle className="w-7 h-7 text-yellow-500" /> Tutorial
+      </h1>
+      
+      <div className="grid gap-4">
+        {tutorial.steps.map((step, index) => {
+          const IconComp = iconMap[step.icon] || Star;
+          return (
+            <Card 
+              key={step.id}
+              className={`bg-[#1A1A1A] border-white/10 cursor-pointer transition-all ${currentStep === index ? 'ring-2 ring-yellow-500' : ''}`}
+              onClick={() => setCurrentStep(index)}
+            >
+              <CardContent className="p-4 flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${currentStep === index ? 'bg-yellow-500 text-black' : 'bg-white/10'}`}>
+                  <IconComp className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{step.id}. {step.title}</h3>
+                  <p className="text-gray-400 text-sm mt-1">{step.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+      
+      <div className="mt-6 text-center">
+        <Button onClick={() => navigate('/dashboard')} className="bg-yellow-500 text-black">
+          Inizia a Giocare!
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Credits Page
+const CreditsPage = () => {
+  const { api } = useContext(AuthContext);
+  const [credits, setCredits] = useState(null);
+
+  useEffect(() => {
+    api.get('/game/credits').then(r => setCredits(r.data)).catch(console.error);
+  }, [api]);
+
+  if (!credits) return <div className="pt-20 text-center">Caricamento...</div>;
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="credits-page">
+      <div className="text-center mb-8">
+        <Clapperboard className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+        <h1 className="font-['Bebas_Neue'] text-4xl">{credits.game_title}</h1>
+        <p className="text-gray-400">Versione {credits.version}</p>
+      </div>
+      
+      <Card className="bg-[#1A1A1A] border-white/10 mb-6">
+        <CardContent className="p-6">
+          <h2 className="font-['Bebas_Neue'] text-2xl mb-4 text-yellow-500">Credits</h2>
+          <div className="space-y-4">
+            {credits.credits.map((credit, i) => (
+              <div key={i} className="flex items-center gap-4 p-3 bg-white/5 rounded">
+                <Award className="w-8 h-8 text-yellow-500" />
+                <div>
+                  <p className="font-bold">{credit.name}</p>
+                  <p className="text-sm text-yellow-400">{credit.role}</p>
+                  <p className="text-xs text-gray-400">{credit.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card className="bg-[#1A1A1A] border-white/10 mb-6">
+        <CardContent className="p-6">
+          <h2 className="font-['Bebas_Neue'] text-xl mb-3">Tecnologie Utilizzate</h2>
+          <div className="flex flex-wrap gap-2">
+            {credits.technologies.map((tech, i) => (
+              <Badge key={i} className="bg-white/10">{tech}</Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      
+      <div className="text-center text-gray-500 text-sm">
+        {credits.copyright}
+      </div>
+    </div>
+  );
+};
+
 // Leaderboard Page
 const LeaderboardPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -4108,6 +4288,8 @@ function App() {
               <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
               <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
               <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+              <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
+              <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
               <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

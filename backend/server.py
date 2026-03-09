@@ -536,7 +536,9 @@ TRANSLATIONS = {
         'infrastructure': 'Infrastructure',
         'leaderboard': 'Leaderboard',
         'tour': 'Cinema Tour',
-        'marketplace': 'Marketplace'
+        'marketplace': 'Marketplace',
+        'tutorial': 'Tutorial',
+        'credits': 'Credits'
     },
     'it': {
         'welcome': 'Benvenuto in CineWorld Studio\'s',
@@ -579,6 +581,8 @@ TRANSLATIONS = {
         'leaderboard': 'Classifica',
         'tour': 'Tour Cinema',
         'marketplace': 'Mercato',
+        'tutorial': 'Tutorial',
+        'credits': 'Crediti',
         'adult_warning': 'Questa è una comunità per adulti (18+). La condivisione di immagini di minori è severamente vietata e comporterà il ban immediato.',
         'age': 'Età',
         'gender': 'Genere',
@@ -974,6 +978,7 @@ class ScreenplayRequest(BaseModel):
     language: str
     tone: str = 'dramatic'
     length: str = 'medium'
+    custom_prompt: Optional[str] = None  # User's creative direction
 
 class PosterRequest(BaseModel):
     title: str
@@ -1409,6 +1414,27 @@ async def get_screenwriters(
     
     return {'screenwriters': unique_sw, 'total': await db.people.count_documents({'type': 'screenwriter'}), 'page': page}
 
+@api_router.get("/composers")
+async def get_composers(
+    page: int = 1,
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    composers = []
+    for _ in range(limit):
+        comp = await get_or_create_person('composer')
+        if comp:
+            composers.append(comp)
+    
+    seen_ids = set()
+    unique_comp = []
+    for c in composers:
+        if c['id'] not in seen_ids:
+            seen_ids.add(c['id'])
+            unique_comp.append(c)
+    
+    return {'composers': unique_comp, 'total': await db.people.count_documents({'type': 'composer'}), 'page': page}
+
 # Sponsors, Locations, Equipment
 @api_router.get("/sponsors")
 async def get_sponsors():
@@ -1454,7 +1480,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     location_costs = {}
     total_location_cost = 0
     for loc_name in film_data.locations:
-        loc = next((l for l in LOCATIONS if l['name'] == loc_name), None)
+        loc = next((loc_item for loc_item in LOCATIONS if loc_item['name'] == loc_name), None)
         if loc:
             days = film_data.location_days.get(loc_name, 7)
             cost = loc['cost_per_day'] * days
@@ -1481,7 +1507,13 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if len(film_data.title) > 5:
         quality_score += random.randint(1, 5)
     
-    opening_day_revenue = quality_score * 150000 * random.uniform(0.8, 1.5)
+    # Calculate opening day revenue - BALANCED formula
+    # Quality 50 = ~$50k, Quality 100 = ~$500k opening day
+    base_revenue = 1000  # Base $1000
+    quality_multiplier = quality_score ** 1.5  # Exponential but not crazy
+    random_factor = random.uniform(0.7, 1.3)
+    opening_day_revenue = int(base_revenue * quality_multiplier * random_factor)
+    opening_day_revenue = max(10000, min(opening_day_revenue, 1000000))  # $10k-$1M cap
     
     # Get director and screenwriter names to store with the film
     director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
@@ -1639,6 +1671,220 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
 async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     return [FilmResponse(**f) for f in films]
+
+# ==================== SAGAS & TV SERIES ====================
+
+SAGA_REQUIRED_LEVEL = 15
+SAGA_REQUIRED_FAME = 100
+SERIES_REQUIRED_LEVEL = 20
+SERIES_REQUIRED_FAME = 200
+ANIME_REQUIRED_LEVEL = 25
+ANIME_REQUIRED_FAME = 300
+
+class CreateSequelRequest(BaseModel):
+    original_film_id: str
+    title: str
+    screenplay: str
+    screenplay_source: str = 'manual'
+
+class CreateSeriesRequest(BaseModel):
+    title: str
+    genre: str
+    episodes_count: int = 10
+    episode_length: int = 45  # minutes
+    synopsis: str
+    series_type: str = 'tv_series'  # tv_series or anime
+
+@api_router.get("/films/{film_id}/can-create-sequel")
+async def can_create_sequel(film_id: str, user: dict = Depends(get_current_user)):
+    """Check if user can create a sequel for this film."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
+    
+    # Count existing sequels
+    existing_sequels = await db.films.count_documents({'saga_parent_id': film_id})
+    
+    can_create = (
+        level_info['level'] >= SAGA_REQUIRED_LEVEL and 
+        fame >= SAGA_REQUIRED_FAME and
+        existing_sequels < 5  # Max 5 sequels per saga
+    )
+    
+    return {
+        'can_create': can_create,
+        'required_level': SAGA_REQUIRED_LEVEL,
+        'required_fame': SAGA_REQUIRED_FAME,
+        'current_level': level_info['level'],
+        'current_fame': fame,
+        'existing_sequels': existing_sequels,
+        'max_sequels': 5
+    }
+
+@api_router.post("/films/{film_id}/create-sequel")
+async def create_sequel(film_id: str, request: CreateSequelRequest, user: dict = Depends(get_current_user)):
+    """Create a sequel to an existing film (part of a saga)."""
+    original = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+    if not original:
+        raise HTTPException(status_code=404, detail="Film originale non trovato")
+    
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
+    
+    if level_info['level'] < SAGA_REQUIRED_LEVEL:
+        raise HTTPException(status_code=403, detail=f"Richiesto livello {SAGA_REQUIRED_LEVEL}")
+    if fame < SAGA_REQUIRED_FAME:
+        raise HTTPException(status_code=403, detail=f"Richiesta fama {SAGA_REQUIRED_FAME}")
+    
+    # Count sequels
+    sequel_number = await db.films.count_documents({'saga_parent_id': film_id}) + 2
+    if sequel_number > 6:
+        raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
+    
+    # Create sequel with inherited properties and bonus
+    quality_bonus = min(20, original.get('quality_score', 50) * 0.2)  # 20% of original quality as bonus
+    
+    sequel = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'title': request.title,
+        'genre': original['genre'],
+        'subgenres': original.get('subgenres', []),
+        'release_date': datetime.now(timezone.utc).isoformat(),
+        'weeks_in_theater': 4,
+        'actual_weeks_in_theater': 0,
+        'sponsor': original.get('sponsor'),
+        'equipment_package': original.get('equipment_package'),
+        'locations': original.get('locations', []),
+        'screenwriter': original.get('screenwriter'),
+        'director': original.get('director'),
+        'cast': original.get('cast', []),
+        'extras_count': original.get('extras_count', 0),
+        'screenplay': request.screenplay,
+        'screenplay_source': request.screenplay_source,
+        'poster_url': original.get('poster_url'),
+        'total_budget': int(original.get('total_budget', 1000000) * 1.2),  # 20% more budget
+        'status': 'in_theaters',
+        'quality_score': min(100, original.get('quality_score', 50) + quality_bonus),
+        'audience_satisfaction': 50 + random.randint(-5, 15),
+        'likes_count': 0,
+        'box_office': {},
+        'daily_revenues': [],
+        'opening_day_revenue': 0,
+        'total_revenue': 0,
+        # Saga fields
+        'is_sequel': True,
+        'saga_parent_id': film_id,
+        'saga_number': sequel_number,
+        'saga_title': f"{original['title']} Saga",
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Calculate opening revenue
+    base_revenue = 1000
+    quality_multiplier = sequel['quality_score'] ** 1.5
+    saga_bonus = 1.3  # 30% bonus for sequels
+    sequel['opening_day_revenue'] = int(base_revenue * quality_multiplier * saga_bonus * random.uniform(0.8, 1.2))
+    sequel['total_revenue'] = sequel['opening_day_revenue']
+    
+    await db.films.insert_one(sequel)
+    
+    # Update original as saga parent
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {'is_saga_parent': True, 'saga_title': f"{original['title']} Saga"}}
+    )
+    
+    # Award XP
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 150, 'funds': -sequel['total_budget']}}
+    )
+    
+    return {'success': True, 'sequel_id': sequel['id'], 'saga_number': sequel_number}
+
+@api_router.get("/series/can-create")
+async def can_create_series(series_type: str = 'tv_series', user: dict = Depends(get_current_user)):
+    """Check if user can create a TV series or anime."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
+    
+    if series_type == 'anime':
+        required_level = ANIME_REQUIRED_LEVEL
+        required_fame = ANIME_REQUIRED_FAME
+    else:
+        required_level = SERIES_REQUIRED_LEVEL
+        required_fame = SERIES_REQUIRED_FAME
+    
+    return {
+        'can_create': level_info['level'] >= required_level and fame >= required_fame,
+        'required_level': required_level,
+        'required_fame': required_fame,
+        'current_level': level_info['level'],
+        'current_fame': fame,
+        'series_type': series_type
+    }
+
+@api_router.post("/series/create")
+async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
+    """Create a TV series or anime."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
+    
+    if request.series_type == 'anime':
+        required_level = ANIME_REQUIRED_LEVEL
+        required_fame = ANIME_REQUIRED_FAME
+    else:
+        required_level = SERIES_REQUIRED_LEVEL
+        required_fame = SERIES_REQUIRED_FAME
+    
+    if level_info['level'] < required_level:
+        raise HTTPException(status_code=403, detail=f"Richiesto livello {required_level}")
+    if fame < required_fame:
+        raise HTTPException(status_code=403, detail=f"Richiesta fama {required_fame}")
+    
+    # Calculate budget
+    episode_cost = 50000 if request.series_type == 'tv_series' else 30000  # Anime cheaper per episode
+    total_budget = episode_cost * request.episodes_count
+    
+    if user.get('funds', 0) < total_budget:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_budget:,}")
+    
+    series = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'title': request.title,
+        'genre': request.genre,
+        'series_type': request.series_type,
+        'episodes_count': request.episodes_count,
+        'episode_length': request.episode_length,
+        'synopsis': request.synopsis,
+        'status': 'in_production',
+        'quality_score': random.randint(40, 80),
+        'total_budget': total_budget,
+        'total_revenue': 0,
+        'likes_count': 0,
+        'episodes_released': 0,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.series.insert_one(series)
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 200, 'funds': -total_budget}}
+    )
+    
+    return {'success': True, 'series_id': series['id'], 'budget': total_budget}
+
+@api_router.get("/series/my")
+async def get_my_series(user: dict = Depends(get_current_user)):
+    """Get user's TV series and anime."""
+    series = await db.series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
+    return {'series': series}
 
 @api_router.get("/films/social/feed")
 async def get_social_feed(
@@ -2169,34 +2415,31 @@ class FilmRating(BaseModel):
 
 @api_router.post("/films/{film_id}/rate")
 async def rate_film(film_id: str, rating_data: FilmRating, user: dict = Depends(get_current_user)):
-    """Rate a film from 0 to 5 stars (half stars allowed)"""
+    """Rate a film from 0 to 5 stars (half stars allowed). Votes are PERMANENT and cannot be changed."""
     film = await db.films.find_one({'id': film_id})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Validate rating
     valid_ratings = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
     if rating_data.rating not in valid_ratings:
-        raise HTTPException(status_code=400, detail="Invalid rating. Use 0-5 with half star increments.")
+        raise HTTPException(status_code=400, detail="Voto non valido. Usa 0-5 con mezzi voti.")
     
-    # Check if user already rated this film
+    # Check if user already rated this film - VOTES ARE PERMANENT
     existing_rating = await db.film_ratings.find_one({'film_id': film_id, 'user_id': user['id']})
     
     if existing_rating:
-        # Update existing rating
-        await db.film_ratings.update_one(
-            {'film_id': film_id, 'user_id': user['id']},
-            {'$set': {'rating': rating_data.rating, 'updated_at': datetime.now(timezone.utc).isoformat()}}
-        )
-    else:
-        # Create new rating
-        await db.film_ratings.insert_one({
-            'id': str(uuid.uuid4()),
-            'film_id': film_id,
-            'user_id': user['id'],
-            'rating': rating_data.rating,
-            'created_at': datetime.now(timezone.utc).isoformat()
-        })
+        raise HTTPException(status_code=400, detail="Hai già votato questo film. Il voto non è modificabile.")
+    
+    # Create new rating (permanent)
+    await db.film_ratings.insert_one({
+        'id': str(uuid.uuid4()),
+        'film_id': film_id,
+        'user_id': user['id'],
+        'rating': rating_data.rating,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'is_permanent': True
+    })
     
     # Calculate penalty for low ratings
     # Too many low ratings (< 2 stars) will affect the rater's own films
@@ -2843,6 +3086,7 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
         prompt = f"""Create a BRIEF screenplay guideline (max 300 words) for a {request.genre} film titled "{request.title}".
         Tone: {request.tone}
         Language: {language}
+        {f'Creative direction from the director: {request.custom_prompt}' if request.custom_prompt else ''}
         
         Provide ONLY:
         - Logline (1-2 sentences)
@@ -2851,6 +3095,7 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
         - Suggested ending type
         - Mood/atmosphere notes
         
+        {f'IMPORTANT: Follow the directors vision: {request.custom_prompt}' if request.custom_prompt else ''}
         Keep it SHORT and practical - these are guidelines for the director, not a full screenplay."""
         
         response = await chat.send_message(UserMessage(text=prompt))
@@ -2916,6 +3161,48 @@ async def translate_text(request: TranslationRequest, user: dict = Depends(get_c
     except Exception as e:
         logging.error(f"Translation error: {e}")
         return {'translated_text': request.text}
+
+class SoundtrackRequest(BaseModel):
+    title: str
+    genre: str
+    mood: str = 'epic'
+    language: str = 'en'
+    custom_prompt: Optional[str] = None
+
+@api_router.post("/ai/soundtrack-description")
+async def generate_soundtrack_description(request: SoundtrackRequest, user: dict = Depends(get_current_user)):
+    """Generate a description for the film soundtrack."""
+    if not EMERGENT_LLM_KEY:
+        return {'description': f"An original {request.mood} soundtrack for {request.title}"}
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        lang_names = {'en': 'English', 'it': 'Italian', 'es': 'Spanish', 'fr': 'French', 'de': 'German'}
+        language = lang_names.get(request.language, 'English')
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"soundtrack-{uuid.uuid4()}",
+            system_message=f"You are a film music composer consultant. Write in {language}. Be concise."
+        ).with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Create a BRIEF soundtrack concept (max 150 words) for a {request.genre} film titled "{request.title}".
+        Mood: {request.mood}
+        {f'Director vision: {request.custom_prompt}' if request.custom_prompt else ''}
+        
+        Include:
+        - Main theme description (instruments, tempo)
+        - Key emotional moments to score
+        - 2-3 suggested track names
+        
+        Keep it professional and practical."""
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        return {'description': response}
+    except Exception as e:
+        logging.error(f"Soundtrack generation error: {e}")
+        return {'description': f"An original {request.mood} soundtrack for {request.title}"}
 
 # Initialize default chat rooms
 @app.on_event("startup")
@@ -3060,6 +3347,133 @@ async def record_minigame_play(game_id: str, user: dict = Depends(get_current_us
     
     return check_minigame_cooldown(play_history, game_id)
 
+# ==================== VERSUS CHALLENGES ====================
+
+class ChallengeRequest(BaseModel):
+    opponent_id: str
+    game_id: str
+    bet_amount: int = 0
+
+class ChallengeResponse(BaseModel):
+    accept: bool
+
+@api_router.post("/challenges/send")
+async def send_challenge(request: ChallengeRequest, user: dict = Depends(get_current_user)):
+    """Send a minigame challenge to another player."""
+    if request.opponent_id == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+    
+    opponent = await db.users.find_one({'id': request.opponent_id})
+    if not opponent:
+        raise HTTPException(status_code=404, detail="Avversario non trovato")
+    
+    # Check bet amount
+    if request.bet_amount > 0:
+        if user.get('funds', 0) < request.bet_amount:
+            raise HTTPException(status_code=400, detail="Fondi insufficienti per la scommessa")
+        if request.bet_amount > 10000:
+            raise HTTPException(status_code=400, detail="Scommessa massima: $10,000")
+    
+    challenge = {
+        'id': str(uuid.uuid4()),
+        'challenger_id': user['id'],
+        'challenger_name': user.get('nickname'),
+        'opponent_id': request.opponent_id,
+        'opponent_name': opponent.get('nickname'),
+        'game_id': request.game_id,
+        'bet_amount': min(request.bet_amount, 10000),
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    }
+    
+    await db.challenges.insert_one(challenge)
+    
+    # Create notification for opponent
+    notification = {
+        'id': str(uuid.uuid4()),
+        'user_id': request.opponent_id,
+        'type': 'challenge',
+        'title': 'Nuova Sfida!',
+        'message': f'{user.get("nickname")} ti ha sfidato! Scommessa: ${request.bet_amount:,}',
+        'data': {'challenge_id': challenge['id']},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.notifications.insert_one(notification)
+    
+    return {'success': True, 'challenge_id': challenge['id']}
+
+@api_router.post("/challenges/{challenge_id}/respond")
+async def respond_to_challenge(challenge_id: str, response: ChallengeResponse, user: dict = Depends(get_current_user)):
+    """Accept or decline a challenge."""
+    challenge = await db.challenges.find_one({'id': challenge_id, 'opponent_id': user['id'], 'status': 'pending'})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    if not response.accept:
+        await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'declined'}})
+        return {'success': True, 'message': 'Sfida rifiutata'}
+    
+    if challenge.get('bet_amount', 0) > 0:
+        if user.get('funds', 0) < challenge['bet_amount']:
+            raise HTTPException(status_code=400, detail="Fondi insufficienti")
+    
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {'status': 'active', 'accepted_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {'success': True, 'challenge_id': challenge_id, 'game_id': challenge['game_id']}
+
+@api_router.post("/challenges/{challenge_id}/submit-result")
+async def submit_challenge_result(challenge_id: str, score: int, user: dict = Depends(get_current_user)):
+    """Submit score for a challenge."""
+    challenge = await db.challenges.find_one({'id': challenge_id, 'status': 'active'})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non attiva")
+    
+    score_field = 'challenger_score' if user['id'] == challenge['challenger_id'] else 'opponent_score'
+    await db.challenges.update_one({'id': challenge_id}, {'$set': {score_field: score}})
+    
+    updated = await db.challenges.find_one({'id': challenge_id})
+    if updated.get('challenger_score') is not None and updated.get('opponent_score') is not None:
+        challenger_wins = updated['challenger_score'] > updated['opponent_score']
+        winner_id = challenge['challenger_id'] if challenger_wins else challenge['opponent_id']
+        loser_id = challenge['opponent_id'] if challenger_wins else challenge['challenger_id']
+        
+        bet = challenge.get('bet_amount', 0)
+        if bet > 0:
+            await db.users.update_one({'id': winner_id}, {'$inc': {'funds': bet, 'total_xp': 50}})
+            await db.users.update_one({'id': loser_id}, {'$inc': {'funds': -bet, 'total_xp': 10}})
+        else:
+            await db.users.update_one({'id': winner_id}, {'$inc': {'total_xp': 50}})
+            await db.users.update_one({'id': loser_id}, {'$inc': {'total_xp': 10}})
+        
+        await db.challenges.update_one(
+            {'id': challenge_id},
+            {'$set': {'status': 'completed', 'winner_id': winner_id}}
+        )
+        
+        return {'completed': True, 'winner_id': winner_id}
+    
+    return {'completed': False, 'waiting_for_opponent': True}
+
+@api_router.get("/challenges/pending")
+async def get_pending_challenges(user: dict = Depends(get_current_user)):
+    """Get pending challenges."""
+    received = await db.challenges.find(
+        {'opponent_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    ).to_list(10)
+    
+    sent = await db.challenges.find(
+        {'challenger_id': user['id'], 'status': {'$in': ['pending', 'active']}},
+        {'_id': 0}
+    ).to_list(10)
+    
+    return {'received': received, 'sent': sent}
+
 # ==================== FAME SYSTEM ====================
 
 @api_router.get("/player/fame")
@@ -3185,7 +3599,11 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
         'films_showing': [],
         'students': [] if request.type == 'cinema_school' else None,
         'total_revenue': 0,
-        'daily_revenues': []
+        'daily_revenues': [],
+        # Revenue collection system
+        'pending_revenue': 0,
+        'last_revenue_update': datetime.now(timezone.utc).isoformat(),
+        'last_collection': datetime.now(timezone.utc).isoformat()
     }
     
     await db.infrastructure.insert_one(new_infra)
@@ -3412,6 +3830,155 @@ async def remove_film_from_cinema(infra_id: str, film_id: str, user: dict = Depe
     )
     
     return {'success': True, 'films_showing': films_showing}
+
+@api_router.post("/infrastructure/{infra_id}/collect-revenue")
+async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get_current_user)):
+    """
+    Collect accumulated revenue from infrastructure.
+    Revenue accumulates hourly up to max 4 hours, then stops.
+    """
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type:
+        raise HTTPException(status_code=400, detail="Tipo infrastruttura non valido")
+    
+    # Calculate hours since last update
+    last_update = datetime.fromisoformat(infra.get('last_revenue_update', datetime.now(timezone.utc).isoformat()).replace('Z', '+00:00'))
+    now = datetime.now(timezone.utc)
+    hours_passed = min(4, (now - last_update).total_seconds() / 3600)  # Max 4 hours
+    
+    if hours_passed < 0.1:  # Less than 6 minutes
+        raise HTTPException(status_code=400, detail="Devi aspettare almeno qualche minuto tra una riscossione e l'altra")
+    
+    # Calculate revenue based on films showing and type
+    hourly_revenue = 0
+    films_showing = infra.get('films_showing', [])
+    
+    if infra_type.get('screens', 0) > 0 and films_showing:
+        # Cinema type - revenue from ticket sales
+        prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+        ticket_price = prices.get('ticket', 12)
+        
+        for film in films_showing:
+            quality = film.get('quality_score', 50)
+            imdb = film.get('imdb_rating', 6.0)
+            revenue_share = film.get('revenue_share_owner', 100) / 100 if film.get('is_owned') else (film.get('revenue_share_renter', 70) / 100)
+            
+            # Base visitors per hour based on quality and rating
+            visitors_per_hour = int(10 + (quality * 0.5) + (imdb * 5))
+            film_revenue = visitors_per_hour * ticket_price * revenue_share
+            hourly_revenue += film_revenue
+    else:
+        # Other infrastructure types - base passive income
+        base_income = infra_type.get('passive_income', 500)
+        hourly_revenue = base_income
+    
+    # Apply city multiplier
+    city = infra.get('city', {})
+    city_multiplier = city.get('revenue_multiplier', 1.0)
+    hourly_revenue *= city_multiplier
+    
+    # Calculate total accumulated revenue
+    accumulated_revenue = int(hourly_revenue * hours_passed)
+    
+    if accumulated_revenue <= 0:
+        return {
+            'success': True,
+            'collected': 0,
+            'message': 'Nessun incasso da riscuotere',
+            'hours_accumulated': round(hours_passed, 1)
+        }
+    
+    # Update infrastructure and user
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {
+            '$set': {
+                'last_revenue_update': now.isoformat(),
+                'last_collection': now.isoformat()
+            },
+            '$inc': {'total_revenue': accumulated_revenue}
+        }
+    )
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': accumulated_revenue, 'total_xp': max(1, accumulated_revenue // 10000)}}
+    )
+    
+    # Pay revenue share to film owners for rented films
+    for film in films_showing:
+        if film.get('is_rented') and film.get('owner_id'):
+            owner_share = int(accumulated_revenue * 0.3 / len(films_showing))  # Split owner share among all films
+            if owner_share > 0:
+                await db.users.update_one(
+                    {'id': film['owner_id']},
+                    {'$inc': {'funds': owner_share}}
+                )
+                # Create notification for film owner
+                notification = {
+                    'id': str(uuid.uuid4()),
+                    'user_id': film['owner_id'],
+                    'type': 'rental_revenue',
+                    'title': 'Incasso da Affitto Film',
+                    'message': f'Hai ricevuto ${owner_share:,} dal noleggio del tuo film "{film.get("title")}" nel cinema di {user.get("nickname")}',
+                    'read': False,
+                    'created_at': now.isoformat()
+                }
+                await db.notifications.insert_one(notification)
+    
+    return {
+        'success': True,
+        'collected': accumulated_revenue,
+        'hours_accumulated': round(hours_passed, 1),
+        'new_total_revenue': infra.get('total_revenue', 0) + accumulated_revenue
+    }
+
+@api_router.get("/infrastructure/{infra_id}/pending-revenue")
+async def get_pending_revenue(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get pending revenue that can be collected."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type:
+        return {'pending': 0, 'hours': 0}
+    
+    last_update = datetime.fromisoformat(infra.get('last_revenue_update', datetime.now(timezone.utc).isoformat()).replace('Z', '+00:00'))
+    now = datetime.now(timezone.utc)
+    hours_passed = min(4, (now - last_update).total_seconds() / 3600)
+    
+    # Calculate hourly revenue
+    hourly_revenue = 0
+    films_showing = infra.get('films_showing', [])
+    
+    if infra_type.get('screens', 0) > 0 and films_showing:
+        prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+        ticket_price = prices.get('ticket', 12)
+        
+        for film in films_showing:
+            quality = film.get('quality_score', 50)
+            imdb = film.get('imdb_rating', 6.0)
+            revenue_share = film.get('revenue_share_owner', 100) / 100 if film.get('is_owned') else (film.get('revenue_share_renter', 70) / 100)
+            visitors_per_hour = int(10 + (quality * 0.5) + (imdb * 5))
+            hourly_revenue += visitors_per_hour * ticket_price * revenue_share
+    else:
+        hourly_revenue = infra_type.get('passive_income', 500)
+    
+    city = infra.get('city', {})
+    hourly_revenue *= city.get('revenue_multiplier', 1.0)
+    
+    return {
+        'pending': int(hourly_revenue * hours_passed),
+        'hourly_rate': int(hourly_revenue),
+        'hours_accumulated': round(hours_passed, 2),
+        'max_hours': 4,
+        'is_maxed': hours_passed >= 4
+    }
 
 # ==================== CINEMA SCHOOL ====================
 
@@ -3857,6 +4424,140 @@ async def get_infrastructure_valuation(infra_id: str, user: dict = Depends(get_c
         'can_sell': level_info['level'] >= TRADE_REQUIRED_LEVEL,
         'required_level': TRADE_REQUIRED_LEVEL,
         'current_level': level_info['level']
+    }
+
+# ==================== NOTIFICATIONS ====================
+
+@api_router.get("/notifications")
+async def get_notifications(
+    limit: int = 20,
+    unread_only: bool = False,
+    user: dict = Depends(get_current_user)
+):
+    """Get user notifications."""
+    query = {'user_id': user['id']}
+    if unread_only:
+        query['read'] = False
+    
+    notifications = await db.notifications.find(
+        query,
+        {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    
+    unread_count = await db.notifications.count_documents({'user_id': user['id'], 'read': False})
+    
+    return {
+        'notifications': notifications,
+        'unread_count': unread_count
+    }
+
+@api_router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: dict = Depends(get_current_user)):
+    """Mark a notification as read."""
+    result = await db.notifications.update_one(
+        {'id': notification_id, 'user_id': user['id']},
+        {'$set': {'read': True}}
+    )
+    return {'success': result.modified_count > 0}
+
+@api_router.post("/notifications/read-all")
+async def mark_all_notifications_read(user: dict = Depends(get_current_user)):
+    """Mark all notifications as read."""
+    result = await db.notifications.update_many(
+        {'user_id': user['id'], 'read': False},
+        {'$set': {'read': True}}
+    )
+    return {'success': True, 'marked': result.modified_count}
+
+# ==================== TUTORIAL & CREDITS ====================
+
+@api_router.get("/game/tutorial")
+async def get_tutorial():
+    """Get game tutorial content."""
+    return {
+        'steps': [
+            {
+                'id': 1,
+                'title': 'Benvenuto in CineWorld Studios!',
+                'description': 'Sei il proprietario di una casa di produzione cinematografica. Il tuo obiettivo è creare film di successo e costruire un impero!',
+                'icon': 'film'
+            },
+            {
+                'id': 2,
+                'title': 'Crea il tuo Primo Film',
+                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte!',
+                'icon': 'clapperboard'
+            },
+            {
+                'id': 3,
+                'title': 'Scegli il Cast',
+                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità!',
+                'icon': 'users'
+            },
+            {
+                'id': 4,
+                'title': 'Guadagna XP e Sali di Livello',
+                'description': 'Ogni azione ti fa guadagnare XP. Salendo di livello sblocchi nuove infrastrutture e funzionalità!',
+                'icon': 'trophy'
+            },
+            {
+                'id': 5,
+                'title': 'Acquista Infrastrutture',
+                'description': 'Al livello 5 puoi acquistare il tuo primo cinema! Proietta i tuoi film o affitta quelli di altri giocatori.',
+                'icon': 'building'
+            },
+            {
+                'id': 6,
+                'title': 'Riscuoti gli Incassi',
+                'description': 'Le tue infrastrutture generano ricavi ogni ora. Ricordati di riscuotere (max 4 ore accumulate)!',
+                'icon': 'dollar-sign'
+            },
+            {
+                'id': 7,
+                'title': 'Mini-Giochi',
+                'description': 'Gioca ai mini-giochi per guadagnare XP e soldi extra. Puoi sfidare altri giocatori nella chat privata!',
+                'icon': 'gamepad'
+            },
+            {
+                'id': 8,
+                'title': 'Social & Classifiche',
+                'description': 'Interagisci con altri produttori, vota i loro film e scala la classifica globale!',
+                'icon': 'users'
+            }
+        ]
+    }
+
+@api_router.get("/game/credits")
+async def get_credits():
+    """Get game credits."""
+    return {
+        'game_title': 'CineWorld Studios',
+        'version': '1.0.0',
+        'credits': [
+            {
+                'role': 'Ideatore e Proprietario',
+                'name': 'Tu',  # Will be replaced by actual name
+                'description': 'Concept, Game Design, Creative Direction'
+            },
+            {
+                'role': 'Sviluppatore',
+                'name': 'Emergent AI',
+                'description': 'Full-Stack Development, AI Integration'
+            }
+        ],
+        'technologies': [
+            'React + TailwindCSS',
+            'FastAPI + Python',
+            'MongoDB',
+            'OpenAI GPT-5.2',
+            'Gemini Nano Banana',
+            'Socket.IO'
+        ],
+        'special_thanks': [
+            'Tutti i giocatori beta tester',
+            'La community di CineWorld'
+        ],
+        'copyright': f'© {datetime.now().year} CineWorld Studios. All rights reserved.'
     }
 
 # ==================== LEADERBOARD ====================

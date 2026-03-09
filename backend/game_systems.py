@@ -11,11 +11,15 @@ import uuid
 # ==================== LEVEL SYSTEM ====================
 
 def calculate_xp_for_level(level: int) -> int:
-    """Calculate XP needed to reach a level. Exponential growth."""
+    """
+    Calculate XP needed to reach a level. 
+    Exponential growth from 50 XP (level 0→1) to ~2000 XP (level 99→100)
+    Formula: 50 * (1.037^level) gives roughly 50 at level 0 and ~2000 at level 100
+    """
     if level <= 0:
-        return 0
-    # Base 100 XP, +50% each level
-    return int(100 * (1.5 ** (level - 1)))
+        return 50
+    # Base 50 XP, exponential growth factor ~1.037 to reach ~2000 at level 100
+    return int(50 * (1.037 ** level))
 
 def calculate_total_xp_for_level(level: int) -> int:
     """Calculate total XP needed from level 0 to reach target level."""

@@ -339,6 +339,15 @@ def generate_cast_member(role_type: str, skill_tier: str = 'random', nationality
             'Communication': random.randint(*skill_range),
             'Efficiency': random.randint(*skill_range),
         }
+    elif role_type == 'composer':
+        skills = {
+            'Melodic Composition': random.randint(*skill_range),
+            'Orchestration': random.randint(*skill_range),
+            'Emotional Impact': random.randint(*skill_range),
+            'Genre Versatility': random.randint(*skill_range),
+            'Sound Design': random.randint(*skill_range),
+            'Theme Development': random.randint(*skill_range),
+        }
     else:  # screenwriter
         skills = {
             'Storytelling': random.randint(*skill_range),

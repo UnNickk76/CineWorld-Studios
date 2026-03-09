@@ -5,84 +5,86 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## Funzionalità Implementate
 
-### Sistema Cast v2 - 09/03/2025 (NUOVO)
-- **700 membri del cast totali:**
-  - 400 Attori con 8 skill attoriali
-  - 100 Registi con 8 skill di regia
-  - 100 Sceneggiatori con 8 skill di sceneggiatura
-  - 100 Compositori con 6 skill musicali
+### Sistema Sociale e Profili - 09/03/2025 (NUOVO)
 
-- **Skill variabili:** Ogni membro ha un sottoinsieme unico di 3-6 skill (non tutti hanno le stesse)
+#### Lista Utenti Online Cliccabile
+- Utenti online e offline visibili nella Chat
+- Click sul nome/avatar apre il profilo completo
+- Pulsante DM per messaggi diretti
 
-- **5 Categorie:** Consigliati, Star, Conosciuti, Emergenti, Sconosciuti
+#### Modal Profilo Utente Completo
+- Avatar, nickname, stato online/offline
+- Nome studio e livello
+- **Statistiche complete**: Film, Revenue, Likes, Qualità Media, Premi, Infrastrutture
+- **Best Film**: Miglior film per revenue
+- **Film Recenti**: Lista ultimi 4 film
+- Pulsante "Send Message" per DM
 
-- **Display skill nel wizard:**
-  - 2 skill primarie (badge gialli) accanto al nome
-  - 1 skill secondaria (badge grigio) accanto al nome
-  - Indicatore "Ha già lavorato con noi" se utilizzato in film precedenti
+#### Dashboard Statistiche Cliccabili
+- Ogni stat card (Films, Revenue, Likes, Quality) è cliccabile
+- Apre modal con dettagli approfonditi:
+  - Film per genere
+  - Distribuzione qualità (Excellent/Good/Average/Poor)
+  - Top 5 film per revenue e likes
 
-- **Filtri nel wizard:**
-  - Barra ricerca per categoria (All, Recommended, Star, Known, Emerging, Unknown)
-  - Barra ricerca per skill specifica
+### Sistema Affinità Cast - 09/03/2025 (NUOVO)
+- **Bonus +2%** per ogni film fatto insieme dallo stesso cast
+- **Max +10%** per coppia, **Max +30%** totale
+- API: `POST /api/cast/affinity-preview`
+- Livelli affinità: Conoscenti → Colleghi → Partner Abituali → Collaboratori Affiatati → Dream Team
 
-- **Sistema Bonus/Malus:**
-  - Cast adatto al genere del film → Bonus (+5% a +20%)
-  - Cast senza skill del genere → Malus (-15%)
-  - Endpoint: `GET /api/cast/bonus-preview?actor_id=X&film_genre=Y`
+### Azioni One-Time sui Film - 09/03/2025 (NUOVO)
+- **Crea Star**: Promuove un attore a star (una sola volta)
+- **Skill Boost**: Aumenta skill di tutto il cast (una sola volta)
+- **Genera Trailer**: Può essere generato una sola volta
+- Pulsanti diventano "frozen" (disabilitati) dopo l'uso
+- Icona lucchetto indica azione già utilizzata
 
-### Festival Cinematografici
-- Festival ufficiali (tipo Oscar)
-- Festival personalizzati creati dai giocatori
-- Votazioni e classifiche
-- Cerimonie di premiazione
+### Schede Film Altri Utenti - 09/03/2025 (NUOVO)
+- Pulsanti azione nascosti se non sei il proprietario
+- Solo visualizzazione dati per film altrui
 
-### Mini Games
-- Film Trivia, Guess the Genre, Director Match, Box Office Bet, Release Year
-- Sfide giornaliere/settimanali
+### Sistema Cast v2 - 09/03/2025
+- **700 membri del cast** con skill variabili
+- 5 categorie: Consigliati, Star, Conosciuti, Emergenti, Sconosciuti
+- Filtri per categoria e skill
+- Sistema bonus/malus cast-film
 
-### Saghe & Serie TV
-- Saghe/Sequel (Livello 15+)
-- Serie TV (Livello 20+)
-- Anime (Livello 25+)
-
-### Altre Feature
+### Altre Feature Esistenti
+- Festival cinematografici (ufficiali + personalizzati)
+- Mini Games
+- Saghe & Serie TV
 - Reset totale player
-- Toggle visualizzazione password login
-- Wizard creazione film a 12 step (include compositore e colonna sonora AI)
-- Bonus trailer dinamico (1-15% in base alla valutazione)
+- Wizard creazione film a 12 step
 
-## API Endpoints
+## API Endpoints Nuovi
 
-### Cast System v2
+### Profili e Social
 ```
-GET  /api/actors?category=X&skill=Y&limit=N
-GET  /api/directors?category=X&skill=Y&limit=N
-GET  /api/screenwriters?category=X&skill=Y&limit=N
-GET  /api/composers?category=X&skill=Y&limit=N
-GET  /api/cast/skills?role_type=actor|director|screenwriter|composer
-GET  /api/cast/bonus-preview?actor_id=X&film_genre=Y
-POST /api/cast/initialize  (auto-chiamato al startup)
+GET  /api/users/{id}/full-profile - Profilo completo con stats e film
+GET  /api/stats/detailed - Breakdown statistiche dettagliate
+GET  /api/users/online - Utenti online
+GET  /api/users/all - Tutti gli utenti
 ```
 
-### Saghe & Serie
+### Affinità Cast
 ```
-GET  /api/saga/can-create
-POST /api/films/{id}/create-sequel
-GET  /api/series/my
-POST /api/series/create
+POST /api/cast/affinity-preview - Calcola bonus affinità per gruppo cast
+     Body: {"cast_ids": ["id1", "id2", ...]}
+     Response: {"total_bonus_percent": X, "affinity_pairs": [...]}
 ```
 
-### Mini Games
+### Azioni One-Time Film
 ```
-GET  /api/minigames
-POST /api/minigames/{game_id}/play
-GET  /api/challenges/daily|weekly
+GET  /api/films/{id}/actions - Stato azioni (create_star, skill_boost, trailer)
+POST /api/films/{id}/action/create-star?actor_id=X - Promuovi attore
+POST /api/films/{id}/action/skill-boost - Boost skill cast
 ```
 
 ## Architettura
 - Backend: FastAPI + MongoDB
-- Frontend: React + TailwindCSS
-- Integrations: OpenAI GPT-4o (sceneggiature), Gemini Nano Banana (immagini), Sora 2 (trailer)
+- Frontend: React + TailwindCSS + Shadcn/UI
+- Integrations: OpenAI GPT-4o, Gemini Nano Banana, Sora 2
 
 ## Backlog
 
@@ -92,11 +94,8 @@ GET  /api/challenges/daily|weekly
 
 ### P2 - Future
 - [ ] Preascolto colonne sonore (bloccato - no API gratuite)
-- [ ] Evoluzione abilità cast
-- [ ] Refactoring server.py e App.js (file monolitici > 5000 righe)
-
-### Issue Noti
-- Traduzione categorie festival (da verificare)
+- [ ] Refactoring server.py e App.js (file monolitici)
 
 ## Test Reports
 - `/app/test_reports/iteration_14.json` - Cast System v2 (100% pass)
+- `/app/test_reports/iteration_15.json` - Social Features (100% backend, 95% frontend)

@@ -701,8 +701,8 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                     )}
                     <div className="flex-1">
                       <p className="font-semibold">{profile.best_film.title}</p>
-                      <p className="text-xs text-gray-400">{profile.best_film.genre} • {profile.best_film.quality_score}% quality</p>
-                      <p className="text-xs text-green-500">${(profile.best_film.revenue / 1000000).toFixed(2)}M revenue</p>
+                      <p className="text-xs text-gray-400">{profile.best_film.genre} • {profile.best_film.quality_score || 0}% quality</p>
+                      <p className="text-xs text-green-500">${((profile.best_film.revenue || 0) / 1000000).toFixed(2)}M revenue</p>
                     </div>
                   </CardContent>
                 </Card>

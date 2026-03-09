@@ -6676,43 +6676,6 @@ const MajorPage = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center justify-between">
                 <span className="flex items-center gap-2"><Users className="w-5 h-5" /> {t('members')}</span>
-                {(majorData.my_role === 'founder' || majorData.my_role === 'vice') && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button size="sm" variant="outline" className="border-purple-500/30 text-purple-400">
-                        <UserPlus className="w-4 h-4 mr-1" /> {t('invite')}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="bg-[#1A1A1A] border-white/10 w-64">
-                      <p className="text-sm mb-2">{language === 'it' ? 'Invita utente' : 'Invite user'}</p>
-                      <Input 
-                        placeholder={language === 'it' ? 'Cerca utente...' : 'Search user...'} 
-                        className="bg-black/30 border-white/10 h-8 text-xs mb-2"
-                        onChange={(e) => setInviteUserId(e.target.value)}
-                      />
-                      <ScrollArea className="h-40">
-                        {allUsers
-                          .filter(u => !majorData.members?.some(m => m.user_id === u.id))
-                          .filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase()))
-                          .map(u => (
-                          <Button key={u.id} variant="ghost" size="sm" className="w-full justify-between h-8 mb-1" onClick={() => inviteUser(u.id)}>
-                            <span className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${u.is_online ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-                              <span className="text-xs">{u.nickname}</span>
-                              <span className="text-[10px] text-gray-500">Lv.{u.level || 0}</span>
-                            </span>
-                            <Send className="w-3 h-3" />
-                          </Button>
-                        ))}
-                        {allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).length === 0 && (
-                          <p className="text-xs text-gray-500 text-center py-2">
-                            {language === 'it' ? 'Nessun utente disponibile' : 'No users available'}
-                          </p>
-                        )}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -6735,6 +6698,142 @@ const MajorPage = () => {
               </div>
             </CardContent>
           </Card>
+          
+          {/* All Users - Invite Section */}
+          {(majorData.my_role === 'founder' || majorData.my_role === 'vice') && (
+            <Card className="bg-[#1A1A1A] border-white/10">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-blue-400" />
+                  {language === 'it' ? 'Invita Nuovi Membri' : 'Invite New Members'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Input 
+                  placeholder={language === 'it' ? 'Cerca utente per nome...' : 'Search user by name...'} 
+                  className="bg-black/30 border-white/10 mb-3"
+                  value={inviteUserId}
+                  onChange={(e) => setInviteUserId(e.target.value)}
+                />
+                
+                {/* Tabs for Online/Offline */}
+                <Tabs defaultValue="all" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 bg-black/30">
+                    <TabsTrigger value="all" className="text-xs">
+                      {language === 'it' ? 'Tutti' : 'All'} ({allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="online" className="text-xs">
+                      <span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                      Online ({allUsers.filter(u => u.is_online && !majorData.members?.some(m => m.user_id === u.id)).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="offline" className="text-xs">
+                      <span className="w-2 h-2 rounded-full bg-gray-500 mr-1"></span>
+                      Offline ({allUsers.filter(u => !u.is_online && !majorData.members?.some(m => m.user_id === u.id)).length})
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="all">
+                    <ScrollArea className="h-60 mt-2">
+                      <div className="space-y-1">
+                        {allUsers
+                          .filter(u => !majorData.members?.some(m => m.user_id === u.id))
+                          .filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase()))
+                          .map(u => (
+                            <div key={u.id} className="flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className={`w-2 h-2 rounded-full ${u.is_online ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={u.avatar_url} />
+                                  <AvatarFallback className="bg-blue-500/20 text-blue-400 text-xs">{u.nickname?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-sm font-medium">{u.nickname}</p>
+                                  <p className="text-[10px] text-gray-500">{u.production_house_name} • Lv.{u.level || 0}</p>
+                                </div>
+                              </div>
+                              <Button size="sm" variant="outline" className="border-purple-500/30 text-purple-400 h-8" onClick={() => inviteUser(u.id)}>
+                                <Send className="w-3 h-3 mr-1" /> {t('invite')}
+                              </Button>
+                            </div>
+                          ))}
+                        {allUsers.filter(u => !majorData.members?.some(m => m.user_id === u.id)).filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase())).length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            {language === 'it' ? 'Nessun utente trovato' : 'No users found'}
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  
+                  <TabsContent value="online">
+                    <ScrollArea className="h-60 mt-2">
+                      <div className="space-y-1">
+                        {allUsers
+                          .filter(u => u.is_online && !majorData.members?.some(m => m.user_id === u.id))
+                          .filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase()))
+                          .map(u => (
+                            <div key={u.id} className="flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={u.avatar_url} />
+                                  <AvatarFallback className="bg-green-500/20 text-green-400 text-xs">{u.nickname?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-sm font-medium">{u.nickname}</p>
+                                  <p className="text-[10px] text-gray-500">{u.production_house_name} • Lv.{u.level || 0}</p>
+                                </div>
+                              </div>
+                              <Button size="sm" variant="outline" className="border-purple-500/30 text-purple-400 h-8" onClick={() => inviteUser(u.id)}>
+                                <Send className="w-3 h-3 mr-1" /> {t('invite')}
+                              </Button>
+                            </div>
+                          ))}
+                        {allUsers.filter(u => u.is_online && !majorData.members?.some(m => m.user_id === u.id)).length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            {language === 'it' ? 'Nessun utente online' : 'No users online'}
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  
+                  <TabsContent value="offline">
+                    <ScrollArea className="h-60 mt-2">
+                      <div className="space-y-1">
+                        {allUsers
+                          .filter(u => !u.is_online && !majorData.members?.some(m => m.user_id === u.id))
+                          .filter(u => !inviteUserId || u.nickname?.toLowerCase().includes(inviteUserId.toLowerCase()))
+                          .map(u => (
+                            <div key={u.id} className="flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="w-2 h-2 rounded-full bg-gray-500"></span>
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={u.avatar_url} />
+                                  <AvatarFallback className="bg-gray-500/20 text-gray-400 text-xs">{u.nickname?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-sm font-medium">{u.nickname}</p>
+                                  <p className="text-[10px] text-gray-500">{u.production_house_name} • Lv.{u.level || 0}</p>
+                                </div>
+                              </div>
+                              <Button size="sm" variant="outline" className="border-purple-500/30 text-purple-400 h-8" onClick={() => inviteUser(u.id)}>
+                                <Send className="w-3 h-3 mr-1" /> {t('invite')}
+                              </Button>
+                            </div>
+                          ))}
+                        {allUsers.filter(u => !u.is_online && !majorData.members?.some(m => m.user_id === u.id)).length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            {language === 'it' ? 'Nessun utente offline' : 'No users offline'}
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
       

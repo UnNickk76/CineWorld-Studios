@@ -3,9 +3,23 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.048
+## Versione Attuale: v0.049
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.049 - Sistema Autonomo 24/7 - 09/03/2026 (COMPLETATO)
+- **APScheduler integrato**: Task automatici senza intervento dell'Agent
+- **8 job schedulati**:
+  - `update_films_revenue`: Aggiorna ricavi film ogni ora
+  - `update_leaderboard`: Ricalcola classifiche ogni 4 ore
+  - `update_cinema_revenue`: Aggiorna ricavi cinema ogni 6 ore
+  - `reset_daily_challenges`: Reset sfide giornaliere a mezzanotte
+  - `cleanup_rejections`: Pulizia rifiuti cast scaduti (24h)
+  - `generate_cast`: Genera nuovi membri cast ogni giorno alle 06:00
+  - `cleanup_hired_stars`: Pulisce star ingaggiate non usate (7 giorni)
+  - `reset_weekly_challenges`: Reset sfide settimanali ogni lunedì
+- **Endpoint monitoring**: `GET /api/admin/scheduler-status`
+- **Nuovo file**: `/app/backend/scheduler_tasks.py`
 
 ### v0.048 - Sistema Rifiuto Ingaggio Cast - 09/03/2026 (COMPLETATO)
 - **Backend**: Endpoint `POST /api/cast/offer` per fare offerte ai membri del cast
@@ -63,6 +77,12 @@ DELETE /api/stars/hired/{id}   - Rilascia star ingaggiata
 ### Release Notes
 ```
 GET  /api/release-notes        - Storico versioni e cambiamenti
+```
+
+### Sistema Scheduler (Autonomo 24/7)
+```
+GET  /api/admin/scheduler-status  - Stato dei job schedulati
+                                    Returns: { scheduler_running, jobs_count, jobs[] }
 ```
 
 ### Sistema Rifiuto Cast

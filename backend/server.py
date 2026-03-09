@@ -19,6 +19,11 @@ import base64
 import asyncio
 import math
 
+# APScheduler for background tasks
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
 # Import game systems
 from game_systems import (
     calculate_xp_for_level, get_level_from_xp, XP_REWARDS, check_minigame_cooldown,
@@ -77,6 +82,9 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 # Create the main app
 app = FastAPI(title="CineWorld Studio's API")
 api_router = APIRouter(prefix="/api")
+
+# APScheduler instance - global so it persists
+scheduler = AsyncIOScheduler()
 
 # Socket.IO for real-time chat
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -5525,6 +5533,91 @@ async def startup_event():
     
     # Fix existing cast members with decimal skills
     await fix_decimal_skills_in_db()
+    
+    # ==================== APSCHEDULER SETUP ====================
+    # Start the background scheduler for autonomous game operations
+    
+    # Import scheduler tasks
+    from scheduler_tasks import (
+        cleanup_expired_rejections,
+        update_all_films_revenue,
+        reset_daily_challenges,
+        reset_weekly_challenges,
+        generate_daily_cast_members_task,
+        update_cinema_revenue,
+        cleanup_expired_hired_stars,
+        update_leaderboard_scores
+    )
+    
+    # Add scheduled jobs
+    
+    # Every hour: Update film revenues
+    scheduler.add_job(
+        update_all_films_revenue,
+        IntervalTrigger(hours=1),
+        id='update_films_revenue',
+        replace_existing=True
+    )
+    
+    # Every 4 hours: Update leaderboard scores
+    scheduler.add_job(
+        update_leaderboard_scores,
+        IntervalTrigger(hours=4),
+        id='update_leaderboard',
+        replace_existing=True
+    )
+    
+    # Every 6 hours: Update cinema revenue
+    scheduler.add_job(
+        update_cinema_revenue,
+        IntervalTrigger(hours=6),
+        id='update_cinema_revenue',
+        replace_existing=True
+    )
+    
+    # Daily at 00:00 UTC: Reset daily challenges
+    scheduler.add_job(
+        reset_daily_challenges,
+        CronTrigger(hour=0, minute=0),
+        id='reset_daily_challenges',
+        replace_existing=True
+    )
+    
+    # Daily at 00:05 UTC: Cleanup expired rejections
+    scheduler.add_job(
+        cleanup_expired_rejections,
+        CronTrigger(hour=0, minute=5),
+        id='cleanup_rejections',
+        replace_existing=True
+    )
+    
+    # Daily at 06:00 UTC: Generate new cast members
+    scheduler.add_job(
+        generate_daily_cast_members_task,
+        CronTrigger(hour=6, minute=0),
+        id='generate_cast',
+        replace_existing=True
+    )
+    
+    # Daily at 03:00 UTC: Cleanup expired hired stars
+    scheduler.add_job(
+        cleanup_expired_hired_stars,
+        CronTrigger(hour=3, minute=0),
+        id='cleanup_hired_stars',
+        replace_existing=True
+    )
+    
+    # Every Monday at 00:00 UTC: Reset weekly challenges
+    scheduler.add_job(
+        reset_weekly_challenges,
+        CronTrigger(day_of_week='mon', hour=0, minute=0),
+        id='reset_weekly_challenges',
+        replace_existing=True
+    )
+    
+    # Start the scheduler
+    scheduler.start()
+    logging.info("APScheduler started with background jobs for autonomous game operations")
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""
@@ -9799,6 +9892,29 @@ async def get_social_stats(user: dict = Depends(get_current_user)):
         'major_role': major_membership.get('role') if major_membership else None
     }
 
+# ==================== SCHEDULER STATUS ENDPOINT ====================
+@api_router.get("/admin/scheduler-status")
+async def get_scheduler_status():
+    """
+    Get the status of background scheduler jobs.
+    Useful for monitoring autonomous game operations.
+    """
+    jobs = []
+    for job in scheduler.get_jobs():
+        jobs.append({
+            'id': job.id,
+            'name': job.name,
+            'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+            'trigger': str(job.trigger)
+        })
+    
+    return {
+        'scheduler_running': scheduler.running,
+        'jobs_count': len(jobs),
+        'jobs': jobs,
+        'message': 'Il gioco funziona autonomamente 24/7 senza intervento dell\'Agent'
+    }
+
 # Include router and middleware
 app.include_router(api_router)
 
@@ -9818,4 +9934,8 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    # Stop the scheduler gracefully
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logging.info("APScheduler stopped")
     client.close()

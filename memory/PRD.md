@@ -1,133 +1,106 @@
 # CineWorld Studio's - Product Requirements Document
 
 ## Descrizione
-Gioco multiplayer online di produzione cinematografica dove i giocatori creano film, gestiscono cast, infrastrutture e competono per fama e incassi.
+Gioco multiplayer online di produzione cinematografica.
 
-## Funzionalità Implementate
+## Funzionalità Implementate (Sessione 09/03/2025)
 
-### Sistema di Autenticazione
-- [x] Login/Registrazione con JWT
-- [x] Profilo utente personalizzabile
-- [x] Avatar generati via AI (Gemini Nano Banana)
+### Bug Fix Critici
+- [x] **Sistema XP Esponenziale**: Formula 50 * (1.037^level) → 51 XP livello 1, ~1891 XP livello 100
+- [x] **Incassi Bilanciati**: Ridotti da quality×150000 a quality^1.5×1000 ($10K-$1M cap)
+- [x] **Voti Non Modificabili**: I voti ai film sono permanenti
 
-### Creazione Film (Wizard 10 step)
-- [x] Titolo, genere e sottogeneri
-- [x] Sponsor e attrezzature
-- [x] 60+ location (studios, urban, nature, historical, beach, industrial, exotic)
-- [x] Sceneggiatori con stelle, fama, esperienza
-- [x] Registi con stelle, fama, esperienza
-- [x] Attori con stelle, fama, esperienza e ruoli
-- [x] Sceneggiatura (manuale o AI con GPT-4o)
-- [x] Campagna marketing
-- [x] Pubblicità e riepilogo
+### Nuove Funzionalità
+- [x] **Tutorial**: 8 step interattivi (/tutorial)
+- [x] **Credits**: Pagina crediti (/credits)
+- [x] **Sistema Notifiche**: /api/notifications con conteggio non lette
+- [x] **Riscossione Incassi**: Bottone "Riscuoti Ora" nelle infrastrutture (max 4h cumulative)
+- [x] **Prompt Sceneggiatura AI**: Campo per indicare la propria idea creativa
+- [x] **Sfide Versus**: Minigiochi contro altri giocatori via chat ($0-$10K scommessa)
+- [x] **Compositori Musicali**: Nuovo tipo di cast con skill dedicate
+- [x] **Saghe/Sequel**: Livello 15+ Fama 100+ (max 5 sequel per saga)
+- [x] **Serie TV**: Livello 20+ Fama 200+
+- [x] **Anime**: Livello 25+ Fama 300+
 
-### Sistema Cast Migliorato (COMPLETATO - 09/03/2025)
-- [x] Rating a stelle (1-5) basato su skill
-- [x] Categoria fama: unknown, known, rising, famous, superstar
-- [x] Anni di esperienza (0-40)
-- [x] Costo calcolato su stelle + fama + esperienza
-- [x] 12 nazionalità con nomi autentici
-- [x] Hidden Gems: talenti sconosciuti con alto potenziale
-
-### Location Espanse (COMPLETATO - 09/03/2025)
-- [x] 60+ location in 7 categorie
-- [x] Studios, Urban, Nature, Historical, Beach, Industrial, Exotic
-
-### Marketplace Infrastrutture (COMPLETATO - 09/03/2025)
-- [x] Compravendita tra giocatori (richiede livello 15)
-- [x] Valutazione automatica basata su livello, fama, ricavi
-- [x] Sistema offerte con accettazione/rifiuto
-- [x] Trasferimento proprietà e fondi
-
-### Sistema Scoperta delle Stelle (COMPLETATO - 09/03/2025)
-- [x] Hidden Gems: attori sconosciuti con alto potenziale (stelle >= 4)
-- [x] Scoperta automatica quando usati in film di successo
-- [x] News nel Cinema Journal per ogni scoperta
-- [x] Annuncio nella chat pubblica
-- [x] Ricompensa scopritore: $500K + 200 XP + 5 likeability
-- [x] Hall of Fame delle stelle scoperte
-- [x] L'attore scoperto diventa superstar
-
-### Sistema Progressione
-- [x] Livelli senza limite massimo
-- [x] XP da mini-giochi, interazioni, film
-- [x] Fama del giocatore che influenza incassi
-- [x] Barra progressione sempre visibile
+### Sistema Cast
+- [x] Attori, Registi, Sceneggiatori con stelle/fama/esperienza
+- [x] Compositori musicali (nuovo)
+- [x] 12 nazionalità, 60+ location
 
 ### Infrastrutture
-- [x] 9 tipi: Cinema, Drive-In, Mall, Scuola Cinema, Studio, Megaplex, Arena, Studio Indie, Centro Post-Produzione
-- [x] Acquisto in città mondiali con moltiplicatori
-- [x] Gestione cinema (prezzi, programmazione film)
+- [x] 9 tipi disponibili
+- [x] Sistema programmazione film (propri + affitto altri)
+- [x] Riscossione incassi ogni ora (max 4h)
+- [x] Marketplace compravendita (livello 15+)
 
-### Social
-- [x] Feed con like, commenti, voti
-- [x] Chat privata tra giocatori
-- [x] Classifica globale e locale
-- [x] Profili pubblici visitabili
-- [x] Tour dei Cinema di altri giocatori
+## Backlog Rimanente
 
-### Mini-Giochi
-- [x] 4 partite ogni 4 ore
-- [x] Ricompense in denaro e XP
+### Da Completare (questa sessione)
+- [ ] **Trailer Video AI** (15 sec) - Richiede integrazione Sora 2
+- [ ] **Fix errori mobile** - Da investigare
+- [ ] **Colonna Sonora AI** - Generazione musica con prompt
 
-### Economia
-- [x] Incassi orari per i film
-- [x] Durata programmazione dinamica
-- [x] Rating IMDb simulato
-- [x] Interazioni AI fittizie
+### P1 - Prossime Task
+- [ ] Evoluzione abilità cast nel tempo
+- [ ] Penalità valutazioni negative
+- [ ] Messaggi vocali/immagini in chat
 
-### Eventi
-- [x] Eventi Mondiali che influenzano il gameplay
-
-## Backlog (Prossime Task)
-
-### P0 - Alta Priorità
-- [ ] Miglioramento/peggioramento abilità cast nel tempo
-
-### P1 - Media Priorità
-- [ ] Penalità per troppe valutazioni negative
-- [ ] Immagini e messaggi vocali nelle chat
-- [ ] Traduzione automatica chat
-
-### P2 - Bassa Priorità
+### P2 - Future
 - [ ] Statistiche incassi per stato/città
-- [ ] Sfide PvP tra giocatori
+- [ ] Sfide PvP avanzate
 
-## Architettura Tecnica
+## API Endpoints Nuovi
 
+### Tutorial & Credits
+- `GET /api/game/tutorial` - 8 step tutorial
+- `GET /api/game/credits` - Crediti gioco
+
+### Notifiche
+- `GET /api/notifications` - Lista notifiche
+- `POST /api/notifications/{id}/read` - Segna come letta
+- `POST /api/notifications/read-all` - Segna tutte lette
+
+### Riscossione Incassi
+- `GET /api/infrastructure/{id}/pending-revenue` - Incassi pendenti
+- `POST /api/infrastructure/{id}/collect-revenue` - Riscuoti
+
+### Sfide Versus
+- `POST /api/challenges/send` - Invia sfida
+- `POST /api/challenges/{id}/respond` - Accetta/Rifiuta
+- `POST /api/challenges/{id}/submit-result` - Invia punteggio
+- `GET /api/challenges/pending` - Sfide pendenti
+
+### Saghe e Serie
+- `GET /api/films/{id}/can-create-sequel` - Verifica possibilità
+- `POST /api/films/{id}/create-sequel` - Crea sequel
+- `GET /api/series/can-create` - Verifica per serie/anime
+- `POST /api/series/create` - Crea serie/anime
+- `GET /api/series/my` - Le mie serie
+
+### Cast
+- `GET /api/composers` - Lista compositori
+- `POST /api/ai/soundtrack-description` - Descrizione colonna sonora AI
+
+## Requisiti Sblocco
+
+| Contenuto | Livello | Fama |
+|-----------|---------|------|
+| Cinema | 5 | 20 |
+| Marketplace | 15 | - |
+| Saghe/Sequel | 15 | 100 |
+| Serie TV | 20 | 200 |
+| Anime | 25 | 300 |
+
+## Architettura
 ```
 /app/
 ├── backend/
-│   ├── server.py         # FastAPI, API routes, WebSocket
-│   ├── game_systems.py   # Livelli, infrastrutture, eventi
-│   ├── cast_system.py    # Cast migliorato (stelle, fama, exp)
-│   └── requirements.txt
+│   ├── server.py (5300+ righe)
+│   ├── game_systems.py
+│   ├── cast_system.py
+│   └── tests/
 ├── frontend/
-│   ├── src/App.js        # React SPA monolitico
-│   └── package.json
+│   └── src/App.js (4200+ righe)
 └── memory/
     └── PRD.md
 ```
-
-## Integrazioni
-- **OpenAI GPT-4o**: Generazione sceneggiature (Emergent LLM Key)
-- **Gemini Nano Banana**: Generazione avatar AI (Emergent LLM Key)
-- **MongoDB**: Database principale
-
-## API Endpoints Principali
-
-### Cinema News & Stars
-- `GET /api/cinema-news` - News delle scoperte
-- `GET /api/discovered-stars` - Stelle scoperte
-
-### Marketplace
-- `GET /api/marketplace` - Lista annunci
-- `POST /api/marketplace/list` - Metti in vendita
-- `POST /api/marketplace/offer` - Fai offerta
-- `GET /api/infrastructure/{id}/valuation` - Valutazione
-
-### Cast
-- `GET /api/actors` - Lista attori con stelle, fama, exp
-- `GET /api/directors` - Lista registi
-- `GET /api/screenwriters` - Lista sceneggiatori
-- `GET /api/locations` - 60+ location disponibili

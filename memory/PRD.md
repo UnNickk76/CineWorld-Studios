@@ -3,9 +3,17 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.050
+## Versione Attuale: v0.051
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.051 - Sistema Feedback & Bug Report - 09/03/2026 (COMPLETATO)
+- **Nuova pagina** `/feedback` per suggerimenti e segnalazione bug
+- **Suggerimenti**: Titolo, descrizione, categoria (feature/improvement/ui/gameplay/other), sistema voti
+- **Bug Report**: Titolo, descrizione, gravità (low/medium/high/critical), passi per riprodurre
+- **Notifica broadcast** a tutti i player (23 utenti notificati)
+- **Endpoint admin**: `GET /api/admin/feedback-summary` per riepilogo
+- **Reward XP** per suggerimenti (5 XP) e bug report (5-25 XP in base a gravità)
 
 ### v0.050 - Release Notes Dinamiche - 09/03/2026 (COMPLETATO)
 - **Database MongoDB**: Note di rilascio salvate nel database invece che nel codice

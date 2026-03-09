@@ -552,6 +552,7 @@ TRANSLATIONS = {
         'cinema_journal': 'Cinema Journal',
         'discovered_stars': 'Discovered Stars',
         'release_notes': 'Release Notes',
+        'feedback': 'Feedback & Bugs',
         'challenges': 'Challenges',
         'daily': 'Daily',
         'weekly': 'Weekly',
@@ -608,6 +609,7 @@ TRANSLATIONS = {
         'cinema_journal': 'Giornale del Cinema',
         'discovered_stars': 'Stelle Scoperte',
         'release_notes': 'Note di Rilascio',
+        'feedback': 'Suggerimenti & Bug',
         'challenges': 'Sfide',
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
@@ -4171,6 +4173,255 @@ async def create_release_note(note: NewReleaseNote):
         'version': version,
         'title': note.title,
         'message': f'Release note v{version} aggiunta con successo!'
+    }
+
+# ==================== SUGGESTIONS & BUG REPORTS SYSTEM ====================
+
+class SuggestionCreate(BaseModel):
+    title: str
+    description: str
+    category: str = 'feature'  # feature, improvement, ui, gameplay, other
+
+class BugReportCreate(BaseModel):
+    title: str
+    description: str
+    severity: str = 'medium'  # low, medium, high, critical
+    steps_to_reproduce: Optional[str] = None
+
+@api_router.post("/suggestions")
+async def create_suggestion(suggestion: SuggestionCreate, user: dict = Depends(get_current_user)):
+    """
+    Allow users to suggest new features or improvements.
+    """
+    new_suggestion = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'user_nickname': user.get('nickname', 'Anonymous'),
+        'user_avatar': user.get('avatar_url'),
+        'title': suggestion.title,
+        'description': suggestion.description,
+        'category': suggestion.category,
+        'status': 'pending',  # pending, under_review, approved, rejected, implemented
+        'votes': 0,
+        'voted_by': [],
+        'admin_response': None,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.suggestions.insert_one(new_suggestion)
+    
+    # Give XP reward for suggesting
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': 5}}
+    )
+    
+    return {
+        'success': True,
+        'suggestion_id': new_suggestion['id'],
+        'message': 'Grazie per il tuo suggerimento! Lo esamineremo presto.',
+        'xp_earned': 5
+    }
+
+@api_router.post("/bug-reports")
+async def create_bug_report(bug: BugReportCreate, user: dict = Depends(get_current_user)):
+    """
+    Allow users to report bugs.
+    """
+    new_bug = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'user_nickname': user.get('nickname', 'Anonymous'),
+        'user_avatar': user.get('avatar_url'),
+        'title': bug.title,
+        'description': bug.description,
+        'severity': bug.severity,
+        'steps_to_reproduce': bug.steps_to_reproduce,
+        'status': 'open',  # open, investigating, in_progress, resolved, closed, wont_fix
+        'admin_response': None,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.bug_reports.insert_one(new_bug)
+    
+    # Give XP reward for reporting
+    xp_reward = {'low': 5, 'medium': 10, 'high': 15, 'critical': 25}.get(bug.severity, 5)
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': xp_reward}}
+    )
+    
+    return {
+        'success': True,
+        'bug_id': new_bug['id'],
+        'message': 'Grazie per la segnalazione! Investigheremo il problema.',
+        'xp_earned': xp_reward
+    }
+
+@api_router.get("/suggestions")
+async def get_suggestions(
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get all suggestions, optionally filtered."""
+    query = {}
+    if status:
+        query['status'] = status
+    if category:
+        query['category'] = category
+    
+    suggestions = await db.suggestions.find(query, {'_id': 0}).sort('created_at', -1).to_list(500)
+    
+    # Add user's vote status
+    for s in suggestions:
+        s['user_has_voted'] = user['id'] in s.get('voted_by', [])
+    
+    return {
+        'suggestions': suggestions,
+        'total': len(suggestions),
+        'categories': ['feature', 'improvement', 'ui', 'gameplay', 'other'],
+        'statuses': ['pending', 'under_review', 'approved', 'rejected', 'implemented']
+    }
+
+@api_router.get("/bug-reports")
+async def get_bug_reports(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get all bug reports, optionally filtered."""
+    query = {}
+    if status:
+        query['status'] = status
+    if severity:
+        query['severity'] = severity
+    
+    bugs = await db.bug_reports.find(query, {'_id': 0}).sort('created_at', -1).to_list(500)
+    
+    return {
+        'bug_reports': bugs,
+        'total': len(bugs),
+        'severities': ['low', 'medium', 'high', 'critical'],
+        'statuses': ['open', 'investigating', 'in_progress', 'resolved', 'closed', 'wont_fix']
+    }
+
+@api_router.post("/suggestions/{suggestion_id}/vote")
+async def vote_suggestion(suggestion_id: str, user: dict = Depends(get_current_user)):
+    """Vote for a suggestion."""
+    suggestion = await db.suggestions.find_one({'id': suggestion_id})
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggerimento non trovato")
+    
+    voted_by = suggestion.get('voted_by', [])
+    if user['id'] in voted_by:
+        # Remove vote
+        await db.suggestions.update_one(
+            {'id': suggestion_id},
+            {
+                '$inc': {'votes': -1},
+                '$pull': {'voted_by': user['id']}
+            }
+        )
+        return {'success': True, 'action': 'removed', 'message': 'Voto rimosso'}
+    else:
+        # Add vote
+        await db.suggestions.update_one(
+            {'id': suggestion_id},
+            {
+                '$inc': {'votes': 1},
+                '$push': {'voted_by': user['id']}
+            }
+        )
+        return {'success': True, 'action': 'added', 'message': 'Voto aggiunto!'}
+
+@api_router.get("/admin/feedback-summary")
+async def get_feedback_summary():
+    """
+    Get summary of all suggestions and bug reports for admin review.
+    This endpoint returns data formatted for the Agent to display.
+    """
+    suggestions = await db.suggestions.find(
+        {'status': {'$in': ['pending', 'under_review']}},
+        {'_id': 0}
+    ).sort([('votes', -1), ('created_at', -1)]).to_list(100)
+    
+    bugs = await db.bug_reports.find(
+        {'status': {'$in': ['open', 'investigating']}},
+        {'_id': 0}
+    ).sort([('severity', -1), ('created_at', -1)]).to_list(100)
+    
+    return {
+        'pending_suggestions': len(suggestions),
+        'open_bugs': len(bugs),
+        'suggestions': suggestions,
+        'bug_reports': bugs,
+        'message': 'Usa questi dati per decidere cosa implementare!'
+    }
+
+@api_router.post("/admin/suggestion/{suggestion_id}/respond")
+async def respond_to_suggestion(
+    suggestion_id: str, 
+    status: str,
+    response: Optional[str] = None
+):
+    """Admin endpoint to respond to a suggestion."""
+    await db.suggestions.update_one(
+        {'id': suggestion_id},
+        {'$set': {
+            'status': status,
+            'admin_response': response,
+            'responded_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    return {'success': True, 'message': f'Suggerimento aggiornato a {status}'}
+
+@api_router.post("/admin/bug/{bug_id}/respond")
+async def respond_to_bug(
+    bug_id: str,
+    status: str,
+    response: Optional[str] = None
+):
+    """Admin endpoint to respond to a bug report."""
+    await db.bug_reports.update_one(
+        {'id': bug_id},
+        {'$set': {
+            'status': status,
+            'admin_response': response,
+            'responded_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    return {'success': True, 'message': f'Bug aggiornato a {status}'}
+
+class BroadcastMessage(BaseModel):
+    message: str
+    link: Optional[str] = None
+
+@api_router.post("/admin/broadcast-notification")
+async def broadcast_notification(body: BroadcastMessage):
+    """Send a notification to all users."""
+    users = await db.users.find({}, {'id': 1}).to_list(10000)
+    
+    notification_base = {
+        'type': 'system',
+        'message': body.message,
+        'link': body.link,
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    notifications = []
+    for user in users:
+        notif = {**notification_base, 'id': str(uuid.uuid4()), 'user_id': user['id']}
+        notifications.append(notif)
+    
+    if notifications:
+        await db.notifications.insert_many(notifications)
+    
+    return {
+        'success': True,
+        'users_notified': len(notifications),
+        'message': f'Notifica inviata a {len(notifications)} utenti!'
     }
 
 # Advertise a film

@@ -1662,6 +1662,55 @@ const FilmWizard = () => {
     }
   };
 
+  // Auto-save every 30 seconds
+  const [lastAutoSave, setLastAutoSave] = useState(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  
+  useEffect(() => {
+    if (!autoSaveEnabled || !filmData.title) return;
+    
+    const autoSaveInterval = setInterval(async () => {
+      // Only auto-save if there's meaningful data
+      if (filmData.title || filmData.genre !== 'action' || filmData.screenplay || filmData.actors.length > 0) {
+        try {
+          const draftData = {
+            ...filmData,
+            current_step: step,
+            paused_reason: 'autosave'
+          };
+          await api.post('/films/drafts', draftData);
+          setLastAutoSave(new Date());
+          // Silent save - no toast to avoid spam
+        } catch (e) {
+          // Silent fail for auto-save
+          console.log('Auto-save failed:', e);
+        }
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(autoSaveInterval);
+  }, [filmData, step, autoSaveEnabled, api]);
+
+  // Save before page unload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (filmData.title || filmData.screenplay || filmData.actors.length > 0) {
+        // Try to save draft synchronously (best effort)
+        const draftData = {
+          ...filmData,
+          current_step: step,
+          paused_reason: 'browser_close'
+        };
+        // Use sendBeacon for reliable save on page close
+        const blob = new Blob([JSON.stringify(draftData)], { type: 'application/json' });
+        navigator.sendBeacon?.(`${api.defaults.baseURL}/films/drafts`, blob);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [filmData, step, api]);
+
   useEffect(() => { 
     api.get('/sponsors').then(r=>setSponsors(r.data)); 
     api.get('/locations').then(r=>setLocations(r.data)); 
@@ -2118,12 +2167,18 @@ const FilmWizard = () => {
         <h2 className="font-['Bebas_Neue'] text-xl">{steps[step-1].title}</h2>
       </div>
       <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
-      <div className="flex justify-between mt-3">
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center mt-3">
+        <div className="flex gap-2 items-center">
           <Button variant="outline" size="sm" onClick={()=>setStep(step-1)} disabled={step===1}>Previous</Button>
           <Button variant="outline" size="sm" onClick={()=>saveDraft('paused')} disabled={savingDraft} className="text-orange-400 border-orange-400/50 hover:bg-orange-500/10">
             {savingDraft ? '...' : (language === 'it' ? 'Metti in Pausa' : 'Pause')}
           </Button>
+          {lastAutoSave && (
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              {language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+            </span>
+          )}
         </div>
         {step<12?<Button size="sm" onClick={()=>setStep(step+1)} disabled={!canProceed()} className="bg-yellow-500 text-black">Next <ChevronRight className="w-3 h-3 ml-1" /></Button>:<Button size="sm" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds} className="bg-yellow-500 text-black">{loading?'...':'Create Film'}</Button>}
       </div>
@@ -2181,6 +2236,10 @@ const FilmDrafts = () => {
     switch(reason) {
       case 'paused':
         return <Badge className="bg-orange-500/20 text-orange-400">{language === 'it' ? 'In Pausa' : 'Paused'}</Badge>;
+      case 'autosave':
+        return <Badge className="bg-blue-500/20 text-blue-400">{language === 'it' ? 'Auto-salvato' : 'Auto-saved'}</Badge>;
+      case 'browser_close':
+        return <Badge className="bg-purple-500/20 text-purple-400">{language === 'it' ? 'Recuperato' : 'Recovered'}</Badge>;
       case 'error':
         return <Badge className="bg-red-500/20 text-red-400">{language === 'it' ? 'Errore' : 'Error'}</Badge>;
       default:

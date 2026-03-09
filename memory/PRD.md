@@ -8,10 +8,12 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 ### Sistema Film Incompleti (Pausa/Riprendi) - 09/03/2026 (COMPLETATO)
 - **Pulsante "Metti in Pausa"** nel wizard di creazione film
 - **Board "Film Incompleti"** accessibile dalla navbar (icona orologio)
-- **Salvataggio automatico** dello stato del wizard (step corrente, dati inseriti)
+- **Salvataggio automatico ogni 30 secondi** durante la creazione del film
+- **Salvataggio su chiusura browser** tramite `navigator.sendBeacon`
+- **Indicatore visivo** "Salvato HH:MM" con check verde dopo ogni autosave
+- **Badge stato**: In Pausa, Auto-salvato, Recuperato, Errore, Incompleto
 - **Ripresa** da qualsiasi step con tutti i dati preservati
 - **Eliminazione** delle bozze non più necessarie
-- **Badge stato**: In Pausa, Errore, Incompleto
 - **Endpoint**: `/api/films/drafts`, `/api/films/drafts/{id}`, `/api/films/drafts/{id}/resume`
 
 ### Bug Fix Creazione Film - 09/03/2026 (COMPLETATO)

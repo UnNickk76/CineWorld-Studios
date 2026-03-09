@@ -833,6 +833,141 @@ GENRES = {
 
 GENRE_LIST = list(GENRES.keys())
 
+# ==================== REJECTION SYSTEM ====================
+# Reasons why cast members might refuse an offer
+
+REJECTION_REASONS = {
+    'it': [
+        # Impegni professionali
+        "Sono già impegnato in un altro progetto per i prossimi mesi.",
+        "Ho un contratto di esclusiva con un'altra produzione.",
+        "Sto lavorando a un progetto personale che richiede tutta la mia attenzione.",
+        "Ho già accettato un ruolo in un film che inizia le riprese lo stesso periodo.",
+        # Motivazioni artistiche
+        "Non mi sento adatto per questo tipo di ruolo.",
+        "Questo genere non si sposa con la mia carriera artistica.",
+        "Sto cercando di esplorare ruoli diversi in questo momento.",
+        "Ho promesso al mio agente di essere più selettivo con i progetti.",
+        "Dopo il mio ultimo film, voglio prendermi una pausa creativa.",
+        # Motivazioni personali
+        "Ho bisogno di passare più tempo con la mia famiglia.",
+        "Sto per partire per un lungo viaggio.",
+        "Motivi di salute mi impediscono di accettare nuovi impegni.",
+        "Ho deciso di prendermi un anno sabbatico.",
+        # Budget/Reputazione
+        "L'offerta economica non riflette il mio valore di mercato.",
+        "Preferisco lavorare con produzioni più affermate.",
+        "Il budget del film mi sembra troppo limitato per le mie aspettative.",
+        "Non lavoro con case di produzione emergenti.",
+        # Conflitti creativi
+        "Ho avuto esperienze negative con membri del cast proposto.",
+        "La sceneggiatura non mi convince pienamente.",
+        "Ho delle riserve sulla direzione artistica del progetto.",
+        "Il ruolo richiederebbe compromessi che non sono disposto a fare.",
+        # Superstizione/Casualità
+        "Il mio astrologo mi ha sconsigliato nuovi progetti questo mese.",
+        "Non giro mai film che iniziano di venerdì.",
+        "Ho un brutto presentimento su questo progetto.",
+    ],
+    'en': [
+        # Professional commitments
+        "I'm already committed to another project for the next few months.",
+        "I have an exclusivity contract with another production.",
+        "I'm working on a personal project that requires all my attention.",
+        "I've already accepted a role in a film shooting the same period.",
+        # Artistic reasons
+        "I don't feel suited for this type of role.",
+        "This genre doesn't align with my artistic career.",
+        "I'm looking to explore different roles right now.",
+        "I promised my agent to be more selective with projects.",
+        "After my last film, I want to take a creative break.",
+        # Personal reasons
+        "I need to spend more time with my family.",
+        "I'm about to leave for a long trip.",
+        "Health reasons prevent me from accepting new commitments.",
+        "I've decided to take a sabbatical year.",
+        # Budget/Reputation
+        "The financial offer doesn't reflect my market value.",
+        "I prefer to work with more established productions.",
+        "The film's budget seems too limited for my expectations.",
+        "I don't work with emerging production companies.",
+        # Creative conflicts
+        "I've had negative experiences with proposed cast members.",
+        "The screenplay doesn't fully convince me.",
+        "I have reservations about the artistic direction.",
+        "The role would require compromises I'm not willing to make.",
+        # Superstition/Random
+        "My astrologer advised against new projects this month.",
+        "I never shoot films that start on Friday.",
+        "I have a bad feeling about this project.",
+    ]
+}
+
+def calculate_rejection_chance(person: dict, user: dict, film_genre: str = None) -> tuple:
+    """
+    Calculate the chance that a cast member will refuse the offer.
+    Returns (will_refuse: bool, reason: str or None)
+    
+    Factors:
+    - Star rating vs player level mismatch
+    - Fame score vs player reputation
+    - Genre compatibility
+    - Random factor
+    - Previous collaborations (reduces rejection)
+    """
+    import random
+    
+    base_rejection_chance = 0.0
+    
+    # Factor 1: Star rating vs player level (major factor)
+    person_stars = person.get('stars', 3)
+    player_level = user.get('level', 1)
+    
+    # 5-star talent needs level 15+, 4-star needs 10+, 3-star needs 5+
+    required_levels = {5: 15, 4: 10, 3: 5, 2: 2, 1: 0}
+    required_level = required_levels.get(person_stars, 5)
+    
+    if player_level < required_level:
+        level_gap = required_level - player_level
+        base_rejection_chance += min(0.5, level_gap * 0.05)  # Up to 50% from level gap
+    
+    # Factor 2: Fame score (famous people are pickier)
+    fame_score = person.get('fame_score', 50)
+    if fame_score > 80:
+        base_rejection_chance += 0.25
+    elif fame_score > 60:
+        base_rejection_chance += 0.10
+    
+    # Factor 3: Player's reputation (total revenue earned)
+    player_revenue = user.get('total_lifetime_revenue', 0)
+    if player_revenue < 100000 and person_stars >= 4:
+        base_rejection_chance += 0.15
+    elif player_revenue > 10000000:
+        base_rejection_chance -= 0.10  # Famous player bonus
+    
+    # Factor 4: Random celebrity mood
+    base_rejection_chance += random.uniform(-0.05, 0.15)
+    
+    # Factor 5: Genre mismatch (if they have no skills in that genre)
+    if film_genre and person.get('skills'):
+        genre_skill = person['skills'].get(film_genre, 0)
+        if genre_skill < 30:
+            base_rejection_chance += 0.10
+    
+    # Cap at 60% max rejection chance
+    final_chance = max(0, min(0.60, base_rejection_chance))
+    
+    # Roll the dice
+    will_refuse = random.random() < final_chance
+    
+    reason = None
+    if will_refuse:
+        language = user.get('language', 'en')
+        reasons = REJECTION_REASONS.get(language, REJECTION_REASONS['en'])
+        reason = random.choice(reasons)
+    
+    return will_refuse, reason
+
 COUNTRIES = {
     'USA': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami', 'San Francisco'],
     'Italy': ['Rome', 'Milan', 'Naples', 'Turin', 'Florence', 'Venice'],
@@ -1944,6 +2079,92 @@ async def get_composers(
         'page': page,
         'categories': list(CAST_CATEGORIES.keys()),
         'available_skills': list(COMPOSER_SKILLS.keys())
+    }
+
+# ==================== CAST OFFER/REJECTION SYSTEM ====================
+
+class CastOfferRequest(BaseModel):
+    person_id: str
+    person_type: str  # actor, director, screenwriter, composer
+    film_genre: Optional[str] = None
+
+@api_router.post("/cast/offer")
+async def make_cast_offer(request: CastOfferRequest, user: dict = Depends(get_current_user)):
+    """
+    Make an offer to a cast member. They might accept or refuse.
+    Returns acceptance status and rejection reason if refused.
+    """
+    # Get the person
+    person = await db.people.find_one({'id': request.person_id}, {'_id': 0})
+    if not person:
+        raise HTTPException(status_code=404, detail="Persona non trovata")
+    
+    # Check if this person already refused the user recently (within this session)
+    session_key = f"rejection_{user['id']}_{request.person_id}"
+    existing_rejection = await db.rejections.find_one({
+        'user_id': user['id'],
+        'person_id': request.person_id,
+        'created_at': {'$gte': (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()}
+    })
+    
+    if existing_rejection:
+        return {
+            'accepted': False,
+            'already_refused': True,
+            'person_name': person['name'],
+            'reason': existing_rejection.get('reason', 'Ha già rifiutato la tua offerta oggi.')
+        }
+    
+    # Get full user data for rejection calculation
+    full_user = await db.users.find_one({'id': user['id']}, {'_id': 0})
+    
+    # Calculate if they will refuse
+    will_refuse, reason = calculate_rejection_chance(person, full_user, request.film_genre)
+    
+    if will_refuse:
+        # Save the rejection so they can't be asked again today
+        await db.rejections.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': user['id'],
+            'person_id': request.person_id,
+            'person_name': person['name'],
+            'person_type': person.get('type', request.person_type),
+            'reason': reason,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {
+            'accepted': False,
+            'already_refused': False,
+            'person_name': person['name'],
+            'person_type': person.get('type', request.person_type),
+            'reason': reason,
+            'stars': person.get('stars', 3),
+            'fame': person.get('fame_score', 50)
+        }
+    
+    # Accepted!
+    return {
+        'accepted': True,
+        'person_name': person['name'],
+        'person_type': person.get('type', request.person_type),
+        'message': f"{person['name']} ha accettato la tua offerta!" if full_user.get('language') == 'it' else f"{person['name']} accepted your offer!"
+    }
+
+@api_router.get("/cast/rejections")
+async def get_my_rejections(user: dict = Depends(get_current_user)):
+    """Get list of cast members who refused the user today."""
+    rejections = await db.rejections.find({
+        'user_id': user['id'],
+        'created_at': {'$gte': (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()}
+    }, {'_id': 0}).to_list(100)
+    
+    # Return just the person IDs for easy checking
+    refused_ids = [r['person_id'] for r in rejections]
+    
+    return {
+        'rejections': rejections,
+        'refused_ids': refused_ids
     }
 
 # Sponsors, Locations, Equipment

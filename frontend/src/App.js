@@ -1584,6 +1584,11 @@ const FilmWizard = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSkill, setSelectedSkill] = useState('all');
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  
+  // Rejection system states
+  const [refusedIds, setRefusedIds] = useState(new Set());
+  const [rejectionModal, setRejectionModal] = useState(null);
+  const [checkingOffer, setCheckingOffer] = useState(null);
 
   const [filmData, setFilmData] = useState({
     title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
@@ -1764,6 +1769,54 @@ const FilmWizard = () => {
   const generatePoster = async () => { setGenerating(true); try { const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); setFilmData({...filmData, poster_url: res.data.poster_url}); toast.success('Poster generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
   const generateSoundtrack = async () => { setGenerating(true); try { const res = await api.post('/ai/soundtrack-description', { title: filmData.title, genre: filmData.genre, mood: 'epic', custom_prompt: filmData.soundtrack_prompt }); setFilmData({...filmData, soundtrack_description: res.data.description}); toast.success('Descrizione colonna sonora generata!'); } catch(e) { toast.error('Errore generazione'); } finally { setGenerating(false); }};
   
+  // Load rejections on mount
+  useEffect(() => {
+    api.get('/cast/rejections').then(r => {
+      setRefusedIds(new Set(r.data.refused_ids || []));
+    }).catch(() => {});
+  }, [api]);
+  
+  // Function to make an offer to a cast member
+  const makeOffer = async (person, personType, onAccept) => {
+    // If already refused, don't allow clicking
+    if (refusedIds.has(person.id)) {
+      return;
+    }
+    
+    setCheckingOffer(person.id);
+    
+    try {
+      const res = await api.post('/cast/offer', {
+        person_id: person.id,
+        person_type: personType,
+        film_genre: filmData.genre
+      });
+      
+      if (res.data.accepted) {
+        // Accepted! Proceed with selection
+        onAccept();
+        toast.success(res.data.message);
+      } else {
+        // Refused!
+        setRefusedIds(prev => new Set([...prev, person.id]));
+        setRejectionModal({
+          name: res.data.person_name,
+          type: res.data.person_type,
+          reason: res.data.reason,
+          stars: res.data.stars,
+          fame: res.data.fame,
+          alreadyRefused: res.data.already_refused
+        });
+      }
+    } catch (e) {
+      toast.error('Errore nella comunicazione');
+      // On error, allow selection anyway
+      onAccept();
+    } finally {
+      setCheckingOffer(null);
+    }
+  };
+  
   const calculateBudget = () => { const eq = equipment.find(e=>e.name===filmData.equipment_package)||{cost:0}; let loc=0; filmData.locations.forEach(l=>{const lo=locations.find(x=>x.name===l); if(lo)loc+=lo.cost_per_day*(filmData.location_days[l]||7);}); return eq.cost+loc+filmData.extras_cost; };
   const getSponsorBudget = () => { if(!filmData.sponsor_id)return 0; const s=sponsors.find(x=>x.name===filmData.sponsor_id); return s?.budget_offer||0; };
   
@@ -1777,6 +1830,9 @@ const FilmWizard = () => {
   };
 
   const PersonCard = ({ person, isSelected, onSelect, showRoleSelect = false, currentRole = null, onRoleChange = null, roleType = 'actor' }) => {
+    const isRefused = refusedIds.has(person.id);
+    const isChecking = checkingOffer === person.id;
+    
     // Generate star display
     const renderStars = (count) => {
       return Array(5).fill(0).map((_, i) => (
@@ -1820,9 +1876,45 @@ const FilmWizard = () => {
     const primarySkillsDisplay = person.primary_skills_translated || person.primary_skills || [];
     const secondarySkillDisplay = person.secondary_skill_translated || person.secondary_skill;
     
+    // Handle click with offer system
+    const handleClick = () => {
+      if (isRefused || isChecking) return;
+      makeOffer(person, roleType, onSelect);
+    };
+    
     return (
-      <Card className={`bg-[#1A1A1A] border-2 cursor-pointer transition-all ${isSelected ? 'border-yellow-500 ring-1 ring-yellow-500/50' : 'border-white/10 hover:border-white/20'}`} onClick={onSelect}>
-        <CardContent className="p-2">
+      <Card 
+        className={`border-2 transition-all ${
+          isRefused 
+            ? 'bg-red-950/30 border-red-500/30 cursor-not-allowed opacity-60' 
+            : isChecking
+              ? 'bg-[#1A1A1A] border-yellow-500/50 animate-pulse cursor-wait'
+              : isSelected 
+                ? 'bg-[#1A1A1A] border-yellow-500 ring-1 ring-yellow-500/50 cursor-pointer' 
+                : 'bg-[#1A1A1A] border-white/10 hover:border-white/20 cursor-pointer'
+        }`} 
+        onClick={handleClick}
+      >
+        <CardContent className="p-2 relative">
+          {/* Refused overlay */}
+          {isRefused && (
+            <div className="absolute top-1 right-1 z-10">
+              <Badge className="bg-red-500/80 text-white text-[8px] flex items-center gap-1">
+                <XCircle className="w-2.5 h-2.5" />
+                {language === 'it' ? 'Ha rifiutato' : 'Refused'}
+              </Badge>
+            </div>
+          )}
+          
+          {/* Loading overlay */}
+          {isChecking && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 rounded-lg">
+              <div className="text-xs text-yellow-400 animate-pulse">
+                {language === 'it' ? 'Contattando...' : 'Contacting...'}
+              </div>
+            </div>
+          )}
+          
           {/* Header: Avatar, Name, Cost */}
           <div className="flex items-start gap-2 mb-1.5">
             <Avatar className="w-10 h-10 flex-shrink-0"><AvatarImage src={person.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{person.name[0]}</AvatarFallback></Avatar>
@@ -2184,6 +2276,64 @@ const FilmWizard = () => {
         </div>
         {step<12?<Button size="sm" onClick={()=>setStep(step+1)} disabled={!canProceed()} className="bg-yellow-500 text-black">Next <ChevronRight className="w-3 h-3 ml-1" /></Button>:<Button size="sm" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds} className="bg-yellow-500 text-black">{loading?'...':'Create Film'}</Button>}
       </div>
+
+      {/* Rejection Modal */}
+      {rejectionModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setRejectionModal(null)}>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1A1A1A] border border-red-500/50 rounded-lg p-6 max-w-sm w-full"
+            onClick={e => e.stopPropagation()}
+            data-testid="rejection-modal"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-red-400">
+                  {language === 'it' ? 'Offerta Rifiutata' : 'Offer Rejected'}
+                </h3>
+                <p className="text-sm text-gray-400">{rejectionModal.name}</p>
+              </div>
+            </div>
+            
+            <div className="bg-black/30 rounded-lg p-4 mb-4">
+              <p className="text-sm text-gray-300 italic">"{rejectionModal.reason}"</p>
+            </div>
+            
+            {rejectionModal.alreadyRefused && (
+              <p className="text-xs text-yellow-500 mb-3">
+                {language === 'it' 
+                  ? '⚠️ Questa persona ha già rifiutato la tua offerta oggi.' 
+                  : '⚠️ This person already refused your offer today.'}
+              </p>
+            )}
+            
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
+              {rejectionModal.stars && (
+                <div className="flex items-center gap-1">
+                  {Array(5).fill(0).map((_, i) => (
+                    <Star key={i} className={`w-3 h-3 ${i < rejectionModal.stars ? 'fill-yellow-500 text-yellow-500' : 'text-gray-600'}`} />
+                  ))}
+                </div>
+              )}
+              {rejectionModal.fame && (
+                <span>{language === 'it' ? 'Fama' : 'Fame'}: {rejectionModal.fame}</span>
+              )}
+            </div>
+            
+            <Button 
+              className="w-full bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30"
+              onClick={() => setRejectionModal(null)}
+              data-testid="rejection-modal-close"
+            >
+              {language === 'it' ? 'Ho capito' : 'I understand'}
+            </Button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

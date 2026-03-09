@@ -2488,7 +2488,7 @@ const ProfilePage = () => {
 
 // Infrastructure Page
 const InfrastructurePage = () => {
-  const { api, user } = useContext(AuthContext);
+  const { api, user, refreshUser } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const navigate = useNavigate();
   const [infraTypes, setInfraTypes] = useState([]);
@@ -2501,6 +2501,14 @@ const InfrastructurePage = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
+  
+  // Infrastructure detail dialog state
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedInfra, setSelectedInfra] = useState(null);
+  const [infraDetail, setInfraDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [prices, setPrices] = useState({});
+  const [savingPrices, setSavingPrices] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -2550,6 +2558,38 @@ const InfrastructurePage = () => {
     return Math.round(selectedType.base_cost * city.cost_multiplier);
   };
 
+  const openInfraDetail = async (infra) => {
+    setSelectedInfra(infra);
+    setLoadingDetail(true);
+    setShowDetailDialog(true);
+    try {
+      const res = await api.get(`/infrastructure/${infra.id}`);
+      setInfraDetail(res.data);
+      setPrices(res.data.prices || { ticket: 12, popcorn: 8, drinks: 5, combo: 18 });
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nel caricamento');
+      setShowDetailDialog(false);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const savePrices = async () => {
+    if (!selectedInfra) return;
+    setSavingPrices(true);
+    try {
+      await api.put(`/infrastructure/${selectedInfra.id}/prices`, { prices });
+      toast.success('Prezzi aggiornati!');
+      // Refresh infrastructure list
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nel salvataggio');
+    } finally {
+      setSavingPrices(false);
+    }
+  };
+
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="infrastructure-page">
       {/* Level Progress */}
@@ -2587,7 +2627,7 @@ const InfrastructurePage = () => {
               {myInfra.infrastructure.map(infra => {
                 const Icon = getIcon(INFRASTRUCTURE_TYPES?.[infra.type]?.icon || 'building');
                 return (
-                  <Card key={infra.id} className="bg-white/5 border-white/10 cursor-pointer hover:border-yellow-500/50 transition-colors" onClick={() => navigate(`/infrastructure/${infra.id}`)}>
+                  <Card key={infra.id} className="bg-white/5 border-white/10 cursor-pointer hover:border-yellow-500/50 transition-colors" onClick={() => openInfraDetail(infra)}>
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
@@ -2712,6 +2752,117 @@ const InfrastructurePage = () => {
             <Button onClick={handlePurchase} disabled={purchasing || !selectedCity || user?.funds < getCityPrice()} className="bg-yellow-500 text-black">
               {purchasing ? 'Acquistando...' : 'Conferma Acquisto'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Infrastructure Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Building className="w-5 h-5 text-yellow-500" /> {selectedInfra?.custom_name || 'Dettaglio Infrastruttura'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedInfra?.city?.name}, {selectedInfra?.country} • {selectedInfra?.type}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingDetail ? (
+            <div className="text-center py-8">Caricamento...</div>
+          ) : infraDetail && (
+            <div className="space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-white/5 rounded border border-white/10">
+                  <p className="text-xs text-gray-400">Ricavi totali</p>
+                  <p className="text-lg font-bold text-green-400">${(infraDetail.total_revenue || 0).toLocaleString()}</p>
+                </div>
+                <div className="p-3 bg-white/5 rounded border border-white/10">
+                  <p className="text-xs text-gray-400">Film in programmazione</p>
+                  <p className="text-lg font-bold text-yellow-500">{infraDetail.films_showing?.length || 0}</p>
+                </div>
+              </div>
+
+              {/* Prices Section */}
+              {['cinema', 'megaplex', 'drive_in', 'mall'].includes(selectedInfra?.type) && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-yellow-500" /> Imposta Prezzi
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Biglietto ($)</Label>
+                      <Input
+                        type="number"
+                        value={prices.ticket || 12}
+                        onChange={e => setPrices({...prices, ticket: parseInt(e.target.value) || 0})}
+                        className="h-9 bg-black/20 border-white/10"
+                        min={1}
+                        max={50}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Popcorn ($)</Label>
+                      <Input
+                        type="number"
+                        value={prices.popcorn || 8}
+                        onChange={e => setPrices({...prices, popcorn: parseInt(e.target.value) || 0})}
+                        className="h-9 bg-black/20 border-white/10"
+                        min={1}
+                        max={30}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Bevande ($)</Label>
+                      <Input
+                        type="number"
+                        value={prices.drinks || 5}
+                        onChange={e => setPrices({...prices, drinks: parseInt(e.target.value) || 0})}
+                        className="h-9 bg-black/20 border-white/10"
+                        min={1}
+                        max={20}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Combo ($)</Label>
+                      <Input
+                        type="number"
+                        value={prices.combo || 18}
+                        onChange={e => setPrices({...prices, combo: parseInt(e.target.value) || 0})}
+                        className="h-9 bg-black/20 border-white/10"
+                        min={1}
+                        max={60}
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={savePrices} 
+                    disabled={savingPrices}
+                    className="w-full bg-yellow-500 text-black hover:bg-yellow-400"
+                  >
+                    {savingPrices ? 'Salvando...' : 'Salva Prezzi'}
+                  </Button>
+                </div>
+              )}
+
+              {/* Films showing */}
+              {infraDetail.films_showing?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Film in Programmazione</h4>
+                  {infraDetail.films_showing.map(film => (
+                    <div key={film.film_id} className="flex items-center justify-between p-2 bg-white/5 rounded">
+                      <span className="text-sm">{film.title || 'Film'}</span>
+                      <span className="text-xs text-gray-400">{film.showtimes?.length || 0} proiezioni</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Chiudi</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

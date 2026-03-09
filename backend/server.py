@@ -4047,8 +4047,8 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     max_extension = duration_data['extension_days']
     actual_extension = min(extra_days, max_extension)
     
-    # Update film
-    new_weeks = film.get('weeks_in_theater', 4) + (actual_extension / 7)
+    # Update film - ensure weeks_in_theater is always an integer
+    new_weeks = int(film.get('weeks_in_theater', 4) + (actual_extension / 7))
     await db.films.update_one(
         {'id': film_id},
         {'$set': {

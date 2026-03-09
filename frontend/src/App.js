@@ -7,7 +7,7 @@ import {
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
   Send, Image, ChevronRight, ChevronDown, Menu, X, Settings, 
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
-  Check, XCircle
+  Check, XCircle, Newspaper, MessageCircle
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -140,6 +140,7 @@ const TopNavbar = () => {
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create', icon: Plus, label: 'create_film' },
+    { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/social', icon: Users, label: 'social' },
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
@@ -1185,6 +1186,261 @@ const FilmDetail = () => {
   );
 };
 
+// Cinema Journal - Newspaper style film reviews
+const CinemaJournal = () => {
+  const { api, user } = useContext(AuthContext);
+  const { t, language } = useTranslations();
+  const [films, setFilms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFilm, setSelectedFilm] = useState(null);
+  const [comment, setComment] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => { 
+    api.get('/films/cinema-journal')
+      .then(r => setFilms(r.data.films))
+      .finally(() => setLoading(false)); 
+  }, [api]);
+
+  const handleRate = async (filmId, rating) => {
+    const res = await api.post(`/films/${filmId}/rate`, { rating });
+    setFilms(films.map(f => f.id === filmId ? { 
+      ...f, 
+      user_rating: rating, 
+      average_rating: res.data.average_rating,
+      ratings_count: res.data.ratings_count 
+    } : f));
+    toast.success(`Voted ${rating} stars!`);
+  };
+
+  const handleComment = async (filmId) => {
+    if (!comment.trim()) return;
+    await api.post(`/films/${filmId}/comment`, { content: comment });
+    setComment('');
+    const res = await api.get('/films/cinema-journal');
+    setFilms(res.data.films);
+    toast.success('Comment added!');
+  };
+
+  const handleLike = async (filmId) => {
+    const res = await api.post(`/films/${filmId}/like`);
+    setFilms(films.map(f => f.id === filmId ? { ...f, user_liked: res.data.liked, likes_count: res.data.likes_count } : f));
+  };
+
+  const StarRating = ({ value, onChange, readonly = false, size = 'md' }) => {
+    const stars = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+    const sizeClass = size === 'sm' ? 'w-3 h-3' : 'w-5 h-5';
+    return (
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map(star => (
+          <button 
+            key={star} 
+            disabled={readonly}
+            className={`${readonly ? '' : 'cursor-pointer hover:scale-110'} transition-transform`}
+            onClick={() => !readonly && onChange && onChange(star)}
+          >
+            <Star 
+              className={`${sizeClass} ${value >= star ? 'fill-yellow-500 text-yellow-500' : value >= star - 0.5 ? 'fill-yellow-500/50 text-yellow-500' : 'text-gray-600'}`} 
+            />
+          </button>
+        ))}
+        {!readonly && (
+          <button onClick={() => onChange && onChange(value - 0.5 >= 0 ? value - 0.5 : value + 0.5)} className="ml-1 text-xs text-gray-400 hover:text-yellow-500">
+            ½
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const getRoleBadge = (role) => {
+    const badges = {
+      protagonist: { color: 'bg-yellow-500/20 text-yellow-500', label: 'Lead' },
+      co_protagonist: { color: 'bg-blue-500/20 text-blue-400', label: 'Co-Lead' },
+      antagonist: { color: 'bg-red-500/20 text-red-400', label: 'Villain' },
+      supporting: { color: 'bg-gray-500/20 text-gray-400', label: 'Support' },
+      cameo: { color: 'bg-purple-500/20 text-purple-400', label: 'Cameo' }
+    };
+    const badge = badges[role] || badges.supporting;
+    return <Badge className={`${badge.color} text-[10px] h-4`}>{badge.label}</Badge>;
+  };
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-5xl mx-auto" data-testid="cinema-journal-page">
+      <div className="text-center mb-6">
+        <h1 className="font-['Playfair_Display'] text-4xl md:text-5xl font-bold italic tracking-tight">
+          {t('cinema_journal')}
+        </h1>
+        <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="h-px w-16 bg-yellow-500/50" />
+          <Newspaper className="w-4 h-4 text-yellow-500" />
+          <div className="h-px w-16 bg-yellow-500/50" />
+        </div>
+        <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
+      </div>
+      
+      {loading ? (
+        <div className="text-center py-8 text-gray-400">Loading the latest news...</div>
+      ) : films.length === 0 ? (
+        <Card className="bg-[#1A1A1A] border-white/10 p-8 text-center">
+          <Newspaper className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+          <h3 className="text-lg mb-2">No films in theaters yet</h3>
+          <p className="text-gray-400 text-sm">The cinema world awaits your masterpiece!</p>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {films.map((film, idx) => (
+            <Card key={film.id} className="bg-[#1A1A1A] border-white/10 overflow-hidden">
+              <div className="md:flex">
+                {/* Poster */}
+                <div className="md:w-48 flex-shrink-0 relative">
+                  <img 
+                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} 
+                    alt={film.title} 
+                    className="w-full h-64 md:h-full object-cover cursor-pointer"
+                    onClick={() => navigate(`/films/${film.id}`)}
+                  />
+                  {idx < 3 && (
+                    <div className="absolute top-2 left-2">
+                      <Badge className={`${idx === 0 ? 'bg-yellow-500 text-black' : idx === 1 ? 'bg-gray-300 text-black' : 'bg-amber-700 text-white'} font-bold`}>
+                        #{idx + 1}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Content */}
+                <CardContent className="flex-1 p-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h2 className="font-['Playfair_Display'] text-2xl font-bold cursor-pointer hover:text-yellow-500" onClick={() => navigate(`/films/${film.id}`)}>
+                        {film.title}
+                      </h2>
+                      <p className="text-sm text-gray-400">
+                        by <span className="text-yellow-500">{film.owner?.production_house_name}</span>
+                        {film.director_details && <> • Directed by <span className="text-gray-300">{film.director_details.name}</span></>}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge className="bg-yellow-500/20 text-yellow-500">{film.genre}</Badge>
+                      {film.subgenres?.length > 0 && (
+                        <div className="flex gap-1">
+                          {film.subgenres.slice(0, 2).map(sg => (
+                            <Badge key={sg} variant="outline" className="text-[10px] h-4 border-gray-600">{sg}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Description/Screenplay excerpt */}
+                  <p className="text-sm text-gray-300 mb-3 line-clamp-2 italic">
+                    "{film.screenplay?.substring(0, 150) || 'A captivating story awaits...'}..."
+                  </p>
+                  
+                  {/* Main Cast */}
+                  {film.main_cast?.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-gray-500 mb-1.5 uppercase tracking-wider">Starring</p>
+                      <div className="flex flex-wrap gap-2">
+                        {film.main_cast.map(actor => (
+                          <div key={actor.id} className="flex items-center gap-1.5 bg-white/5 rounded-full pl-1 pr-2 py-0.5">
+                            <Avatar className="w-5 h-5">
+                              <AvatarImage src={actor.avatar_url} />
+                              <AvatarFallback className="text-[8px] bg-yellow-500/20">{actor.name?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs">{actor.name}</span>
+                            {getRoleBadge(actor.role)}
+                            <span className="text-[10px] text-gray-500">({actor.gender === 'female' ? '♀' : '♂'})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Stats & Rating */}
+                  <div className="flex items-center justify-between border-t border-white/10 pt-3 mt-3">
+                    <div className="flex items-center gap-4">
+                      <Button variant="ghost" size="sm" className={`h-7 px-2 ${film.user_liked ? 'text-red-400' : 'text-gray-400'}`} onClick={() => handleLike(film.id)}>
+                        <Heart className={`w-3.5 h-3.5 mr-1 ${film.user_liked ? 'fill-red-400' : ''}`} /> {film.likes_count || 0}
+                      </Button>
+                      <span className="text-xs text-gray-400">
+                        <DollarSign className="w-3 h-3 inline" />{((film.total_revenue || 0) / 1000000).toFixed(1)}M
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        <Star className="w-3 h-3 inline text-yellow-500" /> {film.quality_score?.toFixed(0)}%
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {film.average_rating !== null && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                          <StarRating value={film.average_rating} readonly size="sm" />
+                          <span>({film.ratings_count})</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* User Rating */}
+                  <div className="border-t border-white/10 pt-3 mt-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Your rating:</span>
+                        <StarRating 
+                          value={film.user_rating || 0} 
+                          onChange={(r) => handleRate(film.id, r)}
+                        />
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedFilm(selectedFilm === film.id ? null : film.id)}>
+                        <MessageCircle className="w-3 h-3 mr-1" /> Comment
+                      </Button>
+                    </div>
+                    
+                    {/* Comment input */}
+                    {selectedFilm === film.id && (
+                      <div className="mt-2 flex gap-2">
+                        <Input 
+                          value={comment} 
+                          onChange={e => setComment(e.target.value)} 
+                          placeholder="Write your review..." 
+                          className="h-8 text-sm bg-black/20 border-white/10"
+                        />
+                        <Button size="sm" className="h-8 bg-yellow-500 text-black" onClick={() => handleComment(film.id)}>
+                          <Send className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Recent comments */}
+                    {film.recent_comments?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {film.recent_comments.map(c => (
+                          <div key={c.id} className="flex items-start gap-2 text-xs bg-white/5 rounded p-1.5">
+                            <Avatar className="w-4 h-4">
+                              <AvatarImage src={c.user?.avatar_url} />
+                              <AvatarFallback className="text-[8px]">{c.user?.nickname?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <span className="font-semibold text-yellow-500">{c.user?.nickname}</span>
+                              <span className="text-gray-400 ml-1">{c.content}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Social Feed - Shows OTHER players' films
 const SocialFeed = () => {
   const { api, user } = useContext(AuthContext);
@@ -1694,6 +1950,7 @@ function App() {
               <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
               <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
               <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
+              <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
               <Route path="/social" element={<ProtectedRoute><SocialFeed /></ProtectedRoute>} />
               <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />

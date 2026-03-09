@@ -97,31 +97,31 @@ NAMES_BY_NATIONALITY = {
 
 NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
-# Preset Avatars (20 total)
+# Preset Avatars (20 total) - Realistic style
 PRESET_AVATARS = [
-    # Male - Modern Notion-style avatars
-    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Zach&backgroundColor=c0aede&body=variant01&gesture=hand', 'category': 'male'},
-    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Marcus&backgroundColor=ffd5dc&body=variant02&gesture=handPhone', 'category': 'male'},
-    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Leo&backgroundColor=b6e3f4&body=variant03', 'category': 'male'},
-    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=James&backgroundColor=ffdfbf&body=variant04&gesture=ok', 'category': 'male'},
-    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Director1&backgroundColor=1a1a2e&hair=variant01', 'category': 'male'},
-    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Producer1&backgroundColor=16213e&hair=variant04', 'category': 'male'},
-    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/personas/svg?seed=FilmStar&backgroundColor=0f3460', 'category': 'male'},
-    # Female - Modern stylized avatars
-    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Sofia&backgroundColor=ffd5dc&body=variant01&gesture=wave', 'category': 'female'},
-    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Luna&backgroundColor=c0aede&body=variant02', 'category': 'female'},
-    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Mia&backgroundColor=b6e3f4&body=variant03&gesture=hand', 'category': 'female'},
-    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/notionists/svg?seed=Aria&backgroundColor=ffdfbf&body=variant04', 'category': 'female'},
-    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actress1&backgroundColor=e94560&hair=variant02', 'category': 'female'},
-    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StarLady&backgroundColor=ff6b6b&hair=variant06', 'category': 'female'},
-    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/personas/svg?seed=Diva&backgroundColor=533483', 'category': 'female'},
-    # Fantasy - Creative/Cinema themed
-    {'id': 'fantasy-1', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Happy&backgroundColor=feca57&faceOffsetX=0&faceOffsetY=0', 'category': 'fantasy'},
-    {'id': 'fantasy-2', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Cool&backgroundColor=48dbfb&eyes=variant4W12', 'category': 'fantasy'},
-    {'id': 'fantasy-3', 'url': 'https://api.dicebear.com/9.x/thumbs/svg?seed=Star&backgroundColor=ff9ff3&eyes=variant2W10', 'category': 'fantasy'},
-    {'id': 'fantasy-4', 'url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CineBot&backgroundColor=00d2d3', 'category': 'fantasy'},
-    {'id': 'fantasy-5', 'url': 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=FilmBot&backgroundColor=5f27cd', 'category': 'fantasy'},
-    {'id': 'fantasy-6', 'url': 'https://api.dicebear.com/9.x/glass/svg?seed=Crystal&backgroundColor=0abde3', 'category': 'fantasy'}
+    # Male - Realistic Lorelei style avatars
+    {'id': 'male-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Director1&backgroundColor=b6e3f4&hair=variant01&beard=variant01', 'category': 'male'},
+    {'id': 'male-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Producer1&backgroundColor=c0aede&hair=variant03&beard=variant02', 'category': 'male'},
+    {'id': 'male-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actor1&backgroundColor=ffd5dc&hair=variant04', 'category': 'male'},
+    {'id': 'male-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Filmmaker1&backgroundColor=ffdfbf&hair=variant08&beard=variant01', 'category': 'male'},
+    {'id': 'male-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Screenwriter1&backgroundColor=d1d4f9&hair=variant02', 'category': 'male'},
+    {'id': 'male-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaMan&backgroundColor=c4e7d4&hair=variant06&beard=variant02', 'category': 'male'},
+    {'id': 'male-7', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StudioBoss&backgroundColor=fbe8d3&hair=variant07', 'category': 'male'},
+    # Female - Realistic Lorelei style avatars  
+    {'id': 'female-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Actress1&backgroundColor=ffd5dc&hair=variant02&earrings=variant01', 'category': 'female'},
+    {'id': 'female-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=DirectorLady&backgroundColor=c0aede&hair=variant04&earrings=variant02', 'category': 'female'},
+    {'id': 'female-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=FilmStar&backgroundColor=b6e3f4&hair=variant06', 'category': 'female'},
+    {'id': 'female-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=ProducerGal&backgroundColor=ffdfbf&hair=variant01&earrings=variant01', 'category': 'female'},
+    {'id': 'female-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaQueen&backgroundColor=d1d4f9&hair=variant03', 'category': 'female'},
+    {'id': 'female-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=ScriptWriter&backgroundColor=fbe8d3&hair=variant05&earrings=variant02', 'category': 'female'},
+    {'id': 'female-7', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=MovieDiva&backgroundColor=c4e7d4&hair=variant07', 'category': 'female'},
+    # Neutral/Creative - For all users
+    {'id': 'neutral-1', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=Cinephile1&backgroundColor=f8d7da&hair=variant01', 'category': 'neutral'},
+    {'id': 'neutral-2', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=MovieLover&backgroundColor=d4edda&hair=variant04', 'category': 'neutral'},
+    {'id': 'neutral-3', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=FilmBuff&backgroundColor=cce5ff&hair=variant06', 'category': 'neutral'},
+    {'id': 'neutral-4', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=StudioArtist&backgroundColor=e2d5f1&hair=variant02', 'category': 'neutral'},
+    {'id': 'neutral-5', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=CinemaFan&backgroundColor=fff3cd&hair=variant08', 'category': 'neutral'},
+    {'id': 'neutral-6', 'url': 'https://api.dicebear.com/9.x/lorelei/svg?seed=BoxOffice&backgroundColor=d6d6d6&hair=variant03', 'category': 'neutral'}
 ]
 
 # Chat Moderator Bots
@@ -461,6 +461,7 @@ TRANSLATIONS = {
         'documentary': 'Documentary',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Games',
+        'cinema_journal': 'Cinema Journal',
         'challenges': 'Challenges',
         'daily': 'Daily',
         'weekly': 'Weekly',
@@ -504,6 +505,7 @@ TRANSLATIONS = {
         'documentary': 'Documentario',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Giochi',
+        'cinema_journal': 'Giornale del Cinema',
         'challenges': 'Sfide',
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
@@ -547,6 +549,7 @@ TRANSLATIONS = {
         'documentary': 'Documental',
         'fantasy': 'Fantasía',
         'mini_games': 'Mini Juegos',
+        'cinema_journal': 'Diario del Cine',
         'challenges': 'Desafíos',
         'daily': 'Diarios',
         'weekly': 'Semanales',
@@ -590,6 +593,7 @@ TRANSLATIONS = {
         'documentary': 'Documentaire',
         'fantasy': 'Fantaisie',
         'mini_games': 'Mini Jeux',
+        'cinema_journal': 'Journal du Cinéma',
         'challenges': 'Défis',
         'daily': 'Quotidiens',
         'weekly': 'Hebdomadaires',
@@ -633,6 +637,7 @@ TRANSLATIONS = {
         'documentary': 'Dokumentation',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Spiele',
+        'cinema_journal': 'Kino Zeitung',
         'challenges': 'Herausforderungen',
         'daily': 'Täglich',
         'weekly': 'Wöchentlich',
@@ -932,7 +937,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid token")
 
 def generate_person_name():
-    """Generate a person with coherent name and nationality"""
+    """Generate a person with coherent name, nationality and gender"""
     nationality = random.choice(NATIONALITIES)
     names = NAMES_BY_NATIONALITY[nationality]
     is_female = random.choice([True, False])
@@ -943,11 +948,20 @@ def generate_person_name():
         first_name = random.choice(names['first_male'])
     
     last_name = random.choice(names['last'])
+    gender = 'female' if is_female else 'male'
+    
+    # Generate realistic avatar based on gender and name
+    avatar_seed = f"{first_name}_{last_name}_{nationality}"
+    if is_female:
+        avatar_url = f"https://api.dicebear.com/9.x/lorelei/svg?seed={avatar_seed}&backgroundColor=ffd5dc,c0aede,b6e3f4&hair=variant01,variant02,variant04,variant06&earrings=variant01,variant02"
+    else:
+        avatar_url = f"https://api.dicebear.com/9.x/lorelei/svg?seed={avatar_seed}&backgroundColor=b6e3f4,c0aede,ffdfbf&hair=variant01,variant03,variant04,variant08&beard=variant01,variant02"
     
     return {
         'name': f"{first_name} {last_name}",
         'nationality': nationality,
-        'gender': 'female' if is_female else 'male'
+        'gender': gender,
+        'avatar_url': avatar_url
     }
 
 async def get_or_create_person(person_type: str) -> dict:
@@ -972,7 +986,7 @@ async def get_or_create_person(person_type: str) -> dict:
             'age': random.randint(22, 65),
             'nationality': person_info['nationality'],
             'gender': person_info['gender'],
-            'avatar_url': f"https://api.dicebear.com/7.x/personas/svg?seed={uuid.uuid4()}",
+            'avatar_url': person_info['avatar_url'],
             'skills': skills,
             'skill_changes': skill_changes,
             'films_count': random.randint(0, 30),
@@ -1401,6 +1415,106 @@ async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     return [FilmResponse(**f) for f in films]
 
+@api_router.get("/films/social/feed")
+async def get_social_feed(
+    page: int = 1,
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    skip = (page - 1) * limit
+    films = await db.films.find(
+        {'user_id': {'$ne': user['id']}},
+        {'_id': 0}
+    ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
+    
+    for film in films:
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        film['owner'] = owner
+        
+        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
+        film['user_liked'] = like is not None
+        
+        # Get cast details with roles
+        cast_details = []
+        for actor_info in film.get('cast', []):
+            actor = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0})
+            if actor:
+                actor['role'] = actor_info.get('role', 'supporting')
+                cast_details.append(actor)
+        film['cast_details'] = cast_details
+    
+    total = await db.films.count_documents({'user_id': {'$ne': user['id']}})
+    return {'films': films, 'total': total, 'page': page}
+
+# Cinema Journal - Film newspaper style
+@api_router.get("/films/cinema-journal")
+async def get_cinema_journal(
+    page: int = 1,
+    limit: int = 10,
+    user: dict = Depends(get_current_user)
+):
+    """Get all films in newspaper style, ordered by quality score (beauty)"""
+    skip = (page - 1) * limit
+    
+    # Get all films ordered by quality_score descending
+    films = await db.films.find(
+        {},
+        {'_id': 0}
+    ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
+    
+    for film in films:
+        # Get owner details
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        film['owner'] = owner
+        
+        # Get director details
+        director = await db.people.find_one({'id': film.get('director', {}).get('id')}, {'_id': 0})
+        film['director_details'] = director
+        
+        # Get screenwriter details
+        screenwriter = await db.people.find_one({'id': film.get('screenwriter', {}).get('id')}, {'_id': 0})
+        film['screenwriter_details'] = screenwriter
+        
+        # Get main cast (protagonists and co-protagonists)
+        main_cast = []
+        for actor_info in film.get('cast', [])[:5]:  # Top 5 actors
+            actor = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0})
+            if actor:
+                actor['role'] = actor_info.get('role', 'supporting')
+                main_cast.append(actor)
+        film['main_cast'] = main_cast
+        
+        # Get user's rating if exists
+        user_rating = await db.film_ratings.find_one({'film_id': film['id'], 'user_id': user['id']})
+        film['user_rating'] = user_rating['rating'] if user_rating else None
+        
+        # Get average rating
+        ratings = await db.film_ratings.find({'film_id': film['id']}).to_list(1000)
+        if ratings:
+            film['average_rating'] = sum(r['rating'] for r in ratings) / len(ratings)
+            film['ratings_count'] = len(ratings)
+        else:
+            film['average_rating'] = None
+            film['ratings_count'] = 0
+        
+        # Get recent reviews/comments
+        comments = await db.film_comments.find(
+            {'film_id': film['id']},
+            {'_id': 0}
+        ).sort('created_at', -1).limit(3).to_list(3)
+        for comment in comments:
+            commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+            comment['user'] = commenter
+        film['recent_comments'] = comments
+        
+        # Check if current user liked the film
+        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
+        film['user_liked'] = like is not None
+    
+    total = await db.films.count_documents({})
+    return {'films': films, 'total': total, 'page': page}
+
+# Parameterized film routes - MUST be after specific routes
 @api_router.get("/films/{film_id}", response_model=FilmResponse)
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
@@ -1425,27 +1539,123 @@ async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
     
     return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
 
-@api_router.get("/films/social/feed")
-async def get_social_feed(
-    page: int = 1,
-    limit: int = 20,
-    user: dict = Depends(get_current_user)
-):
-    skip = (page - 1) * limit
-    films = await db.films.find(
-        {'user_id': {'$ne': user['id']}},
-        {'_id': 0}
-    ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
+# Rate a film (0-5 stars, including half stars)
+class FilmRating(BaseModel):
+    rating: float  # 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5
+
+@api_router.post("/films/{film_id}/rate")
+async def rate_film(film_id: str, rating_data: FilmRating, user: dict = Depends(get_current_user)):
+    """Rate a film from 0 to 5 stars (half stars allowed)"""
+    film = await db.films.find_one({'id': film_id})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
     
-    for film in films:
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        film['owner'] = owner
+    # Validate rating
+    valid_ratings = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+    if rating_data.rating not in valid_ratings:
+        raise HTTPException(status_code=400, detail="Invalid rating. Use 0-5 with half star increments.")
+    
+    # Check if user already rated this film
+    existing_rating = await db.film_ratings.find_one({'film_id': film_id, 'user_id': user['id']})
+    
+    if existing_rating:
+        # Update existing rating
+        old_rating = existing_rating['rating']
+        await db.film_ratings.update_one(
+            {'film_id': film_id, 'user_id': user['id']},
+            {'$set': {'rating': rating_data.rating, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+        )
+    else:
+        # Create new rating
+        old_rating = None
+        await db.film_ratings.insert_one({
+            'id': str(uuid.uuid4()),
+            'film_id': film_id,
+            'user_id': user['id'],
+            'rating': rating_data.rating,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Calculate penalty for low ratings
+    # Too many low ratings (< 2 stars) will affect the rater's own films
+    if rating_data.rating < 2:
+        # Count how many low ratings this user has given
+        low_ratings_count = await db.film_ratings.count_documents({
+            'user_id': user['id'],
+            'rating': {'$lt': 2}
+        })
         
-        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
-        film['user_liked'] = like is not None
+        # If user gives too many low ratings (>5), penalize their own films
+        if low_ratings_count > 5:
+            # Reduce quality score of user's own films slightly
+            await db.films.update_many(
+                {'user_id': user['id']},
+                {'$inc': {'quality_score': -0.5}}
+            )
+            # Also affect their character score
+            await db.users.update_one(
+                {'id': user['id']},
+                {'$inc': {'character_score': -0.2}}
+            )
     
-    total = await db.films.count_documents({'user_id': {'$ne': user['id']}})
-    return {'films': films, 'total': total, 'page': page}
+    # Update film quality based on rating
+    rating_impact = (rating_data.rating - 2.5) * 0.5  # Positive for good ratings, negative for bad
+    await db.films.update_one(
+        {'id': film_id},
+        {'$inc': {'quality_score': rating_impact}}
+    )
+    
+    # Get updated average
+    all_ratings = await db.film_ratings.find({'film_id': film_id}).to_list(1000)
+    avg_rating = sum(r['rating'] for r in all_ratings) / len(all_ratings) if all_ratings else 0
+    
+    return {
+        'rating': rating_data.rating,
+        'average_rating': round(avg_rating, 1),
+        'ratings_count': len(all_ratings)
+    }
+
+# Comment on a film
+class FilmComment(BaseModel):
+    content: str
+
+@api_router.post("/films/{film_id}/comment")
+async def comment_on_film(film_id: str, comment_data: FilmComment, user: dict = Depends(get_current_user)):
+    """Add a comment/review to a film"""
+    film = await db.films.find_one({'id': film_id})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    comment = {
+        'id': str(uuid.uuid4()),
+        'film_id': film_id,
+        'user_id': user['id'],
+        'content': comment_data.content[:500],  # Max 500 characters
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.film_comments.insert_one(comment)
+    
+    # Increase interaction score
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'interaction_score': 0.3}}
+    )
+    
+    return {k: v for k, v in comment.items() if k != '_id'}
+
+@api_router.get("/films/{film_id}/comments")
+async def get_film_comments(film_id: str, user: dict = Depends(get_current_user)):
+    """Get all comments for a film"""
+    comments = await db.film_comments.find(
+        {'film_id': film_id},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(100)
+    
+    for comment in comments:
+        commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        comment['user'] = commenter
+    
+    return comments
 
 @api_router.post("/films/{film_id}/like")
 async def like_film(film_id: str, user: dict = Depends(get_current_user)):
@@ -1977,21 +2187,21 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"screenplay-{uuid.uuid4()}",
-            system_message=f"You are a professional screenplay writer. Write all content in {language}."
+            system_message=f"You are a professional screenplay consultant. Write concise guidelines in {language}. Be brief but impactful."
         ).with_model("openai", "gpt-5.2")
         
-        prompt = f"""Write a {request.length} screenplay outline for a {request.genre} film titled "{request.title}".
+        prompt = f"""Create a BRIEF screenplay guideline (max 300 words) for a {request.genre} film titled "{request.title}".
         Tone: {request.tone}
         Language: {language}
         
-        Include:
-        - Opening scene
-        - Main plot points
-        - Key character moments
-        - Climax
-        - Resolution
+        Provide ONLY:
+        - Logline (1-2 sentences)
+        - Main conflict
+        - 3-4 key plot points (bullet points)
+        - Suggested ending type
+        - Mood/atmosphere notes
         
-        Format it professionally."""
+        Keep it SHORT and practical - these are guidelines for the director, not a full screenplay."""
         
         response = await chat.send_message(UserMessage(text=prompt))
         return {'screenplay': response}

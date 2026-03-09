@@ -65,6 +65,11 @@ Create a multiplayer online film production game with user profiles, film creati
 6. **Chat Moderator Bots**: 3 bots (CineMaster MOD, FilmGuide MOD, CineNews BOT) with auto-responses
 7. **Same-Day Film Release**: Films can now be released on the same day of creation
 8. **Auto Film Announcements**: CineNews bot announces new film releases in General chat (translated)
+9. **Cinema Journal**: New newspaper-style page showing all films ranked by quality, with star ratings (0-5), comments, and main cast display
+10. **Star Rating System**: Users can rate films 0-5 stars (half stars included). Too many negative ratings affect the rater's own films
+11. **Realistic Avatars**: All avatars (users and cast) now use Lorelei style for a more realistic look
+12. **Gender for Cast**: Actors, directors, and screenwriters now have gender displayed with matching avatars
+13. **Shorter AI Screenplay**: AI now generates brief guidelines (max 300 words) instead of full scripts
 
 ## API Endpoints
 - POST /api/auth/register, login, /me, /profile, /reset

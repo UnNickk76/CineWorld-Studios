@@ -28,6 +28,8 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Endpoint `/api/release-notes/unread-count` per contare non lette
   - Endpoint `/api/release-notes/mark-read` per marcare come lette
 - **Bug Fix Trailer**:
+  - ✅ **VERIFICATO FUNZIONANTE** - Trailer generato con successo in ~3 minuti
+  - Generazione trailer ora GRATUITA (rimosso costo $50k)
   - Migliorato caricamento chiave API nel background task
   - Validazione duration (deve essere 4, 8 o 12 secondi)
   - Logging migliorato per debug

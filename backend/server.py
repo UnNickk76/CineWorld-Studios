@@ -6137,13 +6137,7 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     if film.get('trailer_generating'):
         return {'status': 'generating', 'message': 'Trailer in generazione...'}
     
-    # Cost for trailer generation
-    trailer_cost = 50000  # $50k per trailer
-    if user.get('funds', 0) < trailer_cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${trailer_cost:,}")
-    
-    # Deduct cost
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -trailer_cost}})
+    # Trailer generation is FREE
     
     # Mark as generating and reset error (for retry)
     await db.films.update_one({'id': request.film_id}, {

@@ -3,9 +3,28 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.067
+## Versione Attuale: v0.069
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.069 - Video Cerimonia & Download Trailer - 10/03/2026 (COMPLETATO)
+- **Generazione Video Riassuntivo Cerimonia**:
+  - Video generato con FFmpeg dopo che tutti i vincitori sono annunciati
+  - Combinazione di background, audio TTS e sottotitoli SRT
+  - Pulsante "Genera Video" appare nel modale LIVE solo quando tutte le categorie sono annunciate
+  - Video salvato in `/app/backend/videos/` con metadata in MongoDB collection `ceremony_videos`
+  - Download via endpoint `GET /api/festivals/{festival_id}/ceremony-video/download`
+- **Pulizia Automatica Video**:
+  - Scheduler job `cleanup_ceremony_videos` eseguito ogni giorno alle 04:00 UTC
+  - Elimina video più vecchi di 3 giorni per risparmiare spazio
+- **Download Trailer Film**:
+  - Nuovo pulsante "Scarica" nella sezione trailer della pagina dettaglio film
+  - Endpoint `GET /api/films/{film_id}/trailer/download` supporta file locali e redirect URL
+- **Endpoint API**:
+  - `POST /api/festivals/{festival_id}/generate-ceremony-video` - Genera video
+  - `GET /api/festivals/{festival_id}/ceremony-video` - Info video disponibile
+  - `GET /api/festivals/{festival_id}/ceremony-video/download` - Download video
+  - `GET /api/films/{film_id}/trailer/download` - Download trailer film
 
 ### v0.068 - Sistema Pubblico Virtuale & Recensioni - 10/03/2026 (COMPLETATO)
 - **Like Virtuali del Pubblico**:
@@ -420,18 +439,23 @@ GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: `server.py` (~10700 righe) e `App.js` (~10100 righe) - URGENTE
+- [ ] **Refactoring Critico**: `server.py` (~13000 righe) e `App.js` (~12000 righe) - URGENTE (in pausa su richiesta utente)
 
 ### P1 - Priorità Alta
+- [ ] **Bug Mobile Residui**: Verificare che tutte le funzionalità siano usabili su mobile
+- [ ] **Avvio Automatico Cerimonie 21:30**: Implementare scheduler per avvio automatico cerimonia live all'orario stabilito
 - [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione dei film
+- [ ] **Automazione Note di Rilascio**: Sistema per aggiornare automaticamente release_notes dopo ogni implementazione
+
+### P2 - Priorità Media
 - [ ] **Cinema Distribution Page**: Aggiungere sezione nella pagina dettaglio film con lista cinema dove è in programmazione
 - [ ] **Attività delle Major**: Co-Produzioni, Sfide tra Major
 - [ ] **Sistema Acquisto CineCoins**: Integrazione Stripe per acquisto valuta di gioco (IN PAUSA)
 
-### P2 - Future
+### P3 - Future
 - [ ] Mini-giochi Versus tra giocatori
-- [ ] Cerimonie di premiazione "Live"
 - [ ] Traduzione categorie festival
+- [ ] Script migrazione dati per risolvere errori Pydantic con dati vecchi
 
 ## Note Tecniche
 

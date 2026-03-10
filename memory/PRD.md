@@ -3,9 +3,20 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.064
+## Versione Attuale: v0.065
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.065 - Bonus Visione Cerimonie - 10/03/2026 (COMPLETATO)
+- **Bonus Entrate per Visione Live**:
+  - Fino a +10% bonus sulle entrate guardando le cerimonie
+  - 6 minuti di visione = +1% bonus
+  - 60 minuti totali = +10% (massimo)
+  - Tracking tempo di visione in tempo reale
+  - Indicatore bonus visibile durante la live
+- **Notifiche Motivazionali**:
+  - Messaggi che ricordano del bonus ("Guarda in diretta per +10% bonus!")
+  - Notifiche aggiornate in tutte le lingue
 
 ### v0.064 - Festival System Update & Cinema Revenue - 10/03/2026 (COMPLETATO)
 - **Date Festival Aggiornate**:

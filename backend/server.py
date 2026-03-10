@@ -2305,10 +2305,11 @@ async def get_composers(
     user_films = await db.films.find({'user_id': user_id}, {'composer': 1}).to_list(1000)
     worked_with_ids = set()
     for film in user_films:
-        comp_info = film.get('composer', {})
-        comp_id = comp_info.get('id')
-        if comp_id:
-            worked_with_ids.add(comp_id)
+        comp_info = film.get('composer')
+        if comp_info and isinstance(comp_info, dict):
+            comp_id = comp_info.get('id')
+            if comp_id:
+                worked_with_ids.add(comp_id)
     
     language = user.get('language', 'en')
     for comp in composers:
@@ -3911,6 +3912,13 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if director:
         director_bonus = min(8, (director.get('fame', 3) - 3) * 2)
         base_quality += director_bonus
+    
+    # Load cast members from DB for quality calculation
+    cast_members = []
+    for actor_info in film_data.actors:
+        actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'avg_film_quality': 1, 'fame': 1})
+        if actor_doc:
+            cast_members.append(actor_doc)
     
     # Cast average quality influence (±6)
     cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50

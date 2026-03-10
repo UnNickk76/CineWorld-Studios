@@ -3441,28 +3441,44 @@ const FilmWizard = () => {
   }, [api]);
   
   const fetchPeople = async (type, category = '', skill = '') => {
-    let url = `/${type}?limit=200`;
-    if (category && category !== 'all') url += `&category=${category}`;
-    if (skill && skill !== 'all') url += `&skill=${skill}`;
-    
-    const res = await api.get(url);
-    if(type==='screenwriters') {
-      setScreenwriters(res.data.screenwriters);
-      setAvailableSkills(prev => ({...prev, screenwriters: res.data.available_skills || []}));
+    try {
+      let url = `/${type}?limit=200`;
+      if (category && category !== 'all') url += `&category=${category}`;
+      if (skill && skill !== 'all') url += `&skill=${skill}`;
+      
+      const res = await api.get(url);
+      if(type==='screenwriters') {
+        setScreenwriters(res.data.screenwriters || []);
+        setAvailableSkills(prev => ({...prev, screenwriters: res.data.available_skills || []}));
+      }
+      else if(type==='directors') {
+        setDirectors(res.data.directors || []);
+        setAvailableSkills(prev => ({...prev, directors: res.data.available_skills || []}));
+      }
+      else if(type==='actors') {
+        setActors(res.data.actors || []);
+        setAvailableSkills(prev => ({...prev, actors: res.data.available_skills || []}));
+      }
+      else if(type==='composers') {
+        setComposers(res.data.composers || []);
+        setAvailableSkills(prev => ({...prev, composers: res.data.available_skills || []}));
+      }
+      if (res.data.categories) setCastCategories(res.data.categories);
+    } catch(err) {
+      console.error(`Failed to fetch ${type}:`, err);
+      // Retry once after 1 second
+      setTimeout(async () => {
+        try {
+          let url = `/${type}?limit=200`;
+          const retryRes = await api.get(url);
+          if(type==='actors') setActors(retryRes.data.actors || []);
+          else if(type==='screenwriters') setScreenwriters(retryRes.data.screenwriters || []);
+          else if(type==='directors') setDirectors(retryRes.data.directors || []);
+          else if(type==='composers') setComposers(retryRes.data.composers || []);
+          if (retryRes.data.categories) setCastCategories(retryRes.data.categories);
+        } catch(e) { console.error(`Retry failed for ${type}:`, e); }
+      }, 1000);
     }
-    else if(type==='directors') {
-      setDirectors(res.data.directors);
-      setAvailableSkills(prev => ({...prev, directors: res.data.available_skills || []}));
-    }
-    else if(type==='actors') {
-      setActors(res.data.actors);
-      setAvailableSkills(prev => ({...prev, actors: res.data.available_skills || []}));
-    }
-    else if(type==='composers') {
-      setComposers(res.data.composers);
-      setAvailableSkills(prev => ({...prev, composers: res.data.available_skills || []}));
-    }
-    if (res.data.categories) setCastCategories(res.data.categories);
   };
   
   useEffect(() => { 

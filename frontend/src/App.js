@@ -122,7 +122,7 @@ const TopNavbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10] border-b border-white/10 z-50">
       <div className="max-w-7xl mx-auto h-full px-2 sm:px-3 flex items-center justify-between">
-        {/* Left section: Logo (Back button hidden on mobile for space) */}
+        {/* Left section: Logo */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Back Button - Hidden on very small screens */}
           {canGoBack && (
@@ -143,14 +143,14 @@ const TopNavbar = () => {
           </div>
         </div>
 
-        {/* Desktop Navigation - Hidden on mobile */}
-        <div className="hidden lg:flex items-center gap-0.5">
-          {navItems.map(item => (
+        {/* Center: Desktop Navigation (limited items) - Hidden on mobile */}
+        <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center overflow-hidden">
+          {navItems.slice(0, 8).map(item => (
             <Button
               key={item.path}
               variant={location.pathname === item.path ? "default" : "ghost"}
               size="sm"
-              className={`gap-1 px-2 h-8 ${location.pathname === item.path ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'text-gray-400 hover:text-white'}`}
+              className={`gap-1 px-2 h-8 flex-shrink-0 ${location.pathname === item.path ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'text-gray-400 hover:text-white'}`}
               onClick={() => navigate(item.path)}
               data-testid={`nav-${item.label}`}
             >
@@ -160,92 +160,106 @@ const TopNavbar = () => {
           ))}
         </div>
 
-        {/* Right section: Icons + Mobile Menu */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Festival Live Indicator - Compact on mobile */}
-          {festivalNotifications.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`relative h-8 px-2 text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-full ${festivalNotifications[0].type === 'starting' ? 'animate-pulse' : ''}`}
-              onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
-              data-testid="festival-live-btn"
-              title={festivalNotifications[0].message || 'Festival Live'}
-            >
-              <Tv className="w-4 h-4" />
-              <span className="font-bold text-xs ml-1 hidden xs:inline">
-                {festivalNotifications[0].type === 'starting' ? 'LIVE' : 
-                 festivalNotifications[0].type === '1_hour' ? '1h' :
-                 festivalNotifications[0].type === '3_hours' ? '3h' : '6h'}
-              </span>
-              {festivalNotifications[0].type === 'starting' && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
-              )}
-            </Button>
-          )}
+        {/* Right section: Quick Icons + Mobile Menu */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Festival/TV Button - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${festivalNotifications.length > 0 ? 'text-yellow-400 animate-pulse' : location.pathname === '/festivals' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => festivalNotifications.length > 0 ? navigate(`/festivals?live=${festivalNotifications[0].festival_id}`) : navigate('/festivals')}
+            data-testid="festival-tv-btn"
+            title={festivalNotifications.length > 0 ? (festivalNotifications[0].message || 'Festival Live') : (language === 'it' ? 'Festival' : 'Festivals')}
+          >
+            <Tv className="w-4 h-4" />
+            {festivalNotifications.length > 0 && festivalNotifications[0].type === 'starting' && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+            )}
+          </Button>
+          
+          {/* Major - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            onClick={() => navigate('/major')}
+            data-testid="major-btn"
+            title="Major"
+          >
+            <Crown className="w-4 h-4" />
+          </Button>
+          
+          {/* Infrastructure - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/infrastructure' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
+            onClick={() => navigate('/infrastructure')}
+            data-testid="infrastructure-btn"
+            title={language === 'it' ? 'Infrastrutture' : 'Infrastructure'}
+          >
+            <Building2 className="w-4 h-4" />
+          </Button>
+          
+          {/* Social/Chat - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            onClick={() => navigate('/social')}
+            data-testid="social-btn"
+            title={language === 'it' ? 'Social & Chat' : 'Social & Chat'}
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Button>
           
           {/* Notifications - Always visible */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-8 w-8 p-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/notifications')}
             data-testid="notifications-btn"
           >
             <Bell className="w-4 h-4" />
             {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                {notificationCount > 99 ? '99+' : notificationCount}
+              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                {notificationCount > 9 ? '9+' : notificationCount}
               </span>
             )}
           </Button>
 
-          {/* Funds - Always visible but compact on mobile */}
-          <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1.5 sm:px-2 py-1 rounded border border-yellow-500/20">
+          {/* Funds - Compact */}
+          <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-yellow-500/20">
             <DollarSign className="w-3 h-3 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-[10px] sm:text-xs" data-testid="user-funds">
-              ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds?.toLocaleString() || '0'}
+            <span className="text-yellow-500 font-bold text-[9px] sm:text-xs" data-testid="user-funds">
+              ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
             </span>
           </div>
           
-          {/* Hidden on mobile: Major, Friends, Level, Date, Language, Profile */}
+          {/* Friends - Hidden on very small mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
-            onClick={() => navigate('/major')}
-            data-testid="major-btn"
-          >
-            <Crown className="w-4 h-4" />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
+            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/friends')}
             data-testid="friends-btn"
+            title={language === 'it' ? 'Amici' : 'Friends'}
           >
             <UserPlus className="w-4 h-4" />
           </Button>
           
           {/* Level Badge - Hidden on mobile */}
           {levelInfo && (
-            <div className="hidden md:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')}>
+            <div className="hidden lg:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')}>
               <Star className="w-3 h-3 text-purple-400" />
               <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
             </div>
           )}
 
-          {/* Date - Hidden on mobile */}
-          <div className="hidden lg:flex items-center gap-1.5 text-xs text-gray-400">
-            <Calendar className="w-3 h-3" />
-            <span>{gameDate}</span>
-          </div>
-
-          {/* Language selector - Hidden on mobile */}
+          {/* Language selector - Hidden on small screens */}
           <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger className="hidden sm:flex w-12 h-7 text-xs bg-transparent border-white/10 px-1" data-testid="language-selector">
+            <SelectTrigger className="hidden md:flex w-12 h-7 text-xs bg-transparent border-white/10 px-1" data-testid="language-selector">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -260,7 +274,7 @@ const TopNavbar = () => {
           {/* Profile Avatar - Hidden on mobile */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" className="hidden sm:flex p-1 h-8 w-8" data-testid="profile-menu">
+              <Button variant="ghost" className="hidden md:flex p-1 h-8 w-8" data-testid="profile-menu">
                 <Avatar className="w-7 h-7 border border-yellow-500/30">
                   <AvatarImage src={user?.avatar_url} />
                   <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">
@@ -291,10 +305,10 @@ const TopNavbar = () => {
             </PopoverContent>
           </Popover>
 
-          {/* MOBILE HAMBURGER MENU - Always visible and prominent */}
+          {/* MOBILE HAMBURGER MENU - Always visible on mobile */}
           <Button 
             variant="ghost" 
-            className="lg:hidden flex items-center justify-center p-1.5 h-9 w-9 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
+            className="lg:hidden flex items-center justify-center p-1 h-8 w-8 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             data-testid="mobile-menu-btn"
           >

@@ -9311,7 +9311,7 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     # Calculate new duration
     current_total_days = planned_days + film.get('total_extension_days', 0)
     new_total_days = current_total_days + actual_extension
-    new_weeks = max(1, new_total_days / 7)
+    new_weeks = max(1, int(new_total_days / 7))  # Always integer
     
     # Update film
     await db.films.update_one(

@@ -306,22 +306,25 @@ const TopNavbar = () => {
             )}
           </Button>
           
-          {/* Festival Live Indicator */}
+          {/* Festival Live Indicator - Enhanced for Mobile */}
           {festivalNotifications.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="relative h-8 px-2 text-yellow-400 hover:text-yellow-300 animate-pulse"
-              onClick={() => navigate('/festivals')}
+              className={`relative h-9 px-2.5 sm:px-3 text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-full ${festivalNotifications[0].type === 'starting' ? 'animate-pulse' : ''}`}
+              onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
               data-testid="festival-live-btn"
+              title={festivalNotifications[0].message || 'Festival Live'}
             >
-              <Tv className="w-4 h-4 mr-1" />
-              <span className="text-xs font-bold">
+              <Tv className={`${festivalNotifications[0].type === 'starting' ? 'w-5 h-5' : 'w-4 h-4'} mr-1.5`} />
+              <span className={`font-bold ${festivalNotifications[0].type === 'starting' ? 'text-sm' : 'text-xs'}`}>
                 {festivalNotifications[0].type === 'starting' ? 'LIVE' : 
                  festivalNotifications[0].type === '1_hour' ? '1h' :
                  festivalNotifications[0].type === '3_hours' ? '3h' : '6h'}
               </span>
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+              {festivalNotifications[0].type === 'starting' && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+              )}
             </Button>
           )}
           
@@ -414,38 +417,95 @@ const TopNavbar = () => {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="lg:hidden absolute top-14 left-0 right-0 bg-[#0F0F10] border-b border-white/10 p-3"
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="lg:hidden absolute top-14 left-0 right-0 bg-[#0F0F10]/98 backdrop-blur-lg border-b border-white/10 shadow-xl"
           >
-            {/* Mobile Level Display */}
-            {levelInfo && (
-              <div className="flex items-center gap-2 mb-3 p-2 bg-purple-500/10 rounded border border-purple-500/20">
-                <Star className="w-4 h-4 text-purple-400" />
-                <span className="text-purple-400 font-bold">Level {levelInfo.level}</span>
-                <div className="flex-1 h-2 bg-purple-900/50 rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-500 rounded-full" style={{width: `${levelInfo.progress_percent}%`}} />
+            {/* Mobile Quick Stats Bar */}
+            <div className="flex items-center justify-between px-3 py-2 bg-black/30 border-b border-white/5">
+              {levelInfo && (
+                <div className="flex items-center gap-2">
+                  <Star className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
+                  <div className="w-16 h-1.5 bg-purple-900/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full" style={{width: `${levelInfo.progress_percent}%`}} />
+                  </div>
                 </div>
-                <span className="text-[10px] text-purple-300">{levelInfo.current_xp}/{levelInfo.xp_for_next_level}</span>
+              )}
+              <div className="flex items-center gap-1 text-xs text-gray-400">
+                <Calendar className="w-3 h-3" />
+                <span>{gameDate}</span>
               </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
+            </div>
+            
+            {/* Mobile Navigation Grid */}
+            <div className="grid grid-cols-3 gap-1.5 p-2">
               {navItems.map(item => (
                 <Button
                   key={item.path}
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
-                  className={`gap-2 justify-start h-9 relative ${location.pathname === item.path ? 'bg-yellow-500 text-black' : ''}`}
+                  className={`flex flex-col items-center gap-1 h-14 py-2 px-1 relative ${
+                    location.pathname === item.path 
+                      ? 'bg-yellow-500 text-black hover:bg-yellow-400' 
+                      : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                  }`}
                   onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
                 >
-                  <item.icon className="w-4 h-4" />
-                  {t(item.label)}
+                  <item.icon className="w-5 h-5" />
+                  <span className="text-[10px] font-medium truncate w-full text-center">{t(item.label)}</span>
                   {item.notificationCount > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[8px] h-2 w-2 bg-red-500 rounded-full" />
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                   )}
                 </Button>
               ))}
+            </div>
+            
+            {/* Mobile Quick Actions */}
+            <div className="flex items-center justify-around p-2 border-t border-white/5 bg-black/20">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-0.5 h-12 px-4 text-purple-400 hover:text-purple-300"
+                onClick={() => { navigate('/major'); setMobileMenuOpen(false); }}
+              >
+                <Crown className="w-4 h-4" />
+                <span className="text-[9px]">Major</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-0.5 h-12 px-4 text-blue-400 hover:text-blue-300"
+                onClick={() => { navigate('/friends'); setMobileMenuOpen(false); }}
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="text-[9px]">{language === 'it' ? 'Amici' : 'Friends'}</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-0.5 h-12 px-4 text-yellow-400 hover:text-yellow-300"
+                onClick={() => { navigate('/notifications'); setMobileMenuOpen(false); }}
+              >
+                <Bell className="w-4 h-4" />
+                <span className="text-[9px]">{language === 'it' ? 'Notifiche' : 'Alerts'}</span>
+                {notificationCount > 0 && (
+                  <span className="absolute -top-0.5 right-2 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                    {notificationCount > 99 ? '99+' : notificationCount}
+                  </span>
+                )}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-0.5 h-12 px-4 text-gray-400 hover:text-white"
+                onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
+              >
+                <User className="w-4 h-4" />
+                <span className="text-[9px]">{language === 'it' ? 'Profilo' : 'Profile'}</span>
+              </Button>
             </div>
           </motion.div>
         )}
@@ -1841,7 +1901,13 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="grid md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer" onClick={() => navigate('/festivals')}>
+          <CardContent className="p-3 flex items-center gap-2">
+            <div className="p-2 bg-red-500 rounded-lg"><Award className="w-5 h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
+          </CardContent>
+        </Card>
         <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create')}>
           <CardContent className="p-3 flex items-center gap-2">
             <div className="p-2 bg-yellow-500 rounded-lg"><Plus className="w-5 h-5 text-black" /></div>
@@ -8802,6 +8868,7 @@ const TutorialPage = () => {
 const FestivalsPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useTranslations();
+  const location = useLocation();
   const [festivals, setFestivals] = useState([]);
   const [customFestivals, setCustomFestivals] = useState([]);
   const [selectedFestival, setSelectedFestival] = useState(null);
@@ -8825,6 +8892,17 @@ const FestivalsPage = () => {
   const [chatMessage, setChatMessage] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const chatRefreshInterval = useRef(null);
+  const [autoOpenLiveId, setAutoOpenLiveId] = useState(null);
+
+  // Capture live parameter from URL immediately
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const liveId = params.get('live');
+    if (liveId) {
+      setAutoOpenLiveId(liveId);
+      window.history.replaceState({}, '', '/festivals');
+    }
+  }, [location.search]);
 
   const periodLabels = {
     'monthly': language === 'it' ? 'Questo Mese' : language === 'es' ? 'Este Mes' : 'This Month',
@@ -9005,6 +9083,17 @@ const FestivalsPage = () => {
     }
   };
 
+  // Auto-open live ceremony when festivals are loaded and autoOpenLiveId is set
+  useEffect(() => {
+    if (autoOpenLiveId && festivals.length > 0) {
+      const fest = festivals.find(f => f.id === autoOpenLiveId);
+      if (fest) {
+        openLiveCeremony(fest);
+        setAutoOpenLiveId(null);
+      }
+    }
+  }, [autoOpenLiveId, festivals]);
+
   const sendChatMessage = async () => {
     if (!chatMessage.trim() || !liveCeremony) return;
     setSendingChat(true);
@@ -9161,6 +9250,28 @@ const FestivalsPage = () => {
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto" data-testid="festivals-page">
+      {/* Navigation bar */}
+      <div className="flex items-center justify-between mb-4 bg-[#1A1A1A] rounded-lg p-2 sticky top-16 z-10">
+        <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="text-gray-400 hover:text-white">
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          {language === 'it' ? 'Indietro' : 'Back'}
+        </Button>
+        <div className="flex items-center gap-1">
+          {festivals.slice(0, 3).map(fest => (
+            <Button 
+              key={fest.id}
+              variant="ghost" 
+              size="sm" 
+              onClick={() => { setActiveTab('festivals'); loadFestivalEdition(fest.id); }}
+              className={`text-xs px-2 ${selectedFestival === fest.id ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-400'}`}
+            >
+              {fest.name.split(' ')[0]}
+              {fest.is_active && <span className="ml-1 w-2 h-2 bg-red-500 rounded-full inline-block animate-pulse"></span>}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <div className="text-center mb-6">
         <Award className="w-12 h-12 text-yellow-500 mx-auto mb-2" />
         <h1 className="font-['Bebas_Neue'] text-3xl">{language === 'it' ? 'Festival del Cinema' : language === 'es' ? 'Festivales de Cine' : 'Film Festivals'}</h1>
@@ -9725,7 +9836,7 @@ const FestivalsPage = () => {
             </motion.div>
           )}
 
-          <div className="flex-1 overflow-hidden flex" onClick={e => e.stopPropagation()}>
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
             {/* Main ceremony area */}
             <div className="flex-1 p-4 overflow-y-auto">
               <div className="max-w-4xl mx-auto">
@@ -9758,8 +9869,9 @@ const FestivalsPage = () => {
                       )}
                     </p>
                   </div>
-                  <Button variant="outline" onClick={closeLiveCeremony}>
-                    <X className="w-4 h-4 mr-1" />{language === 'it' ? 'Chiudi' : 'Close'}
+                  <Button variant="outline" onClick={closeLiveCeremony} className="bg-red-500/10 border-red-500/50 hover:bg-red-500 hover:text-white">
+                    <X className="w-4 h-4 md:mr-1" />
+                    <span className="hidden md:inline">{language === 'it' ? 'Chiudi' : 'Close'}</span>
                   </Button>
                 </div>
 
@@ -9836,17 +9948,26 @@ const FestivalsPage = () => {
               </div>
             </div>
 
-            {/* Chat sidebar */}
-            <div className="w-80 bg-[#0D0D0D] border-l border-white/10 flex flex-col">
-              <div className="p-3 border-b border-white/10">
+            {/* Chat sidebar - responsive for mobile */}
+            <div className="w-full md:w-80 bg-[#0D0D0D] border-t md:border-t-0 md:border-l border-white/10 flex flex-col max-h-[40vh] md:max-h-none">
+              <div className="p-3 border-b border-white/10 flex items-center justify-between">
                 <h3 className="font-semibold flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   {language === 'it' ? 'Chat Live' : 'Live Chat'}
                 </h3>
+                {/* Close button for mobile */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={closeLiveCeremony}
+                  className="md:hidden h-7 w-7 p-0 text-gray-400 hover:text-red-400"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
               
               {/* Chat messages */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[100px]">
                 {liveCeremony.chat_messages?.map(msg => (
                   <div key={msg.id} className="text-sm">
                     <span className="font-semibold text-yellow-400">{msg.nickname}:</span>
@@ -9859,13 +9980,13 @@ const FestivalsPage = () => {
               </div>
               
               {/* Chat input */}
-              <div className="p-3 border-t border-white/10">
+              <div className="p-2 md:p-3 border-t border-white/10">
                 <div className="flex gap-2">
                   <Input 
                     value={chatMessage}
                     onChange={e => setChatMessage(e.target.value)}
-                    placeholder={language === 'it' ? 'Scrivi un messaggio...' : 'Type a message...'}
-                    className="flex-1 bg-white/5 border-white/10 text-sm h-8"
+                    placeholder={language === 'it' ? 'Scrivi...' : 'Type...'}
+                    className="flex-1 bg-white/5 border-white/10 text-sm h-9 md:h-8"
                     maxLength={200}
                     onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
                   />
@@ -9873,9 +9994,9 @@ const FestivalsPage = () => {
                     size="sm" 
                     onClick={sendChatMessage} 
                     disabled={sendingChat || !chatMessage.trim()}
-                    className="bg-yellow-500 text-black h-8"
+                    className="bg-yellow-500 text-black h-9 md:h-8 px-3"
                   >
-                    <Send className="w-3 h-3" />
+                    <Send className="w-4 h-4 md:w-3 md:h-3" />
                   </Button>
                 </div>
               </div>

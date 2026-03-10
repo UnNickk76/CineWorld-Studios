@@ -3,9 +3,27 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.065
+## Versione Attuale: v0.066
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.066 - Menu Mobile Migliorato e Navigazione Festival Live - 10/03/2026 (COMPLETATO)
+- **Menu Mobile Completamente Ridisegnato**:
+  - Layout griglia 3x3 per navigazione principale
+  - Barra statistiche rapide (Livello, XP, Data di gioco)
+  - Quick actions in basso (Major, Friends, Alerts, Profile)
+  - Animazioni fluide con Framer Motion
+  - Backdrop blur per migliore leggibilità
+- **Indicatore Festival Live Migliorato**:
+  - Icona TV più grande quando c'è una cerimonia LIVE
+  - Pulsante con bordo arrotondato e sfondo evidenziato
+  - Click diretto alla cerimonia live (non più alla pagina generica)
+  - Pulse animation solo quando effettivamente LIVE
+  - Tooltip con messaggio della notifica
+- **Navigazione Diretta alla Live**:
+  - Parametro URL `?live={festival_id}` per apertura automatica
+  - Auto-apertura del modale cerimonia all'arrivo sulla pagina Festival
+  - Pulizia automatica del parametro URL dopo l'apertura
 
 ### v0.065 - Bonus Visione Cerimonie - 10/03/2026 (COMPLETATO)
 - **Bonus Entrate per Visione Live**:

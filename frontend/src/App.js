@@ -3785,6 +3785,7 @@ const FeedbackBoard = () => {
   const [category, setCategory] = useState('feature');
   const [severity, setSeverity] = useState('medium');
   const [steps, setSteps] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -3813,10 +3814,11 @@ const FeedbackBoard = () => {
     }
     setSubmitting(true);
     try {
-      const res = await api.post('/suggestions', { title, description, category });
+      const res = await api.post('/suggestions', { title, description, category, is_anonymous: isAnonymous });
       toast.success(res.data.message);
       setTitle('');
       setDescription('');
+      setIsAnonymous(false);
       setShowForm(false);
       loadData();
     } catch (e) {
@@ -3837,12 +3839,14 @@ const FeedbackBoard = () => {
         title, 
         description, 
         severity,
-        steps_to_reproduce: steps || null
+        steps_to_reproduce: steps || null,
+        is_anonymous: isAnonymous
       });
       toast.success(res.data.message);
       setTitle('');
       setDescription('');
       setSteps('');
+      setIsAnonymous(false);
       setShowForm(false);
       loadData();
     } catch (e) {
@@ -4073,6 +4077,28 @@ const FeedbackBoard = () => {
                 </>
               )}
               
+              {/* Anonymous Toggle */}
+              <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                <input 
+                  type="checkbox" 
+                  id="anonymous-toggle"
+                  checked={isAnonymous}
+                  onChange={(e) => setIsAnonymous(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-500"
+                />
+                <label htmlFor="anonymous-toggle" className="flex-1 cursor-pointer">
+                  <p className="text-sm font-medium">
+                    {language === 'it' ? 'Invia in modo anonimo' : 'Submit anonymously'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {language === 'it' 
+                      ? 'Il tuo nome non sarà visibile agli altri giocatori' 
+                      : 'Your name won\'t be visible to other players'}
+                  </p>
+                </label>
+                {isAnonymous && <EyeOff className="w-4 h-4 text-gray-400" />}
+              </div>
+              
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">
                   {language === 'it' ? 'Annulla' : 'Cancel'}
@@ -4129,11 +4155,20 @@ const FeedbackBoard = () => {
                       </div>
                       <p className="text-sm text-gray-400 mb-2">{s.description}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Avatar className="w-4 h-4">
-                          <AvatarImage src={s.user_avatar} />
-                          <AvatarFallback className="text-[8px]">{s.user_nickname?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <span>{s.user_nickname}</span>
+                        {s.is_anonymous ? (
+                          <>
+                            <EyeOff className="w-3 h-3" />
+                            <span className="italic">{language === 'it' ? 'Anonimo' : 'Anonymous'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Avatar className="w-4 h-4">
+                              <AvatarImage src={s.user_avatar} />
+                              <AvatarFallback className="text-[8px]">{s.user_nickname?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <span>{s.user_nickname}</span>
+                          </>
+                        )}
                         <span>•</span>
                         <span>{new Date(s.created_at).toLocaleDateString()}</span>
                       </div>
@@ -4178,11 +4213,20 @@ const FeedbackBoard = () => {
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Avatar className="w-4 h-4">
-                      <AvatarImage src={b.user_avatar} />
-                      <AvatarFallback className="text-[8px]">{b.user_nickname?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <span>{b.user_nickname}</span>
+                    {b.is_anonymous ? (
+                      <>
+                        <EyeOff className="w-3 h-3" />
+                        <span className="italic">{language === 'it' ? 'Anonimo' : 'Anonymous'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Avatar className="w-4 h-4">
+                          <AvatarImage src={b.user_avatar} />
+                          <AvatarFallback className="text-[8px]">{b.user_nickname?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <span>{b.user_nickname}</span>
+                      </>
+                    )}
                     <span>•</span>
                     <span>{new Date(b.created_at).toLocaleDateString()}</span>
                   </div>

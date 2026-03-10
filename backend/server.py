@@ -4181,12 +4181,14 @@ class SuggestionCreate(BaseModel):
     title: str
     description: str
     category: str = 'feature'  # feature, improvement, ui, gameplay, other
+    is_anonymous: bool = False  # Option to hide user identity
 
 class BugReportCreate(BaseModel):
     title: str
     description: str
     severity: str = 'medium'  # low, medium, high, critical
     steps_to_reproduce: Optional[str] = None
+    is_anonymous: bool = False  # Option to hide user identity
 
 @api_router.post("/suggestions")
 async def create_suggestion(suggestion: SuggestionCreate, user: dict = Depends(get_current_user)):
@@ -4196,8 +4198,9 @@ async def create_suggestion(suggestion: SuggestionCreate, user: dict = Depends(g
     new_suggestion = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
-        'user_nickname': user.get('nickname', 'Anonymous'),
-        'user_avatar': user.get('avatar_url'),
+        'user_nickname': 'Anonimo' if suggestion.is_anonymous else user.get('nickname', 'Anonymous'),
+        'user_avatar': None if suggestion.is_anonymous else user.get('avatar_url'),
+        'is_anonymous': suggestion.is_anonymous,
         'title': suggestion.title,
         'description': suggestion.description,
         'category': suggestion.category,
@@ -4231,8 +4234,9 @@ async def create_bug_report(bug: BugReportCreate, user: dict = Depends(get_curre
     new_bug = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
-        'user_nickname': user.get('nickname', 'Anonymous'),
-        'user_avatar': user.get('avatar_url'),
+        'user_nickname': 'Anonimo' if bug.is_anonymous else user.get('nickname', 'Anonymous'),
+        'user_avatar': None if bug.is_anonymous else user.get('avatar_url'),
+        'is_anonymous': bug.is_anonymous,
         'title': bug.title,
         'description': bug.description,
         'severity': bug.severity,

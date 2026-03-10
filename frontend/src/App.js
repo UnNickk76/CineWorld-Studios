@@ -213,6 +213,18 @@ const TopNavbar = () => {
             <Globe className="w-4 h-4" />
           </Button>
           
+          {/* Cinema Journal - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/journal')}
+            data-testid="journal-nav-btn"
+            title={language === 'it' ? 'Giornale del Cinema' : 'Cinema Journal'}
+          >
+            <Newspaper className="w-4 h-4" />
+          </Button>
+          
           {/* Challenges/Sfide - Always visible */}
           <Button
             variant="ghost"
@@ -3564,6 +3576,7 @@ const FilmWizard = () => {
   
   // Tier popup state
   const [tierPopup, setTierPopup] = useState(null);
+  const [criticReviewsPopup, setCriticReviewsPopup] = useState(null);
   
   const TIER_STYLES = {
     masterpiece: { bg: 'from-yellow-500/30 to-amber-500/30', border: 'border-yellow-500', text: 'text-yellow-400', emoji: '🏆' },
@@ -3583,27 +3596,24 @@ const FilmWizard = () => {
       const tier = res.data.film_tier || 'normal';
       const tierStyle = TIER_STYLES[tier] || TIER_STYLES.normal;
       
-      if (tier !== 'normal') {
-        // Show tier popup for special tiers
-        setTierPopup({
-          tier: tier,
-          style: tierStyle,
-          filmTitle: res.data.title,
-          opening: res.data.opening_day_revenue,
-          tierName: tier === 'masterpiece' ? 'Capolavoro' : 
-                   tier === 'epic' ? 'Epico' : 
-                   tier === 'excellent' ? 'Eccellente' : 
-                   tier === 'promising' ? 'Promettente' : 
-                   tier === 'flop' ? 'Possibile Flop' : 'Standard',
-          message: tier === 'flop' 
-            ? 'Non preoccuparti! A volte i flop diventano cult...' 
-            : 'Il pubblico è entusiasta!',
-          filmId: res.data.id
-        });
-      } else {
-        toast.success(`Film created! Opening: $${res.data.opening_day_revenue.toLocaleString()}`);
-        navigate(`/films/${res.data.id}`);
-      }
+      // Always show the critic reviews popup on film release
+      setCriticReviewsPopup({
+        filmId: res.data.id,
+        filmTitle: res.data.title,
+        tier: tier,
+        tierStyle: tierStyle,
+        tierName: tier === 'masterpiece' ? 'Capolavoro' : 
+                 tier === 'epic' ? 'Epico' : 
+                 tier === 'excellent' ? 'Eccellente' : 
+                 tier === 'promising' ? 'Promettente' : 
+                 tier === 'flop' ? 'Possibile Flop' :
+                 tier === 'mediocre' ? 'Mediocre' :
+                 tier === 'poor' ? 'Scarso' : 'Standard',
+        opening: res.data.opening_day_revenue,
+        qualityScore: res.data.quality_score,
+        reviews: res.data.critic_reviews || [],
+        effects: res.data.critic_effects || {},
+      });
       
       updateFunds(user.funds - calculateBudget() + getSponsorBudget() + filmData.ad_revenue + res.data.opening_day_revenue); 
     } catch(e) { 
@@ -4287,90 +4297,117 @@ const FilmWizard = () => {
       )}
 
       {/* Film Tier Celebration Popup */}
-      {tierPopup && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => { setTierPopup(null); navigate(`/films/${tierPopup.filmId}`); }}>
+      {/* Critic Reviews Popup - Shown on film release */}
+      {criticReviewsPopup && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => { setCriticReviewsPopup(null); navigate(`/films/${criticReviewsPopup.filmId}`); }}>
           <motion.div 
-            initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            transition={{ type: "spring", damping: 10 }}
-            className={`bg-gradient-to-br ${tierPopup.style.bg} ${tierPopup.style.border} border-2 rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden`}
+            initial={{ scale: 0.5, opacity: 0, y: 50 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: "spring", damping: 12 }}
+            className="bg-[#111] border border-gray-700 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative"
             onClick={e => e.stopPropagation()}
-            data-testid="tier-popup"
+            data-testid="critic-reviews-popup"
           >
-            {/* Confetti effect for positive tiers */}
-            {tierPopup.tier !== 'flop' && (
-              <div className="absolute inset-0 pointer-events-none">
-                {Array(20).fill(0).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute w-3 h-3 rounded-full"
-                    style={{
-                      background: ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#3B82F6'][i % 5],
-                      left: `${Math.random() * 100}%`,
-                      top: `-10%`
-                    }}
-                    animate={{
-                      y: [0, 500],
-                      x: [0, (Math.random() - 0.5) * 100],
-                      rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
-                      opacity: [1, 0]
-                    }}
-                    transition={{
-                      duration: 2 + Math.random(),
-                      delay: Math.random() * 0.5,
-                      repeat: Infinity
-                    }}
-                  />
+            {/* Header with tier */}
+            <div className={`bg-gradient-to-br ${criticReviewsPopup.tierStyle.bg} p-6 text-center rounded-t-2xl border-b ${criticReviewsPopup.tierStyle.border}`}>
+              <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 0.6, repeat: 2 }} className="text-5xl mb-2">
+                {criticReviewsPopup.tierStyle.emoji}
+              </motion.div>
+              <h2 className="font-['Bebas_Neue'] text-3xl text-white">{criticReviewsPopup.filmTitle}</h2>
+              <p className={`font-['Bebas_Neue'] text-2xl ${criticReviewsPopup.tierStyle.text} mt-1`}>{criticReviewsPopup.tierName}</p>
+              <p className="text-green-400 text-lg font-bold mt-2">
+                {language === 'it' ? 'Incasso' : 'Opening'}: ${criticReviewsPopup.opening?.toLocaleString()}
+              </p>
+            </div>
+            
+            {/* Critic Reviews Section */}
+            <div className="p-4">
+              <h3 className="font-['Bebas_Neue'] text-xl text-amber-400 mb-3 flex items-center gap-2">
+                <Newspaper className="w-5 h-5" /> {language === 'it' ? 'LA CRITICA' : 'CRITICS'}
+              </h3>
+              
+              <div className="space-y-3">
+                {criticReviewsPopup.reviews.map((review, idx) => (
+                  <motion.div 
+                    key={review.id || idx}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + idx * 0.2 }}
+                    className={`rounded-lg p-3 border ${
+                      review.sentiment === 'positive' ? 'bg-green-500/10 border-green-500/30' :
+                      review.sentiment === 'negative' ? 'bg-red-500/10 border-red-500/30' :
+                      'bg-gray-500/10 border-gray-500/30'
+                    }`}
+                    data-testid={`critic-review-${idx}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-white">{review.newspaper}</span>
+                        <div className="flex">
+                          {[...Array(review.newspaper_prestige || 3)].map((_, i) => (
+                            <Star key={i} className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />
+                          ))}
+                        </div>
+                      </div>
+                      <Badge className={`text-xs ${
+                        review.sentiment === 'positive' ? 'bg-green-500/30 text-green-400' :
+                        review.sentiment === 'negative' ? 'bg-red-500/30 text-red-400' :
+                        'bg-gray-500/30 text-gray-400'
+                      }`}>
+                        {review.score}/10
+                      </Badge>
+                    </div>
+                    <p className="text-gray-300 text-xs italic">"{review.review}"</p>
+                    <p className="text-gray-500 text-[10px] mt-1">- {review.critic_name}</p>
+                    
+                    {/* Effect indicator */}
+                    <div className="flex gap-2 mt-2 text-[10px]">
+                      {review.attendance_effect !== 0 && (
+                        <span className={review.attendance_effect > 0 ? 'text-green-400' : 'text-red-400'}>
+                          {review.attendance_effect > 0 ? '+' : ''}{review.attendance_effect} {language === 'it' ? 'spettatori' : 'viewers'}
+                        </span>
+                      )}
+                      {review.revenue_effect_pct !== 0 && (
+                        <span className={review.revenue_effect_pct > 0 ? 'text-green-400' : 'text-red-400'}>
+                          {review.revenue_effect_pct > 0 ? '+' : ''}{review.revenue_effect_pct}% {language === 'it' ? 'incassi' : 'revenue'}
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
                 ))}
               </div>
-            )}
-            
-            {/* Emoji and Title */}
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-              className="text-7xl mb-4"
-            >
-              {tierPopup.style.emoji}
-            </motion.div>
-            
-            <h2 className={`font-['Bebas_Neue'] text-4xl ${tierPopup.style.text} mb-2`}>
-              {tierPopup.tier === 'flop' ? 'Uh oh...' : 'Congratulazioni!'}
-            </h2>
-            
-            <p className="text-xl text-white mb-2">
-              {language === 'it' ? 'Hai creato un possibile' : "You've created a potential"}
-            </p>
-            
-            <h3 className={`font-['Bebas_Neue'] text-5xl ${tierPopup.style.text} mb-4`}>
-              {tierPopup.tierName}!
-            </h3>
-            
-            <p className="text-lg text-gray-300 mb-4">"{tierPopup.filmTitle}"</p>
-            
-            <div className={`bg-black/30 rounded-lg p-4 mb-4 ${tierPopup.style.border} border`}>
-              <p className="text-sm text-gray-300 mb-2">{tierPopup.message}</p>
-              <p className="text-2xl font-bold text-green-400">
-                {language === 'it' ? 'Incasso apertura' : 'Opening'}: ${tierPopup.opening?.toLocaleString()}
-              </p>
-              {tierPopup.tier !== 'flop' && tierPopup.tier !== 'normal' && (
-                <p className="text-xs text-gray-400 mt-2">
-                  {language === 'it' ? `Bonus giornaliero: +${TIER_STYLES[tierPopup.tier] ? ['5%', '3%', '2%', '1%'][['masterpiece', 'epic', 'excellent', 'promising'].indexOf(tierPopup.tier)] : '0%'}` : `Daily bonus: +${['5%', '3%', '2%', '1%'][['masterpiece', 'epic', 'excellent', 'promising'].indexOf(tierPopup.tier)] || '0%'}`}
-                </p>
-              )}
-              {tierPopup.tier === 'flop' && (
-                <p className="text-xs text-orange-300 mt-2">
-                  {language === 'it' ? 'Ma non arrenderti! A volte i flop diventano cult!' : "But don't give up! Sometimes flops become cult classics!"}
-                </p>
+              
+              {/* Total Effects Summary */}
+              {criticReviewsPopup.effects && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + criticReviewsPopup.reviews.length * 0.2 }}
+                  className="mt-4 bg-white/5 rounded-lg p-3 border border-white/10"
+                >
+                  <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Effetto critica totale:' : 'Total critic effect:'}</p>
+                  <div className="flex gap-4 text-sm">
+                    <span className={`${criticReviewsPopup.effects.attendance_bonus > 0 ? 'text-green-400' : criticReviewsPopup.effects.attendance_bonus < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                      {criticReviewsPopup.effects.attendance_bonus > 0 ? '+' : ''}{criticReviewsPopup.effects.attendance_bonus || 0} {language === 'it' ? 'spettatori' : 'viewers'}
+                    </span>
+                    <span className={`${criticReviewsPopup.effects.revenue_bonus_pct > 0 ? 'text-green-400' : criticReviewsPopup.effects.revenue_bonus_pct < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                      {criticReviewsPopup.effects.revenue_bonus_pct > 0 ? '+' : ''}{criticReviewsPopup.effects.revenue_bonus_pct || 0}% {language === 'it' ? 'incassi' : 'revenue'}
+                    </span>
+                  </div>
+                </motion.div>
               )}
             </div>
             
-            <Button 
-              className={`w-full ${tierPopup.tier === 'flop' ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-500 hover:bg-yellow-600'} text-black font-bold text-lg py-6`}
-              onClick={() => { setTierPopup(null); navigate(`/films/${tierPopup.filmId}`); }}
-            >
-              {language === 'it' ? 'Vai al Film' : 'Go to Film'} <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
+            {/* Action Button */}
+            <div className="p-4 pt-0">
+              <Button 
+                className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold text-lg py-5"
+                onClick={() => { setCriticReviewsPopup(null); navigate(`/films/${criticReviewsPopup.filmId}`); }}
+                data-testid="critic-reviews-go-btn"
+              >
+                {language === 'it' ? 'Vai al Film' : 'Go to Film'} <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
           </motion.div>
         </div>
       )}
@@ -7228,6 +7265,8 @@ const CinemaJournal = () => {
   const [showAllNews, setShowAllNews] = useState(false);
   const [showVirtualReviews, setShowVirtualReviews] = useState(false);
   const [showOtherNews, setShowOtherNews] = useState(false);
+  const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [hiringStarId, setHiringStarId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { 
@@ -7271,6 +7310,20 @@ const CinemaJournal = () => {
   const handleLike = async (filmId) => {
     const res = await api.post(`/films/${filmId}/like`);
     setFilms(films.map(f => f.id === filmId ? { ...f, user_liked: res.data.liked, likes_count: res.data.likes_count } : f));
+  };
+
+  const hireStar = async (starId) => {
+    setHiringStarId(starId);
+    try {
+      await api.post(`/stars/${starId}/hire`);
+      toast.success(language === 'it' ? 'Star ingaggiata!' : 'Star hired!');
+      const starsRes = await api.get('/discovered-stars');
+      setDiscoveredStars(starsRes.data.stars || []);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || (language === 'it' ? 'Errore nell\'ingaggio' : 'Hire failed'));
+    } finally {
+      setHiringStarId(null);
+    }
   };
 
   const StarRating = ({ value, onChange, readonly = false, size = 'md' }) => {
@@ -7396,18 +7449,18 @@ const CinemaJournal = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Other News Dialog */}
+      {/* Breaking News Dialog (was "Other News") */}
       <Dialog open={showOtherNews} onOpenChange={setShowOtherNews}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-purple-500/30">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-red-500/30">
           <DialogHeader>
-            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-purple-400">
-              <Sparkles className="w-6 h-6" /> {language === 'it' ? 'ALTRE NOTIZIE' : 'MORE NEWS'}
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-red-400">
+              <Flame className="w-6 h-6" /> BREAKING NEWS
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-3">
               {otherNews.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna altra notizia' : 'No other news'}</div>
+                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna breaking news' : 'No breaking news'}</div>
               ) : (
                 otherNews.map((item, idx) => (
                   <Card 
@@ -7428,15 +7481,74 @@ const CinemaJournal = () => {
                           item.category === 'record' ? 'bg-green-500/20 text-green-400' :
                           'bg-purple-500/20 text-purple-400'
                         }`}>
-                          {item.category === 'trending' ? '🔥 TRENDING' :
-                           item.category === 'star' ? '⭐ STAR' :
-                           item.category === 'record' ? '🏆 RECORD' :
-                           '📰 NEWS'}
+                          {item.category === 'trending' ? 'TRENDING' :
+                           item.category === 'star' ? 'STAR' :
+                           item.category === 'record' ? 'RECORD' :
+                           'NEWS'}
                         </Badge>
                       </div>
                       <h3 className="font-semibold text-sm">{item.title}</h3>
                       <p className="text-xs text-gray-400 mt-1">{item.content}</p>
                       {item.timestamp && <p className="text-[10px] text-gray-500 mt-2">{item.timestamp}</p>}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hall of Fame Dialog - Discovered Stars */}
+      <Dialog open={showHallOfFame} onOpenChange={setShowHallOfFame}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-amber-500/30">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-amber-400">
+              <Award className="w-6 h-6" /> HALL OF FAME
+            </DialogTitle>
+            <p className="text-gray-400 text-sm">{language === 'it' ? 'Le nuove stelle del cinema - clicca per pre-ingaggiare!' : 'New cinema stars - click to pre-hire!'}</p>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-3">
+              {discoveredStars.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna star scoperta' : 'No discovered stars'}</div>
+              ) : (
+                discoveredStars.map(star => (
+                  <Card 
+                    key={star.id} 
+                    className="bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10 transition-all"
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-14 h-14 ring-2 ring-amber-500">
+                          <AvatarImage src={star.avatar_url} />
+                          <AvatarFallback className="bg-amber-500/20 text-amber-400 font-bold">{star.name?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-semibold text-amber-300">{star.name}</p>
+                          <p className="text-[10px] text-gray-500">{star.type === 'actor' ? (language === 'it' ? 'Attore' : 'Actor') : star.type === 'director' ? (language === 'it' ? 'Regista' : 'Director') : star.type}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {star.stars && <div className="flex">{[...Array(Math.min(5, star.stars || 0))].map((_, i) => <Star key={i} className="w-3 h-3 fill-yellow-500 text-yellow-500" />)}</div>}
+                            <span className="text-[10px] text-gray-400">{language === 'it' ? 'Scoperto da' : 'Discovered by'} {star.discoverer?.nickname}</span>
+                          </div>
+                          {star.skills && (
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {Object.entries(star.skills || {}).slice(0, 3).map(([k, v]) => (
+                                <Badge key={k} className="bg-white/10 text-[9px] h-4">{k}: {v}</Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <Button 
+                          size="sm" 
+                          className="bg-amber-500 hover:bg-amber-600 text-black font-bold h-8 px-3"
+                          onClick={() => hireStar(star.id)}
+                          disabled={hiringStarId === star.id}
+                          data-testid={`hire-star-${star.id}`}
+                        >
+                          {hiringStarId === star.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : (language === 'it' ? 'Ingaggia' : 'Hire')}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -7456,32 +7568,48 @@ const CinemaJournal = () => {
           <div className="h-px w-16 bg-yellow-500/50" />
         </div>
         <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
-        
-        {/* Quick Action Buttons */}
-        <div className="flex justify-center gap-2 mt-4">
+      </div>
+
+      {/* Sticky Category Bar - stays fixed when scrolling */}
+      <div className="sticky top-14 z-40 bg-[#0D0D0D]/95 backdrop-blur-md border-b border-white/10 -mx-3 px-3 py-2 mb-6">
+        <div className="flex justify-center gap-2 max-w-5xl mx-auto">
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowAllNews(true)}
-            className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+            className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 text-xs h-8"
+            data-testid="journal-news-btn"
           >
-            <Newspaper className="w-4 h-4 mr-1" /> {language === 'it' ? 'News' : 'News'}
+            <Newspaper className="w-3.5 h-3.5 mr-1" /> News
+            {news.length > 0 && <Badge className="ml-1 bg-yellow-500/30 text-yellow-300 text-[9px] h-4 px-1">{news.length}</Badge>}
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowVirtualReviews(true)}
-            className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
+            className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10 text-xs h-8"
+            data-testid="journal-audience-btn"
           >
-            <MessageCircle className="w-4 h-4 mr-1" /> {language === 'it' ? 'Pubblico' : 'Audience'}
+            <MessageCircle className="w-3.5 h-3.5 mr-1" /> {language === 'it' ? 'Pubblico' : 'Audience'}
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowOtherNews(true)}
-            className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-8"
+            data-testid="journal-breaking-btn"
           >
-            <Sparkles className="w-4 h-4 mr-1" /> {language === 'it' ? 'Altre News' : 'More'}
+            <Flame className="w-3.5 h-3.5 mr-1" /> Breaking News
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowHallOfFame(true)}
+            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs h-8"
+            data-testid="journal-halloffame-btn"
+          >
+            <Award className="w-3.5 h-3.5 mr-1" /> Hall of Fame
+            {discoveredStars.length > 0 && <Badge className="ml-1 bg-amber-500/30 text-amber-300 text-[9px] h-4 px-1">{discoveredStars.length}</Badge>}
           </Button>
         </div>
       </div>
@@ -7571,67 +7699,7 @@ const CinemaJournal = () => {
         </Card>
       )}
 
-      {/* Breaking News - Star Discoveries */}
-      {news.length > 0 && (
-        <Card className="bg-gradient-to-r from-yellow-500/10 to-purple-500/10 border-yellow-500/30 mb-6 overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 text-yellow-500" />
-              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">BREAKING NEWS</h2>
-            </div>
-            <div className="space-y-3">
-              {news.slice(0, 3).map(item => (
-                <div key={item.id} className="flex items-start gap-3 p-3 bg-black/30 rounded-lg">
-                  {item.person_avatar && (
-                    <Avatar className="w-12 h-12 ring-2 ring-yellow-500">
-                      <AvatarImage src={item.person_avatar} />
-                      <AvatarFallback className="bg-yellow-500/20 text-yellow-500">{item.person_name?.[0]}</AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-yellow-500">{item.title_localized}</h3>
-                      {item.importance === 'high' && <Badge className="bg-red-500/20 text-red-400 text-[10px]">HOT</Badge>}
-                    </div>
-                    <p className="text-sm text-gray-300 mt-1">{item.content_localized}</p>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                      <span>Scoperto da {item.discoverer_name}</span>
-                      <span>•</span>
-                      <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Discovered Stars Hall of Fame */}
-      {discoveredStars.length > 0 && (
-        <Card className="bg-[#1A1A1A] border-purple-500/30 mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Award className="w-5 h-5 text-purple-400" />
-              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">HALL OF FAME - STELLE SCOPERTE</h2>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {discoveredStars.slice(0, 8).map(star => (
-                <div key={star.id} className="flex-shrink-0 w-24 text-center">
-                  <Avatar className="w-16 h-16 mx-auto ring-2 ring-purple-500">
-                    <AvatarImage src={star.avatar_url} />
-                    <AvatarFallback className="bg-purple-500/20 text-purple-400">{star.name?.[0]}</AvatarFallback>
-                  </Avatar>
-                  <p className="text-xs font-semibold mt-1 truncate">{star.name}</p>
-                  <p className="text-[10px] text-gray-500">by {star.discoverer?.nickname}</p>
-                  <Badge className="bg-purple-500/20 text-purple-400 text-[10px] mt-1">Superstar</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
       {loading ? (
         <div className="text-center py-8 text-gray-400">Loading the latest news...</div>
       ) : films.length === 0 ? (

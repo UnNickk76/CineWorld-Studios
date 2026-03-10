@@ -40,7 +40,8 @@ from game_systems import (
     calculate_star_discovery_chance, evolve_cast_skills, calculate_negative_rating_penalty,
     WORLD_EVENTS, get_active_world_events, calculate_event_bonus,
     calculate_tour_rating, generate_tour_review,
-    calculate_film_tier, calculate_tier_daily_revenue, check_film_expectations, FILM_TIERS
+    calculate_film_tier, calculate_tier_daily_revenue, check_film_expectations, FILM_TIERS,
+    generate_critic_reviews
 )
 
 # Import enhanced cast system v2
@@ -1405,6 +1406,9 @@ class FilmResponse(BaseModel):
     # Attendance
     cumulative_attendance: int = 0
     popularity_score: float = 0
+    # Critic reviews
+    critic_reviews: Optional[List[Dict[str, Any]]] = None
+    critic_effects: Optional[Dict[str, Any]] = None
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -4196,6 +4200,30 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     
     # Store likes as array of user IDs for tracking who liked
     film['liked_by'] = []
+    
+    # Generate critic reviews with bonus/malus
+    user_lang = user.get('language', 'it')
+    critic_data = generate_critic_reviews(film, user_lang)
+    film['critic_reviews'] = critic_data['reviews']
+    film['critic_effects'] = critic_data['total_effects']
+    
+    # Apply critic effects to film
+    critic_attendance = critic_data['total_effects']['attendance_bonus']
+    critic_revenue_pct = critic_data['total_effects']['revenue_bonus_pct'] / 100
+    critic_rating = critic_data['total_effects']['rating_bonus']
+    
+    # Apply attendance bonus
+    film['cumulative_attendance'] = max(0, film.get('cumulative_attendance', 0) + critic_attendance)
+    
+    # Apply revenue bonus/malus to opening day
+    if critic_revenue_pct != 0:
+        revenue_adjustment = int(film['opening_day_revenue'] * critic_revenue_pct)
+        film['opening_day_revenue'] = max(0, film['opening_day_revenue'] + revenue_adjustment)
+        film['total_revenue'] = film['opening_day_revenue']
+    
+    # Apply rating bonus/malus
+    current_satisfaction = film.get('audience_satisfaction', quality_score)
+    film['audience_satisfaction'] = max(0, min(100, current_satisfaction + critic_rating * 10))
     
     await db.films.insert_one(film)
     

@@ -1756,3 +1756,193 @@ def generate_tour_review() -> dict:
         'comment': comment,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
+
+
+# ==================== FILM CRITIC REVIEWS SYSTEM ====================
+
+CRITIC_NEWSPAPERS = [
+    {'name': 'Variety', 'bias': 'neutral', 'prestige': 5},
+    {'name': 'The Hollywood Reporter', 'bias': 'neutral', 'prestige': 5},
+    {'name': 'Empire Magazine', 'bias': 'positive', 'prestige': 4},
+    {'name': 'Screen International', 'bias': 'neutral', 'prestige': 4},
+    {'name': 'Cahiers du Cinéma', 'bias': 'critical', 'prestige': 5},
+    {'name': 'Il Corriere del Cinema', 'bias': 'positive', 'prestige': 3},
+    {'name': 'IndieWire', 'bias': 'critical', 'prestige': 4},
+    {'name': 'CinemaScope', 'bias': 'neutral', 'prestige': 3},
+    {'name': 'La Gazzetta dello Spettacolo', 'bias': 'positive', 'prestige': 3},
+    {'name': 'Film Comment', 'bias': 'critical', 'prestige': 4},
+    {'name': 'Sight & Sound', 'bias': 'critical', 'prestige': 5},
+    {'name': 'CineBlog24', 'bias': 'positive', 'prestige': 2},
+    {'name': 'Rolling Stone Cinema', 'bias': 'neutral', 'prestige': 4},
+    {'name': 'The Guardian Film', 'bias': 'critical', 'prestige': 4},
+    {'name': 'Premiere', 'bias': 'positive', 'prestige': 3},
+]
+
+CRITIC_JOURNALISTS = [
+    'Marco Silvetti', 'Elena Rossini', 'James Crawford', 'Sophie Laurent',
+    'Antonio De Luca', 'Sarah Mitchell', 'Kenji Nakamura', 'Claire Dubois',
+    'Roberto Ferrara', 'David Chen', 'Maria Garcia', 'Thomas Berg',
+    'Francesca Moretti', 'Alex Turner', 'Yuki Tanaka', 'Isabella Conti',
+    'Michael Foster', 'Laura Bianchi', 'Pierre Martin', 'Giulia Mancini'
+]
+
+POSITIVE_REVIEWS_IT = [
+    "Un film che lascia il segno. Regia impeccabile e cast straordinario.",
+    "Opera magistrale che ridefinisce il genere. Da vedere assolutamente.",
+    "Emozioni pure dal primo all'ultimo fotogramma. Capolavoro.",
+    "Una sorpresa inaspettata. Sceneggiatura brillante e fotografia mozzafiato.",
+    "Il cast dà il meglio di sé in questa pellicola avvincente.",
+    "Cinema di altissimo livello. Un gioiello raro nel panorama attuale.",
+    "Dialoghi taglienti e regia sicura. Un film che non delude.",
+    "Storia potente servita da interpretazioni eccezionali.",
+    "Un'esperienza cinematografica completa. Tecnicamente perfetto.",
+    "Destinato a fare storia. Memorabile sotto ogni aspetto.",
+]
+
+NEUTRAL_REVIEWS_IT = [
+    "Un film solido ma senza guizzi particolari. Buona la prova del cast.",
+    "Intrattiene senza sorprendere. Produzione di buon livello.",
+    "Alti e bassi per questa pellicola. Alcune scene memorabili, altre dimenticabili.",
+    "Un lavoro onesto che raggiunge il suo scopo senza strafare.",
+    "Tecnicamente competente ma manca quel qualcosa in più.",
+    "Film godibile che non lascia un segno indelebile.",
+    "Discreta prova registica, cast adeguato al ruolo.",
+    "Sufficiente. Niente di eccezionale, ma neanche deludente.",
+]
+
+NEGATIVE_REVIEWS_IT = [
+    "Purtroppo non convince. Sceneggiatura debole e ritmo altalenante.",
+    "Una delusione su tutta la linea. Occasione mancata.",
+    "Il film si perde a metà strada. Troppe scene inutili.",
+    "Cast sprecato in una storia che non decolla mai.",
+    "Regia confusa e montaggio approssimativo. Bocciato.",
+    "Lontano dalle aspettative. Il pubblico meritava di meglio.",
+    "Un passo falso evidente. Serviva più lavoro sulla sceneggiatura.",
+    "Non riesce a tenere l'attenzione. Produzione frettolosa.",
+]
+
+POSITIVE_REVIEWS_EN = [
+    "A film that leaves a mark. Flawless direction and extraordinary cast.",
+    "A masterful work that redefines the genre. A must-see.",
+    "Pure emotions from first to last frame. Masterpiece.",
+    "An unexpected surprise. Brilliant screenplay and breathtaking cinematography.",
+    "The cast gives their best in this compelling film.",
+    "Cinema at its finest. A rare gem in today's landscape.",
+    "Sharp dialogue and confident direction. A film that delivers.",
+    "A powerful story served by exceptional performances.",
+    "A complete cinematic experience. Technically perfect.",
+    "Destined to make history. Memorable in every way.",
+]
+
+NEUTRAL_REVIEWS_EN = [
+    "A solid film but without particular sparks. Good cast performance.",
+    "Entertaining without being surprising. Well-produced overall.",
+    "Ups and downs for this film. Some memorable scenes, some forgettable.",
+    "An honest work that achieves its purpose without overreaching.",
+    "Technically competent but lacks that something extra.",
+    "An enjoyable film that doesn't leave an indelible mark.",
+    "Decent directorial work, cast adequate for the roles.",
+    "Sufficient. Nothing exceptional, but not disappointing either.",
+]
+
+NEGATIVE_REVIEWS_EN = [
+    "Unfortunately unconvincing. Weak screenplay and uneven pacing.",
+    "A letdown across the board. A missed opportunity.",
+    "The film loses its way midway. Too many unnecessary scenes.",
+    "A wasted cast in a story that never takes off.",
+    "Confused direction and sloppy editing. Failed.",
+    "Far from expectations. The audience deserved better.",
+    "An obvious misstep. More work on the screenplay was needed.",
+    "Fails to hold attention. A rushed production.",
+]
+
+
+def generate_critic_reviews(film: dict, language: str = 'it') -> List[dict]:
+    """
+    Generate 2-4 critic reviews based on film quality.
+    Returns list of reviews with sentiment, bonus/malus info.
+    """
+    quality = film.get('quality_score', 50)
+    tier = film.get('film_tier', 'average')
+    
+    # Determine number of reviews (2-4)
+    num_reviews = random.randint(2, 4)
+    
+    # Pick random newspapers and critics (no duplicates)
+    selected_papers = random.sample(CRITIC_NEWSPAPERS, min(num_reviews, len(CRITIC_NEWSPAPERS)))
+    selected_critics = random.sample(CRITIC_JOURNALISTS, min(num_reviews, len(CRITIC_JOURNALISTS)))
+    
+    reviews = []
+    total_attendance_bonus = 0
+    total_revenue_bonus = 0
+    total_rating_bonus = 0
+    
+    for i in range(num_reviews):
+        paper = selected_papers[i]
+        critic = selected_critics[i]
+        
+        # Determine sentiment based on quality + newspaper bias + randomness
+        sentiment_roll = quality + random.uniform(-15, 15)
+        
+        if paper['bias'] == 'positive':
+            sentiment_roll += 8
+        elif paper['bias'] == 'critical':
+            sentiment_roll -= 8
+        
+        # Classify sentiment
+        if sentiment_roll >= 70:
+            sentiment = 'positive'
+            if language == 'it':
+                review_text = random.choice(POSITIVE_REVIEWS_IT)
+            else:
+                review_text = random.choice(POSITIVE_REVIEWS_EN)
+            critic_score = random.uniform(7.0, 9.5)
+            attendance_effect = random.randint(50, 200) * paper['prestige']
+            revenue_effect = random.uniform(0.02, 0.06) * paper['prestige']
+            rating_effect = random.uniform(0.1, 0.3)
+        elif sentiment_roll >= 40:
+            sentiment = 'neutral'
+            if language == 'it':
+                review_text = random.choice(NEUTRAL_REVIEWS_IT)
+            else:
+                review_text = random.choice(NEUTRAL_REVIEWS_EN)
+            critic_score = random.uniform(5.0, 7.0)
+            attendance_effect = random.randint(-30, 50)
+            revenue_effect = random.uniform(-0.01, 0.02)
+            rating_effect = random.uniform(-0.1, 0.1)
+        else:
+            sentiment = 'negative'
+            if language == 'it':
+                review_text = random.choice(NEGATIVE_REVIEWS_IT)
+            else:
+                review_text = random.choice(NEGATIVE_REVIEWS_EN)
+            critic_score = random.uniform(2.0, 5.0)
+            attendance_effect = random.randint(-200, -30) * (paper['prestige'] // 2)
+            revenue_effect = random.uniform(-0.05, -0.01) * paper['prestige']
+            rating_effect = random.uniform(-0.3, -0.1)
+        
+        total_attendance_bonus += int(attendance_effect)
+        total_revenue_bonus += revenue_effect
+        total_rating_bonus += rating_effect
+        
+        reviews.append({
+            'id': str(uuid.uuid4()),
+            'newspaper': paper['name'],
+            'newspaper_prestige': paper['prestige'],
+            'critic_name': critic,
+            'sentiment': sentiment,
+            'review': review_text,
+            'score': round(critic_score, 1),
+            'attendance_effect': int(attendance_effect),
+            'revenue_effect_pct': round(revenue_effect * 100, 1),
+            'rating_effect': round(rating_effect, 2)
+        })
+    
+    return {
+        'reviews': reviews,
+        'total_effects': {
+            'attendance_bonus': int(total_attendance_bonus),
+            'revenue_bonus_pct': round(total_revenue_bonus * 100, 1),
+            'rating_bonus': round(total_rating_bonus, 2)
+        }
+    }

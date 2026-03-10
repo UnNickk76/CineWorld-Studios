@@ -1922,7 +1922,7 @@ const ChallengesPage = () => {
   const { user, api } = useContext(AuthContext);
   const { language } = useTranslations();
   const navigate = useNavigate();
-  const [view, setView] = useState('home'); // home, 1v1, 2v2, 3v3, 4v4, ffa, create, battle, leaderboard
+  const [view, setView] = useState('home'); // home, 1v1, 2v2, 3v3, 4v4, ffa, create, battle, leaderboard, pending, completed, history
   const [challengeType, setChallengeType] = useState(null);
   const [myFilms, setMyFilms] = useState([]);
   const [selectedFilms, setSelectedFilms] = useState([]);
@@ -1937,6 +1937,9 @@ const ChallengesPage = () => {
   const [opponentId, setOpponentId] = useState('');
   const [myStats, setMyStats] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showPending, setShowPending] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -2045,6 +2048,26 @@ const ChallengesPage = () => {
       }
     } catch (e) {
       toast.error('Errore caricamento sfida');
+    }
+  };
+
+  const cancelChallenge = async (challengeId) => {
+    try {
+      await api.post(`/challenges/${challengeId}/cancel`);
+      toast.success(language === 'it' ? 'Sfida annullata!' : 'Challenge cancelled!');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore annullamento');
+    }
+  };
+
+  const resendChallenge = async (challengeId) => {
+    try {
+      await api.post(`/challenges/${challengeId}/resend`);
+      toast.success(language === 'it' ? 'Sfida riproposta!' : 'Challenge resent!');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
     }
   };
 
@@ -2206,6 +2229,200 @@ const ChallengesPage = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Pending Challenges Dialog */}
+        <Dialog open={showPending} onOpenChange={setShowPending}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-yellow-500/30">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-yellow-400">
+                <Clock className="w-6 h-6" /> {language === 'it' ? 'SFIDE IN SOSPESO' : 'PENDING CHALLENGES'}
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              <div className="space-y-3">
+                {myChallenges.filter(c => c.status === 'waiting' || c.status === 'pending').length === 0 ? (
+                  <div className="text-center py-8">
+                    <Clock className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                    <p className="text-gray-400">{language === 'it' ? 'Nessuna sfida in sospeso' : 'No pending challenges'}</p>
+                  </div>
+                ) : (
+                  myChallenges.filter(c => c.status === 'waiting' || c.status === 'pending').map(c => (
+                    <Card key={c.id} className="bg-yellow-500/10 border-yellow-500/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-lg">{c.type.toUpperCase()}</p>
+                            <p className="text-xs text-gray-400">
+                              {c.participants?.length || 1}/{c.required_players || 2} {language === 'it' ? 'giocatori' : 'players'}
+                            </p>
+                          </div>
+                          <Badge className="bg-yellow-500/20 text-yellow-400">
+                            {c.status === 'waiting' ? (language === 'it' ? 'In Attesa' : 'Waiting') : 'Pending'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">
+                          {language === 'it' ? 'Creata il' : 'Created'}: {new Date(c.created_at).toLocaleString()}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black"
+                            onClick={() => resendChallenge(c.id)}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" /> {language === 'it' ? 'Riproponi' : 'Resend'}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            onClick={() => cancelChallenge(c.id)}
+                          >
+                            <X className="w-4 h-4 mr-1" /> {language === 'it' ? 'Annulla' : 'Cancel'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
+        {/* Completed Challenges Dialog */}
+        <Dialog open={showCompleted} onOpenChange={setShowCompleted}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-green-500/30">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-green-400">
+                <CheckCircle className="w-6 h-6" /> {language === 'it' ? 'SFIDE COMPLETATE' : 'COMPLETED CHALLENGES'}
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              <div className="space-y-3">
+                {myChallenges.filter(c => c.status === 'completed').length === 0 ? (
+                  <div className="text-center py-8">
+                    <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                    <p className="text-gray-400">{language === 'it' ? 'Nessuna sfida completata' : 'No completed challenges'}</p>
+                  </div>
+                ) : (
+                  myChallenges.filter(c => c.status === 'completed').map(c => {
+                    const isWinner = c.result?.winner === 'team_a' && c.participants?.find(p => p.user_id === user.id)?.team === 'a' ||
+                                     c.result?.winner === 'team_b' && c.participants?.find(p => p.user_id === user.id)?.team === 'b';
+                    return (
+                      <Card 
+                        key={c.id} 
+                        className={`cursor-pointer hover:scale-[1.01] transition-transform ${isWinner ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}
+                        onClick={() => { setShowCompleted(false); viewBattleResult(c.id); }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-3 rounded-lg ${isWinner ? 'bg-green-500' : 'bg-red-500'}`}>
+                                {isWinner ? <Trophy className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                              </div>
+                              <div>
+                                <p className="font-bold">{c.type.toUpperCase()}</p>
+                                <p className="text-xs text-gray-400">{new Date(c.completed_at).toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <Badge className={isWinner ? 'bg-green-500' : 'bg-red-500'}>
+                              {isWinner ? (language === 'it' ? 'VITTORIA' : 'VICTORY') : (language === 'it' ? 'SCONFITTA' : 'DEFEAT')}
+                            </Badge>
+                          </div>
+                          {c.result && (
+                            <div className="mt-3 pt-3 border-t border-white/10 text-xs text-gray-400">
+                              {c.result.team_a?.name} {c.result.team_a?.rounds_won} - {c.result.team_b?.rounds_won} {c.result.team_b?.name}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
+        {/* History Dialog */}
+        <Dialog open={showHistory} onOpenChange={setShowHistory}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-blue-500/30">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-blue-400">
+                <History className="w-6 h-6" /> {language === 'it' ? 'STORICO SFIDE' : 'CHALLENGE HISTORY'}
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              <div className="space-y-3">
+                {myChallenges.length === 0 ? (
+                  <div className="text-center py-8">
+                    <History className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                    <p className="text-gray-400">{language === 'it' ? 'Nessuna sfida nel tuo storico' : 'No challenges in your history'}</p>
+                  </div>
+                ) : (
+                  myChallenges.map(c => {
+                    const isWinner = c.status === 'completed' && (
+                      c.result?.winner === 'team_a' && c.participants?.find(p => p.user_id === user.id)?.team === 'a' ||
+                      c.result?.winner === 'team_b' && c.participants?.find(p => p.user_id === user.id)?.team === 'b'
+                    );
+                    return (
+                      <Card 
+                        key={c.id} 
+                        className={`${
+                          c.status === 'completed' 
+                            ? (isWinner ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20')
+                            : c.status === 'cancelled' 
+                              ? 'bg-gray-500/5 border-gray-500/20' 
+                              : 'bg-yellow-500/5 border-yellow-500/20'
+                        } cursor-pointer hover:bg-white/5`}
+                        onClick={() => c.status === 'completed' && viewBattleResult(c.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${
+                                c.status === 'completed' 
+                                  ? (isWinner ? 'bg-green-500' : 'bg-red-500')
+                                  : c.status === 'cancelled' 
+                                    ? 'bg-gray-500' 
+                                    : 'bg-yellow-500'
+                              }`}>
+                                {c.status === 'completed' 
+                                  ? (isWinner ? <Trophy className="w-4 h-4" /> : <X className="w-4 h-4" />)
+                                  : c.status === 'cancelled' 
+                                    ? <X className="w-4 h-4" />
+                                    : <Clock className="w-4 h-4 text-black" />
+                                }
+                              </div>
+                              <div>
+                                <p className="font-semibold text-sm">{c.type.toUpperCase()}</p>
+                                <p className="text-[10px] text-gray-500">{new Date(c.created_at).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <Badge className={`text-[10px] ${
+                              c.status === 'completed' 
+                                ? (isWinner ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')
+                                : c.status === 'cancelled' 
+                                  ? 'bg-gray-500/20 text-gray-400' 
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {c.status === 'completed' 
+                                ? (isWinner ? (language === 'it' ? 'Vinta' : 'Won') : (language === 'it' ? 'Persa' : 'Lost'))
+                                : c.status === 'cancelled' 
+                                  ? (language === 'it' ? 'Annullata' : 'Cancelled')
+                                  : (language === 'it' ? 'In attesa' : 'Waiting')
+                              }
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -2215,15 +2432,49 @@ const ChallengesPage = () => {
                 {language === 'it' ? 'SFIDE' : 'CHALLENGES'}
               </h1>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowTutorial(true)}
-              className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
-              data-testid="tutorial-btn"
-            >
-              <Lightbulb className="w-4 h-4 mr-1" /> Tutorial
-            </Button>
+            <div className="flex gap-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowHistory(true)}
+                className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-2"
+                title={language === 'it' ? 'Storico' : 'History'}
+              >
+                <History className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowPending(true)}
+                className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 px-2 relative"
+                title={language === 'it' ? 'In Sospeso' : 'Pending'}
+              >
+                <Clock className="w-4 h-4" />
+                {myChallenges.filter(c => c.status === 'waiting' || c.status === 'pending').length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full text-[10px] text-black flex items-center justify-center">
+                    {myChallenges.filter(c => c.status === 'waiting' || c.status === 'pending').length}
+                  </span>
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowCompleted(true)}
+                className="border-green-500/30 text-green-400 hover:bg-green-500/10 px-2"
+                title={language === 'it' ? 'Completate' : 'Completed'}
+              >
+                <CheckCircle className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowTutorial(true)}
+                className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
+                data-testid="tutorial-btn"
+              >
+                <Lightbulb className="w-4 h-4 mr-1" /> Tutorial
+              </Button>
+            </div>
           </div>
           <p className="text-gray-400 text-sm">{language === 'it' ? 'Sfida altri giocatori con i tuoi film!' : 'Challenge other players with your films!'}</p>
         </motion.div>

@@ -11574,6 +11574,79 @@ async def get_user_challenge_stats(user_id: str, user: dict = Depends(get_curren
         'recent_challenges': len(recent)
     }
 
+@api_router.post("/challenges/{challenge_id}/cancel")
+async def cancel_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Cancel a pending challenge (creator only)."""
+    user_id = user['id']
+    
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    if challenge['creator_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Solo il creatore può annullare la sfida")
+    
+    if challenge['status'] not in ['pending', 'waiting']:
+        raise HTTPException(status_code=400, detail="Questa sfida non può essere annullata")
+    
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {'status': 'cancelled', 'cancelled_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Notify participants
+    for p in challenge.get('participants', []):
+        if p['user_id'] != user_id:
+            await db.notifications.insert_one({
+                'id': str(uuid.uuid4()),
+                'user_id': p['user_id'],
+                'type': 'challenge_cancelled',
+                'title': 'Sfida Annullata',
+                'message': f'{user.get("nickname", "Un giocatore")} ha annullato la sfida {challenge["type"].upper()}',
+                'data': {'challenge_id': challenge_id},
+                'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            })
+    
+    return {'success': True, 'message': 'Sfida annullata!'}
+
+@api_router.post("/challenges/{challenge_id}/resend")
+async def resend_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Resend notifications for a pending challenge (creator only)."""
+    user_id = user['id']
+    
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    if challenge['creator_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Solo il creatore può riproporre la sfida")
+    
+    if challenge['status'] not in ['pending', 'waiting']:
+        raise HTTPException(status_code=400, detail="Questa sfida non può essere riproposta")
+    
+    # Update expiration
+    new_expiration = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {'expires_at': new_expiration, 'resent_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # If specific opponent, resend notification
+    if challenge.get('opponent_id'):
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': challenge['opponent_id'],
+            'type': 'challenge_invite',
+            'title': '⚔️ Sfida Riproposta!',
+            'message': f'{user.get("nickname", "Un giocatore")} ti ha nuovamente sfidato! Accetta entro 24 ore.',
+            'data': {'challenge_id': challenge_id, 'challenger': user.get('nickname')},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {'success': True, 'message': 'Sfida riproposta! Scadenza estesa di 24 ore.'}
+
 # ==================== CREATOR CONTACT SYSTEM ====================
 
 CREATOR_NICKNAME = "NeoMorpheus"  # The Creator's nickname

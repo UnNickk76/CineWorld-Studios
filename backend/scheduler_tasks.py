@@ -90,6 +90,149 @@ async def update_all_films_revenue():
         logger.error(f"[SCHEDULER] Error in update_all_films_revenue: {e}")
 
 
+# List of countries/states for cinema distribution
+CINEMA_COUNTRIES = [
+    {'code': 'US', 'name': 'USA', 'weight': 25},
+    {'code': 'IT', 'name': 'Italia', 'weight': 15},
+    {'code': 'FR', 'name': 'Francia', 'weight': 12},
+    {'code': 'DE', 'name': 'Germania', 'weight': 10},
+    {'code': 'UK', 'name': 'Regno Unito', 'weight': 10},
+    {'code': 'ES', 'name': 'Spagna', 'weight': 8},
+    {'code': 'JP', 'name': 'Giappone', 'weight': 7},
+    {'code': 'CN', 'name': 'Cina', 'weight': 6},
+    {'code': 'BR', 'name': 'Brasile', 'weight': 4},
+    {'code': 'MX', 'name': 'Messico', 'weight': 3},
+]
+
+
+async def update_film_attendance():
+    """
+    Update attendance (affluenza) for all films in theaters.
+    Runs every 10 minutes to simulate real-time cinema attendance.
+    This affects film rankings dynamically.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        
+        # Find all films currently in theaters
+        active_films = await scheduler_db.films.find({
+            'status': {'$in': ['in_theaters', 'released']}
+        }).to_list(1000)
+        
+        if not active_films:
+            return
+        
+        updated_count = 0
+        for film in active_films:
+            try:
+                quality = film.get('quality_score', 50)
+                popularity = film.get('popularity_score', 50)
+                likes = film.get('likes_count', 0)
+                
+                # Calculate base attendance based on quality and popularity
+                # Higher quality = more cinemas want to show the film
+                base_cinemas = int(10 + (quality * 0.8) + (popularity * 0.5))
+                
+                # Add some randomness (±20%)
+                num_cinemas = int(base_cinemas * random.uniform(0.8, 1.2))
+                num_cinemas = max(5, min(500, num_cinemas))  # Cap between 5-500
+                
+                # Distribute cinemas across countries based on weights
+                cinema_distribution = []
+                remaining_cinemas = num_cinemas
+                
+                for country in CINEMA_COUNTRIES:
+                    if remaining_cinemas <= 0:
+                        break
+                    country_cinemas = int(num_cinemas * (country['weight'] / 100) * random.uniform(0.7, 1.3))
+                    country_cinemas = max(0, min(remaining_cinemas, country_cinemas))
+                    
+                    if country_cinemas > 0:
+                        # Calculate attendance per cinema (50-200 average per showing)
+                        avg_attendance = int(30 + (quality * 1.5) + random.randint(-20, 40))
+                        avg_attendance = max(20, min(300, avg_attendance))
+                        
+                        cinema_distribution.append({
+                            'country_code': country['code'],
+                            'country_name': country['name'],
+                            'cinemas': country_cinemas,
+                            'avg_attendance': avg_attendance,
+                            'total_attendance': country_cinemas * avg_attendance
+                        })
+                        remaining_cinemas -= country_cinemas
+                
+                # Calculate totals
+                total_cinemas = sum(c['cinemas'] for c in cinema_distribution)
+                total_attendance = sum(c['total_attendance'] for c in cinema_distribution)
+                avg_attendance_per_cinema = total_attendance // total_cinemas if total_cinemas > 0 else 0
+                
+                # Historical tracking
+                attendance_history = film.get('attendance_history', [])
+                attendance_history.append({
+                    'timestamp': now.isoformat(),
+                    'total_cinemas': total_cinemas,
+                    'total_attendance': total_attendance
+                })
+                # Keep only last 144 entries (24 hours at 10-min intervals)
+                attendance_history = attendance_history[-144:]
+                
+                # Calculate cumulative attendance
+                cumulative_attendance = film.get('cumulative_attendance', 0) + total_attendance
+                total_screenings = film.get('total_screenings', 0) + total_cinemas
+                
+                # Update popularity score based on attendance trend
+                recent_avg = sum(h['total_attendance'] for h in attendance_history[-6:]) / min(6, len(attendance_history)) if attendance_history else 0
+                older_avg = sum(h['total_attendance'] for h in attendance_history[-12:-6]) / 6 if len(attendance_history) > 6 else recent_avg
+                
+                attendance_trend = 1.0
+                if older_avg > 0:
+                    attendance_trend = recent_avg / older_avg
+                
+                # Adjust popularity based on attendance (±5% max per update)
+                popularity_adjustment = (attendance_trend - 1) * 5
+                new_popularity = max(0, min(100, popularity + popularity_adjustment))
+                
+                # Calculate new cineboard score including attendance factor
+                revenue = film.get('total_revenue', 0)
+                awards = len(film.get('awards', []))
+                attendance_factor = min(20, (cumulative_attendance / 100000) * 10)  # Max 20 points from attendance
+                
+                cineboard_score = (
+                    quality * 0.25 +
+                    new_popularity * 0.20 +
+                    (revenue / 10000000) * 15 +
+                    awards * 3 +
+                    likes * 0.5 +
+                    attendance_factor
+                )
+                
+                # Update film document
+                await scheduler_db.films.update_one(
+                    {'id': film['id']},
+                    {'$set': {
+                        'current_cinemas': total_cinemas,
+                        'cinema_distribution': cinema_distribution,
+                        'current_attendance': total_attendance,
+                        'avg_attendance_per_cinema': avg_attendance_per_cinema,
+                        'cumulative_attendance': cumulative_attendance,
+                        'total_screenings': total_screenings,
+                        'attendance_history': attendance_history,
+                        'popularity_score': round(new_popularity, 1),
+                        'cineboard_score': round(cineboard_score, 2),
+                        'last_attendance_update': now.isoformat()
+                    }}
+                )
+                
+                updated_count += 1
+            except Exception as film_error:
+                logger.error(f"[SCHEDULER] Error updating attendance for film {film.get('id')}: {film_error}")
+        
+        if updated_count > 0:
+            logger.info(f"[SCHEDULER] Updated attendance for {updated_count} films")
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Error in update_film_attendance: {e}")
+
+
 async def reset_daily_challenges():
     """
     Reset daily challenges for all users.
@@ -205,7 +348,7 @@ async def update_cinema_revenue():
         now = datetime.now(timezone.utc)
         
         # Find all cinemas
-        cinemas = await scheduler_db.infrastructures.find({
+        cinemas = await scheduler_db.infrastructure.find({
             'type': 'cinema',
             'level': {'$gte': 1}
         }).to_list(10000)
@@ -226,7 +369,7 @@ async def update_cinema_revenue():
                     
                     hourly_revenue = (base_revenue + film_bonus) * hours_passed * random.uniform(0.8, 1.2)
                     
-                    await scheduler_db.infrastructures.update_one(
+                    await scheduler_db.infrastructure.update_one(
                         {'_id': cinema['_id']},
                         {
                             '$inc': {'total_revenue': hourly_revenue},

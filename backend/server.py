@@ -3555,6 +3555,80 @@ async def get_cineboard_hall_of_fame(
         'category': 'hall_of_fame'
     }
 
+@api_router.get("/cineboard/attendance")
+async def get_cineboard_attendance(
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    """Get films ranked by attendance and screenings."""
+    # Get films in theaters with attendance data
+    now_playing = await db.films.find(
+        {'status': {'$in': ['in_theaters', 'released']}, 'current_cinemas': {'$gt': 0}},
+        {'_id': 0}
+    ).sort('current_cinemas', -1).to_list(100)
+    
+    # Get all-time most screened films
+    all_time = await db.films.find(
+        {'total_screenings': {'$gt': 0}},
+        {'_id': 0}
+    ).sort('total_screenings', -1).to_list(100)
+    
+    # Process now playing
+    top_now_playing = []
+    for i, film in enumerate(now_playing[:limit]):
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1})
+        top_now_playing.append({
+            'rank': i + 1,
+            'id': film['id'],
+            'title': film.get('title'),
+            'poster_url': film.get('poster_url'),
+            'current_cinemas': film.get('current_cinemas', 0),
+            'current_attendance': film.get('current_attendance', 0),
+            'avg_attendance_per_cinema': film.get('avg_attendance_per_cinema', 0),
+            'cinema_distribution': film.get('cinema_distribution', [])[:5],  # Top 5 countries
+            'quality_score': film.get('quality_score', 0),
+            'popularity_score': film.get('popularity_score', 0),
+            'owner': owner
+        })
+    
+    # Process all-time
+    top_all_time = []
+    for i, film in enumerate(all_time[:limit]):
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1})
+        top_all_time.append({
+            'rank': i + 1,
+            'id': film['id'],
+            'title': film.get('title'),
+            'poster_url': film.get('poster_url'),
+            'total_screenings': film.get('total_screenings', 0),
+            'cumulative_attendance': film.get('cumulative_attendance', 0),
+            'avg_attendance_per_screening': film.get('cumulative_attendance', 0) // max(1, film.get('total_screenings', 1)),
+            'status': film.get('status'),
+            'quality_score': film.get('quality_score', 0),
+            'owner': owner
+        })
+    
+    # Calculate global stats
+    all_films_in_theaters = await db.films.find(
+        {'status': {'$in': ['in_theaters', 'released']}},
+        {'current_cinemas': 1, 'current_attendance': 1}
+    ).to_list(1000)
+    
+    total_cinemas_showing = sum(f.get('current_cinemas', 0) for f in all_films_in_theaters)
+    total_current_attendance = sum(f.get('current_attendance', 0) for f in all_films_in_theaters)
+    avg_attendance = total_current_attendance // max(1, total_cinemas_showing)
+    
+    return {
+        'top_now_playing': top_now_playing,
+        'top_all_time': top_all_time,
+        'global_stats': {
+            'total_films_in_theaters': len(all_films_in_theaters),
+            'total_cinemas_showing': total_cinemas_showing,
+            'total_current_attendance': total_current_attendance,
+            'avg_attendance_per_cinema': avg_attendance
+        }
+    }
+
 @api_router.post("/films/{film_id}/user-rating")
 async def submit_user_rating(film_id: str, rating: float, user: dict = Depends(get_current_user)):
     """Submit user rating for a film (1-10 scale)."""
@@ -3799,6 +3873,51 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film['cineboard_score'] = calculate_cineboard_score(film)
     
     return FilmResponse(**film)
+
+@api_router.get("/films/{film_id}/distribution")
+async def get_film_distribution(film_id: str, user: dict = Depends(get_current_user)):
+    """Get cinema distribution data for a film - where it's showing."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Get current distribution data
+    cinema_distribution = film.get('cinema_distribution', [])
+    current_cinemas = film.get('current_cinemas', 0)
+    current_attendance = film.get('current_attendance', 0)
+    avg_attendance = film.get('avg_attendance_per_cinema', 0)
+    
+    # Get historical data
+    attendance_history = film.get('attendance_history', [])
+    
+    # Calculate trend (last 6 updates vs previous 6)
+    if len(attendance_history) >= 2:
+        recent = attendance_history[-6:] if len(attendance_history) >= 6 else attendance_history
+        recent_avg = sum(h['total_cinemas'] for h in recent) / len(recent)
+        
+        if len(attendance_history) > 6:
+            older = attendance_history[-12:-6]
+            older_avg = sum(h['total_cinemas'] for h in older) / len(older) if older else recent_avg
+            trend = 'growing' if recent_avg > older_avg * 1.05 else 'declining' if recent_avg < older_avg * 0.95 else 'stable'
+        else:
+            trend = 'new'
+    else:
+        trend = 'no_data'
+    
+    return {
+        'film_id': film_id,
+        'title': film.get('title'),
+        'status': film.get('status'),
+        'current_cinemas': current_cinemas,
+        'current_attendance': current_attendance,
+        'avg_attendance_per_cinema': avg_attendance,
+        'cumulative_attendance': film.get('cumulative_attendance', 0),
+        'total_screenings': film.get('total_screenings', 0),
+        'distribution': cinema_distribution,
+        'trend': trend,
+        'last_update': film.get('last_attendance_update'),
+        'history_24h': attendance_history[-144:] if attendance_history else []  # Last 24h of data
+    }
 
 @api_router.delete("/films/{film_id}")
 async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
@@ -6152,7 +6271,8 @@ async def startup_event():
         generate_daily_cast_members_task,
         update_cinema_revenue,
         cleanup_expired_hired_stars,
-        update_leaderboard_scores
+        update_leaderboard_scores,
+        update_film_attendance
     )
     
     # Add scheduled jobs
@@ -6218,6 +6338,14 @@ async def startup_event():
         reset_weekly_challenges,
         CronTrigger(day_of_week='mon', hour=0, minute=0),
         id='reset_weekly_challenges',
+        replace_existing=True
+    )
+    
+    # Every 10 minutes: Update film attendance (affects rankings)
+    scheduler.add_job(
+        update_film_attendance,
+        IntervalTrigger(minutes=10),
+        id='update_film_attendance',
         replace_existing=True
     )
     

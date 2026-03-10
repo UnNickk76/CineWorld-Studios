@@ -2768,6 +2768,7 @@ const FilmDetail = () => {
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
+  const [distribution, setDistribution] = useState(null);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -2776,16 +2777,18 @@ const FilmDetail = () => {
 
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    const [filmRes, rolesRes, trailerRes, actionsRes] = await Promise.all([
+    const [filmRes, rolesRes, trailerRes, actionsRes, distRes] = await Promise.all([
       api.get(`/films/${id}`),
       api.get('/actor-roles').catch(() => ({ data: [] })),
       api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
-      api.get(`/films/${id}/actions`).catch(() => ({ data: null }))
+      api.get(`/films/${id}/actions`).catch(() => ({ data: null })),
+      api.get(`/films/${id}/distribution`).catch(() => ({ data: null }))
     ]);
     setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
     if (trailerRes.data) setTrailerStatus(trailerRes.data);
     if (actionsRes.data) setFilmActions(actionsRes.data);
+    if (distRes.data) setDistribution(distRes.data);
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -3227,6 +3230,83 @@ const FilmDetail = () => {
                     {rereleaseStatus?.reason || (language === 'it' ? 'Verifica stato in corso...' : 'Checking status...')}
                   </p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cinema Distribution Section - Where the film is showing */}
+          {distribution && distribution.current_cinemas > 0 && (
+            <Card className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-blue-400" /> 
+                  {language === 'it' ? 'In Programmazione' : 'Now Showing In'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Cinema' : 'Cinemas'}</p>
+                    <p className="text-xl font-bold text-blue-400">{distribution.current_cinemas}</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Spettatori' : 'Viewers'}</p>
+                    <p className="text-xl font-bold text-green-400">{distribution.current_attendance?.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Media/Cinema' : 'Avg/Cinema'}</p>
+                    <p className="text-xl font-bold">{distribution.avg_attendance_per_cinema}</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Totale Storico' : 'Total All-Time'}</p>
+                    <p className="text-xl font-bold text-purple-400">{(distribution.cumulative_attendance || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+                
+                {/* Country distribution */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-400 uppercase font-semibold mb-2">
+                    {language === 'it' ? 'Distribuzione per Paese' : 'Distribution by Country'}
+                  </p>
+                  {distribution.distribution?.map((country, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded bg-black/20">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{
+                          country.country_code === 'US' ? '🇺🇸' :
+                          country.country_code === 'IT' ? '🇮🇹' :
+                          country.country_code === 'FR' ? '🇫🇷' :
+                          country.country_code === 'DE' ? '🇩🇪' :
+                          country.country_code === 'UK' ? '🇬🇧' :
+                          country.country_code === 'ES' ? '🇪🇸' :
+                          country.country_code === 'JP' ? '🇯🇵' :
+                          country.country_code === 'CN' ? '🇨🇳' :
+                          country.country_code === 'BR' ? '🇧🇷' :
+                          country.country_code === 'MX' ? '🇲🇽' : '🌍'
+                        }</span>
+                        <span className="font-medium">{country.country_name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="text-blue-400">{country.cinemas} {language === 'it' ? 'cinema' : 'cinemas'}</span>
+                        <span className="text-green-400">{country.total_attendance?.toLocaleString()} {language === 'it' ? 'spett.' : 'viewers'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Trend indicator */}
+                <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+                  <span className="text-xs text-gray-400">{language === 'it' ? 'Tendenza' : 'Trend'}</span>
+                  <span className={`flex items-center gap-1 text-sm font-semibold ${
+                    distribution.trend === 'growing' ? 'text-green-400' :
+                    distribution.trend === 'declining' ? 'text-red-400' :
+                    distribution.trend === 'stable' ? 'text-yellow-400' : 'text-gray-400'
+                  }`}>
+                    {distribution.trend === 'growing' && <><TrendingUp className="w-4 h-4" /> {language === 'it' ? 'In Crescita' : 'Growing'}</>}
+                    {distribution.trend === 'declining' && <><TrendingDown className="w-4 h-4" /> {language === 'it' ? 'In Calo' : 'Declining'}</>}
+                    {distribution.trend === 'stable' && <><span>→</span> {language === 'it' ? 'Stabile' : 'Stable'}</>}
+                    {distribution.trend === 'new' && <><Sparkles className="w-4 h-4" /> {language === 'it' ? 'Nuovo' : 'New'}</>}
+                  </span>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -4624,6 +4704,7 @@ const CineBoard = () => {
   const { language } = useContext(LanguageContext);
   const [activeTab, setActiveTab] = useState('now_playing');
   const [films, setFilms] = useState([]);
+  const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -4632,6 +4713,7 @@ const CineBoard = () => {
       cineboard: language === 'it' ? 'CineBoard' : 'CineBoard',
       nowPlaying: language === 'it' ? 'In Sala (Top 50)' : 'Now Playing (Top 50)',
       hallOfFame: language === 'it' ? 'Hall of Fame' : 'Hall of Fame',
+      attendance: language === 'it' ? 'Affluenze' : 'Attendance',
       rank: language === 'it' ? 'Pos' : 'Rank',
       score: language === 'it' ? 'Punteggio' : 'Score',
       noFilms: language === 'it' ? 'Nessun film in classifica' : 'No films in rankings',
@@ -4644,11 +4726,18 @@ const CineBoard = () => {
 
   useEffect(() => {
     setLoading(true);
-    const endpoint = activeTab === 'now_playing' ? '/cineboard/now-playing' : '/cineboard/hall-of-fame';
-    api.get(endpoint)
-      .then(r => setFilms(r.data.films || []))
-      .catch(() => setFilms([]))
-      .finally(() => setLoading(false));
+    if (activeTab === 'attendance') {
+      api.get('/cineboard/attendance')
+        .then(r => setAttendanceData(r.data))
+        .catch(() => setAttendanceData(null))
+        .finally(() => setLoading(false));
+    } else {
+      const endpoint = activeTab === 'now_playing' ? '/cineboard/now-playing' : '/cineboard/hall-of-fame';
+      api.get(endpoint)
+        .then(r => setFilms(r.data.films || []))
+        .catch(() => setFilms([]))
+        .finally(() => setLoading(false));
+    }
   }, [api, activeTab]);
 
   const handleLike = async (filmId) => {
@@ -4683,14 +4772,21 @@ const CineBoard = () => {
       
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-        <TabsList className="grid w-full grid-cols-2 bg-[#1A1A1A]">
-          <TabsTrigger value="now_playing" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black">
-            <Film className="w-4 h-4 mr-2" />
-            {t('nowPlaying')}
+        <TabsList className="grid w-full grid-cols-3 bg-[#1A1A1A]">
+          <TabsTrigger value="now_playing" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-xs sm:text-sm">
+            <Film className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t('nowPlaying')}</span>
+            <span className="sm:hidden">Top 50</span>
           </TabsTrigger>
-          <TabsTrigger value="hall_of_fame" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">
-            <Award className="w-4 h-4 mr-2" />
-            {t('hallOfFame')}
+          <TabsTrigger value="hall_of_fame" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-xs sm:text-sm">
+            <Award className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t('hallOfFame')}</span>
+            <span className="sm:hidden">Fame</span>
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white text-xs sm:text-sm">
+            <Users className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t('attendance')}</span>
+            <span className="sm:hidden">Affluenza</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -4721,8 +4817,8 @@ const CineBoard = () => {
         </div>
       </Card>
       
-      {/* Film List */}
-      {loading ? (
+      {/* Film List - Only for now_playing and hall_of_fame tabs */}
+      {activeTab !== 'attendance' && (loading ? (
         <div className="text-center py-8 text-gray-400">
           <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
           {language === 'it' ? 'Caricamento classifica...' : 'Loading rankings...'}
@@ -4817,6 +4913,150 @@ const CineBoard = () => {
             </Card>
           ))}
         </div>
+      ))}
+
+      {/* Attendance Tab Content */}
+      {activeTab === 'attendance' && (
+        loading ? (
+          <div className="text-center py-8 text-gray-400">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+            {language === 'it' ? 'Caricamento affluenze...' : 'Loading attendance data...'}
+          </div>
+        ) : !attendanceData ? (
+          <Card className="bg-[#1A1A1A] border-white/10 p-8 text-center">
+            <Users className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+            <h3 className="text-lg mb-2">{language === 'it' ? 'Nessun dato disponibile' : 'No data available'}</h3>
+          </Card>
+        ) : (
+        <div className="space-y-4">
+          {/* Global Stats */}
+          <Card className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30">
+            <CardContent className="p-4">
+              <h3 className="font-['Bebas_Neue'] text-lg mb-3 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-blue-400" />
+                {language === 'it' ? 'Statistiche Globali' : 'Global Stats'}
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="text-center p-3 rounded-lg bg-black/20">
+                  <p className="text-2xl font-bold text-blue-400">{attendanceData.global_stats?.total_films_in_theaters || 0}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Film in Sala' : 'Films Showing'}</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-black/20">
+                  <p className="text-2xl font-bold text-green-400">{(attendanceData.global_stats?.total_cinemas_showing || 0).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Cinema Totali' : 'Total Cinemas'}</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-black/20">
+                  <p className="text-2xl font-bold text-purple-400">{(attendanceData.global_stats?.total_current_attendance || 0).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Spettatori Ora' : 'Current Viewers'}</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-black/20">
+                  <p className="text-2xl font-bold text-yellow-400">{attendanceData.global_stats?.avg_attendance_per_cinema || 0}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Media/Cinema' : 'Avg/Cinema'}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top 20 Now Playing */}
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Film className="w-5 h-5 text-yellow-500" />
+                {language === 'it' ? 'Top 20 - Più Programmati (Ora)' : 'Top 20 - Most Screened (Now)'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {attendanceData.top_now_playing?.length === 0 ? (
+                <p className="text-center text-gray-400 py-4">{language === 'it' ? 'Nessun film in programmazione' : 'No films currently showing'}</p>
+              ) : (
+                attendanceData.top_now_playing?.map((film, idx) => (
+                  <div 
+                    key={film.id} 
+                    className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/film/${film.id}`)}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      idx === 0 ? 'bg-yellow-500 text-black' :
+                      idx === 1 ? 'bg-gray-300 text-black' :
+                      idx === 2 ? 'bg-amber-600 text-white' :
+                      'bg-white/10 text-gray-400'
+                    }`}>
+                      {film.rank}
+                    </div>
+                    <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
+                      {film.poster_url && <img src={film.poster_url} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{film.title}</p>
+                      <p className="text-xs text-gray-400 truncate">{film.owner?.production_house_name || film.owner?.nickname}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-blue-400">{film.current_cinemas}</p>
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'cinema' : 'cinemas'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-green-400">{film.current_attendance?.toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'spettatori' : 'viewers'}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Top 20 All-Time */}
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-purple-500" />
+                {language === 'it' ? 'Top 20 - Più Programmati (All-Time)' : 'Top 20 - Most Screened (All-Time)'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {attendanceData.top_all_time?.length === 0 ? (
+                <p className="text-center text-gray-400 py-4">{language === 'it' ? 'Nessun dato storico' : 'No historical data'}</p>
+              ) : (
+                attendanceData.top_all_time?.map((film, idx) => (
+                  <div 
+                    key={film.id} 
+                    className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/film/${film.id}`)}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      idx === 0 ? 'bg-yellow-500 text-black' :
+                      idx === 1 ? 'bg-gray-300 text-black' :
+                      idx === 2 ? 'bg-amber-600 text-white' :
+                      'bg-white/10 text-gray-400'
+                    }`}>
+                      {film.rank}
+                    </div>
+                    <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
+                      {film.poster_url && <img src={film.poster_url} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{film.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-400 truncate">{film.owner?.production_house_name || film.owner?.nickname}</p>
+                        <Badge className={`text-[9px] ${film.status === 'in_theaters' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                          {film.status === 'in_theaters' ? (language === 'it' ? 'In Sala' : 'Showing') : (language === 'it' ? 'Archivio' : 'Archive')}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-purple-400">{(film.total_screenings || 0).toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'proiezioni' : 'screenings'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-cyan-400">{(film.cumulative_attendance || 0).toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'totale spett.' : 'total viewers'}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        )
       )}
     </div>
   );

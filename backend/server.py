@@ -5843,6 +5843,46 @@ async def get_release_notes():
             'source': 'static'
         }
 
+@api_router.post("/release-notes")
+async def add_release_note(data: dict, user: dict = Depends(get_current_user)):
+    """Add a new release note (Creator only). Auto-increments version."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creator può aggiungere note di rilascio")
+    
+    title = data.get('title', '')
+    changes = data.get('changes', [])
+    
+    if not title or not changes:
+        raise HTTPException(status_code=400, detail="Titolo e modifiche sono obbligatori")
+    
+    # Auto-calculate next version from DB
+    latest = await db.release_notes.find_one({}, {'_id': 0, 'version': 1}, sort=[('version', -1)])
+    if latest:
+        parts = latest['version'].split('.')
+        next_version = f"{parts[0]}.{str(int(parts[1]) + 1).zfill(3)}"
+    else:
+        next_version = '0.077'
+    
+    # Allow manual version override
+    if data.get('version'):
+        next_version = data['version']
+    
+    note = {
+        'id': str(uuid.uuid4()),
+        'version': next_version,
+        'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+        'title': title,
+        'changes': [{'type': c.get('type', 'new'), 'text': c['text']} for c in changes],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.release_notes.insert_one(note)
+    del note['_id']
+    
+    return {'message': f'Release note v{next_version} aggiunta', 'release_note': note}
+
+
+
 @api_router.get("/release-notes/unread-count")
 async def get_unread_release_notes_count(user: dict = Depends(get_current_user)):
     """Get count of release notes the user hasn't seen yet."""

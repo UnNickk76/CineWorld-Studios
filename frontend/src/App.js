@@ -8698,7 +8698,11 @@ const CreatorBoard = () => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, unread, replied
+  const [filter, setFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('messages'); // messages, releases
+  const [releaseTitle, setReleaseTitle] = useState('');
+  const [releaseChanges, setReleaseChanges] = useState([{ type: 'new', text: '' }]);
+  const [publishingRelease, setPublishingRelease] = useState(false);
 
   useEffect(() => {
     loadMessages();
@@ -8751,6 +8755,33 @@ const CreatorBoard = () => {
 
   const unreadCount = messages.filter(m => m.status === 'unread').length;
 
+  const publishRelease = async () => {
+    if (!releaseTitle.trim() || releaseChanges.every(c => !c.text.trim())) {
+      toast.error('Inserisci titolo e almeno una modifica');
+      return;
+    }
+    setPublishingRelease(true);
+    try {
+      const validChanges = releaseChanges.filter(c => c.text.trim());
+      const res = await api.post('/release-notes', { title: releaseTitle, changes: validChanges });
+      toast.success(res.data.message || 'Note di rilascio pubblicate!');
+      setReleaseTitle('');
+      setReleaseChanges([{ type: 'new', text: '' }]);
+    } catch(e) {
+      toast.error(e.response?.data?.detail || 'Errore pubblicazione');
+    } finally {
+      setPublishingRelease(false);
+    }
+  };
+
+  const addChangeRow = () => setReleaseChanges([...releaseChanges, { type: 'new', text: '' }]);
+  const removeChangeRow = (idx) => setReleaseChanges(releaseChanges.filter((_, i) => i !== idx));
+  const updateChange = (idx, field, value) => {
+    const updated = [...releaseChanges];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setReleaseChanges(updated);
+  };
+
   if (loading) return <div className="pt-20 text-center">Caricamento...</div>;
 
   return (
@@ -8772,6 +8803,75 @@ const CreatorBoard = () => {
         <p className="text-gray-400 text-sm">Messaggi ricevuti dai player</p>
       </motion.div>
 
+      {/* Tabs: Messages / Release Notes */}
+      <div className="flex gap-2 mb-4">
+        <Button size="sm" variant={activeTab === 'messages' ? 'default' : 'outline'} onClick={() => setActiveTab('messages')} className={activeTab === 'messages' ? 'bg-purple-500' : ''}>
+          <Mail className="w-4 h-4 mr-1" /> Messaggi {unreadCount > 0 && <Badge className="ml-1 bg-red-500 text-xs">{unreadCount}</Badge>}
+        </Button>
+        <Button size="sm" variant={activeTab === 'releases' ? 'default' : 'outline'} onClick={() => setActiveTab('releases')} className={activeTab === 'releases' ? 'bg-amber-500 text-black' : ''}>
+          <Newspaper className="w-4 h-4 mr-1" /> Note Rilascio
+        </Button>
+      </div>
+
+      {activeTab === 'releases' && (
+        <Card className="bg-[#1A1A1A] border-amber-500/20 mb-6">
+          <CardContent className="p-4">
+            <h3 className="font-['Bebas_Neue'] text-xl text-amber-400 mb-3 flex items-center gap-2">
+              <Newspaper className="w-5 h-5" /> PUBBLICA NUOVA RELEASE
+            </h3>
+            <div className="space-y-3">
+              <Input 
+                placeholder="Titolo della release (es: Sistema Sfide v2)"
+                value={releaseTitle} 
+                onChange={e => setReleaseTitle(e.target.value)}
+                className="bg-black/30 border-white/10"
+                data-testid="release-title-input"
+              />
+              
+              {releaseChanges.map((change, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <select 
+                    value={change.type} 
+                    onChange={e => updateChange(idx, 'type', e.target.value)}
+                    className="bg-black/50 border border-white/10 rounded px-2 py-1.5 text-sm w-32"
+                  >
+                    <option value="new">Novità</option>
+                    <option value="improvement">Miglioria</option>
+                    <option value="fix">Fix</option>
+                  </select>
+                  <Input 
+                    placeholder="Descrizione modifica..."
+                    value={change.text} 
+                    onChange={e => updateChange(idx, 'text', e.target.value)}
+                    className="bg-black/30 border-white/10 flex-1"
+                  />
+                  {releaseChanges.length > 1 && (
+                    <Button size="sm" variant="ghost" onClick={() => removeChangeRow(idx)} className="text-red-400 h-8 w-8 p-0">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={addChangeRow} className="border-white/10">
+                  <Plus className="w-4 h-4 mr-1" /> Aggiungi riga
+                </Button>
+                <Button 
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-bold flex-1"
+                  onClick={publishRelease}
+                  disabled={publishingRelease || !releaseTitle.trim()}
+                  data-testid="publish-release-btn"
+                >
+                  {publishingRelease ? 'Pubblicazione...' : 'Pubblica Release'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'messages' && (<>
       {/* Filters */}
       <div className="flex gap-2 mb-4">
         {['all', 'unread', 'replied'].map(f => (
@@ -8875,6 +8975,7 @@ const CreatorBoard = () => {
           ))
         )}
       </div>
+      </>)}
     </div>
   );
 };

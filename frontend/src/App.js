@@ -62,6 +62,13 @@ const TopNavbar = () => {
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [majorInfo, setMajorInfo] = useState(null);
   const [festivalNotifications, setFestivalNotifications] = useState([]);
+  const [showOnlineUsersPanel, setShowOnlineUsersPanel] = useState(false);
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
+  const [onlineUsersList, setOnlineUsersList] = useState([]);
+  const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
+  const [selectedUserProfile, setSelectedUserProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [sendingFriendReq, setSendingFriendReq] = useState(null);
   const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
 
   useEffect(() => {
@@ -69,6 +76,17 @@ const TopNavbar = () => {
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
+    
+    // Online users polling
+    const fetchOnlineUsers = () => {
+      api.get('/users/online').then(r => {
+        const users = r.data.filter(u => !u.is_bot);
+        setOnlineUsersList(r.data);
+        setOnlineUsersCount(users.length);
+      }).catch(() => {});
+    };
+    fetchOnlineUsers();
+    const onlineInterval = setInterval(fetchOnlineUsers, 30000);
     
     // Festival notifications polling
     const fetchFestivalNotifications = () => {
@@ -86,8 +104,39 @@ const TopNavbar = () => {
     fetchFestivalNotifications();
     const interval = setInterval(fetchFestivalNotifications, 60000); // Check every minute
     
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); clearInterval(onlineInterval); };
   }, [api, user?.total_xp, location.pathname, userTimezone, language]);
+
+
+  const viewUserProfile = async (userId) => {
+    setLoadingProfile(true);
+    setSelectedOnlineUser(userId);
+    try {
+      const res = await api.get(`/users/${userId}/full-profile`);
+      setSelectedUserProfile(res.data);
+    } catch(e) {
+      toast.error(language === 'it' ? 'Errore caricamento profilo' : 'Profile load error');
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const sendFriendRequest = async (friendId) => {
+    setSendingFriendReq(friendId);
+    try {
+      await api.post('/friends/request', { user_id: friendId });
+      toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
+    } catch(e) {
+      const detail = e.response?.data?.detail || '';
+      if (detail.includes('already') || detail.includes('già')) {
+        toast.info(language === 'it' ? 'Richiesta già inviata' : 'Request already sent');
+      } else {
+        toast.error(detail || (language === 'it' ? 'Errore invio richiesta' : 'Request failed'));
+      }
+    } finally {
+      setSendingFriendReq(null);
+    }
+  };
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
@@ -273,16 +322,33 @@ const TopNavbar = () => {
             </span>
           </div>
           
-          {/* Friends - Hidden on very small mobile */}
+          {/* Friends - Always visible */}
           <Button
             variant="ghost"
             size="sm"
-            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/friends' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/friends')}
             data-testid="friends-btn"
             title={language === 'it' ? 'Amici' : 'Friends'}
           >
             <UserPlus className="w-4 h-4" />
+          </Button>
+          
+          {/* Online Users - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            onClick={() => setShowOnlineUsersPanel(true)}
+            data-testid="online-users-btn"
+            title={language === 'it' ? 'Utenti Online' : 'Online Users'}
+          >
+            <Users className="w-4 h-4" />
+            {onlineUsersCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-green-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                {onlineUsersCount > 9 ? '9+' : onlineUsersCount}
+              </span>
+            )}
           </Button>
           
           {/* Level Badge - Hidden on mobile */}
@@ -467,6 +533,193 @@ const TopNavbar = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Online Users Panel */}
+      <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); } }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-hidden bg-[#111] border-green-500/30 p-0">
+          {/* If viewing a user's profile */}
+          {selectedUserProfile ? (
+            <div className="flex flex-col h-[80vh]">
+              {/* Sticky header with back + friend request + challenge */}
+              <div className="sticky top-0 z-10 bg-[#111] border-b border-white/10 p-3 flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { setSelectedUserProfile(null); setSelectedOnlineUser(null); }} className="h-7 w-7 p-0 text-gray-400">
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <div className="flex-1">
+                  <p className="font-bold text-sm">{selectedUserProfile.user?.nickname}</p>
+                  <p className="text-[10px] text-gray-500">{selectedUserProfile.user?.production_house_name}</p>
+                </div>
+                {!selectedUserProfile.is_own_profile && (
+                  <div className="flex gap-1.5">
+                    <Button 
+                      size="sm"
+                      className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-2 text-[10px] font-bold"
+                      onClick={() => sendFriendRequest(selectedUserProfile.user?.id)}
+                      disabled={sendingFriendReq === selectedUserProfile.user?.id}
+                      data-testid="profile-add-friend-btn"
+                    >
+                      {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Amicizia' : 'Add'}</>}
+                    </Button>
+                    <Button 
+                      size="sm"
+                      className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-2 text-[10px] font-bold"
+                      onClick={() => { setShowOnlineUsersPanel(false); setSelectedUserProfile(null); navigate('/challenges'); }}
+                      data-testid="profile-challenge-btn"
+                    >
+                      <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida' : 'Challenge'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
+              {/* Profile content scrollable */}
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {/* User avatar + level */}
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-16 h-16 ring-2 ring-green-500">
+                      <AvatarImage src={selectedUserProfile.user?.avatar_url} />
+                      <AvatarFallback className="bg-green-500/20 text-green-400 text-xl font-bold">{selectedUserProfile.user?.nickname?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-purple-500/20 text-purple-400">Lv.{selectedUserProfile.stats?.level || 1}</Badge>
+                        {selectedUserProfile.is_online && <Badge className="bg-green-500/20 text-green-400 text-[9px]">ONLINE</Badge>}
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">{selectedUserProfile.user?.bio || ''}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: language === 'it' ? 'Film' : 'Films', value: selectedUserProfile.stats?.total_films || 0, color: 'text-blue-400' },
+                      { label: language === 'it' ? 'Incassi' : 'Revenue', value: `$${((selectedUserProfile.stats?.total_revenue || 0)/1000000).toFixed(1)}M`, color: 'text-green-400' },
+                      { label: language === 'it' ? 'Qualità Media' : 'Avg Quality', value: selectedUserProfile.stats?.avg_quality || 0, color: 'text-yellow-400' },
+                      { label: 'XP', value: selectedUserProfile.stats?.xp || 0, color: 'text-purple-400' },
+                      { label: language === 'it' ? 'Premi' : 'Awards', value: selectedUserProfile.stats?.awards_count || 0, color: 'text-amber-400' },
+                      { label: 'Fame', value: selectedUserProfile.stats?.fame || 0, color: 'text-pink-400' },
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-white/5 rounded-lg p-2 text-center">
+                        <p className={`font-bold text-sm ${stat.color}`}>{stat.value}</p>
+                        <p className="text-[10px] text-gray-500">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Genre breakdown */}
+                  {selectedUserProfile.genre_breakdown && Object.keys(selectedUserProfile.genre_breakdown).length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi preferiti' : 'Favorite Genres'}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(selectedUserProfile.genre_breakdown).sort((a,b) => b[1]-a[1]).slice(0,5).map(([genre, count]) => (
+                          <Badge key={genre} className="bg-white/10 text-gray-300 text-[10px]">{genre}: {count}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Recent films */}
+                  {selectedUserProfile.recent_films?.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
+                      <div className="space-y-2">
+                        {selectedUserProfile.recent_films.slice(0, 6).map(film => (
+                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setShowOnlineUsersPanel(false); navigate(`/films/${film.id}`); }}>
+                            {film.poster_url ? (
+                              <img src={film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
+                            ) : (
+                              <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Film className="w-4 h-4 text-gray-500" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">{film.title}</p>
+                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                <span>{film.genre}</span>
+                                <span>Q: {film.quality_score?.toFixed(0)}</span>
+                                {film.film_tier && film.film_tier !== 'normal' && (
+                                  <Badge className="bg-yellow-500/20 text-yellow-400 text-[8px] h-3">{film.film_tier}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-green-400 text-[10px] font-bold">${((film.total_revenue || film.revenue || 0)/1000000).toFixed(1)}M</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            /* Online users list */
+            <div className="flex flex-col h-[80vh]">
+              <DialogHeader className="p-4 pb-2 border-b border-white/10">
+                <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2 text-green-400">
+                  <Users className="w-5 h-5" /> {language === 'it' ? 'UTENTI ONLINE' : 'ONLINE USERS'}
+                  <Badge className="bg-green-500/20 text-green-400 ml-2">{onlineUsersList.filter(u => !u.is_bot).length}</Badge>
+                </DialogTitle>
+              </DialogHeader>
+              
+              <ScrollArea className="flex-1">
+                <div className="p-3 space-y-2">
+                  {onlineUsersList.filter(u => !u.is_bot).length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p>{language === 'it' ? 'Nessun utente online al momento' : 'No users online right now'}</p>
+                    </div>
+                  ) : (
+                    onlineUsersList.filter(u => !u.is_bot).map(onlineUser => (
+                      <div 
+                        key={onlineUser.id || onlineUser.user_id} 
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                        onClick={() => viewUserProfile(onlineUser.id || onlineUser.user_id)}
+                        data-testid={`online-user-${onlineUser.id || onlineUser.user_id}`}
+                      >
+                        <div className="relative">
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={onlineUser.avatar_url} />
+                            <AvatarFallback className="bg-green-500/20 text-green-400 font-bold">{(onlineUser.nickname || '?')[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111]"></span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{onlineUser.nickname}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{onlineUser.production_house_name || ''}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {onlineUser.level && <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">Lv.{onlineUser.level}</Badge>}
+                          <ChevronRight className="w-4 h-4 text-gray-600" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  
+                  {/* Bots section */}
+                  {onlineUsersList.filter(u => u.is_bot).length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-white/10">
+                      <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider">Bot</p>
+                      {onlineUsersList.filter(u => u.is_bot).map(bot => (
+                        <div key={bot.id || bot.user_id} className="flex items-center gap-3 p-2 rounded-lg opacity-50">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-gray-700 text-gray-400 text-xs">{(bot.nickname || 'B')[0]}</AvatarFallback>
+                          </Avatar>
+                          <p className="text-xs text-gray-500">{bot.nickname}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+          
+          {loadingProfile && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
+              <RefreshCw className="w-8 h-8 text-green-400 animate-spin" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 };

@@ -7390,6 +7390,7 @@ async def user_heartbeat(user: dict = Depends(get_current_user)):
         'nickname': user['nickname'],
         'avatar_url': user.get('avatar_url'),
         'production_house_name': user.get('production_house_name'),
+        'level': user.get('level', 1),
         'last_seen': datetime.now(timezone.utc).isoformat()
     }
     return {'status': 'ok'}

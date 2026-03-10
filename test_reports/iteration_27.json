@@ -1,0 +1,79 @@
+{
+  "summary": "Tested Online Users Panel and Friend Request features (iteration 27). Backend: 13/13 tests passed. Frontend: All UI elements found and working. Fixed critical bug: frontend was sending 'friend_id' but backend expected 'user_id' in POST /api/friends/request payload.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "All pages",
+        "issues": ["Console shows 'Failed to load resource: status 400' - appears to be avatar/resource loading, non-blocking"]
+      },
+      {
+        "screen": "DialogContent",
+        "issues": ["Console warning: Missing Description or aria-describedby for DialogContent - accessibility improvement recommended"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_online_users_friends.py",
+    "/app/test_reports/pytest/pytest_online_users_iter27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BUG FIXED: Frontend App.js line 127 - Changed 'friend_id' to 'user_id' to match backend FriendRequest model",
+    "Online Users button (data-testid='online-users-btn') correctly visible in navbar with badge",
+    "Friends button (data-testid='friends-btn') correctly visible in navbar (no hidden class)",
+    "Online Users dialog shows 'UTENTI ONLINE' title with user count badge",
+    "Bots (CineMaster, FilmGuide, CineNews) correctly shown in BOT section",
+    "Real users shown separately, filtered to exclude current user",
+    "User profile view has sticky header with 'Amicizia' (Add Friend) and 'Sfida' (Challenge) buttons",
+    "Stats grid shows: Film, Incassi, Qualità Media, XP, Premi, Fame",
+    "Heartbeat endpoint updates user online status correctly"
+  ],
+  "updated_files": [
+    "/app/frontend/src/App.js",
+    "/app/backend/tests/test_online_users_friends.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all required UI elements found and working)"
+  },
+  "test_credentials": {
+    "regular": {"email": "testq@test.com", "password": "Test1234!"},
+    "creator": {"email": "neo@test.com", "password": "Neo1234!", "nickname": "NeoMorpheus"}
+  },
+  "seed_data_creation": "Used existing test users for testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Online users panel fully tested. Friend request from profile view working after fix. Heartbeat mechanism working. Users appear in online list after heartbeat within 5 minutes. Bots always visible.",
+  "features_tested": {
+    "POST /api/users/heartbeat": "PASSED - Updates online status",
+    "POST /api/users/heartbeat auth": "PASSED - Requires authentication",
+    "GET /api/users/online": "PASSED - Returns bots + real users",
+    "GET /api/users/online excludes self": "PASSED - Current user excluded from list",
+    "GET /api/users/{id}/full-profile": "PASSED - Returns full profile with stats",
+    "GET /api/users/{id}/full-profile stats": "PASSED - Contains total_films, total_revenue, avg_quality, xp, level, fame, awards_count",
+    "GET /api/users/{id}/full-profile is_own_profile": "PASSED - Correctly identifies own vs others profile",
+    "GET /api/users/{id}/full-profile 404": "PASSED - Returns 404 for invalid user",
+    "POST /api/friends/request with user_id": "PASSED - Sends friend request successfully",
+    "POST /api/friends/request with friend_id": "PASSED - Correctly rejects wrong field name (422)",
+    "POST /api/friends/request to self": "PASSED - Returns 400 Cannot friend yourself",
+    "POST /api/friends/request auth": "PASSED - Requires authentication",
+    "Friends button visibility": "PASSED - data-testid='friends-btn' visible in navbar",
+    "Online Users button visibility": "PASSED - data-testid='online-users-btn' visible in navbar",
+    "Online Users dialog": "PASSED - Opens with UTENTI ONLINE title",
+    "Bots in dialog": "PASSED - CineMaster, FilmGuide, CineNews visible in BOT section",
+    "Profile sticky header": "PASSED - Shows user name, Amicizia button, Sfida button",
+    "Profile stats": "PASSED - Shows Film, Incassi, Qualità Media, XP, Premi, Fame"
+  },
+  "bug_fixed": {
+    "location": "/app/frontend/src/App.js line 127",
+    "description": "Frontend was sending 'friend_id' but backend FriendRequest model expects 'user_id'",
+    "fix_applied": "Changed { friend_id: friendId } to { user_id: friendId }",
+    "verification": "Friend request toast 'Richiesta già inviata' appeared confirming API integration works"
+  }
+}

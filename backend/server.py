@@ -3886,23 +3886,85 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if total_budget > available_funds:
         raise HTTPException(status_code=400, detail="Insufficient funds")
     
-    quality_score = 50 + equipment['quality_bonus']
-    quality_score += random.randint(-10, 20)
-    quality_score = max(0, min(100, quality_score))
+    # === REWORKED QUALITY SYSTEM - More realistic distribution ===
+    # Base quality starts at 40 (not 50) to allow for more bad films
+    base_quality = 40
     
-    if len(film_data.title) > 5:
-        quality_score += random.randint(1, 5)
+    # Equipment bonus (usually 5-15)
+    base_quality += equipment['quality_bonus']
     
-    # Calculate opening day revenue - BALANCED formula
-    # Quality 50 = ~$50k, Quality 100 = ~$500k opening day
-    base_revenue = 1000  # Base $1000
-    quality_multiplier = quality_score ** 1.5  # Exponential but not crazy
-    random_factor = random.uniform(0.7, 1.3)
-    opening_day_revenue = int(base_revenue * quality_multiplier * random_factor)
-    opening_day_revenue = max(10000, min(opening_day_revenue, 1000000))  # $10k-$1M cap
+    # Director talent factor (0-15 based on fame)
+    director = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'fame': 1, 'avg_film_quality': 1})
+    if director:
+        director_bonus = min(15, (director.get('fame', 3) - 3) * 3)  # 3-star director = 0, 5-star = +6
+        base_quality += director_bonus
     
-    # BOOST: +30% first day revenue
-    opening_day_revenue = int(opening_day_revenue * 1.30)
+    # Cast average quality influence (0-10)
+    cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50
+    cast_influence = (cast_avg_quality - 50) / 5  # ±10 based on cast quality
+    base_quality += cast_influence
+    
+    # Budget influence (higher budget = slight quality boost, but not guaranteed)
+    budget_millions = total_budget / 1000000
+    budget_bonus = min(10, budget_millions * 2)  # Max +10 for $5M+ budget
+    base_quality += budget_bonus
+    
+    # === THE CRUCIAL RANDOM FACTOR ===
+    # This is where films can become masterpieces OR flops
+    # Bell curve distribution: most films are average, some are great, some are terrible
+    random_roll = random.gauss(0, 20)  # Mean 0, std dev 20 - can go -40 to +40
+    random_roll = max(-35, min(35, random_roll))  # Cap at ±35
+    
+    # Additional "luck" factor - sometimes a film just clicks or doesn't
+    luck_factor = random.choice([-15, -10, -5, 0, 0, 0, 0, 5, 10, 15])  # Weighted towards neutral
+    
+    # Combine all factors
+    quality_score = base_quality + random_roll + luck_factor
+    
+    # Ensure quality is in valid range
+    quality_score = max(5, min(98, quality_score))  # Allow very low quality (5) but cap at 98
+    
+    # Small bonus for creative titles
+    if len(film_data.title) > 8:
+        quality_score += random.randint(0, 3)
+    
+    quality_score = max(5, min(100, quality_score))
+    
+    # === TIER ASSIGNMENT based on quality ===
+    # More granular tier system reflecting the new distribution
+    if quality_score >= 90:
+        film_tier = 'masterpiece'  # ~5% of films
+    elif quality_score >= 78:
+        film_tier = 'excellent'    # ~10% of films
+    elif quality_score >= 65:
+        film_tier = 'good'         # ~20% of films
+    elif quality_score >= 50:
+        film_tier = 'average'      # ~30% of films
+    elif quality_score >= 35:
+        film_tier = 'mediocre'     # ~20% of films
+    elif quality_score >= 20:
+        film_tier = 'poor'         # ~10% of films
+    else:
+        film_tier = 'flop'         # ~5% of films
+    
+    # Calculate opening day revenue - Quality matters but with variance
+    base_revenue = 5000  # Base $5000
+    quality_multiplier = (quality_score / 50) ** 2  # Exponential: quality 50 = 1x, 100 = 4x, 25 = 0.25x
+    random_factor = random.uniform(0.6, 1.4)  # ±40% variance
+    
+    # Tier influences opening - flops get negative buzz, masterpieces get hype
+    tier_multiplier = {
+        'masterpiece': 2.5,
+        'excellent': 1.8,
+        'good': 1.3,
+        'average': 1.0,
+        'mediocre': 0.7,
+        'poor': 0.4,
+        'flop': 0.2
+    }.get(film_tier, 1.0)
+    
+    opening_day_revenue = int(base_revenue * quality_multiplier * tier_multiplier * random_factor)
+    opening_day_revenue = max(1000, min(opening_day_revenue, 800000))  # $1k-$800k cap
     
     # === SEQUEL BONUS/MALUS SYSTEM ===
     # Sequels get bonus/malus based on parent film performance

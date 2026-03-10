@@ -3,11 +3,23 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.057
+## Versione Attuale: v0.059
 
 ## Funzionalità Implementate (Ultime)
 
-### v0.057 - Sistema Livelli Film & Like Migliorato - 10/03/2026 (COMPLETATO)
+### v0.059 - Recupero Password e Nickname - 10/03/2026 (COMPLETATO)
+- **Recupero Password via Email**: Link "Password dimenticata?" nella pagina login
+  - Inserisci email → ricevi link di reset (valido 1 ora)
+  - Pagina dedicata per impostare nuova password
+- **Recupero Nickname via Email**: Link "Nickname dimenticato?" nella pagina login
+  - Inserisci email → ricevi email con il tuo nickname
+- **Endpoint API**:
+  - `POST /api/auth/recovery/request` - Richiedi recupero (password o nickname)
+  - `POST /api/auth/recovery/reset-password` - Conferma reset password con token
+  - `GET /api/auth/recovery/verify-token/{token}` - Verifica validità token
+- **Nota**: Richiede configurazione Resend API key in `.env`
+
+### v0.058 - Notifiche Release Notes & Trailer Gratuiti - 10/03/2026 (COMPLETATO)
 - **Sistema 5 Tier Film**: Capolavoro, Epico, Eccellente, Promettente, Possibile Flop
   - Calcolo tier basato su qualità, cast, sceneggiatura, IMDb rating e fattore fortuna
   - Bonus/malus immediati all'opening day (-20% a +40%)

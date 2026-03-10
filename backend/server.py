@@ -18,6 +18,7 @@ import socketio
 import base64
 import asyncio
 import math
+import resend
 
 # APScheduler for background tasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -1665,6 +1666,154 @@ async def login(credentials: UserLogin):
     token = create_token(user['id'])
     
     return TokenResponse(access_token=token, user=UserResponse(**user_response))
+
+# ============== PASSWORD & NICKNAME RECOVERY ==============
+
+class RecoveryRequest(BaseModel):
+    email: str
+    recovery_type: str  # 'password' or 'nickname'
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+class NicknameRecoveryConfirm(BaseModel):
+    token: str
+
+@api_router.post("/auth/recovery/request")
+async def request_recovery(request: RecoveryRequest):
+    """Request password reset or nickname recovery via email."""
+    user = await db.users.find_one({'email': request.email}, {'_id': 0})
+    
+    if not user:
+        # Don't reveal if email exists
+        return {'success': True, 'message': 'Se l\'email esiste, riceverai un messaggio.'}
+    
+    # Generate recovery token
+    recovery_token = str(uuid.uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    
+    # Save token
+    await db.recovery_tokens.delete_many({'email': request.email, 'type': request.recovery_type})
+    await db.recovery_tokens.insert_one({
+        'email': request.email,
+        'user_id': user['id'],
+        'token': recovery_token,
+        'type': request.recovery_type,
+        'expires_at': expires_at,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Get app URL for the link
+    app_url = os.environ.get('FRONTEND_URL', 'https://cineworld-studios.com')
+    
+    # Send email
+    try:
+        resend.api_key = os.environ.get('RESEND_API_KEY')
+        sender_email = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+        
+        if request.recovery_type == 'password':
+            subject = "🎬 CineWorld Studio's - Reset Password"
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e; color: #fff; padding: 30px; border-radius: 10px;">
+                <h1 style="color: #eab308; text-align: center;">🎬 CineWorld Studio's</h1>
+                <h2 style="color: #fff; text-align: center;">Reset Password</h2>
+                <p style="color: #ccc;">Ciao <strong>{user.get('nickname', 'Produttore')}</strong>,</p>
+                <p style="color: #ccc;">Hai richiesto il reset della password. Clicca il pulsante qui sotto per impostare una nuova password:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{app_url}/reset-password?token={recovery_token}" 
+                       style="background: #eab308; color: #000; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        RESET PASSWORD
+                    </a>
+                </div>
+                <p style="color: #888; font-size: 12px;">Il link scade tra 1 ora. Se non hai richiesto il reset, ignora questa email.</p>
+                <p style="color: #888; font-size: 12px;">Token: {recovery_token}</p>
+            </div>
+            """
+        else:  # nickname recovery
+            subject = "🎬 CineWorld Studio's - Recupero Nickname"
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e; color: #fff; padding: 30px; border-radius: 10px;">
+                <h1 style="color: #eab308; text-align: center;">🎬 CineWorld Studio's</h1>
+                <h2 style="color: #fff; text-align: center;">Recupero Nickname</h2>
+                <p style="color: #ccc;">Ciao!</p>
+                <p style="color: #ccc;">Hai richiesto di recuperare il tuo nickname. Ecco i tuoi dati:</p>
+                <div style="background: #2a2a4e; padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
+                    <p style="color: #888; margin: 0;">Il tuo nickname è:</p>
+                    <h2 style="color: #eab308; margin: 10px 0;">{user.get('nickname', 'N/A')}</h2>
+                </div>
+                <p style="color: #ccc;">Puoi usare questo nickname insieme alla tua password per accedere al gioco.</p>
+                <p style="color: #888; font-size: 12px;">Se non hai richiesto questo, ignora questa email.</p>
+            </div>
+            """
+        
+        params = {
+            "from": sender_email,
+            "to": [request.email],
+            "subject": subject,
+            "html": html_content
+        }
+        
+        await asyncio.to_thread(resend.Emails.send, params)
+        logging.info(f"[RECOVERY] Email sent to {request.email} for {request.recovery_type}")
+        
+    except Exception as e:
+        logging.error(f"[RECOVERY] Failed to send email: {e}")
+        # Don't fail the request - just log the error
+    
+    return {'success': True, 'message': 'Se l\'email esiste, riceverai un messaggio.'}
+
+@api_router.post("/auth/recovery/reset-password")
+async def reset_password(request: PasswordResetConfirm):
+    """Reset password using recovery token."""
+    # Find token
+    token_doc = await db.recovery_tokens.find_one({
+        'token': request.token,
+        'type': 'password'
+    })
+    
+    if not token_doc:
+        raise HTTPException(status_code=400, detail="Token non valido o scaduto")
+    
+    # Check expiration
+    expires_at = datetime.fromisoformat(token_doc['expires_at'].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        await db.recovery_tokens.delete_one({'token': request.token})
+        raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo reset.")
+    
+    # Validate password
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="La password deve essere almeno 6 caratteri")
+    
+    # Update password
+    hashed_password = hash_password(request.new_password)
+    await db.users.update_one(
+        {'id': token_doc['user_id']},
+        {'$set': {'password': hashed_password}}
+    )
+    
+    # Delete token
+    await db.recovery_tokens.delete_one({'token': request.token})
+    
+    logging.info(f"[RECOVERY] Password reset for user {token_doc['user_id']}")
+    
+    return {'success': True, 'message': 'Password aggiornata con successo! Ora puoi accedere.'}
+
+@api_router.get("/auth/recovery/verify-token/{token}")
+async def verify_recovery_token(token: str):
+    """Verify if a recovery token is valid."""
+    token_doc = await db.recovery_tokens.find_one({'token': token})
+    
+    if not token_doc:
+        return {'valid': False, 'message': 'Token non valido'}
+    
+    expires_at = datetime.fromisoformat(token_doc['expires_at'].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        return {'valid': False, 'message': 'Token scaduto'}
+    
+    return {'valid': True, 'type': token_doc['type']}
+
+# ============== END PASSWORD & NICKNAME RECOVERY ==============
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, toast } from 'sonner';
 import { 
@@ -11,7 +11,8 @@ import {
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
-  Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug
+  Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
+  KeyRound, AlertCircle, Mail
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -411,6 +412,330 @@ const TopNavbar = () => {
   );
 };
 
+// Password Recovery Page
+const PasswordRecoveryPage = () => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/recovery/request`, {
+        email,
+        recovery_type: 'password'
+      });
+      setSent(true);
+      toast.success(language === 'it' ? 'Controlla la tua email!' : 'Check your email!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <Card className="bg-[#1A1A1A] border-white/10">
+          <CardHeader className="text-center space-y-3">
+            <div className="flex justify-center">
+              <KeyRound className="w-12 h-12 text-yellow-500" />
+            </div>
+            <CardTitle className="font-['Bebas_Neue'] text-2xl">
+              {language === 'it' ? 'Recupera Password' : 'Reset Password'}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {language === 'it' 
+                ? 'Inserisci la tua email per ricevere il link di reset'
+                : 'Enter your email to receive a reset link'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sent ? (
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                  <Mail className="w-8 h-8 text-green-500" />
+                </div>
+                <p className="text-green-400">
+                  {language === 'it' 
+                    ? 'Email inviata! Controlla la tua casella di posta.'
+                    : 'Email sent! Check your inbox.'}
+                </p>
+                <Button variant="outline" onClick={() => navigate('/auth')} className="mt-4">
+                  {language === 'it' ? 'Torna al Login' : 'Back to Login'}
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="h-10 bg-black/20 border-white/10"
+                    required
+                    data-testid="recovery-email-input"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold"
+                  disabled={loading}
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Invia Link' : 'Send Link')}
+                </Button>
+                <Button variant="ghost" onClick={() => navigate('/auth')} className="w-full text-gray-400">
+                  {language === 'it' ? 'Torna al Login' : 'Back to Login'}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
+// Nickname Recovery Page
+const NicknameRecoveryPage = () => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/recovery/request`, {
+        email,
+        recovery_type: 'nickname'
+      });
+      setSent(true);
+      toast.success(language === 'it' ? 'Controlla la tua email!' : 'Check your email!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <Card className="bg-[#1A1A1A] border-white/10">
+          <CardHeader className="text-center space-y-3">
+            <div className="flex justify-center">
+              <User className="w-12 h-12 text-yellow-500" />
+            </div>
+            <CardTitle className="font-['Bebas_Neue'] text-2xl">
+              {language === 'it' ? 'Recupera Nickname' : 'Recover Nickname'}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {language === 'it' 
+                ? 'Inserisci la tua email per ricevere il tuo nickname'
+                : 'Enter your email to receive your nickname'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sent ? (
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                  <Mail className="w-8 h-8 text-green-500" />
+                </div>
+                <p className="text-green-400">
+                  {language === 'it' 
+                    ? 'Email inviata! Troverai il tuo nickname nel messaggio.'
+                    : 'Email sent! You\'ll find your nickname in the message.'}
+                </p>
+                <Button variant="outline" onClick={() => navigate('/auth')} className="mt-4">
+                  {language === 'it' ? 'Torna al Login' : 'Back to Login'}
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="h-10 bg-black/20 border-white/10"
+                    required
+                    data-testid="nickname-recovery-email-input"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold"
+                  disabled={loading}
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Invia Nickname' : 'Send Nickname')}
+                </Button>
+                <Button variant="ghost" onClick={() => navigate('/auth')} className="w-full text-gray-400">
+                  {language === 'it' ? 'Torna al Login' : 'Back to Login'}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
+// Reset Password Page (with token from email)
+const ResetPasswordPage = () => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [tokenValid, setTokenValid] = useState(null);
+  const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+
+  useEffect(() => {
+    if (token) {
+      axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/auth/recovery/verify-token/${token}`)
+        .then(res => setTokenValid(res.data.valid))
+        .catch(() => setTokenValid(false));
+    } else {
+      setTokenValid(false);
+    }
+  }, [token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      toast.error(language === 'it' ? 'Le password non coincidono' : 'Passwords do not match');
+      return;
+    }
+    if (password.length < 6) {
+      toast.error(language === 'it' ? 'Password troppo corta (min 6 caratteri)' : 'Password too short (min 6 chars)');
+      return;
+    }
+    setLoading(true);
+    try {
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/recovery/reset-password`, {
+        token,
+        new_password: password
+      });
+      setSuccess(true);
+      toast.success(language === 'it' ? 'Password aggiornata!' : 'Password updated!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (tokenValid === null) {
+    return (
+      <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center">
+        <RefreshCw className="w-8 h-8 animate-spin text-yellow-500" />
+      </div>
+    );
+  }
+
+  if (!tokenValid) {
+    return (
+      <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4">
+        <Card className="bg-[#1A1A1A] border-white/10 max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <AlertCircle className="w-16 h-16 mx-auto text-red-500" />
+            <h2 className="text-xl font-bold text-red-400">
+              {language === 'it' ? 'Link non valido o scaduto' : 'Invalid or expired link'}
+            </h2>
+            <p className="text-gray-400 text-sm">
+              {language === 'it' 
+                ? 'Richiedi un nuovo link di reset dalla pagina di login.'
+                : 'Request a new reset link from the login page.'}
+            </p>
+            <Button onClick={() => navigate('/auth')} className="bg-yellow-500 text-black hover:bg-yellow-400">
+              {language === 'it' ? 'Torna al Login' : 'Back to Login'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <Card className="bg-[#1A1A1A] border-white/10">
+          <CardHeader className="text-center space-y-3">
+            <div className="flex justify-center">
+              <KeyRound className="w-12 h-12 text-yellow-500" />
+            </div>
+            <CardTitle className="font-['Bebas_Neue'] text-2xl">
+              {language === 'it' ? 'Nuova Password' : 'New Password'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {success ? (
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                  <Check className="w-8 h-8 text-green-500" />
+                </div>
+                <p className="text-green-400">
+                  {language === 'it' ? 'Password aggiornata con successo!' : 'Password updated successfully!'}
+                </p>
+                <Button onClick={() => navigate('/auth')} className="bg-yellow-500 text-black hover:bg-yellow-400">
+                  {language === 'it' ? 'Vai al Login' : 'Go to Login'}
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">{language === 'it' ? 'Nuova Password' : 'New Password'}</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="h-10 bg-black/20 border-white/10"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">{language === 'it' ? 'Conferma Password' : 'Confirm Password'}</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    className="h-10 bg-black/20 border-white/10"
+                    required
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold"
+                  disabled={loading}
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Aggiorna Password' : 'Update Password')}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
 // Auth Page
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -621,6 +946,28 @@ const AuthPage = () => {
                 {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Account'}
               </Button>
             </form>
+
+            {/* Recovery Links - Only show on login */}
+            {isLogin && (
+              <div className="mt-3 flex justify-center gap-4 text-[10px]">
+                <button
+                  type="button"
+                  className="text-yellow-500/70 hover:text-yellow-400 underline"
+                  onClick={() => navigate('/recovery/password')}
+                  data-testid="forgot-password-link"
+                >
+                  {language === 'it' ? 'Password dimenticata?' : 'Forgot password?'}
+                </button>
+                <button
+                  type="button"
+                  className="text-yellow-500/70 hover:text-yellow-400 underline"
+                  onClick={() => navigate('/recovery/nickname')}
+                  data-testid="forgot-nickname-link"
+                >
+                  {language === 'it' ? 'Nickname dimenticato?' : 'Forgot nickname?'}
+                </button>
+              </div>
+            )}
 
             <div className="mt-3 text-center">
               <button
@@ -10101,6 +10448,9 @@ function App() {
               <Toaster position="top-center" theme="dark" />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/recovery/password" element={<PasswordRecoveryPage />} />
+                <Route path="/recovery/nickname" element={<NicknameRecoveryPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />

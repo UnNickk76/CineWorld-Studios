@@ -7021,7 +7021,11 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
 # AI Endpoints
 @api_router.post("/ai/screenplay")
 async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(get_current_user)):
+    logging.info(f"Screenplay generation request for: {request.title}")
+    logging.info(f"EMERGENT_LLM_KEY available: {bool(EMERGENT_LLM_KEY)}")
+    
     if not EMERGENT_LLM_KEY:
+        logging.warning("No EMERGENT_LLM_KEY, returning fallback")
         return {'screenplay': f"[AI Generation unavailable] Sample screenplay for '{request.title}' - A {request.genre} film..."}
     
     try:
@@ -7034,7 +7038,7 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
             api_key=EMERGENT_LLM_KEY,
             session_id=f"screenplay-{uuid.uuid4()}",
             system_message=f"You are a professional screenplay consultant. Write concise guidelines in {language}. Be brief but impactful."
-        ).with_model("openai", "gpt-5.2")
+        ).with_model("openai", "gpt-4o-mini")
         
         prompt = f"""Create a BRIEF screenplay guideline (max 300 words) for a {request.genre} film titled "{request.title}".
         Tone: {request.tone}
@@ -7051,15 +7055,21 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
         {f'IMPORTANT: Follow the directors vision: {request.custom_prompt}' if request.custom_prompt else ''}
         Keep it SHORT and practical - these are guidelines for the director, not a full screenplay."""
         
+        logging.info(f"Generating screenplay...")
         response = await chat.send_message(UserMessage(text=prompt))
+        logging.info(f"Screenplay generated successfully, length: {len(response)}")
         return {'screenplay': response}
     except Exception as e:
-        logging.error(f"Screenplay generation error: {e}")
+        logging.error(f"Screenplay generation error: {type(e).__name__}: {e}")
         return {'screenplay': f"[Sample] {request.title} - A {request.genre} story about..."}
 
 @api_router.post("/ai/poster")
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
+    logging.info(f"Poster generation request for: {request.title}")
+    logging.info(f"EMERGENT_LLM_KEY available: {bool(EMERGENT_LLM_KEY)}")
+    
     if not EMERGENT_LLM_KEY:
+        logging.warning("No EMERGENT_LLM_KEY, returning fallback")
         return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
     
     try:
@@ -7072,6 +7082,7 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
         Description: {request.description}
         High quality, dramatic lighting, theatrical release quality."""
         
+        logging.info(f"Generating poster with prompt: {prompt[:100]}...")
         images = await image_gen.generate_images(
             prompt=prompt,
             model="gpt-image-1",
@@ -7079,12 +7090,14 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
         )
         
         if images:
+            logging.info(f"Poster generated successfully, size: {len(images[0])} bytes")
             image_base64 = base64.b64encode(images[0]).decode('utf-8')
             return {'poster_base64': image_base64, 'poster_url': f"data:image/png;base64,{image_base64}"}
         
+        logging.warning("No images returned from generator")
         return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
     except Exception as e:
-        logging.error(f"Poster generation error: {e}")
+        logging.error(f"Poster generation error: {type(e).__name__}: {e}")
         return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
 
 @api_router.post("/ai/translate")
@@ -7125,7 +7138,11 @@ class SoundtrackRequest(BaseModel):
 @api_router.post("/ai/soundtrack-description")
 async def generate_soundtrack_description(request: SoundtrackRequest, user: dict = Depends(get_current_user)):
     """Generate a description for the film soundtrack."""
+    logging.info(f"Soundtrack generation request for: {request.title}")
+    logging.info(f"EMERGENT_LLM_KEY available: {bool(EMERGENT_LLM_KEY)}")
+    
     if not EMERGENT_LLM_KEY:
+        logging.warning("No EMERGENT_LLM_KEY, returning fallback")
         return {'description': f"An original {request.mood} soundtrack for {request.title}"}
     
     try:
@@ -7138,7 +7155,7 @@ async def generate_soundtrack_description(request: SoundtrackRequest, user: dict
             api_key=EMERGENT_LLM_KEY,
             session_id=f"soundtrack-{uuid.uuid4()}",
             system_message=f"You are a film music composer consultant. Write in {language}. Be concise."
-        ).with_model("openai", "gpt-5.2")
+        ).with_model("openai", "gpt-4o-mini")
         
         prompt = f"""Create a BRIEF soundtrack concept (max 150 words) for a {request.genre} film titled "{request.title}".
         Mood: {request.mood}
@@ -7151,10 +7168,12 @@ async def generate_soundtrack_description(request: SoundtrackRequest, user: dict
         
         Keep it professional and practical."""
         
+        logging.info(f"Generating soundtrack description...")
         response = await chat.send_message(UserMessage(text=prompt))
+        logging.info(f"Soundtrack generated successfully, length: {len(response)}")
         return {'description': response}
     except Exception as e:
-        logging.error(f"Soundtrack generation error: {e}")
+        logging.error(f"Soundtrack generation error: {type(e).__name__}: {e}")
         return {'description': f"An original {request.mood} soundtrack for {request.title}"}
 
 class TrailerRequest(BaseModel):

@@ -23,9 +23,16 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Film originale qualità >= 40: -5% base, peggiora con più sequel
   - Film originale qualità < 40: -30% base, -10% per sequel
   - Bonus aggiuntivo basato sul tier del film originale
+- **Indicatore Visivo Sequel**: Badge "SEQUEL #X" sui poster dei film
+  - Nella card del film (lista)
+  - Nella pagina dettaglio con info sul bonus applicato
 - **Nuovo Endpoint API**:
   - `GET /api/films/my/for-sequel` - Lista film disponibili per sequel
-- **Fix Generazione Synopsis**: Corretto l'import della libreria LLM per la generazione automatica della trama
+- **Fix Generazione AI**:
+  - Corretto import libreria LLM per synopsis (`LlmChat` invece di `OpenAILLM`)
+  - Timeout axios aumentato a 2 minuti per generazioni lunghe
+  - Aggiunto logging dettagliato per debug
+  - Messaggi di errore più informativi nel frontend
 
 ### v0.062 - Selettore Lingua Login/Registrazione - 10/03/2026 (COMPLETATO)
 - **Selettore lingua nelle pagine di autenticazione**: Pulsanti IT/EN in alto a destra

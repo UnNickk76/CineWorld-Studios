@@ -57,7 +57,8 @@ const AuthProvider = ({ children }) => {
 
   const api = axios.create({
     baseURL: API,
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    timeout: 120000  // 2 minutes timeout for AI generation calls
   });
 
   // Auto-login on app load
@@ -1865,9 +1866,18 @@ const Dashboard = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             {films.map(film => (
               <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
-                <div className="aspect-[2/3] relative"><img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" /></div>
+                <div className="aspect-[2/3] relative">
+                  <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" />
+                  {film.is_sequel && (
+                    <div className="absolute top-1 right-1 bg-purple-600/90 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                      SEQUEL #{film.sequel_number || 2}
+                    </div>
+                  )}
+                </div>
                 <CardContent className="p-2">
-                  <h3 className="font-semibold text-xs truncate">{film.title}</h3>
+                  <h3 className="font-semibold text-xs truncate">
+                    {film.title}{film.subtitle && <span className="text-gray-400">: {film.subtitle}</span>}
+                  </h3>
                   <div className="flex justify-between mt-1 text-xs text-gray-400"><span><Heart className="w-2.5 h-2.5 inline" /> {film.likes_count}</span><span className="text-green-400">${(film.total_revenue || 0).toLocaleString()}</span></div>
                 </CardContent>
               </Card>
@@ -2327,9 +2337,49 @@ const FilmWizard = () => {
     setSkillSearchQuery('');
   }, [step]);
 
-  const generateScreenplay = async () => { setGenerating(true); try { const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); toast.success('Sceneggiatura generata!'); } catch(e) { toast.error('Errore'); } finally { setGenerating(false); }};
-  const generatePoster = async () => { setGenerating(true); try { const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); setFilmData({...filmData, poster_url: res.data.poster_url}); toast.success('Poster generated!'); } catch(e) { toast.error('Failed'); } finally { setGenerating(false); }};
-  const generateSoundtrack = async () => { setGenerating(true); try { const res = await api.post('/ai/soundtrack-description', { title: filmData.title, genre: filmData.genre, mood: 'epic', custom_prompt: filmData.soundtrack_prompt }); setFilmData({...filmData, soundtrack_description: res.data.description}); toast.success('Descrizione colonna sonora generata!'); } catch(e) { toast.error('Errore generazione'); } finally { setGenerating(false); }};
+  const generateScreenplay = async () => { 
+    setGenerating(true); 
+    try { 
+      const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); 
+      setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); 
+      toast.success(language === 'it' ? 'Sceneggiatura generata!' : 'Screenplay generated!'); 
+    } catch(e) { 
+      console.error('Screenplay generation error:', e);
+      toast.error(language === 'it' ? 'Errore generazione sceneggiatura. Riprova.' : 'Screenplay generation error. Try again.'); 
+    } finally { 
+      setGenerating(false); 
+    }
+  };
+  const generatePoster = async () => { 
+    setGenerating(true); 
+    try { 
+      const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); 
+      if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
+        setFilmData({...filmData, poster_url: res.data.poster_url}); 
+        toast.success(language === 'it' ? 'Locandina generata!' : 'Poster generated!'); 
+      } else {
+        toast.error(language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again');
+      }
+    } catch(e) { 
+      console.error('Poster generation error:', e);
+      toast.error(language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.'); 
+    } finally { 
+      setGenerating(false); 
+    }
+  };
+  const generateSoundtrack = async () => { 
+    setGenerating(true); 
+    try { 
+      const res = await api.post('/ai/soundtrack-description', { title: filmData.title, genre: filmData.genre, mood: 'epic', custom_prompt: filmData.soundtrack_prompt, language }); 
+      setFilmData({...filmData, soundtrack_description: res.data.description}); 
+      toast.success(language === 'it' ? 'Descrizione colonna sonora generata!' : 'Soundtrack description generated!'); 
+    } catch(e) { 
+      console.error('Soundtrack generation error:', e);
+      toast.error(language === 'it' ? 'Errore generazione. Riprova.' : 'Generation error. Try again.'); 
+    } finally { 
+      setGenerating(false); 
+    }
+  };
   
   // Load rejections on mount
   useEffect(() => {
@@ -4455,9 +4505,33 @@ const FilmDetail = () => {
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="film-detail-page">
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="bg-[#1A1A1A] border-white/10 overflow-hidden">
-          <div className="aspect-[2/3]"><img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'} alt={film.title} className="w-full h-full object-cover" /></div>
+          <div className="aspect-[2/3] relative">
+            <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'} alt={film.title} className="w-full h-full object-cover" />
+            {film.is_sequel && (
+              <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow-lg">
+                SEQUEL #{film.sequel_number || 2}
+              </div>
+            )}
+          </div>
           <CardContent className="p-3">
-            <h1 className="font-['Bebas_Neue'] text-xl mb-2">{film.title}</h1>
+            <h1 className="font-['Bebas_Neue'] text-xl mb-1">{film.title}</h1>
+            {film.subtitle && (
+              <h2 className="text-gray-400 text-sm mb-2">{film.subtitle}</h2>
+            )}
+            {/* Sequel bonus info */}
+            {film.sequel_bonus_applied && (
+              <div className={`text-xs p-2 rounded mb-2 ${film.sequel_bonus_applied.multiplier >= 1 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                <div className="flex items-center gap-1">
+                  <TrendingUp className={`w-3 h-3 ${film.sequel_bonus_applied.multiplier >= 1 ? 'text-green-400' : 'text-red-400'}`} />
+                  <span className={film.sequel_bonus_applied.multiplier >= 1 ? 'text-green-400' : 'text-red-400'}>
+                    {film.sequel_bonus_applied.reason}
+                  </span>
+                </div>
+                <p className="text-gray-400 text-[10px] mt-1">
+                  Sequel di "{film.sequel_bonus_applied.parent_title}" • Bonus: {film.sequel_bonus_applied.multiplier >= 1 ? '+' : ''}{((film.sequel_bonus_applied.multiplier - 1) * 100).toFixed(0)}%
+                </p>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-2">
               <Badge className="bg-yellow-500/20 text-yellow-500 text-xs">{t(film.genre)}</Badge>
               {film.subgenres?.map(sg => <Badge key={sg} variant="outline" className="text-[10px] h-4 border-gray-600">{sg}</Badge>)}

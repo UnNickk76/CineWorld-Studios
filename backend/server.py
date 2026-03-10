@@ -3195,29 +3195,29 @@ async def get_my_pre_films(user: dict = Depends(get_current_user)):
         if cast.get('screenwriter'):
             sw = await db.people.find_one({'id': cast['screenwriter']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
             if sw:
-                cast['screenwriter']['name'] = sw['name']
-                cast['screenwriter']['fame'] = sw['fame']
+                cast['screenwriter']['name'] = sw.get('name', 'Unknown')
+                cast['screenwriter']['fame'] = sw.get('fame', 50)
         
         # Get director info
         if cast.get('director'):
             dir_info = await db.people.find_one({'id': cast['director']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
             if dir_info:
-                cast['director']['name'] = dir_info['name']
-                cast['director']['fame'] = dir_info['fame']
+                cast['director']['name'] = dir_info.get('name', 'Unknown')
+                cast['director']['fame'] = dir_info.get('fame', 50)
         
         # Get composer info
         if cast.get('composer'):
             comp = await db.people.find_one({'id': cast['composer']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
             if comp:
-                cast['composer']['name'] = comp['name']
-                cast['composer']['fame'] = comp['fame']
+                cast['composer']['name'] = comp.get('name', 'Unknown')
+                cast['composer']['fame'] = comp.get('fame', 50)
         
         # Get actors info
         for actor in cast.get('actors', []):
             act = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1, 'fame': 1})
             if act:
-                actor['name'] = act['name']
-                actor['fame'] = act['fame']
+                actor['name'] = act.get('name', 'Unknown')
+                actor['fame'] = act.get('fame', 50)
         
         # Check if expired
         expires_at = datetime.fromisoformat(pf['expires_at'].replace('Z', '+00:00'))
@@ -3621,6 +3621,161 @@ async def convert_pre_film_to_draft(pre_film_id: str, user: dict = Depends(get_c
         'success': True,
         'draft_id': draft['id'],
         'message': 'Pre-film convertito in bozza. Puoi ora completare la creazione del film.'
+    }
+
+# Check for cast rescission (cast decides to leave if too much time passes)
+CAST_PATIENCE_DAYS = 15  # After 15 days, cast may want to rescind
+
+@api_router.get("/pre-films/{pre_film_id}/check-rescissions")
+async def check_cast_rescissions(pre_film_id: str, user: dict = Depends(get_current_user)):
+    """Check if any pre-engaged cast wants to rescind due to waiting too long."""
+    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+    
+    if not pre_film:
+        raise HTTPException(status_code=404, detail="Pre-film non trovato")
+    
+    rescissions = []
+    cast = pre_film.get('pre_engaged_cast', {})
+    now = datetime.now(timezone.utc)
+    
+    # Check each cast member
+    for cast_type in ['screenwriter', 'director', 'composer']:
+        engaged = cast.get(cast_type)
+        if engaged:
+            engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
+            days_waiting = (now - engaged_at).days
+            
+            if days_waiting >= CAST_PATIENCE_DAYS:
+                # Cast member may want to rescind (probability increases with time)
+                rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
+                
+                if random.random() * 100 < rescind_chance:
+                    cast_member = await db.people.find_one({'id': engaged['id']}, {'_id': 0, 'name': 1})
+                    rescissions.append({
+                        'cast_type': cast_type,
+                        'cast_id': engaged['id'],
+                        'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
+                        'days_waiting': days_waiting,
+                        'advance_to_refund': engaged['advance_paid']
+                    })
+    
+    # Check actors
+    for actor in cast.get('actors', []):
+        engaged_at = datetime.fromisoformat(actor['engaged_at'].replace('Z', '+00:00'))
+        days_waiting = (now - engaged_at).days
+        
+        if days_waiting >= CAST_PATIENCE_DAYS:
+            rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
+            
+            if random.random() * 100 < rescind_chance:
+                cast_member = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1})
+                rescissions.append({
+                    'cast_type': 'actor',
+                    'cast_id': actor['id'],
+                    'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
+                    'days_waiting': days_waiting,
+                    'advance_to_refund': actor['advance_paid']
+                })
+    
+    return {'rescissions': rescissions, 'count': len(rescissions)}
+
+@api_router.post("/pre-films/{pre_film_id}/process-rescission")
+async def process_cast_rescission(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
+    """Process a cast rescission - refund the advance to the producer."""
+    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+    
+    if not pre_film:
+        raise HTTPException(status_code=404, detail="Pre-film non trovato")
+    
+    cast = pre_film.get('pre_engaged_cast', {})
+    
+    # Find the engaged cast member
+    if cast_type == 'actor':
+        engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
+    else:
+        engaged = cast.get(cast_type)
+        if engaged and engaged.get('id') != cast_id:
+            engaged = None
+    
+    if not engaged:
+        raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
+    
+    # Refund the advance
+    refund_amount = engaged['advance_paid']
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': refund_amount}})
+    
+    # Remove from pre-engaged cast
+    if cast_type == 'actor':
+        await db.pre_films.update_one(
+            {'id': pre_film_id},
+            {
+                '$pull': {'pre_engaged_cast.actors': {'id': cast_id}},
+                '$inc': {'total_advance_paid': -refund_amount}
+            }
+        )
+    else:
+        await db.pre_films.update_one(
+            {'id': pre_film_id},
+            {
+                '$set': {f'pre_engaged_cast.{cast_type}': None},
+                '$inc': {'total_advance_paid': -refund_amount}
+            }
+        )
+    
+    cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0, 'name': 1})
+    
+    return {
+        'success': True,
+        'message': f"{cast_member.get('name', 'Il cast')} ha rescisso il contratto. Anticipo di ${refund_amount:,.0f} rimborsato.",
+        'refund': refund_amount
+    }
+
+# Endpoint to dismiss pre-engaged cast during film creation (with penalty info)
+@api_router.post("/pre-films/{pre_film_id}/dismiss-cast")
+async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
+    """Dismiss a pre-engaged cast member when creating the actual film (congedare)."""
+    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+    
+    if not pre_film:
+        raise HTTPException(status_code=404, detail="Pre-film non trovato")
+    
+    cast = pre_film.get('pre_engaged_cast', {})
+    
+    # Find the engaged cast member
+    if cast_type == 'actor':
+        engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
+    else:
+        engaged = cast.get(cast_type)
+        if engaged and engaged.get('id') != cast_id:
+            engaged = None
+    
+    if not engaged:
+        raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
+    
+    # Get cast member info
+    cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0})
+    if not cast_member:
+        raise HTTPException(status_code=404, detail="Cast non trovato")
+    
+    # Calculate penalty
+    engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
+    days_engaged = (datetime.now(timezone.utc) - engaged_at).days
+    
+    penalty_percent = calculate_release_penalty(cast_member, days_engaged)
+    penalty_amount = engaged['offered_fee'] * (penalty_percent / 100)
+    
+    # Advance already paid, calculate additional penalty
+    additional_penalty = max(0, penalty_amount - engaged['advance_paid'])
+    
+    return {
+        'cast_name': cast_member['name'],
+        'penalty_percent': penalty_percent,
+        'advance_lost': engaged['advance_paid'],
+        'additional_penalty': additional_penalty,
+        'total_cost': engaged['advance_paid'] + additional_penalty,
+        'message': f"Congedando {cast_member['name']} perderai l'anticipo di ${engaged['advance_paid']:,.0f}" + 
+                   (f" e pagherai una penale aggiuntiva di ${additional_penalty:,.0f}" if additional_penalty > 0 else "") +
+                   f" (Penale totale: {penalty_percent:.0f}%)"
     }
 
 # ==================== END PRE-FILM & PRE-ENGAGEMENT SYSTEM ====================

@@ -10,7 +10,7 @@ import {
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
-  ArrowLeft, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
+  ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
   KeyRound, AlertCircle, Mail
 } from 'lucide-react';
@@ -2086,6 +2086,11 @@ const FilmWizard = () => {
   const [refusedIds, setRefusedIds] = useState(new Set());
   const [rejectionModal, setRejectionModal] = useState(null);
   const [checkingOffer, setCheckingOffer] = useState(null);
+  
+  // Pre-engagement states
+  const [preEngagedCast, setPreEngagedCast] = useState(null);
+  const [preFilmId, setPreFilmId] = useState(null);
+  const [dismissModal, setDismissModal] = useState(null);
 
   const [filmData, setFilmData] = useState({
     title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
@@ -2150,9 +2155,9 @@ const FilmWizard = () => {
         extras_cost: draft.extras_cost || 50000,
         screenplay: draft.screenplay || '',
         screenplay_source: draft.screenplay_source || 'manual',
-        screenplay_prompt: '',
-        soundtrack_prompt: '',
-        soundtrack_description: '',
+        screenplay_prompt: draft.screenplay_prompt || '',
+        soundtrack_prompt: draft.soundtrack_prompt || '',
+        soundtrack_description: draft.soundtrack_description || '',
         poster_url: draft.poster_url || '',
         poster_prompt: draft.poster_prompt || '',
         ad_duration_seconds: draft.ad_duration_seconds || 0,
@@ -2160,6 +2165,39 @@ const FilmWizard = () => {
       });
       setStep(draft.current_step || 1);
       setResumedDraftId(draftId);
+      
+      // Check if this draft comes from a pre-film
+      if (draft.from_pre_film && draft.pre_film_id) {
+        setPreFilmId(draft.pre_film_id);
+        setPreEngagedCast(draft.pre_engaged_cast || null);
+        
+        // Pre-fill cast IDs from pre-engaged cast
+        const preCast = draft.pre_engaged_cast || {};
+        if (preCast.screenwriter?.id) {
+          setFilmData(prev => ({...prev, screenwriter_id: preCast.screenwriter.id}));
+        }
+        if (preCast.director?.id) {
+          setFilmData(prev => ({...prev, director_id: preCast.director.id}));
+        }
+        if (preCast.composer?.id) {
+          setFilmData(prev => ({...prev, composer_id: preCast.composer.id}));
+        }
+        if (preCast.actors?.length > 0) {
+          setFilmData(prev => ({
+            ...prev, 
+            actors: preCast.actors.map(a => ({
+              id: a.id,
+              role: 'Lead',
+              fee: a.offered_fee
+            }))
+          }));
+        }
+        
+        toast.info(language === 'it' 
+          ? 'Cast pre-ingaggiato caricato. Puoi mantenerlo o congedarlo (con penale).'
+          : 'Pre-engaged cast loaded. You can keep or dismiss them (with penalty).');
+      }
+      
       toast.success(language === 'it' ? 'Bozza caricata!' : 'Draft loaded!');
     } catch (e) {
       toast.error(language === 'it' ? 'Errore nel caricamento della bozza' : 'Error loading draft');
@@ -2373,6 +2411,83 @@ const FilmWizard = () => {
     if (!role) return roleId;
     const langKey = `name_${language}`;
     return role[langKey] || role.name;
+  };
+
+  // Check if a cast member is pre-engaged
+  const isPreEngaged = (castType, castId) => {
+    if (!preEngagedCast) return false;
+    if (castType === 'actor') {
+      return preEngagedCast.actors?.some(a => a.id === castId);
+    }
+    return preEngagedCast[castType]?.id === castId;
+  };
+
+  // Get pre-engaged cast info
+  const getPreEngagedInfo = (castType, castId) => {
+    if (!preEngagedCast) return null;
+    if (castType === 'actor') {
+      return preEngagedCast.actors?.find(a => a.id === castId);
+    }
+    return preEngagedCast[castType];
+  };
+
+  // Handle dismissing pre-engaged cast
+  const handleDismissCast = async (castType, castId) => {
+    if (!preFilmId) return;
+    
+    try {
+      const res = await api.post(`/pre-films/${preFilmId}/dismiss-cast?cast_type=${castType}&cast_id=${castId}`);
+      setDismissModal({
+        castType,
+        castId,
+        ...res.data
+      });
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  // Confirm dismissal
+  const confirmDismissal = async () => {
+    if (!dismissModal || !preFilmId) return;
+    
+    try {
+      // Actually release the cast
+      await api.post(`/pre-films/${preFilmId}/release`, {
+        pre_film_id: preFilmId,
+        cast_type: dismissModal.castType,
+        cast_id: dismissModal.castId
+      });
+      
+      toast.success(`${dismissModal.cast_name} ${language === 'it' ? 'congedato' : 'dismissed'}`);
+      
+      // Update local state
+      if (dismissModal.castType === 'screenwriter') {
+        setFilmData(prev => ({...prev, screenwriter_id: ''}));
+      } else if (dismissModal.castType === 'director') {
+        setFilmData(prev => ({...prev, director_id: ''}));
+      } else if (dismissModal.castType === 'composer') {
+        setFilmData(prev => ({...prev, composer_id: ''}));
+      } else if (dismissModal.castType === 'actor') {
+        setFilmData(prev => ({
+          ...prev,
+          actors: prev.actors.filter(a => a.id !== dismissModal.castId)
+        }));
+      }
+      
+      // Update pre-engaged cast state
+      setPreEngagedCast(prev => {
+        if (!prev) return prev;
+        if (dismissModal.castType === 'actor') {
+          return {...prev, actors: prev.actors.filter(a => a.id !== dismissModal.castId)};
+        }
+        return {...prev, [dismissModal.castType]: null};
+      });
+      
+      setDismissModal(null);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
   };
 
   const PersonCard = ({ person, isSelected, onSelect, showRoleSelect = false, currentRole = null, onRoleChange = null, roleType = 'actor' }) => {
@@ -2969,6 +3084,57 @@ const FilmWizard = () => {
           </motion.div>
         </div>
       )}
+      
+      {/* Dismiss Pre-Engaged Cast Modal */}
+      {dismissModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setDismissModal(null)}>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1A1A1A] rounded-xl p-6 max-w-md w-full border border-red-500/30"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center mb-3">
+                <AlertTriangle className="w-8 h-8 text-red-400" />
+              </div>
+              <h2 className="font-['Bebas_Neue'] text-2xl text-red-400">
+                {language === 'it' ? 'Congedare Cast' : 'Dismiss Cast'}
+              </h2>
+              <p className="text-lg font-semibold mt-2">{dismissModal.cast_name}</p>
+            </div>
+            
+            <div className="bg-black/30 rounded-lg p-4 mb-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">{language === 'it' ? 'Anticipo perso' : 'Lost advance'}:</span>
+                <span className="text-red-400 font-bold">${dismissModal.advance_lost?.toLocaleString()}</span>
+              </div>
+              {dismissModal.additional_penalty > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">{language === 'it' ? 'Penale aggiuntiva' : 'Additional penalty'}:</span>
+                  <span className="text-red-400 font-bold">${dismissModal.additional_penalty?.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="border-t border-white/10 pt-2 flex justify-between">
+                <span className="text-gray-300 font-semibold">{language === 'it' ? 'Costo totale' : 'Total cost'}:</span>
+                <span className="text-red-400 font-bold text-lg">${dismissModal.total_cost?.toLocaleString()}</span>
+              </div>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                {language === 'it' ? `Penale: ${dismissModal.penalty_percent?.toFixed(0)}%` : `Penalty: ${dismissModal.penalty_percent?.toFixed(0)}%`}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setDismissModal(null)} className="flex-1">
+                {language === 'it' ? 'Annulla' : 'Cancel'}
+              </Button>
+              <Button onClick={confirmDismissal} className="flex-1 bg-red-600 hover:bg-red-700">
+                {language === 'it' ? 'Congeda' : 'Dismiss'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
@@ -3020,6 +3186,27 @@ const PreEngagementPage = () => {
       ]);
       setPreFilms(preFilmsRes.data.pre_films || []);
       setExpiredIdeas(expiredRes.data.expired_ideas || []);
+      
+      // Check for rescissions on each pre-film
+      for (const pf of preFilmsRes.data.pre_films || []) {
+        if (pf.status === 'active' && !pf.is_expired) {
+          try {
+            const rescRes = await api.get(`/pre-films/${pf.id}/check-rescissions`);
+            if (rescRes.data.rescissions?.length > 0) {
+              for (const resc of rescRes.data.rescissions) {
+                // Process rescission and notify user
+                const processRes = await api.post(`/pre-films/${pf.id}/process-rescission?cast_type=${resc.cast_type}&cast_id=${resc.cast_id}`);
+                toast.warning(`${resc.cast_name} ha rescisso il contratto per "${pf.title}". Anticipo rimborsato: $${resc.advance_to_refund.toLocaleString()}`);
+              }
+              // Reload data after rescissions
+              const updatedRes = await api.get('/pre-films');
+              setPreFilms(updatedRes.data.pre_films || []);
+            }
+          } catch (e) {
+            // Silently fail rescission checks
+          }
+        }
+      }
     } catch (e) {
       toast.error('Errore nel caricamento');
     } finally {
@@ -3126,8 +3313,8 @@ const PreEngagementPage = () => {
 
   const releaseCast = async (preFilmId, type, castId, castName) => {
     if (!confirm(language === 'it' 
-      ? `Sei sicuro di voler rilasciare ${castName}? Perderai l'anticipo e potresti dover pagare una penale.`
-      : `Are you sure you want to release ${castName}? You'll lose the advance and may have to pay a penalty.`
+      ? `Sei sicuro di voler congedare ${castName}? Perderai l'anticipo e potresti dover pagare una penale.`
+      : `Are you sure you want to dismiss ${castName}? You'll lose the advance and may have to pay a penalty.`
     )) return;
     
     try {
@@ -3138,7 +3325,7 @@ const PreEngagementPage = () => {
       });
       
       if (res.data.success) {
-        toast.success(`${castName} ${language === 'it' ? 'rilasciato' : 'released'}. ${language === 'it' ? 'Penale' : 'Penalty'}: ${res.data.penalty_percent.toFixed(0)}% ($${res.data.total_cost.toLocaleString()})`);
+        toast.success(`${castName} ${language === 'it' ? 'congedato' : 'dismissed'}. ${language === 'it' ? 'Penale' : 'Penalty'}: ${res.data.penalty_percent.toFixed(0)}% ($${res.data.total_cost.toLocaleString()})`);
         loadData();
       }
     } catch (e) {

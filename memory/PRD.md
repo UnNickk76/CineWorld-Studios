@@ -3,9 +3,20 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.060
+## Versione Attuale: v0.061
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.061 - Sistema Pre-Ingaggio Completato - 10/03/2026 (COMPLETATO)
+- **Integrazione Film Creation**: Il cast pre-ingaggiato viene caricato automaticamente nel wizard di creazione film
+- **Pulsante "Congeda"**: Per licenziare cast pre-ingaggiato durante la creazione film
+  - Modal con dettaglio: anticipo perso + penale aggiuntiva + costo totale
+  - Penale variabile 10-60% basata su fama + tempo trascorso
+- **Sistema Rescissione Automatica**: 
+  - Dopo 15 giorni, il cast può decidere di rescindere
+  - Probabilità crescente con il passare del tempo
+  - Rimborso automatico dell'anticipo al produttore
+- **Fix bug**: Gestione campi mancanti (fame) nel database
 
 ### v0.060 - Sistema Pre-Ingaggio Cast - 10/03/2026 (COMPLETATO)
 - **Pre-Film**: Crea bozza con titolo, genere e sceneggiatura (20-200 caratteri)

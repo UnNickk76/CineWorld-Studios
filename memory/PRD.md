@@ -3,9 +3,20 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.066
+## Versione Attuale: v0.067
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.067 - Refactoring Architettura (Fase 1) - 10/03/2026 (IN CORSO)
+- **Frontend - Nuova Struttura Modulare**:
+  - `/src/contexts/index.jsx` - AuthProvider, LanguageProvider, useTranslations
+  - `/src/constants/index.js` - SKILL_TRANSLATIONS, GENRES_LIST, MAJOR_ROLES
+  - `/src/components/shared/index.jsx` - SkillBadge, QualityIndicator, TierBadge, etc.
+  - `/src/modules.js` - Re-export centralizzato per import semplificati
+- **Backend - Nuova Struttura**:
+  - `/backend/models/__init__.py` - Tutti i modelli Pydantic (User, Film, Festival, etc.)
+  - `/backend/utils/__init__.py` - Helper functions (hash_password, create_token, calculate_level, etc.)
+- **Stato**: I nuovi file sono creati ma non ancora integrati in App.js/server.py per evitare rotture
 
 ### v0.066 - Menu Mobile Migliorato e Navigazione Festival Live - 10/03/2026 (COMPLETATO)
 - **Menu Mobile Completamente Ridisegnato**:

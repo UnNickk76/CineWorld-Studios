@@ -201,16 +201,16 @@ const TopNavbar = () => {
             <Building2 className="w-4 h-4" />
           </Button>
           
-          {/* Social/Chat - Always visible */}
+          {/* CineBoard/Social - Always visible */}
           <Button
             variant="ghost"
             size="sm"
             className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
             onClick={() => navigate('/social')}
-            data-testid="social-btn"
-            title={language === 'it' ? 'Social & Chat' : 'Social & Chat'}
+            data-testid="cineboard-btn"
+            title="CineBoard"
           >
-            <MessageSquare className="w-4 h-4" />
+            <Globe className="w-4 h-4" />
           </Button>
           
           {/* Challenges/Sfide - Always visible */}

@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -1780,7 +1780,7 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
         <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer" onClick={() => navigate('/festivals')}>
           <CardContent className="p-3 flex items-center gap-2">
             <div className="p-2 bg-red-500 rounded-lg"><Award className="w-5 h-5 text-white" /></div>
@@ -1809,6 +1809,12 @@ const Dashboard = () => {
           <CardContent className="p-3 flex items-center gap-2">
             <div className="p-2 bg-purple-500 rounded-lg"><Globe className="w-5 h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-lg">{t('social')}</h3><p className="text-xs text-gray-400">Explore films</p></div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
+          <CardContent className="p-3 flex items-center gap-2">
+            <div className="p-2 bg-pink-500 rounded-lg"><Swords className="w-5 h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
           </CardContent>
         </Card>
       </div>
@@ -1880,6 +1886,728 @@ const Dashboard = () => {
       />
     </div>
   );
+};
+
+// ==================== CHALLENGES PAGE (Sfide) ====================
+const ChallengesPage = () => {
+  const { user, api } = useContext(AuthContext);
+  const { language } = useTranslations();
+  const navigate = useNavigate();
+  const [view, setView] = useState('home'); // home, 1v1, 2v2, 3v3, 4v4, ffa, create, battle, leaderboard
+  const [challengeType, setChallengeType] = useState(null);
+  const [myFilms, setMyFilms] = useState([]);
+  const [selectedFilms, setSelectedFilms] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [myChallenges, setMyChallenges] = useState([]);
+  const [waitingChallenges, setWaitingChallenges] = useState([]);
+  const [activeBattle, setActiveBattle] = useState(null);
+  const [battleStep, setBattleStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [teamType, setTeamType] = useState('random');
+  const [ffaPlayerCount, setFfaPlayerCount] = useState(4);
+  const [opponentId, setOpponentId] = useState('');
+  const [myStats, setMyStats] = useState(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [filmsRes, leaderboardRes, myChallengesRes, waitingRes, statsRes] = await Promise.all([
+        api.get('/challenges/my-films'),
+        api.get('/challenges/leaderboard'),
+        api.get('/challenges/my'),
+        api.get('/challenges/waiting'),
+        api.get(`/challenges/stats/${user.id}`)
+      ]);
+      setMyFilms(filmsRes.data);
+      setLeaderboard(leaderboardRes.data);
+      setMyChallenges(myChallengesRes.data);
+      setWaitingChallenges(waitingRes.data);
+      setMyStats(statsRes.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const selectChallengeType = (type) => {
+    setChallengeType(type);
+    setSelectedFilms([]);
+    setView('create');
+  };
+
+  const toggleFilmSelection = (film) => {
+    if (selectedFilms.find(f => f.id === film.id)) {
+      setSelectedFilms(selectedFilms.filter(f => f.id !== film.id));
+    } else if (selectedFilms.length < 3) {
+      setSelectedFilms([...selectedFilms, film]);
+    }
+  };
+
+  const createChallenge = async () => {
+    if (selectedFilms.length !== 3) {
+      toast.error(language === 'it' ? 'Seleziona esattamente 3 film!' : 'Select exactly 3 films!');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await api.post('/challenges/create', {
+        challenge_type: challengeType,
+        film_ids: selectedFilms.map(f => f.id),
+        team_type: ['2v2', '3v3', '4v4'].includes(challengeType) ? teamType : undefined,
+        opponent_id: challengeType === '1v1' && opponentId ? opponentId : undefined,
+        ffa_player_count: challengeType === 'ffa' ? ffaPlayerCount : undefined,
+        is_live: true
+      });
+      
+      toast.success(res.data.message);
+      
+      if (res.data.result) {
+        // Battle started immediately
+        setActiveBattle(res.data.result);
+        setView('battle');
+        runBattleAnimation(res.data.result);
+      } else {
+        setView('home');
+        loadData();
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore creazione sfida');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const joinChallenge = async (challengeId) => {
+    if (selectedFilms.length !== 3) {
+      toast.error(language === 'it' ? 'Seleziona 3 film prima!' : 'Select 3 films first!');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await api.post(`/challenges/${challengeId}/join`, selectedFilms.map(f => f.id));
+      
+      if (res.data.result) {
+        setActiveBattle(res.data.result);
+        setView('battle');
+        runBattleAnimation(res.data.result);
+      } else {
+        toast.success(res.data.message);
+        loadData();
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const viewBattleResult = async (challengeId) => {
+    try {
+      const res = await api.get(`/challenges/${challengeId}`);
+      if (res.data.result) {
+        setActiveBattle(res.data.result);
+        setView('battle');
+        setBattleStep(99); // Show final result
+      }
+    } catch (e) {
+      toast.error('Errore caricamento sfida');
+    }
+  };
+
+  const runBattleAnimation = (battle) => {
+    setBattleStep(0);
+    // Intro
+    setTimeout(() => setBattleStep(1), 2000);
+    // Round 1
+    setTimeout(() => setBattleStep(2), 5000);
+    // Round 2
+    setTimeout(() => setBattleStep(3), 10000);
+    // Round 3
+    setTimeout(() => setBattleStep(4), 15000);
+    // Final result
+    setTimeout(() => setBattleStep(99), 20000);
+  };
+
+  const getSkillIcon = (skill) => {
+    const icons = {
+      direction: '🎬', cinematography: '📷', screenplay: '📝', acting: '🎭',
+      soundtrack: '🎵', effects: '💥', editing: '✂️', charisma: '⭐'
+    };
+    return icons[skill] || '🎯';
+  };
+
+  const getSkillName = (skill) => {
+    const names = {
+      direction: language === 'it' ? 'Regia' : 'Direction',
+      cinematography: language === 'it' ? 'Fotografia' : 'Cinematography',
+      screenplay: language === 'it' ? 'Sceneggiatura' : 'Screenplay',
+      acting: language === 'it' ? 'Recitazione' : 'Acting',
+      soundtrack: language === 'it' ? 'Colonna Sonora' : 'Soundtrack',
+      effects: language === 'it' ? 'Effetti' : 'Effects',
+      editing: language === 'it' ? 'Montaggio' : 'Editing',
+      charisma: language === 'it' ? 'Carisma' : 'Charisma'
+    };
+    return names[skill] || skill;
+  };
+
+  // HOME VIEW - Challenge Type Selection
+  if (view === 'home') {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="challenges-page">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+            <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
+              <Swords className="w-8 h-8 text-pink-500" />
+              {language === 'it' ? 'SFIDE' : 'CHALLENGES'}
+            </h1>
+          </div>
+          <p className="text-gray-400 text-sm">{language === 'it' ? 'Sfida altri giocatori con i tuoi film!' : 'Challenge other players with your films!'}</p>
+        </motion.div>
+
+        {/* My Stats Card */}
+        {myStats && (
+          <Card className="bg-gradient-to-r from-pink-500/20 to-purple-500/10 border-pink-500/30 mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-pink-500 rounded-lg"><Trophy className="w-6 h-6 text-white" /></div>
+                  <div>
+                    <h3 className="font-['Bebas_Neue'] text-xl">{language === 'it' ? 'LE TUE STATISTICHE' : 'YOUR STATS'}</h3>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-green-400">🏆 {myStats.wins} {language === 'it' ? 'Vittorie' : 'Wins'}</span>
+                      <span className="text-red-400">💔 {myStats.losses} {language === 'it' ? 'Sconfitte' : 'Losses'}</span>
+                      <span className="text-yellow-400">🔥 {myStats.current_streak} Streak</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-pink-400">{myStats.win_rate}%</p>
+                  <p className="text-xs text-gray-400">Win Rate</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Challenge Type Grid */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Card 
+            className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
+            onClick={() => selectChallengeType('1v1')}
+            data-testid="challenge-1v1"
+          >
+            <CardContent className="p-4 text-center">
+              <div className="p-4 bg-red-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl font-bold">1v1</span>
+              </div>
+              <h3 className="font-['Bebas_Neue'] text-xl">1 VS 1</h3>
+              <p className="text-xs text-gray-400">{language === 'it' ? 'Sfida diretta' : 'Direct duel'}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
+            onClick={() => selectChallengeType('2v2')}
+            data-testid="challenge-2v2"
+          >
+            <CardContent className="p-4 text-center">
+              <div className="p-4 bg-orange-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl font-bold">2v2</span>
+              </div>
+              <h3 className="font-['Bebas_Neue'] text-xl">2 VS 2</h3>
+              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 2' : '2-player teams'}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
+            onClick={() => selectChallengeType('3v3')}
+            data-testid="challenge-3v3"
+          >
+            <CardContent className="p-4 text-center">
+              <div className="p-4 bg-yellow-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl font-bold text-black">3v3</span>
+              </div>
+              <h3 className="font-['Bebas_Neue'] text-xl">3 VS 3</h3>
+              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 3' : '3-player teams'}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="bg-gradient-to-br from-green-500/20 to-green-600/5 border-green-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
+            onClick={() => selectChallengeType('4v4')}
+            data-testid="challenge-4v4"
+          >
+            <CardContent className="p-4 text-center">
+              <div className="p-4 bg-green-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl font-bold">4v4</span>
+              </div>
+              <h3 className="font-['Bebas_Neue'] text-xl">4 VS 4</h3>
+              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 4' : '4-player teams'}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Free For All */}
+        <Card 
+          className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border-purple-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-6" 
+          onClick={() => selectChallengeType('ffa')}
+          data-testid="challenge-ffa"
+        >
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+              <Flame className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-['Bebas_Neue'] text-xl">{language === 'it' ? 'TUTTI CONTRO TUTTI' : 'FREE FOR ALL'}</h3>
+              <p className="text-sm text-gray-400">{language === 'it' ? 'Da 4 a 10 giocatori, tutti contro tutti!' : '4-10 players battle royale!'}</p>
+            </div>
+            <ChevronRight className="w-6 h-6 text-gray-500" />
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Button 
+            variant="outline" 
+            className="border-pink-500/30 text-pink-400 h-12"
+            onClick={() => setView('leaderboard')}
+          >
+            <Trophy className="w-4 h-4 mr-2" /> {language === 'it' ? 'Classifica' : 'Leaderboard'}
+          </Button>
+          <Button 
+            variant="outline" 
+            className="border-blue-500/30 text-blue-400 h-12"
+            onClick={() => loadData()}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" /> {language === 'it' ? 'Aggiorna' : 'Refresh'}
+          </Button>
+        </div>
+
+        {/* Waiting Challenges */}
+        {waitingChallenges.length > 0 && (
+          <Card className="bg-[#1A1A1A] border-white/5 mb-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Clock className="w-4 h-4 text-yellow-500" /> {language === 'it' ? 'Sfide in Attesa' : 'Waiting Challenges'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {waitingChallenges.slice(0, 5).map(c => (
+                <div key={c.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  <div>
+                    <p className="font-semibold">{c.type.toUpperCase()} - {c.creator_nickname}</p>
+                    <p className="text-xs text-gray-400">{c.participants?.length || 1}/{c.required_players || 2} {language === 'it' ? 'giocatori' : 'players'}</p>
+                  </div>
+                  <Button size="sm" onClick={() => { setSelectedFilms([]); viewBattleResult(c.id); }} className="bg-pink-500 hover:bg-pink-600">
+                    {language === 'it' ? 'Unisciti' : 'Join'}
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Challenges */}
+        {myChallenges.filter(c => c.status === 'completed').length > 0 && (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <History className="w-4 h-4 text-blue-500" /> {language === 'it' ? 'Sfide Recenti' : 'Recent Challenges'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {myChallenges.filter(c => c.status === 'completed').slice(0, 5).map(c => {
+                const isWinner = c.result?.winner === 'team_a' && c.participants?.find(p => p.user_id === user.id)?.team === 'a' ||
+                                 c.result?.winner === 'team_b' && c.participants?.find(p => p.user_id === user.id)?.team === 'b';
+                return (
+                  <div key={c.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10" onClick={() => viewBattleResult(c.id)}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isWinner ? 'bg-green-500' : 'bg-red-500'}`}>
+                        {isWinner ? <Trophy className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="font-semibold">{c.type.toUpperCase()}</p>
+                        <p className="text-xs text-gray-400">{new Date(c.completed_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <Badge className={isWinner ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}>
+                      {isWinner ? (language === 'it' ? 'Vittoria' : 'Victory') : (language === 'it' ? 'Sconfitta' : 'Defeat')}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  // CREATE VIEW - Film Selection
+  if (view === 'create') {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+            <h1 className="font-['Bebas_Neue'] text-3xl">
+              {language === 'it' ? 'CREA SFIDA' : 'CREATE CHALLENGE'} - {challengeType?.toUpperCase()}
+            </h1>
+          </div>
+          <p className="text-gray-400 text-sm">{language === 'it' ? 'Seleziona 3 film per la sfida' : 'Select 3 films for the challenge'}</p>
+        </motion.div>
+
+        {/* Selected Films */}
+        <Card className="bg-gradient-to-r from-pink-500/20 to-purple-500/10 border-pink-500/30 mb-4">
+          <CardContent className="p-4">
+            <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'FILM SELEZIONATI' : 'SELECTED FILMS'} ({selectedFilms.length}/3)</h3>
+            <div className="flex gap-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={`flex-1 h-24 rounded-lg border-2 border-dashed flex items-center justify-center ${selectedFilms[i] ? 'border-pink-500 bg-pink-500/10' : 'border-gray-600'}`}>
+                  {selectedFilms[i] ? (
+                    <div className="text-center p-2">
+                      <p className="text-xs font-semibold truncate max-w-[80px]">{selectedFilms[i].title}</p>
+                      <p className="text-[10px] text-pink-400">⚡ {selectedFilms[i].scores.global}</p>
+                    </div>
+                  ) : (
+                    <Plus className="w-6 h-6 text-gray-500" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Team Options for 2v2+ */}
+        {['2v2', '3v3', '4v4'].includes(challengeType) && (
+          <Card className="bg-[#1A1A1A] border-white/5 mb-4">
+            <CardContent className="p-4">
+              <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'TIPO SQUADRA' : 'TEAM TYPE'}</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {['random', 'friends', 'major'].map(type => (
+                  <Button 
+                    key={type}
+                    variant={teamType === type ? 'default' : 'outline'}
+                    className={teamType === type ? 'bg-pink-500' : ''}
+                    onClick={() => setTeamType(type)}
+                  >
+                    {type === 'random' ? '🎲 Random' : type === 'friends' ? '👥 Amici' : '🏢 Major'}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* FFA Player Count */}
+        {challengeType === 'ffa' && (
+          <Card className="bg-[#1A1A1A] border-white/5 mb-4">
+            <CardContent className="p-4">
+              <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'NUMERO GIOCATORI' : 'PLAYER COUNT'}: {ffaPlayerCount}</h3>
+              <Slider 
+                value={[ffaPlayerCount]} 
+                onValueChange={(v) => setFfaPlayerCount(v[0])}
+                min={4} 
+                max={10} 
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>4</span>
+                <span>10</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Film Grid */}
+        <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'I TUOI FILM' : 'YOUR FILMS'}</h3>
+        {myFilms.length === 0 ? (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardContent className="p-8 text-center">
+              <Film className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+              <p className="text-gray-400">{language === 'it' ? 'Non hai film disponibili per le sfide.' : 'You have no films available for challenges.'}</p>
+              <p className="text-xs text-gray-500 mt-2">{language === 'it' ? 'Crea film e portali nei cinema!' : 'Create films and release them!'}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {myFilms.map(film => {
+              const isSelected = selectedFilms.find(f => f.id === film.id);
+              return (
+                <Card 
+                  key={film.id}
+                  className={`cursor-pointer transition-all ${isSelected ? 'border-pink-500 bg-pink-500/10' : 'bg-[#1A1A1A] border-white/5 hover:border-white/20'}`}
+                  onClick={() => toggleFilmSelection(film)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex gap-3">
+                      {film.poster_url && (
+                        <img src={film.poster_url} alt={film.title} className="w-16 h-24 object-cover rounded" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold truncate max-w-[150px]">{film.title}</h4>
+                          {isSelected && <CheckCircle className="w-5 h-5 text-pink-500" />}
+                        </div>
+                        
+                        {/* Skills */}
+                        <div className="grid grid-cols-4 gap-1 mb-2">
+                          {Object.entries(film.skills).slice(0, 4).map(([skill, value]) => (
+                            <div key={skill} className="text-center bg-black/30 rounded p-1">
+                              <p className="text-[10px]">{getSkillIcon(skill)}</p>
+                              <p className="text-xs font-bold">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Scores */}
+                        <div className="flex gap-2 text-xs">
+                          <span className="text-yellow-400">⚡ {film.scores.global}</span>
+                          <span className="text-red-400">⚔️ {film.scores.attack}</span>
+                          <span className="text-blue-400">🛡️ {film.scores.defense}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Create Button */}
+        <div className="fixed bottom-20 left-0 right-0 p-3 bg-gradient-to-t from-[#0D0D0D] to-transparent">
+          <Button 
+            className="w-full h-12 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg"
+            onClick={createChallenge}
+            disabled={selectedFilms.length !== 3 || loading}
+          >
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
+              <><Swords className="w-5 h-5 mr-2" /> {language === 'it' ? 'CREA SFIDA!' : 'CREATE CHALLENGE!'}</>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // BATTLE VIEW - Animation
+  if (view === 'battle' && activeBattle) {
+    const battle = activeBattle;
+    
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-transparent to-purple-500/10" />
+        
+        <AnimatePresence mode="wait">
+          {/* Intro */}
+          {battleStep === 0 && (
+            <motion.div
+              key="intro"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, opacity: 0 }}
+              className="text-center"
+            >
+              <Swords className="w-24 h-24 text-pink-500 mx-auto mb-4" />
+              <h1 className="font-['Bebas_Neue'] text-4xl mb-2">{battle.intro}</h1>
+              <p className="text-gray-400">{language === 'it' ? 'La sfida sta per iniziare...' : 'The battle is about to begin...'}</p>
+            </motion.div>
+          )}
+
+          {/* Team Presentation */}
+          {battleStep === 1 && (
+            <motion.div
+              key="teams"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full max-w-4xl px-4"
+            >
+              <h2 className="font-['Bebas_Neue'] text-2xl text-center mb-6">{language === 'it' ? 'PRESENTAZIONE SQUADRE' : 'TEAM PRESENTATION'}</h2>
+              <div className="grid grid-cols-2 gap-8">
+                {/* Team A */}
+                <motion.div
+                  initial={{ x: -100, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-center"
+                >
+                  <div className="p-4 bg-red-500/20 rounded-lg border border-red-500/30 mb-4">
+                    <h3 className="font-['Bebas_Neue'] text-2xl text-red-400">{battle.team_a?.name || 'Team A'}</h3>
+                    <p className="text-yellow-400">⚡ {battle.team_a?.scores?.global}</p>
+                  </div>
+                  <div className="space-y-2">
+                    {battle.team_a?.films?.slice(0, 3).map((f, i) => (
+                      <div key={i} className="bg-white/5 rounded p-2 text-sm truncate">{f.title}</div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Team B */}
+                <motion.div
+                  initial={{ x: 100, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-center"
+                >
+                  <div className="p-4 bg-blue-500/20 rounded-lg border border-blue-500/30 mb-4">
+                    <h3 className="font-['Bebas_Neue'] text-2xl text-blue-400">{battle.team_b?.name || 'Team B'}</h3>
+                    <p className="text-yellow-400">⚡ {battle.team_b?.scores?.global}</p>
+                  </div>
+                  <div className="space-y-2">
+                    {battle.team_b?.films?.slice(0, 3).map((f, i) => (
+                      <div key={i} className="bg-white/5 rounded p-2 text-sm truncate">{f.title}</div>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Rounds */}
+          {[2, 3, 4].includes(battleStep) && battle.rounds && (
+            <motion.div
+              key={`round-${battleStep}`}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              className="text-center max-w-md px-4"
+            >
+              <h2 className="font-['Bebas_Neue'] text-3xl mb-4">ROUND {battleStep - 1}</h2>
+              <div className="bg-white/10 rounded-lg p-6 mb-4">
+                <p className="text-lg mb-4">{battle.rounds[battleStep - 2]?.comment}</p>
+                <div className="flex justify-center gap-8">
+                  <div className={`p-4 rounded-lg ${battle.rounds[battleStep - 2]?.winner === 'team_a' ? 'bg-green-500/30 border-2 border-green-500' : 'bg-white/5'}`}>
+                    <p className="font-bold">{battle.team_a?.name}</p>
+                    <p className="text-sm text-gray-400">{battle.rounds[battleStep - 2]?.team_a_power}</p>
+                  </div>
+                  <div className={`p-4 rounded-lg ${battle.rounds[battleStep - 2]?.winner === 'team_b' ? 'bg-green-500/30 border-2 border-green-500' : 'bg-white/5'}`}>
+                    <p className="font-bold">{battle.team_b?.name}</p>
+                    <p className="text-sm text-gray-400">{battle.rounds[battleStep - 2]?.team_b_power}</p>
+                  </div>
+                </div>
+              </div>
+              <Badge className={`text-lg px-4 py-2 ${
+                battle.rounds[battleStep - 2]?.winner === 'team_a' ? 'bg-red-500' :
+                battle.rounds[battleStep - 2]?.winner === 'team_b' ? 'bg-blue-500' : 'bg-yellow-500'
+              }`}>
+                {battle.rounds[battleStep - 2]?.winner === 'draw' 
+                  ? (language === 'it' ? 'PAREGGIO!' : 'DRAW!')
+                  : (battle.rounds[battleStep - 2]?.winner === 'team_a' ? battle.team_a?.name : battle.team_b?.name) + ' WINS!'}
+              </Badge>
+            </motion.div>
+          )}
+
+          {/* Final Result */}
+          {battleStep === 99 && (
+            <motion.div
+              key="final"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="text-center max-w-md px-4"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              >
+                <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
+              </motion.div>
+              
+              <h1 className="font-['Bebas_Neue'] text-4xl mb-2">
+                {battle.winner === 'draw' 
+                  ? (language === 'it' ? 'PAREGGIO!' : 'DRAW!')
+                  : (battle.winner === 'team_a' ? battle.team_a?.name : battle.team_b?.name)}
+              </h1>
+              
+              <p className="text-lg text-gray-300 mb-6">{battle.winner_comment}</p>
+              
+              <div className="flex justify-center gap-4 mb-6">
+                <div className={`p-4 rounded-lg ${battle.winner === 'team_a' || battle.winner === 'draw' ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500'}`}>
+                  <p className="font-['Bebas_Neue'] text-xl">{battle.team_a?.name}</p>
+                  <p className="text-2xl font-bold">{battle.team_a?.rounds_won}</p>
+                </div>
+                <div className="flex items-center text-2xl text-gray-500">VS</div>
+                <div className={`p-4 rounded-lg ${battle.winner === 'team_b' || battle.winner === 'draw' ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500'}`}>
+                  <p className="font-['Bebas_Neue'] text-xl">{battle.team_b?.name}</p>
+                  <p className="text-2xl font-bold">{battle.team_b?.rounds_won}</p>
+                </div>
+              </div>
+              
+              <Button 
+                className="bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg px-8"
+                onClick={() => { setView('home'); setActiveBattle(null); loadData(); }}
+              >
+                {language === 'it' ? 'CONTINUA' : 'CONTINUE'}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // LEADERBOARD VIEW
+  if (view === 'leaderboard') {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+            <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
+              <Trophy className="w-8 h-8 text-yellow-500" />
+              {language === 'it' ? 'CLASSIFICA SFIDE' : 'CHALLENGE LEADERBOARD'}
+            </h1>
+          </div>
+        </motion.div>
+
+        <div className="space-y-2">
+          {leaderboard.map((entry, i) => (
+            <Card 
+              key={entry.user_id} 
+              className={`${i < 3 ? 'bg-gradient-to-r from-yellow-500/20 to-transparent border-yellow-500/30' : 'bg-[#1A1A1A] border-white/5'}`}
+            >
+              <CardContent className="p-3 flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                  i === 0 ? 'bg-yellow-500 text-black' : 
+                  i === 1 ? 'bg-gray-400 text-black' : 
+                  i === 2 ? 'bg-orange-600 text-white' : 'bg-white/10'
+                }`}>
+                  {i + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold">{entry.nickname}</p>
+                  <p className="text-xs text-gray-400">{entry.wins}W / {entry.losses}L</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-pink-400">{entry.win_rate}%</p>
+                  <p className="text-xs text-gray-400">Win Rate</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          
+          {leaderboard.length === 0 && (
+            <Card className="bg-[#1A1A1A] border-white/5">
+              <CardContent className="p-8 text-center">
+                <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                <p className="text-gray-400">{language === 'it' ? 'Nessuna sfida completata ancora.' : 'No challenges completed yet.'}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 // Mini Games Page with REAL Questions
@@ -11963,6 +12691,7 @@ function App() {
                 <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
                 <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
                 <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
+                <Route path="/challenges" element={<ProtectedRoute><ChallengesPage /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

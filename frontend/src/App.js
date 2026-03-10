@@ -49,6 +49,25 @@ import CreditsPage from './pages/CreditsPage';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Player Popup Context - allows any component to open a player profile popup
+const PlayerPopupContext = React.createContext({ openPlayerPopup: () => {} });
+const usePlayerPopup = () => React.useContext(PlayerPopupContext);
+
+// Clickable Nickname component - reusable across the entire app
+const ClickableNickname = ({ userId, nickname, className = '' }) => {
+  const { openPlayerPopup } = usePlayerPopup();
+  if (!userId || !nickname) return <span className={className}>{nickname || '?'}</span>;
+  return (
+    <span 
+      className={`cursor-pointer hover:text-cyan-400 hover:underline transition-colors ${className}`}
+      onClick={(e) => { e.stopPropagation(); openPlayerPopup(userId); }}
+      data-testid={`clickable-nickname-${userId}`}
+    >
+      {nickname}
+    </span>
+  );
+};
+
 // Top Navbar Component
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
@@ -65,10 +84,14 @@ const TopNavbar = () => {
   const [showOnlineUsersPanel, setShowOnlineUsersPanel] = useState(false);
   const [onlineUsersCount, setOnlineUsersCount] = useState(0);
   const [onlineUsersList, setOnlineUsersList] = useState([]);
+  const [allPlayersList, setAllPlayersList] = useState([]);
   const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [sendingFriendReq, setSendingFriendReq] = useState(null);
+  const [friendshipStatus, setFriendshipStatus] = useState(null);
+  const [globalPlayerPopup, setGlobalPlayerPopup] = useState(null); // unused, kept for compat
+  const { openPlayerPopup: _ctxOpen, popupData, setPopupData } = usePlayerPopup();
   const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
 
   useEffect(() => {
@@ -77,12 +100,15 @@ const TopNavbar = () => {
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
     
-    // Online users polling
+    // Online users + all players polling
     const fetchOnlineUsers = () => {
       api.get('/users/online').then(r => {
         const users = r.data.filter(u => !u.is_bot);
         setOnlineUsersList(r.data);
         setOnlineUsersCount(users.length);
+      }).catch(() => {});
+      api.get('/users/all-players').then(r => {
+        setAllPlayersList(r.data);
       }).catch(() => {});
     };
     fetchOnlineUsers();
@@ -111,9 +137,14 @@ const TopNavbar = () => {
   const viewUserProfile = async (userId) => {
     setLoadingProfile(true);
     setSelectedOnlineUser(userId);
+    setFriendshipStatus(null);
     try {
-      const res = await api.get(`/users/${userId}/full-profile`);
-      setSelectedUserProfile(res.data);
+      const [profileRes, friendRes] = await Promise.all([
+        api.get(`/users/${userId}/full-profile`),
+        api.get(`/friends/status/${userId}`)
+      ]);
+      setSelectedUserProfile(profileRes.data);
+      setFriendshipStatus(friendRes.data);
     } catch(e) {
       toast.error(language === 'it' ? 'Errore caricamento profilo' : 'Profile load error');
     } finally {
@@ -121,11 +152,15 @@ const TopNavbar = () => {
     }
   };
 
+  // Global popup - opens from any nickname click (managed by ProtectedRoute context)
+  const { openPlayerPopup } = usePlayerPopup();
+
   const sendFriendRequest = async (friendId) => {
     setSendingFriendReq(friendId);
     try {
       await api.post('/friends/request', { user_id: friendId });
       toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
+      setFriendshipStatus({ status: 'pending_sent' });
     } catch(e) {
       const detail = e.response?.data?.detail || '';
       if (detail.includes('already') || detail.includes('già')) {
@@ -133,6 +168,19 @@ const TopNavbar = () => {
       } else {
         toast.error(detail || (language === 'it' ? 'Errore invio richiesta' : 'Request failed'));
       }
+    } finally {
+      setSendingFriendReq(null);
+    }
+  };
+
+  const removeFriend = async (friendId) => {
+    setSendingFriendReq(friendId);
+    try {
+      await api.delete(`/friends/${friendId}`);
+      toast.success(language === 'it' ? 'Amico rimosso' : 'Friend removed');
+      setFriendshipStatus({ status: 'none' });
+    } catch(e) {
+      toast.error(e.response?.data?.detail || (language === 'it' ? 'Errore rimozione' : 'Remove failed'));
     } finally {
       setSendingFriendReq(null);
     }
@@ -551,22 +599,39 @@ const TopNavbar = () => {
                 </div>
                 {!selectedUserProfile.is_own_profile && (
                   <div className="flex gap-1.5">
-                    <Button 
-                      size="sm"
-                      className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-2 text-[10px] font-bold"
-                      onClick={() => sendFriendRequest(selectedUserProfile.user?.id)}
-                      disabled={sendingFriendReq === selectedUserProfile.user?.id}
-                      data-testid="profile-add-friend-btn"
-                    >
-                      {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Amicizia' : 'Add'}</>}
-                    </Button>
+                    {friendshipStatus?.status === 'friends' ? (
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 px-2 text-[10px]"
+                        onClick={() => removeFriend(selectedUserProfile.user?.id)}
+                        disabled={sendingFriendReq === selectedUserProfile.user?.id}
+                        data-testid="profile-remove-friend-btn"
+                      >
+                        {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserCheck className="w-3 h-3 mr-1" />{language === 'it' ? 'Rimuovi' : 'Remove'}</>}
+                      </Button>
+                    ) : friendshipStatus?.status === 'pending_sent' ? (
+                      <Button size="sm" variant="outline" className="border-gray-500/30 text-gray-400 h-7 px-2 text-[10px]" disabled>
+                        <Clock className="w-3 h-3 mr-1" /> {language === 'it' ? 'In attesa' : 'Pending'}
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="sm"
+                        className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-2 text-[10px] font-bold"
+                        onClick={() => sendFriendRequest(selectedUserProfile.user?.id)}
+                        disabled={sendingFriendReq === selectedUserProfile.user?.id}
+                        data-testid="profile-add-friend-btn"
+                      >
+                        {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Amicizia' : 'Add'}</>}
+                      </Button>
+                    )}
                     <Button 
                       size="sm"
                       className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-2 text-[10px] font-bold"
                       onClick={() => { setShowOnlineUsersPanel(false); setSelectedUserProfile(null); navigate('/challenges'); }}
                       data-testid="profile-challenge-btn"
                     >
-                      <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida' : 'Challenge'}
+                      <Swords className="w-3 h-3 mr-1" /> 1v1
                     </Button>
                   </div>
                 )}
@@ -651,61 +716,75 @@ const TopNavbar = () => {
               </ScrollArea>
             </div>
           ) : (
-            /* Online users list */
+            /* Online + Offline users list */
             <div className="flex flex-col h-[80vh]">
               <DialogHeader className="p-4 pb-2 border-b border-white/10">
                 <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2 text-green-400">
-                  <Users className="w-5 h-5" /> {language === 'it' ? 'UTENTI ONLINE' : 'ONLINE USERS'}
-                  <Badge className="bg-green-500/20 text-green-400 ml-2">{onlineUsersList.filter(u => !u.is_bot).length}</Badge>
+                  <Users className="w-5 h-5" /> {language === 'it' ? 'GIOCATORI' : 'PLAYERS'}
+                  <Badge className="bg-green-500/20 text-green-400 ml-2">{allPlayersList.filter(u => u.is_online).length} online</Badge>
                 </DialogTitle>
               </DialogHeader>
               
               <ScrollArea className="flex-1">
-                <div className="p-3 space-y-2">
-                  {onlineUsersList.filter(u => !u.is_bot).length === 0 ? (
+                <div className="p-3 space-y-1">
+                  {/* Online players */}
+                  {allPlayersList.filter(u => u.is_online).length > 0 && (
+                    <p className="text-[10px] text-green-400 uppercase tracking-wider font-bold px-1 py-1">{language === 'it' ? 'Online' : 'Online'} ({allPlayersList.filter(u => u.is_online).length})</p>
+                  )}
+                  {allPlayersList.filter(u => u.is_online).map(p => (
+                    <div 
+                      key={p.id} 
+                      className="flex items-center gap-3 p-2 rounded-lg bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-all"
+                      onClick={() => viewUserProfile(p.id)}
+                      data-testid={`player-online-${p.id}`}
+                    >
+                      <div className="relative">
+                        <Avatar className="w-9 h-9">
+                          <AvatarImage src={p.avatar_url} />
+                          <AvatarFallback className="bg-green-500/20 text-green-400 font-bold text-xs">{(p.nickname || '?')[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#111]"></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{p.nickname}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{p.production_house_name || ''}</p>
+                      </div>
+                      {p.level && <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">Lv.{p.level}</Badge>}
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </div>
+                  ))}
+                  
+                  {/* Offline players */}
+                  {allPlayersList.filter(u => !u.is_online).length > 0 && (
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold px-1 py-1 mt-3 border-t border-white/5 pt-2">{language === 'it' ? 'Offline' : 'Offline'} ({allPlayersList.filter(u => !u.is_online).length})</p>
+                  )}
+                  {allPlayersList.filter(u => !u.is_online).map(p => (
+                    <div 
+                      key={p.id} 
+                      className="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] hover:bg-white/5 cursor-pointer transition-all opacity-70"
+                      onClick={() => viewUserProfile(p.id)}
+                      data-testid={`player-offline-${p.id}`}
+                    >
+                      <div className="relative">
+                        <Avatar className="w-9 h-9">
+                          <AvatarImage src={p.avatar_url} />
+                          <AvatarFallback className="bg-gray-700 text-gray-400 font-bold text-xs">{(p.nickname || '?')[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-gray-600 rounded-full border-2 border-[#111]"></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate text-gray-400">{p.nickname}</p>
+                        <p className="text-[10px] text-gray-600 truncate">{p.production_house_name || ''}</p>
+                      </div>
+                      {p.level && <Badge className="bg-gray-700/50 text-gray-500 text-[9px]">Lv.{p.level}</Badge>}
+                      <ChevronRight className="w-4 h-4 text-gray-700" />
+                    </div>
+                  ))}
+
+                  {allPlayersList.length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                       <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p>{language === 'it' ? 'Nessun utente online al momento' : 'No users online right now'}</p>
-                    </div>
-                  ) : (
-                    onlineUsersList.filter(u => !u.is_bot).map(onlineUser => (
-                      <div 
-                        key={onlineUser.id || onlineUser.user_id} 
-                        className="flex items-center gap-3 p-2.5 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
-                        onClick={() => viewUserProfile(onlineUser.id || onlineUser.user_id)}
-                        data-testid={`online-user-${onlineUser.id || onlineUser.user_id}`}
-                      >
-                        <div className="relative">
-                          <Avatar className="w-10 h-10">
-                            <AvatarImage src={onlineUser.avatar_url} />
-                            <AvatarFallback className="bg-green-500/20 text-green-400 font-bold">{(onlineUser.nickname || '?')[0]}</AvatarFallback>
-                          </Avatar>
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111]"></span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">{onlineUser.nickname}</p>
-                          <p className="text-[10px] text-gray-500 truncate">{onlineUser.production_house_name || ''}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {onlineUser.level && <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">Lv.{onlineUser.level}</Badge>}
-                          <ChevronRight className="w-4 h-4 text-gray-600" />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  
-                  {/* Bots section */}
-                  {onlineUsersList.filter(u => u.is_bot).length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-white/10">
-                      <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider">Bot</p>
-                      {onlineUsersList.filter(u => u.is_bot).map(bot => (
-                        <div key={bot.id || bot.user_id} className="flex items-center gap-3 p-2 rounded-lg opacity-50">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-gray-700 text-gray-400 text-xs">{(bot.nickname || 'B')[0]}</AvatarFallback>
-                          </Avatar>
-                          <p className="text-xs text-gray-500">{bot.nickname}</p>
-                        </div>
-                      ))}
+                      <p>{language === 'it' ? 'Nessun giocatore trovato' : 'No players found'}</p>
                     </div>
                   )}
                 </div>
@@ -716,6 +795,121 @@ const TopNavbar = () => {
           {loadingProfile && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
               <RefreshCw className="w-8 h-8 text-green-400 animate-spin" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Player Popup - Opens from any nickname click */}
+      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) setPopupData(null); }}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-hidden bg-[#111] border-cyan-500/30 p-0">
+          {popupData?.profile ? (
+            <div className="flex flex-col max-h-[80vh]">
+              {/* Sticky header with actions */}
+              <div className="sticky top-0 z-10 bg-[#111] border-b border-white/10 p-3 flex items-center gap-2">
+                <Avatar className="w-10 h-10 ring-2 ring-cyan-500">
+                  <AvatarImage src={popupData.profile.user?.avatar_url} />
+                  <AvatarFallback className="bg-cyan-500/20 text-cyan-400 font-bold">{popupData.profile.user?.nickname?.[0]}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">{popupData.profile.user?.nickname}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{popupData.profile.user?.production_house_name}</p>
+                </div>
+              </div>
+              
+              {/* Action buttons - sticky */}
+              <div className="sticky top-[52px] z-10 bg-[#111]/95 backdrop-blur-md border-b border-white/10 p-2 flex gap-1.5 justify-center">
+                {popupData.friendStatus?.status === 'friends' ? (
+                  <Button 
+                    size="sm" variant="outline"
+                    className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 px-3 text-[10px]"
+                    onClick={() => removeFriend(popupData.profile.user?.id)}
+                    disabled={sendingFriendReq === popupData.profile.user?.id}
+                    data-testid="global-remove-friend-btn"
+                  >
+                    {sendingFriendReq === popupData.profile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserCheck className="w-3 h-3 mr-1" />{language === 'it' ? 'Rimuovi Amico' : 'Remove Friend'}</>}
+                  </Button>
+                ) : popupData.friendStatus?.status === 'pending_sent' ? (
+                  <Button size="sm" variant="outline" className="border-gray-500/30 text-gray-400 h-7 px-3 text-[10px]" disabled>
+                    <Clock className="w-3 h-3 mr-1" /> {language === 'it' ? 'Richiesta Inviata' : 'Request Sent'}
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm"
+                    className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-3 text-[10px] font-bold"
+                    onClick={() => sendFriendRequest(popupData.profile.user?.id)}
+                    disabled={sendingFriendReq === popupData.profile.user?.id}
+                    data-testid="global-add-friend-btn"
+                  >
+                    {sendingFriendReq === popupData.profile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Richiedi Amicizia' : 'Add Friend'}</>}
+                  </Button>
+                )}
+                <Button 
+                  size="sm"
+                  className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-3 text-[10px] font-bold"
+                  onClick={() => { setPopupData(null); navigate('/challenges'); }}
+                  data-testid="global-challenge-btn"
+                >
+                  <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida 1v1' : '1v1 Challenge'}
+                </Button>
+                <Button 
+                  size="sm" variant="outline"
+                  className="border-white/10 text-gray-300 h-7 px-3 text-[10px]"
+                  onClick={() => { setPopupData(null); navigate('/chat'); }}
+                  data-testid="global-message-btn"
+                >
+                  <MessageSquare className="w-3 h-3 mr-1" /> {language === 'it' ? 'Messaggio' : 'Message'}
+                </Button>
+              </div>
+              
+              {/* Profile content */}
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: language === 'it' ? 'Film' : 'Films', value: popupData.profile.stats?.total_films || 0, color: 'text-blue-400' },
+                      { label: language === 'it' ? 'Incassi' : 'Revenue', value: `$${((popupData.profile.stats?.total_revenue || 0)/1000000).toFixed(1)}M`, color: 'text-green-400' },
+                      { label: language === 'it' ? 'Qualità' : 'Quality', value: popupData.profile.stats?.avg_quality || 0, color: 'text-yellow-400' },
+                      { label: 'XP', value: popupData.profile.stats?.xp || 0, color: 'text-purple-400' },
+                      { label: language === 'it' ? 'Premi' : 'Awards', value: popupData.profile.stats?.awards_count || 0, color: 'text-amber-400' },
+                      { label: 'Lv.', value: popupData.profile.stats?.level || 1, color: 'text-cyan-400' },
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-white/5 rounded-lg p-2 text-center">
+                        <p className={`font-bold text-sm ${stat.color}`}>{stat.value}</p>
+                        <p className="text-[10px] text-gray-500">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Recent films */}
+                  {popupData.profile.recent_films?.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
+                      <div className="space-y-1.5">
+                        {popupData.profile.recent_films.slice(0, 5).map(film => (
+                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); navigate(`/films/${film.id}`); }}>
+                            {film.poster_url ? (
+                              <img src={film.poster_url} alt="" className="w-8 h-12 rounded object-cover" />
+                            ) : (
+                              <div className="w-8 h-12 rounded bg-gray-700 flex items-center justify-center"><Film className="w-3 h-3 text-gray-500" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{film.title}</p>
+                              <p className="text-[10px] text-gray-500">{film.genre} - Q:{film.quality_score?.toFixed(0)}</p>
+                            </div>
+                            <span className="text-green-400 text-[10px]">${((film.total_revenue||0)/1000000).toFixed(1)}M</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="p-8 flex items-center justify-center">
+              <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
             </div>
           )}
         </DialogContent>
@@ -3265,7 +3459,7 @@ const ChallengesPage = () => {
                   {i + 1}
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">{entry.nickname}</p>
+                  <p className="font-semibold"><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
                   <p className="text-xs text-gray-400">{entry.wins}W / {entry.losses}L</p>
                 </div>
                 <div className="text-right">
@@ -8435,7 +8629,7 @@ const CineBoard = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
-                      <p className="text-xs text-gray-400 truncate">{film.owner?.production_house_name || film.owner?.nickname}</p>
+                      <p className="text-xs text-gray-400 truncate"><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-blue-400">{film.current_cinemas}</p>
@@ -8483,7 +8677,7 @@ const CineBoard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-xs text-gray-400 truncate">{film.owner?.production_house_name || film.owner?.nickname}</p>
+                        <p className="text-xs text-gray-400 truncate"><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
                         <Badge className={`text-[9px] ${film.status === 'in_theaters' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
                           {film.status === 'in_theaters' ? (language === 'it' ? 'In Sala' : 'Showing') : (language === 'it' ? 'Archivio' : 'Archive')}
                         </Badge>
@@ -8660,7 +8854,7 @@ const ChatPage = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1">
                               <OnlineIndicator isOnline={true} />
-                              <span className="text-xs font-semibold truncate hover:text-yellow-500 cursor-pointer">{u.nickname}</span>
+                              <span className="text-xs font-semibold truncate hover:text-yellow-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); if(!u.is_bot) { const pp = document.querySelector('[data-player-popup-ctx]'); } }}><ClickableNickname userId={u.is_bot ? null : u.id} nickname={u.nickname} className="text-xs font-semibold" /></span>
                               {u.is_bot && u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-red-500/20 text-red-400">MOD</Badge>}
                               {u.is_bot && !u.is_moderator && <Badge className="h-4 px-1 text-[10px] bg-blue-500/20 text-blue-400">BOT</Badge>}
                             </div>
@@ -8709,7 +8903,7 @@ const ChatPage = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1">
                                 <OnlineIndicator isOnline={false} />
-                                <span className="text-xs truncate hover:text-yellow-500 cursor-pointer">{u.nickname}</span>
+                                <span className="text-xs truncate hover:text-yellow-500 cursor-pointer"><ClickableNickname userId={u.id} nickname={u.nickname} className="text-xs" /></span>
                               </div>
                             </div>
                           </button>
@@ -8851,7 +9045,7 @@ const ChatPage = () => {
                             )}
                             {msg.sender_id !== user.id && !activeRoom.is_private && msg.type !== 'creator_reply' && (
                               <div className="flex items-center gap-1 mb-0.5">
-                                <p className="text-xs font-semibold">{msg.sender?.nickname || msg.user?.nickname}</p>
+                                <p className="text-xs font-semibold"><ClickableNickname userId={msg.sender_id || msg.user_id} nickname={msg.sender?.nickname || msg.user?.nickname} className="text-xs font-semibold" /></p>
                                 {(msg.sender?.is_bot || msg.user_id === 'system_bot') && <Badge className="h-3 px-1 text-[8px] bg-blue-500/30 text-blue-400">BOT</Badge>}
                               </div>
                             )}
@@ -11518,7 +11712,7 @@ const FestivalsPage = () => {
                       </div>
                       <img src={entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.nickname}`} alt="" className="w-10 h-10 rounded-full" />
                       <div className="flex-1">
-                        <p className="font-semibold">{entry.nickname}</p>
+                        <p className="font-semibold"><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
                         <p className="text-xs text-gray-400">Lv.{entry.level} • {entry.fame} {language === 'it' ? 'Fama' : 'Fame'}</p>
                       </div>
                       <div className="text-right">
@@ -13037,7 +13231,7 @@ const MajorPage = () => {
                       <AvatarFallback className="bg-purple-500/20 text-purple-500">{member.nickname?.[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-semibold text-sm">{member.nickname}</p>
+                      <p className="font-semibold text-sm"><ClickableNickname userId={member.user_id || member.id} nickname={member.nickname} /></p>
                       <Badge className={`text-[10px] h-4 ${member.role === 'founder' ? 'bg-yellow-500/20 text-yellow-400' : member.role === 'vice' ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'}`}>
                         {MAJOR_ROLES[member.role]?.[language] || member.role}
                       </Badge>
@@ -13394,7 +13588,7 @@ const FriendsPage = () => {
                         <AvatarFallback className="bg-blue-500/20 text-blue-500">{friend.nickname?.[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-semibold text-sm">{friend.nickname}</p>
+                        <p className="font-semibold text-sm"><ClickableNickname userId={friend.user_id || friend.id} nickname={friend.nickname} /></p>
                         <p className="text-xs text-gray-400">{friend.production_house_name}</p>
                       </div>
                       {friend.is_online && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
@@ -13898,10 +14092,27 @@ const NotificationsPage = () => {
 
 // Protected Route
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading, api } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [popupData, setPopupData] = useState(null);
+  
+  const openPlayerPopup = async (userId) => {
+    if (!userId || userId === user?.id) return;
+    setPopupData({ userId, loading: true });
+    try {
+      const [profileRes, friendRes] = await Promise.all([
+        api.get(`/users/${userId}/full-profile`),
+        api.get(`/friends/status/${userId}`)
+      ]);
+      setPopupData({ userId, profile: profileRes.data, friendStatus: friendRes.data, loading: false });
+    } catch(e) {
+      setPopupData(null);
+    }
+  };
+  
   if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
-  return <><TopNavbar />{children}</>;
+  return <><PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}><TopNavbar />{children}</PlayerPopupContext.Provider></>;
 };
 
 // Main App

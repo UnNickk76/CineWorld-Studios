@@ -7461,6 +7461,24 @@ async def get_all_users(user: dict = Depends(get_current_user)):
     
     return users
 
+
+@api_router.get("/users/all-players")
+async def get_all_players(user: dict = Depends(get_current_user)):
+    """Get all players (for online/offline list) with online status."""
+    all_users = await db.users.find(
+        {'id': {'$ne': user['id']}},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1}
+    ).limit(200).to_list(200)
+    
+    for u in all_users:
+        u['is_online'] = u['id'] in online_users
+    
+    # Sort: online first, then alphabetically
+    all_users.sort(key=lambda x: (not x['is_online'], x.get('nickname', '').lower()))
+    
+    return all_users
+
+
 # Parameterized user route - must be AFTER specific routes
 @api_router.get("/users/{user_id}")
 async def get_user_profile(user_id: str, user: dict = Depends(get_current_user)):
@@ -14382,6 +14400,41 @@ async def remove_friend(friend_id: str, user: dict = Depends(get_current_user)):
     })
     
     return {'success': True, 'message': 'Friend removed'}
+
+
+@api_router.get("/friends/status/{other_user_id}")
+async def get_friendship_status(other_user_id: str, user: dict = Depends(get_current_user)):
+    """Check friendship status with another user."""
+    user_id = user['id']
+    
+    # Check if friends
+    friendship = await db.friendships.find_one({
+        '$or': [
+            {'user_id': user_id, 'friend_id': other_user_id, 'status': 'accepted'},
+            {'user_id': other_user_id, 'friend_id': user_id, 'status': 'accepted'}
+        ]
+    }, {'_id': 0})
+    
+    if friendship:
+        return {'status': 'friends', 'friendship_id': friendship.get('id')}
+    
+    # Check pending requests
+    pending_sent = await db.friendships.find_one({
+        'user_id': user_id, 'friend_id': other_user_id, 'status': 'pending'
+    }, {'_id': 0})
+    
+    if pending_sent:
+        return {'status': 'pending_sent', 'request_id': pending_sent.get('id')}
+    
+    pending_received = await db.friendships.find_one({
+        'user_id': other_user_id, 'friend_id': user_id, 'status': 'pending'
+    }, {'_id': 0})
+    
+    if pending_received:
+        return {'status': 'pending_received', 'request_id': pending_received.get('id')}
+    
+    return {'status': 'none'}
+
 
 # ==================== FOLLOWERS ENDPOINTS ====================
 

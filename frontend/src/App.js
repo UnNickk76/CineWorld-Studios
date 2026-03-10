@@ -12548,7 +12548,7 @@ const LeaderboardPage = () => {
       </Avatar>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
-          <span className="font-semibold text-sm truncate">{player.nickname}</span>
+          <ClickableNickname userId={player.id} nickname={player.nickname} className="font-semibold text-sm" />
           <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{player.level_info?.level || 0}</Badge>
         </div>
         <p className="text-[10px] text-gray-400 truncate">{player.production_house_name}</p>

@@ -9,14 +9,20 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ### v0.067 - Refactoring Architettura (Fase 1) - 10/03/2026 (IN CORSO)
 - **Frontend - Nuova Struttura Modulare**:
-  - `/src/contexts/index.jsx` - AuthProvider, LanguageProvider, useTranslations
-  - `/src/constants/index.js` - SKILL_TRANSLATIONS, GENRES_LIST, MAJOR_ROLES
-  - `/src/components/shared/index.jsx` - SkillBadge, QualityIndicator, TierBadge, etc.
-  - `/src/modules.js` - Re-export centralizzato per import semplificati
+  - `/src/contexts/index.jsx` - AuthProvider, LanguageProvider, useTranslations ✅
+  - `/src/constants/index.js` - SKILL_TRANSLATIONS, GENRES_LIST, MAJOR_ROLES ✅
+  - `/src/components/shared/index.jsx` - SkillBadge, QualityIndicator, TierBadge, etc. ✅
+  - `/src/modules.js` - Re-export centralizzato ✅
+  - `/src/pages/ReleaseNotes.jsx` - Pagina Note di Rilascio ✅
+  - `/src/pages/TutorialPage.jsx` - Pagina Tutorial ✅
+  - `/src/pages/CreditsPage.jsx` - Pagina Credits ✅
 - **Backend - Nuova Struttura**:
-  - `/backend/models/__init__.py` - Tutti i modelli Pydantic (User, Film, Festival, etc.)
-  - `/backend/utils/__init__.py` - Helper functions (hash_password, create_token, calculate_level, etc.)
-- **Stato**: I nuovi file sono creati ma non ancora integrati in App.js/server.py per evitare rotture
+  - `/backend/models/__init__.py` - Tutti i modelli Pydantic ✅
+  - `/backend/utils/__init__.py` - Helper functions ✅
+- **Risultati**:
+  - App.js ridotto da 12161 a 11765 righe (-396 righe, -3.3%)
+  - 3 pagine estratte in file separati
+  - Tutti i moduli testati e funzionanti
 
 ### v0.066 - Menu Mobile Migliorato e Navigazione Festival Live - 10/03/2026 (COMPLETATO)
 - **Menu Mobile Completamente Ridisegnato**:

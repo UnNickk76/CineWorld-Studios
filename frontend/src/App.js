@@ -37,132 +37,17 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import '@/App.css';
 
+// Import from refactored modules
+import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations } from './contexts';
+import { SKILL_TRANSLATIONS } from './constants';
+
+// Import pages from separate files
+import ReleaseNotes from './pages/ReleaseNotes';
+import TutorialPage from './pages/TutorialPage';
+import CreditsPage from './pages/CreditsPage';
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-// Context
-const AuthContext = createContext(null);
-const LanguageContext = createContext(null);
-
-// Translations hook
-const useTranslations = () => {
-  const { language, translations } = useContext(LanguageContext);
-  return { t: (key) => translations[key] || key, language };
-};
-
-// Auth Provider with auto-login
-const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('cineworld_token'));
-
-  const api = axios.create({
-    baseURL: API,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    timeout: 120000  // 2 minutes timeout for AI generation calls
-  });
-
-  // Auto-login on app load
-  useEffect(() => {
-    if (token) {
-      api.get('/auth/me')
-        .then(res => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem('cineworld_token');
-          setToken(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
-
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
-    localStorage.setItem('cineworld_token', res.data.access_token);
-    if (res.data.user?.language) {
-      localStorage.setItem('cineworld_lang', res.data.user.language);
-    }
-    setToken(res.data.access_token);
-    setUser(res.data.user);
-    return res.data;
-  };
-
-  const register = async (data) => {
-    const res = await api.post('/auth/register', data);
-    localStorage.setItem('cineworld_token', res.data.access_token);
-    if (res.data.user?.language) {
-      localStorage.setItem('cineworld_lang', res.data.user.language);
-    }
-    setToken(res.data.access_token);
-    setUser(res.data.user);
-    return res.data;
-  };
-
-  const logout = () => {
-    localStorage.removeItem('cineworld_token');
-    setToken(null);
-    setUser(null);
-  };
-
-  const updateFunds = (newFunds) => {
-    setUser(prev => ({ ...prev, funds: newFunds }));
-  };
-
-  const refreshUser = async () => {
-    const res = await api.get('/auth/me');
-    setUser(res.data);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-// Language Provider
-const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState(localStorage.getItem('cineworld_lang') || 'en');
-  const [translations, setTranslations] = useState({});
-
-  // Listen for localStorage changes (from login/register)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedLang = localStorage.getItem('cineworld_lang');
-      if (storedLang && storedLang !== language) {
-        setLanguage(storedLang);
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    // Also check periodically for same-tab changes
-    const interval = setInterval(() => {
-      const storedLang = localStorage.getItem('cineworld_lang');
-      if (storedLang && storedLang !== language) {
-        setLanguage(storedLang);
-      }
-    }, 500);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, [language]);
-
-  useEffect(() => {
-    axios.get(`${API}/translations/${language}`)
-      .then(res => setTranslations(res.data))
-      .catch(() => {});
-    localStorage.setItem('cineworld_lang', language);
-  }, [language]);
-
-  return (
-    <LanguageContext.Provider value={{ language, setLanguage, translations }}>
-      {children}
-    </LanguageContext.Provider>
-  );
-};
 
 // Top Navbar Component
 const TopNavbar = () => {
@@ -1113,43 +998,6 @@ const AuthPage = () => {
 };
 
 // Skill Badge Component
-// Skill translations map
-const SKILL_TRANSLATIONS = {
-  // Screenwriter skills
-  dialogue: { en: 'Dialogue', it: 'Dialoghi' },
-  plot_structure: { en: 'Plot Structure', it: 'Struttura Trama' },
-  character_development: { en: 'Character Dev.', it: 'Sviluppo Personaggi' },
-  originality: { en: 'Originality', it: 'Originalità' },
-  adaptation: { en: 'Adaptation', it: 'Adattamento' },
-  pacing: { en: 'Pacing', it: 'Ritmo' },
-  world_building: { en: 'World Building', it: 'Creazione Mondi' },
-  emotional_impact: { en: 'Emotional Impact', it: 'Impatto Emotivo' },
-  // Director skills
-  vision: { en: 'Vision', it: 'Visione' },
-  leadership: { en: 'Leadership', it: 'Leadership' },
-  actor_direction: { en: 'Actor Direction', it: 'Direzione Attori' },
-  visual_style: { en: 'Visual Style', it: 'Stile Visivo' },
-  storytelling: { en: 'Storytelling', it: 'Narrazione' },
-  technical: { en: 'Technical', it: 'Tecnico' },
-  innovation: { en: 'Innovation', it: 'Innovazione' },
-  // Composer skills
-  melodic: { en: 'Melodic Comp.', it: 'Comp. Melodica' },
-  orchestration: { en: 'Orchestration', it: 'Orchestrazione' },
-  emotional_scoring: { en: 'Emotional Scoring', it: 'Musica Emotiva' },
-  genre_versatility: { en: 'Genre Versatility', it: 'Versatilità Generi' },
-  sound_design: { en: 'Sound Design', it: 'Sound Design' },
-  theme_development: { en: 'Theme Dev.', it: 'Sviluppo Temi' },
-  // Actor skills
-  drama: { en: 'Drama', it: 'Dramma' },
-  comedy: { en: 'Comedy', it: 'Commedia' },
-  action: { en: 'Action', it: 'Azione' },
-  romance: { en: 'Romance', it: 'Romantico' },
-  horror: { en: 'Horror', it: 'Horror' },
-  sci_fi: { en: 'Sci-Fi', it: 'Fantascienza' },
-  voice_acting: { en: 'Voice Acting', it: 'Doppiaggio' },
-  improvisation: { en: 'Improvisation', it: 'Improvvisazione' },
-};
-
 const SkillBadge = ({ name, value, change, language = 'it' }) => {
   const getBgColor = () => {
     if (change > 0) return 'bg-green-500/20 border-green-500/30';
@@ -5628,100 +5476,6 @@ const DiscoveredStars = () => {
   );
 };
 
-// Release Notes Page
-const ReleaseNotes = () => {
-  const { api } = useContext(AuthContext);
-  const { language } = useTranslations();
-  const navigate = useNavigate();
-  const [releases, setReleases] = useState([]);
-  const [currentVersion, setCurrentVersion] = useState('0.000');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.get('/release-notes').then(res => {
-      setReleases(res.data.releases || []);
-      setCurrentVersion(res.data.current_version || '0.000');
-      // Mark release notes as read when visiting the page
-      api.post('/release-notes/mark-read').catch(() => {});
-    }).finally(() => setLoading(false));
-  }, [api]);
-
-  if (loading) {
-    return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-700 rounded w-1/3"></div>
-          {[1,2,3].map(i => <div key={i} className="h-32 bg-gray-700 rounded"></div>)}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="release-notes-page">
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-8 w-8">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-purple-400" />
-            {language === 'it' ? 'NOTE DI RILASCIO' : 'RELEASE NOTES'}
-          </h1>
-          <p className="text-sm text-gray-400">
-            {language === 'it' ? 'Versione Corrente' : 'Current Version'}: <span className="text-purple-400 font-bold">v{currentVersion}</span>
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {releases.map((release, index) => (
-          <Card key={release.version} className={`bg-[#1A1A1A] border-white/10 ${index === 0 ? 'ring-2 ring-purple-500/50' : ''}`}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge className={`${index === 0 ? 'bg-purple-500' : 'bg-gray-600'} text-white`}>
-                    v{release.version}
-                  </Badge>
-                  <h3 className="font-semibold">{release.title}</h3>
-                  {index === 0 && (
-                    <Badge className="bg-green-500/20 text-green-400 text-[10px]">
-                      {language === 'it' ? 'NUOVO' : 'NEW'}
-                    </Badge>
-                  )}
-                </div>
-                <span className="text-xs text-gray-500">{release.date}</span>
-              </div>
-              <ul className="space-y-1">
-                {release.changes.map((change, i) => {
-                  // Handle both string and object formats
-                  const changeText = typeof change === 'string' ? change : change.text;
-                  const changeType = typeof change === 'object' ? change.type : null;
-                  
-                  return (
-                    <li key={i} className="text-sm text-gray-400 flex items-start gap-2">
-                      {changeType === 'fix' ? (
-                        <span className="w-3 h-3 mt-1 flex-shrink-0 text-red-400">🔧</span>
-                      ) : changeType === 'new' ? (
-                        <span className="w-3 h-3 mt-1 flex-shrink-0 text-green-400">✨</span>
-                      ) : changeType === 'improvement' ? (
-                        <span className="w-3 h-3 mt-1 flex-shrink-0 text-blue-400">⬆️</span>
-                      ) : (
-                        <Check className="w-3 h-3 text-green-400 mt-1 flex-shrink-0" />
-                      )}
-                      {changeText}
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 // ==================== FEEDBACK BOARD (Suggestions & Bug Reports) ====================
 const FeedbackBoard = () => {
   const { api, user } = useContext(AuthContext);
@@ -8810,60 +8564,6 @@ const MarketplacePage = () => {
   );
 };
 
-// Tutorial Page
-const TutorialPage = () => {
-  const { api } = useContext(AuthContext);
-  const [tutorial, setTutorial] = useState({ steps: [] });
-  const [currentStep, setCurrentStep] = useState(0);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    api.get('/game/tutorial').then(r => setTutorial(r.data)).catch(console.error);
-  }, [api]);
-
-  const iconMap = {
-    film: Film, clapperboard: Clapperboard, users: Users, trophy: Trophy,
-    building: Building, 'dollar-sign': DollarSign, gamepad: Gamepad2
-  };
-
-  return (
-    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="tutorial-page">
-      <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2 mb-6">
-        <HelpCircle className="w-7 h-7 text-yellow-500" /> Tutorial
-      </h1>
-      
-      <div className="grid gap-4">
-        {tutorial.steps.map((step, index) => {
-          const IconComp = iconMap[step.icon] || Star;
-          return (
-            <Card 
-              key={step.id}
-              className={`bg-[#1A1A1A] border-white/10 cursor-pointer transition-all ${currentStep === index ? 'ring-2 ring-yellow-500' : ''}`}
-              onClick={() => setCurrentStep(index)}
-            >
-              <CardContent className="p-4 flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${currentStep === index ? 'bg-yellow-500 text-black' : 'bg-white/10'}`}>
-                  <IconComp className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{step.id}. {step.title}</h3>
-                  <p className="text-gray-400 text-sm mt-1">{step.description}</p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-      
-      <div className="mt-6 text-center">
-        <Button onClick={() => navigate('/dashboard')} className="bg-yellow-500 text-black">
-          Inizia a Giocare!
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 // Festivals Page
 const FestivalsPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -10367,101 +10067,6 @@ const SagasSeriesPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-};
-
-// Credits Page
-const CreditsPage = () => {
-  const { api } = useContext(AuthContext);
-  const [credits, setCredits] = useState(null);
-
-  useEffect(() => {
-    api.get('/game/credits').then(r => setCredits(r.data)).catch(console.error);
-  }, [api]);
-
-  if (!credits) return <div className="pt-20 text-center">Caricamento...</div>;
-
-  return (
-    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="credits-page">
-      <div className="text-center mb-8">
-        <Clapperboard className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-        <h1 className="font-['Bebas_Neue'] text-4xl">{credits.game_title}</h1>
-        <p className="text-gray-400">Versione {credits.version}</p>
-      </div>
-      
-      <Card className="bg-[#1A1A1A] border-white/10 mb-6">
-        <CardContent className="p-6">
-          <h2 className="font-['Bebas_Neue'] text-2xl mb-4 text-yellow-500">Credits</h2>
-          <div className="space-y-4">
-            {credits.credits.map((credit, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-lg border border-white/10">
-                <Award className="w-10 h-10 text-yellow-500 flex-shrink-0" />
-                <div>
-                  <p className="font-bold text-lg">{credit.name}</p>
-                  <p className="text-sm text-yellow-400 font-semibold">{credit.role}</p>
-                  <p className="text-xs text-gray-400 mt-1">{credit.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card className="bg-[#1A1A1A] border-white/10 mb-6">
-        <CardContent className="p-6">
-          <h2 className="font-['Bebas_Neue'] text-xl mb-3">Tecnologie Utilizzate</h2>
-          <div className="flex flex-wrap gap-2">
-            {credits.technologies.map((tech, i) => (
-              <Badge key={i} className="bg-white/10 text-sm py-1">{tech}</Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Legal Section */}
-      {credits.legal && (
-        <Card className="bg-[#1A1A1A] border-white/10 mb-6">
-          <CardContent className="p-6">
-            <h2 className="font-['Bebas_Neue'] text-xl mb-4 text-gray-300">Note Legali</h2>
-            <div className="space-y-4 text-sm text-gray-400">
-              <div className="p-3 bg-yellow-500/10 rounded border border-yellow-500/20">
-                <p className="text-yellow-400 font-semibold">{credits.legal.trademark}</p>
-              </div>
-              <p className="italic">{credits.legal.disclaimer}</p>
-              <div className="border-t border-white/10 pt-3">
-                <p className="font-semibold text-gray-300 mb-2">Diritti Riservati:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  {credits.legal.rights.map((right, i) => (
-                    <li key={i}>{right}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Special Thanks */}
-      {credits.special_thanks && (
-        <Card className="bg-[#1A1A1A] border-white/10 mb-6">
-          <CardContent className="p-6">
-            <h2 className="font-['Bebas_Neue'] text-xl mb-3">Ringraziamenti Speciali</h2>
-            <div className="flex flex-wrap gap-2">
-              {credits.special_thanks.map((thanks, i) => (
-                <Badge key={i} variant="outline" className="border-yellow-500/30 text-yellow-400">{thanks}</Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      <div className="text-center space-y-2 mt-8 pt-6 border-t border-white/10">
-        <p className="text-yellow-500 font-semibold">{credits.copyright}</p>
-        {credits.legal && (
-          <p className="text-gray-500 text-xs">Proprietario: {credits.legal.owner}</p>
-        )}
-      </div>
     </div>
   );
 };

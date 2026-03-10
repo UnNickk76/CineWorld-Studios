@@ -5508,6 +5508,70 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.076', 'date': '2026-03-10', 'title': 'Giornale del Cinema & Sistema Critiche', 
+     'changes': [
+         {'type': 'new', 'text': 'Icona Giornale del Cinema nella barra di navigazione fissa'},
+         {'type': 'new', 'text': 'Barra sticky con 4 categorie: News, Pubblico, Breaking News, Hall of Fame'},
+         {'type': 'new', 'text': 'Hall of Fame con stelle scoperte e pre-ingaggio diretto'},
+         {'type': 'new', 'text': 'Sistema Critiche Film: 2-4 recensioni da giornali e giornalisti al rilascio'},
+         {'type': 'new', 'text': '15 testate giornalistiche (Variety, Cahiers du Cinéma, etc.) con bias e prestigio'},
+         {'type': 'new', 'text': 'Popup animato al rilascio film con tier + recensioni della critica'},
+         {'type': 'new', 'text': 'Bonus/malus della critica su spettatori, incassi e rating'},
+         {'type': 'improvement', 'text': 'Pulsanti Giornale ottimizzati per mobile'},
+         {'type': 'improvement', 'text': 'Sezione "Altre News" rinominata "Breaking News"'}
+     ]},
+    {'version': '0.075', 'date': '2026-03-10', 'title': 'Ribilanciamento Qualità Film', 
+     'changes': [
+         {'type': 'new', 'text': 'Nuova formula qualità film: distribuzione realistica con flop e film scarsi'},
+         {'type': 'new', 'text': 'Fattore "giornata storta" (10%) e "magia" (5%) nella produzione'},
+         {'type': 'improvement', 'text': 'Generazione trailer con retry automatico e fallback a durata ridotta'},
+         {'type': 'fix', 'text': 'Risposte del Creator ora visibili nella chat generale'},
+         {'type': 'fix', 'text': 'Like virtuali ora correttamente visibili in tutte le schermate'},
+         {'type': 'fix', 'text': 'Campi mancanti nel modello Film (trailer_url, attendance, etc.)'}
+     ]},
+    {'version': '0.074', 'date': '2026-03-10', 'title': 'Like Pubblico Virtuale sui Poster', 
+     'changes': [
+         {'type': 'new', 'text': 'Badge like virtuali (cuore rosa) visibile su tutti i poster'},
+         {'type': 'improvement', 'text': 'Like virtuali mostrati in Dashboard, CineBoard, Giornale e My Films'},
+     ]},
+    {'version': '0.073', 'date': '2026-03-10', 'title': 'Giornale del Cinema Ridisegnato', 
+     'changes': [
+         {'type': 'improvement', 'text': 'Giornale del Cinema ridisegnato con poster 4 per riga'},
+         {'type': 'new', 'text': 'Sezioni news testuali: Pubblicazioni, Messaggi Pubblico, Altre News'},
+         {'type': 'new', 'text': 'Modale interattivi per film dal Giornale'},
+     ]},
+    {'version': '0.072', 'date': '2026-03-10', 'title': 'Sistema Contatti Creator & CineBoard Nav', 
+     'changes': [
+         {'type': 'new', 'text': 'Form "Contattaci" nella pagina Crediti per messaggi al Creator'},
+         {'type': 'new', 'text': 'Creator Board per gestione e risposta ai messaggi'},
+         {'type': 'new', 'text': 'Badge "Creator" per NeoMorpheus'},
+         {'type': 'new', 'text': 'Icona CineBoard nella barra di navigazione fissa'},
+     ]},
+    {'version': '0.071', 'date': '2026-03-10', 'title': 'Miglioramenti Sfide & Navigazione', 
+     'changes': [
+         {'type': 'new', 'text': 'Icona Sfide nella barra di navigazione fissa'},
+         {'type': 'new', 'text': 'Tutorial interattivo nella pagina Sfide'},
+         {'type': 'new', 'text': 'Notifica di benvenuto "Sfide sbloccate!" per nuovi utenti'},
+         {'type': 'new', 'text': 'Storico sfide passate, in sospeso e completate'},
+         {'type': 'new', 'text': 'Pulsanti per riproporre o annullare sfide'},
+         {'type': 'improvement', 'text': 'Icona Chat nella barra di navigazione superiore'}
+     ]},
+    {'version': '0.070', 'date': '2026-03-10', 'title': 'Sistema Sfide Multiplayer', 
+     'changes': [
+         {'type': 'new', 'text': 'Sistema Sfide completo: 1v1, 2v2, 3v3, 4v4 e Tutti contro tutti'},
+         {'type': 'new', 'text': '8 skill cinematografiche per film (Regia, Sceneggiatura, Cast, etc.)'},
+         {'type': 'new', 'text': '3 manche per sfida con commenti automatici di combattimento'},
+         {'type': 'new', 'text': 'Matchmaking: casuale, amici o membri della Major'},
+         {'type': 'new', 'text': 'Classifica generale sfide e statistiche giocatore'},
+         {'type': 'new', 'text': 'Bonus/malus sfide per vincitori e perdenti'},
+         {'type': 'new', 'text': 'Tipi sfida: Rapida, Classica, Maratona, Torneo, Epica'}
+     ]},
+    {'version': '0.069', 'date': '2026-03-10', 'title': 'Video Cerimonia & Download Trailer', 
+     'changes': [
+         {'type': 'new', 'text': 'Pulsante download trailer direttamente dalla pagina film'},
+         {'type': 'new', 'text': 'Pulsante download video cerimonie festival'},
+         {'type': 'improvement', 'text': 'Trailer completamente gratuiti per tutti i giocatori'}
+     ]},
     {'version': '0.068', 'date': '2026-03-10', 'title': 'Sistema Pubblico Virtuale & Recensioni', 
      'changes': [
          {'type': 'new', 'text': 'Like virtuali del pubblico con bonus monetari fino a +20%'},

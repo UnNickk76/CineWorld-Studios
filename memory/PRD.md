@@ -23,6 +23,13 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Voci diverse per lingua (onyx EN, nova IT, coral ES, shimmer FR, echo DE)
   - Pulsante "Annuncia" con riproduzione audio automatica
   - Indicatore visivo "Audio in riproduzione"
+- **Sottotitoli Sincronizzati**:
+  - Overlay full-screen con testo dell'annuncio
+  - Animazioni entrance con Framer Motion
+  - Nome categoria evidenziato in giallo
+  - Badge vincitore con trofei animati
+  - Wave audio animata durante riproduzione
+  - Sottotitoli nella lingua scelta dal player
 - **Nuovi Endpoint API**:
   - `GET /api/festivals/{id}/live-ceremony` - Dati cerimonia live
   - `POST /api/festivals/ceremony/chat` - Invia messaggio in chat

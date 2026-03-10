@@ -8987,17 +8987,32 @@ const FestivalsPage = () => {
   const audioRef = useRef(null);
   const [playingAudio, setPlayingAudio] = useState(false);
   const [announcingCategory, setAnnouncingCategory] = useState(null);
+  const [subtitleText, setSubtitleText] = useState('');
+  const [subtitleVisible, setSubtitleVisible] = useState(false);
+  const [winnerName, setWinnerName] = useState('');
+  const [categoryWon, setCategoryWon] = useState('');
 
-  const playAnnouncementAudio = (audioUrl) => {
+  const playAnnouncementAudio = (audioUrl, text, winner, category) => {
     if (audioRef.current) {
       audioRef.current.pause();
     }
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
     setPlayingAudio(true);
+    setSubtitleText(text);
+    setWinnerName(winner);
+    setCategoryWon(category);
+    setSubtitleVisible(true);
     audio.play();
-    audio.onended = () => setPlayingAudio(false);
-    audio.onerror = () => setPlayingAudio(false);
+    audio.onended = () => {
+      setPlayingAudio(false);
+      // Keep subtitle visible for 2 more seconds after audio ends
+      setTimeout(() => setSubtitleVisible(false), 2000);
+    };
+    audio.onerror = () => {
+      setPlayingAudio(false);
+      setSubtitleVisible(false);
+    };
   };
 
   const announceWinnerWithAudio = async (categoryId) => {
@@ -9008,9 +9023,15 @@ const FestivalsPage = () => {
       if (res.data.success) {
         // Refresh ceremony data
         loadLiveCeremony(liveCeremony.festival_id);
-        // Play audio if available
+        // Play audio with subtitles if available
         if (res.data.audio?.audio_url) {
-          playAnnouncementAudio(res.data.audio.audio_url);
+          const announcementText = res.data.announcement_text?.[language] || res.data.announcement_text?.['en'] || '';
+          playAnnouncementAudio(
+            res.data.audio.audio_url, 
+            announcementText,
+            res.data.winner?.name || '',
+            res.data.category_name || ''
+          );
         }
         toast.success(`${language === 'it' ? 'Vincitore' : 'Winner'}: ${res.data.winner.name}!`);
       }
@@ -9452,6 +9473,83 @@ const FestivalsPage = () => {
       {/* Live Ceremony Modal */}
       {showLiveCeremony && liveCeremony && (
         <div className="fixed inset-0 bg-black/95 z-50 flex flex-col" onClick={closeLiveCeremony}>
+          
+          {/* Subtitle Overlay */}
+          {subtitleVisible && (
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed inset-0 z-[60] pointer-events-none flex items-center justify-center"
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute bottom-20 left-0 right-0 px-8">
+                <motion.div 
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
+                  className="max-w-3xl mx-auto text-center"
+                >
+                  {/* Category name */}
+                  <motion.p 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-yellow-500 text-lg font-semibold mb-2 uppercase tracking-wider"
+                  >
+                    {categoryWon}
+                  </motion.p>
+                  
+                  {/* Main subtitle text */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-black/70 backdrop-blur-sm rounded-xl px-8 py-6 border border-yellow-500/30"
+                  >
+                    <p className="text-white text-2xl md:text-3xl font-['Bebas_Neue'] leading-relaxed">
+                      {subtitleText}
+                    </p>
+                  </motion.div>
+                  
+                  {/* Winner spotlight */}
+                  {winnerName && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 1.5, type: "spring", stiffness: 200 }}
+                      className="mt-6"
+                    >
+                      <div className="inline-flex items-center gap-3 bg-yellow-500 text-black px-6 py-3 rounded-full">
+                        <Trophy className="w-6 h-6" />
+                        <span className="text-xl font-bold">{winnerName}</span>
+                        <Trophy className="w-6 h-6" />
+                      </div>
+                    </motion.div>
+                  )}
+                  
+                  {/* Audio wave animation */}
+                  {playingAudio && (
+                    <div className="mt-4 flex justify-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <motion.div
+                          key={i}
+                          className="w-1 bg-yellow-500 rounded-full"
+                          animate={{ height: [8, 24, 8] }}
+                          transition={{ 
+                            duration: 0.5, 
+                            repeat: Infinity, 
+                            delay: i * 0.1,
+                            ease: "easeInOut"
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
+
           <div className="flex-1 overflow-hidden flex" onClick={e => e.stopPropagation()}>
             {/* Main ceremony area */}
             <div className="flex-1 p-4 overflow-y-auto">

@@ -213,6 +213,18 @@ const TopNavbar = () => {
             <MessageSquare className="w-4 h-4" />
           </Button>
           
+          {/* Challenges/Sfide - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/challenges' ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'}`}
+            onClick={() => navigate('/challenges')}
+            data-testid="challenges-nav-btn"
+            title={language === 'it' ? 'Sfide' : 'Challenges'}
+          >
+            <Swords className="w-4 h-4" />
+          </Button>
+          
           {/* Notifications - Always visible */}
           <Button
             variant="ghost"
@@ -1907,6 +1919,7 @@ const ChallengesPage = () => {
   const [ffaPlayerCount, setFfaPlayerCount] = useState(4);
   const [opponentId, setOpponentId] = useState('');
   const [myStats, setMyStats] = useState(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -2058,13 +2071,142 @@ const ChallengesPage = () => {
   if (view === 'home') {
     return (
       <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="challenges-page">
+        {/* Tutorial Modal */}
+        <Dialog open={showTutorial} onOpenChange={setShowTutorial}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-pink-500/30">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-pink-400">
+                <Lightbulb className="w-6 h-6" /> {language === 'it' ? 'COME FUNZIONANO LE SFIDE' : 'HOW CHALLENGES WORK'}
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              <div className="space-y-6 text-sm">
+                {/* Step 1 */}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="font-bold text-yellow-400 mb-2 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-yellow-500 text-black rounded-full flex items-center justify-center text-xs">1</span>
+                    {language === 'it' ? 'Scegli la Modalità' : 'Choose Mode'}
+                  </h3>
+                  <p className="text-gray-300">
+                    {language === 'it' 
+                      ? 'Seleziona il tipo di sfida: 1v1 per duelli diretti, 2v2/3v3/4v4 per battaglie a squadre, o Tutti contro Tutti per il caos totale!'
+                      : 'Select challenge type: 1v1 for direct duels, 2v2/3v3/4v4 for team battles, or Free For All for total chaos!'}
+                  </p>
+                </div>
+
+                {/* Step 2 */}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="font-bold text-orange-400 mb-2 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">2</span>
+                    {language === 'it' ? 'Seleziona 3 Film' : 'Select 3 Films'}
+                  </h3>
+                  <p className="text-gray-300">
+                    {language === 'it' 
+                      ? 'Scegli 3 dei tuoi film che sono in programmazione o completati. Ogni film ha 8 skill cinematografiche che determinano la sua forza in battaglia!'
+                      : 'Choose 3 of your films that are in theaters or completed. Each film has 8 cinematic skills that determine its battle strength!'}
+                  </p>
+                </div>
+
+                {/* Skills */}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="font-bold text-pink-400 mb-2 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-pink-500 text-white rounded-full flex items-center justify-center text-xs">⚡</span>
+                    {language === 'it' ? 'Le 8 Skill' : 'The 8 Skills'}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {[
+                      { icon: '🎬', name: language === 'it' ? 'Regia' : 'Direction' },
+                      { icon: '📷', name: language === 'it' ? 'Fotografia' : 'Cinematography' },
+                      { icon: '📝', name: language === 'it' ? 'Sceneggiatura' : 'Screenplay' },
+                      { icon: '🎭', name: language === 'it' ? 'Recitazione' : 'Acting' },
+                      { icon: '🎵', name: language === 'it' ? 'Colonna Sonora' : 'Soundtrack' },
+                      { icon: '💥', name: language === 'it' ? 'Effetti' : 'Effects' },
+                      { icon: '✂️', name: language === 'it' ? 'Montaggio' : 'Editing' },
+                      { icon: '⭐', name: language === 'it' ? 'Carisma' : 'Charisma' }
+                    ].map(skill => (
+                      <div key={skill.name} className="bg-black/30 rounded p-2 text-xs flex items-center gap-2">
+                        <span>{skill.icon}</span>
+                        <span>{skill.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-gray-400 text-xs mt-2">
+                    {language === 'it' ? 'Ogni skill va da 1 a 9 e contribuisce ai punteggi di Attacco e Difesa!' : 'Each skill ranges from 1-9 and contributes to Attack and Defense scores!'}
+                  </p>
+                </div>
+
+                {/* Step 3 */}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="font-bold text-green-400 mb-2 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">3</span>
+                    {language === 'it' ? 'La Battaglia' : 'The Battle'}
+                  </h3>
+                  <p className="text-gray-300">
+                    {language === 'it' 
+                      ? 'La sfida si svolge in 3 manche! In ogni round, le skill dei tuoi film si scontrano con quelle avversarie. Chi vince più manche vince la sfida!'
+                      : 'The challenge unfolds in 3 rounds! Each round, your films\' skills clash against the opponent\'s. Win more rounds to win the challenge!'}
+                  </p>
+                </div>
+
+                {/* Rewards */}
+                <div className="bg-gradient-to-r from-yellow-500/20 to-green-500/10 rounded-lg p-4 border border-yellow-500/30">
+                  <h3 className="font-bold text-yellow-400 mb-2 flex items-center gap-2">
+                    <Trophy className="w-5 h-5" />
+                    {language === 'it' ? 'Premi e Bonus' : 'Rewards & Bonuses'}
+                  </h3>
+                  <div className="space-y-2 text-gray-300">
+                    <p className="flex items-center gap-2">
+                      <span className="text-green-400">🏆</span> 
+                      {language === 'it' ? 'Vincitori: +XP, +Fama, +CineCoins, +Qualità Film, +Affluenze' : 'Winners: +XP, +Fame, +CineCoins, +Film Quality, +Attendance'}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <span className="text-red-400">💔</span> 
+                      {language === 'it' ? 'Perdenti: +XP consolazione, -Fama, -Affluenze' : 'Losers: +consolation XP, -Fame, -Attendance'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/30">
+                  <h3 className="font-bold text-purple-400 mb-2 flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    {language === 'it' ? 'Consigli Pro' : 'Pro Tips'}
+                  </h3>
+                  <ul className="space-y-1 text-gray-300 text-xs">
+                    <li>• {language === 'it' ? 'Film con rating alto hanno skill migliori!' : 'Higher rated films have better skills!'}</li>
+                    <li>• {language === 'it' ? 'I film premiati ai festival hanno bonus Carisma!' : 'Award-winning films get Charisma bonuses!'}</li>
+                    <li>• {language === 'it' ? 'Bilancia attacco e difesa per una squadra equilibrata!' : 'Balance attack and defense for a balanced team!'}</li>
+                    <li>• {language === 'it' ? 'Le sfide live danno +20% bonus premi!' : 'Live challenges give +20% bonus rewards!'}</li>
+                  </ul>
+                </div>
+              </div>
+            </ScrollArea>
+            <div className="mt-4">
+              <Button onClick={() => setShowTutorial(false)} className="w-full bg-pink-500 hover:bg-pink-600">
+                {language === 'it' ? 'Ho capito, sfidiamoci!' : 'Got it, let\'s battle!'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
-            <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
-              <Swords className="w-8 h-8 text-pink-500" />
-              {language === 'it' ? 'SFIDE' : 'CHALLENGES'}
-            </h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+              <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
+                <Swords className="w-8 h-8 text-pink-500" />
+                {language === 'it' ? 'SFIDE' : 'CHALLENGES'}
+              </h1>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowTutorial(true)}
+              className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
+              data-testid="tutorial-btn"
+            >
+              <Lightbulb className="w-4 h-4 mr-1" /> Tutorial
+            </Button>
           </div>
           <p className="text-gray-400 text-sm">{language === 'it' ? 'Sfida altri giocatori con i tuoi film!' : 'Challenge other players with your films!'}</p>
         </motion.div>
@@ -12541,6 +12683,10 @@ const NotificationsPage = () => {
       achievement: <Star className="w-5 h-5 text-yellow-400" />,
       major_challenge: <Target className="w-5 h-5 text-red-400" />,
       level_up: <TrendingUp className="w-5 h-5 text-green-400" />,
+      challenge_welcome: <Swords className="w-5 h-5 text-pink-400" />,
+      challenge_invite: <Swords className="w-5 h-5 text-pink-400" />,
+      challenge_won: <Trophy className="w-5 h-5 text-green-400" />,
+      challenge_lost: <Swords className="w-5 h-5 text-red-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />
     };
     return icons[type] || icons.system;
@@ -12578,6 +12724,7 @@ const NotificationsPage = () => {
                   onClick={() => { 
                     if (!notif.read) markAsRead(notif.id);
                     if (notif.link) navigate(notif.link);
+                    else if (notif.data?.path) navigate(notif.data.path);
                   }}
                 >
                   <div className="flex-shrink-0 mt-0.5">

@@ -3,9 +3,21 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.070
+## Versione Attuale: v0.071
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.071 - Miglioramenti Sfide & Navigazione - 10/03/2026 (COMPLETATO)
+- **Icona Sfide nel Menu Fisso**: Icona spade (rosa) nella barra di navigazione superiore
+- **Tutorial Sfide**: Pop-up scrollabile con spiegazione completa del sistema sfide
+  - Step 1: Scegli la Modalità
+  - Step 2: Seleziona 3 Film
+  - Le 8 Skill con griglia visiva
+  - Premi e Bonus
+  - Consigli Pro
+- **Notifica Benvenuto Sfide**: Nuovi utenti ricevono notifica "⚔️ Sfide Sbloccate!" cliccabile
+- **Notifiche Sfide Cliccabili**: Supporto per `data.path` nelle notifiche
+- **Icone Notifiche Sfide**: Icone dedicate per challenge_welcome, challenge_invite, challenge_won, challenge_lost
 
 ### v0.070 - Sistema Sfide Completo - 10/03/2026 (COMPLETATO)
 - **Sistema Sfide Multiplayer**:

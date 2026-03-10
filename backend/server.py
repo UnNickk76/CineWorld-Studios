@@ -1706,6 +1706,19 @@ async def register(user_data: UserCreate):
     
     await db.users.insert_one(user)
     
+    # Create welcome notification for challenges
+    welcome_notification = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'type': 'challenge_welcome',
+        'title': '⚔️ Sfide Sbloccate!' if user_data.language == 'it' else '⚔️ Challenges Unlocked!',
+        'message': 'Adesso puoi sfidare gli altri player con sfide mozzafiato! Metti alla prova i tuoi film!' if user_data.language == 'it' else 'Now you can challenge other players with thrilling battles! Put your films to the test!',
+        'data': {'action': 'navigate', 'path': '/challenges'},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.notifications.insert_one(welcome_notification)
+    
     user_response = {k: v for k, v in user.items() if k not in ['password', '_id', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
     token = create_token(user['id'])
     

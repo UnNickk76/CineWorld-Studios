@@ -4583,9 +4583,18 @@ async def advertise_film(film_id: str, campaign: AdvertisingCampaign, user: dict
     # Deduct funds
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
     
-    # Calculate revenue boost
-    base_daily_revenue = film.get('total_revenue', 0) / max(film.get('actual_weeks_in_theater', 1) * 7, 1)
-    boosted_revenue = base_daily_revenue * total_multiplier * campaign.days
+    # Calculate revenue boost - based on opening day revenue to prevent exponential growth
+    # Opening day is a more stable baseline than total_revenue which can grow exponentially
+    opening_day = film.get('opening_day_revenue', 100000)
+    quality_multiplier = film.get('quality_score', 50) / 100
+    
+    # Daily boost = opening_day * quality * platform_reach * 0.5 (to keep it reasonable)
+    daily_boost = opening_day * quality_multiplier * total_multiplier * 0.5
+    boosted_revenue = int(daily_boost * campaign.days)
+    
+    # Cap the boost to prevent absurd numbers (max 10x opening day per campaign)
+    max_boost = opening_day * 10
+    boosted_revenue = min(boosted_revenue, max_boost)
     
     # Update film with advertising boost
     await db.films.update_one(

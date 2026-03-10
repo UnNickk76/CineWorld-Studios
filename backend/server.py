@@ -5599,6 +5599,34 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.079', 'date': '2026-03-10', 'title': 'Contest, Revenue Infrastruttura & Mini-Giochi AI',
+     'changes': [
+         {'type': 'new', 'text': 'Sezione "Sfide" rinominata "Contest" in tutte le lingue (IT, EN, ES, FR, DE)'},
+         {'type': 'new', 'text': 'Mini-giochi con domande generate da AI (GPT-4o-mini) ad ogni partita'},
+         {'type': 'new', 'text': 'Tracciamento domande viste per evitare ripetizioni nei mini-giochi'},
+         {'type': 'new', 'text': 'Fallback automatico alla pool statica se la generazione AI fallisce'},
+         {'type': 'fix', 'text': 'Revenue infrastruttura: lo scheduler ora processa TUTTI i tipi (cinema, drive-in, multiplex, VIP, ecc.)'},
+         {'type': 'fix', 'text': 'Frequenza aggiornamento revenue aumentata da 6h a 2h'},
+         {'type': 'improvement', 'text': 'Reddito minimo garantito per ogni infrastruttura in base al livello'},
+         {'type': 'improvement', 'text': 'Reddito passivo per Production Studio e Cinema School'}
+     ]},
+    {'version': '0.078', 'date': '2026-03-10', 'title': 'Profilo Giocatore Globale & Nickname Cliccabili',
+     'changes': [
+         {'type': 'new', 'text': 'Pop-up profilo giocatore globale cliccando su qualsiasi nickname'},
+         {'type': 'new', 'text': 'Nickname cliccabili in: Classifiche, Chat, Festival, Amici, Contest'},
+         {'type': 'new', 'text': 'Pulsanti rapidi nel pop-up: Aggiungi Amico, Sfida 1v1, Invia Messaggio'},
+         {'type': 'new', 'text': 'Statistiche giocatore nel pop-up: Film, Incassi, Qualità, XP, Premi, Livello'},
+         {'type': 'new', 'text': 'Film recenti del giocatore visibili nel pop-up con poster e dettagli'}
+     ]},
+    {'version': '0.077', 'date': '2026-03-10', 'title': 'Pannello Giocatori & Icona Amicizie',
+     'changes': [
+         {'type': 'new', 'text': 'Icona Giocatori nella barra di navigazione con contatore online'},
+         {'type': 'new', 'text': 'Pannello con lista completa giocatori: sezioni Online e Offline'},
+         {'type': 'new', 'text': 'Profilo giocatore nel pannello con statistiche e film'},
+         {'type': 'new', 'text': 'Pulsanti azione rapida: Aggiungi Amico e Sfida 1v1 dal pannello'},
+         {'type': 'improvement', 'text': 'Icona Amicizie sempre visibile nella barra di navigazione fissa'},
+         {'type': 'improvement', 'text': 'Heartbeat aggiornato con campo livello per badge nella lista'}
+     ]},
     {'version': '0.076', 'date': '2026-03-10', 'title': 'Giornale del Cinema & Sistema Critiche', 
      'changes': [
          {'type': 'new', 'text': 'Icona Giornale del Cinema nella barra di navigazione fissa'},
@@ -5638,18 +5666,18 @@ RELEASE_NOTES = [
          {'type': 'new', 'text': 'Badge "Creator" per NeoMorpheus'},
          {'type': 'new', 'text': 'Icona CineBoard nella barra di navigazione fissa'},
      ]},
-    {'version': '0.071', 'date': '2026-03-10', 'title': 'Miglioramenti Sfide & Navigazione', 
+    {'version': '0.071', 'date': '2026-03-10', 'title': 'Miglioramenti Contest & Navigazione', 
      'changes': [
-         {'type': 'new', 'text': 'Icona Sfide nella barra di navigazione fissa'},
-         {'type': 'new', 'text': 'Tutorial interattivo nella pagina Sfide'},
-         {'type': 'new', 'text': 'Notifica di benvenuto "Sfide sbloccate!" per nuovi utenti'},
-         {'type': 'new', 'text': 'Storico sfide passate, in sospeso e completate'},
-         {'type': 'new', 'text': 'Pulsanti per riproporre o annullare sfide'},
+         {'type': 'new', 'text': 'Icona Contest nella barra di navigazione fissa'},
+         {'type': 'new', 'text': 'Tutorial interattivo nella pagina Contest'},
+         {'type': 'new', 'text': 'Notifica di benvenuto "Contest sbloccati!" per nuovi utenti'},
+         {'type': 'new', 'text': 'Storico contest passati, in sospeso e completati'},
+         {'type': 'new', 'text': 'Pulsanti per riproporre o annullare contest'},
          {'type': 'improvement', 'text': 'Icona Chat nella barra di navigazione superiore'}
      ]},
-    {'version': '0.070', 'date': '2026-03-10', 'title': 'Sistema Sfide Multiplayer', 
+    {'version': '0.070', 'date': '2026-03-10', 'title': 'Sistema Contest Multiplayer', 
      'changes': [
-         {'type': 'new', 'text': 'Sistema Sfide completo: 1v1, 2v2, 3v3, 4v4 e Tutti contro tutti'},
+         {'type': 'new', 'text': 'Sistema Contest completo: 1v1, 2v2, 3v3, 4v4 e Tutti contro tutti'},
          {'type': 'new', 'text': '8 skill cinematografiche per film (Regia, Sceneggiatura, Cast, etc.)'},
          {'type': 'new', 'text': '3 manche per sfida con commenti automatici di combattimento'},
          {'type': 'new', 'text': 'Matchmaking: casuale, amici o membri della Major'},

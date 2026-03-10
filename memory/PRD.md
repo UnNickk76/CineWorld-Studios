@@ -3,9 +3,16 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.053
+## Versione Attuale: v0.054
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.054 - Fix Incassi e Sistema Link - 10/03/2026 (COMPLETATO)
+- **Fix Bug Incassi Pendenti**: Risolto bug che mostrava sempre $0 negli incassi da riscuotere
+- **Fix Date Timezone**: Gestione corretta di date con/senza timezone per calcoli revenue
+- **Sistema URL Manager**: Salva automaticamente l'URL corrente del gioco nel database
+- **Banner Notifica**: Mostra notifica gialla quando il link del gioco cambia con pulsante copia
+- **Endpoint /api/game-url**: GET per ottenere URL corrente, POST per aggiornare
 
 ### v0.053 - Sistema Affluenza Cinema (CineBoard) - 10/03/2026 (COMPLETATO)
 - **Tab Attendance nella CineBoard**: Nuovo tab per visualizzare statistiche di affluenza ai cinema
@@ -116,6 +123,13 @@ GET  /api/admin/scheduler-status  - Stato dei job schedulati
                                     Returns: { scheduler_running, jobs_count, jobs[] }
 ```
 
+### Sistema URL/Redirect
+```
+GET  /api/game-url              - Ottiene URL corrente del gioco (pubblico, no auth)
+POST /api/game-url              - Aggiorna URL corrente { url: string }
+GET  /api/redirect-to-game      - Redirect 302 all'URL corrente
+```
+
 ### Sistema Affluenza Cinema
 ```
 GET  /api/cineboard/attendance    - Dati affluenza per CineBoard
@@ -162,12 +176,13 @@ GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: `server.py` (~10600 righe) e `App.js` (~9600 righe) - URGENTE
+- [ ] **Refactoring Critico**: `server.py` (~10700 righe) e `App.js` (~9700 righe) - URGENTE
 
 ### P1 - Priorità Alta
 - [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione ("quality") dei film
 - [ ] **Cinema Distribution Page**: Aggiungere sezione nella pagina dettaglio film con lista cinema dove è in programmazione
 - [ ] **Attività delle Major**: Co-Produzioni, Sfide tra Major
+- [ ] **Sistema Acquisto CineCoins**: Integrazione Stripe per acquisto valuta di gioco (IN PAUSA)
 
 ### P2 - Future
 - [ ] Mini-giochi Versus tra giocatori

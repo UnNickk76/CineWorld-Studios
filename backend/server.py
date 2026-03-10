@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
@@ -5240,13 +5240,25 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
     film_pending = 0
     film_details = []
     for film in films_in_theaters:
-        # Calculate daily revenue that hasn't been collected yet
-        last_collected = datetime.fromisoformat(
-            film.get('last_revenue_collected', film.get('release_date', now.isoformat())).replace('Z', '+00:00')
-        )
-        hours_since_collection = (now - last_collected).total_seconds() / 3600
-        
-        if hours_since_collection >= 1:
+        try:
+            # Calculate daily revenue that hasn't been collected yet
+            date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
+            # Handle different date formats
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_collected = datetime.fromisoformat(date_str)
+            
+            # Make sure last_collected is timezone-aware
+            if last_collected.tzinfo is None:
+                last_collected = last_collected.replace(tzinfo=timezone.utc)
+            
+            hours_since_collection = (now - last_collected).total_seconds() / 3600
+            
+            # Skip if hours is negative (future date) or less than 1 hour
+            if hours_since_collection < 1:
+                continue
+                
             # Calculate hourly revenue based on quality and week
             quality = film.get('quality_score', 50)
             week = film.get('current_week', 1)
@@ -5255,13 +5267,18 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
             hourly_revenue = base_hourly * decay * (quality / 100)
             pending = int(hourly_revenue * min(24, hours_since_collection))
             
-            film_pending += pending
-            film_details.append({
-                'id': film['id'],
-                'title': film.get('title'),
-                'pending': pending,
-                'hours': round(hours_since_collection, 1)
-            })
+            if pending > 0:
+                film_pending += pending
+                film_details.append({
+                    'id': film['id'],
+                    'title': film.get('title'),
+                    'pending': pending,
+                    'hours': round(hours_since_collection, 1)
+                })
+        except Exception as e:
+            # Skip films with invalid date formats
+            logging.warning(f"Error calculating pending revenue for film {film.get('id')}: {e}")
+            continue
     
     # Get pending infrastructure revenue
     infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0}).to_list(100)
@@ -5269,43 +5286,53 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
     infra_pending = 0
     infra_details = []
     for infra in infrastructure:
-        infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
-        if not infra_type:
+        try:
+            infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+            if not infra_type:
+                continue
+            
+            date_str = infra.get('last_revenue_update') or now.isoformat()
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_update = datetime.fromisoformat(date_str)
+            
+            if last_update.tzinfo is None:
+                last_update = last_update.replace(tzinfo=timezone.utc)
+            
+            hours_passed = min(4, (now - last_update).total_seconds() / 3600)
+            
+            if hours_passed >= 0.1:
+                # Calculate hourly revenue
+                films_showing = infra.get('films_showing', [])
+                hourly_revenue = 0
+                
+                if infra_type.get('screens', 0) > 0 and films_showing:
+                    prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+                    ticket_price = prices.get('ticket', 12)
+                    for film in films_showing:
+                        quality = film.get('quality_score', 50)
+                        visitors_per_hour = int(10 + (quality * 0.5) + 30)
+                        hourly_revenue += visitors_per_hour * ticket_price
+                else:
+                    hourly_revenue = infra_type.get('passive_income', 500)
+                
+                city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
+                hourly_revenue *= city_multiplier
+                pending = int(hourly_revenue * hours_passed)
+                
+                if pending > 0:
+                    infra_pending += pending
+                    infra_details.append({
+                        'id': infra['id'],
+                        'name': infra.get('custom_name'),
+                        'type': infra.get('type'),
+                        'pending': pending,
+                        'hours': round(hours_passed, 1)
+                    })
+        except Exception as e:
+            logging.warning(f"Error calculating pending revenue for infra {infra.get('id')}: {e}")
             continue
-            
-        last_update = datetime.fromisoformat(
-            infra.get('last_revenue_update', now.isoformat()).replace('Z', '+00:00')
-        )
-        hours_passed = min(4, (now - last_update).total_seconds() / 3600)
-        
-        if hours_passed >= 0.1:
-            # Calculate hourly revenue
-            films_showing = infra.get('films_showing', [])
-            hourly_revenue = 0
-            
-            if infra_type.get('screens', 0) > 0 and films_showing:
-                prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
-                ticket_price = prices.get('ticket', 12)
-                for film in films_showing:
-                    quality = film.get('quality_score', 50)
-                    visitors_per_hour = int(10 + (quality * 0.5) + 30)
-                    hourly_revenue += visitors_per_hour * ticket_price
-            else:
-                hourly_revenue = infra_type.get('passive_income', 500)
-            
-            city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
-            hourly_revenue *= city_multiplier
-            pending = int(hourly_revenue * hours_passed)
-            
-            if pending > 0:
-                infra_pending += pending
-                infra_details.append({
-                    'id': infra['id'],
-                    'name': infra.get('custom_name'),
-                    'type': infra.get('type'),
-                    'pending': pending,
-                    'hours': round(hours_passed, 1)
-                })
     
     total_pending = film_pending + infra_pending
     
@@ -10651,6 +10678,46 @@ async def get_scheduler_status():
 
 # Include router and middleware
 app.include_router(api_router)
+
+# ==================== GAME URL REDIRECT SYSTEM ====================
+# Endpoint pubblico (no auth) per gestire i redirect dai vecchi link
+
+@app.get("/api/game-url")
+async def get_current_game_url():
+    """Get the current active game URL (public endpoint)."""
+    config = await db.system_config.find_one({'key': 'current_game_url'})
+    if config:
+        return {'url': config.get('url'), 'updated_at': config.get('updated_at')}
+    return {'url': None, 'updated_at': None}
+
+@app.post("/api/game-url")
+async def update_current_game_url(request: Request):
+    """Update the current game URL. Called by frontend on load."""
+    try:
+        body = await request.json()
+        new_url = body.get('url')
+        if new_url:
+            await db.system_config.update_one(
+                {'key': 'current_game_url'},
+                {'$set': {
+                    'url': new_url,
+                    'updated_at': datetime.now(timezone.utc).isoformat()
+                }},
+                upsert=True
+            )
+            return {'success': True, 'url': new_url}
+    except Exception as e:
+        logging.error(f"Error updating game URL: {e}")
+    return {'success': False}
+
+@app.get("/api/redirect-to-game")
+async def redirect_to_current_game():
+    """Redirect to the current active game URL."""
+    from fastapi.responses import RedirectResponse
+    config = await db.system_config.find_one({'key': 'current_game_url'})
+    if config and config.get('url'):
+        return RedirectResponse(url=config['url'], status_code=302)
+    return {'error': 'No game URL configured'}
 
 app.add_middleware(
     CORSMiddleware,

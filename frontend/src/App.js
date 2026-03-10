@@ -9611,45 +9611,101 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // Main App
+// URL Manager - Saves current URL and shows redirect message if needed
+const UrlManager = ({ children }) => {
+  const [showUrlChanged, setShowUrlChanged] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+
+  useEffect(() => {
+    const currentUrl = window.location.origin;
+    
+    // Save current URL to backend
+    axios.post(`${API}/game-url`, { url: currentUrl }).catch(() => {});
+    
+    // Check if there's a saved URL in localStorage that differs
+    const savedUrl = localStorage.getItem('cineworld_last_url');
+    if (savedUrl && savedUrl !== currentUrl) {
+      // URL has changed - show notification
+      setNewUrl(currentUrl);
+      setShowUrlChanged(true);
+    }
+    
+    // Always save the current URL
+    localStorage.setItem('cineworld_last_url', currentUrl);
+  }, []);
+
+  return (
+    <>
+      {showUrlChanged && (
+        <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-amber-500 text-black py-2 px-4 z-[100] flex items-center justify-center gap-3 text-sm">
+          <Bell className="w-4 h-4" />
+          <span className="font-medium">Il gioco si è spostato! Salva questo nuovo link:</span>
+          <code className="bg-black/20 px-2 py-0.5 rounded text-xs">{newUrl}</code>
+          <Button 
+            size="sm" 
+            variant="secondary"
+            className="h-6 text-xs"
+            onClick={() => {
+              navigator.clipboard.writeText(newUrl);
+              toast.success('Link copiato!');
+            }}
+          >
+            <Copy className="w-3 h-3 mr-1" /> Copia
+          </Button>
+          <button 
+            onClick={() => setShowUrlChanged(false)}
+            className="ml-2 hover:bg-black/20 rounded p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {children}
+    </>
+  );
+};
+
 function App() {
   return (
     <div className="min-h-screen bg-[#0F0F10]">
       <BrowserRouter>
         <AuthProvider>
           <LanguageProvider>
-            <Toaster position="top-center" theme="dark" />
-            <Routes>
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
-              <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
-              <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
-              <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
-              <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
-              <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
-              <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />
-              <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
-              <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
-              <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
-              <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-              <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-              <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
-              <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
-              <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
-              <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
-              <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
-              <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
-              <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
-              <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
-              <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
-              <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
-              <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-              <Route path="/download" element={<DownloadAppPage />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <UrlManager>
+              <Toaster position="top-center" theme="dark" />
+              <Routes>
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
+                <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
+                <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
+                <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
+                <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
+                <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
+                <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />
+                <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
+                <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
+                <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
+                <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+                <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+                <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
+                <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
+                <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+                <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
+                <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
+                <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
+                <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
+                <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
+                <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
+                <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/download" element={<DownloadAppPage />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </UrlManager>
           </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>

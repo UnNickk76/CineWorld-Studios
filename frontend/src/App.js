@@ -8983,6 +8983,44 @@ const FestivalsPage = () => {
     };
   }, []);
 
+  // Audio playback for TTS announcements
+  const audioRef = useRef(null);
+  const [playingAudio, setPlayingAudio] = useState(false);
+  const [announcingCategory, setAnnouncingCategory] = useState(null);
+
+  const playAnnouncementAudio = (audioUrl) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    setPlayingAudio(true);
+    audio.play();
+    audio.onended = () => setPlayingAudio(false);
+    audio.onerror = () => setPlayingAudio(false);
+  };
+
+  const announceWinnerWithAudio = async (categoryId) => {
+    if (!liveCeremony) return;
+    setAnnouncingCategory(categoryId);
+    try {
+      const res = await api.post(`/festivals/${liveCeremony.festival_id}/announce-with-audio/${categoryId}?language=${language}`);
+      if (res.data.success) {
+        // Refresh ceremony data
+        loadLiveCeremony(liveCeremony.festival_id);
+        // Play audio if available
+        if (res.data.audio?.audio_url) {
+          playAnnouncementAudio(res.data.audio.audio_url);
+        }
+        toast.success(`${language === 'it' ? 'Vincitore' : 'Winner'}: ${res.data.winner.name}!`);
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore annuncio');
+    } finally {
+      setAnnouncingCategory(null);
+    }
+  };
+
   const getPrestigeStars = (prestige) => '⭐'.repeat(prestige);
 
   return (
@@ -9428,6 +9466,12 @@ const FestivalsPage = () => {
                     <p className="text-gray-400 flex items-center gap-2">
                       <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                       LIVE • {liveCeremony.viewers_count} {language === 'it' ? 'spettatori' : 'viewers'}
+                      {playingAudio && (
+                        <span className="flex items-center gap-1 text-green-400 ml-2">
+                          <Music className="w-3 h-3 animate-bounce" />
+                          {language === 'it' ? 'Audio in riproduzione...' : 'Playing audio...'}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <Button variant="outline" onClick={closeLiveCeremony}>
@@ -9445,13 +9489,30 @@ const FestivalsPage = () => {
                             <Award className="w-5 h-5 text-yellow-500" />
                             {cat.category_name}
                           </CardTitle>
-                          {cat.is_announced ? (
-                            <Badge className="bg-yellow-500 text-black">{language === 'it' ? 'VINCITORE' : 'WINNER'}</Badge>
-                          ) : cat.favorite && (
-                            <Badge className="bg-purple-500/20 text-purple-400">
-                              {language === 'it' ? 'Papabile' : 'Favorite'}: {cat.favorite.name} ({cat.favorite.win_probability}%)
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {cat.is_announced ? (
+                              <Badge className="bg-yellow-500 text-black">{language === 'it' ? 'VINCITORE' : 'WINNER'}</Badge>
+                            ) : cat.favorite && (
+                              <Badge className="bg-purple-500/20 text-purple-400">
+                                {language === 'it' ? 'Papabile' : 'Favorite'}: {cat.favorite.name} ({cat.favorite.win_probability}%)
+                              </Badge>
+                            )}
+                            {/* Announce button - only show if not announced */}
+                            {!cat.is_announced && (
+                              <Button 
+                                size="sm"
+                                onClick={() => announceWinnerWithAudio(cat.category_id)}
+                                disabled={announcingCategory === cat.category_id}
+                                className="bg-red-500 hover:bg-red-600 text-white text-xs h-7 px-2"
+                              >
+                                {announcingCategory === cat.category_id ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <><Music className="w-3 h-3 mr-1" />{language === 'it' ? 'Annuncia' : 'Announce'}</>
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -9459,7 +9520,7 @@ const FestivalsPage = () => {
                           {cat.nominees?.map(nom => (
                             <div 
                               key={nom.id} 
-                              className={`flex items-center gap-3 p-2 rounded ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500' : 'bg-white/5'}`}
+                              className={`flex items-center gap-3 p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500 animate-pulse' : 'bg-white/5'}`}
                             >
                               <div className="flex-1">
                                 <p className={`font-medium ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>

@@ -18,11 +18,18 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Sistema di "Papabili" vincitori con probabilità calcolate
   - Indicatore viewers count
   - Rate limiting sulla chat (1 messaggio ogni 5 secondi)
+- **Audio TTS per Annunci**:
+  - Integrazione OpenAI Text-to-Speech per annunci vincitori
+  - Voci diverse per lingua (onyx EN, nova IT, coral ES, shimmer FR, echo DE)
+  - Pulsante "Annuncia" con riproduzione audio automatica
+  - Indicatore visivo "Audio in riproduzione"
 - **Nuovi Endpoint API**:
   - `GET /api/festivals/{id}/live-ceremony` - Dati cerimonia live
   - `POST /api/festivals/ceremony/chat` - Invia messaggio in chat
   - `POST /api/festivals/{id}/join-ceremony` - Unisciti come spettatore
   - `POST /api/festivals/{id}/announce-winner/{category}` - Annuncia vincitore
+  - `POST /api/festivals/tts-announcement` - Genera audio TTS
+  - `POST /api/festivals/{id}/announce-with-audio/{category}` - Annuncia con audio
 - **Campo Composer nei Film**: Aggiunto `composer_id` al modello FilmCreate per nomination soundtrack
 - **Fix Cinema Revenue**: Sistemato il calcolo dei profitti dei cinema nelle infrastrutture
   - Revenue basata su popolazione città, livello cinema, qualità film

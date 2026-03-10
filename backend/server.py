@@ -9973,6 +9973,177 @@ async def join_ceremony(festival_id: str, user: dict = Depends(get_current_user)
     
     return {'success': True}
 
+class TTSAnnouncementRequest(BaseModel):
+    text: str
+    language: str = 'en'
+    voice: str = 'onyx'  # Deep, authoritative voice for awards
+
+@api_router.post("/festivals/tts-announcement")
+async def generate_tts_announcement(request: TTSAnnouncementRequest, user: dict = Depends(get_current_user)):
+    """Generate TTS audio for ceremony announcements."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=503, detail="TTS service unavailable")
+    
+    if len(request.text) > 500:
+        raise HTTPException(status_code=400, detail="Text too long (max 500 chars)")
+    
+    # Select voice based on language for better pronunciation
+    voice_map = {
+        'it': 'nova',      # Energetic, good for Italian
+        'en': 'onyx',      # Deep, authoritative
+        'es': 'coral',     # Warm, friendly
+        'fr': 'shimmer',   # Bright, cheerful
+        'de': 'echo'       # Smooth, calm
+    }
+    voice = voice_map.get(request.language, request.voice)
+    
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+        
+        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+        
+        # Generate speech as base64 for easy frontend integration
+        audio_base64 = await tts.generate_speech_base64(
+            text=request.text,
+            model="tts-1",  # Fast model for real-time announcements
+            voice=voice,
+            speed=0.9  # Slightly slower for dramatic effect
+        )
+        
+        return {
+            'success': True,
+            'audio_base64': audio_base64,
+            'audio_url': f"data:audio/mp3;base64,{audio_base64}",
+            'voice': voice
+        }
+    except Exception as e:
+        logging.error(f"TTS generation error: {e}")
+        raise HTTPException(status_code=500, detail="Audio generation failed")
+
+@api_router.post("/festivals/{festival_id}/announce-with-audio/{category_id}")
+async def announce_winner_with_audio(festival_id: str, category_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Announce the winner and generate TTS audio automatically."""
+    # First, announce the winner using existing logic
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Find category
+    categories = edition.get('categories', [])
+    cat_index = next((i for i, c in enumerate(categories) if c['category_id'] == category_id), None)
+    if cat_index is None:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    category = categories[cat_index]
+    cat_def = AWARD_CATEGORIES.get(category_id, {})
+    category_name = cat_def.get('names', {}).get(language, category_id)
+    
+    if category.get('is_announced'):
+        winner = category.get('winner')
+        # Generate audio for already announced winner
+        announcement_texts = {
+            'en': f"The {category_name} goes to... {winner.get('name')}! For the film {winner.get('film_title', 'their outstanding work')}!",
+            'it': f"Il premio {category_name} va a... {winner.get('name')}! Per il film {winner.get('film_title', 'il loro eccezionale lavoro')}!",
+            'es': f"El premio {category_name} es para... ¡{winner.get('name')}! ¡Por la película {winner.get('film_title', 'su excelente trabajo')}!",
+            'fr': f"Le prix {category_name} revient à... {winner.get('name')}! Pour le film {winner.get('film_title', 'leur travail exceptionnel')}!",
+            'de': f"Der Preis {category_name} geht an... {winner.get('name')}! Für den Film {winner.get('film_title', 'ihre hervorragende Arbeit')}!"
+        }
+    else:
+        # Determine winner
+        nominees = category.get('nominees', [])
+        if not nominees:
+            raise HTTPException(status_code=400, detail="Nessun nominato")
+        
+        festival = FESTIVALS.get(festival_id, {})
+        
+        if festival.get('voting_type') == 'player':
+            winner = max(nominees, key=lambda n: n.get('votes', 0))
+        else:
+            weights = [n.get('quality_score', 50) + n.get('votes', 0) * 10 for n in nominees]
+            winner = random.choices(nominees, weights=weights, k=1)[0]
+        
+        # Update edition
+        update_path = f"categories.{cat_index}"
+        await db.festival_editions.update_one(
+            {'id': edition_id},
+            {
+                '$set': {
+                    f'{update_path}.is_announced': True,
+                    f'{update_path}.winner': winner,
+                    f'{update_path}.announced_at': datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Award the winner
+        award = {
+            'id': str(uuid.uuid4()),
+            'festival_id': festival_id,
+            'edition_id': edition_id,
+            'category_id': category_id,
+            'category_name': category_name,
+            'winner_id': winner.get('id'),
+            'winner_name': winner.get('name'),
+            'film_id': winner.get('film_id'),
+            'film_title': winner.get('film_title'),
+            'owner_id': winner.get('owner_id'),
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.festival_awards.insert_one(award)
+        
+        # Give rewards
+        rewards = festival.get('rewards', {})
+        if winner.get('owner_id'):
+            await db.users.update_one(
+                {'id': winner['owner_id']},
+                {'$inc': {'xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}}
+            )
+        
+        # Generate announcement text
+        announcement_texts = {
+            'en': f"And the {category_name} goes to... {winner.get('name')}! For the film {winner.get('film_title', 'their outstanding work')}! Congratulations!",
+            'it': f"E il premio {category_name} va a... {winner.get('name')}! Per il film {winner.get('film_title', 'il loro eccezionale lavoro')}! Congratulazioni!",
+            'es': f"¡Y el premio {category_name} es para... {winner.get('name')}! ¡Por la película {winner.get('film_title', 'su excelente trabajo')}! ¡Felicidades!",
+            'fr': f"Et le prix {category_name} revient à... {winner.get('name')}! Pour le film {winner.get('film_title', 'leur travail exceptionnel')}! Félicitations!",
+            'de': f"Und der Preis {category_name} geht an... {winner.get('name')}! Für den Film {winner.get('film_title', 'ihre hervorragende Arbeit')}! Herzlichen Glückwunsch!"
+        }
+    
+    # Generate TTS audio
+    audio_data = None
+    if EMERGENT_LLM_KEY:
+        try:
+            from emergentintegrations.llm.openai import OpenAITextToSpeech
+            
+            voice_map = {'it': 'nova', 'en': 'onyx', 'es': 'coral', 'fr': 'shimmer', 'de': 'echo'}
+            voice = voice_map.get(language, 'onyx')
+            
+            tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+            audio_base64 = await tts.generate_speech_base64(
+                text=announcement_texts.get(language, announcement_texts['en']),
+                model="tts-1",
+                voice=voice,
+                speed=0.85  # Dramatic, slower pace
+            )
+            
+            audio_data = {
+                'audio_base64': audio_base64,
+                'audio_url': f"data:audio/mp3;base64,{audio_base64}",
+                'voice': voice
+            }
+        except Exception as e:
+            logging.error(f"TTS error in announcement: {e}")
+    
+    return {
+        'success': True,
+        'winner': winner,
+        'category_name': category_name,
+        'announcement_text': announcement_texts,
+        'audio': audio_data
+    }
+
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 
 CUSTOM_FESTIVAL_MIN_LEVEL = 20  # Livello minimo per creare un festival

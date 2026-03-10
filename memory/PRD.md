@@ -3,9 +3,13 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.054
+## Versione Attuale: v0.055
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.055 - Riscossione Rapida - 10/03/2026 (COMPLETATO)
+- **Riscossione ogni minuto**: Gli incassi da film e infrastrutture ora sono riscuotibili ogni minuto invece che ogni ora
+- **Cumulabilità 6 ore**: Massima cumulabilità aumentata da 4 a 6 ore
 
 ### v0.054 - Fix Incassi e Sistema Link - 10/03/2026 (COMPLETATO)
 - **Fix Bug Incassi Pendenti**: Risolto bug che mostrava sempre $0 negli incassi da riscuotere

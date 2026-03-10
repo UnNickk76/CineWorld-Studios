@@ -5264,8 +5264,8 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
             
             hours_since_collection = (now - last_collected).total_seconds() / 3600
             
-            # Skip if hours is negative (future date) or less than 1 hour
-            if hours_since_collection < 1:
+            # Skip if hours is negative (future date) or less than 1 minute
+            if hours_since_collection < (1/60):  # 1 minute minimum
                 continue
                 
             # Calculate hourly revenue based on quality and week
@@ -5274,7 +5274,8 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
             base_hourly = film.get('opening_day_revenue', 100000) / 24
             decay = 0.85 ** (week - 1)
             hourly_revenue = base_hourly * decay * (quality / 100)
-            pending = int(hourly_revenue * min(24, hours_since_collection))
+            # Cap at 6 hours of accumulated revenue
+            pending = int(hourly_revenue * min(6, hours_since_collection))
             
             if pending > 0:
                 film_pending += pending
@@ -5309,9 +5310,11 @@ async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
             if last_update.tzinfo is None:
                 last_update = last_update.replace(tzinfo=timezone.utc)
             
-            hours_passed = min(4, (now - last_update).total_seconds() / 3600)
+            # Cap at 6 hours of accumulated revenue
+            hours_passed = min(6, (now - last_update).total_seconds() / 3600)
             
-            if hours_passed >= 0.1:
+            # Minimum 1 minute to collect
+            if hours_passed >= (1/60):
                 # Calculate hourly revenue
                 films_showing = infra.get('films_showing', [])
                 hourly_revenue = 0
@@ -5372,18 +5375,28 @@ async def collect_all_revenue(user: dict = Depends(get_current_user)):
     }).to_list(100)
     
     for film in films_in_theaters:
-        last_collected = datetime.fromisoformat(
-            film.get('last_revenue_collected', film.get('release_date', now.isoformat())).replace('Z', '+00:00')
-        )
+        try:
+            date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_collected = datetime.fromisoformat(date_str)
+            if last_collected.tzinfo is None:
+                last_collected = last_collected.replace(tzinfo=timezone.utc)
+        except:
+            last_collected = now
+            
         hours_since_collection = (now - last_collected).total_seconds() / 3600
         
-        if hours_since_collection >= 1:
+        # Minimum 1 minute to collect
+        if hours_since_collection >= (1/60):
             quality = film.get('quality_score', 50)
             week = film.get('current_week', 1)
             base_hourly = film.get('opening_day_revenue', 100000) / 24
             decay = 0.85 ** (week - 1)
             hourly_revenue = base_hourly * decay * (quality / 100)
-            revenue = int(hourly_revenue * min(24, hours_since_collection))
+            # Cap at 6 hours
+            revenue = int(hourly_revenue * min(6, hours_since_collection))
             
             if revenue > 0:
                 await db.films.update_one(
@@ -5403,13 +5416,23 @@ async def collect_all_revenue(user: dict = Depends(get_current_user)):
         infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
         if not infra_type:
             continue
-            
-        last_update = datetime.fromisoformat(
-            infra.get('last_revenue_update', now.isoformat()).replace('Z', '+00:00')
-        )
-        hours_passed = min(4, (now - last_update).total_seconds() / 3600)
         
-        if hours_passed >= 0.1:
+        try:
+            date_str = infra.get('last_revenue_update') or now.isoformat()
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_update = datetime.fromisoformat(date_str)
+            if last_update.tzinfo is None:
+                last_update = last_update.replace(tzinfo=timezone.utc)
+        except:
+            last_update = now
+            
+        # Cap at 6 hours
+        hours_passed = min(6, (now - last_update).total_seconds() / 3600)
+        
+        # Minimum 1 minute to collect
+        if hours_passed >= (1/60):
             films_showing = infra.get('films_showing', [])
             hourly_revenue = 0
             

@@ -1958,7 +1958,56 @@ const FilmWizard = () => {
   const calculateBudget = () => { const eq = equipment.find(e=>e.name===filmData.equipment_package)||{cost:0}; let loc=0; filmData.locations.forEach(l=>{const lo=locations.find(x=>x.name===l); if(lo)loc+=lo.cost_per_day*(filmData.location_days[l]||7);}); return eq.cost+loc+filmData.extras_cost; };
   const getSponsorBudget = () => { if(!filmData.sponsor_id)return 0; const s=sponsors.find(x=>x.name===filmData.sponsor_id); return s?.budget_offer||0; };
   
-  const handleSubmit = async () => { setLoading(true); try { const res = await api.post('/films', {...filmData, release_date: releaseDate.toISOString()}); toast.success(`Film created! Opening: $${res.data.opening_day_revenue.toLocaleString()}`); updateFunds(user.funds - calculateBudget() + getSponsorBudget() + filmData.ad_revenue + res.data.opening_day_revenue); navigate(`/films/${res.data.id}`); } catch(e) { toast.error(e.response?.data?.detail||'Failed'); } finally { setLoading(false); }};
+  // Tier popup state
+  const [tierPopup, setTierPopup] = useState(null);
+  
+  const TIER_STYLES = {
+    masterpiece: { bg: 'from-yellow-500/30 to-amber-500/30', border: 'border-yellow-500', text: 'text-yellow-400', emoji: '🏆' },
+    epic: { bg: 'from-purple-500/30 to-pink-500/30', border: 'border-purple-500', text: 'text-purple-400', emoji: '⭐' },
+    excellent: { bg: 'from-blue-500/30 to-cyan-500/30', border: 'border-blue-500', text: 'text-blue-400', emoji: '✨' },
+    promising: { bg: 'from-green-500/30 to-emerald-500/30', border: 'border-green-500', text: 'text-green-400', emoji: '🌟' },
+    flop: { bg: 'from-red-500/30 to-orange-500/30', border: 'border-red-500', text: 'text-red-400', emoji: '💔' },
+    normal: { bg: 'from-gray-500/30 to-slate-500/30', border: 'border-gray-500', text: 'text-gray-400', emoji: '🎬' }
+  };
+  
+  const handleSubmit = async () => { 
+    setLoading(true); 
+    try { 
+      const res = await api.post('/films', {...filmData, release_date: releaseDate.toISOString()}); 
+      
+      // Check if film got a special tier
+      const tier = res.data.film_tier || 'normal';
+      const tierStyle = TIER_STYLES[tier] || TIER_STYLES.normal;
+      
+      if (tier !== 'normal') {
+        // Show tier popup for special tiers
+        setTierPopup({
+          tier: tier,
+          style: tierStyle,
+          filmTitle: res.data.title,
+          opening: res.data.opening_day_revenue,
+          tierName: tier === 'masterpiece' ? 'Capolavoro' : 
+                   tier === 'epic' ? 'Epico' : 
+                   tier === 'excellent' ? 'Eccellente' : 
+                   tier === 'promising' ? 'Promettente' : 
+                   tier === 'flop' ? 'Possibile Flop' : 'Standard',
+          message: tier === 'flop' 
+            ? 'Non preoccuparti! A volte i flop diventano cult...' 
+            : 'Il pubblico è entusiasta!',
+          filmId: res.data.id
+        });
+      } else {
+        toast.success(`Film created! Opening: $${res.data.opening_day_revenue.toLocaleString()}`);
+        navigate(`/films/${res.data.id}`);
+      }
+      
+      updateFunds(user.funds - calculateBudget() + getSponsorBudget() + filmData.ad_revenue + res.data.opening_day_revenue); 
+    } catch(e) { 
+      toast.error(e.response?.data?.detail||'Failed'); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
 
   const getRoleName = (roleId) => {
     const role = actorRoles.find(r => r.id === roleId);
@@ -2472,6 +2521,95 @@ const FilmWizard = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Film Tier Celebration Popup */}
+      {tierPopup && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => { setTierPopup(null); navigate(`/films/${tierPopup.filmId}`); }}>
+          <motion.div 
+            initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            transition={{ type: "spring", damping: 10 }}
+            className={`bg-gradient-to-br ${tierPopup.style.bg} ${tierPopup.style.border} border-2 rounded-2xl p-8 max-w-md w-full text-center relative overflow-hidden`}
+            onClick={e => e.stopPropagation()}
+            data-testid="tier-popup"
+          >
+            {/* Confetti effect for positive tiers */}
+            {tierPopup.tier !== 'flop' && (
+              <div className="absolute inset-0 pointer-events-none">
+                {Array(20).fill(0).map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-3 h-3 rounded-full"
+                    style={{
+                      background: ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#3B82F6'][i % 5],
+                      left: `${Math.random() * 100}%`,
+                      top: `-10%`
+                    }}
+                    animate={{
+                      y: [0, 500],
+                      x: [0, (Math.random() - 0.5) * 100],
+                      rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
+                      opacity: [1, 0]
+                    }}
+                    transition={{
+                      duration: 2 + Math.random(),
+                      delay: Math.random() * 0.5,
+                      repeat: Infinity
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {/* Emoji and Title */}
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+              className="text-7xl mb-4"
+            >
+              {tierPopup.style.emoji}
+            </motion.div>
+            
+            <h2 className={`font-['Bebas_Neue'] text-4xl ${tierPopup.style.text} mb-2`}>
+              {tierPopup.tier === 'flop' ? 'Uh oh...' : 'Congratulazioni!'}
+            </h2>
+            
+            <p className="text-xl text-white mb-2">
+              {language === 'it' ? 'Hai creato un possibile' : "You've created a potential"}
+            </p>
+            
+            <h3 className={`font-['Bebas_Neue'] text-5xl ${tierPopup.style.text} mb-4`}>
+              {tierPopup.tierName}!
+            </h3>
+            
+            <p className="text-lg text-gray-300 mb-4">"{tierPopup.filmTitle}"</p>
+            
+            <div className={`bg-black/30 rounded-lg p-4 mb-4 ${tierPopup.style.border} border`}>
+              <p className="text-sm text-gray-300 mb-2">{tierPopup.message}</p>
+              <p className="text-2xl font-bold text-green-400">
+                {language === 'it' ? 'Incasso apertura' : 'Opening'}: ${tierPopup.opening?.toLocaleString()}
+              </p>
+              {tierPopup.tier !== 'flop' && tierPopup.tier !== 'normal' && (
+                <p className="text-xs text-gray-400 mt-2">
+                  {language === 'it' ? `Bonus giornaliero: +${TIER_STYLES[tierPopup.tier] ? ['5%', '3%', '2%', '1%'][['masterpiece', 'epic', 'excellent', 'promising'].indexOf(tierPopup.tier)] : '0%'}` : `Daily bonus: +${['5%', '3%', '2%', '1%'][['masterpiece', 'epic', 'excellent', 'promising'].indexOf(tierPopup.tier)] || '0%'}`}
+                </p>
+              )}
+              {tierPopup.tier === 'flop' && (
+                <p className="text-xs text-orange-300 mt-2">
+                  {language === 'it' ? 'Ma non arrenderti! A volte i flop diventano cult!' : "But don't give up! Sometimes flops become cult classics!"}
+                </p>
+              )}
+            </div>
+            
+            <Button 
+              className={`w-full ${tierPopup.tier === 'flop' ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-500 hover:bg-yellow-600'} text-black font-bold text-lg py-6`}
+              onClick={() => { setTierPopup(null); navigate(`/films/${tierPopup.filmId}`); }}
+            >
+              {language === 'it' ? 'Vai al Film' : 'Go to Film'} <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2781,6 +2919,11 @@ const FilmDetail = () => {
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
   const [distribution, setDistribution] = useState(null);
+  const [showLikersPopup, setShowLikersPopup] = useState(false);
+  const [likers, setLikers] = useState([]);
+  const [loadingLikers, setLoadingLikers] = useState(false);
+  const [showEndRunPopup, setShowEndRunPopup] = useState(false);
+  const [endRunData, setEndRunData] = useState(null);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -2816,6 +2959,21 @@ const FilmDetail = () => {
     if (filmRes.data.status === 'withdrawn' || filmRes.data.status === 'completed') {
       const rereleaseRes = await api.get(`/films/${id}/rerelease-status`).catch(() => null);
       if (rereleaseRes) setRereleaseStatus(rereleaseRes.data);
+      
+      // Check if we should show end-of-run expectations popup (only for owner, only once per session)
+      const shownKey = `endrun_shown_${id}`;
+      if (filmRes.data.user_id === user?.id && !sessionStorage.getItem(shownKey) && filmRes.data.film_tier) {
+        try {
+          const expectationsRes = await api.get(`/films/${id}/tier-expectations`);
+          if (expectationsRes.data) {
+            setEndRunData(expectationsRes.data);
+            setShowEndRunPopup(true);
+            sessionStorage.setItem(shownKey, 'true');
+          }
+        } catch (e) {
+          // Silently fail
+        }
+      }
     }
   };
   
@@ -2836,6 +2994,24 @@ const FilmDetail = () => {
   };
 
   useEffect(() => { loadFilm(); }, [api]);
+  
+  // Load likers when popup opens - must be before early return
+  useEffect(() => {
+    if (showLikersPopup && film) {
+      const loadLikersData = async () => {
+        setLoadingLikers(true);
+        try {
+          const res = await api.get(`/films/${film.id}/likes`);
+          setLikers(res.data.likers || []);
+        } catch (e) {
+          toast.error('Errore nel caricamento');
+        } finally {
+          setLoadingLikers(false);
+        }
+      };
+      loadLikersData();
+    }
+  }, [showLikersPopup, film?.id, api]);
   
   if (!film) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
   
@@ -3037,7 +3213,15 @@ const FilmDetail = () => {
             </div>
             
             <div className="grid grid-cols-2 gap-2">
-              <div className="text-center p-2 rounded bg-white/5"><Heart className="w-4 h-4 mx-auto mb-0.5 text-red-400" /><p className="font-bold text-sm">{film.likes_count}</p></div>
+              <div 
+                className="text-center p-2 rounded bg-white/5 cursor-pointer hover:bg-white/10 transition-colors"
+                onClick={() => setShowLikersPopup(true)}
+                data-testid="likes-count-btn"
+              >
+                <Heart className="w-4 h-4 mx-auto mb-0.5 text-red-400" />
+                <p className="font-bold text-sm">{film.likes_count}</p>
+                <p className="text-[9px] text-gray-500">{language === 'it' ? 'Clicca per vedere' : 'Click to see'}</p>
+              </div>
               <div className="text-center p-2 rounded bg-white/5"><DollarSign className="w-4 h-4 mx-auto mb-0.5 text-green-400" /><p className="font-bold text-sm">${(film.total_revenue||0).toLocaleString()}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
@@ -3495,6 +3679,211 @@ const FilmDetail = () => {
           </Card>
         </div>
       </div>
+      
+      {/* Likers Popup */}
+      {showLikersPopup && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowLikersPopup(false)}>
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4 max-w-md w-full max-h-[70vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            data-testid="likers-popup"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+                <Heart className="w-5 h-5 text-red-400 fill-red-400" />
+                {language === 'it' ? `Chi ha messo Like (${film.likes_count || 0})` : `Who Liked (${film.likes_count || 0})`}
+              </h3>
+              <button onClick={() => setShowLikersPopup(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <ScrollArea className="h-[50vh]">
+              {loadingLikers ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-yellow-500" />
+                </div>
+              ) : likers.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Heart className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                  <p>{language === 'it' ? 'Nessun like ancora' : 'No likes yet'}</p>
+                </div>
+              ) : (
+                <div className="space-y-2 pr-2">
+                  {likers.map((liker, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
+                      onClick={() => { setShowLikersPopup(false); navigate(`/player/${liker.user_id}`); }}
+                    >
+                      <img 
+                        src={liker.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${liker.nickname}`} 
+                        alt={liker.nickname}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{liker.nickname}</p>
+                        <p className="text-xs text-gray-400">{liker.production_house}</p>
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        {new Date(liker.liked_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </motion.div>
+        </div>
+      )}
+      
+      {/* End of Run Expectations Popup */}
+      {showEndRunPopup && endRunData && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setShowEndRunPopup(false)}>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0, y: 50 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: 'spring', duration: 0.6 }}
+            className={`bg-gradient-to-br ${
+              endRunData.exceeded ? 'from-yellow-500/30 to-amber-500/30 border-yellow-500' :
+              endRunData.met_expectations ? 'from-green-500/30 to-emerald-500/30 border-green-500' :
+              'from-red-500/30 to-orange-500/30 border-red-500'
+            } border-2 rounded-2xl p-6 max-w-md w-full text-center relative overflow-hidden`}
+            onClick={e => e.stopPropagation()}
+            data-testid="end-run-popup"
+          >
+            {/* Background decoration */}
+            {endRunData.exceeded && (
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute text-2xl"
+                    initial={{ y: -20, x: Math.random() * 300, opacity: 0 }}
+                    animate={{ y: 400, opacity: [0, 1, 1, 0], rotate: 360 }}
+                    transition={{ duration: 3, delay: i * 0.15, repeat: Infinity }}
+                  >
+                    {['🎉', '⭐', '🏆', '✨'][i % 4]}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+            
+            {/* Main icon */}
+            <motion.div 
+              className="text-6xl mb-4"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              {endRunData.exceeded ? '🏆' : endRunData.met_expectations ? '✅' : '📊'}
+            </motion.div>
+            
+            {/* Title */}
+            <h2 className={`font-['Bebas_Neue'] text-3xl mb-2 ${
+              endRunData.exceeded ? 'text-yellow-400' :
+              endRunData.met_expectations ? 'text-green-400' : 'text-orange-400'
+            }`}>
+              {language === 'it' ? 'Programmazione Terminata!' : 'Theater Run Complete!'}
+            </h2>
+            
+            {/* Film title */}
+            <p className="text-lg text-gray-300 mb-4">"{endRunData.film_title}"</p>
+            
+            {/* Tier Badge */}
+            {endRunData.tier && endRunData.tier !== 'normal' && (
+              <div className={`inline-block px-4 py-1 rounded-full mb-4 ${
+                endRunData.tier === 'masterpiece' ? 'bg-yellow-500/30 text-yellow-400' :
+                endRunData.tier === 'epic' ? 'bg-purple-500/30 text-purple-400' :
+                endRunData.tier === 'excellent' ? 'bg-blue-500/30 text-blue-400' :
+                endRunData.tier === 'promising' ? 'bg-green-500/30 text-green-400' :
+                endRunData.tier === 'flop' ? 'bg-red-500/30 text-red-400' : 'bg-gray-500/30 text-gray-400'
+              }`}>
+                {endRunData.film_tier_info?.emoji} {endRunData.film_tier_info?.name || endRunData.tier}
+              </div>
+            )}
+            
+            {/* Stats comparison */}
+            <div className="bg-black/30 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase">{language === 'it' ? 'Previsto' : 'Expected'}</p>
+                  <p className="text-xl font-bold text-gray-300">${endRunData.expected_revenue?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase">{language === 'it' ? 'Effettivo' : 'Actual'}</p>
+                  <p className={`text-xl font-bold ${
+                    endRunData.ratio >= 1 ? 'text-green-400' : 'text-red-400'
+                  }`}>${endRunData.actual_revenue?.toLocaleString()}</p>
+                </div>
+              </div>
+              
+              {/* Performance ratio bar */}
+              <div className="relative h-4 bg-black/40 rounded-full overflow-hidden mb-2">
+                <motion.div 
+                  className={`absolute h-full rounded-full ${
+                    endRunData.ratio >= 1.2 ? 'bg-yellow-500' :
+                    endRunData.ratio >= 1 ? 'bg-green-500' :
+                    endRunData.ratio >= 0.8 ? 'bg-orange-500' : 'bg-red-500'
+                  }`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (endRunData.ratio || 0) * 100)}%` }}
+                  transition={{ duration: 1, delay: 0.3 }}
+                />
+                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/30"></div>
+              </div>
+              <p className={`text-sm font-bold ${
+                endRunData.ratio >= 1.2 ? 'text-yellow-400' :
+                endRunData.ratio >= 1 ? 'text-green-400' :
+                endRunData.ratio >= 0.8 ? 'text-orange-400' : 'text-red-400'
+              }`}>
+                {((endRunData.ratio || 0) * 100).toFixed(0)}% {language === 'it' ? 'delle aspettative' : 'of expectations'}
+              </p>
+            </div>
+            
+            {/* Message */}
+            <p className={`text-lg mb-4 ${
+              endRunData.message_type === 'success' ? 'text-green-400' :
+              endRunData.message_type === 'positive' ? 'text-blue-400' :
+              endRunData.message_type === 'negative' ? 'text-red-400' : 'text-gray-300'
+            }`}>
+              {endRunData.message}
+            </p>
+            
+            {/* Special messages for surprises */}
+            {endRunData.exceeded && endRunData.tier === 'flop' && (
+              <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3 mb-4">
+                <p className="text-yellow-400 font-bold text-sm">
+                  {language === 'it' 
+                    ? '🎭 Il film che era un "Possibile Flop" è diventato un successo inaspettato!'
+                    : '🎭 The "Potential Flop" turned into an unexpected hit!'}
+                </p>
+              </div>
+            )}
+            
+            {!endRunData.met_expectations && endRunData.tier !== 'flop' && (
+              <div className="bg-orange-500/20 border border-orange-500/50 rounded-lg p-3 mb-4">
+                <p className="text-orange-400 font-bold text-sm">
+                  {language === 'it' 
+                    ? '📉 Nonostante le aspettative, il film non ha performato come previsto.'
+                    : '📉 Despite expectations, the film underperformed.'}
+                </p>
+              </div>
+            )}
+            
+            <Button 
+              className={`w-full font-bold text-lg py-6 ${
+                endRunData.exceeded ? 'bg-yellow-500 hover:bg-yellow-600 text-black' :
+                endRunData.met_expectations ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'
+              }`}
+              onClick={() => setShowEndRunPopup(false)}
+            >
+              {language === 'it' ? 'Continua' : 'Continue'}
+            </Button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4771,7 +5160,11 @@ const CineBoard = () => {
       const res = await api.post(`/films/${filmId}/like`);
       setFilms(films.map(f => f.id === filmId ? { ...f, user_liked: res.data.liked, likes_count: res.data.likes_count } : f));
     } catch (e) {
-      console.error(e);
+      if (e.response?.data?.detail?.includes('tuoi film')) {
+        toast.error(language === 'it' ? 'Non puoi mettere like ai tuoi film!' : "You can't like your own films!");
+      } else {
+        console.error(e);
+      }
     }
   };
 

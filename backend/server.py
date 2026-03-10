@@ -38,7 +38,8 @@ from game_systems import (
     calculate_hourly_film_revenue, calculate_film_duration_factors,
     calculate_star_discovery_chance, evolve_cast_skills, calculate_negative_rating_penalty,
     WORLD_EVENTS, get_active_world_events, calculate_event_bonus,
-    calculate_tour_rating, generate_tour_review
+    calculate_tour_rating, generate_tour_review,
+    calculate_film_tier, calculate_tier_daily_revenue, check_film_expectations, FILM_TIERS
 )
 
 # Import enhanced cast system v2
@@ -1333,6 +1334,12 @@ class FilmResponse(BaseModel):
     synopsis: Optional[str] = None
     cineboard_score: Optional[float] = None
     imdb_rating: Optional[float] = None
+    # Film tier system
+    film_tier: Optional[str] = None
+    tier_score: Optional[float] = None
+    tier_bonuses: Optional[Dict[str, Any]] = None
+    tier_opening_bonus: Optional[float] = None
+    liked_by: List[str] = []
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -3049,6 +3056,24 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     # Generate initial AI interactions
     film['ai_interactions'] = generate_ai_interactions(film, 0)
     film['ratings'] = {'user_ratings': [], 'ai_ratings': film['ai_interactions']}
+    
+    # Calculate film tier (Masterpiece, Epic, Excellent, Promising, Flop, or Normal)
+    tier_result = calculate_film_tier(film)
+    film['film_tier'] = tier_result['tier']
+    film['tier_score'] = tier_result['score']
+    film['tier_bonuses'] = tier_result['bonuses']
+    
+    # Apply immediate tier bonus/malus to opening day revenue
+    if tier_result['triggered'] and tier_result['tier_info']:
+        immediate_bonus = tier_result['tier_info'].get('immediate_bonus', 0)
+        if immediate_bonus != 0:
+            bonus_amount = int(opening_day_revenue * immediate_bonus)
+            film['opening_day_revenue'] = opening_day_revenue + bonus_amount
+            film['total_revenue'] = film['opening_day_revenue']
+            film['tier_opening_bonus'] = bonus_amount
+    
+    # Store likes as array of user IDs for tracking who liked
+    film['liked_by'] = []
     
     await db.films.insert_one(film)
     
@@ -4938,22 +4963,41 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     if not film:
         raise HTTPException(status_code=404, detail="Film not found")
     
+    # Prevent liking own films
+    if film['user_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi mettere like ai tuoi film")
+    
     existing_like = await db.likes.find_one({'film_id': film_id, 'user_id': user['id']})
     if existing_like:
+        # Unlike
         await db.likes.delete_one({'film_id': film_id, 'user_id': user['id']})
-        await db.films.update_one({'id': film_id}, {'$inc': {'likes_count': -1}})
+        await db.films.update_one(
+            {'id': film_id}, 
+            {
+                '$inc': {'likes_count': -1},
+                '$pull': {'liked_by': user['id']}
+            }
+        )
         await db.users.update_one({'id': user['id']}, {'$inc': {'total_likes_given': -1}})
         await db.users.update_one({'id': film['user_id']}, {'$inc': {'total_likes_received': -1}})
         
-        return {'liked': False, 'likes_count': film['likes_count'] - 1}
+        return {'liked': False, 'likes_count': max(0, film.get('likes_count', 1) - 1)}
     
+    # Like
     await db.likes.insert_one({
         'id': str(uuid.uuid4()),
         'film_id': film_id,
         'user_id': user['id'],
+        'user_nickname': user.get('nickname', 'Unknown'),
         'created_at': datetime.now(timezone.utc).isoformat()
     })
-    await db.films.update_one({'id': film_id}, {'$inc': {'likes_count': 1}})
+    await db.films.update_one(
+        {'id': film_id}, 
+        {
+            '$inc': {'likes_count': 1},
+            '$addToSet': {'liked_by': user['id']}
+        }
+    )
     
     # Add XP for giving like
     await db.users.update_one(
@@ -4973,7 +5017,54 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
         {'$inc': {'quality_score': quality_change, 'audience_satisfaction': satisfaction_change}}
     )
     
-    return {'liked': True, 'likes_count': film['likes_count'] + 1}
+    return {'liked': True, 'likes_count': film.get('likes_count', 0) + 1}
+
+@api_router.get("/films/{film_id}/likes")
+async def get_film_likes(film_id: str, user: dict = Depends(get_current_user)):
+    """Get list of users who liked a film."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Get likes with user details
+    likes = await db.likes.find({'film_id': film_id}, {'_id': 0}).sort('created_at', -1).to_list(100)
+    
+    # Enrich with user info
+    result = []
+    for like in likes:
+        like_user = await db.users.find_one(
+            {'id': like['user_id']}, 
+            {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1}
+        )
+        if like_user:
+            result.append({
+                'user_id': like['user_id'],
+                'nickname': like_user.get('nickname', 'Unknown'),
+                'avatar_url': like_user.get('avatar_url'),
+                'production_house': like_user.get('production_house_name'),
+                'liked_at': like.get('created_at')
+            })
+    
+    return {
+        'film_id': film_id,
+        'film_title': film.get('title'),
+        'total_likes': film.get('likes_count', 0),
+        'likers': result
+    }
+
+@api_router.get("/films/{film_id}/tier-expectations")
+async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_current_user)):
+    """Check if a film met its tier expectations (for end of run popup)."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    result = check_film_expectations(film)
+    result['film_id'] = film_id
+    result['film_title'] = film.get('title')
+    result['film_tier_info'] = FILM_TIERS.get(film.get('film_tier', 'normal'), {})
+    
+    return result
 
 # Mini Games with real questions
 @api_router.get("/minigames")
@@ -6050,6 +6141,8 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
         output_path = f'/app/trailers/{film_id}.mp4'
         os.makedirs('/app/trailers', exist_ok=True)
         
+        logging.info(f"[TRAILER] Starting generation for film {film_id}")
+        
         video_bytes = video_gen.text_to_video(
             prompt=prompt,
             model="sora-2",
@@ -6059,6 +6152,7 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
         )
         
         if video_bytes:
+            logging.info(f"[TRAILER] Video generated, saving to {output_path}")
             video_gen.save_video(video_bytes, output_path)
             
             # Update film with trailer URL
@@ -6139,6 +6233,18 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
         )
         # Refund on error
         await db.users.update_one({'id': user_id}, {'$inc': {'funds': 50000}})
+        
+        # Send error notification
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': user_id,
+            'type': 'trailer_error',
+            'title': 'Errore Generazione Trailer',
+            'message': f'Si è verificato un errore nella generazione del trailer. Ti abbiamo rimborsato $50,000. Errore: {str(e)[:100]}',
+            'data': {'film_id': film_id},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
 
 @api_router.get("/trailers/{film_id}.mp4")
 async def get_trailer(film_id: str):

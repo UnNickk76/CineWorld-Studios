@@ -70,6 +70,239 @@ XP_REWARDS = {
     'cinema_revenue': 1,    # Per $10,000 earned
 }
 
+
+# ==================== FILM TIER SYSTEM ====================
+# 5 tiers: Masterpiece, Epic, Excellent, Promising, Flop
+
+FILM_TIERS = {
+    'masterpiece': {
+        'name': 'Capolavoro',
+        'name_en': 'Masterpiece',
+        'emoji': '🏆',
+        'color': 'gold',
+        'immediate_bonus': 0.40,  # +40% opening day
+        'daily_bonus': 0.05,      # +5% per day
+        'min_score': 90,          # Quality + cast + screenplay factors
+        'probability': 0.03,      # 3% base chance if score qualifies
+    },
+    'epic': {
+        'name': 'Epico',
+        'name_en': 'Epic',
+        'emoji': '⭐',
+        'color': 'purple',
+        'immediate_bonus': 0.25,  # +25% opening day
+        'daily_bonus': 0.03,      # +3% per day
+        'min_score': 75,
+        'probability': 0.08,      # 8% base chance
+    },
+    'excellent': {
+        'name': 'Eccellente',
+        'name_en': 'Excellent',
+        'emoji': '✨',
+        'color': 'blue',
+        'immediate_bonus': 0.15,  # +15% opening day
+        'daily_bonus': 0.02,      # +2% per day
+        'min_score': 60,
+        'probability': 0.15,      # 15% base chance
+    },
+    'promising': {
+        'name': 'Promettente',
+        'name_en': 'Promising',
+        'emoji': '🌟',
+        'color': 'green',
+        'immediate_bonus': 0.05,  # +5% opening day
+        'daily_bonus': 0.01,      # +1% per day
+        'min_score': 45,
+        'probability': 0.25,      # 25% base chance
+    },
+    'flop': {
+        'name': 'Possibile Flop',
+        'name_en': 'Potential Flop',
+        'emoji': '💔',
+        'color': 'red',
+        'immediate_bonus': -0.20,  # -20% opening day
+        'daily_bonus': -0.02,      # -2% per day
+        'max_score': 35,           # Low score
+        'probability': 0.10,       # 10% base chance
+    }
+}
+
+def calculate_film_tier(film: dict) -> dict:
+    """
+    Calculate the tier of a film based on various factors.
+    Returns tier info with bonuses and whether it triggered.
+    
+    Factors:
+    - Quality score (cast, direction, screenplay)
+    - Cast star power (A-list actors boost chances)
+    - Screenplay quality
+    - Genre popularity
+    - Random element (luck factor)
+    """
+    quality = film.get('quality_score', 50)
+    cast = film.get('cast', [])
+    screenplay = film.get('screenplay', '')
+    
+    # Calculate composite score
+    base_score = quality
+    
+    # Cast bonus: A-list actors add up to +15
+    cast_bonus = 0
+    for actor in cast[:5]:  # Top 5 cast members
+        fame = actor.get('fame', 50)
+        if fame >= 90:
+            cast_bonus += 5  # A-list
+        elif fame >= 70:
+            cast_bonus += 3  # B-list
+        elif fame >= 50:
+            cast_bonus += 1  # C-list
+    cast_bonus = min(15, cast_bonus)
+    
+    # Screenplay bonus: longer/better screenplay adds up to +10
+    screenplay_bonus = min(10, len(screenplay) // 200) if screenplay else 0
+    
+    # IMDb rating bonus
+    imdb = film.get('imdb_rating', 5.0)
+    imdb_bonus = max(0, (imdb - 5) * 3)  # +3 per point above 5
+    
+    # Total score
+    total_score = base_score + cast_bonus + screenplay_bonus + imdb_bonus
+    
+    # Random luck factor (-10 to +10)
+    luck = random.randint(-10, 10)
+    final_score = total_score + luck
+    
+    # Determine tier
+    result = {
+        'tier': None,
+        'tier_info': None,
+        'triggered': False,
+        'score': final_score,
+        'bonuses': {
+            'quality': quality,
+            'cast': cast_bonus,
+            'screenplay': screenplay_bonus,
+            'imdb': imdb_bonus,
+            'luck': luck
+        }
+    }
+    
+    # Check for flop first (low score)
+    if final_score <= FILM_TIERS['flop']['max_score']:
+        if random.random() < FILM_TIERS['flop']['probability']:
+            result['tier'] = 'flop'
+            result['tier_info'] = FILM_TIERS['flop']
+            result['triggered'] = True
+            return result
+    
+    # Check for positive tiers (highest first)
+    for tier_key in ['masterpiece', 'epic', 'excellent', 'promising']:
+        tier = FILM_TIERS[tier_key]
+        if final_score >= tier['min_score']:
+            # Probability check with score bonus
+            score_bonus = (final_score - tier['min_score']) / 100  # Higher score = higher chance
+            adjusted_probability = tier['probability'] + score_bonus
+            
+            if random.random() < adjusted_probability:
+                result['tier'] = tier_key
+                result['tier_info'] = tier
+                result['triggered'] = True
+                return result
+    
+    # No special tier triggered
+    result['tier'] = 'normal'
+    result['tier_info'] = {
+        'name': 'Standard',
+        'name_en': 'Standard',
+        'emoji': '🎬',
+        'color': 'gray',
+        'immediate_bonus': 0,
+        'daily_bonus': 0
+    }
+    return result
+
+def calculate_tier_daily_revenue(base_revenue: float, film: dict, day: int) -> float:
+    """Apply tier bonus/malus to daily revenue."""
+    tier = film.get('film_tier', 'normal')
+    if tier == 'normal' or tier not in FILM_TIERS:
+        return base_revenue
+    
+    tier_info = FILM_TIERS[tier]
+    daily_bonus = tier_info.get('daily_bonus', 0)
+    
+    # Bonus compounds: day 1 = 1x bonus, day 10 = 10x bonus (capped)
+    compound_factor = min(day, 14)  # Cap at 2 weeks
+    total_bonus = 1 + (daily_bonus * compound_factor)
+    
+    return base_revenue * total_bonus
+
+def check_film_expectations(film: dict) -> dict:
+    """
+    Check if film met its tier expectations at end of run.
+    A flop can become a success, an epic can disappoint.
+    """
+    tier = film.get('film_tier', 'normal')
+    total_revenue = film.get('total_revenue', 0)
+    opening_day = film.get('opening_day_revenue', 100000)
+    quality = film.get('quality_score', 50)
+    weeks = film.get('weeks_in_theater', 2)
+    
+    # Expected revenue based on tier
+    expected_multiplier = {
+        'masterpiece': 15,
+        'epic': 10,
+        'excellent': 7,
+        'promising': 5,
+        'flop': 2,
+        'normal': 4
+    }.get(tier, 4)
+    
+    expected_revenue = opening_day * expected_multiplier
+    actual_ratio = total_revenue / expected_revenue if expected_revenue > 0 else 1
+    
+    result = {
+        'tier': tier,
+        'expected_revenue': expected_revenue,
+        'actual_revenue': total_revenue,
+        'ratio': actual_ratio,
+        'met_expectations': False,
+        'exceeded': False,
+        'message': '',
+        'message_type': 'neutral'
+    }
+    
+    if tier == 'flop':
+        # Flop expectations: if it did better than expected
+        if actual_ratio >= 1.5:
+            result['exceeded'] = True
+            result['met_expectations'] = True
+            result['message'] = 'Sorpresa! Il film ha superato ogni aspettativa!'
+            result['message_type'] = 'success'
+        elif actual_ratio >= 0.8:
+            result['met_expectations'] = True
+            result['message'] = 'Il film ha fatto meglio del previsto.'
+            result['message_type'] = 'positive'
+        else:
+            result['message'] = 'Il film ha confermato le previsioni negative.'
+            result['message_type'] = 'negative'
+    else:
+        # Positive tier expectations
+        if actual_ratio >= 1.2:
+            result['exceeded'] = True
+            result['met_expectations'] = True
+            result['message'] = f'Il film ha superato le aspettative!'
+            result['message_type'] = 'success'
+        elif actual_ratio >= 0.8:
+            result['met_expectations'] = True
+            result['message'] = f'Il film ha raggiunto le aspettative.'
+            result['message_type'] = 'positive'
+        else:
+            result['message'] = f'Il film non ha raggiunto le aspettative.'
+            result['message_type'] = 'negative'
+    
+    return result
+
+
 # Mini-game cooldown system: 4 plays per game type every 4 hours
 MINIGAME_COOLDOWN_HOURS = 4
 MINIGAME_MAX_PLAYS = 4

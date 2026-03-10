@@ -3,9 +3,18 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.052
+## Versione Attuale: v0.053
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.053 - Sistema Affluenza Cinema (CineBoard) - 10/03/2026 (COMPLETATO)
+- **Tab Attendance nella CineBoard**: Nuovo tab per visualizzare statistiche di affluenza ai cinema
+- **Global Stats**: Film in sala, Cinema totali, Spettatori attuali, Media per cinema
+- **Top 20 Most Screened (Now)**: Classifica film più programmati attualmente
+- **Top 20 Most Screened (All-Time)**: Classifica storica proiezioni totali
+- **Fix Bug Dashboard**: Risolto errore 500 su `/api/films/my` causato da dati incompleti
+- **Fix Bug Scheduler**: Corretto nome collection `infrastructures` → `infrastructure`
+- **Impatto su ranking**: L'affluenza influisce sul `cineboard_score` dei film
 
 ### v0.052 - Dashboard Finanziaria Completa - 09/03/2026 (COMPLETATO)
 - **Pulsante "Riscuoti Tutto"**: Raccoglie incassi da tutti i film in sala + infrastrutture in un click
@@ -107,6 +116,14 @@ GET  /api/admin/scheduler-status  - Stato dei job schedulati
                                     Returns: { scheduler_running, jobs_count, jobs[] }
 ```
 
+### Sistema Affluenza Cinema
+```
+GET  /api/cineboard/attendance    - Dati affluenza per CineBoard
+                                    Returns: { global_stats, top_now_playing, top_all_time }
+GET  /api/films/{id}/distribution - Distribuzione cinema per film specifico
+                                    Returns: { countries[], total_cinemas, total_attendance }
+```
+
 ### Sistema Rifiuto Cast
 ```
 POST /api/cast/offer           - Fai un'offerta a un membro del cast
@@ -144,12 +161,18 @@ GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
 
 ## Backlog
 
+### P0 - Critico
+- [ ] **Refactoring Critico**: `server.py` (~10600 righe) e `App.js` (~9600 righe) - URGENTE
+
 ### P1 - Priorità Alta
-- [ ] **Refactoring Critico**: `server.py` (~9600 righe) e `App.js` (~8700 righe)
+- [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione ("quality") dei film
+- [ ] **Cinema Distribution Page**: Aggiungere sezione nella pagina dettaglio film con lista cinema dove è in programmazione
+- [ ] **Attività delle Major**: Co-Produzioni, Sfide tra Major
 
 ### P2 - Future
 - [ ] Mini-giochi Versus tra giocatori
 - [ ] Cerimonie di premiazione "Live"
+- [ ] Traduzione categorie festival
 
 ## Note Tecniche
 

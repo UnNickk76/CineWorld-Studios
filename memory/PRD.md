@@ -3,9 +3,25 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.056
+## Versione Attuale: v0.057
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.057 - Sistema Livelli Film & Like Migliorato - 10/03/2026 (COMPLETATO)
+- **Sistema 5 Tier Film**: Capolavoro, Epico, Eccellente, Promettente, Possibile Flop
+  - Calcolo tier basato su qualità, cast, sceneggiatura, IMDb rating e fattore fortuna
+  - Bonus/malus immediati all'opening day (-20% a +40%)
+  - Bonus/malus giornalieri sui revenue
+- **Pop-up Tier alla Creazione**: Popup festoso/triste che appare dopo la creazione del film mostrando il tier ottenuto
+- **Pop-up Fine Programmazione**: Quando il proprietario visita un film terminato (withdrawn/completed), appare un popup che confronta aspettative vs risultato effettivo
+  - Mostra revenue previsto vs effettivo
+  - Barra di performance con percentuale delle aspettative
+  - Messaggi speciali per sorprese (es. Flop diventato successo)
+- **Sistema Like Migliorato**:
+  - Blocco self-like (non puoi mettere like ai tuoi film)
+  - Modal "Chi ha messo Like" al click sul numero di likes
+  - Lista utenti con avatar, nickname, casa di produzione e data del like
+  - Pulsante like in tutte le liste (CineBoard, Film Detail, ecc.)
 
 ### v0.056 - Box Office Realistico - 10/03/2026 (COMPLETATO)
 - **Revenue Realistici**: Incassi calcolati in base a ore in sala × opening_day × decay × qualità
@@ -114,6 +130,16 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## API Endpoints Nuovi
 
+### Sistema Livelli Film & Like
+```
+GET  /api/films/{film_id}/tier-expectations  - Verifica aspettative vs risultato (solo owner)
+                                               Returns: { tier, expected_revenue, actual_revenue, ratio, met_expectations, exceeded, message }
+GET  /api/films/{film_id}/likes              - Lista utenti che hanno messo like
+                                               Returns: { likers: [{ user_id, nickname, avatar_url, production_house, liked_at }] }
+POST /api/films/{film_id}/like               - Metti/togli like a un film (blocca self-like)
+                                               Returns: { liked: bool, likes_count: int }
+```
+
 ### Stelle Scoperte & Ingaggio
 ```
 GET  /api/discovered-stars     - Lista star scoperte con costo ingaggio
@@ -181,15 +207,16 @@ GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
 - Backend: FastAPI + MongoDB
 - Frontend: React + TailwindCSS + Shadcn/UI
 - AI: OpenAI GPT-4o, Gemini Nano Banana, Sora 2
-- Versione: v0.047
+- Versione: v0.057
 
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: `server.py` (~10700 righe) e `App.js` (~9700 righe) - URGENTE
+- [ ] **Refactoring Critico**: `server.py` (~10700 righe) e `App.js` (~10100 righe) - URGENTE
 
 ### P1 - Priorità Alta
-- [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione ("quality") dei film
+- [ ] **Bug Generazione Trailer**: La generazione video con Sora 2 non funziona correttamente
+- [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione dei film
 - [ ] **Cinema Distribution Page**: Aggiungere sezione nella pagina dettaglio film con lista cinema dove è in programmazione
 - [ ] **Attività delle Major**: Co-Produzioni, Sfide tra Major
 - [ ] **Sistema Acquisto CineCoins**: Integrazione Stripe per acquisto valuta di gioco (IN PAUSA)

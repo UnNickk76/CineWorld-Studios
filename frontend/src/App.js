@@ -7571,45 +7571,45 @@ const CinemaJournal = () => {
       </div>
 
       {/* Sticky Category Bar - stays fixed when scrolling */}
-      <div className="sticky top-14 z-40 bg-[#0D0D0D]/95 backdrop-blur-md border-b border-white/10 -mx-3 px-3 py-2 mb-6">
-        <div className="flex justify-center gap-2 max-w-5xl mx-auto">
+      <div className="sticky top-14 z-40 bg-[#0D0D0D]/95 backdrop-blur-md border-b border-white/10 -mx-3 px-2 py-1.5 mb-6">
+        <div className="flex justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar max-w-5xl mx-auto">
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowAllNews(true)}
-            className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 text-xs h-8"
+            className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 text-[10px] sm:text-xs h-7 px-2 sm:px-3 flex-shrink-0"
             data-testid="journal-news-btn"
           >
-            <Newspaper className="w-3.5 h-3.5 mr-1" /> News
-            {news.length > 0 && <Badge className="ml-1 bg-yellow-500/30 text-yellow-300 text-[9px] h-4 px-1">{news.length}</Badge>}
+            <Newspaper className="w-3 h-3 mr-1" /> News
+            {news.length > 0 && <Badge className="ml-1 bg-yellow-500/30 text-yellow-300 text-[8px] h-3.5 px-1">{news.length}</Badge>}
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowVirtualReviews(true)}
-            className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10 text-xs h-8"
+            className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10 text-[10px] sm:text-xs h-7 px-2 sm:px-3 flex-shrink-0"
             data-testid="journal-audience-btn"
           >
-            <MessageCircle className="w-3.5 h-3.5 mr-1" /> {language === 'it' ? 'Pubblico' : 'Audience'}
+            <MessageCircle className="w-3 h-3 mr-1" /> {language === 'it' ? 'Pubblico' : 'Audience'}
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowOtherNews(true)}
-            className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-8"
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-[10px] sm:text-xs h-7 px-2 sm:px-3 flex-shrink-0"
             data-testid="journal-breaking-btn"
           >
-            <Flame className="w-3.5 h-3.5 mr-1" /> Breaking News
+            <Flame className="w-3 h-3 mr-1" /> Breaking
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setShowHallOfFame(true)}
-            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs h-8"
+            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-[10px] sm:text-xs h-7 px-2 sm:px-3 flex-shrink-0"
             data-testid="journal-halloffame-btn"
           >
-            <Award className="w-3.5 h-3.5 mr-1" /> Hall of Fame
-            {discoveredStars.length > 0 && <Badge className="ml-1 bg-amber-500/30 text-amber-300 text-[9px] h-4 px-1">{discoveredStars.length}</Badge>}
+            <Award className="w-3 h-3 mr-1" /> Hall of Fame
+            {discoveredStars.length > 0 && <Badge className="ml-1 bg-amber-500/30 text-amber-300 text-[8px] h-3.5 px-1">{discoveredStars.length}</Badge>}
           </Button>
         </div>
       </div>

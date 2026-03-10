@@ -4287,6 +4287,55 @@ async def get_release_notes():
             'source': 'static'
         }
 
+@api_router.get("/release-notes/unread-count")
+async def get_unread_release_notes_count(user: dict = Depends(get_current_user)):
+    """Get count of release notes the user hasn't seen yet."""
+    last_seen = user.get('last_seen_release_version', '0.000')
+    
+    # Get releases newer than what user has seen
+    db_notes = await db.release_notes.find({}, {'_id': 0, 'version': 1}).sort('version', -1).to_list(1000)
+    
+    if not db_notes:
+        db_notes = [{'version': r['version']} for r in RELEASE_NOTES]
+    
+    # Count versions newer than last_seen
+    unread_count = 0
+    for note in db_notes:
+        if note['version'] > last_seen:
+            unread_count += 1
+        else:
+            break  # Notes are sorted desc, so we can stop
+    
+    latest_version = db_notes[0]['version'] if db_notes else '0.000'
+    
+    return {
+        'unread_count': unread_count,
+        'last_seen_version': last_seen,
+        'latest_version': latest_version
+    }
+
+@api_router.post("/release-notes/mark-read")
+async def mark_release_notes_read(user: dict = Depends(get_current_user)):
+    """Mark all release notes as read for the user."""
+    # Get latest version
+    db_notes = await db.release_notes.find({}, {'_id': 0, 'version': 1}).sort('version', -1).limit(1).to_list(1)
+    
+    if db_notes:
+        latest_version = db_notes[0]['version']
+    else:
+        latest_version = RELEASE_NOTES[0]['version'] if RELEASE_NOTES else '0.000'
+    
+    # Update user's last seen version
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'last_seen_release_version': latest_version}}
+    )
+    
+    return {
+        'success': True,
+        'marked_version': latest_version
+    }
+
 class NewReleaseNote(BaseModel):
     title: str
     changes: List[str]
@@ -6067,11 +6116,15 @@ async def generate_soundtrack_description(request: SoundtrackRequest, user: dict
 class TrailerRequest(BaseModel):
     film_id: str
     style: str = 'cinematic'  # cinematic, action, dramatic, comedy, horror
-    duration: int = 4  # 4, 8, or 12 seconds
+    duration: int = 4  # Must be 4, 8, or 12 seconds
 
 @api_router.post("/ai/generate-trailer")
 async def generate_trailer(request: TrailerRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Generate a video trailer for a film using Sora 2."""
+    # Validate duration
+    if request.duration not in [4, 8, 12]:
+        request.duration = 4  # Default to 4 if invalid
+    
     film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']})
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
@@ -6131,17 +6184,36 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
     """Background task to generate trailer."""
     import os
     from dotenv import load_dotenv
-    load_dotenv()
+    
+    # Load .env from the correct path
+    env_path = '/app/backend/.env'
+    load_dotenv(env_path)
     
     try:
         from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
         
-        video_gen = OpenAIVideoGeneration(api_key=os.environ.get('EMERGENT_LLM_KEY'))
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            # Try reading directly from file
+            try:
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.startswith('EMERGENT_LLM_KEY='):
+                            api_key = line.split('=', 1)[1].strip()
+                            break
+            except:
+                pass
+        
+        if not api_key:
+            raise Exception("EMERGENT_LLM_KEY not found in environment or .env file")
+        
+        logging.info(f"[TRAILER] Creating OpenAIVideoGeneration instance for film {film_id}")
+        video_gen = OpenAIVideoGeneration(api_key=api_key)
         
         output_path = f'/app/trailers/{film_id}.mp4'
         os.makedirs('/app/trailers', exist_ok=True)
         
-        logging.info(f"[TRAILER] Starting generation for film {film_id}")
+        logging.info(f"[TRAILER] Starting video generation for film {film_id} with duration={duration}s")
         
         video_bytes = video_gen.text_to_video(
             prompt=prompt,
@@ -6150,6 +6222,8 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
             duration=duration,
             max_wait_time=600
         )
+        
+        logging.info(f"[TRAILER] Video generation completed for film {film_id}, bytes received: {len(video_bytes) if video_bytes else 0}")
         
         if video_bytes:
             logging.info(f"[TRAILER] Video generated, saving to {output_path}")

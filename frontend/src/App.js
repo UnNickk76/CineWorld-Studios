@@ -171,11 +171,13 @@ const TopNavbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [majorInfo, setMajorInfo] = useState(null);
 
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
+    api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
   }, [api, user?.total_xp, location.pathname]);
 
@@ -195,7 +197,7 @@ const TopNavbar = () => {
     { path: '/games', icon: Gamepad2, label: 'mini_games' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
-    { path: '/releases', icon: Sparkles, label: 'release_notes' },
+    { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
     { path: '/credits', icon: Info, label: 'credits' },
@@ -391,11 +393,14 @@ const TopNavbar = () => {
                   key={item.path}
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
-                  className={`gap-2 justify-start h-9 ${location.pathname === item.path ? 'bg-yellow-500 text-black' : ''}`}
+                  className={`gap-2 justify-start h-9 relative ${location.pathname === item.path ? 'bg-yellow-500 text-black' : ''}`}
                   onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
                 >
                   <item.icon className="w-4 h-4" />
                   {t(item.label)}
+                  {item.notificationCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[8px] h-2 w-2 bg-red-500 rounded-full" />
+                  )}
                 </Button>
               ))}
             </div>
@@ -4183,6 +4188,8 @@ const ReleaseNotes = () => {
     api.get('/release-notes').then(res => {
       setReleases(res.data.releases || []);
       setCurrentVersion(res.data.current_version || '0.000');
+      // Mark release notes as read when visiting the page
+      api.post('/release-notes/mark-read').catch(() => {});
     }).finally(() => setLoading(false));
   }, [api]);
 

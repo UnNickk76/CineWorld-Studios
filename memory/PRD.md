@@ -7,6 +7,29 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## Funzionalità Implementate (Ultime)
 
+### v0.068 - Sistema Pubblico Virtuale & Recensioni - 10/03/2026 (COMPLETATO)
+- **Like Virtuali del Pubblico**:
+  - Cuore rosso separato per like del pubblico virtuale
+  - Bonus monetari esponenziali fino a +20%
+  - Bonus rating fino a +8 punti
+  - Calcolo basato su qualità, affluenza e casualità
+- **Recensioni Virtuali**:
+  - Recensioni brevi (~50 caratteri) generate automaticamente
+  - Valutazioni stile IMDb (1-10)
+  - Nomi realistici con nazionalità, sesso, età
+  - Solo per film di successo o flop (max 2-3 per film)
+- **Pubblico Virtuale nei Festival**:
+  - Festival Player: 50% voti giocatori + 50% pubblico virtuale
+  - Altri Festival: 100% pubblico virtuale
+- **Icone Festival nella Barra Rapida**:
+  - Golden = Stella ⭐ (giallo)
+  - Spotlight = Sparkles ✨ (viola)
+  - Cinema = Film 🎬 (blu)
+  - Festival personalizzati con Corona 👑 (viola)
+- **Film in Evidenza Dashboard**:
+  - Ordinamento per affluenze e popolarità
+  - Rotazione con elemento casuale
+
 ### v0.067 - Refactoring Architettura (Fase 1) - 10/03/2026 (COMPLETATO)
 - **Frontend - Nuova Struttura Modulare**:
   - `/src/contexts/index.jsx` - AuthProvider, LanguageProvider, useTranslations ✅

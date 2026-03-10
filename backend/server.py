@@ -4192,6 +4192,57 @@ async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     return [FilmResponse(**f) for f in films]
 
+@api_router.get("/films/my/featured")
+async def get_my_featured_films(user: dict = Depends(get_current_user), limit: int = 4):
+    """Get user's top films sorted by attendance/popularity for dashboard featuring.
+    Uses a rotation system based on: total_revenue, audience_satisfaction, likes_count, and recency."""
+    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
+    
+    if not films:
+        return []
+    
+    # Calculate a "featuring score" for each film
+    for film in films:
+        # Base score from revenue and quality
+        revenue_score = min(100, (film.get('total_revenue', 0) / 1000000) * 10)  # Max 100 for 10M+
+        quality_score = film.get('quality_score', 50)
+        satisfaction_score = film.get('audience_satisfaction', 50)
+        likes_score = min(50, film.get('likes_count', 0) * 5)  # Max 50 for 10+ likes
+        
+        # Recency bonus: films in theaters get priority
+        recency_bonus = 0
+        if film.get('status') == 'in_theaters':
+            recency_bonus = 30
+        elif film.get('status') == 'released':
+            # Check how recent
+            try:
+                release_date = datetime.fromisoformat(film.get('release_date', '2020-01-01').replace('Z', '+00:00'))
+                days_old = (datetime.now(timezone.utc) - release_date).days
+                if days_old < 30:
+                    recency_bonus = 20
+                elif days_old < 90:
+                    recency_bonus = 10
+            except:
+                pass
+        
+        # Virtual likes score (new system)
+        virtual_likes_score = min(50, film.get('virtual_likes', 0) / 100)  # Max 50 for 5000+ virtual likes
+        
+        # Add some randomness for rotation (0-15 points)
+        import random
+        rotation_bonus = random.randint(0, 15)
+        
+        film['_featuring_score'] = revenue_score + quality_score + satisfaction_score + likes_score + recency_bonus + virtual_likes_score + rotation_bonus
+    
+    # Sort by featuring score (descending)
+    films.sort(key=lambda f: f.get('_featuring_score', 0), reverse=True)
+    
+    # Remove the temporary score field and return top films
+    for film in films:
+        film.pop('_featuring_score', None)
+    
+    return [FilmResponse(**f) for f in films[:limit]]
+
 @api_router.get("/films/my/for-sequel")
 async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
     """Get list of user's films that can be used as parent for a sequel.
@@ -5152,6 +5203,32 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.068', 'date': '2026-03-10', 'title': 'Sistema Pubblico Virtuale & Recensioni', 
+     'changes': [
+         {'type': 'new', 'text': 'Like virtuali del pubblico con bonus monetari fino a +20%'},
+         {'type': 'new', 'text': 'Recensioni automatiche stile IMDb generate dal pubblico virtuale'},
+         {'type': 'new', 'text': 'Board recensioni pubbliche con valutazioni e sentiment'},
+         {'type': 'new', 'text': 'Pubblico virtuale influenza vincitori festival (50%-100%)'},
+         {'type': 'improvement', 'text': 'Film in evidenza Dashboard ora basati su affluenze'},
+         {'type': 'improvement', 'text': 'Icone festival nella barra navigazione rapida'},
+         {'type': 'improvement', 'text': 'Festival personalizzati visibili nella barra rapida'}
+     ]},
+    {'version': '0.067', 'date': '2026-03-10', 'title': 'Refactoring & Menu Mobile Migliorato', 
+     'changes': [
+         {'type': 'improvement', 'text': 'Menu mobile completamente ridisegnato con griglia icone'},
+         {'type': 'improvement', 'text': 'Background menu scuro e non trasparente'},
+         {'type': 'improvement', 'text': 'Pulsante hamburger sempre visibile su iPhone'},
+         {'type': 'improvement', 'text': 'Cerimonia live ottimizzata per mobile'},
+         {'type': 'fix', 'text': 'Indicatore Festival Live cliccabile per navigare alla live'},
+         {'type': 'improvement', 'text': 'Struttura codice modulare per migliore manutenibilità'}
+     ]},
+    {'version': '0.066', 'date': '2026-03-10', 'title': 'Pulsante Festival Dashboard & UI Mobile', 
+     'changes': [
+         'Pulsante Festival del Cinema sulla Dashboard',
+         'Barra navigazione rapida nella pagina Festival',
+         'Modale cerimonia live responsivo per mobile',
+         'Ottimizzazione generale interfaccia mobile'
+     ]},
     {'version': '0.065', 'date': '2026-03-10', 'title': 'Bonus Visione Cerimonie & Notifiche Migliorate', 
      'changes': [
          'Bonus entrate fino a +10% guardando le cerimonie live',
@@ -6201,6 +6278,132 @@ async def get_film_likes(film_id: str, user: dict = Depends(get_current_user)):
         'film_title': film.get('title'),
         'total_likes': film.get('likes_count', 0),
         'likers': result
+    }
+
+# ==================== VIRTUAL AUDIENCE SYSTEM ====================
+from virtual_audience import (
+    generate_review, 
+    calculate_virtual_likes, 
+    calculate_virtual_like_bonus,
+    calculate_festival_audience_votes
+)
+
+@api_router.get("/films/{film_id}/virtual-audience")
+async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
+    """Get virtual audience data for a film: virtual likes, reviews, and bonuses."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found")
+    
+    # Get or generate virtual likes
+    virtual_likes = film.get('virtual_likes')
+    if virtual_likes is None:
+        virtual_likes = calculate_virtual_likes(film)
+        await db.films.update_one({'id': film_id}, {'$set': {'virtual_likes': virtual_likes}})
+    
+    # Get existing reviews or generate new ones
+    existing_reviews = await db.virtual_reviews.find({'film_id': film_id}, {'_id': 0}).to_list(5)
+    
+    # Generate reviews if needed (for notable films)
+    reviews = existing_reviews
+    quality = film.get('quality_score', 50)
+    satisfaction = film.get('audience_satisfaction', 50)
+    avg_score = (quality + satisfaction) / 2
+    
+    # Only generate reviews for notable films (very good or very bad)
+    if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):
+        num_to_generate = min(3 - len(existing_reviews), 2 if avg_score <= 35 else 3)
+        language = user.get('language', 'it')
+        
+        for _ in range(num_to_generate):
+            review = generate_review(quality, satisfaction, language)
+            review['film_id'] = film_id
+            review['id'] = str(uuid.uuid4())
+            await db.virtual_reviews.insert_one(review)
+            reviews.append({k: v for k, v in review.items() if k != '_id'})
+    
+    # Calculate bonuses
+    bonus_info = calculate_virtual_like_bonus(virtual_likes)
+    
+    return {
+        'film_id': film_id,
+        'film_title': film.get('title'),
+        'virtual_likes': virtual_likes,
+        'player_likes': film.get('likes_count', 0),
+        'reviews': reviews,
+        'bonuses': bonus_info
+    }
+
+@api_router.post("/films/{film_id}/update-virtual-audience")
+async def update_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
+    """Recalculate virtual audience metrics for a film (called periodically or on demand)."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+    
+    # Recalculate virtual likes
+    new_virtual_likes = calculate_virtual_likes(film)
+    
+    # Get current virtual likes and only update if increased (virtual likes don't decrease)
+    current_likes = film.get('virtual_likes', 0)
+    final_likes = max(current_likes, new_virtual_likes)
+    
+    # Calculate bonuses
+    bonus_info = calculate_virtual_like_bonus(final_likes)
+    
+    # Update film with new metrics
+    await db.films.update_one(
+        {'id': film_id},
+        {'$set': {
+            'virtual_likes': final_likes,
+            'virtual_bonus_percent': bonus_info['money_bonus_percent'],
+            'virtual_rating_bonus': bonus_info['rating_bonus']
+        }}
+    )
+    
+    return {
+        'film_id': film_id,
+        'previous_virtual_likes': current_likes,
+        'new_virtual_likes': final_likes,
+        'bonuses': bonus_info,
+        'message': f"Virtual audience updated! {final_likes:,} virtual likes"
+    }
+
+@api_router.get("/films/reviews-board")
+async def get_virtual_reviews_board(user: dict = Depends(get_current_user), limit: int = 20):
+    """Get the public board of virtual audience reviews (IMDb style)."""
+    # Get recent reviews with film info
+    reviews = await db.virtual_reviews.find(
+        {},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    
+    # Enrich with film data
+    enriched_reviews = []
+    for review in reviews:
+        film = await db.films.find_one(
+            {'id': review.get('film_id')},
+            {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'quality_score': 1, 'user_id': 1}
+        )
+        if film:
+            owner = await db.users.find_one(
+                {'id': film.get('user_id')},
+                {'_id': 0, 'nickname': 1, 'production_house_name': 1}
+            )
+            enriched_reviews.append({
+                **review,
+                'film': {
+                    'id': film.get('id'),
+                    'title': film.get('title'),
+                    'poster_url': film.get('poster_url'),
+                    'owner_nickname': owner.get('nickname') if owner else 'Unknown',
+                    'owner_studio': owner.get('production_house_name') if owner else 'Unknown'
+                }
+            })
+    
+    return {
+        'reviews': enriched_reviews,
+        'total': len(enriched_reviews)
     }
 
 @api_router.get("/films/{film_id}/tier-expectations")
@@ -10197,11 +10400,39 @@ async def announce_winner(festival_id: str, category_id: str, language: str = 'e
     festival = FESTIVALS.get(festival_id, {})
     
     if festival.get('voting_type') == 'player':
-        # Winner is the one with most votes
-        winner = max(nominees, key=lambda n: n.get('votes', 0))
+        # Player festival: 50% player votes, 50% virtual audience
+        for nom in nominees:
+            player_votes = nom.get('votes', 0)
+            # Get virtual audience votes for this film
+            if nom.get('film_id'):
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1})
+                virtual_votes = (film.get('virtual_likes', 0) // 10) if film else 0
+            else:
+                virtual_votes = nom.get('quality_score', 50) * 2  # For non-film nominees (people)
+            
+            # Combined score: 50% player + 50% virtual
+            nom['combined_score'] = (player_votes * 0.5) + (virtual_votes * 0.5)
+        
+        winner = max(nominees, key=lambda n: n.get('combined_score', n.get('votes', 0)))
     else:
-        # AI decides - weighted by quality_score
-        weights = [n.get('quality_score', 50) + n.get('votes', 0) * 10 for n in nominees]
+        # Other festivals: 100% virtual audience determines winners
+        for nom in nominees:
+            if nom.get('film_id'):
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1, 'quality_score': 1, 'audience_satisfaction': 1})
+                if film:
+                    virtual_likes = film.get('virtual_likes', 0)
+                    quality = film.get('quality_score', 50)
+                    satisfaction = film.get('audience_satisfaction', 50)
+                    # Virtual audience score based on likes + quality metrics
+                    nom['audience_score'] = virtual_likes + (quality * 50) + (satisfaction * 30)
+                else:
+                    nom['audience_score'] = nom.get('quality_score', 50) * 100
+            else:
+                # For people nominees (director, actor, etc.)
+                nom['audience_score'] = nom.get('quality_score', 50) * 100 + random.randint(0, 500)
+        
+        # Winner determined by virtual audience with some randomness
+        weights = [max(1, n.get('audience_score', 100)) for n in nominees]
         winner = random.choices(nominees, weights=weights, k=1)[0]
     
     # Update edition

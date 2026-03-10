@@ -1600,12 +1600,12 @@ const Dashboard = () => {
         
         const [statsRes, filmsRes, challengesRes, pendingRes] = await Promise.all([
           api.get('/statistics/my'),
-          api.get('/films/my'),
+          api.get('/films/my/featured?limit=4'),  // Use featured films sorted by attendance
           api.get('/challenges'),
           api.get('/revenue/pending-all')
         ]);
         setStats(statsRes.data);
-        setFilms(filmsRes.data.slice(0, 4));
+        setFilms(filmsRes.data);  // Already limited and sorted by backend
         setChallenges(challengesRes.data);
         setPendingRevenue(pendingRes.data);
       } catch (err) {
@@ -4223,6 +4223,8 @@ const FilmDetail = () => {
   const [loadingLikers, setLoadingLikers] = useState(false);
   const [showEndRunPopup, setShowEndRunPopup] = useState(false);
   const [endRunData, setEndRunData] = useState(null);
+  // Virtual Audience System
+  const [virtualAudience, setVirtualAudience] = useState(null);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -4231,18 +4233,20 @@ const FilmDetail = () => {
 
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    const [filmRes, rolesRes, trailerRes, actionsRes, distRes] = await Promise.all([
+    const [filmRes, rolesRes, trailerRes, actionsRes, distRes, virtualRes] = await Promise.all([
       api.get(`/films/${id}`),
       api.get('/actor-roles').catch(() => ({ data: [] })),
       api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
       api.get(`/films/${id}/actions`).catch(() => ({ data: null })),
-      api.get(`/films/${id}/distribution`).catch(() => ({ data: null }))
+      api.get(`/films/${id}/distribution`).catch(() => ({ data: null })),
+      api.get(`/films/${id}/virtual-audience`).catch(() => ({ data: null }))
     ]);
     setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
     if (trailerRes.data) setTrailerStatus(trailerRes.data);
     if (actionsRes.data) setFilmActions(actionsRes.data);
     if (distRes.data) setDistribution(distRes.data);
+    if (virtualRes.data) setVirtualAudience(virtualRes.data);
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -4541,11 +4545,60 @@ const FilmDetail = () => {
                 onClick={() => setShowLikersPopup(true)}
                 data-testid="likes-count-btn"
               >
-                <Heart className="w-4 h-4 mx-auto mb-0.5 text-red-400" />
+                <Heart className="w-4 h-4 mx-auto mb-0.5 text-pink-400" />
                 <p className="font-bold text-sm">{film.likes_count}</p>
-                <p className="text-[9px] text-gray-500">{language === 'it' ? 'Clicca per vedere' : 'Click to see'}</p>
+                <p className="text-[9px] text-gray-500">{language === 'it' ? 'Like Giocatori' : 'Player Likes'}</p>
               </div>
-              <div className="text-center p-2 rounded bg-white/5"><DollarSign className="w-4 h-4 mx-auto mb-0.5 text-green-400" /><p className="font-bold text-sm">${(film.total_revenue||0).toLocaleString()}</p></div>
+              <div className="text-center p-2 rounded bg-white/5">
+                <Heart className="w-4 h-4 mx-auto mb-0.5 text-red-500 fill-red-500" />
+                <p className="font-bold text-sm">{virtualAudience?.virtual_likes?.toLocaleString() || 0}</p>
+                <p className="text-[9px] text-gray-500">{language === 'it' ? 'Like Pubblico' : 'Audience Likes'}</p>
+              </div>
+            </div>
+            
+            {/* Virtual Audience Bonus Display */}
+            {virtualAudience?.bonuses && virtualAudience.bonuses.money_bonus_percent > 0 && (
+              <div className="mt-2 p-2 rounded bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">{language === 'it' ? 'Bonus Pubblico' : 'Audience Bonus'}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-green-500/20 text-green-400 text-[10px]">
+                      +{virtualAudience.bonuses.money_bonus_percent}% {language === 'it' ? 'ricavi' : 'revenue'}
+                    </Badge>
+                    <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">
+                      +{virtualAudience.bonuses.rating_bonus} rating
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Virtual Reviews Section */}
+            {virtualAudience?.reviews && virtualAudience.reviews.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-white/10">
+                <h4 className="text-[10px] font-semibold text-gray-400 mb-1.5 uppercase flex items-center gap-1">
+                  <MessageCircle className="w-3 h-3" />
+                  {language === 'it' ? 'Recensioni Pubblico' : 'Audience Reviews'}
+                </h4>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {virtualAudience.reviews.slice(0, 3).map((review, idx) => (
+                    <div key={idx} className={`p-1.5 rounded text-xs ${review.sentiment === 'positive' ? 'bg-green-500/10 border-l-2 border-green-500' : review.sentiment === 'negative' ? 'bg-red-500/10 border-l-2 border-red-500' : 'bg-white/5 border-l-2 border-gray-500'}`}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-medium text-[10px]">{review.reviewer?.display || 'Anonymous'}</span>
+                        <span className={`font-bold ${review.rating >= 7 ? 'text-green-400' : review.rating <= 4 ? 'text-red-400' : 'text-yellow-400'}`}>
+                          ⭐ {review.rating}
+                        </span>
+                      </div>
+                      <p className="text-gray-300 italic text-[10px] leading-tight">"{review.text}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="text-center p-2 rounded bg-white/5"><DollarSign className="w-4 h-4 mx-auto mb-0.5 text-green-400" /><p className="font-bold text-sm">${(film.total_revenue||0).toLocaleString()}</p><p className="text-[9px] text-gray-500">{language === 'it' ? 'Incasso Totale' : 'Total Revenue'}</p></div>
+              <div className="text-center p-2 rounded bg-white/5"><BarChart3 className="w-4 h-4 mx-auto mb-0.5 text-blue-400" /><p className="font-bold text-sm">{film.actual_weeks_in_theater || 0}</p><p className="text-[9px] text-gray-500">{language === 'it' ? 'Settimane' : 'Weeks'}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
               <div className="flex justify-between text-xs"><span className="text-gray-400">Quality</span><span>{film.quality_score?.toFixed(0)}%</span></div><Progress value={film.quality_score} className="h-1.5" />
@@ -8967,23 +9020,59 @@ const FestivalsPage = () => {
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto" data-testid="festivals-page">
-      {/* Navigation bar */}
-      <div className="flex items-center justify-between mb-4 bg-[#1A1A1A] rounded-lg p-2 sticky top-16 z-10">
-        <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="text-gray-400 hover:text-white">
+      {/* Navigation bar with festival icons */}
+      <div className="flex items-center justify-between mb-4 bg-[#1A1A1A] rounded-lg p-2 sticky top-16 z-10 overflow-x-auto">
+        <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="text-gray-400 hover:text-white flex-shrink-0">
           <ArrowLeft className="w-4 h-4 mr-1" />
           {language === 'it' ? 'Indietro' : 'Back'}
         </Button>
-        <div className="flex items-center gap-1">
-          {festivals.slice(0, 3).map(fest => (
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Official Festivals with specific icons */}
+          {festivals.map((fest, idx) => {
+            // Assign specific icons based on festival name/type
+            const getFestivalIcon = (name) => {
+              const lowerName = name.toLowerCase();
+              if (lowerName.includes('golden') || lowerName.includes('oro') || lowerName.includes('star')) return <Star className="w-3.5 h-3.5" />;
+              if (lowerName.includes('spotlight') || lowerName.includes('riflettori')) return <Sparkles className="w-3.5 h-3.5" />;
+              if (lowerName.includes('cinema') || lowerName.includes('film')) return <Film className="w-3.5 h-3.5" />;
+              return <Award className="w-3.5 h-3.5" />;
+            };
+            const getIconColor = (name) => {
+              const lowerName = name.toLowerCase();
+              if (lowerName.includes('golden') || lowerName.includes('oro') || lowerName.includes('star')) return 'text-yellow-400';
+              if (lowerName.includes('spotlight') || lowerName.includes('riflettori')) return 'text-purple-400';
+              if (lowerName.includes('cinema') || lowerName.includes('film')) return 'text-blue-400';
+              return 'text-gray-400';
+            };
+            return (
+              <Button 
+                key={fest.id}
+                variant="ghost" 
+                size="sm" 
+                onClick={() => { setActiveTab('festivals'); loadFestivalEdition(fest.id); }}
+                className={`text-xs px-2 gap-1 ${selectedFestival === fest.id ? 'text-yellow-400 bg-yellow-500/10' : getIconColor(fest.name)}`}
+              >
+                {getFestivalIcon(fest.name)}
+                <span className="hidden sm:inline">{fest.name.split(' ')[0]}</span>
+                {fest.is_active && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+              </Button>
+            );
+          })}
+          {/* Separator */}
+          {customFestivals.length > 0 && <div className="w-px h-5 bg-white/20 mx-1"></div>}
+          {/* Custom/Player Festivals */}
+          {customFestivals.slice(0, 4).map(fest => (
             <Button 
               key={fest.id}
               variant="ghost" 
               size="sm" 
-              onClick={() => { setActiveTab('festivals'); loadFestivalEdition(fest.id); }}
-              className={`text-xs px-2 ${selectedFestival === fest.id ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-400'}`}
+              onClick={() => { setActiveTab('custom'); setSelectedCustomFestival(fest); }}
+              className={`text-xs px-2 gap-1 ${selectedCustomFestival?.id === fest.id ? 'text-purple-400 bg-purple-500/10' : 'text-purple-300'}`}
+              title={fest.name}
             >
-              {fest.name.split(' ')[0]}
-              {fest.is_active && <span className="ml-1 w-2 h-2 bg-red-500 rounded-full inline-block animate-pulse"></span>}
+              <Crown className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline max-w-[60px] truncate">{fest.name.split(' ')[0]}</span>
+              {fest.is_active && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
             </Button>
           ))}
         </div>

@@ -2908,8 +2908,8 @@ const FilmDetail = () => {
 
   const extendFilm = async () => {
     try {
-      const res = await api.post(`/films/${film.id}/extend?extra_days=7`);
-      toast.success(`Film esteso di ${res.data.extra_days} giorni! Fame +${res.data.fame_bonus}`);
+      const res = await api.post(`/films/${film.id}/extend?extra_days=3`);
+      toast.success(`Film esteso di ${res.data.extra_days} giorni! Fame +${res.data.fame_bonus}. Estensioni rimaste: ${res.data.extensions_remaining}`);
       loadFilm();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Impossibile estendere');
@@ -3156,12 +3156,27 @@ const FilmDetail = () => {
                     {durationStatus.reasons?.slice(0, 3).map((r, i) => <div key={i}>{r}</div>)}
                   </div>
                 </div>
-                {durationStatus.status === 'extend' && (
+                {durationStatus.status === 'extend' && durationStatus.can_extend && (
                   <div className="p-3 rounded bg-green-500/20 border border-green-500/30 mb-3">
                     <p className="text-green-400 font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Film idoneo per estensione!</p>
-                    <p className="text-xs text-gray-300">Puoi estendere fino a {durationStatus.extension_days} giorni extra.</p>
+                    <p className="text-xs text-gray-300">Puoi estendere fino a {durationStatus.max_days_per_extension || 3} giorni extra.</p>
                     <p className="text-xs text-green-300">Fame bonus: +{durationStatus.fame_change}</p>
-                    <Button onClick={extendFilm} size="sm" className="mt-2 bg-green-600">Estendi di 7 giorni</Button>
+                    <p className="text-[10px] text-gray-400 mt-1">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 3}</p>
+                    <Button onClick={extendFilm} size="sm" className="mt-2 bg-green-600">Estendi di 3 giorni</Button>
+                  </div>
+                )}
+                {durationStatus.status === 'extend' && !durationStatus.can_extend && durationStatus.extension_count < 3 && (
+                  <div className="p-3 rounded bg-yellow-500/20 border border-yellow-500/30 mb-3">
+                    <p className="text-yellow-400 font-semibold flex items-center gap-2"><Clock className="w-4 h-4" /> Estensione in cooldown</p>
+                    <p className="text-xs text-gray-300">Attendi {durationStatus.days_until_next_extension} giorni prima di estendere.</p>
+                    <p className="text-[10px] text-gray-400">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 3}</p>
+                  </div>
+                )}
+                {durationStatus.extension_count >= 3 && (
+                  <div className="p-3 rounded bg-gray-500/20 border border-gray-500/30 mb-3">
+                    <p className="text-gray-400 font-semibold flex items-center gap-2"><Check className="w-4 h-4" /> Estensioni esaurite</p>
+                    <p className="text-xs text-gray-400">Hai usato tutte le 3 estensioni disponibili.</p>
+                    <p className="text-[10px] text-gray-500">Giorni totali aggiunti: +{durationStatus.total_extension_days || 0}</p>
                   </div>
                 )}
                 {durationStatus.status === 'withdraw_early' && (

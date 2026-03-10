@@ -9224,24 +9224,55 @@ async def get_film_duration_status(film_id: str, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Film not found")
     
     if film.get('status') != 'in_theaters':
-        return {'status': film.get('status'), 'can_extend': False}
+        return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 3}
     
+    now = datetime.now(timezone.utc)
     release_date = parse_date_with_timezone(film.get('release_date'))
-    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
-    planned_days = film.get('weeks_in_theater', 4) * 7
+    current_days = max(1, (now - release_date).days)
+    total_extension_days = film.get('total_extension_days', 0)
+    planned_days = int(film.get('weeks_in_theater', 2) * 7)
     
     duration_data = calculate_film_duration_factors(film, current_days, planned_days)
+    
+    # Extension tracking
+    extension_count = film.get('extension_count', 0)
+    can_extend = duration_data['status'] == 'extend' and extension_count < 3
+    
+    # Check cooldown
+    days_until_next_extension = 0
+    last_extension_date = film.get('last_extension_date')
+    if last_extension_date and extension_count > 0:
+        last_ext = parse_date_with_timezone(last_extension_date)
+        days_since_extension = (now - last_ext).days
+        if days_since_extension < 5:
+            days_until_next_extension = 5 - days_since_extension
+            can_extend = False
     
     return {
         **duration_data,
         'current_days': current_days,
         'planned_days': planned_days,
-        'days_remaining': max(0, planned_days - current_days)
+        'days_remaining': max(0, planned_days - current_days),
+        # Extension info
+        'extension_count': extension_count,
+        'max_extensions': 3,
+        'extensions_remaining': 3 - extension_count,
+        'can_extend': can_extend,
+        'days_until_next_extension': days_until_next_extension,
+        'max_days_per_extension': 3,
+        'total_extension_days': total_extension_days
     }
 
 @api_router.post("/films/{film_id}/extend")
-async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, le=14), user: dict = Depends(get_current_user)):
-    """Extend a film's theater run."""
+async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, le=3), user: dict = Depends(get_current_user)):
+    """Extend a film's theater run.
+    
+    Rules:
+    - Maximum 3 extensions per film
+    - Minimum 5 days between extensions
+    - Maximum 3 days per extension
+    - Only eligible films can be extended
+    """
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
     if not film:
         raise HTTPException(status_code=404, detail="Film not found")
@@ -9249,27 +9280,48 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     if film.get('status') != 'in_theaters':
         raise HTTPException(status_code=400, detail="Film not in theaters")
     
-    # Check eligibility
+    # Check extension count (max 3)
+    extension_count = film.get('extension_count', 0)
+    if extension_count >= 3:
+        raise HTTPException(status_code=400, detail="Maximum extensions reached (3/3)")
+    
+    # Check cooldown (min 5 days since last extension)
+    last_extension_date = film.get('last_extension_date')
+    now = datetime.now(timezone.utc)
+    if last_extension_date:
+        last_ext = parse_date_with_timezone(last_extension_date)
+        days_since_extension = (now - last_ext).days
+        if days_since_extension < 5:
+            days_remaining = 5 - days_since_extension
+            raise HTTPException(status_code=400, detail=f"Must wait {days_remaining} more days before extending")
+    
+    # Check eligibility based on performance
     release_date = parse_date_with_timezone(film.get('release_date'))
-    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
-    planned_days = film.get('weeks_in_theater', 4) * 7
+    current_days = max(1, (now - release_date).days)
+    planned_days = film.get('weeks_in_theater', 2) * 7
     
     duration_data = calculate_film_duration_factors(film, current_days, planned_days)
     
     if duration_data['status'] != 'extend':
-        raise HTTPException(status_code=400, detail="Film not eligible for extension")
+        raise HTTPException(status_code=400, detail="Film not eligible for extension (performance too low)")
     
-    max_extension = duration_data['extension_days']
-    actual_extension = min(extra_days, max_extension)
+    # Limit to max 3 days per extension
+    actual_extension = min(extra_days, 3)
     
-    # Update film - ensure weeks_in_theater is always an integer
-    new_weeks = int(film.get('weeks_in_theater', 4) + (actual_extension / 7))
+    # Calculate new duration
+    current_total_days = planned_days + film.get('total_extension_days', 0)
+    new_total_days = current_total_days + actual_extension
+    new_weeks = max(1, new_total_days / 7)
+    
+    # Update film
     await db.films.update_one(
         {'id': film_id},
         {'$set': {
             'weeks_in_theater': new_weeks,
             'extended': True,
-            'extension_days': film.get('extension_days', 0) + actual_extension
+            'extension_count': extension_count + 1,
+            'total_extension_days': film.get('total_extension_days', 0) + actual_extension,
+            'last_extension_date': now.isoformat()
         }}
     )
     
@@ -9289,9 +9341,11 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     return {
         'extended': True,
         'extra_days': actual_extension,
-        'new_total_weeks': new_weeks,
+        'new_total_days': int(new_total_days),
+        'extensions_remaining': 3 - (extension_count + 1),
         'fame_bonus': fame_bonus,
-        'xp_bonus': actual_extension * 10
+        'xp_bonus': actual_extension * 10,
+        'next_extension_available_in': 5  # days
     }
 
 @api_router.post("/films/{film_id}/early-withdraw")

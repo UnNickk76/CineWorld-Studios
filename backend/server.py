@@ -499,6 +499,89 @@ def get_questions_for_language(game_id: str, language: str):
     questions = questions_map.get(game_id, TRIVIA_QUESTIONS)
     return questions.get(language, questions.get('en', []))
 
+
+async def generate_ai_questions(game_id: str, language: str, count: int, seen_questions: list = None):
+    """Generate fresh AI-powered questions for mini-games. Falls back to static pool on failure."""
+    import json as json_lib
+    
+    lang_map = {'en': 'English', 'it': 'Italian', 'es': 'Spanish', 'fr': 'French', 'de': 'German'}
+    lang_name = lang_map.get(language, 'English')
+    
+    game_prompts = {
+        'trivia': f"""Generate {count} unique film trivia multiple-choice questions in {lang_name}.
+Each question should be about real movies, actors, directors, or cinema history.
+Mix different decades (from 1920s to 2020s) and genres. Make them fun and varied in difficulty.
+Format: JSON array of objects with "question", "options" (array of 4 choices), "answer" (the correct option, must be one of the options).""",
+        
+        'guess_genre': f"""Generate {count} unique "Guess the Genre" questions in {lang_name}.
+Each question shows a real movie title with its year, and the player must pick the correct genre.
+Use well-known films from different decades. Genres should be localized in {lang_name}.
+Format: JSON array of objects with "question" (just the movie title and year, e.g. '"Inception" (2010)'), "options" (4 genre choices in {lang_name}), "answer" (correct genre in {lang_name}).""",
+        
+        'director_match': f"""Generate {count} unique "Who directed this film?" questions in {lang_name}.
+Each question asks who directed a specific well-known film. Use famous directors and iconic movies.
+Format: JSON array of objects with "question" (the question text), "options" (4 director names), "answer" (correct director name).""",
+        
+        'box_office_bet': f"""Generate {count} unique "Which film earned more at the box office?" questions in {lang_name}.
+Each question compares two real films with their actual worldwide gross. Include the amounts in the options.
+Format: JSON array of objects with "question" (the comparison question), "options" (2 choices with amounts like "Titanic ($2.2B)"), "answer" (the correct higher-earning film with amount).""",
+        
+        'year_guess': f"""Generate {count} unique "When was this film released?" questions in {lang_name}.
+Each question asks about the release year of a well-known film. Offer 4 year options close together.
+Format: JSON array of objects with "question" (the question text), "options" (4 year choices as strings), "answer" (correct year as string)."""
+    }
+    
+    prompt = game_prompts.get(game_id)
+    if not prompt:
+        return get_questions_for_language(game_id, language)
+    
+    if seen_questions:
+        seen_titles = seen_questions[:20]
+        prompt += f"\n\nIMPORTANT: Do NOT use any of these films/questions that the player has already seen: {', '.join(seen_titles)}"
+    
+    prompt += "\n\nRespond ONLY with the JSON array, no other text."
+    
+    try:
+        if not EMERGENT_LLM_KEY:
+            return get_questions_for_language(game_id, language)
+        
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"minigame-{game_id}-{uuid.uuid4()}",
+            system_message="You are a cinema quiz master. Generate accurate, fun movie trivia questions. Always respond with valid JSON only."
+        ).with_model("openai", "gpt-4o-mini")
+        
+        response = await chat.send_message(UserMessage(prompt))
+        
+        # Parse JSON from response (it's a string)
+        text = response.strip()
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1] if '\n' in text else text[3:]
+            text = text.rsplit('```', 1)[0]
+        text = text.strip()
+        
+        questions = json_lib.loads(text)
+        
+        if not isinstance(questions, list) or len(questions) < count:
+            logging.warning(f"[MINIGAME AI] Invalid response format for {game_id}, falling back")
+            return get_questions_for_language(game_id, language)
+        
+        # Validate structure
+        for q in questions[:count]:
+            if not all(k in q for k in ('question', 'options', 'answer')):
+                return get_questions_for_language(game_id, language)
+            if q['answer'] not in q['options']:
+                # Fix: ensure answer is in options
+                q['options'][-1] = q['answer']
+        
+        logging.info(f"[MINIGAME AI] Generated {len(questions)} fresh questions for {game_id}/{language}")
+        return questions[:count]
+    except Exception as e:
+        logging.error(f"[MINIGAME AI] Error generating questions for {game_id}: {e}")
+        return get_questions_for_language(game_id, language)
+
 # Challenges
 DAILY_CHALLENGES = [
     {'id': 'like_5_films', 'name': 'Social Butterfly', 'description': 'Like 5 films from other players', 'reward': 25000, 'target': 5},
@@ -558,7 +641,7 @@ TRANSLATIONS = {
         'discovered_stars': 'Discovered Stars',
         'release_notes': 'Release Notes',
         'feedback': 'Feedback & Bugs',
-        'challenges': 'Challenges',
+        'challenges': 'Contest',
         'daily': 'Daily',
         'weekly': 'Weekly',
         'adult_warning': 'This is an adult community (18+). Sharing images of minors is strictly prohibited and will result in immediate ban.',
@@ -617,7 +700,7 @@ TRANSLATIONS = {
         'discovered_stars': 'Stelle Scoperte',
         'release_notes': 'Note di Rilascio',
         'feedback': 'Suggerimenti & Bug',
-        'challenges': 'Sfide',
+        'challenges': 'Contest',
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
         'infrastructure': 'Infrastrutture',
@@ -672,7 +755,7 @@ TRANSLATIONS = {
         'cinema_journal': 'Diario del Cine',
         'discovered_stars': 'Estrellas Descubiertas',
         'release_notes': 'Notas de Versión',
-        'challenges': 'Desafíos',
+        'challenges': 'Contest',
         'daily': 'Diarios',
         'weekly': 'Semanales',
         'adult_warning': 'Esta es una comunidad para adultos (18+). Compartir imágenes de menores está estrictamente prohibido.',
@@ -720,7 +803,7 @@ TRANSLATIONS = {
         'cinema_journal': 'Journal du Cinéma',
         'discovered_stars': 'Étoiles Découvertes',
         'release_notes': 'Notes de Version',
-        'challenges': 'Défis',
+        'challenges': 'Contest',
         'daily': 'Quotidiens',
         'weekly': 'Hebdomadaires',
         'adult_warning': 'Ceci est une communauté adulte (18+). Le partage d\'images de mineurs est strictement interdit.',
@@ -768,7 +851,7 @@ TRANSLATIONS = {
         'cinema_journal': 'Kino Zeitung',
         'discovered_stars': 'Entdeckte Stars',
         'release_notes': 'Versionshinweise',
-        'challenges': 'Herausforderungen',
+        'challenges': 'Contest',
         'daily': 'Täglich',
         'weekly': 'Wöchentlich',
         'adult_warning': 'Dies ist eine Erwachsenen-Community (18+). Das Teilen von Bildern von Minderjährigen ist strengstens verboten.',
@@ -6844,7 +6927,7 @@ async def get_mini_games():
 
 @api_router.post("/minigames/{game_id}/start")
 async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
-    """Start a mini game session and get questions"""
+    """Start a mini game session and get AI-generated questions"""
     game = next((g for g in MINI_GAMES if g['id'] == game_id), None)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -6859,10 +6942,22 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
             detail=f"Hai raggiunto il limite di {MINIGAME_MAX_PLAYS} partite. Prossimo reset tra {cooldown_status['minutes_until_reset']} minuti."
         )
     
-    # Get questions for this game in user's language
+    # Get recently seen questions to avoid repeats
+    seen_questions = user.get(f'seen_questions_{game_id}', [])
+    
+    # Generate fresh AI questions
     user_language = user.get('language', 'en')
-    questions_pool = get_questions_for_language(game_id, user_language)
-    questions = random.sample(questions_pool, min(game['questions_count'], len(questions_pool)))
+    questions_count = game['questions_count']
+    
+    questions = await generate_ai_questions(game_id, user_language, questions_count, seen_questions)
+    
+    # If AI returned exactly the count, use them directly; otherwise sample
+    if len(questions) > questions_count:
+        questions = random.sample(questions, questions_count)
+    
+    # Track seen question titles (keep last 50)
+    new_seen = [q.get('question', '')[:80] for q in questions]
+    updated_seen = (seen_questions + new_seen)[-50:]
     
     # Create session
     session_id = str(uuid.uuid4())
@@ -6883,7 +6978,8 @@ async def start_mini_game(game_id: str, user: dict = Depends(get_current_user)):
         {'id': user['id']},
         {'$set': {
             f'mini_game_sessions.{session_id}': session_data,
-            'minigame_plays': play_history
+            'minigame_plays': play_history,
+            f'seen_questions_{game_id}': updated_seen
         }}
     )
     
@@ -8336,10 +8432,10 @@ async def startup_event():
         replace_existing=True
     )
     
-    # Every 6 hours: Update cinema revenue
+    # Every 2 hours: Update infrastructure revenue (cinemas, multiplex, etc.)
     scheduler.add_job(
         update_cinema_revenue,
-        IntervalTrigger(hours=6),
+        IntervalTrigger(hours=2),
         id='update_cinema_revenue',
         replace_existing=True
     )
@@ -9152,9 +9248,20 @@ async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get
             film_revenue = visitors_per_hour * ticket_price * revenue_share
             hourly_revenue += film_revenue
     else:
-        # Other infrastructure types - base passive income
-        base_income = infra_type.get('passive_income', 500)
-        hourly_revenue = base_income
+        # Other infrastructure types - base passive income based on type
+        passive_rates = {
+            'production_studio': 2000,
+            'cinema_school': 1500,
+            'cinema_museum': 1000,
+        }
+        infra_type_id = infra.get('type', '')
+        base_income = passive_rates.get(infra_type_id, infra_type.get('passive_income', 500))
+        level = infra.get('level', 1)
+        hourly_revenue = base_income * max(1, level)
+        
+        # Even screen-based infra with no films gets minimum passive income
+        if infra_type.get('screens', 0) > 0:
+            hourly_revenue = max(hourly_revenue, 500 * max(1, level))
     
     # Apply city multiplier
     city = infra.get('city', {})

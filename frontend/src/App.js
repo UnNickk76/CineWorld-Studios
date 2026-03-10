@@ -329,7 +329,7 @@ const TopNavbar = () => {
             className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/challenges' ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'}`}
             onClick={() => navigate('/challenges')}
             data-testid="challenges-nav-btn"
-            title={language === 'it' ? 'Sfide' : 'Challenges'}
+            title={language === 'it' ? 'Contest' : 'Contest'}
           >
             <Swords className="w-4 h-4" />
           </Button>
@@ -2302,7 +2302,7 @@ const Dashboard = () => {
         <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
           <CardContent className="p-3 flex items-center gap-2">
             <div className="p-2 bg-pink-500 rounded-lg"><Swords className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
+            <div><h3 className="font-['Bebas_Neue'] text-lg">Contest</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
           </CardContent>
         </Card>
       </div>

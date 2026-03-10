@@ -7,12 +7,11 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## Funzionalità Implementate (Ultime)
 
-### v0.067 - Refactoring Architettura (Fase 1) - 10/03/2026 (IN CORSO)
+### v0.067 - Refactoring Architettura (Fase 1) - 10/03/2026 (COMPLETATO)
 - **Frontend - Nuova Struttura Modulare**:
   - `/src/contexts/index.jsx` - AuthProvider, LanguageProvider, useTranslations ✅
   - `/src/constants/index.js` - SKILL_TRANSLATIONS, GENRES_LIST, MAJOR_ROLES ✅
   - `/src/components/shared/index.jsx` - SkillBadge, QualityIndicator, TierBadge, etc. ✅
-  - `/src/modules.js` - Re-export centralizzato ✅
   - `/src/pages/ReleaseNotes.jsx` - Pagina Note di Rilascio ✅
   - `/src/pages/TutorialPage.jsx` - Pagina Tutorial ✅
   - `/src/pages/CreditsPage.jsx` - Pagina Credits ✅
@@ -20,9 +19,9 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - `/backend/models/__init__.py` - Tutti i modelli Pydantic ✅
   - `/backend/utils/__init__.py` - Helper functions ✅
 - **Risultati**:
-  - App.js ridotto da 12161 a 11765 righe (-396 righe, -3.3%)
+  - App.js ridotto da 12161 a 11765 righe (-396 righe)
   - 3 pagine estratte in file separati
-  - Tutti i moduli testati e funzionanti
+  - Base modulare pronta per estensioni future
 
 ### v0.066 - Menu Mobile Migliorato e Navigazione Festival Live - 10/03/2026 (COMPLETATO)
 - **Menu Mobile Completamente Ridisegnato**:

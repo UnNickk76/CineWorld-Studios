@@ -3,9 +3,15 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.055
+## Versione Attuale: v0.056
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.056 - Box Office Realistico - 10/03/2026 (COMPLETATO)
+- **Revenue Realistici**: Incassi calcolati in base a ore in sala × opening_day × decay × qualità
+- **Stima Finale**: Proiezione guadagni a 4 settimane basata su trend attuale
+- **Aggiornamento ogni 10 minuti**: Il box office viene ricalcolato in tempo reale
+- **Fix Bug ADV**: Corretto il bug che moltiplicava esponenzialmente i revenue
 
 ### v0.055 - Riscossione Rapida - 10/03/2026 (COMPLETATO)
 - **Riscossione ogni minuto**: Gli incassi da film e infrastrutture ora sono riscuotibili ogni minuto invece che ogni ora

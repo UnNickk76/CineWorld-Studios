@@ -1064,15 +1064,27 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-green-500/10 rounded p-3 text-center">
+              <div className="bg-green-500/10 rounded p-3 text-center border border-green-500/20">
                 <p className="text-2xl font-bold text-green-500">${((detailedStats.revenue?.total || 0) / 1000000).toFixed(2)}M</p>
-                <p className="text-xs text-gray-400">{t('total')}</p>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Box Office Attuale' : 'Current Box Office'}</p>
               </div>
-              <div className="bg-blue-500/10 rounded p-3 text-center">
+              <div className="bg-blue-500/10 rounded p-3 text-center border border-blue-500/20">
                 <p className="text-2xl font-bold text-blue-500">${((detailedStats.revenue?.average_per_film || 0) / 1000000).toFixed(2)}M</p>
                 <p className="text-xs text-gray-400">{t('avgPerFilm')}</p>
               </div>
             </div>
+            {detailedStats.revenue?.estimated_total > 0 && (
+              <div className="bg-purple-500/10 rounded p-3 border border-purple-500/20">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-xs text-gray-400">{language === 'it' ? 'Stima Finale (4 settimane)' : 'Estimated Final (4 weeks)'}</p>
+                    <p className="text-xl font-bold text-purple-400">${((detailedStats.revenue?.estimated_total || 0) / 1000000).toFixed(2)}M</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-purple-400 opacity-50" />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">{language === 'it' ? 'Basata su affluenza e qualità attuali' : 'Based on current attendance and quality'}</p>
+              </div>
+            )}
             <div>
               <h4 className="text-sm font-semibold mb-2">{t('byGenre')}</h4>
               <div className="space-y-1">

@@ -41,51 +41,89 @@ async def cleanup_expired_rejections():
 
 async def update_all_films_revenue():
     """
-    Update revenue for all active films.
-    Runs every hour to simulate real-time box office earnings.
+    Update realistic box office for all films in theaters.
+    Runs every 10 minutes to calculate real-time earnings.
+    
+    The box office is calculated based on:
+    - Hours since release
+    - Opening day revenue as baseline
+    - 15% daily decay
+    - Quality score as multiplier
     """
     try:
-        # Find films still in theater
         now = datetime.now(timezone.utc)
+        
+        # Find films in theaters
         active_films = await scheduler_db.films.find({
-            'status': 'released',
-            'end_date': {'$gte': now.isoformat()}
+            'status': {'$in': ['in_theaters', 'released']}
         }).to_list(1000)
         
         updated_count = 0
         for film in active_films:
             try:
-                # Calculate hourly revenue based on film quality and current week
-                release_date = datetime.fromisoformat(film.get('release_date', now.isoformat()).replace('Z', '+00:00'))
-                days_since_release = (now - release_date).days
-                week_number = days_since_release // 7 + 1
+                # Parse release date
+                release_str = film.get('release_date', now.isoformat())
+                release_str = release_str.replace('Z', '+00:00')
+                if '+' not in release_str and '-' not in release_str[-6:]:
+                    release_str += '+00:00'
+                    
+                release_date = datetime.fromisoformat(release_str)
+                if release_date.tzinfo is None:
+                    release_date = release_date.replace(tzinfo=timezone.utc)
                 
-                # Revenue decay formula
-                base_revenue = film.get('opening_day_revenue', 100000) / 24  # Hourly from daily
-                decay_factor = 0.85 ** (week_number - 1)  # 15% decay per week
-                hourly_revenue = base_revenue * decay_factor * random.uniform(0.8, 1.2)
+                # Calculate hours in theater
+                hours_in_theater = max(0, (now - release_date).total_seconds() / 3600)
+                days_in_theater = hours_in_theater / 24
                 
-                # Update film
+                # Get film parameters
+                opening_day = film.get('opening_day_revenue', 100000)
+                quality = film.get('quality_score', 50)
+                quality_multiplier = quality / 100
+                
+                # Calculate realistic cumulative box office
+                # Formula: Sum of daily revenues with 15% decay per day
+                realistic_box_office = 0
+                for day in range(int(days_in_theater) + 1):
+                    decay = 0.85 ** day  # 15% decay each day
+                    daily_revenue = opening_day * decay * quality_multiplier
+                    
+                    if day < int(days_in_theater):
+                        realistic_box_office += daily_revenue
+                    else:
+                        # Partial day - prorate by hours
+                        hours_partial = (days_in_theater - day) * 24
+                        realistic_box_office += (daily_revenue / 24) * hours_partial
+                
+                realistic_box_office = int(realistic_box_office)
+                
+                # Calculate estimated final revenue (if film stays 4 weeks)
+                max_weeks = 4
+                estimated_final = 0
+                for day in range(max_weeks * 7):
+                    decay = 0.85 ** day
+                    estimated_final += opening_day * decay * quality_multiplier
+                estimated_final = int(estimated_final)
+                
+                # Update film with realistic values
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
-                    {
-                        '$inc': {'total_revenue': hourly_revenue},
-                        '$set': {'last_revenue_update': now.isoformat()}
-                    }
-                )
-                
-                # Update user's total revenue
-                await scheduler_db.users.update_one(
-                    {'id': film.get('user_id')},
-                    {'$inc': {'total_lifetime_revenue': hourly_revenue}}
+                    {'$set': {
+                        'total_revenue': realistic_box_office,
+                        'realistic_box_office': realistic_box_office,
+                        'estimated_final_revenue': estimated_final,
+                        'hours_in_theater': round(hours_in_theater, 1),
+                        'box_office_last_update': now.isoformat()
+                    }}
                 )
                 
                 updated_count += 1
+                
             except Exception as film_error:
                 logger.error(f"[SCHEDULER] Error updating film {film.get('id')}: {film_error}")
         
         if updated_count > 0:
-            logger.info(f"[SCHEDULER] Updated revenue for {updated_count} active films")
+            logger.info(f"[SCHEDULER] Updated box office for {updated_count} films")
+            
     except Exception as e:
         logger.error(f"[SCHEDULER] Error in update_all_films_revenue: {e}")
 

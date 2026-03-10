@@ -120,16 +120,16 @@ const TopNavbar = () => {
   const canGoBack = location.pathname !== '/dashboard' && window.history.length > 1;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-b border-white/10 z-50">
-      <div className="max-w-7xl mx-auto h-full px-3 flex items-center justify-between">
-        {/* Left section: Back button + Logo */}
-        <div className="flex items-center gap-2">
-          {/* Back Button */}
+    <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10] border-b border-white/10 z-50">
+      <div className="max-w-7xl mx-auto h-full px-2 sm:px-3 flex items-center justify-between">
+        {/* Left section: Logo (Back button hidden on mobile for space) */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          {/* Back Button - Hidden on very small screens */}
           {canGoBack && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+              className="hidden sm:flex h-8 w-8 p-0 text-gray-400 hover:text-white"
               onClick={() => navigate(-1)}
               data-testid="back-btn"
             >
@@ -137,12 +137,13 @@ const TopNavbar = () => {
             </Button>
           )}
           
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')} data-testid="logo">
-            <Clapperboard className="w-7 h-7 text-yellow-500" />
-            <span className="font-['Bebas_Neue'] text-lg tracking-wide hidden sm:block">CineWorld</span>
+          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigate('/dashboard')} data-testid="logo">
+            <Clapperboard className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500" />
+            <span className="font-['Bebas_Neue'] text-base sm:text-lg tracking-wide hidden sm:block">CineWorld</span>
           </div>
         </div>
 
+        {/* Desktop Navigation - Hidden on mobile */}
         <div className="hidden lg:flex items-center gap-0.5">
           {navItems.map(item => (
             <Button
@@ -159,23 +160,31 @@ const TopNavbar = () => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Major Icon */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-8 w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
-            onClick={() => navigate('/major')}
-            data-testid="major-btn"
-            title={majorInfo?.has_major ? majorInfo.major?.name : (language === 'it' ? 'Major' : 'Major')}
-          >
-            <Crown className="w-4 h-4" />
-            {majorInfo?.has_major && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full"></span>
-            )}
-          </Button>
+        {/* Right section: Icons + Mobile Menu */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Festival Live Indicator - Compact on mobile */}
+          {festivalNotifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`relative h-8 px-2 text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-full ${festivalNotifications[0].type === 'starting' ? 'animate-pulse' : ''}`}
+              onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
+              data-testid="festival-live-btn"
+              title={festivalNotifications[0].message || 'Festival Live'}
+            >
+              <Tv className="w-4 h-4" />
+              <span className="font-bold text-xs ml-1 hidden xs:inline">
+                {festivalNotifications[0].type === 'starting' ? 'LIVE' : 
+                 festivalNotifications[0].type === '1_hour' ? '1h' :
+                 festivalNotifications[0].type === '3_hours' ? '3h' : '6h'}
+              </span>
+              {festivalNotifications[0].type === 'starting' && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
+              )}
+            </Button>
+          )}
           
-          {/* Notifications Icon */}
+          {/* Notifications - Always visible */}
           <Button
             variant="ghost"
             size="sm"
@@ -185,70 +194,58 @@ const TopNavbar = () => {
           >
             <Bell className="w-4 h-4" />
             {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {notificationCount > 99 ? '99+' : notificationCount}
               </span>
             )}
           </Button>
+
+          {/* Funds - Always visible but compact on mobile */}
+          <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1.5 sm:px-2 py-1 rounded border border-yellow-500/20">
+            <DollarSign className="w-3 h-3 text-yellow-500" />
+            <span className="text-yellow-500 font-bold text-[10px] sm:text-xs" data-testid="user-funds">
+              ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds?.toLocaleString() || '0'}
+            </span>
+          </div>
           
-          {/* Festival Live Indicator - Enhanced for Mobile */}
-          {festivalNotifications.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`relative h-9 px-2.5 sm:px-3 text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-full ${festivalNotifications[0].type === 'starting' ? 'animate-pulse' : ''}`}
-              onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
-              data-testid="festival-live-btn"
-              title={festivalNotifications[0].message || 'Festival Live'}
-            >
-              <Tv className={`${festivalNotifications[0].type === 'starting' ? 'w-5 h-5' : 'w-4 h-4'} mr-1.5`} />
-              <span className={`font-bold ${festivalNotifications[0].type === 'starting' ? 'text-sm' : 'text-xs'}`}>
-                {festivalNotifications[0].type === 'starting' ? 'LIVE' : 
-                 festivalNotifications[0].type === '1_hour' ? '1h' :
-                 festivalNotifications[0].type === '3_hours' ? '3h' : '6h'}
-              </span>
-              {festivalNotifications[0].type === 'starting' && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
-              )}
-            </Button>
-          )}
-          
-          {/* Friends Icon */}
+          {/* Hidden on mobile: Major, Friends, Level, Date, Language, Profile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
+            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            onClick={() => navigate('/major')}
+            data-testid="major-btn"
+          >
+            <Crown className="w-4 h-4" />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`hidden sm:flex relative h-8 w-8 p-0 ${location.pathname === '/friends' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
             onClick={() => navigate('/friends')}
             data-testid="friends-btn"
           >
             <UserPlus className="w-4 h-4" />
           </Button>
           
-          {/* Level Badge */}
+          {/* Level Badge - Hidden on mobile */}
           {levelInfo && (
-            <div className="hidden md:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')} title={`${levelInfo.current_xp}/${levelInfo.xp_for_next_level} XP`}>
+            <div className="hidden md:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')}>
               <Star className="w-3 h-3 text-purple-400" />
               <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
-              <div className="w-12 h-1.5 bg-purple-900/50 rounded-full overflow-hidden">
-                <div className="h-full bg-purple-500 rounded-full transition-all" style={{width: `${levelInfo.progress_percent}%`}} />
-              </div>
             </div>
           )}
 
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-gray-400">
+          {/* Date - Hidden on mobile */}
+          <div className="hidden lg:flex items-center gap-1.5 text-xs text-gray-400">
             <Calendar className="w-3 h-3" />
-            <span className="hidden lg:inline">{gameDate}</span>
+            <span>{gameDate}</span>
           </div>
 
-          <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">
-            <DollarSign className="w-3 h-3 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-xs" data-testid="user-funds">
-              ${user?.funds?.toLocaleString() || '0'}
-            </span>
-          </div>
-
+          {/* Language selector - Hidden on mobile */}
           <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger className="w-12 h-7 text-xs bg-transparent border-white/10 px-1" data-testid="language-selector">
+            <SelectTrigger className="hidden sm:flex w-12 h-7 text-xs bg-transparent border-white/10 px-1" data-testid="language-selector">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -260,9 +257,10 @@ const TopNavbar = () => {
             </SelectContent>
           </Select>
 
+          {/* Profile Avatar - Hidden on mobile */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" className="p-1 h-8 w-8" data-testid="profile-menu">
+              <Button variant="ghost" className="hidden sm:flex p-1 h-8 w-8" data-testid="profile-menu">
                 <Avatar className="w-7 h-7 border border-yellow-500/30">
                   <AvatarImage src={user?.avatar_url} />
                   <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">
@@ -293,12 +291,19 @@ const TopNavbar = () => {
             </PopoverContent>
           </Popover>
 
-          <Button variant="ghost" className="lg:hidden p-1 h-8 w-8" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {/* MOBILE HAMBURGER MENU - Always visible and prominent */}
+          <Button 
+            variant="ghost" 
+            className="lg:hidden flex items-center justify-center p-1.5 h-9 w-9 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            data-testid="mobile-menu-btn"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
           </Button>
         </div>
       </div>
 
+      {/* Mobile Menu Dropdown - SOLID DARK BACKGROUND */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -306,41 +311,58 @@ const TopNavbar = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="lg:hidden absolute top-14 left-0 right-0 bg-[#0F0F10]/98 backdrop-blur-lg border-b border-white/10 shadow-xl"
+            className="lg:hidden absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto"
           >
-            {/* Mobile Quick Stats Bar */}
-            <div className="flex items-center justify-between px-3 py-2 bg-black/30 border-b border-white/5">
-              {levelInfo && (
-                <div className="flex items-center gap-2">
-                  <Star className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
-                  <div className="w-16 h-1.5 bg-purple-900/50 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 rounded-full" style={{width: `${levelInfo.progress_percent}%`}} />
+            {/* Mobile User Info Header */}
+            <div className="flex items-center justify-between px-3 py-3 bg-[#111111] border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-10 h-10 border-2 border-yellow-500/50">
+                  <AvatarImage src={user?.avatar_url} />
+                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500">
+                    {user?.nickname?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-sm text-white">{user?.nickname}</p>
+                  <div className="flex items-center gap-2">
+                    {levelInfo && (
+                      <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>
+                    )}
+                    <span className="text-[10px] text-gray-400">{gameDate}</span>
                   </div>
                 </div>
-              )}
-              <div className="flex items-center gap-1 text-xs text-gray-400">
-                <Calendar className="w-3 h-3" />
-                <span>{gameDate}</span>
               </div>
+              {/* Language Selector in Mobile */}
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="w-14 h-8 text-xs bg-white/5 border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">EN</SelectItem>
+                  <SelectItem value="it">IT</SelectItem>
+                  <SelectItem value="es">ES</SelectItem>
+                  <SelectItem value="fr">FR</SelectItem>
+                  <SelectItem value="de">DE</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
-            {/* Mobile Navigation Grid */}
-            <div className="grid grid-cols-3 gap-1.5 p-2">
+            {/* Mobile Navigation Grid - Solid Background */}
+            <div className="grid grid-cols-3 gap-2 p-3 bg-[#0a0a0a]">
               {navItems.map(item => (
                 <Button
                   key={item.path}
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
-                  className={`flex flex-col items-center gap-1 h-14 py-2 px-1 relative ${
+                  className={`flex flex-col items-center gap-1.5 h-16 py-2 px-1 relative rounded-xl ${
                     location.pathname === item.path 
                       ? 'bg-yellow-500 text-black hover:bg-yellow-400' 
-                      : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                      : 'bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 border border-white/5'
                   }`}
                   onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
                 >
                   <item.icon className="w-5 h-5" />
-                  <span className="text-[10px] font-medium truncate w-full text-center">{t(item.label)}</span>
+                  <span className="text-[9px] font-medium truncate w-full text-center leading-tight">{t(item.label)}</span>
                   {item.notificationCount > 0 && (
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                   )}
@@ -348,48 +370,43 @@ const TopNavbar = () => {
               ))}
             </div>
             
-            {/* Mobile Quick Actions */}
-            <div className="flex items-center justify-around p-2 border-t border-white/5 bg-black/20">
+            {/* Mobile Quick Actions - Solid Dark */}
+            <div className="flex items-center justify-around p-3 border-t border-white/10 bg-[#111111]">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="flex flex-col items-center gap-0.5 h-12 px-4 text-purple-400 hover:text-purple-300"
+                className="flex flex-col items-center gap-1 h-14 px-4 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-xl"
                 onClick={() => { navigate('/major'); setMobileMenuOpen(false); }}
               >
-                <Crown className="w-4 h-4" />
-                <span className="text-[9px]">Major</span>
+                <Crown className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Major</span>
               </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="flex flex-col items-center gap-0.5 h-12 px-4 text-blue-400 hover:text-blue-300"
+                className="flex flex-col items-center gap-1 h-14 px-4 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-xl"
                 onClick={() => { navigate('/friends'); setMobileMenuOpen(false); }}
               >
-                <UserPlus className="w-4 h-4" />
-                <span className="text-[9px]">{language === 'it' ? 'Amici' : 'Friends'}</span>
+                <UserPlus className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{language === 'it' ? 'Amici' : 'Friends'}</span>
               </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="flex flex-col items-center gap-0.5 h-12 px-4 text-yellow-400 hover:text-yellow-300"
-                onClick={() => { navigate('/notifications'); setMobileMenuOpen(false); }}
-              >
-                <Bell className="w-4 h-4" />
-                <span className="text-[9px]">{language === 'it' ? 'Notifiche' : 'Alerts'}</span>
-                {notificationCount > 0 && (
-                  <span className="absolute -top-0.5 right-2 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
-                    {notificationCount > 99 ? '99+' : notificationCount}
-                  </span>
-                )}
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-0.5 h-12 px-4 text-gray-400 hover:text-white"
+                className="flex flex-col items-center gap-1 h-14 px-4 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-xl"
                 onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
               >
-                <User className="w-4 h-4" />
-                <span className="text-[9px]">{language === 'it' ? 'Profilo' : 'Profile'}</span>
+                <User className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{language === 'it' ? 'Profilo' : 'Profile'}</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-1 h-14 px-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl"
+                onClick={() => { logout(); setMobileMenuOpen(false); }}
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{language === 'it' ? 'Esci' : 'Logout'}</span>
               </Button>
             </div>
           </motion.div>
@@ -9536,70 +9553,69 @@ const FestivalsPage = () => {
             </motion.div>
           )}
 
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
-            {/* Main ceremony area */}
-            <div className="flex-1 p-4 overflow-y-auto">
+          <div className="flex-1 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Main ceremony area - scrollable */}
+            <div className="flex-1 p-3 sm:p-4 overflow-y-auto min-h-0">
               <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="font-['Bebas_Neue'] text-3xl text-yellow-400 flex items-center gap-2">
-                      <Tv className="w-8 h-8" />
-                      {liveCeremony.festival_name}
+                {/* Header - Mobile Optimized */}
+                <div className="flex items-start justify-between mb-4 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h1 className="font-['Bebas_Neue'] text-xl sm:text-3xl text-yellow-400 flex items-center gap-2 truncate">
+                      <Tv className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
+                      <span className="truncate">{liveCeremony.festival_name}</span>
                     </h1>
-                    <p className="text-gray-400 flex items-center gap-2 flex-wrap">
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                      LIVE • {liveCeremony.viewers_count} {language === 'it' ? 'spettatori' : 'viewers'}
-                      {/* Viewing Bonus Indicator */}
-                      <span className="ml-2 px-2 py-0.5 bg-green-500/20 rounded-full text-green-400 text-xs flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        +{viewingBonus.bonus_percent.toFixed(1)}% {language === 'it' ? 'bonus' : 'bonus'} 
-                        <span className="text-gray-500">({viewingBonus.viewing_minutes.toFixed(0)}min)</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-400 mt-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        LIVE • {liveCeremony.viewers_count} {language === 'it' ? 'spettatori' : 'viewers'}
                       </span>
-                      {viewingBonus.bonus_percent < 10 && (
-                        <span className="text-xs text-gray-500">
-                          {language === 'it' ? '(max 10%)' : '(max 10%)'}
-                        </span>
-                      )}
-                      {playingAudio && (
-                        <span className="flex items-center gap-1 text-green-400 ml-2">
-                          <Music className="w-3 h-3 animate-bounce" />
-                          {language === 'it' ? 'Audio in riproduzione...' : 'Playing audio...'}
-                        </span>
-                      )}
-                    </p>
+                      <span className="px-1.5 py-0.5 bg-green-500/20 rounded-full text-green-400 text-[10px] sm:text-xs flex items-center gap-1">
+                        <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        +{viewingBonus.bonus_percent.toFixed(1)}% ({viewingBonus.viewing_minutes.toFixed(0)}min)
+                      </span>
+                    </div>
+                    {playingAudio && (
+                      <span className="inline-flex items-center gap-1 text-green-400 text-xs mt-1">
+                        <Music className="w-3 h-3 animate-bounce" />
+                        {language === 'it' ? 'Audio...' : 'Playing...'}
+                      </span>
+                    )}
                   </div>
-                  <Button variant="outline" onClick={closeLiveCeremony} className="bg-red-500/10 border-red-500/50 hover:bg-red-500 hover:text-white">
-                    <X className="w-4 h-4 md:mr-1" />
-                    <span className="hidden md:inline">{language === 'it' ? 'Chiudi' : 'Close'}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={closeLiveCeremony} 
+                    className="bg-red-500/10 border-red-500/50 hover:bg-red-500 hover:text-white h-8 px-2 sm:px-3 flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                    <span className="hidden sm:inline ml-1">{language === 'it' ? 'Chiudi' : 'Close'}</span>
                   </Button>
                 </div>
 
-                {/* Categories with odds/papabili */}
-                <div className="space-y-4">
+                {/* Categories with odds/papabili - Mobile Optimized */}
+                <div className="space-y-3">
                   {liveCeremony.categories?.map((cat, idx) => (
                     <Card key={cat.category_id} className={`bg-[#1A1A1A] border-white/10 ${cat.is_announced ? 'border-yellow-500/50' : ''}`}>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-                            <Award className="w-5 h-5 text-yellow-500" />
+                      <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <CardTitle className="font-['Bebas_Neue'] text-base sm:text-lg flex items-center gap-2">
+                            <Award className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
                             {cat.category_name}
                           </CardTitle>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {cat.is_announced ? (
-                              <Badge className="bg-yellow-500 text-black">{language === 'it' ? 'VINCITORE' : 'WINNER'}</Badge>
+                              <Badge className="bg-yellow-500 text-black text-[10px] sm:text-xs">{language === 'it' ? 'VINCITORE' : 'WINNER'}</Badge>
                             ) : cat.favorite && (
-                              <Badge className="bg-purple-500/20 text-purple-400">
-                                {language === 'it' ? 'Papabile' : 'Favorite'}: {cat.favorite.name} ({cat.favorite.win_probability}%)
+                              <Badge className="bg-purple-500/20 text-purple-400 text-[10px] sm:text-xs">
+                                {language === 'it' ? 'Papabile' : 'Fav'}: {cat.favorite.name.split(' ')[0]} ({cat.favorite.win_probability}%)
                               </Badge>
                             )}
-                            {/* Announce button - only show if not announced */}
                             {!cat.is_announced && (
                               <Button 
                                 size="sm"
                                 onClick={() => announceWinnerWithAudio(cat.category_id)}
                                 disabled={announcingCategory === cat.category_id}
-                                className="bg-red-500 hover:bg-red-600 text-white text-xs h-7 px-2"
+                                className="bg-red-500 hover:bg-red-600 text-white text-[10px] sm:text-xs h-6 sm:h-7 px-2"
                               >
                                 {announcingCategory === cat.category_id ? (
                                   <RefreshCw className="w-3 h-3 animate-spin" />
@@ -9611,25 +9627,25 @@ const FestivalsPage = () => {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="grid gap-2">
+                      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                        <div className="grid gap-1.5 sm:gap-2">
                           {cat.nominees?.map(nom => (
                             <div 
                               key={nom.id} 
-                              className={`flex items-center gap-3 p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500 animate-pulse' : 'bg-white/5'}`}
+                              className={`flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500 animate-pulse' : 'bg-white/5'}`}
                             >
-                              <div className="flex-1">
-                                <p className={`font-medium ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-medium text-sm sm:text-base truncate ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
                                   {nom.name}
-                                  {cat.winner?.id === nom.id && <Trophy className="w-4 h-4 inline ml-2 text-yellow-500" />}
+                                  {cat.winner?.id === nom.id && <Trophy className="w-3 h-3 sm:w-4 sm:h-4 inline ml-1 text-yellow-500" />}
                                 </p>
-                                {nom.film_title && <p className="text-xs text-gray-400">{nom.film_title}</p>}
+                                {nom.film_title && <p className="text-[10px] sm:text-xs text-gray-400 truncate">{nom.film_title}</p>}
                               </div>
-                              <div className="text-right">
-                                <div className="text-sm font-bold" style={{color: `hsl(${nom.win_probability * 1.2}, 70%, 50%)`}}>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xs sm:text-sm font-bold" style={{color: `hsl(${nom.win_probability * 1.2}, 70%, 50%)`}}>
                                   {nom.win_probability}%
                                 </div>
-                                <div className="text-xs text-gray-500">{nom.votes} {language === 'it' ? 'voti' : 'votes'}</div>
+                                <div className="text-[9px] sm:text-xs text-gray-500">{nom.votes} {language === 'it' ? 'voti' : 'votes'}</div>
                               </div>
                               {/* Win probability bar */}
                               <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">

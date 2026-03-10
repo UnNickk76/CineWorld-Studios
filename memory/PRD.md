@@ -22,6 +22,15 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Modal "Chi ha messo Like" al click sul numero di likes
   - Lista utenti con avatar, nickname, casa di produzione e data del like
   - Pulsante like in tutte le liste (CineBoard, Film Detail, ecc.)
+- **Puntino Rosso Release Notes**:
+  - Notifica nel menu quando ci sono nuove release notes non lette
+  - Auto-reset quando l'utente visita la pagina Release Notes
+  - Endpoint `/api/release-notes/unread-count` per contare non lette
+  - Endpoint `/api/release-notes/mark-read` per marcare come lette
+- **Bug Fix Trailer**:
+  - Migliorato caricamento chiave API nel background task
+  - Validazione duration (deve essere 4, 8 o 12 secondi)
+  - Logging migliorato per debug
 
 ### v0.056 - Box Office Realistico - 10/03/2026 (COMPLETATO)
 - **Revenue Realistici**: Incassi calcolati in base a ore in sala × opening_day × decay × qualità
@@ -215,7 +224,6 @@ GET  /api/cast/rejections      - Lista rifiuti ultime 24h per l'utente corrente
 - [ ] **Refactoring Critico**: `server.py` (~10700 righe) e `App.js` (~10100 righe) - URGENTE
 
 ### P1 - Priorità Alta
-- [ ] **Bug Generazione Trailer**: La generazione video con Sora 2 non funziona correttamente
 - [ ] **Impatto Affluenza su Rating**: L'affluenza deve incidere dinamicamente sulla valutazione dei film
 - [ ] **Cinema Distribution Page**: Aggiungere sezione nella pagina dettaglio film con lista cinema dove è in programmazione
 - [ ] **Attività delle Major**: Co-Produzioni, Sfide tra Major

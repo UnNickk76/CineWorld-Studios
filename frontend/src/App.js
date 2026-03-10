@@ -3377,21 +3377,6 @@ const FilmDetail = () => {
               )}
             </CardContent>
           </Card>
-          {/* Box Office */}
-          <Card className="bg-[#1A1A1A] border-white/10">
-            <CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Globe className="w-4 h-4 text-yellow-500" /> {t('box_office')}</CardTitle></CardHeader>
-            <CardContent>
-              {Object.keys(film.box_office||{}).length===0?<p className="text-gray-400 text-center py-4 text-sm">Box office data after release</p>:(
-                <ScrollArea className="h-[250px]"><div className="space-y-1.5 pr-2">{Object.entries(film.box_office).map(([country,data])=>(
-                  <div key={country} className="border border-white/10 rounded overflow-hidden">
-                    <button className="w-full p-2 flex justify-between items-center hover:bg-white/5 text-sm" onClick={()=>setExpandedCountry(expandedCountry===country?null:country)}><span className="font-semibold">{country}</span><div className="flex items-center gap-2"><span className="text-green-400">${data.total_revenue?.toLocaleString()}</span>{expandedCountry===country?<ChevronDown className="w-3 h-3" />:<ChevronRight className="w-3 h-3" />}</div></button>
-                    {expandedCountry===country&&<div className="p-2 pt-0 border-t border-white/10 bg-black/20">{Object.entries(data.cities||{}).map(([city,cd])=><div key={city} className="flex justify-between py-0.5 text-xs"><span>{city}</span><span className="text-green-400">${cd.revenue?.toLocaleString()}</span></div>)}</div>}
-                  </div>
-                ))}</div></ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Trailer Section */}
           <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30" data-testid="trailer-section">
             <CardHeader className="pb-2">

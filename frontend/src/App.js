@@ -7205,22 +7205,33 @@ const CinemaJournal = () => {
   const [news, setNews] = useState([]);
   const [discoveredStars, setDiscoveredStars] = useState([]);
   const [recentTrailers, setRecentTrailers] = useState([]);
+  const [recentPosters, setRecentPosters] = useState([]);
+  const [virtualReviews, setVirtualReviews] = useState([]);
+  const [otherNews, setOtherNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [comment, setComment] = useState('');
+  const [showAllNews, setShowAllNews] = useState(false);
+  const [showVirtualReviews, setShowVirtualReviews] = useState(false);
+  const [showOtherNews, setShowOtherNews] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { 
     Promise.all([
       api.get('/films/cinema-journal'),
       api.get('/cinema-news'),
-      api.get('/discovered-stars')
-    ]).then(([filmsRes, newsRes, starsRes]) => {
+      api.get('/discovered-stars'),
+      api.get('/journal/virtual-reviews'),
+      api.get('/journal/other-news')
+    ]).then(([filmsRes, newsRes, starsRes, reviewsRes, otherRes]) => {
       setFilms(filmsRes.data.films);
       setRecentTrailers(filmsRes.data.recent_trailers || []);
+      setRecentPosters(filmsRes.data.recent_posters || []);
       setNews(newsRes.data.news || []);
       setDiscoveredStars(starsRes.data.stars || []);
-    }).finally(() => setLoading(false)); 
+      setVirtualReviews(reviewsRes.data?.reviews || []);
+      setOtherNews(otherRes.data?.news || []);
+    }).catch(e => console.error(e)).finally(() => setLoading(false)); 
   }, [api]);
 
   const handleRate = async (filmId, rating) => {
@@ -7288,6 +7299,139 @@ const CinemaJournal = () => {
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-5xl mx-auto" data-testid="cinema-journal-page">
+      {/* All News Dialog */}
+      <Dialog open={showAllNews} onOpenChange={setShowAllNews}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-yellow-500/30">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-yellow-400">
+              <Newspaper className="w-6 h-6" /> {language === 'it' ? 'TUTTE LE NEWS' : 'ALL NEWS'}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-3">
+              {news.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna news al momento' : 'No news at the moment'}</div>
+              ) : (
+                news.map(item => (
+                  <Card 
+                    key={item.id} 
+                    className="bg-white/5 border-white/10 cursor-pointer hover:bg-white/10"
+                    onClick={() => { if (item.film_id) { setShowAllNews(false); navigate(`/film/${item.film_id}`); }}}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{item.type || 'NEWS'}</Badge>
+                        {item.importance === 'high' && <Badge className="bg-red-500/20 text-red-400 text-[10px]">HOT</Badge>}
+                      </div>
+                      <h3 className="font-semibold text-sm">{item.title_localized || item.title}</h3>
+                      <p className="text-xs text-gray-400 mt-1">{item.content_localized || item.content}</p>
+                      <p className="text-[10px] text-gray-500 mt-2">{new Date(item.created_at).toLocaleString()}</p>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Virtual Reviews Dialog */}
+      <Dialog open={showVirtualReviews} onOpenChange={setShowVirtualReviews}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-pink-500/30">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-pink-400">
+              <MessageCircle className="w-6 h-6" /> {language === 'it' ? 'VOCI DAL PUBBLICO' : 'AUDIENCE VOICES'}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-3">
+              {virtualReviews.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna recensione del pubblico' : 'No audience reviews'}</div>
+              ) : (
+                virtualReviews.map((review, idx) => (
+                  <Card 
+                    key={idx} 
+                    className="bg-pink-500/5 border-pink-500/20 cursor-pointer hover:bg-pink-500/10"
+                    onClick={() => { if (review.film_id) { setShowVirtualReviews(false); navigate(`/film/${review.film_id}`); }}}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback className="bg-pink-500/20 text-pink-400">{review.reviewer_name?.[0] || '?'}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-sm">{review.reviewer_name}</span>
+                            <div className="flex items-center gap-1">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className={`w-3 h-3 ${s <= review.rating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-600'}`} />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400">{review.reviewer_info}</p>
+                          <p className="text-sm mt-2 italic">"{review.comment}"</p>
+                          <p className="text-[10px] text-pink-400 mt-1">🎬 {review.film_title}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Other News Dialog */}
+      <Dialog open={showOtherNews} onOpenChange={setShowOtherNews}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-purple-500/30">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl flex items-center gap-2 text-purple-400">
+              <Sparkles className="w-6 h-6" /> {language === 'it' ? 'ALTRE NOTIZIE' : 'MORE NEWS'}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-3">
+              {otherNews.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">{language === 'it' ? 'Nessuna altra notizia' : 'No other news'}</div>
+              ) : (
+                otherNews.map((item, idx) => (
+                  <Card 
+                    key={idx} 
+                    className={`cursor-pointer hover:bg-white/10 ${
+                      item.category === 'trending' ? 'bg-red-500/10 border-red-500/20' :
+                      item.category === 'star' ? 'bg-yellow-500/10 border-yellow-500/20' :
+                      item.category === 'record' ? 'bg-green-500/10 border-green-500/20' :
+                      'bg-purple-500/10 border-purple-500/20'
+                    }`}
+                    onClick={() => { if (item.link) { setShowOtherNews(false); navigate(item.link); }}}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`text-[10px] ${
+                          item.category === 'trending' ? 'bg-red-500/20 text-red-400' :
+                          item.category === 'star' ? 'bg-yellow-500/20 text-yellow-400' :
+                          item.category === 'record' ? 'bg-green-500/20 text-green-400' :
+                          'bg-purple-500/20 text-purple-400'
+                        }`}>
+                          {item.category === 'trending' ? '🔥 TRENDING' :
+                           item.category === 'star' ? '⭐ STAR' :
+                           item.category === 'record' ? '🏆 RECORD' :
+                           '📰 NEWS'}
+                        </Badge>
+                      </div>
+                      <h3 className="font-semibold text-sm">{item.title}</h3>
+                      <p className="text-xs text-gray-400 mt-1">{item.content}</p>
+                      {item.timestamp && <p className="text-[10px] text-gray-500 mt-2">{item.timestamp}</p>}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
       <div className="text-center mb-6">
         <h1 className="font-['Playfair_Display'] text-4xl md:text-5xl font-bold italic tracking-tight">
           {t('cinema_journal')}
@@ -7298,43 +7442,99 @@ const CinemaJournal = () => {
           <div className="h-px w-16 bg-yellow-500/50" />
         </div>
         <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
+        
+        {/* Quick Action Buttons */}
+        <div className="flex justify-center gap-2 mt-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowAllNews(true)}
+            className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+          >
+            <Newspaper className="w-4 h-4 mr-1" /> {language === 'it' ? 'News' : 'News'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowVirtualReviews(true)}
+            className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
+          >
+            <MessageCircle className="w-4 h-4 mr-1" /> {language === 'it' ? 'Pubblico' : 'Audience'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowOtherNews(true)}
+            className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+          >
+            <Sparkles className="w-4 h-4 mr-1" /> {language === 'it' ? 'Altre News' : 'More'}
+          </Button>
+        </div>
       </div>
 
-      {/* Recent Trailers Section */}
+      {/* Recent Posters Section - 4 per row */}
+      {recentPosters.length > 0 && (
+        <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30 mb-6 overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Film className="w-5 h-5 text-yellow-400" />
+              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">{language === 'it' ? 'NUOVE LOCANDINE' : 'NEW POSTERS'}</h2>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {recentPosters.slice(0, 20).map(film => (
+                <div 
+                  key={film.id} 
+                  onClick={() => navigate(`/film/${film.id}`)}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:ring-2 hover:ring-yellow-500 transition-all"
+                >
+                  <div className="aspect-[2/3] relative">
+                    <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[10px] font-semibold truncate text-white">{film.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Trailers Section - 4 per row */}
       {recentTrailers.length > 0 && (
         <Card className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border-purple-500/30 mb-6 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Film className="w-5 h-5 text-purple-400" />
+              <Clapperboard className="w-5 h-5 text-purple-400" />
               <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">{language === 'it' ? 'NUOVI TRAILER' : 'NEW TRAILERS'}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {recentTrailers.slice(0, 5).map(film => (
+            <div className="grid grid-cols-4 gap-2">
+              {recentTrailers.slice(0, 20).map(film => (
                 <div 
                   key={film.id} 
                   onClick={() => navigate(`/film/${film.id}`)}
-                  className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:bg-black/50 transition-colors"
+                  className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:ring-2 hover:ring-purple-500 transition-all"
                 >
                   <div className="aspect-video relative">
                     {film.poster_url ? (
                       <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                        <Film className="w-10 h-10 text-purple-400" />
+                        <Film className="w-6 h-6 text-purple-400" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-purple-500 rounded-full p-3">
-                        <Clapperboard className="w-6 h-6 text-white" />
+                      <div className="bg-purple-500 rounded-full p-2">
+                        <Clapperboard className="w-4 h-4 text-white" />
                       </div>
                     </div>
-                    <Badge className="absolute top-2 right-2 bg-purple-500/80 text-white text-xs">
+                    <Badge className="absolute top-1 right-1 bg-purple-500/80 text-white text-[8px] px-1">
                       TRAILER
                     </Badge>
                   </div>
-                  <div className="p-2">
-                    <h3 className="font-semibold text-sm truncate">{film.title}</h3>
-                    <p className="text-xs text-gray-400">{film.owner?.production_house_name || 'Unknown Studio'}</p>
+                  <div className="p-1.5">
+                    <h3 className="font-semibold text-[10px] truncate">{film.title}</h3>
                   </div>
                 </div>
               ))}

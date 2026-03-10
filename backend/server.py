@@ -4952,7 +4952,20 @@ async def get_cinema_journal(
         film['user_liked'] = like is not None
     
     total = await db.films.count_documents({})
-    return {'films': films, 'total': total, 'page': page, 'recent_trailers': recent_trailers}
+    
+    # Get recent posters (films with poster_url created recently)
+    recent_posters = await db.films.find(
+        {'poster_url': {'$exists': True, '$ne': None}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1}
+    ).sort('created_at', -1).limit(20).to_list(20)
+    
+    return {
+        'films': films, 
+        'total': total, 
+        'page': page, 
+        'recent_trailers': recent_trailers,
+        'recent_posters': recent_posters
+    }
 
 # Films available for rental (must be before /films/{film_id})
 @api_router.get("/films/available-for-rental")
@@ -5142,6 +5155,172 @@ async def get_discovered_stars(user: dict = Depends(get_current_user), limit: in
         star['is_hired_by_user'] = star['id'] in hired_star_ids
     
     return {'stars': stars, 'total': len(stars)}
+
+# Journal - Virtual Reviews from audience
+@api_router.get("/journal/virtual-reviews")
+async def get_journal_virtual_reviews(user: dict = Depends(get_current_user), limit: int = 50):
+    """Get virtual audience reviews for display in the journal."""
+    # Get films with virtual reviews
+    films_with_reviews = await db.films.find(
+        {'virtual_reviews': {'$exists': True, '$ne': []}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'virtual_reviews': 1}
+    ).sort('updated_at', -1).limit(30).to_list(30)
+    
+    reviews = []
+    for film in films_with_reviews:
+        for review in film.get('virtual_reviews', [])[:3]:  # Max 3 per film
+            reviews.append({
+                'film_id': film['id'],
+                'film_title': film.get('title', 'Unknown'),
+                'poster_url': film.get('poster_url'),
+                'reviewer_name': review.get('reviewer_name', 'Anonymous'),
+                'reviewer_info': review.get('reviewer_info', ''),
+                'rating': review.get('rating', 3),
+                'comment': review.get('comment', '')
+            })
+    
+    # Sort by randomness to mix it up
+    import random
+    random.shuffle(reviews)
+    
+    return {'reviews': reviews[:limit]}
+
+# Journal - Other News (trending, records, new stars, etc.)
+@api_router.get("/journal/other-news")
+async def get_journal_other_news(user: dict = Depends(get_current_user)):
+    """Get various news items for the journal."""
+    news = []
+    now = datetime.now(timezone.utc)
+    three_hours_ago = now - timedelta(hours=3)
+    one_day_ago = now - timedelta(hours=24)
+    
+    # 1. Most liked film in last 3 hours
+    films_3h = await db.films.find(
+        {'updated_at': {'$gte': three_hours_ago.isoformat()}},
+        {'_id': 0, 'id': 1, 'title': 1, 'likes_count': 1, 'virtual_likes': 1}
+    ).sort('likes_count', -1).limit(1).to_list(1)
+    
+    if films_3h:
+        film = films_3h[0]
+        total_likes = film.get('likes_count', 0) + film.get('virtual_likes', 0)
+        if total_likes > 0:
+            news.append({
+                'category': 'trending',
+                'title': f"🔥 '{film['title']}' in tendenza!",
+                'content': f"Il film ha ricevuto {total_likes} like nelle ultime 3 ore!",
+                'link': f"/film/{film['id']}",
+                'timestamp': 'Ultime 3 ore'
+            })
+    
+    # 2. Most liked film in last 24 hours
+    films_24h = await db.films.find(
+        {'updated_at': {'$gte': one_day_ago.isoformat()}},
+        {'_id': 0, 'id': 1, 'title': 1, 'likes_count': 1, 'virtual_likes': 1}
+    ).sort('likes_count', -1).limit(1).to_list(1)
+    
+    if films_24h and (not films_3h or films_24h[0]['id'] != films_3h[0]['id']):
+        film = films_24h[0]
+        total_likes = film.get('likes_count', 0) + film.get('virtual_likes', 0)
+        if total_likes > 0:
+            news.append({
+                'category': 'trending',
+                'title': f"⭐ '{film['title']}' domina le ultime 24 ore!",
+                'content': f"Con {total_likes} like totali è il film più amato della giornata.",
+                'link': f"/film/{film['id']}",
+                'timestamp': 'Ultime 24 ore'
+            })
+    
+    # 3. Recently discovered stars
+    new_stars = await db.people.find(
+        {'is_discovered_star': True, 'discovered_at': {'$gte': one_day_ago.isoformat()}},
+        {'_id': 0, 'id': 1, 'name': 1, 'discovered_by': 1, 'stars': 1}
+    ).sort('discovered_at', -1).limit(3).to_list(3)
+    
+    for star in new_stars:
+        discoverer = await db.users.find_one({'id': star.get('discovered_by')}, {'_id': 0, 'nickname': 1})
+        news.append({
+            'category': 'star',
+            'title': f"⭐ Nuova stella scoperta: {star['name']}!",
+            'content': f"Scoperta da {discoverer.get('nickname', 'Unknown') if discoverer else 'Unknown'}. {star.get('stars', 3)} stelle di talento!",
+            'link': None,
+            'timestamp': 'Nuova scoperta'
+        })
+    
+    # 4. Films that broke attendance records
+    record_films = await db.films.find(
+        {'cumulative_attendance': {'$gt': 100000}},
+        {'_id': 0, 'id': 1, 'title': 1, 'cumulative_attendance': 1}
+    ).sort('cumulative_attendance', -1).limit(2).to_list(2)
+    
+    for film in record_films:
+        attendance = film.get('cumulative_attendance', 0)
+        if attendance > 500000:
+            news.append({
+                'category': 'record',
+                'title': f"🏆 RECORD! '{film['title']}' supera {attendance:,} spettatori!",
+                'content': "Un traguardo storico per il cinema!",
+                'link': f"/film/{film['id']}",
+                'timestamp': 'Record'
+            })
+        elif attendance > 100000:
+            news.append({
+                'category': 'record',
+                'title': f"📈 '{film['title']}' raggiunge {attendance:,} spettatori",
+                'content': "Il pubblico continua ad affluire nei cinema!",
+                'link': f"/film/{film['id']}",
+                'timestamp': 'Milestone'
+            })
+    
+    # 5. Top rated films of the week
+    top_rated = await db.films.find(
+        {'imdb_rating': {'$gt': 8.0}},
+        {'_id': 0, 'id': 1, 'title': 1, 'imdb_rating': 1}
+    ).sort('imdb_rating', -1).limit(2).to_list(2)
+    
+    for film in top_rated:
+        news.append({
+            'category': 'record',
+            'title': f"🎬 '{film['title']}' con rating {film.get('imdb_rating', 0):.1f}/10!",
+            'content': "Un capolavoro apprezzato dalla critica.",
+            'link': f"/film/{film['id']}",
+            'timestamp': 'Top Rated'
+        })
+    
+    # 6. New majors or major news
+    new_majors = await db.majors.find(
+        {},
+        {'_id': 0, 'id': 1, 'name': 1, 'created_at': 1}
+    ).sort('created_at', -1).limit(2).to_list(2)
+    
+    for major in new_majors:
+        news.append({
+            'category': 'news',
+            'title': f"🏢 Nuova Major: {major['name']}",
+            'content': "Una nuova casa di produzione entra nel mercato cinematografico!",
+            'link': f"/major/{major['id']}",
+            'timestamp': 'Major'
+        })
+    
+    # 7. Films with most awards
+    awarded_films = await db.films.find(
+        {'awards': {'$exists': True, '$ne': []}},
+        {'_id': 0, 'id': 1, 'title': 1, 'awards': 1}
+    ).to_list(100)
+    
+    awarded_films.sort(key=lambda x: len(x.get('awards', [])), reverse=True)
+    
+    for film in awarded_films[:2]:
+        award_count = len(film.get('awards', []))
+        if award_count > 0:
+            news.append({
+                'category': 'record',
+                'title': f"🏆 '{film['title']}' vince {award_count} premi!",
+                'content': "Un film pluripremiato che sta facendo storia.",
+                'link': f"/film/{film['id']}",
+                'timestamp': 'Premi'
+            })
+    
+    return {'news': news}
 
 @api_router.post("/stars/{star_id}/hire")
 async def hire_star(star_id: str, user: dict = Depends(get_current_user)):

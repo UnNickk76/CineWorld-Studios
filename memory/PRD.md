@@ -3,17 +3,22 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.077
+## Versione Attuale: v0.078
 
-## Funzionalità Implementate (Sessione Corrente)
+## Funzionalità Implementate
 
-### v0.077 - Utenti Online & Amicizie nella Navbar - 10/03/2026 (COMPLETATO)
-- **Icona Amici sempre visibile** nella navbar (rimossa restrizione `hidden sm:flex`)
-- **Icona Utenti Online** nella navbar con badge contatore verde
-- **Pannello Utenti Online:** dialog con lista utenti reali (cliccabili) e bot separati
-- **Profilo Utente dal pannello:** stats (Film, Incassi, Qualità, XP, Premi, Fame), generi preferiti, film recenti
-- **Header sticky nel profilo:** pulsante "Amicizia" (richiesta amicizia) + "Sfida" (naviga a /challenges)
-- **Heartbeat** aggiornato con campo level per badge nella lista
+### v0.078 - GlobalPlayerPopup & Nickname Cliccabili - 10/03/2026 (COMPLETATO)
+- **GlobalPlayerPopup** si apre cliccando sul nickname di qualsiasi giocatore
+- **ClickableNickname** wrappa i nickname in: Leaderboard, Chat, Festivals, Friends, Challenges
+- **Pannello Giocatori** con lista online/offline nella navbar
+- **Profilo nel pannello**: stats, film recenti, pulsanti azione (Amicizia, Sfida 1v1, Messaggio)
+- **Testing completo**: Backend 11/11 test passati, Frontend 100% funzionante
+
+### v0.077 - Utenti Online & Amicizie nella Navbar (COMPLETATO)
+- Icona Amici sempre visibile nella navbar
+- Icona Utenti Online nella navbar con badge contatore verde
+- Pannello Utenti Online con lista utenti reali e bot separati
+- Heartbeat aggiornato con campo level per badge nella lista
 
 ### v0.076.2 - Automazione Note di Rilascio (COMPLETATO)
 ### v0.076.1 - Bug Fix Creazione Film (COMPLETATO)
@@ -21,29 +26,37 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 ### v0.075 - Ribilanciamento Qualità Film (COMPLETATO)
 
 ## Architettura
-- Backend: FastAPI + MongoDB (motor), ~14650 righe server.py
-- Frontend: React + TailwindCSS + Shadcn/UI, ~13830 righe App.js
+- Backend: FastAPI + MongoDB (motor), ~14675 righe server.py
+- Frontend: React + TailwindCSS + Shadcn/UI, ~14228 righe App.js
 - AI: OpenAI GPT-4o, Sora 2, TTS-1 (Emergent LLM Key)
 
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: server.py e App.js monolitici
+- [ ] **Refactoring Critico**: server.py e App.js monolitici (>14k righe ciascuno)
 
-### P1 - Completato questa sessione
-- [x] Ribilanciamento qualità film
-- [x] Bug creazione film (cast_members)
-- [x] Giornale del Cinema & Critiche
-- [x] Note rilascio aggiornate + automazione
-- [x] Utenti Online & Amicizie nella navbar
+### P1 - Prossimi
+- [ ] **Completamento Gameplay Sfide**: matchmaking, combattimento automatico, calcolo skill, bonus/malus, classifiche
+- [ ] Bug mobile residui (nuove UI non testate su mobile)
 
-### P2 - Prossimi
-- [ ] Bug mobile residui
-- [ ] Attività delle Major
+### P2 - Futuri
 - [ ] Sistema Acquisto CineCoins (Stripe)
-
-### P3 - Future
+- [ ] Attività delle Major
 - [ ] Mini-giochi Versus
+
+### P3 - Backlog
 - [ ] Traduzione categorie festival
 - [ ] Script migrazione dati Pydantic
 - [ ] Scalabilità (Redis, load balancer, etc.)
+
+## Integrazioni 3rd Party
+- OpenAI GPT-4o (Text): Emergent LLM Key
+- Sora 2 (Video/Trailer): Emergent LLM Key
+- OpenAI TTS-1 (Audio): Emergent LLM Key
+- Resend (Email): User API Key
+- FFmpeg: Sistema
+
+## Credenziali Test
+- User 1: testpopup@test.com / Test1234!
+- User 2: testpopup2@test.com / Test1234!
+- Creator: NeoMorpheus

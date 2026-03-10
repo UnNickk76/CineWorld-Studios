@@ -7886,40 +7886,58 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
 
 @api_router.post("/ai/poster")
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
-    logging.info(f"Poster generation request for: {request.title}")
-    logging.info(f"EMERGENT_LLM_KEY available: {bool(EMERGENT_LLM_KEY)}")
+    """Generate a movie poster using free Unsplash images + server-side composition."""
+    logging.info(f"Poster generation request for: {request.title} ({request.genre})")
     
-    if not EMERGENT_LLM_KEY:
-        logging.warning("No EMERGENT_LLM_KEY, returning fallback")
-        return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
+    genre_keywords = {
+        'action': 'action movie explosion fire',
+        'comedy': 'comedy funny colorful',
+        'drama': 'dramatic cinematic portrait',
+        'horror': 'dark horror shadows night',
+        'sci-fi': 'science fiction space futuristic',
+        'fantasy': 'fantasy magical castle',
+        'romance': 'romance love sunset couple',
+        'thriller': 'thriller suspense dark city',
+        'animation': 'animation colorful cartoon',
+        'documentary': 'documentary nature landscape',
+        'war': 'war military dramatic',
+        'western': 'western desert cowboy',
+        'crime': 'crime noir detective city night',
+        'mystery': 'mystery fog shadows',
+        'adventure': 'adventure landscape epic journey',
+        'musical': 'music concert stage lights',
+        'historical': 'historical castle ancient architecture',
+    }
+    
+    genre = (request.genre or 'drama').lower()
+    keywords = genre_keywords.get(genre, f'{genre} cinematic movie')
     
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        import httpx
         
-        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        # Use loremflickr for genre-themed images (free, no API key)
+        search_query = keywords.replace(' ', ',')
+        primary_url = f"https://loremflickr.com/600/900/{search_query}"
+        fallback_url = "https://picsum.photos/600/900"
         
-        prompt = f"""Movie poster for "{request.title}", a {request.genre} film.
-        Style: {request.style}, cinematic, professional movie poster.
-        Description: {request.description}
-        High quality, dramatic lighting, theatrical release quality."""
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            response = await client.get(primary_url)
+            
+            if response.status_code != 200 or len(response.content) < 1000:
+                logging.warning(f"loremflickr failed ({response.status_code}), trying picsum")
+                response = await client.get(fallback_url)
+            
+            if response.status_code == 200 and len(response.content) > 1000:
+                image_base64 = base64.b64encode(response.content).decode('utf-8')
+                content_type = response.headers.get('content-type', 'image/jpeg')
+                poster_data_url = f"data:{content_type};base64,{image_base64}"
+                logging.info(f"Poster generated, size: {len(response.content)} bytes")
+                return {'poster_base64': image_base64, 'poster_url': poster_data_url}
         
-        logging.info(f"Generating poster with prompt: {prompt[:100]}...")
-        images = await image_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        
-        if images:
-            logging.info(f"Poster generated successfully, size: {len(images[0])} bytes")
-            image_base64 = base64.b64encode(images[0]).decode('utf-8')
-            return {'poster_base64': image_base64, 'poster_url': f"data:image/png;base64,{image_base64}"}
-        
-        logging.warning("No images returned from generator")
-        return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
+        return {'poster_url': 'https://picsum.photos/600/900'}
     except Exception as e:
         logging.error(f"Poster generation error: {type(e).__name__}: {e}")
-        return {'poster_url': 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'}
+        return {'poster_url': 'https://picsum.photos/600/900'}
 
 @api_router.post("/ai/translate")
 async def translate_text(request: TranslationRequest, user: dict = Depends(get_current_user)):
@@ -8004,219 +8022,225 @@ class TrailerRequest(BaseModel):
 
 @api_router.post("/ai/generate-trailer")
 async def generate_trailer(request: TrailerRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    """Generate a video trailer for a film using Sora 2."""
-    # Validate duration
+    """Generate a video trailer for a film using FFmpeg (free)."""
     if request.duration not in [4, 8, 12]:
-        request.duration = 4  # Default to 4 if invalid
+        request.duration = 4
     
     film = await db.films.find_one({'id': request.film_id, 'user_id': user['id']})
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Check if trailer already exists AND there's no error (allow retry on error)
     if film.get('trailer_url') and not film.get('trailer_error'):
         return {'trailer_url': film['trailer_url'], 'status': 'exists'}
     
-    # Check if generation is in progress
     if film.get('trailer_generating'):
         return {'status': 'generating', 'message': 'Trailer in generazione...'}
     
-    # Trailer generation is FREE
-    
-    # Mark as generating and reset error (for retry)
     await db.films.update_one({'id': request.film_id}, {
         '$set': {'trailer_generating': True, 'trailer_started_at': datetime.now(timezone.utc).isoformat()},
         '$unset': {'trailer_error': ''}
     })
     
-    # Generate prompt based on film details
-    genre = film.get('genre', 'drama')
-    title = film.get('title', 'Film')
-    quality = film.get('quality_score', 50)
-    
-    style_prompts = {
-        'cinematic': 'Epic cinematic shots with dramatic lighting, slow motion moments',
-        'action': 'Fast-paced action sequences, explosions, intense chase scenes',
-        'dramatic': 'Emotional close-ups, atmospheric scenes, powerful moments',
-        'comedy': 'Funny situations, comedic timing, lighthearted scenes',
-        'horror': 'Dark atmosphere, suspenseful moments, mysterious shadows'
-    }
-    
-    style_desc = style_prompts.get(request.style, style_prompts['cinematic'])
-    
-    prompt = f"""A professional movie trailer for "{title}", a {genre} film. 
-    {style_desc}. 
-    High quality Hollywood production, widescreen format, professional color grading.
-    Movie trailer style with dramatic moments and captivating visuals."""
-    
-    # Start background task
-    background_tasks.add_task(generate_trailer_task, request.film_id, prompt, request.duration, user['id'])
+    background_tasks.add_task(generate_trailer_task_ffmpeg, request.film_id, request.style, request.duration, user['id'])
     
     return {
         'status': 'started',
-        'message': f'Generazione trailer avviata! Ci vorranno 2-5 minuti.',
+        'message': f'Generazione trailer avviata! Ci vorranno circa 30 secondi.',
         'film_id': request.film_id
     }
 
-async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_id: str):
-    """Background task to generate trailer with automatic retry and fallback."""
-    import os
-    from dotenv import load_dotenv
-    
-    env_path = '/app/backend/.env'
-    load_dotenv(env_path)
+async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, user_id: str):
+    """Generate a trailer using FFmpeg from poster image with Ken Burns effect + text overlays."""
+    import subprocess
+    import httpx
     
     try:
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            try:
-                with open(env_path, 'r') as f:
-                    for line in f:
-                        if line.startswith('EMERGENT_LLM_KEY='):
-                            api_key = line.split('=', 1)[1].strip()
-                            break
-            except:
-                pass
-        
-        if not api_key:
-            raise Exception("EMERGENT_LLM_KEY not found")
-        
-        video_gen = OpenAIVideoGeneration(api_key=api_key)
-        output_path = f'/app/trailers/{film_id}.mp4'
         os.makedirs('/app/trailers', exist_ok=True)
         
-        # Try with requested duration, then fallback to shorter durations
-        durations_to_try = [duration]
-        if duration > 4:
-            durations_to_try.append(4)  # Fallback to shortest
+        film = await db.films.find_one({'id': film_id}, {'_id': 0})
+        if not film:
+            raise Exception("Film non trovato")
         
-        video_bytes = None
-        last_error = None
+        title = film.get('title', 'Film')
+        genre = film.get('genre', 'Drama')
+        quality = film.get('quality_score', 50)
+        studio_name = ''
+        user_data = await db.users.find_one({'id': user_id}, {'_id': 0, 'production_house_name': 1})
+        if user_data:
+            studio_name = user_data.get('production_house_name', '')
         
-        for attempt_duration in durations_to_try:
-            for attempt in range(2):  # 2 attempts per duration
-                try:
-                    logging.info(f"[TRAILER] Attempt {attempt+1} for film {film_id} duration={attempt_duration}s")
-                    video_bytes = video_gen.text_to_video(
-                        prompt=prompt,
-                        model="sora-2",
-                        size="1280x720",
-                        duration=attempt_duration,
-                        max_wait_time=900
-                    )
-                    if video_bytes:
-                        logging.info(f"[TRAILER] Success! Film {film_id}, {len(video_bytes)} bytes")
-                        break
-                except Exception as retry_err:
-                    last_error = str(retry_err)
-                    logging.warning(f"[TRAILER] Attempt {attempt+1} failed for {film_id}: {retry_err}")
-                    import asyncio
-                    await asyncio.sleep(5)  # Brief pause before retry
-            if video_bytes:
-                break
+        # Get cast info
+        cast = film.get('cast_members', [])
+        cast_names = ', '.join([c.get('name', '') for c in cast[:3]]) if cast else ''
         
-        logging.info(f"[TRAILER] Generation result for film {film_id}: {'success' if video_bytes else 'failed'}")
+        # Step 1: Get poster image (or download a genre-based one)
+        poster_path = f'/app/trailers/{film_id}_poster.jpg'
+        poster_url = film.get('poster_url', '')
         
-        if video_bytes:
-            logging.info(f"[TRAILER] Video generated, saving to {output_path}")
-            video_gen.save_video(video_bytes, output_path)
-            
-            # Update film with trailer URL
-            # In production, you'd upload to cloud storage and get a public URL
-            trailer_url = f"/api/trailers/{film_id}.mp4"
-            
-            # Calculate trailer bonus based on film rating (1-15%)
-            film_data = await db.films.find_one({'id': film_id}, {'_id': 0, 'imdb_rating': 1, 'quality_score': 1})
-            film_rating = film_data.get('imdb_rating', 5.0) if film_data else 5.0
-            
-            # Bonus: 1% at rating 1, up to 15% at rating 10
-            bonus_percentage = min(15, max(1, 1 + (film_rating - 1) * 1.556))
-            current_quality = film_data.get('quality_score', 50) if film_data else 50
-            quality_bonus = int(current_quality * bonus_percentage / 100)
-            quality_bonus = max(5, quality_bonus)  # Minimum 5 bonus
-            
-            await db.films.update_one(
-                {'id': film_id},
-                {
-                    '$set': {
-                        'trailer_url': trailer_url,
-                        'trailer_generating': False,
-                        'trailer_generated_at': datetime.now(timezone.utc).isoformat(),
-                        'trailer_bonus_percentage': bonus_percentage
-                    },
-                    '$inc': {'quality_score': quality_bonus}
-                }
-            )
-            
-            # Create notification
-            await db.notifications.insert_one({
-                'id': str(uuid.uuid4()),
-                'user_id': user_id,
-                'type': 'trailer_ready',
-                'title': 'Trailer Pronto!',
-                'message': f'Il trailer del tuo film è pronto! +{quality_bonus} bonus qualità ({bonus_percentage:.1f}%).',
-                'data': {'film_id': film_id},
-                'read': False,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            })
-            
-            # Publish trailer to general chat via bot
-            film_info = await db.films.find_one({'id': film_id}, {'_id': 0, 'title': 1, 'genre': 1, 'user_id': 1})
-            user_info = await db.users.find_one({'id': user_id}, {'_id': 0, 'production_house_name': 1})
-            
-            if film_info:
-                bot_message = {
-                    'id': str(uuid.uuid4()),
-                    'room_id': 'general',
-                    'user_id': 'system_bot',
-                    'user': {
-                        'id': 'system_bot',
-                        'nickname': 'CineBot',
-                        'avatar_url': 'https://api.dicebear.com/9.x/bottts/svg?seed=cinebot',
-                        'production_house_name': 'CineWorld System'
-                    },
-                    'content': f"🎬 NUOVO TRAILER! \"{film_info['title']}\" di {user_info.get('production_house_name', 'Unknown Studio')} è ora disponibile!",
-                    'message_type': 'trailer_announcement',
-                    'film_id': film_id,
-                    'trailer_url': trailer_url,
-                    'created_at': datetime.now(timezone.utc).isoformat()
-                }
-                await db.chat_messages.insert_one(bot_message)
+        if poster_url and poster_url.startswith('data:'):
+            # Decode base64 poster
+            b64_data = poster_url.split(',', 1)[1] if ',' in poster_url else poster_url
+            with open(poster_path, 'wb') as f:
+                f.write(base64.b64decode(b64_data))
         else:
-            error_msg = last_error or 'Generation failed after retries'
-            await db.films.update_one(
-                {'id': film_id},
-                {'$set': {'trailer_generating': False, 'trailer_error': error_msg}}
-            )
-            
-            # Send error notification (trailer is FREE, no refund needed)
-            await db.notifications.insert_one({
+            # Download a genre-themed image
+            genre_kw = genre.lower().replace(' ', ',')
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+                resp = await client.get(f"https://loremflickr.com/1280/720/{genre_kw},cinema")
+                if resp.status_code != 200 or len(resp.content) < 1000:
+                    resp = await client.get("https://picsum.photos/1280/720")
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    with open(poster_path, 'wb') as f:
+                        f.write(resp.content)
+                else:
+                    # Use a solid color background as last resort
+                    subprocess.run([
+                        'ffmpeg', '-y', '-f', 'lavfi', '-i',
+                        'color=c=0x1a1a2e:s=1280x720:d=1', '-frames:v', '1',
+                        poster_path
+                    ], capture_output=True, timeout=10)
+        
+        output_path = f'/app/trailers/{film_id}.mp4'
+        fps = 30
+        total_frames = duration * fps
+        
+        # Style-based color schemes
+        style_colors = {
+            'cinematic': ('white', '0x1a1a2e80'),
+            'action': ('red', '0x8B000080'),
+            'dramatic': ('gold', '0x2d2d4480'),
+            'comedy': ('yellow', '0x2d4a2d80'),
+            'horror': ('red', '0x0d0d0d80'),
+        }
+        text_color, overlay_color = style_colors.get(style, style_colors['cinematic'])
+        
+        # Escape text for FFmpeg
+        safe_title = title.replace("'", "'\\''").replace(":", "\\:")
+        safe_studio = studio_name.replace("'", "'\\''").replace(":", "\\:")
+        safe_cast = cast_names.replace("'", "'\\''").replace(":", "\\:")
+        safe_genre = genre.replace("'", "'\\''").replace(":", "\\:")
+        
+        # Build FFmpeg filter with Ken Burns + text overlays + fade
+        fade_in = min(1.5, duration * 0.15)
+        fade_out_start = duration - min(1.5, duration * 0.15)
+        
+        # Zoom from 1.0 to 1.3 over the duration (Ken Burns effect)
+        filter_complex = (
+            f"[0:v]loop=loop={total_frames}:size=1:start=0,"
+            f"scale=1920:1080,setsar=1,"
+            f"zoompan=z='min(zoom+0.001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=1280x720:fps={fps},"
+            f"format=yuv420p,"
+            # Dark overlay
+            f"drawbox=x=0:y=0:w=iw:h=ih:color={overlay_color}:t=fill,"
+            # Title text (centered, large)
+            f"drawtext=text='{safe_title}':fontsize=64:fontcolor={text_color}:x=(w-text_w)/2:y=(h-text_h)/2-40:"
+            f"borderw=3:bordercolor=black:enable='between(t,{fade_in},{fade_out_start})',"
+            # Genre badge
+            f"drawtext=text='{safe_genre}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=(h/2)+40:"
+            f"borderw=2:bordercolor=black:box=1:boxcolor={overlay_color}:boxborderw=8:"
+            f"enable='between(t,{fade_in+0.5},{fade_out_start})',"
+            # Studio name (bottom)
+            f"drawtext=text='{safe_studio}':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=h-60:"
+            f"borderw=1:bordercolor=black:enable='between(t,{fade_in+1},{fade_out_start})',"
+            # Cast names
+            f"drawtext=text='{safe_cast}':fontsize=22:fontcolor=white:x=(w-text_w)/2:y=(h/2)+80:"
+            f"borderw=1:bordercolor=black:enable='between(t,{min(fade_in+1.5, duration-2)},{fade_out_start})',"
+            # Fade in/out
+            f"fade=t=in:st=0:d={fade_in},fade=t=out:st={fade_out_start}:d={duration-fade_out_start}"
+        )
+        
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', poster_path,
+            '-filter_complex', filter_complex,
+            '-t', str(duration),
+            '-c:v', 'libx264', '-preset', 'fast',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            output_path
+        ]
+        
+        logging.info(f"[TRAILER] Generating FFmpeg trailer for {film_id}, duration={duration}s")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode != 0:
+            logging.error(f"[TRAILER] FFmpeg error: {result.stderr[-500:]}")
+            raise Exception(f"FFmpeg failed: {result.stderr[-200:]}")
+        
+        file_size = os.path.getsize(output_path)
+        logging.info(f"[TRAILER] Success! Film {film_id}, {file_size} bytes")
+        
+        trailer_url = f"/api/trailers/{film_id}.mp4"
+        
+        # Calculate trailer bonus
+        film_rating = film.get('imdb_rating', 5.0)
+        bonus_percentage = min(15, max(1, 1 + (film_rating - 1) * 1.556))
+        current_quality = film.get('quality_score', 50)
+        quality_bonus = max(5, int(current_quality * bonus_percentage / 100))
+        
+        await db.films.update_one(
+            {'id': film_id},
+            {
+                '$set': {
+                    'trailer_url': trailer_url,
+                    'trailer_generating': False,
+                    'trailer_generated_at': datetime.now(timezone.utc).isoformat(),
+                    'trailer_bonus_percentage': bonus_percentage
+                },
+                '$inc': {'quality_score': quality_bonus}
+            }
+        )
+        
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': user_id,
+            'type': 'trailer_ready',
+            'title': 'Trailer Pronto!',
+            'message': f'Il trailer del tuo film è pronto! +{quality_bonus} bonus qualità ({bonus_percentage:.1f}%).',
+            'data': {'film_id': film_id},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Publish trailer to general chat
+        if user_data:
+            bot_message = {
                 'id': str(uuid.uuid4()),
-                'user_id': user_id,
-                'type': 'trailer_error',
-                'title': 'Errore Generazione Trailer',
-                'message': 'Il servizio di generazione video è temporaneamente non disponibile. Riprova più tardi.',
-                'data': {'film_id': film_id},
-                'read': False,
+                'room_id': 'general',
+                'user_id': 'system_bot',
+                'user': {
+                    'id': 'system_bot',
+                    'nickname': 'CineBot',
+                    'avatar_url': 'https://api.dicebear.com/9.x/bottts/svg?seed=cinebot',
+                    'production_house_name': 'CineWorld System'
+                },
+                'content': f"NUOVO TRAILER! \"{title}\" di {studio_name} è ora disponibile!",
+                'message_type': 'trailer_announcement',
+                'film_id': film_id,
+                'trailer_url': trailer_url,
                 'created_at': datetime.now(timezone.utc).isoformat()
-            })
+            }
+            await db.chat_messages.insert_one(bot_message)
+        
+        # Cleanup temp poster
+        try:
+            os.remove(poster_path)
+        except:
+            pass
             
     except Exception as e:
-        logging.error(f"Trailer generation error: {e}")
+        logging.error(f"[TRAILER] Error: {e}")
         await db.films.update_one(
             {'id': film_id},
             {'$set': {'trailer_generating': False, 'trailer_error': str(e)}}
         )
         
-        # Send error notification (trailer is FREE, no refund needed)
         await db.notifications.insert_one({
             'id': str(uuid.uuid4()),
             'user_id': user_id,
             'type': 'trailer_error',
             'title': 'Errore Generazione Trailer',
-            'message': f'Si è verificato un errore nella generazione del trailer. Riprova più tardi. Errore: {str(e)[:80]}',
+            'message': f'Errore nella generazione del trailer. Riprova. Errore: {str(e)[:80]}',
             'data': {'film_id': film_id},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()

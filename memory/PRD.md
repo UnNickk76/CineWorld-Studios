@@ -3,9 +3,35 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.061
+## Versione Attuale: v0.063
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.063 - Sistema Sottotitoli e Sequel - 10/03/2026 (COMPLETATO)
+- **Campo Sottotitolo**: Aggiunto campo opzionale `subtitle` nella creazione di Film e Pre-Film
+  - Obbligatorio quando si crea un sequel
+  - Esempio: "La Vendetta", "Il Ritorno"
+- **Sistema Sequel Migliorato**:
+  - Checkbox "Questo è un sequel" nel wizard di creazione
+  - Dropdown per selezionare il film originale
+  - Genere ereditato automaticamente dal film parent
+  - Massimo 5 sequel per saga
+- **Bonus/Malus Sequel basati su performance del film originale**:
+  - Film originale qualità >= 85: +35% base + 2% per sequel successivo
+  - Film originale qualità >= 70: +20% base + 1% per sequel
+  - Film originale qualità >= 55: +10% (fedeltà franchise)
+  - Film originale qualità >= 40: -5% base, peggiora con più sequel
+  - Film originale qualità < 40: -30% base, -10% per sequel
+  - Bonus aggiuntivo basato sul tier del film originale
+- **Nuovo Endpoint API**:
+  - `GET /api/films/my/for-sequel` - Lista film disponibili per sequel
+- **Fix Generazione Synopsis**: Corretto l'import della libreria LLM per la generazione automatica della trama
+
+### v0.062 - Selettore Lingua Login/Registrazione - 10/03/2026 (COMPLETATO)
+- **Selettore lingua nelle pagine di autenticazione**: Pulsanti IT/EN in alto a destra
+  - Cambio istantaneo della lingua dell'interfaccia
+  - Traduzione automatica di tutti i testi (label, pulsanti, placeholder)
+  - La preferenza viene salvata in localStorage
 
 ### v0.061 - Sistema Pre-Ingaggio Completato - 10/03/2026 (COMPLETATO)
 - **Integrazione Film Creation**: Il cast pre-ingaggiato viene caricato automaticamente nel wizard di creazione film

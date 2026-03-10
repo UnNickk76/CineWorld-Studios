@@ -1256,6 +1256,7 @@ class TokenResponse(BaseModel):
 
 class FilmCreate(BaseModel):
     title: str
+    subtitle: Optional[str] = None  # Optional subtitle, required for sequels
     genre: str
     subgenres: List[str] = []  # Up to 3 sub-genres
     release_date: str
@@ -1275,10 +1276,14 @@ class FilmCreate(BaseModel):
     poster_prompt: Optional[str] = None
     ad_duration_seconds: int = 0
     ad_revenue: float = 0
+    # Sequel system
+    is_sequel: bool = False
+    sequel_parent_id: Optional[str] = None  # ID of the original film
 
 class FilmDraft(BaseModel):
     """Model for saving incomplete film drafts."""
     title: Optional[str] = ""
+    subtitle: Optional[str] = None  # Optional subtitle
     genre: Optional[str] = ""
     subgenres: List[str] = []
     release_date: Optional[str] = ""
@@ -1300,14 +1305,21 @@ class FilmDraft(BaseModel):
     ad_revenue: Optional[float] = 0
     current_step: int = 1  # Which wizard step the user was on
     paused_reason: Optional[str] = "paused"  # paused, error, incomplete
+    # Sequel system
+    is_sequel: bool = False
+    sequel_parent_id: Optional[str] = None
 
 # ============== PRE-ENGAGEMENT MODELS ==============
 
 class PreFilmCreate(BaseModel):
     """Model for creating a pre-film (draft with pre-engaged cast)."""
     title: str
+    subtitle: Optional[str] = None  # Optional subtitle for sequels
     genre: str
     screenplay_draft: str  # ~100 chars brief idea
+    # Sequel system
+    is_sequel: bool = False
+    sequel_parent_id: Optional[str] = None  # ID of the original film
 
 class PreEngagementRequest(BaseModel):
     """Request to pre-engage a cast member."""
@@ -1338,6 +1350,7 @@ class FilmResponse(BaseModel):
     id: str
     user_id: str
     title: str
+    subtitle: Optional[str] = None  # Subtitle for sequels/sagas
     genre: str
     subgenres: List[str] = []
     release_date: str
@@ -1377,6 +1390,11 @@ class FilmResponse(BaseModel):
     tier_bonuses: Optional[Dict[str, Any]] = None
     tier_opening_bonus: Optional[float] = None
     liked_by: List[str] = []
+    # Sequel system
+    is_sequel: bool = False
+    sequel_parent_id: Optional[str] = None
+    sequel_number: int = 0
+    sequel_bonus_applied: Optional[Dict[str, Any]] = None
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -3152,10 +3170,23 @@ async def create_pre_film(data: PreFilmCreate, user: dict = Depends(get_current_
     if data.genre not in GENRES:
         raise HTTPException(status_code=400, detail="Genere non valido")
     
+    # Sequel validation: subtitle is required for sequels
+    if data.is_sequel:
+        if not data.subtitle:
+            raise HTTPException(status_code=400, detail="Subtitle is required for sequels")
+        if not data.sequel_parent_id:
+            raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
+        
+        # Verify parent film exists and belongs to user
+        parent = await db.films.find_one({'id': data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent film not found")
+    
     pre_film = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'title': data.title,
+        'subtitle': data.subtitle,  # Optional subtitle for sequels
         'genre': data.genre,
         'screenplay_draft': data.screenplay_draft,
         'status': 'active',  # active, expired, converted, abandoned
@@ -3166,6 +3197,9 @@ async def create_pre_film(data: PreFilmCreate, user: dict = Depends(get_current_
             'actors': []
         },
         'total_advance_paid': 0,
+        # Sequel fields
+        'is_sequel': data.is_sequel,
+        'sequel_parent_id': data.sequel_parent_id,
         'created_at': datetime.now(timezone.utc).isoformat(),
         'expires_at': (datetime.now(timezone.utc) + timedelta(days=PRE_FILM_DURATION_DAYS)).isoformat()
     }
@@ -3597,6 +3631,7 @@ async def convert_pre_film_to_draft(pre_film_id: str, user: dict = Depends(get_c
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'title': pre_film['title'],
+        'subtitle': pre_film.get('subtitle'),  # Pass subtitle for sequels
         'genre': pre_film['genre'],
         'screenplay': pre_film['screenplay_draft'],
         'screenplay_source': 'original',
@@ -3605,6 +3640,9 @@ async def convert_pre_film_to_draft(pre_film_id: str, user: dict = Depends(get_c
         'pre_engaged_cast': pre_film.get('pre_engaged_cast', {}),
         'current_step': 1,
         'paused_reason': 'from_pre_engagement',
+        # Sequel fields
+        'is_sequel': pre_film.get('is_sequel', False),
+        'sequel_parent_id': pre_film.get('sequel_parent_id'),
         'created_at': datetime.now(timezone.utc).isoformat(),
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
@@ -3784,6 +3822,32 @@ async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, ca
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
+    # Sequel validation: subtitle is required for sequels
+    if film_data.is_sequel:
+        if not film_data.subtitle:
+            raise HTTPException(status_code=400, detail="Subtitle is required for sequels")
+        if not film_data.sequel_parent_id:
+            raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
+    
+    # If is_sequel, verify parent film exists and belongs to user
+    sequel_parent = None
+    sequel_number = 0
+    sequel_bonus_info = None
+    if film_data.is_sequel and film_data.sequel_parent_id:
+        sequel_parent = await db.films.find_one({'id': film_data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0})
+        if not sequel_parent:
+            raise HTTPException(status_code=404, detail="Parent film not found or not owned by you")
+        
+        # Count existing sequels
+        existing_sequels = await db.films.count_documents({
+            'sequel_parent_id': film_data.sequel_parent_id,
+            'user_id': user['id']
+        })
+        sequel_number = existing_sequels + 2  # Parent is #1, first sequel is #2
+        
+        if sequel_number > 6:  # Max 5 sequels (6 total films in saga)
+            raise HTTPException(status_code=400, detail="Maximum 5 sequels allowed per saga")
+    
     equipment = next((e for e in EQUIPMENT_PACKAGES if e['name'] == film_data.equipment_package), EQUIPMENT_PACKAGES[0])
     location_costs = {}
     total_location_cost = 0
@@ -3826,6 +3890,72 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     # BOOST: +30% first day revenue
     opening_day_revenue = int(opening_day_revenue * 1.30)
     
+    # === SEQUEL BONUS/MALUS SYSTEM ===
+    # Sequels get bonus/malus based on parent film performance
+    sequel_bonus_info = None
+    if film_data.is_sequel and sequel_parent:
+        parent_quality = sequel_parent.get('quality_score', 50)
+        parent_revenue = sequel_parent.get('total_revenue', 0)
+        parent_tier = sequel_parent.get('film_tier', 'normal')
+        
+        # Base sequel multiplier: depends on parent success
+        # Great parent film (quality > 75) = bonus
+        # Poor parent film (quality < 40) = malus
+        # Medium parent film = slight bonus for franchise loyalty
+        
+        sequel_multiplier = 1.0
+        sequel_reason = ""
+        
+        if parent_quality >= 85:
+            # Excellent parent film: fans excited for sequel
+            sequel_multiplier = 1.35 + (sequel_number * 0.02)  # +35% base + 2% per sequel
+            sequel_reason = "Fans eagerly awaited this sequel!"
+        elif parent_quality >= 70:
+            # Good parent film: solid anticipation
+            sequel_multiplier = 1.20 + (sequel_number * 0.01)
+            sequel_reason = "High expectations from fans"
+        elif parent_quality >= 55:
+            # Decent parent film: franchise loyalty boost
+            sequel_multiplier = 1.10
+            sequel_reason = "Franchise loyalty brings viewers"
+        elif parent_quality >= 40:
+            # Mediocre parent film: skeptical audience
+            sequel_multiplier = 0.95 - (sequel_number * 0.05)  # -5% base, worse with more sequels
+            sequel_reason = "Audiences skeptical after previous film"
+        else:
+            # Poor parent film: significant malus
+            sequel_multiplier = 0.70 - (sequel_number * 0.10)  # -30% base, -10% per sequel
+            sequel_reason = "Previous flop hurt franchise reputation"
+        
+        # Tier bonuses for sequel
+        tier_bonus = {
+            'masterpiece': 0.25,
+            'epic': 0.15,
+            'excellent': 0.10,
+            'promising': 0.05,
+            'normal': 0,
+            'possible_flop': -0.15
+        }.get(parent_tier, 0)
+        
+        sequel_multiplier += tier_bonus
+        
+        # Ensure multiplier is within bounds
+        sequel_multiplier = max(0.5, min(1.8, sequel_multiplier))
+        
+        # Apply sequel multiplier to opening revenue
+        original_revenue = opening_day_revenue
+        opening_day_revenue = int(opening_day_revenue * sequel_multiplier)
+        
+        sequel_bonus_info = {
+            'parent_title': sequel_parent.get('title', 'Unknown'),
+            'parent_quality': parent_quality,
+            'parent_tier': parent_tier,
+            'sequel_number': sequel_number,
+            'multiplier': sequel_multiplier,
+            'bonus_amount': opening_day_revenue - original_revenue,
+            'reason': sequel_reason
+        }
+    
     # Get director and screenwriter names to store with the film
     director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
     screenwriter_doc = await db.people.find_one({'id': film_data.screenwriter_id}, {'_id': 0, 'name': 1})
@@ -3846,6 +3976,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'title': film_data.title,
+        'subtitle': film_data.subtitle,  # Optional subtitle for sequels
         'genre': film_data.genre,
         'subgenres': film_data.subgenres[:3],  # Max 3 sub-genres
         'release_date': film_data.release_date,
@@ -3880,7 +4011,12 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'daily_revenues': [],
         'opening_day_revenue': opening_day_revenue,
         'total_revenue': opening_day_revenue,
-        'created_at': datetime.now(timezone.utc).isoformat()
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        # Sequel fields
+        'is_sequel': film_data.is_sequel,
+        'sequel_parent_id': film_data.sequel_parent_id,
+        'sequel_number': sequel_number,
+        'sequel_bonus_applied': sequel_bonus_info,  # Info about sequel bonus/malus
     }
     
     # Calculate IMDb-style rating
@@ -3892,8 +4028,13 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     if film_data.screenplay:
         try:
-            from emergentintegrations.llm.openai import OpenAILLM
-            llm = OpenAILLM(api_key=EMERGENT_LLM_KEY)
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"synopsis-{film['id']}",
+                system_message="You are a creative movie synopsis writer. Write compelling, dramatic summaries."
+            ).with_model("openai", "gpt-4o-mini")
             
             cast_names = ", ".join([c.get('name', 'Unknown') for c in enriched_cast[:3]])
             
@@ -3912,11 +4053,8 @@ Write a 2-3 paragraph synopsis that:
 
 Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 
-            synopsis_result = await llm.completion(
-                prompt=synopsis_prompt,
-                model="gpt-4o-mini",
-                max_tokens=400
-            )
+            user_message = UserMessage(text=synopsis_prompt)
+            synopsis_result = await chat.send_message(user_message)
             film['synopsis'] = synopsis_result.strip()
         except Exception as e:
             logging.error(f"Synopsis generation error: {e}")
@@ -4039,6 +4177,40 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     return [FilmResponse(**f) for f in films]
+
+@api_router.get("/films/my/for-sequel")
+async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
+    """Get list of user's films that can be used as parent for a sequel.
+    Returns simplified list with id, title, subtitle, quality_score, and sequel count."""
+    films = await db.films.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'title': 1, 'subtitle': 1, 'quality_score': 1, 
+         'total_revenue': 1, 'film_tier': 1, 'genre': 1, 'sequel_parent_id': 1}
+    ).to_list(200)
+    
+    result = []
+    for film in films:
+        # Count how many sequels this film already has
+        sequel_count = await db.films.count_documents({'sequel_parent_id': film['id']})
+        
+        # Only include films that haven't reached max sequels (5)
+        if sequel_count < 5:
+            result.append({
+                'id': film['id'],
+                'title': film['title'],
+                'subtitle': film.get('subtitle'),
+                'full_title': f"{film['title']}" + (f": {film.get('subtitle')}" if film.get('subtitle') else ""),
+                'quality_score': film.get('quality_score', 50),
+                'total_revenue': film.get('total_revenue', 0),
+                'film_tier': film.get('film_tier', 'normal'),
+                'genre': film.get('genre', 'action'),
+                'sequel_count': sequel_count,
+                'is_itself_sequel': film.get('sequel_parent_id') is not None
+            })
+    
+    # Sort by total revenue (most successful first)
+    result.sort(key=lambda x: x['total_revenue'], reverse=True)
+    return {'films': result}
 
 # ==================== SAGAS & TV SERIES ====================
 

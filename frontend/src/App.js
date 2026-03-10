@@ -789,14 +789,38 @@ const AuthPage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <Card className="bg-[#1A1A1A] border-white/10">
-          <CardHeader className="text-center space-y-3 pb-4">
+        <Card className="bg-[#1A1A1A] border-white/10 relative">
+          {/* Language Selector */}
+          <div className="absolute top-4 right-4 z-10">
+            <div className="flex items-center gap-1 bg-black/40 rounded-full p-1">
+              <button
+                onClick={() => setLanguage('it')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  language === 'it' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                🇮🇹 IT
+              </button>
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  language === 'en' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                🇬🇧 EN
+              </button>
+            </div>
+          </div>
+          
+          <CardHeader className="text-center space-y-3 pb-4 pt-12">
             <div className="flex justify-center">
               <Clapperboard className="w-12 h-12 text-yellow-500" />
             </div>
             <CardTitle className="font-['Bebas_Neue'] text-2xl tracking-wide">CineWorld Studio's</CardTitle>
             <CardDescription className="text-xs">
-              {isLogin ? 'Sign in to your production house' : 'Create your production empire'}
+              {isLogin 
+                ? (language === 'it' ? 'Accedi alla tua casa di produzione' : 'Sign in to your production house')
+                : (language === 'it' ? 'Crea il tuo impero cinematografico' : 'Create your production empire')}
             </CardDescription>
             <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">BETA TEST</Badge>
           </CardHeader>
@@ -2093,13 +2117,15 @@ const FilmWizard = () => {
   const [dismissModal, setDismissModal] = useState(null);
 
   const [filmData, setFilmData] = useState({
-    title: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
+    title: '', subtitle: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
     screenwriter_id: '', director_id: '', composer_id: '', actors: [], extras_count: 50, extras_cost: 50000,
     screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', 
     soundtrack_prompt: '', soundtrack_description: '',
-    poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0
+    poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0,
+    is_sequel: false, sequel_parent_id: null
   });
+  const [myFilmsForSequel, setMyFilmsForSequel] = useState([]);
   const [releaseDate, setReleaseDate] = useState(new Date());
   const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Composer'},{num:7,title:'Cast'},{num:8,title:'Script'},{num:9,title:'Soundtrack'},{num:10,title:'Poster'},{num:11,title:'Ads'},{num:12,title:'Review'}];
 
@@ -2259,6 +2285,7 @@ const FilmWizard = () => {
     api.get('/equipment').then(r=>setEquipment(r.data));
     api.get('/genres').then(r=>setGenres(r.data));
     api.get('/actor-roles').then(r=>setActorRoles(r.data));
+    api.get('/films/my/for-sequel').then(r=>setMyFilmsForSequel(r.data.films || [])).catch(()=>{});
   }, [api]);
   
   const fetchPeople = async (type, category = '', skill = '') => {
@@ -2668,15 +2695,98 @@ const FilmWizard = () => {
   const renderStep = () => {
     switch(step) {
       case 1: return (<div className="space-y-3">
-        <div><Label className="text-xs">Title *</Label><Input value={filmData.title} onChange={e=>setFilmData({...filmData,title:e.target.value})} placeholder="Film title..." className="h-10 bg-black/20 border-white/10" data-testid="film-title-input" /></div>
+        <div><Label className="text-xs">{language === 'it' ? 'Titolo' : 'Title'} *</Label><Input value={filmData.title} onChange={e=>setFilmData({...filmData,title:e.target.value})} placeholder={language === 'it' ? 'Titolo del film...' : 'Film title...'} className="h-10 bg-black/20 border-white/10" data-testid="film-title-input" /></div>
+        
+        {/* Subtitle - optional, required for sequels */}
+        <div>
+          <Label className="text-xs">{language === 'it' ? 'Sottotitolo' : 'Subtitle'} {filmData.is_sequel && <span className="text-red-400">*</span>}</Label>
+          <Input 
+            value={filmData.subtitle} 
+            onChange={e=>setFilmData({...filmData,subtitle:e.target.value})} 
+            placeholder={language === 'it' ? 'es. "La Vendetta", "Il Ritorno"...' : 'e.g. "The Revenge", "The Return"...'} 
+            className="h-9 bg-black/20 border-white/10" 
+            data-testid="film-subtitle-input" 
+          />
+          <p className="text-[10px] text-gray-500 mt-1">{language === 'it' ? 'Opzionale. Obbligatorio per i sequel.' : 'Optional. Required for sequels.'}</p>
+        </div>
+        
+        {/* Sequel checkbox and parent selection */}
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="is-sequel" 
+              checked={filmData.is_sequel}
+              onCheckedChange={(checked) => setFilmData({...filmData, is_sequel: checked, sequel_parent_id: checked ? filmData.sequel_parent_id : null})}
+            />
+            <Label htmlFor="is-sequel" className="text-sm cursor-pointer">
+              {language === 'it' ? 'Questo è un sequel' : 'This is a sequel'}
+            </Label>
+          </div>
+          
+          {filmData.is_sequel && (
+            <div className="pl-6 space-y-2">
+              <Label className="text-xs">{language === 'it' ? 'Seleziona il film originale' : 'Select original film'} *</Label>
+              {myFilmsForSequel.length > 0 ? (
+                <Select value={filmData.sequel_parent_id || ''} onValueChange={v => {
+                  const parent = myFilmsForSequel.find(f => f.id === v);
+                  setFilmData({...filmData, sequel_parent_id: v, genre: parent?.genre || filmData.genre});
+                }}>
+                  <SelectTrigger className="h-9 bg-black/30 border-white/10">
+                    <SelectValue placeholder={language === 'it' ? 'Seleziona...' : 'Select...'} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A1A1A] max-h-[200px]">
+                    {myFilmsForSequel.map(f => (
+                      <SelectItem key={f.id} value={f.id} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <span>{f.full_title}</span>
+                          <Badge className={`text-[8px] ${f.film_tier === 'masterpiece' ? 'bg-yellow-500/20 text-yellow-400' : f.film_tier === 'possible_flop' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20'}`}>
+                            Q:{f.quality_score}
+                          </Badge>
+                          {f.sequel_count > 0 && <span className="text-[9px] text-gray-400">({f.sequel_count} sequel)</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Nessun film disponibile. Crea prima un film.' : 'No films available. Create a film first.'}</p>
+              )}
+              
+              {filmData.sequel_parent_id && (
+                <div className="text-xs bg-black/30 rounded p-2">
+                  {(() => {
+                    const parent = myFilmsForSequel.find(f => f.id === filmData.sequel_parent_id);
+                    if (!parent) return null;
+                    const bonus = parent.quality_score >= 70 ? '+' : parent.quality_score < 40 ? '-' : '±';
+                    const bonusColor = parent.quality_score >= 70 ? 'text-green-400' : parent.quality_score < 40 ? 'text-red-400' : 'text-yellow-400';
+                    return (
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className={`w-3 h-3 ${bonusColor}`} />
+                        <span className={bonusColor}>
+                          {language === 'it' 
+                            ? `Bonus sequel: ${bonus} (basato su qualità ${parent.quality_score})`
+                            : `Sequel bonus: ${bonus} (based on quality ${parent.quality_score})`}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
         <div>
           <Label className="text-xs">{t('genre')} *</Label>
-          <Select value={filmData.genre} onValueChange={v=>setFilmData({...filmData, genre:v, subgenres: []})}>
+          <Select value={filmData.genre} onValueChange={v=>setFilmData({...filmData, genre:v, subgenres: []})} disabled={filmData.is_sequel && filmData.sequel_parent_id}>
             <SelectTrigger className="h-9 bg-black/20 border-white/10"><SelectValue /></SelectTrigger>
             <SelectContent className="bg-[#1A1A1A] max-h-[200px]">
               {Object.entries(genres).map(([key, g])=><SelectItem key={key} value={key}>{g.name}</SelectItem>)}
             </SelectContent>
           </Select>
+          {filmData.is_sequel && filmData.sequel_parent_id && (
+            <p className="text-[10px] text-gray-500 mt-1">{language === 'it' ? 'Il genere è ereditato dal film originale' : 'Genre inherited from original film'}</p>
+          )}
         </div>
         {genres[filmData.genre] && (
           <div>
@@ -3171,10 +3281,13 @@ const PreEngagementPage = () => {
   const [negotiation, setNegotiation] = useState(null);
   
   // Create pre-film form
-  const [newPreFilm, setNewPreFilm] = useState({ title: '', genre: '', screenplay_draft: '' });
+  const [newPreFilm, setNewPreFilm] = useState({ title: '', subtitle: '', genre: '', screenplay_draft: '', is_sequel: false, sequel_parent_id: null });
+  const [myFilmsForPreSequel, setMyFilmsForPreSequel] = useState([]);
 
   useEffect(() => {
     loadData();
+    // Load films for sequel selection
+    api.get('/films/my/for-sequel').then(r=>setMyFilmsForPreSequel(r.data.films || [])).catch(()=>{});
   }, []);
 
   const loadData = async () => {
@@ -3219,12 +3332,21 @@ const PreEngagementPage = () => {
       toast.error(language === 'it' ? 'Compila tutti i campi' : 'Fill all fields');
       return;
     }
+    // Sequel validation
+    if (newPreFilm.is_sequel && !newPreFilm.subtitle) {
+      toast.error(language === 'it' ? 'Sottotitolo obbligatorio per i sequel' : 'Subtitle required for sequels');
+      return;
+    }
+    if (newPreFilm.is_sequel && !newPreFilm.sequel_parent_id) {
+      toast.error(language === 'it' ? 'Seleziona il film originale' : 'Select original film');
+      return;
+    }
     try {
       const res = await api.post('/pre-films', newPreFilm);
       if (res.data.success) {
         toast.success(res.data.message);
         setShowCreateModal(false);
-        setNewPreFilm({ title: '', genre: '', screenplay_draft: '' });
+        setNewPreFilm({ title: '', subtitle: '', genre: '', screenplay_draft: '', is_sequel: false, sequel_parent_id: null });
         loadData();
       }
     } catch (e) {
@@ -3514,7 +3636,7 @@ const PreEngagementPage = () => {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-[#1A1A1A] rounded-xl p-6 max-w-md w-full border border-white/10"
+            className="bg-[#1A1A1A] rounded-xl p-6 max-w-md w-full border border-white/10 max-h-[80vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <h2 className="font-['Bebas_Neue'] text-2xl mb-4">{language === 'it' ? 'Crea Pre-Film' : 'Create Pre-Film'}</h2>
@@ -3530,18 +3652,71 @@ const PreEngagementPage = () => {
                 />
               </div>
               
+              {/* Subtitle for sequels */}
+              <div>
+                <Label className="text-xs">{language === 'it' ? 'Sottotitolo' : 'Subtitle'} {newPreFilm.is_sequel && <span className="text-red-400">*</span>}</Label>
+                <Input 
+                  value={newPreFilm.subtitle} 
+                  onChange={e => setNewPreFilm({...newPreFilm, subtitle: e.target.value})}
+                  placeholder={language === 'it' ? 'es. "La Vendetta"...' : 'e.g. "The Revenge"...'}
+                  className="bg-black/30 border-white/10"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">{language === 'it' ? 'Opzionale. Obbligatorio per i sequel.' : 'Optional. Required for sequels.'}</p>
+              </div>
+              
+              {/* Sequel checkbox */}
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="prefilm-is-sequel" 
+                    checked={newPreFilm.is_sequel}
+                    onCheckedChange={(checked) => setNewPreFilm({...newPreFilm, is_sequel: checked, sequel_parent_id: checked ? newPreFilm.sequel_parent_id : null})}
+                  />
+                  <Label htmlFor="prefilm-is-sequel" className="text-sm cursor-pointer">
+                    {language === 'it' ? 'Questo è un sequel' : 'This is a sequel'}
+                  </Label>
+                </div>
+                
+                {newPreFilm.is_sequel && (
+                  <div className="pl-6 space-y-2">
+                    <Label className="text-xs">{language === 'it' ? 'Film originale' : 'Original film'} *</Label>
+                    {myFilmsForPreSequel.length > 0 ? (
+                      <select 
+                        value={newPreFilm.sequel_parent_id || ''} 
+                        onChange={e => {
+                          const parent = myFilmsForPreSequel.find(f => f.id === e.target.value);
+                          setNewPreFilm({...newPreFilm, sequel_parent_id: e.target.value, genre: parent?.genre || newPreFilm.genre});
+                        }}
+                        className="w-full h-9 rounded-md bg-black/30 border border-white/10 px-3 text-sm"
+                      >
+                        <option value="">{language === 'it' ? 'Seleziona...' : 'Select...'}</option>
+                        {myFilmsForPreSequel.map(f => (
+                          <option key={f.id} value={f.id}>{f.full_title} (Q:{f.quality_score})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'Nessun film disponibile' : 'No films available'}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <div>
                 <Label className="text-xs">{language === 'it' ? 'Genere' : 'Genre'}</Label>
                 <select 
                   value={newPreFilm.genre} 
                   onChange={e => setNewPreFilm({...newPreFilm, genre: e.target.value})}
                   className="w-full h-10 rounded-md bg-black/30 border border-white/10 px-3 text-sm"
+                  disabled={newPreFilm.is_sequel && newPreFilm.sequel_parent_id}
                 >
                   <option value="">{language === 'it' ? 'Seleziona genere...' : 'Select genre...'}</option>
                   {GENRES_LIST.map(g => (
                     <option key={g.id} value={g.id}>{language === 'it' ? g.nameIt : g.name}</option>
                   ))}
                 </select>
+                {newPreFilm.is_sequel && newPreFilm.sequel_parent_id && (
+                  <p className="text-[10px] text-gray-500 mt-1">{language === 'it' ? 'Genere ereditato' : 'Genre inherited'}</p>
+                )}
               </div>
               
               <div>

@@ -3,9 +3,30 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.059
+## Versione Attuale: v0.060
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.060 - Sistema Pre-Ingaggio Cast - 10/03/2026 (COMPLETATO)
+- **Pre-Film**: Crea bozza con titolo, genere e sceneggiatura (20-200 caratteri)
+  - Durata 20 giorni, poi l'idea diventa pubblica
+- **Pre-Ingaggio Cast**: Ingaggia Sceneggiatori, Registi, Musicisti, Attori prima di creare il film
+  - Anticipo 30% della fee concordata
+  - Sistema di rifiuto e rinegoziazione
+- **Rinegoziazione**: Dopo il rifiuto, 2 opzioni:
+  - Offerta libera
+  - Accetta la richiesta del cast
+  - Possibile rifiuto definitivo al secondo tentativo
+- **Rilascia Cast**: Penale variabile 10-60% basata su fama + tempo trascorso
+- **Board Idee Pubbliche**: Le bozze scadute diventano visibili ad altri produttori
+- **Menu aggiornato**: "Bozze & Pre-Ingaggi" nel menu laterale
+- **Nuovi Endpoint API**:
+  - `POST /api/pre-films` - Crea pre-film
+  - `GET /api/pre-films` - Lista pre-film
+  - `POST /api/pre-films/{id}/engage` - Pre-ingaggia cast
+  - `POST /api/negotiations/{id}/renegotiate` - Rinegozia
+  - `POST /api/pre-films/{id}/release` - Rilascia cast
+  - `POST /api/pre-films/{id}/convert` - Converti in film
 
 ### v0.059 - Recupero Password e Nickname - 10/03/2026 (COMPLETATO)
 - **Recupero Password via Email**: Link "Password dimenticata?" nella pagina login

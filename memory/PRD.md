@@ -3,27 +3,31 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.079
+## Versione Attuale: v0.080
 
 ## Funzionalità Implementate
 
-### v0.079 - Contest + Infrastructure Revenue + AI Mini-Games - 10/03/2026 (COMPLETATO)
-- **Rename Sfide → Contest**: Testo cambiato in tutte le 5 lingue (EN, IT, ES, FR, DE) e nell'UI Dashboard
-- **Fix Infrastructure Revenue**: Lo scheduler ora processa TUTTI i tipi di infrastruttura (cinema, drive_in, multiplex_small/medium/large, vip_cinema, production_studio, cinema_school, ecc.), non più solo `type: 'cinema'`. Frequenza aggiornata da 6h a 2h. Aggiunto reddito minimo garantito per livello
-- **AI Mini-Games**: Le domande sono ora generate da GPT-4o-mini ad ogni partita. Supportati tutti e 5 i tipi (trivia, guess_genre, director_match, box_office_bet, year_guess). Le domande già viste vengono tracciate e il prompt le esclude. Fallback alla pool statica in caso di errore AI
-- **Testing completo**: Backend 14/14 test passati, Frontend 100%
+### v0.080 - Poster & Trailer Gratuiti - 10/03/2026 (COMPLETATO)
+- **Locandina**: Generazione gratuita via loremflickr.com (immagini stock per genere). Fallback a picsum.photos
+- **Trailer**: Generazione gratuita via FFmpeg con effetto Ken Burns, sovrapposizioni testo (titolo, genere, cast, studio), fade in/out. ~3 secondi di elaborazione
+- Rimossi servizi a pagamento (gpt-image-1 per poster, Sora 2 per trailer)
+- Trailer supporta durate 4, 8 e 12 secondi in formato H.264 1280x720
+- Testing: Backend 12/13 passed (92%), Frontend Login/Dashboard/Create OK
 
-### v0.078 - GlobalPlayerPopup & Nickname Cliccabili - 10/03/2026 (COMPLETATO)
-- GlobalPlayerPopup si apre cliccando sul nickname di qualsiasi giocatore
-- ClickableNickname wrappa i nickname in: Leaderboard, Chat, Festivals, Friends, Challenges
-- Pannello Giocatori con lista online/offline nella navbar
+### v0.079 - Contest, Revenue Infrastruttura & Mini-Giochi AI (COMPLETATO)
+- Rename Sfide → Contest in tutte le lingue
+- Fix revenue infrastruttura: scheduler processa TUTTI i tipi
+- Mini-giochi con domande AI (GPT-4o-mini)
 
-### v0.077 e precedenti (vedi changelog)
+### v0.078 - GlobalPlayerPopup & Nickname Cliccabili (COMPLETATO)
+### v0.077 - Pannello Giocatori & Icona Amicizie (COMPLETATO)
+### v0.076 e precedenti (vedi changelog)
 
 ## Architettura
-- Backend: FastAPI + MongoDB (motor), ~14.7k righe server.py
+- Backend: FastAPI + MongoDB (motor), ~14.8k righe server.py
 - Frontend: React + TailwindCSS + Shadcn/UI, ~14.2k righe App.js
-- AI: OpenAI GPT-4o/GPT-4o-mini, Sora 2, TTS-1 (Emergent LLM Key)
+- AI: OpenAI GPT-4o/GPT-4o-mini (Emergent LLM Key) per testo e mini-giochi
+- Media: loremflickr.com (poster), FFmpeg (trailer), TTS-1 (audio)
 
 ## Backlog
 
@@ -31,8 +35,8 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 - [ ] **Refactoring Critico**: server.py e App.js monolitici (>14k righe ciascuno)
 
 ### P1 - Prossimi
-- [ ] **Completamento Gameplay Sfide/Contest**: matchmaking, combattimento automatico, calcolo skill, bonus/malus, classifiche
-- [ ] Bug mobile residui (nuove UI non testate su mobile)
+- [ ] **Completamento Gameplay Contest**: matchmaking, combattimento automatico, skill, classifiche
+- [ ] Bug mobile residui
 
 ### P2 - Futuri
 - [ ] Sistema Acquisto CineCoins (Stripe)
@@ -47,10 +51,10 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 ## Integrazioni 3rd Party
 - OpenAI GPT-4o (Text): Emergent LLM Key
 - OpenAI GPT-4o-mini (Mini-games AI): Emergent LLM Key
-- Sora 2 (Video/Trailer): Emergent LLM Key
+- loremflickr.com (Poster images): GRATUITO, nessuna chiave
+- FFmpeg (Trailer video): GRATUITO, installato a livello di sistema
 - OpenAI TTS-1 (Audio): Emergent LLM Key
 - Resend (Email): User API Key
-- FFmpeg: Sistema
 
 ## Credenziali Test
 - User 1: testpopup@test.com / Test1234!

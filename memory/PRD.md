@@ -30,6 +30,22 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
   - Badge vincitore con trofei animati
   - Wave audio animata durante riproduzione
   - Sottotitoli nella lingua scelta dal player
+- **Effetti Visivi Extra**:
+  - Confetti dorati da canvas-confetti (burst laterali + centrale)
+  - Spotlight animato con raggi di luce
+  - Particelle dorate fluttuanti
+  - Animazione pulse sui vincitori
+- **Sistema Fusi Orari**:
+  - Cerimonie sempre alle 21:30 ora locale del player
+  - Supporto 50+ timezone mondiali
+  - Rilevamento automatico timezone dal browser
+- **Notifiche Premiazione**:
+  - 6 ore prima: "📢 Cerimonia tra 6 ore!"
+  - 3 ore prima: "⏰ Cerimonia tra 3 ore!"
+  - 1 ora prima: "🔔 Cerimonia tra 1 ora!"
+  - Inizio: "🎬 Sta iniziando ORA!"
+  - Indicatore LIVE/countdown nell'header
+  - Polling ogni minuto
 - **Nuovi Endpoint API**:
   - `GET /api/festivals/{id}/live-ceremony` - Dati cerimonia live
   - `POST /api/festivals/ceremony/chat` - Invia messaggio in chat

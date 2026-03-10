@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, toast } from 'sonner';
+import confetti from 'canvas-confetti';
 import { 
   Film, Home, Users, MessageSquare, BarChart3, User, LogOut, Plus, Heart, 
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
@@ -175,13 +176,33 @@ const TopNavbar = () => {
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [majorInfo, setMajorInfo] = useState(null);
+  const [festivalNotifications, setFestivalNotifications] = useState([]);
+  const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
 
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
-  }, [api, user?.total_xp, location.pathname]);
+    
+    // Festival notifications polling
+    const fetchFestivalNotifications = () => {
+      api.get(`/festivals/notifications?timezone=${userTimezone}&language=${language}`)
+        .then(r => {
+          const notifs = r.data.notifications || [];
+          setFestivalNotifications(notifs);
+          // Show toast for starting ceremonies
+          notifs.filter(n => n.type === 'starting').forEach(n => {
+            toast.info(n.message, { duration: 10000 });
+          });
+        }).catch(() => {});
+    };
+    
+    fetchFestivalNotifications();
+    const interval = setInterval(fetchFestivalNotifications, 60000); // Check every minute
+    
+    return () => clearInterval(interval);
+  }, [api, user?.total_xp, location.pathname, userTimezone, language]);
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
@@ -284,6 +305,25 @@ const TopNavbar = () => {
               </span>
             )}
           </Button>
+          
+          {/* Festival Live Indicator */}
+          {festivalNotifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="relative h-8 px-2 text-yellow-400 hover:text-yellow-300 animate-pulse"
+              onClick={() => navigate('/festivals')}
+              data-testid="festival-live-btn"
+            >
+              <Tv className="w-4 h-4 mr-1" />
+              <span className="text-xs font-bold">
+                {festivalNotifications[0].type === 'starting' ? 'LIVE' : 
+                 festivalNotifications[0].type === '1_hour' ? '1h' :
+                 festivalNotifications[0].type === '3_hours' ? '3h' : '6h'}
+              </span>
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+            </Button>
+          )}
           
           {/* Friends Icon */}
           <Button
@@ -8991,6 +9031,64 @@ const FestivalsPage = () => {
   const [subtitleVisible, setSubtitleVisible] = useState(false);
   const [winnerName, setWinnerName] = useState('');
   const [categoryWon, setCategoryWon] = useState('');
+  const [showSpotlight, setShowSpotlight] = useState(false);
+
+  // Confetti effects for winner announcement
+  const fireConfetti = () => {
+    // Gold confetti burst from sides
+    const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFE4B5'];
+    
+    // Left side burst
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { x: 0, y: 0.6 },
+      colors: colors,
+      angle: 60
+    });
+    
+    // Right side burst
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { x: 1, y: 0.6 },
+      colors: colors,
+      angle: 120
+    });
+    
+    // Center celebration after small delay
+    setTimeout(() => {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { x: 0.5, y: 0.5 },
+        colors: colors,
+        startVelocity: 45,
+        gravity: 1.2
+      });
+    }, 500);
+    
+    // Star-shaped burst
+    setTimeout(() => {
+      const end = Date.now() + 1500;
+      const interval = setInterval(() => {
+        if (Date.now() > end) {
+          clearInterval(interval);
+          return;
+        }
+        confetti({
+          particleCount: 20,
+          spread: 360,
+          origin: { x: Math.random(), y: Math.random() - 0.2 },
+          colors: colors,
+          ticks: 100,
+          gravity: 0.8,
+          scalar: 1.2,
+          shapes: ['star']
+        });
+      }, 150);
+    }, 1000);
+  };
 
   const playAnnouncementAudio = (audioUrl, text, winner, category) => {
     if (audioRef.current) {
@@ -9003,15 +9101,24 @@ const FestivalsPage = () => {
     setWinnerName(winner);
     setCategoryWon(category);
     setSubtitleVisible(true);
+    setShowSpotlight(true);
+    
+    // Fire confetti when winner name is revealed (after ~2 seconds)
+    setTimeout(() => fireConfetti(), 2000);
+    
     audio.play();
     audio.onended = () => {
       setPlayingAudio(false);
       // Keep subtitle visible for 2 more seconds after audio ends
-      setTimeout(() => setSubtitleVisible(false), 2000);
+      setTimeout(() => {
+        setSubtitleVisible(false);
+        setShowSpotlight(false);
+      }, 2000);
     };
     audio.onerror = () => {
       setPlayingAudio(false);
       setSubtitleVisible(false);
+      setShowSpotlight(false);
     };
   };
 
@@ -9096,7 +9203,9 @@ const FestivalsPage = () => {
                   <CardContent>
                     <p className="text-gray-400 text-xs mb-3">{fest.description}</p>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">{language === 'it' ? 'Cerimonia' : 'Ceremony'}: {fest.ceremony_day || fest.next_date?.split('-')[2]}/{language === 'it' ? 'mese' : 'month'}</span>
+                      <span className="text-gray-500">
+                        {language === 'it' ? 'Cerimonia' : 'Ceremony'}: {fest.ceremony_day}/{language === 'it' ? 'mese' : 'month'} {language === 'it' ? 'alle' : 'at'} {fest.ceremony_time || '21:30'}
+                      </span>
                       <Badge variant="outline" className={fest.voting_type === 'player' ? 'border-purple-500 text-purple-400' : 'border-blue-500 text-blue-400'}>
                         {fest.voting_type === 'player' ? (language === 'it' ? 'Voto Giocatori' : 'Player Vote') : 'AI'}
                       </Badge>
@@ -9474,6 +9583,64 @@ const FestivalsPage = () => {
       {showLiveCeremony && liveCeremony && (
         <div className="fixed inset-0 bg-black/95 z-50 flex flex-col" onClick={closeLiveCeremony}>
           
+          {/* Spotlight Effect */}
+          {showSpotlight && (
+            <div className="fixed inset-0 z-[55] pointer-events-none overflow-hidden">
+              {/* Radial spotlight from top */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px]"
+                style={{
+                  background: 'radial-gradient(ellipse at center top, rgba(255,215,0,0.3) 0%, rgba(255,215,0,0.1) 30%, transparent 70%)',
+                }}
+              />
+              {/* Moving spotlight beams */}
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-0 left-1/4 w-32 h-[100vh] origin-top"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255,215,0,0.2) 0%, transparent 100%)',
+                  transform: 'rotate(-15deg)',
+                }}
+              />
+              <motion.div
+                animate={{ rotate: [0, -10, 10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                className="absolute top-0 right-1/4 w-32 h-[100vh] origin-top"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255,215,0,0.2) 0%, transparent 100%)',
+                  transform: 'rotate(15deg)',
+                }}
+              />
+              {/* Golden particles */}
+              {[...Array(20)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                  initial={{ 
+                    x: Math.random() * window.innerWidth, 
+                    y: -20,
+                    opacity: 0 
+                  }}
+                  animate={{ 
+                    y: window.innerHeight + 20,
+                    opacity: [0, 1, 1, 0],
+                    scale: [0.5, 1, 0.5]
+                  }}
+                  transition={{ 
+                    duration: 3 + Math.random() * 2,
+                    repeat: Infinity,
+                    delay: Math.random() * 2,
+                    ease: "linear"
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Subtitle Overlay */}
           {subtitleVisible && (
             <motion.div 

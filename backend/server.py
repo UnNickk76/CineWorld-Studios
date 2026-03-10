@@ -9133,6 +9133,61 @@ async def get_credits():
 
 # ==================== FILM FESTIVALS ====================
 
+# Ceremony time: 21:30 local time for each timezone
+CEREMONY_TIME_HOUR = 21
+CEREMONY_TIME_MINUTE = 30
+
+# Major timezone mappings for countries
+COUNTRY_TIMEZONES = {
+    'IT': 'Europe/Rome',
+    'US': 'America/New_York',
+    'GB': 'Europe/London',
+    'FR': 'Europe/Paris',
+    'DE': 'Europe/Berlin',
+    'ES': 'Europe/Madrid',
+    'JP': 'Asia/Tokyo',
+    'CN': 'Asia/Shanghai',
+    'AU': 'Australia/Sydney',
+    'BR': 'America/Sao_Paulo',
+    'IN': 'Asia/Kolkata',
+    'RU': 'Europe/Moscow',
+    'KR': 'Asia/Seoul',
+    'MX': 'America/Mexico_City',
+    'CA': 'America/Toronto',
+    'AR': 'America/Argentina/Buenos_Aires',
+    'NL': 'Europe/Amsterdam',
+    'BE': 'Europe/Brussels',
+    'CH': 'Europe/Zurich',
+    'AT': 'Europe/Vienna',
+    'PL': 'Europe/Warsaw',
+    'SE': 'Europe/Stockholm',
+    'NO': 'Europe/Oslo',
+    'DK': 'Europe/Copenhagen',
+    'FI': 'Europe/Helsinki',
+    'PT': 'Europe/Lisbon',
+    'GR': 'Europe/Athens',
+    'TR': 'Europe/Istanbul',
+    'IL': 'Asia/Jerusalem',
+    'AE': 'Asia/Dubai',
+    'SG': 'Asia/Singapore',
+    'HK': 'Asia/Hong_Kong',
+    'TW': 'Asia/Taipei',
+    'TH': 'Asia/Bangkok',
+    'VN': 'Asia/Ho_Chi_Minh',
+    'PH': 'Asia/Manila',
+    'ID': 'Asia/Jakarta',
+    'MY': 'Asia/Kuala_Lumpur',
+    'NZ': 'Pacific/Auckland',
+    'ZA': 'Africa/Johannesburg',
+    'EG': 'Africa/Cairo',
+    'NG': 'Africa/Lagos',
+    'KE': 'Africa/Nairobi',
+    'CL': 'America/Santiago',
+    'CO': 'America/Bogota',
+    'PE': 'America/Lima',
+    'VE': 'America/Caracas'
+}
+
 # Festival definitions with translations
 FESTIVALS = {
     'golden_stars': {
@@ -9140,6 +9195,7 @@ FESTIVALS = {
         'voting_type': 'player',  # Main festival - player votes
         'prestige': 3,  # Highest prestige
         'day_of_month': [10],  # Day 10 of each month
+        'ceremony_time': {'hour': 21, 'minute': 30},
         'rewards': {'xp': 500, 'fame': 50, 'money': 100000},
         'names': {
             'en': 'Golden Stars Awards',
@@ -9161,6 +9217,7 @@ FESTIVALS = {
         'voting_type': 'ai',  # AI managed
         'prestige': 2,
         'day_of_month': [20],  # Day 20 of each month
+        'ceremony_time': {'hour': 21, 'minute': 30},
         'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
         'names': {
             'en': 'Spotlight Awards',
@@ -9182,6 +9239,7 @@ FESTIVALS = {
         'voting_type': 'ai',  # AI managed
         'prestige': 2,
         'day_of_month': [30, 28],  # Day 30 (28 for February)
+        'ceremony_time': {'hour': 21, 'minute': 30},
         'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
         'names': {
             'en': 'Cinema Excellence Awards',
@@ -9308,6 +9366,9 @@ async def get_festivals(language: str = 'en'):
         # Check if today is a festival day
         is_active = current_day == festival_day
         
+        # Get ceremony time
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        
         festivals_data.append({
             'id': fest_id,
             'name': fest['names'].get(language, fest['names']['en']),
@@ -9318,6 +9379,7 @@ async def get_festivals(language: str = 'en'):
             'next_date': next_date,
             'is_active': is_active,
             'ceremony_day': festival_day,
+            'ceremony_time': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
             'categories': [
                 {'id': cat_id, 'name': cat['names'].get(language, cat['names']['en'])}
                 for cat_id, cat in AWARD_CATEGORIES.items()
@@ -9726,6 +9788,205 @@ async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_u
         stats['by_category'][cid] = stats['by_category'].get(cid, 0) + 1
     
     return {'awards': awards, 'stats': stats}
+
+# ==================== TIMEZONE & CEREMONY NOTIFICATIONS ====================
+
+import pytz
+
+@api_router.get("/festivals/ceremony-times")
+async def get_ceremony_times(timezone: str = 'Europe/Rome', language: str = 'en'):
+    """Get ceremony times for all festivals in the user's timezone."""
+    try:
+        user_tz = pytz.timezone(timezone)
+    except:
+        user_tz = pytz.timezone('Europe/Rome')
+    
+    now_utc = datetime.now(pytz.UTC)
+    now_local = now_utc.astimezone(user_tz)
+    current_day = now_local.day
+    current_month = now_local.month
+    current_year = now_local.year
+    
+    import calendar
+    
+    def get_festival_day_for_month(days_list, month, year):
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]
+    
+    ceremonies = []
+    for fest_id, fest in FESTIVALS.items():
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        
+        # Get the day for this month
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        # Create ceremony datetime in user's timezone
+        ceremony_dt_local = user_tz.localize(datetime(
+            current_year, current_month, festival_day,
+            ceremony_time['hour'], ceremony_time['minute'], 0
+        ))
+        
+        # If ceremony already passed this month, get next month
+        if ceremony_dt_local < now_local:
+            next_month = current_month + 1 if current_month < 12 else 1
+            next_year = current_year if next_month > current_month else current_year + 1
+            festival_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+            ceremony_dt_local = user_tz.localize(datetime(
+                next_year, next_month, festival_day,
+                ceremony_time['hour'], ceremony_time['minute'], 0
+            ))
+        
+        # Calculate time until ceremony
+        time_until = ceremony_dt_local - now_local
+        hours_until = time_until.total_seconds() / 3600
+        
+        ceremonies.append({
+            'festival_id': fest_id,
+            'festival_name': fest['names'].get(language, fest['names']['en']),
+            'ceremony_datetime_local': ceremony_dt_local.strftime('%Y-%m-%d %H:%M'),
+            'ceremony_datetime_utc': ceremony_dt_local.astimezone(pytz.UTC).isoformat(),
+            'time_display': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+            'hours_until': round(hours_until, 1),
+            'is_today': festival_day == current_day and ceremony_dt_local.month == now_local.month,
+            'is_starting_soon': 0 < hours_until <= 1,
+            'is_live': -2 < hours_until <= 0,
+            'notification_status': 'starting' if 0 < hours_until <= 1 else '1_hour' if 1 < hours_until <= 1.5 else '3_hours' if 3 < hours_until <= 3.5 else '6_hours' if 6 < hours_until <= 6.5 else None
+        })
+    
+    return {
+        'timezone': timezone,
+        'current_time_local': now_local.strftime('%Y-%m-%d %H:%M'),
+        'ceremonies': sorted(ceremonies, key=lambda x: x['hours_until'])
+    }
+
+@api_router.get("/festivals/notifications")
+async def get_festival_notifications(timezone: str = 'Europe/Rome', language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get pending ceremony notifications for the user."""
+    try:
+        user_tz = pytz.timezone(timezone)
+    except:
+        user_tz = pytz.timezone('Europe/Rome')
+    
+    now_utc = datetime.now(pytz.UTC)
+    now_local = now_utc.astimezone(user_tz)
+    current_day = now_local.day
+    current_month = now_local.month
+    current_year = now_local.year
+    
+    import calendar
+    
+    def get_festival_day_for_month(days_list, month, year):
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]
+    
+    notifications = []
+    
+    for fest_id, fest in FESTIVALS.items():
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        ceremony_dt_local = user_tz.localize(datetime(
+            current_year, current_month, festival_day,
+            ceremony_time['hour'], ceremony_time['minute'], 0
+        ))
+        
+        if ceremony_dt_local < now_local:
+            continue  # Already passed
+        
+        time_until = ceremony_dt_local - now_local
+        hours_until = time_until.total_seconds() / 3600
+        
+        # Generate notifications based on time
+        notification_messages = {
+            'en': {
+                '6_hours': f"📢 {fest['names']['en']} ceremony in 6 hours!",
+                '3_hours': f"⏰ {fest['names']['en']} ceremony in 3 hours!",
+                '1_hour': f"🔔 {fest['names']['en']} ceremony in 1 hour!",
+                'starting': f"🎬 {fest['names']['en']} is starting NOW!"
+            },
+            'it': {
+                '6_hours': f"📢 Cerimonia {fest['names']['it']} tra 6 ore!",
+                '3_hours': f"⏰ Cerimonia {fest['names']['it']} tra 3 ore!",
+                '1_hour': f"🔔 Cerimonia {fest['names']['it']} tra 1 ora!",
+                'starting': f"🎬 {fest['names']['it']} sta iniziando ORA!"
+            },
+            'es': {
+                '6_hours': f"📢 ¡Ceremonia {fest['names']['es']} en 6 horas!",
+                '3_hours': f"⏰ ¡Ceremonia {fest['names']['es']} en 3 horas!",
+                '1_hour': f"🔔 ¡Ceremonia {fest['names']['es']} en 1 hora!",
+                'starting': f"🎬 ¡{fest['names']['es']} está comenzando AHORA!"
+            }
+        }
+        
+        notif_type = None
+        if 5.5 <= hours_until <= 6.5:
+            notif_type = '6_hours'
+        elif 2.5 <= hours_until <= 3.5:
+            notif_type = '3_hours'
+        elif 0.5 <= hours_until <= 1.5:
+            notif_type = '1_hour'
+        elif 0 <= hours_until <= 0.5:
+            notif_type = 'starting'
+        
+        if notif_type:
+            lang_msgs = notification_messages.get(language, notification_messages['en'])
+            notifications.append({
+                'festival_id': fest_id,
+                'type': notif_type,
+                'message': lang_msgs.get(notif_type),
+                'ceremony_time': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+                'hours_until': round(hours_until, 1),
+                'priority': {'starting': 4, '1_hour': 3, '3_hours': 2, '6_hours': 1}.get(notif_type, 0)
+            })
+    
+    return {'notifications': sorted(notifications, key=lambda x: -x['priority'])}
+
+@api_router.post("/users/set-timezone")
+async def set_user_timezone(timezone: str, user: dict = Depends(get_current_user)):
+    """Save user's preferred timezone."""
+    try:
+        pytz.timezone(timezone)  # Validate
+    except:
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'timezone': timezone}}
+    )
+    return {'success': True, 'timezone': timezone}
+
+@api_router.get("/timezones")
+async def get_available_timezones():
+    """Get list of available timezones grouped by region."""
+    common_timezones = [
+        {'id': 'Europe/Rome', 'name': '🇮🇹 Italia (Roma)', 'offset': '+01:00'},
+        {'id': 'Europe/London', 'name': '🇬🇧 UK (Londra)', 'offset': '+00:00'},
+        {'id': 'America/New_York', 'name': '🇺🇸 USA (New York)', 'offset': '-05:00'},
+        {'id': 'America/Los_Angeles', 'name': '🇺🇸 USA (Los Angeles)', 'offset': '-08:00'},
+        {'id': 'America/Chicago', 'name': '🇺🇸 USA (Chicago)', 'offset': '-06:00'},
+        {'id': 'Europe/Paris', 'name': '🇫🇷 Francia (Parigi)', 'offset': '+01:00'},
+        {'id': 'Europe/Berlin', 'name': '🇩🇪 Germania (Berlino)', 'offset': '+01:00'},
+        {'id': 'Europe/Madrid', 'name': '🇪🇸 Spagna (Madrid)', 'offset': '+01:00'},
+        {'id': 'Asia/Tokyo', 'name': '🇯🇵 Giappone (Tokyo)', 'offset': '+09:00'},
+        {'id': 'Asia/Shanghai', 'name': '🇨🇳 Cina (Shanghai)', 'offset': '+08:00'},
+        {'id': 'Asia/Dubai', 'name': '🇦🇪 UAE (Dubai)', 'offset': '+04:00'},
+        {'id': 'Australia/Sydney', 'name': '🇦🇺 Australia (Sydney)', 'offset': '+11:00'},
+        {'id': 'America/Sao_Paulo', 'name': '🇧🇷 Brasile (São Paulo)', 'offset': '-03:00'},
+        {'id': 'Asia/Singapore', 'name': '🇸🇬 Singapore', 'offset': '+08:00'},
+        {'id': 'Asia/Hong_Kong', 'name': '🇭🇰 Hong Kong', 'offset': '+08:00'},
+        {'id': 'Europe/Moscow', 'name': '🇷🇺 Russia (Mosca)', 'offset': '+03:00'},
+        {'id': 'Asia/Seoul', 'name': '🇰🇷 Corea del Sud (Seul)', 'offset': '+09:00'},
+        {'id': 'Asia/Kolkata', 'name': '🇮🇳 India (Mumbai)', 'offset': '+05:30'},
+        {'id': 'America/Mexico_City', 'name': '🇲🇽 Messico', 'offset': '-06:00'},
+        {'id': 'America/Toronto', 'name': '🇨🇦 Canada (Toronto)', 'offset': '-05:00'},
+    ]
+    return {'timezones': common_timezones}
 
 # ==================== LIVE CEREMONY & CHAT ====================
 

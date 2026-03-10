@@ -7932,6 +7932,21 @@ async def startup_event():
         replace_existing=True
     )
     
+    # Daily at 04:00 UTC: Cleanup expired ceremony videos (older than 3 days)
+    async def cleanup_videos_task():
+        try:
+            from video_generator import cleanup_old_videos
+            await cleanup_old_videos(db, days=3)
+        except Exception as e:
+            logging.error(f"Video cleanup error: {e}")
+    
+    scheduler.add_job(
+        cleanup_videos_task,
+        CronTrigger(hour=4, minute=0),
+        id='cleanup_ceremony_videos',
+        replace_existing=True
+    )
+    
     # Start the scheduler
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
@@ -10778,6 +10793,189 @@ async def announce_winner_with_audio(festival_id: str, category_id: str, languag
         'announcement_text': announcement_texts,
         'audio': audio_data
     }
+
+# ==================== CEREMONY VIDEO GENERATION & DOWNLOAD ====================
+from video_generator import generate_ceremony_video, cleanup_old_videos
+from fastapi.responses import FileResponse
+import aiofiles
+
+# Video storage directory
+VIDEO_STORAGE_DIR = '/app/backend/videos'
+os.makedirs(VIDEO_STORAGE_DIR, exist_ok=True)
+
+@api_router.post("/festivals/{festival_id}/generate-ceremony-video")
+async def generate_festival_ceremony_video(festival_id: str, language: str = 'it', user: dict = Depends(get_current_user)):
+    """Generate a video recap of the ceremony after all winners are announced."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Check if all categories have been announced
+    categories = edition.get('categories', [])
+    all_announced = all(cat.get('is_announced', False) for cat in categories)
+    
+    if not all_announced:
+        raise HTTPException(status_code=400, detail="Non tutti i vincitori sono stati annunciati")
+    
+    # Check if video already exists
+    existing_video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if existing_video:
+        return {
+            'success': True,
+            'video': existing_video,
+            'message': 'Video già generato'
+        }
+    
+    # Generate audio clips for each winner
+    audio_clips = []
+    festival = FESTIVALS.get(festival_id, {})
+    festival_name = festival.get('names', {}).get(language, festival_id)
+    
+    for cat in categories:
+        winner = cat.get('winner', {})
+        cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+        category_name = cat_def.get('names', {}).get(language, cat['category_id'])
+        
+        announcement_text = {
+            'it': f"Il premio {category_name} va a {winner.get('name', 'sconosciuto')}! Per il film {winner.get('film_title', '')}.",
+            'en': f"The {category_name} goes to {winner.get('name', 'unknown')}! For the film {winner.get('film_title', '')}."
+        }.get(language, f"The {category_name} goes to {winner.get('name', 'unknown')}!")
+        
+        # Generate TTS
+        if EMERGENT_LLM_KEY:
+            try:
+                from emergentintegrations.llm.openai import OpenAITextToSpeech
+                voice_map = {'it': 'nova', 'en': 'onyx', 'es': 'coral', 'fr': 'shimmer', 'de': 'echo'}
+                tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+                audio_base64 = await tts.generate_speech_base64(
+                    text=announcement_text,
+                    model="tts-1",
+                    voice=voice_map.get(language, 'onyx'),
+                    speed=0.85
+                )
+                audio_clips.append({
+                    'audio_base64': audio_base64,
+                    'text': announcement_text,
+                    'winner_name': winner.get('name'),
+                    'category_name': category_name
+                })
+            except Exception as e:
+                logging.error(f"TTS error for video: {e}")
+    
+    if not audio_clips:
+        raise HTTPException(status_code=500, detail="Impossibile generare audio per il video")
+    
+    # Generate video
+    video_id = str(uuid.uuid4())
+    video_filename = f"ceremony_{edition_id}_{video_id}.mp4"
+    video_path = os.path.join(VIDEO_STORAGE_DIR, video_filename)
+    
+    ceremony_data = {
+        'festival_id': festival_id,
+        'festival_name': festival_name,
+        'edition_id': edition_id,
+        'categories': [{'name': c.get('category_name'), 'winner': c.get('winner', {}).get('name')} for c in categories]
+    }
+    
+    result = await generate_ceremony_video(ceremony_data, audio_clips, video_path, language)
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Generazione video fallita")
+    
+    # Save video info to database
+    video_info = {
+        'id': video_id,
+        'edition_id': edition_id,
+        'festival_id': festival_id,
+        'festival_name': festival_name,
+        'video_path': video_path,
+        'video_filename': video_filename,
+        'duration_seconds': len(audio_clips) * 8,  # Estimate
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        'download_count': 0
+    }
+    await db.ceremony_videos.insert_one(video_info)
+    
+    return {
+        'success': True,
+        'video': {k: v for k, v in video_info.items() if k != '_id'},
+        'message': 'Video generato con successo'
+    }
+
+@api_router.get("/festivals/{festival_id}/ceremony-video")
+async def get_ceremony_video_info(festival_id: str, user: dict = Depends(get_current_user)):
+    """Get ceremony video info if available."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if not video:
+        return {'available': False}
+    
+    # Check if expired
+    expires_at = datetime.fromisoformat(video.get('expires_at', '2000-01-01').replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        return {'available': False, 'expired': True}
+    
+    return {
+        'available': True,
+        'video': video
+    }
+
+@api_router.get("/festivals/{festival_id}/ceremony-video/download")
+async def download_ceremony_video(festival_id: str, user: dict = Depends(get_current_user)):
+    """Download the ceremony video file."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if not video:
+        raise HTTPException(status_code=404, detail="Video non disponibile")
+    
+    video_path = video.get('video_path')
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="File video non trovato")
+    
+    # Increment download count
+    await db.ceremony_videos.update_one(
+        {'id': video['id']},
+        {'$inc': {'download_count': 1}}
+    )
+    
+    return FileResponse(
+        video_path,
+        media_type='video/mp4',
+        filename=f"ceremony_{festival_id}.mp4"
+    )
+
+@api_router.get("/films/{film_id}/trailer/download")
+async def download_film_trailer(film_id: str, user: dict = Depends(get_current_user)):
+    """Download film trailer if available."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    trailer_url = film.get('trailer_url')
+    trailer_path = film.get('trailer_path')
+    
+    # If trailer is stored locally
+    if trailer_path and os.path.exists(trailer_path):
+        return FileResponse(
+            trailer_path,
+            media_type='video/mp4',
+            filename=f"trailer_{film.get('title', 'film')}.mp4"
+        )
+    
+    # If trailer is a URL, redirect to it
+    if trailer_url:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=trailer_url)
+    
+    raise HTTPException(status_code=404, detail="Trailer non disponibile")
 
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 

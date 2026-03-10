@@ -4988,7 +4988,27 @@ const FilmDetail = () => {
                       Il tuo browser non supporta i video.
                     </video>
                   </div>
-                  <p className="text-xs text-green-400 text-center">Trailer generato! Il tuo film ha ricevuto +5 bonus qualità.</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-green-400">Trailer generato! Il tuo film ha ricevuto +5 bonus qualità.</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-500/50 text-purple-400 hover:bg-purple-500/20"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = `${BACKEND_URL}/api/films/${film.id}/trailer/download`;
+                        link.download = `trailer_${film.title || 'film'}.mp4`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        toast.success(language === 'it' ? 'Download trailer avviato!' : 'Trailer download started!');
+                      }}
+                      data-testid="download-trailer-btn"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      {language === 'it' ? 'Scarica' : 'Download'}
+                    </Button>
+                  </div>
                 </div>
               ) : trailerStatus?.generating || generatingTrailer ? (
                 <div className="text-center py-8 space-y-3">
@@ -8913,6 +8933,46 @@ const FestivalsPage = () => {
   const [winnerName, setWinnerName] = useState('');
   const [categoryWon, setCategoryWon] = useState('');
   const [showSpotlight, setShowSpotlight] = useState(false);
+  
+  // Ceremony video state
+  const [ceremonyVideo, setCeremonyVideo] = useState(null);
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+
+  // Check for ceremony video availability
+  useEffect(() => {
+    if (selectedFestival) {
+      api.get(`/festivals/${selectedFestival}/ceremony-video`)
+        .then(res => setCeremonyVideo(res.data))
+        .catch(() => setCeremonyVideo(null));
+    }
+  }, [selectedFestival, api]);
+
+  // Generate ceremony video
+  const generateCeremonyVideo = async () => {
+    if (!selectedFestival) return;
+    setGeneratingVideo(true);
+    try {
+      const res = await api.post(`/festivals/${selectedFestival}/generate-ceremony-video?language=${language}`);
+      setCeremonyVideo({ available: true, video: res.data.video });
+      toast.success(language === 'it' ? 'Video generato!' : 'Video generated!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore generazione video');
+    } finally {
+      setGeneratingVideo(false);
+    }
+  };
+
+  // Download ceremony video
+  const downloadCeremonyVideo = () => {
+    if (!selectedFestival) return;
+    const link = document.createElement('a');
+    link.href = `${process.env.REACT_APP_BACKEND_URL}/api/festivals/${selectedFestival}/ceremony-video/download`;
+    link.download = `ceremony_${selectedFestival}.mp4`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(language === 'it' ? 'Download avviato!' : 'Download started!');
+  };
 
   // Confetti effects for winner announcement
   const fireConfetti = () => {
@@ -9768,6 +9828,51 @@ const FestivalsPage = () => {
                     </Card>
                   ))}
                 </div>
+
+                {/* Video Generation Section - Shown when all categories are announced */}
+                {liveCeremony.categories?.every(cat => cat.is_announced) && (
+                  <Card className="mt-4 bg-gradient-to-r from-yellow-500/10 to-purple-500/10 border-yellow-500/30">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="text-center sm:text-left">
+                          <h3 className="font-semibold text-yellow-400 flex items-center gap-2 justify-center sm:justify-start">
+                            <Film className="w-5 h-5" />
+                            {language === 'it' ? 'Video Riassuntivo Cerimonia' : 'Ceremony Recap Video'}
+                          </h3>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {ceremonyVideo?.available 
+                              ? (language === 'it' ? 'Video disponibile per 3 giorni' : 'Video available for 3 days')
+                              : (language === 'it' ? 'Genera un video con tutti i vincitori' : 'Generate a video with all winners')
+                            }
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {!ceremonyVideo?.available ? (
+                            <Button
+                              onClick={generateCeremonyVideo}
+                              disabled={generatingVideo}
+                              className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                            >
+                              {generatingVideo ? (
+                                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />{language === 'it' ? 'Generando...' : 'Generating...'}</>
+                              ) : (
+                                <><Film className="w-4 h-4 mr-2" />{language === 'it' ? 'Genera Video' : 'Generate Video'}</>
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={downloadCeremonyVideo}
+                              className="bg-green-500 hover:bg-green-600 text-white"
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              {language === 'it' ? 'Scarica Video' : 'Download Video'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
 

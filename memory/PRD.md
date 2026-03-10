@@ -3,9 +3,31 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.063
+## Versione Attuale: v0.064
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.064 - Festival System Update & Cinema Revenue - 10/03/2026 (COMPLETATO)
+- **Date Festival Aggiornate**:
+  - Golden Stars Awards: Giorno 10 del mese
+  - Spotlight Awards: Giorno 20 del mese
+  - Cinema Excellence Awards: Giorno 30 (28 per febbraio)
+- **Cerimonia Live con Chat Pubblica**:
+  - Nuovo modale per visualizzare la cerimonia in diretta
+  - Chat pubblica in tempo reale per commentare
+  - Sistema di "Papabili" vincitori con probabilità calcolate
+  - Indicatore viewers count
+  - Rate limiting sulla chat (1 messaggio ogni 5 secondi)
+- **Nuovi Endpoint API**:
+  - `GET /api/festivals/{id}/live-ceremony` - Dati cerimonia live
+  - `POST /api/festivals/ceremony/chat` - Invia messaggio in chat
+  - `POST /api/festivals/{id}/join-ceremony` - Unisciti come spettatore
+  - `POST /api/festivals/{id}/announce-winner/{category}` - Annuncia vincitore
+- **Campo Composer nei Film**: Aggiunto `composer_id` al modello FilmCreate per nomination soundtrack
+- **Fix Cinema Revenue**: Sistemato il calcolo dei profitti dei cinema nelle infrastrutture
+  - Revenue basata su popolazione città, livello cinema, qualità film
+  - Minimo garantito per livello
+  - Logging migliorato
 
 ### v0.063 - Sistema Sottotitoli e Sequel - 10/03/2026 (COMPLETATO)
 - **Campo Sottotitolo**: Aggiunto campo opzionale `subtitle` nella creazione di Film e Pre-Film

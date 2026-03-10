@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, toast } from 'sonner';
@@ -12,7 +12,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail
+  KeyRound, AlertCircle, Mail, Tv
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -8779,6 +8779,12 @@ const FestivalsPage = () => {
   const [myFilms, setMyFilms] = useState([]);
   const [selectedFilmIds, setSelectedFilmIds] = useState([]);
   const [participating, setParticipating] = useState(false);
+  // Live Ceremony states
+  const [liveCeremony, setLiveCeremony] = useState(null);
+  const [showLiveCeremony, setShowLiveCeremony] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatRefreshInterval = useRef(null);
 
   const periodLabels = {
     'monthly': language === 'it' ? 'Questo Mese' : language === 'es' ? 'Este Mes' : 'This Month',
@@ -8921,6 +8927,62 @@ const FestivalsPage = () => {
     }
   };
 
+  // Live Ceremony functions
+  const loadLiveCeremony = async (festivalId) => {
+    try {
+      const res = await api.get(`/festivals/${festivalId}/live-ceremony?language=${language}`);
+      setLiveCeremony(res.data);
+      // Join as viewer
+      await api.post(`/festivals/${festivalId}/join-ceremony`);
+    } catch (e) {
+      console.error('Error loading live ceremony:', e);
+    }
+  };
+
+  const openLiveCeremony = (festival) => {
+    setSelectedFestival(festival.id);
+    loadLiveCeremony(festival.id);
+    setShowLiveCeremony(true);
+    // Start chat refresh interval
+    chatRefreshInterval.current = setInterval(() => {
+      loadLiveCeremony(festival.id);
+    }, 5000);
+  };
+
+  const closeLiveCeremony = () => {
+    setShowLiveCeremony(false);
+    setLiveCeremony(null);
+    if (chatRefreshInterval.current) {
+      clearInterval(chatRefreshInterval.current);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatMessage.trim() || !liveCeremony) return;
+    setSendingChat(true);
+    try {
+      await api.post('/festivals/ceremony/chat', {
+        festival_id: liveCeremony.festival_id,
+        edition_id: liveCeremony.edition_id,
+        message: chatMessage
+      });
+      setChatMessage('');
+      loadLiveCeremony(liveCeremony.festival_id);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore invio messaggio');
+    } finally {
+      setSendingChat(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (chatRefreshInterval.current) {
+        clearInterval(chatRefreshInterval.current);
+      }
+    };
+  }, []);
+
   const getPrestigeStars = (prestige) => '⭐'.repeat(prestige);
 
   return (
@@ -8959,12 +9021,23 @@ const FestivalsPage = () => {
                       <CardTitle className="font-['Bebas_Neue'] text-lg text-yellow-400">{fest.name}</CardTitle>
                       <span className="text-lg">{getPrestigeStars(fest.prestige)}</span>
                     </div>
-                    {fest.is_active && <Badge className="bg-green-500/20 text-green-400 w-fit">{language === 'it' ? 'IN CORSO' : 'ACTIVE'}</Badge>}
+                    {fest.is_active && (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-500/20 text-green-400 w-fit">{language === 'it' ? 'IN CORSO' : 'ACTIVE'}</Badge>
+                        <Button 
+                          size="sm" 
+                          onClick={(e) => { e.stopPropagation(); openLiveCeremony(fest); }}
+                          className="bg-red-500 hover:bg-red-600 text-white text-xs h-6 px-2"
+                        >
+                          <Tv className="w-3 h-3 mr-1" />{language === 'it' ? 'LIVE' : 'LIVE'}
+                        </Button>
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <p className="text-gray-400 text-xs mb-3">{fest.description}</p>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">{language === 'it' ? 'Prossimo' : 'Next'}: {fest.next_date}</span>
+                      <span className="text-gray-500">{language === 'it' ? 'Cerimonia' : 'Ceremony'}: {fest.ceremony_day || fest.next_date?.split('-')[2]}/{language === 'it' ? 'mese' : 'month'}</span>
                       <Badge variant="outline" className={fest.voting_type === 'player' ? 'border-purple-500 text-purple-400' : 'border-blue-500 text-blue-400'}>
                         {fest.voting_type === 'player' ? (language === 'it' ? 'Voto Giocatori' : 'Player Vote') : 'AI'}
                       </Badge>
@@ -9335,6 +9408,134 @@ const FestivalsPage = () => {
               )}
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Live Ceremony Modal */}
+      {showLiveCeremony && liveCeremony && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex flex-col" onClick={closeLiveCeremony}>
+          <div className="flex-1 overflow-hidden flex" onClick={e => e.stopPropagation()}>
+            {/* Main ceremony area */}
+            <div className="flex-1 p-4 overflow-y-auto">
+              <div className="max-w-4xl mx-auto">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h1 className="font-['Bebas_Neue'] text-3xl text-yellow-400 flex items-center gap-2">
+                      <Tv className="w-8 h-8" />
+                      {liveCeremony.festival_name}
+                    </h1>
+                    <p className="text-gray-400 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                      LIVE • {liveCeremony.viewers_count} {language === 'it' ? 'spettatori' : 'viewers'}
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={closeLiveCeremony}>
+                    <X className="w-4 h-4 mr-1" />{language === 'it' ? 'Chiudi' : 'Close'}
+                  </Button>
+                </div>
+
+                {/* Categories with odds/papabili */}
+                <div className="space-y-4">
+                  {liveCeremony.categories?.map((cat, idx) => (
+                    <Card key={cat.category_id} className={`bg-[#1A1A1A] border-white/10 ${cat.is_announced ? 'border-yellow-500/50' : ''}`}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                            <Award className="w-5 h-5 text-yellow-500" />
+                            {cat.category_name}
+                          </CardTitle>
+                          {cat.is_announced ? (
+                            <Badge className="bg-yellow-500 text-black">{language === 'it' ? 'VINCITORE' : 'WINNER'}</Badge>
+                          ) : cat.favorite && (
+                            <Badge className="bg-purple-500/20 text-purple-400">
+                              {language === 'it' ? 'Papabile' : 'Favorite'}: {cat.favorite.name} ({cat.favorite.win_probability}%)
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-2">
+                          {cat.nominees?.map(nom => (
+                            <div 
+                              key={nom.id} 
+                              className={`flex items-center gap-3 p-2 rounded ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500' : 'bg-white/5'}`}
+                            >
+                              <div className="flex-1">
+                                <p className={`font-medium ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
+                                  {nom.name}
+                                  {cat.winner?.id === nom.id && <Trophy className="w-4 h-4 inline ml-2 text-yellow-500" />}
+                                </p>
+                                {nom.film_title && <p className="text-xs text-gray-400">{nom.film_title}</p>}
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold" style={{color: `hsl(${nom.win_probability * 1.2}, 70%, 50%)`}}>
+                                  {nom.win_probability}%
+                                </div>
+                                <div className="text-xs text-gray-500">{nom.votes} {language === 'it' ? 'voti' : 'votes'}</div>
+                              </div>
+                              {/* Win probability bar */}
+                              <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-purple-500 to-yellow-500 transition-all"
+                                  style={{width: `${nom.win_probability}%`}}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Chat sidebar */}
+            <div className="w-80 bg-[#0D0D0D] border-l border-white/10 flex flex-col">
+              <div className="p-3 border-b border-white/10">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  {language === 'it' ? 'Chat Live' : 'Live Chat'}
+                </h3>
+              </div>
+              
+              {/* Chat messages */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {liveCeremony.chat_messages?.map(msg => (
+                  <div key={msg.id} className="text-sm">
+                    <span className="font-semibold text-yellow-400">{msg.nickname}:</span>
+                    <span className="text-gray-300 ml-1">{msg.message}</span>
+                  </div>
+                ))}
+                {(!liveCeremony.chat_messages || liveCeremony.chat_messages.length === 0) && (
+                  <p className="text-gray-500 text-center text-sm">{language === 'it' ? 'Nessun messaggio ancora' : 'No messages yet'}</p>
+                )}
+              </div>
+              
+              {/* Chat input */}
+              <div className="p-3 border-t border-white/10">
+                <div className="flex gap-2">
+                  <Input 
+                    value={chatMessage}
+                    onChange={e => setChatMessage(e.target.value)}
+                    placeholder={language === 'it' ? 'Scrivi un messaggio...' : 'Type a message...'}
+                    className="flex-1 bg-white/5 border-white/10 text-sm h-8"
+                    maxLength={200}
+                    onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={sendChatMessage} 
+                    disabled={sendingChat || !chatMessage.trim()}
+                    className="bg-yellow-500 text-black h-8"
+                  >
+                    <Send className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

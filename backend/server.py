@@ -1267,6 +1267,7 @@ class FilmCreate(BaseModel):
     location_days: Dict[str, int]
     screenwriter_id: str
     director_id: str
+    composer_id: Optional[str] = None  # Composer for soundtrack
     actors: List[Dict[str, str]]  # Each actor has {id, role}
     extras_count: int
     extras_cost: float
@@ -3960,6 +3961,11 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
     screenwriter_doc = await db.people.find_one({'id': film_data.screenwriter_id}, {'_id': 0, 'name': 1})
     
+    # Get composer if provided
+    composer_doc = None
+    if film_data.composer_id:
+        composer_doc = await db.people.find_one({'id': film_data.composer_id}, {'_id': 0, 'name': 1, 'fame': 1})
+    
     # Enrich cast with names
     enriched_cast = []
     for actor_info in film_data.actors:
@@ -3994,6 +4000,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
             'id': film_data.director_id,
             'name': director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
         },
+        'composer': None,  # Will be set below if provided
         'cast': enriched_cast,  # Now includes name for each actor
         'extras_count': film_data.extras_count,
         'extras_cost': film_data.extras_cost,
@@ -4018,6 +4025,13 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'sequel_number': sequel_number,
         'sequel_bonus_applied': sequel_bonus_info,  # Info about sequel bonus/malus
     }
+    
+    # Set composer if provided
+    if composer_doc:
+        film['composer'] = {
+            'id': film_data.composer_id,
+            'name': composer_doc.get('name', 'Unknown')
+        }
     
     # Calculate IMDb-style rating
     film['imdb_rating'] = calculate_imdb_rating(film)
@@ -9125,7 +9139,7 @@ FESTIVALS = {
         'id': 'golden_stars',
         'voting_type': 'player',  # Main festival - player votes
         'prestige': 3,  # Highest prestige
-        'day_of_month': [1, 11, 21],  # Every 10 days starting from 1st
+        'day_of_month': [10],  # Day 10 of each month
         'rewards': {'xp': 500, 'fame': 50, 'money': 100000},
         'names': {
             'en': 'Golden Stars Awards',
@@ -9146,7 +9160,7 @@ FESTIVALS = {
         'id': 'spotlight_awards',
         'voting_type': 'ai',  # AI managed
         'prestige': 2,
-        'day_of_month': [5, 15, 25],
+        'day_of_month': [20],  # Day 20 of each month
         'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
         'names': {
             'en': 'Spotlight Awards',
@@ -9167,7 +9181,7 @@ FESTIVALS = {
         'id': 'cinema_excellence',
         'voting_type': 'ai',  # AI managed
         'prestige': 2,
-        'day_of_month': [8, 18, 28],
+        'day_of_month': [30, 28],  # Day 30 (28 for February)
         'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
         'names': {
             'en': 'Cinema Excellence Awards',
@@ -9265,21 +9279,34 @@ async def get_festivals(language: str = 'en'):
     current_month = today.month
     current_year = today.year
     
+    # Helper to get correct day for month (28 for February)
+    def get_festival_day_for_month(days_list, month, year):
+        import calendar
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]  # Fallback
+    
     festivals_data = []
     for fest_id, fest in FESTIVALS.items():
-        # Find next occurrence
-        upcoming_days = [d for d in fest['day_of_month'] if d >= current_day]
-        if upcoming_days:
-            next_day = upcoming_days[0]
-            next_month = current_month
-        else:
-            next_day = fest['day_of_month'][0]
-            next_month = current_month + 1 if current_month < 12 else 1
+        # Get the actual day for this month
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
         
-        next_date = f"{current_year if next_month >= current_month else current_year + 1}-{next_month:02d}-{next_day:02d}"
+        # Find next occurrence
+        if festival_day >= current_day:
+            next_day = festival_day
+            next_month = current_month
+            next_year = current_year
+        else:
+            next_month = current_month + 1 if current_month < 12 else 1
+            next_year = current_year if next_month > current_month else current_year + 1
+            next_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+        
+        next_date = f"{next_year}-{next_month:02d}-{next_day:02d}"
         
         # Check if today is a festival day
-        is_active = current_day in fest['day_of_month']
+        is_active = current_day == festival_day
         
         festivals_data.append({
             'id': fest_id,
@@ -9290,6 +9317,7 @@ async def get_festivals(language: str = 'en'):
             'rewards': fest['rewards'],
             'next_date': next_date,
             'is_active': is_active,
+            'ceremony_day': festival_day,
             'categories': [
                 {'id': cat_id, 'name': cat['names'].get(language, cat['names']['en'])}
                 for cat_id, cat in AWARD_CATEGORIES.items()
@@ -9698,6 +9726,252 @@ async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_u
         stats['by_category'][cid] = stats['by_category'].get(cid, 0) + 1
     
     return {'awards': awards, 'stats': stats}
+
+# ==================== LIVE CEREMONY & CHAT ====================
+
+class CeremonyChatMessage(BaseModel):
+    festival_id: str
+    edition_id: str
+    message: str
+
+@api_router.get("/festivals/{festival_id}/live-ceremony")
+async def get_live_ceremony(festival_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get live ceremony data with nominees, favorites, and real-time status."""
+    if festival_id not in FESTIVALS:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    festival = FESTIVALS[festival_id]
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Calculate "papabili" (favorites) for each category
+    categories_with_odds = []
+    for cat in edition.get('categories', []):
+        cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+        nominees_with_odds = []
+        
+        total_score = 0
+        for nom in cat.get('nominees', []):
+            # Calculate score based on votes, quality, and fame
+            score = (nom.get('votes', 0) * 2) + (nom.get('quality_score', 50) / 10)
+            nom['_score'] = score
+            total_score += score
+        
+        # Calculate win probability
+        for nom in cat.get('nominees', []):
+            win_prob = (nom['_score'] / total_score * 100) if total_score > 0 else 20
+            nom['win_probability'] = round(win_prob, 1)
+            del nom['_score']
+            nominees_with_odds.append(nom)
+        
+        # Sort by probability
+        nominees_with_odds.sort(key=lambda x: x['win_probability'], reverse=True)
+        
+        categories_with_odds.append({
+            'category_id': cat['category_id'],
+            'category_name': cat_def.get('names', {}).get(language, cat['category_id']),
+            'nominees': nominees_with_odds,
+            'favorite': nominees_with_odds[0] if nominees_with_odds else None,
+            'is_announced': cat.get('is_announced', False),
+            'winner': cat.get('winner')
+        })
+    
+    # Get recent chat messages
+    chat_messages = await db.ceremony_chat.find(
+        {'edition_id': edition_id},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(50).to_list(50)
+    chat_messages.reverse()  # Show oldest first
+    
+    return {
+        'festival_id': festival_id,
+        'festival_name': festival['names'].get(language, festival['names']['en']),
+        'edition_id': edition_id,
+        'status': edition.get('status', 'voting'),
+        'ceremony_started': edition.get('ceremony_started', False),
+        'current_category_index': edition.get('current_category_index', 0),
+        'categories': categories_with_odds,
+        'chat_messages': chat_messages,
+        'viewers_count': await db.ceremony_viewers.count_documents({'edition_id': edition_id}),
+        'rewards': festival['rewards']
+    }
+
+@api_router.post("/festivals/ceremony/chat")
+async def post_ceremony_chat(data: CeremonyChatMessage, user: dict = Depends(get_current_user)):
+    """Post a message to the live ceremony chat."""
+    if len(data.message) > 200:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 200 caratteri)")
+    
+    # Rate limit: max 1 message every 5 seconds per user
+    recent = await db.ceremony_chat.find_one({
+        'user_id': user['id'],
+        'edition_id': data.edition_id,
+        'created_at': {'$gt': (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()}
+    })
+    if recent:
+        raise HTTPException(status_code=429, detail="Attendi qualche secondo prima di inviare un altro messaggio")
+    
+    message = {
+        'id': str(uuid.uuid4()),
+        'edition_id': data.edition_id,
+        'festival_id': data.festival_id,
+        'user_id': user['id'],
+        'nickname': user.get('nickname', 'Anonimo'),
+        'avatar': user.get('avatar'),
+        'message': data.message,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.ceremony_chat.insert_one(message)
+    message.pop('_id', None)
+    
+    return {'success': True, 'message': message}
+
+@api_router.post("/festivals/{festival_id}/start-ceremony")
+async def start_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Start the live ceremony (admin only or automated)."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    if edition.get('ceremony_started'):
+        raise HTTPException(status_code=400, detail="La cerimonia è già iniziata")
+    
+    await db.festival_editions.update_one(
+        {'id': edition_id},
+        {
+            '$set': {
+                'ceremony_started': True,
+                'ceremony_start_time': datetime.now(timezone.utc).isoformat(),
+                'current_category_index': 0,
+                'status': 'ceremony'
+            }
+        }
+    )
+    
+    return {'success': True, 'message': 'Cerimonia iniziata!'}
+
+@api_router.post("/festivals/{festival_id}/announce-winner/{category_id}")
+async def announce_winner(festival_id: str, category_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Announce the winner for a category."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Find category
+    categories = edition.get('categories', [])
+    cat_index = next((i for i, c in enumerate(categories) if c['category_id'] == category_id), None)
+    if cat_index is None:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    category = categories[cat_index]
+    if category.get('is_announced'):
+        return {'success': True, 'already_announced': True, 'winner': category.get('winner')}
+    
+    # Determine winner based on votes
+    nominees = category.get('nominees', [])
+    if not nominees:
+        raise HTTPException(status_code=400, detail="Nessun nominato in questa categoria")
+    
+    festival = FESTIVALS.get(festival_id, {})
+    
+    if festival.get('voting_type') == 'player':
+        # Winner is the one with most votes
+        winner = max(nominees, key=lambda n: n.get('votes', 0))
+    else:
+        # AI decides - weighted by quality_score
+        weights = [n.get('quality_score', 50) + n.get('votes', 0) * 10 for n in nominees]
+        winner = random.choices(nominees, weights=weights, k=1)[0]
+    
+    # Update edition
+    update_path = f"categories.{cat_index}"
+    await db.festival_editions.update_one(
+        {'id': edition_id},
+        {
+            '$set': {
+                f'{update_path}.is_announced': True,
+                f'{update_path}.winner': winner,
+                f'{update_path}.announced_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Award the winner
+    cat_def = AWARD_CATEGORIES.get(category_id, {})
+    award = {
+        'id': str(uuid.uuid4()),
+        'festival_id': festival_id,
+        'edition_id': edition_id,
+        'category_id': category_id,
+        'category_name': cat_def.get('names', {}).get(language, category_id),
+        'winner_id': winner.get('id'),
+        'winner_name': winner.get('name'),
+        'film_id': winner.get('film_id'),
+        'film_title': winner.get('film_title'),
+        'owner_id': winner.get('owner_id'),
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.festival_awards.insert_one(award)
+    
+    # Give rewards to winner
+    rewards = festival.get('rewards', {})
+    if winner.get('owner_id'):
+        await db.users.update_one(
+            {'id': winner['owner_id']},
+            {
+                '$inc': {
+                    'xp': rewards.get('xp', 0),
+                    'fame': rewards.get('fame', 0),
+                    'funds': rewards.get('money', 0)
+                }
+            }
+        )
+    
+    # Generate TTS announcement text
+    announcement_text = {
+        'en': f"And the winner is... {winner.get('name')}! For {winner.get('film_title', 'their outstanding work')}!",
+        'it': f"E il vincitore è... {winner.get('name')}! Per {winner.get('film_title', 'il loro eccezionale lavoro')}!",
+        'es': f"¡Y el ganador es... {winner.get('name')}! ¡Por {winner.get('film_title', 'su excelente trabajo')}!",
+        'fr': f"Et le gagnant est... {winner.get('name')}! Pour {winner.get('film_title', 'leur travail exceptionnel')}!",
+        'de': f"Und der Gewinner ist... {winner.get('name')}! Für {winner.get('film_title', 'ihre hervorragende Arbeit')}!"
+    }
+    
+    return {
+        'success': True,
+        'winner': winner,
+        'announcement_text': announcement_text,
+        'rewards': rewards
+    }
+
+@api_router.post("/festivals/{festival_id}/join-ceremony")
+async def join_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Join as a viewer in the live ceremony."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    # Upsert viewer
+    await db.ceremony_viewers.update_one(
+        {'edition_id': edition_id, 'user_id': user['id']},
+        {
+            '$set': {
+                'nickname': user.get('nickname'),
+                'last_seen': datetime.now(timezone.utc).isoformat()
+            }
+        },
+        upsert=True
+    )
+    
+    return {'success': True}
 
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 

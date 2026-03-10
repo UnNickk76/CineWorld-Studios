@@ -393,6 +393,8 @@ async def update_cinema_revenue():
         }).to_list(10000)
         
         updated_count = 0
+        total_revenue_generated = 0
+        
         for cinema in cinemas:
             try:
                 last_update = datetime.fromisoformat(
@@ -401,33 +403,82 @@ async def update_cinema_revenue():
                 hours_passed = (now - last_update).total_seconds() / 3600
                 
                 if hours_passed >= 1:
-                    # Calculate revenue based on films showing
-                    films_showing = cinema.get('films_showing', [])
-                    base_revenue = 500 * cinema.get('level', 1)  # Base revenue per level
-                    film_bonus = len(films_showing) * 200  # Bonus per film
+                    # Get city data for population-based revenue
+                    city = cinema.get('city', {})
+                    population = city.get('population', 500000)
+                    wealth = city.get('wealth', 1.0)
                     
-                    hourly_revenue = (base_revenue + film_bonus) * hours_passed * random.uniform(0.8, 1.2)
+                    # Base revenue calculation
+                    level = cinema.get('level', 1)
+                    screens = 2 + (level * 2)  # 4 screens at level 1, 6 at level 2, etc.
+                    seats_per_screen = 100 + (level * 25)
+                    
+                    # Daily attendance based on city size and wealth
+                    base_daily_attendance = (population / 100000) * 50 * wealth
+                    
+                    # Films showing boost (films in cinema attract more viewers)
+                    films_showing = cinema.get('films_showing', [])
+                    film_quality_avg = 50
+                    if films_showing:
+                        # Get actual film quality from database
+                        film_ids = [f.get('film_id') for f in films_showing if f.get('film_id')]
+                        if film_ids:
+                            actual_films = await scheduler_db.films.find(
+                                {'id': {'$in': film_ids}},
+                                {'quality_score': 1}
+                            ).to_list(len(film_ids))
+                            if actual_films:
+                                film_quality_avg = sum(f.get('quality_score', 50) for f in actual_films) / len(actual_films)
+                    
+                    quality_multiplier = 0.5 + (film_quality_avg / 100)
+                    
+                    # Calculate hourly revenue
+                    hourly_attendance = int((base_daily_attendance / 24) * screens * quality_multiplier)
+                    hourly_attendance = min(hourly_attendance, screens * seats_per_screen)  # Cap at capacity
+                    
+                    ticket_price = cinema.get('prices', {}).get('ticket_adult', 12)
+                    food_revenue_per_person = 6  # Average food/drink spend
+                    
+                    hourly_revenue = hourly_attendance * (ticket_price + food_revenue_per_person * 0.4)
+                    
+                    # Apply level bonus
+                    level_bonus = 1 + (level * 0.15)
+                    
+                    # Random variance (±20%)
+                    variance = random.uniform(0.8, 1.2)
+                    
+                    total_hourly_revenue = hourly_revenue * level_bonus * variance * hours_passed
+                    total_hourly_revenue = int(total_hourly_revenue)
+                    
+                    # Minimum revenue guarantee
+                    min_revenue = 500 * level * hours_passed
+                    total_hourly_revenue = max(total_hourly_revenue, int(min_revenue))
                     
                     await scheduler_db.infrastructure.update_one(
                         {'_id': cinema['_id']},
                         {
-                            '$inc': {'total_revenue': hourly_revenue},
-                            '$set': {'last_revenue_update': now.isoformat()}
+                            '$inc': {'total_revenue': total_hourly_revenue},
+                            '$set': {
+                                'last_revenue_update': now.isoformat(),
+                                'last_hourly_revenue': total_hourly_revenue,
+                                'last_attendance': hourly_attendance
+                            }
                         }
                     )
                     
                     # Update owner's funds
                     await scheduler_db.users.update_one(
                         {'id': cinema.get('owner_id')},
-                        {'$inc': {'funds': hourly_revenue}}
+                        {'$inc': {'funds': total_hourly_revenue}}
                     )
                     
+                    total_revenue_generated += total_hourly_revenue
                     updated_count += 1
             except Exception as cinema_error:
                 logger.error(f"[SCHEDULER] Error updating cinema: {cinema_error}")
         
         if updated_count > 0:
-            logger.info(f"[SCHEDULER] Updated revenue for {updated_count} cinemas")
+            logger.info(f"[SCHEDULER] Updated revenue for {updated_count} cinemas. Total: ${total_revenue_generated:,}")
     except Exception as e:
         logger.error(f"[SCHEDULER] Error in update_cinema_revenue: {e}")
 

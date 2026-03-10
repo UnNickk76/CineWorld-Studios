@@ -1893,12 +1893,19 @@ const Dashboard = () => {
                       SEQUEL #{film.sequel_number || 2}
                     </div>
                   )}
+                  {/* Virtual Likes Badge */}
+                  {(film.virtual_likes > 0) && (
+                    <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
+                      <Heart className="w-2.5 h-2.5 text-pink-400 fill-pink-400" />
+                      <span className="text-[9px] text-pink-300">{film.virtual_likes}</span>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-2">
                   <h3 className="font-semibold text-xs truncate">
                     {film.title}{film.subtitle && <span className="text-gray-400">: {film.subtitle}</span>}
                   </h3>
-                  <div className="flex justify-between mt-1 text-xs text-gray-400"><span><Heart className="w-2.5 h-2.5 inline" /> {film.likes_count}</span><span className="text-green-400">${(film.total_revenue || 0).toLocaleString()}</span></div>
+                  <div className="flex justify-between mt-1 text-xs text-gray-400"><span><Heart className="w-2.5 h-2.5 inline" /> {(film.likes_count || 0) + (film.virtual_likes || 0)}</span><span className="text-green-400">${(film.total_revenue || 0).toLocaleString()}</span></div>
                 </CardContent>
               </Card>
             ))}
@@ -5308,11 +5315,18 @@ const MyFilms = () => {
               <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
                 <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" />
                 <Badge className={`absolute top-1 right-1 text-[10px] ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status}</Badge>
+                {/* Virtual Likes Badge */}
+                {(film.virtual_likes > 0) && (
+                  <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
+                    <Heart className="w-2.5 h-2.5 text-pink-400 fill-pink-400" />
+                    <span className="text-[9px] text-pink-300">{film.virtual_likes}</span>
+                  </div>
+                )}
               </div>
               <CardContent className="p-1.5 sm:p-2">
                 <h3 className="font-semibold text-xs sm:text-sm truncate">{film.title}</h3>
                 <div className="flex justify-between mt-1 text-[10px] sm:text-xs">
-                  <span className="text-gray-400"><Heart className="w-2.5 h-2.5 inline" /> {film.likes_count}</span>
+                  <span className="text-gray-400"><Heart className="w-2.5 h-2.5 inline" /> {(film.likes_count || 0) + (film.virtual_likes || 0)}</span>
                   <span className="text-green-400">${((film.total_revenue||0)/1000).toFixed(0)}K</span>
                 </div>
                 {film.status === 'in_theaters' && (
@@ -7490,6 +7504,13 @@ const CinemaJournal = () => {
                   <div className="aspect-[2/3] relative">
                     <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Virtual Likes Badge */}
+                    {(film.virtual_likes > 0 || film.likes_count > 0) && (
+                      <div className="absolute top-1 left-1 bg-black/70 rounded px-1.5 py-0.5 flex items-center gap-1">
+                        <Heart className="w-2.5 h-2.5 text-red-400 fill-red-400" />
+                        <span className="text-[9px] text-white">{((film.virtual_likes || 0) + (film.likes_count || 0)).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <p className="text-[10px] font-semibold truncate text-white">{film.title}</p>
@@ -7532,6 +7553,13 @@ const CinemaJournal = () => {
                     <Badge className="absolute top-1 right-1 bg-purple-500/80 text-white text-[8px] px-1">
                       TRAILER
                     </Badge>
+                    {/* Virtual Likes Badge */}
+                    {(film.virtual_likes > 0 || film.likes_count > 0) && (
+                      <div className="absolute bottom-1 left-1 bg-black/70 rounded px-1.5 py-0.5 flex items-center gap-1">
+                        <Heart className="w-2.5 h-2.5 text-red-400 fill-red-400" />
+                        <span className="text-[9px] text-white">{((film.virtual_likes || 0) + (film.likes_count || 0)).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="p-1.5">
                     <h3 className="font-semibold text-[10px] truncate">{film.title}</h3>
@@ -7914,12 +7942,19 @@ const CineBoard = () => {
                 </div>
                 
                 {/* Poster */}
-                <div className="w-20 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
+                <div className="w-20 flex-shrink-0 cursor-pointer relative" onClick={() => navigate(`/films/${film.id}`)}>
                   <img 
                     src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=300'} 
                     alt={film.title} 
                     className="w-full h-full object-cover"
                   />
+                  {/* Virtual Likes Badge */}
+                  {(film.virtual_likes > 0) && (
+                    <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
+                      <Heart className="w-2 h-2 text-pink-400 fill-pink-400" />
+                      <span className="text-[8px] text-pink-300">{film.virtual_likes}</span>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Info */}
@@ -7968,7 +8003,7 @@ const CineBoard = () => {
                       onClick={() => handleLike(film.id)}
                     >
                       <Heart className={`w-3.5 h-3.5 mr-1 ${film.user_liked ? 'fill-red-400' : ''}`} /> 
-                      {film.likes_count || 0}
+                      {(film.likes_count || 0) + (film.virtual_likes || 0)}
                     </Button>
                     
                     {film.hall_of_fame && (

@@ -4956,7 +4956,7 @@ async def get_cinema_journal(
     # Get recent posters (films with poster_url created recently)
     recent_posters = await db.films.find(
         {'poster_url': {'$exists': True, '$ne': None}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1}
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1, 'virtual_likes': 1, 'likes_count': 1}
     ).sort('created_at', -1).limit(20).to_list(20)
     
     return {

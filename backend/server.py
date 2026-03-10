@@ -3241,7 +3241,7 @@ async def create_sequel(film_id: str, request: CreateSequelRequest, user: dict =
         'genre': original['genre'],
         'subgenres': original.get('subgenres', []),
         'release_date': datetime.now(timezone.utc).isoformat(),
-        'weeks_in_theater': 4,
+        'weeks_in_theater': 2,  # Reduced from 4 to ~17 days (40% less)
         'actual_weeks_in_theater': 0,
         'sponsor': original.get('sponsor'),
         'equipment_package': original.get('equipment_package'),

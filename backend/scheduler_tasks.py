@@ -96,10 +96,11 @@ async def update_all_films_revenue():
                 
                 realistic_box_office = int(realistic_box_office)
                 
-                # Calculate estimated final revenue (if film stays 4 weeks)
-                max_weeks = 4
+                # Calculate estimated final revenue (if film stays ~17 days = 2.5 weeks)
+                # 40% reduction from original 4 weeks
+                max_days = 17
                 estimated_final = 0
-                for day in range(max_weeks * 7):
+                for day in range(max_days):
                     decay = 0.85 ** day
                     estimated_final += opening_day * decay * quality_multiplier
                 estimated_final = int(estimated_final)

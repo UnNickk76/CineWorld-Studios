@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
@@ -11572,6 +11572,160 @@ async def get_user_challenge_stats(user_id: str, user: dict = Depends(get_curren
         'win_rate': round((wins / total) * 100, 1) if total > 0 else 0,
         'current_streak': streak,
         'recent_challenges': len(recent)
+    }
+
+# ==================== CREATOR CONTACT SYSTEM ====================
+
+CREATOR_NICKNAME = "NeoMorpheus"  # The Creator's nickname
+CREATOR_EMAIL = "fandrex1@gmail.com"
+
+class ContactCreatorRequest(BaseModel):
+    subject: str
+    message: str
+
+@api_router.post("/contact/creator")
+async def contact_creator(data: ContactCreatorRequest, user: dict = Depends(get_current_user)):
+    """Send a message to the Creator (Fabio Andreola)."""
+    user_id = user['id']
+    
+    if len(data.subject) > 100:
+        raise HTTPException(status_code=400, detail="Oggetto troppo lungo (max 100 caratteri)")
+    if len(data.message) > 2000:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 2000 caratteri)")
+    
+    # Create message in database
+    message_id = str(uuid.uuid4())
+    contact_message = {
+        'id': message_id,
+        'from_user_id': user_id,
+        'from_nickname': user.get('nickname', 'Player'),
+        'from_email': user.get('email', ''),
+        'subject': data.subject,
+        'message': data.message,
+        'status': 'unread',  # unread, read, replied
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'reply': None,
+        'replied_at': None
+    }
+    
+    await db.creator_messages.insert_one(contact_message)
+    
+    # Send email to Creator
+    try:
+        resend.api_key = os.environ.get('RESEND_API_KEY')
+        sender_email = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+        
+        email_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e; color: #fff; padding: 30px; border-radius: 10px;">
+            <h1 style="color: #eab308; text-align: center;">🎬 CineWorld Studio's</h1>
+            <h2 style="color: #a855f7; text-align: center;">Nuovo Messaggio da un Player</h2>
+            <div style="background: #2a2a4e; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p style="color: #ccc;"><strong>Da:</strong> {user.get('nickname', 'Player')} ({user.get('email', 'N/A')})</p>
+                <p style="color: #ccc;"><strong>Oggetto:</strong> {data.subject}</p>
+                <hr style="border-color: #444;">
+                <p style="color: #fff; white-space: pre-wrap;">{data.message}</p>
+            </div>
+            <p style="color: #888; font-size: 12px; text-align: center;">
+                Rispondi dalla Creator Board nel gioco o direttamente a questa email.
+            </p>
+        </div>
+        """
+        
+        resend.emails.send({
+            "from": sender_email,
+            "to": CREATOR_EMAIL,
+            "subject": f"[CineWorld] {data.subject} - da {user.get('nickname', 'Player')}",
+            "html": email_html
+        })
+    except Exception as e:
+        logging.error(f"Failed to send creator contact email: {e}")
+        # Don't fail the request if email fails - message is saved in DB
+    
+    return {'success': True, 'message': 'Messaggio inviato al Creator!'}
+
+@api_router.get("/creator/messages")
+async def get_creator_messages(user: dict = Depends(get_current_user)):
+    """Get all messages sent to Creator (Creator only)."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creator può accedere a questa sezione")
+    
+    messages = await db.creator_messages.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
+    
+    unread_count = sum(1 for m in messages if m.get('status') == 'unread')
+    
+    return {
+        'messages': messages,
+        'unread_count': unread_count,
+        'total': len(messages)
+    }
+
+@api_router.post("/creator/messages/{message_id}/reply")
+async def reply_to_message(message_id: str, reply: str = Body(..., embed=True), user: dict = Depends(get_current_user)):
+    """Reply to a player message (Creator only)."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creator può rispondere")
+    
+    message = await db.creator_messages.find_one({'id': message_id}, {'_id': 0})
+    if not message:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato")
+    
+    # Update message with reply
+    await db.creator_messages.update_one(
+        {'id': message_id},
+        {'$set': {
+            'status': 'replied',
+            'reply': reply,
+            'replied_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Send reply as a system chat message to the player
+    chat_message = {
+        'id': str(uuid.uuid4()),
+        'room': f"direct_{message['from_user_id']}_{user['id']}",
+        'user_id': user['id'],
+        'nickname': f"🎬 {CREATOR_NICKNAME}",
+        'message': f"📬 Risposta dal Creator:\n\n{reply}\n\n(In risposta a: {message['subject']})",
+        'type': 'creator_reply',  # Special type for creator messages
+        'original_message_id': message_id,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.chat_messages.insert_one(chat_message)
+    
+    # Also send a notification
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': message['from_user_id'],
+        'type': 'creator_reply',
+        'title': '🎬 Risposta dal Creator!',
+        'message': f'{CREATOR_NICKNAME} ha risposto al tuo messaggio: "{message["subject"]}"',
+        'data': {'action': 'navigate', 'path': '/chat'},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {'success': True, 'message': 'Risposta inviata!'}
+
+@api_router.post("/creator/messages/{message_id}/mark-read")
+async def mark_message_read(message_id: str, user: dict = Depends(get_current_user)):
+    """Mark a message as read (Creator only)."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creator può accedere")
+    
+    await db.creator_messages.update_one(
+        {'id': message_id},
+        {'$set': {'status': 'read'}}
+    )
+    
+    return {'success': True}
+
+@api_router.get("/user/is-creator")
+async def check_is_creator(user: dict = Depends(get_current_user)):
+    """Check if current user is the Creator."""
+    return {
+        'is_creator': user.get('nickname') == CREATOR_NICKNAME,
+        'creator_nickname': CREATOR_NICKNAME
     }
 
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================

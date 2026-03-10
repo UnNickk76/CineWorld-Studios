@@ -2,18 +2,50 @@
 // Extracted from App.js
 
 import React, { useContext, useState, useEffect } from 'react';
-import { Clapperboard, Award } from 'lucide-react';
+import { Clapperboard, Award, Mail, Send, CheckCircle } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
 import { AuthContext } from '../contexts';
+import { toast } from 'sonner';
 
 const CreditsPage = () => {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const [credits, setCredits] = useState(null);
+  const [contactSubject, setContactSubject] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     api.get('/game/credits').then(r => setCredits(r.data)).catch(console.error);
   }, [api]);
+
+  const handleContactSubmit = async () => {
+    if (!contactSubject.trim() || !contactMessage.trim()) {
+      toast.error('Compila tutti i campi');
+      return;
+    }
+    
+    setSending(true);
+    try {
+      await api.post('/contact/creator', {
+        subject: contactSubject,
+        message: contactMessage
+      });
+      toast.success('Messaggio inviato al Creator!');
+      setSent(true);
+      setContactSubject('');
+      setContactMessage('');
+      setTimeout(() => setSent(false), 5000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore invio messaggio');
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (!credits) return <div className="pt-20 text-center">Caricamento...</div>;
 
@@ -40,6 +72,61 @@ const CreditsPage = () => {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Contact Creator Section */}
+      <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/5 border-purple-500/20 mb-6">
+        <CardContent className="p-6">
+          <h2 className="font-['Bebas_Neue'] text-2xl mb-2 text-purple-400 flex items-center gap-2">
+            <Mail className="w-6 h-6" /> Contattaci
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Hai suggerimenti, bug da segnalare o vuoi semplicemente dire ciao? Scrivi direttamente al Creator!
+          </p>
+          
+          {sent ? (
+            <div className="text-center py-8">
+              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <p className="text-green-400 font-semibold">Messaggio inviato con successo!</p>
+              <p className="text-gray-400 text-sm">Il Creator ti risponderà nella chat.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Oggetto</label>
+                <Input
+                  placeholder="Es: Suggerimento, Bug Report, Feedback..."
+                  value={contactSubject}
+                  onChange={(e) => setContactSubject(e.target.value)}
+                  className="bg-black/30 border-white/10"
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Messaggio</label>
+                <Textarea
+                  placeholder="Scrivi il tuo messaggio qui..."
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  className="bg-black/30 border-white/10 min-h-[120px]"
+                  maxLength={2000}
+                />
+                <p className="text-xs text-gray-500 mt-1 text-right">{contactMessage.length}/2000</p>
+              </div>
+              <Button 
+                onClick={handleContactSubmit}
+                disabled={sending || !contactSubject.trim() || !contactMessage.trim()}
+                className="w-full bg-purple-500 hover:bg-purple-600"
+              >
+                {sending ? (
+                  <><span className="animate-spin mr-2">⏳</span> Invio in corso...</>
+                ) : (
+                  <><Send className="w-4 h-4 mr-2" /> Invia Messaggio</>
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       

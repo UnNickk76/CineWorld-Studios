@@ -225,6 +225,18 @@ const TopNavbar = () => {
             <Swords className="w-4 h-4" />
           </Button>
           
+          {/* Chat - Always visible */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            onClick={() => navigate('/chat')}
+            data-testid="chat-nav-btn"
+            title="Chat"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Button>
+          
           {/* Notifications - Always visible */}
           <Button
             variant="ghost"
@@ -310,6 +322,11 @@ const TopNavbar = () => {
                 <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8" onClick={() => navigate('/profile')} data-testid="profile-btn">
                   <User className="w-3.5 h-3.5" /> {t('profile')}
                 </Button>
+                {user?.nickname === 'NeoMorpheus' && (
+                  <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" onClick={() => navigate('/creator-board')} data-testid="creator-board-btn">
+                    <Mail className="w-3.5 h-3.5" /> Creator Board
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={logout} data-testid="logout-btn">
                   <LogOut className="w-3.5 h-3.5" /> {t('logout')}
                 </Button>
@@ -7991,17 +8008,25 @@ const ChatPage = () => {
                       messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[70%] px-3 py-1.5 rounded-xl text-sm ${
-                            msg.message_type === 'trailer_announcement' 
-                              ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-bl-sm cursor-pointer hover:from-purple-500/30 hover:to-pink-500/30'
-                              : msg.sender_id === user.id 
-                                ? 'bg-yellow-500 text-black rounded-br-sm' 
-                                : msg.sender?.is_bot 
-                                  ? 'bg-blue-500/20 border border-blue-500/30 rounded-bl-sm' 
-                                  : 'bg-white/10 rounded-bl-sm'
+                            msg.type === 'creator_reply'
+                              ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-2 border-purple-500/50 rounded-bl-sm'
+                              : msg.message_type === 'trailer_announcement' 
+                                ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-bl-sm cursor-pointer hover:from-purple-500/30 hover:to-pink-500/30'
+                                : msg.sender_id === user.id 
+                                  ? 'bg-yellow-500 text-black rounded-br-sm' 
+                                  : msg.sender?.is_bot 
+                                    ? 'bg-blue-500/20 border border-blue-500/30 rounded-bl-sm' 
+                                    : 'bg-white/10 rounded-bl-sm'
                           }`}
                           onClick={() => msg.message_type === 'trailer_announcement' && msg.film_id && navigate(`/film/${msg.film_id}`)}
                           >
-                            {msg.sender_id !== user.id && !activeRoom.is_private && (
+                            {msg.type === 'creator_reply' && (
+                              <div className="flex items-center gap-1 mb-1">
+                                <Mail className="w-4 h-4 text-purple-400" />
+                                <Badge className="h-4 px-1.5 text-[10px] bg-purple-500 text-white">CREATOR</Badge>
+                              </div>
+                            )}
+                            {msg.sender_id !== user.id && !activeRoom.is_private && msg.type !== 'creator_reply' && (
                               <div className="flex items-center gap-1 mb-0.5">
                                 <p className="text-xs font-semibold">{msg.sender?.nickname || msg.user?.nickname}</p>
                                 {(msg.sender?.is_bot || msg.user_id === 'system_bot') && <Badge className="h-3 px-1 text-[8px] bg-blue-500/30 text-blue-400">BOT</Badge>}
@@ -8089,6 +8114,197 @@ const StatisticsPage = () => {
           <Card className="bg-[#1A1A1A] border-white/5"><CardContent className="p-3"><DollarSign className="w-5 h-5 mb-1 text-green-500" /><p className="text-xl font-bold">${(globalStats?.total_box_office||0).toLocaleString()}</p><p className="text-xs text-gray-400">Box Office</p></CardContent></Card>
         </div></TabsContent>
       </Tabs>
+    </div>
+  );
+};
+
+// ==================== CREATOR BOARD ====================
+const CreatorBoard = () => {
+  const { api, user } = useContext(AuthContext);
+  const { language } = useTranslations();
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [filter, setFilter] = useState('all'); // all, unread, replied
+
+  useEffect(() => {
+    loadMessages();
+  }, []);
+
+  const loadMessages = async () => {
+    try {
+      const res = await api.get('/creator/messages');
+      setMessages(res.data.messages);
+    } catch (e) {
+      if (e.response?.status === 403) {
+        navigate('/');
+        toast.error('Accesso negato');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReply = async (messageId) => {
+    if (!replyText.trim()) return;
+    
+    setSending(true);
+    try {
+      await api.post(`/creator/messages/${messageId}/reply`, { reply: replyText });
+      toast.success('Risposta inviata!');
+      setReplyingTo(null);
+      setReplyText('');
+      loadMessages();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore invio risposta');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const markAsRead = async (messageId) => {
+    try {
+      await api.post(`/creator/messages/${messageId}/mark-read`);
+      loadMessages();
+    } catch (e) {}
+  };
+
+  const filteredMessages = messages.filter(m => {
+    if (filter === 'all') return true;
+    if (filter === 'unread') return m.status === 'unread';
+    if (filter === 'replied') return m.status === 'replied';
+    return true;
+  });
+
+  const unreadCount = messages.filter(m => m.status === 'unread').length;
+
+  if (loading) return <div className="pt-20 text-center">Caricamento...</div>;
+
+  return (
+    <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="creator-board">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+            <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
+              <Mail className="w-8 h-8 text-purple-500" />
+              CREATOR BOARD
+              {unreadCount > 0 && <Badge className="bg-red-500">{unreadCount}</Badge>}
+            </h1>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadMessages}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
+        <p className="text-gray-400 text-sm">Messaggi ricevuti dai player</p>
+      </motion.div>
+
+      {/* Filters */}
+      <div className="flex gap-2 mb-4">
+        {['all', 'unread', 'replied'].map(f => (
+          <Button
+            key={f}
+            size="sm"
+            variant={filter === f ? 'default' : 'outline'}
+            onClick={() => setFilter(f)}
+            className={filter === f ? 'bg-purple-500' : ''}
+          >
+            {f === 'all' ? 'Tutti' : f === 'unread' ? 'Non letti' : 'Risposti'}
+            {f === 'unread' && unreadCount > 0 && <Badge className="ml-1 bg-red-500 text-xs">{unreadCount}</Badge>}
+          </Button>
+        ))}
+      </div>
+
+      {/* Messages List */}
+      <div className="space-y-4">
+        {filteredMessages.length === 0 ? (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardContent className="p-8 text-center">
+              <Mail className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+              <p className="text-gray-400">Nessun messaggio {filter !== 'all' ? `(${filter})` : ''}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredMessages.map(msg => (
+            <Card 
+              key={msg.id} 
+              className={`transition-all ${msg.status === 'unread' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-[#1A1A1A] border-white/5'}`}
+              onClick={() => msg.status === 'unread' && markAsRead(msg.id)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarFallback className="bg-purple-500/20 text-purple-400">{msg.from_nickname?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold">{msg.from_nickname}</p>
+                      <p className="text-xs text-gray-400">{msg.from_email}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge className={msg.status === 'unread' ? 'bg-red-500' : msg.status === 'replied' ? 'bg-green-500' : 'bg-gray-500'}>
+                      {msg.status === 'unread' ? 'Nuovo' : msg.status === 'replied' ? 'Risposto' : 'Letto'}
+                    </Badge>
+                    <p className="text-xs text-gray-500 mt-1">{new Date(msg.created_at).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="bg-black/30 rounded-lg p-3 mb-3">
+                  <p className="font-semibold text-purple-400 text-sm mb-2">📬 {msg.subject}</p>
+                  <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                </div>
+
+                {/* Reply Section */}
+                {msg.reply && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 mb-3">
+                    <p className="text-xs text-green-400 mb-1">✓ Tua risposta ({new Date(msg.replied_at).toLocaleString()}):</p>
+                    <p className="text-sm">{msg.reply}</p>
+                  </div>
+                )}
+
+                {!msg.reply && (
+                  <>
+                    {replyingTo === msg.id ? (
+                      <div className="space-y-3">
+                        <Textarea
+                          placeholder="Scrivi la tua risposta..."
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          className="bg-black/30 border-white/10"
+                        />
+                        <div className="flex gap-2">
+                          <Button 
+                            className="bg-green-500 hover:bg-green-600 flex-1"
+                            onClick={() => handleReply(msg.id)}
+                            disabled={sending || !replyText.trim()}
+                          >
+                            {sending ? 'Invio...' : 'Invia Risposta'}
+                          </Button>
+                          <Button variant="outline" onClick={() => { setReplyingTo(null); setReplyText(''); }}>
+                            Annulla
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        className="w-full border-purple-500/30 text-purple-400"
+                        onClick={() => setReplyingTo(msg.id)}
+                      >
+                        <Send className="w-4 h-4 mr-2" /> Rispondi
+                      </Button>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   );
 };
@@ -8204,7 +8420,12 @@ const ProfilePage = () => {
               <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xl">{user?.nickname?.[0]}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-base sm:text-lg font-bold">{user?.nickname}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold">{user?.nickname}</h2>
+                {user?.nickname === 'NeoMorpheus' && (
+                  <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0">Creator</Badge>
+                )}
+              </div>
               <p className="text-xs sm:text-sm text-gray-400">{user?.production_house_name}</p>
               <p className="text-[10px] sm:text-xs text-gray-500">Owner: {user?.owner_name}</p>
             </div>
@@ -12687,6 +12908,7 @@ const NotificationsPage = () => {
       challenge_invite: <Swords className="w-5 h-5 text-pink-400" />,
       challenge_won: <Trophy className="w-5 h-5 text-green-400" />,
       challenge_lost: <Swords className="w-5 h-5 text-red-400" />,
+      creator_reply: <Mail className="w-5 h-5 text-purple-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />
     };
     return icons[type] || icons.system;
@@ -12842,6 +13064,7 @@ function App() {
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                 <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />

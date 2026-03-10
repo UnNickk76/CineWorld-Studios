@@ -9735,23 +9735,27 @@ const FestivalsPage = () => {
                           {cat.nominees?.map(nom => (
                             <div 
                               key={nom.id} 
-                              className={`flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500 animate-pulse' : 'bg-white/5'}`}
+                              className={`flex items-center gap-2 p-1.5 sm:p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500 animate-pulse' : 'bg-white/5'}`}
                             >
-                              <div className="flex-1 min-w-0">
-                                <p className={`font-medium text-sm sm:text-base truncate ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
-                                  {nom.name}
-                                  {cat.winner?.id === nom.id && <Trophy className="w-3 h-3 sm:w-4 sm:h-4 inline ml-1 text-yellow-500" />}
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <p className={`font-medium text-xs sm:text-sm truncate max-w-[150px] sm:max-w-[200px] ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
+                                  {nom.name?.length > 25 ? nom.name.substring(0, 25) + '...' : nom.name}
+                                  {cat.winner?.id === nom.id && <Trophy className="w-3 h-3 inline ml-1 text-yellow-500" />}
                                 </p>
-                                {nom.film_title && <p className="text-[10px] sm:text-xs text-gray-400 truncate">{nom.film_title}</p>}
+                                {nom.film_title && (
+                                  <p className="text-[9px] sm:text-xs text-gray-400 truncate max-w-[150px] sm:max-w-[200px]">
+                                    {nom.film_title?.length > 30 ? nom.film_title.substring(0, 30) + '...' : nom.film_title}
+                                  </p>
+                                )}
                               </div>
-                              <div className="text-right flex-shrink-0">
-                                <div className="text-xs sm:text-sm font-bold" style={{color: `hsl(${nom.win_probability * 1.2}, 70%, 50%)`}}>
+                              <div className="text-right flex-shrink-0 min-w-[40px]">
+                                <div className="text-xs font-bold" style={{color: `hsl(${nom.win_probability * 1.2}, 70%, 50%)`}}>
                                   {nom.win_probability}%
                                 </div>
-                                <div className="text-[9px] sm:text-xs text-gray-500">{nom.votes} {language === 'it' ? 'voti' : 'votes'}</div>
+                                <div className="text-[8px] sm:text-[9px] text-gray-500">{nom.votes}v</div>
                               </div>
-                              {/* Win probability bar */}
-                              <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                              {/* Win probability bar - smaller on mobile */}
+                              <div className="w-12 sm:w-20 h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden flex-shrink-0">
                                 <div 
                                   className="h-full bg-gradient-to-r from-purple-500 to-yellow-500 transition-all"
                                   style={{width: `${nom.win_probability}%`}}

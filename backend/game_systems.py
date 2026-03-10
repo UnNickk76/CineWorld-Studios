@@ -83,7 +83,7 @@ FILM_TIERS = {
         'immediate_bonus': 0.40,  # +40% opening day
         'daily_bonus': 0.05,      # +5% per day
         'min_score': 90,          # Quality + cast + screenplay factors
-        'probability': 0.03,      # 3% base chance if score qualifies
+        'probability': 0.02,      # 2% base chance (was 3%)
     },
     'epic': {
         'name': 'Epico',
@@ -93,7 +93,7 @@ FILM_TIERS = {
         'immediate_bonus': 0.25,  # +25% opening day
         'daily_bonus': 0.03,      # +3% per day
         'min_score': 75,
-        'probability': 0.08,      # 8% base chance
+        'probability': 0.06,      # 6% base chance (was 8%)
     },
     'excellent': {
         'name': 'Eccellente',
@@ -103,7 +103,7 @@ FILM_TIERS = {
         'immediate_bonus': 0.15,  # +15% opening day
         'daily_bonus': 0.02,      # +2% per day
         'min_score': 60,
-        'probability': 0.15,      # 15% base chance
+        'probability': 0.12,      # 12% base chance (was 15%)
     },
     'promising': {
         'name': 'Promettente',
@@ -113,7 +113,7 @@ FILM_TIERS = {
         'immediate_bonus': 0.05,  # +5% opening day
         'daily_bonus': 0.01,      # +1% per day
         'min_score': 45,
-        'probability': 0.25,      # 25% base chance
+        'probability': 0.20,      # 20% base chance (was 25%)
     },
     'flop': {
         'name': 'Possibile Flop',
@@ -122,8 +122,8 @@ FILM_TIERS = {
         'color': 'red',
         'immediate_bonus': -0.20,  # -20% opening day
         'daily_bonus': -0.02,      # -2% per day
-        'max_score': 35,           # Low score
-        'probability': 0.10,       # 10% base chance
+        'max_score': 42,           # Raised threshold to catch more flops
+        'probability': 0.25,       # 25% base chance (was 10%)
     }
 }
 

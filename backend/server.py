@@ -1396,6 +1396,15 @@ class FilmResponse(BaseModel):
     sequel_parent_id: Optional[str] = None
     sequel_number: int = 0
     sequel_bonus_applied: Optional[Dict[str, Any]] = None
+    # Virtual audience
+    virtual_likes: int = 0
+    # Trailer
+    trailer_url: Optional[str] = None
+    trailer_generating: bool = False
+    trailer_error: Optional[str] = None
+    # Attendance
+    cumulative_attendance: int = 0
+    popularity_score: float = 0
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -3886,66 +3895,80 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if total_budget > available_funds:
         raise HTTPException(status_code=400, detail="Insufficient funds")
     
-    # === REWORKED QUALITY SYSTEM - More realistic distribution ===
-    # Base quality starts at 40 (not 50) to allow for more bad films
-    base_quality = 40
+    # === REWORKED QUALITY SYSTEM v2 - Realistic distribution with flops ===
+    # Base quality starts at 35 - player bonuses push it up, randomness can pull it down
+    base_quality = 35
     
-    # Equipment bonus (usually 5-15)
-    base_quality += equipment['quality_bonus']
+    # Equipment bonus (dampened: usually 2-8)
+    base_quality += equipment['quality_bonus'] * 0.55
     
-    # Director talent factor (0-15 based on fame)
+    # Director talent factor (0-8 based on fame)
     director = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'fame': 1, 'avg_film_quality': 1})
     if director:
-        director_bonus = min(15, (director.get('fame', 3) - 3) * 3)  # 3-star director = 0, 5-star = +6
+        director_bonus = min(8, (director.get('fame', 3) - 3) * 2)
         base_quality += director_bonus
     
-    # Cast average quality influence (0-10)
+    # Cast average quality influence (±6)
     cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50
-    cast_influence = (cast_avg_quality - 50) / 5  # ±10 based on cast quality
+    cast_influence = (cast_avg_quality - 50) / 8
     base_quality += cast_influence
     
-    # Budget influence (higher budget = slight quality boost, but not guaranteed)
+    # Budget influence (max +5)
     budget_millions = total_budget / 1000000
-    budget_bonus = min(10, budget_millions * 2)  # Max +10 for $5M+ budget
+    budget_bonus = min(5, budget_millions * 1.5)
     base_quality += budget_bonus
     
-    # === THE CRUCIAL RANDOM FACTOR ===
-    # This is where films can become masterpieces OR flops
-    # Bell curve distribution: most films are average, some are great, some are terrible
-    random_roll = random.gauss(0, 20)  # Mean 0, std dev 20 - can go -40 to +40
-    random_roll = max(-35, min(35, random_roll))  # Cap at ±35
+    # Player experience bonus (small, 0-5 based on level)
+    player_level = user.get('level', 1)
+    experience_bonus = min(5, player_level * 0.5)
+    base_quality += experience_bonus
     
-    # Additional "luck" factor - sometimes a film just clicks or doesn't
-    luck_factor = random.choice([-15, -10, -5, 0, 0, 0, 0, 5, 10, 15])  # Weighted towards neutral
+    # === THE CRUCIAL RANDOM FACTOR ===
+    # Bell curve centered at 0 with std dev 16
+    random_roll = random.gauss(0, 16)
+    random_roll = max(-40, min(30, random_roll))
+    
+    # "Bad day" factor: 10% chance of production problems
+    if random.random() < 0.10:
+        bad_day_penalty = random.uniform(-15, -5)
+        random_roll += bad_day_penalty
+    
+    # "Magic" factor: 5% chance something amazing happens
+    if random.random() < 0.05:
+        magic_bonus = random.uniform(10, 20)
+        random_roll += magic_bonus
+    
+    # Luck factor - weighted towards negative outcomes
+    luck_factor = random.choice([-20, -15, -10, -5, -5, 0, 0, 0, 5, 10])
     
     # Combine all factors
     quality_score = base_quality + random_roll + luck_factor
     
     # Ensure quality is in valid range
-    quality_score = max(5, min(98, quality_score))  # Allow very low quality (5) but cap at 98
+    quality_score = max(3, min(97, quality_score))
     
-    # Small bonus for creative titles
-    if len(film_data.title) > 8:
-        quality_score += random.randint(0, 3)
+    # Small bonus for creative long titles
+    if len(film_data.title) > 12:
+        quality_score += random.randint(0, 2)
     
-    quality_score = max(5, min(100, quality_score))
+    quality_score = max(3, min(100, quality_score))
     
     # === TIER ASSIGNMENT based on quality ===
-    # More granular tier system reflecting the new distribution
-    if quality_score >= 90:
-        film_tier = 'masterpiece'  # ~5% of films
-    elif quality_score >= 78:
-        film_tier = 'excellent'    # ~10% of films
-    elif quality_score >= 65:
-        film_tier = 'good'         # ~20% of films
-    elif quality_score >= 50:
-        film_tier = 'average'      # ~30% of films
+    # Balanced distribution: rewards skill but allows flops
+    if quality_score >= 88:
+        film_tier = 'masterpiece'  # ~1-3% of films depending on player level
+    elif quality_score >= 75:
+        film_tier = 'excellent'    # ~3-11%
+    elif quality_score >= 62:
+        film_tier = 'good'         # ~5-22%
+    elif quality_score >= 48:
+        film_tier = 'average'      # ~16-28%
     elif quality_score >= 35:
-        film_tier = 'mediocre'     # ~20% of films
+        film_tier = 'mediocre'     # ~20-28%
     elif quality_score >= 20:
-        film_tier = 'poor'         # ~10% of films
+        film_tier = 'poor'         # ~11-29%
     else:
-        film_tier = 'flop'         # ~5% of films
+        film_tier = 'flop'         # ~3-22%
     
     # Calculate opening day revenue - Quality matters but with variance
     base_revenue = 5000  # Base $5000
@@ -7753,11 +7776,10 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     }
 
 async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_id: str):
-    """Background task to generate trailer."""
+    """Background task to generate trailer with automatic retry and fallback."""
     import os
     from dotenv import load_dotenv
     
-    # Load .env from the correct path
     env_path = '/app/backend/.env'
     load_dotenv(env_path)
     
@@ -7766,7 +7788,6 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
         
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
-            # Try reading directly from file
             try:
                 with open(env_path, 'r') as f:
                     for line in f:
@@ -7777,25 +7798,43 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
                 pass
         
         if not api_key:
-            raise Exception("EMERGENT_LLM_KEY not found in environment or .env file")
+            raise Exception("EMERGENT_LLM_KEY not found")
         
-        logging.info(f"[TRAILER] Creating OpenAIVideoGeneration instance for film {film_id}")
         video_gen = OpenAIVideoGeneration(api_key=api_key)
-        
         output_path = f'/app/trailers/{film_id}.mp4'
         os.makedirs('/app/trailers', exist_ok=True)
         
-        logging.info(f"[TRAILER] Starting video generation for film {film_id} with duration={duration}s")
+        # Try with requested duration, then fallback to shorter durations
+        durations_to_try = [duration]
+        if duration > 4:
+            durations_to_try.append(4)  # Fallback to shortest
         
-        video_bytes = video_gen.text_to_video(
-            prompt=prompt,
-            model="sora-2",
-            size="1280x720",
-            duration=duration,
-            max_wait_time=900  # 15 minutes for longer videos
-        )
+        video_bytes = None
+        last_error = None
         
-        logging.info(f"[TRAILER] Video generation completed for film {film_id}, bytes received: {len(video_bytes) if video_bytes else 0}")
+        for attempt_duration in durations_to_try:
+            for attempt in range(2):  # 2 attempts per duration
+                try:
+                    logging.info(f"[TRAILER] Attempt {attempt+1} for film {film_id} duration={attempt_duration}s")
+                    video_bytes = video_gen.text_to_video(
+                        prompt=prompt,
+                        model="sora-2",
+                        size="1280x720",
+                        duration=attempt_duration,
+                        max_wait_time=900
+                    )
+                    if video_bytes:
+                        logging.info(f"[TRAILER] Success! Film {film_id}, {len(video_bytes)} bytes")
+                        break
+                except Exception as retry_err:
+                    last_error = str(retry_err)
+                    logging.warning(f"[TRAILER] Attempt {attempt+1} failed for {film_id}: {retry_err}")
+                    import asyncio
+                    await asyncio.sleep(5)  # Brief pause before retry
+            if video_bytes:
+                break
+        
+        logging.info(f"[TRAILER] Generation result for film {film_id}: {'success' if video_bytes else 'failed'}")
         
         if video_bytes:
             logging.info(f"[TRAILER] Video generated, saving to {output_path}")
@@ -7863,9 +7902,10 @@ async def generate_trailer_task(film_id: str, prompt: str, duration: int, user_i
                 }
                 await db.chat_messages.insert_one(bot_message)
         else:
+            error_msg = last_error or 'Generation failed after retries'
             await db.films.update_one(
                 {'id': film_id},
-                {'$set': {'trailer_generating': False, 'trailer_error': 'Generation failed - retry later'}}
+                {'$set': {'trailer_generating': False, 'trailer_error': error_msg}}
             )
             
             # Send error notification (trailer is FREE, no refund needed)
@@ -11993,15 +12033,21 @@ async def reply_to_message(message_id: str, reply: str = Body(..., embed=True), 
         }}
     )
     
-    # Send reply as a system chat message to the player
+    # Send reply as a system chat message to the player (in general chat for visibility)
     chat_message = {
         'id': str(uuid.uuid4()),
-        'room': f"direct_{message['from_user_id']}_{user['id']}",
+        'room_id': 'general',
         'user_id': user['id'],
-        'nickname': f"🎬 {CREATOR_NICKNAME}",
-        'message': f"📬 Risposta dal Creator:\n\n{reply}\n\n(In risposta a: {message['subject']})",
-        'type': 'creator_reply',  # Special type for creator messages
+        'user': {
+            'id': user['id'],
+            'nickname': f"{CREATOR_NICKNAME} (Creator)",
+            'avatar_url': user.get('avatar_url', ''),
+            'production_house_name': 'CineWorld Creator'
+        },
+        'content': f"Risposta a @{message.get('from_nickname', 'Player')}:\n\n{reply}",
+        'message_type': 'creator_reply',
         'original_message_id': message_id,
+        'target_user_id': message['from_user_id'],
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     

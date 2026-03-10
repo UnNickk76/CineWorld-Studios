@@ -3,9 +3,35 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.069
+## Versione Attuale: v0.070
 
 ## Funzionalità Implementate (Ultime)
+
+### v0.070 - Sistema Sfide Completo - 10/03/2026 (COMPLETATO)
+- **Sistema Sfide Multiplayer**:
+  - Box "Sfide" in Dashboard con navigazione a pagina dedicata
+  - Modalità: 1v1, 2v2, 3v3, 4v4, Tutti contro Tutti (4-10 giocatori)
+  - Selezione 3 film per sfida
+  - 8 skill cinematografiche per film (1-9): Regia, Fotografia, Sceneggiatura, Recitazione, Colonna Sonora, Effetti, Montaggio, Carisma
+  - Punteggi: Globale, Attacco, Difesa
+  - Sfide a 3 manche con commenti dinamici e animazioni
+  - Matchmaking: random, amici, o membri Major
+  - Classifica generale e statistiche personali
+- **Bonus/Malus**:
+  - Vincitori: +XP, +Fama, +Fondi, +Qualità film, +Affluenze
+  - Perdenti: +XP consolazione, -Fama, -Affluenze
+- **Endpoint API**:
+  - `GET /api/challenges/types` - Tipi di sfida disponibili
+  - `GET /api/challenges/skills` - Info skill cinematografiche
+  - `GET /api/challenges/my-films` - Film con skill calcolate
+  - `POST /api/challenges/create` - Crea nuova sfida
+  - `POST /api/challenges/{id}/join` - Unisciti a sfida
+  - `GET /api/challenges/leaderboard` - Classifica
+  - `GET /api/challenges/stats/{user_id}` - Statistiche utente
+- **Fix Trailer**:
+  - Rimossi refund (trailer gratuiti)
+  - Aumentato timeout a 900s
+  - Migliorate notifiche di errore
 
 ### v0.069 - Video Cerimonia & Download Trailer - 10/03/2026 (COMPLETATO)
 - **Generazione Video Riassuntivo Cerimonia**:

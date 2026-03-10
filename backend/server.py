@@ -5152,6 +5152,50 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.065', 'date': '2026-03-10', 'title': 'Bonus Visione Cerimonie & Notifiche Migliorate', 
+     'changes': [
+         'Bonus entrate fino a +10% guardando le cerimonie live',
+         'Più tempo guardi, più guadagni!',
+         'Notifiche con promemoria del bonus',
+         'Indicatore bonus in tempo reale durante la visione'
+     ]},
+    {'version': '0.064', 'date': '2026-03-10', 'title': 'Cerimonie Live con Fusi Orari', 
+     'changes': [
+         'Premiazioni sempre alle 21:30 ora locale',
+         'Supporto 50+ fusi orari mondiali',
+         'Notifiche 6h, 3h, 1h prima e all\'inizio',
+         'Indicatore LIVE/countdown nell\'header',
+         'Effetti confetti e spotlight ai vincitori',
+         'Audio TTS per annunci vincitori',
+         'Sottotitoli sincronizzati multilingua',
+         'Chat pubblica durante le cerimonie'
+     ]},
+    {'version': '0.063', 'date': '2026-03-10', 'title': 'Sistema Sottotitoli e Sequel', 
+     'changes': [
+         'Campo sottotitolo per film e pre-film',
+         'Sistema sequel con bonus/malus basato su qualità originale',
+         'Badge SEQUEL #X sui poster',
+         'Fix generazione AI (trama, poster, soundtrack)'
+     ]},
+    {'version': '0.062', 'date': '2026-03-10', 'title': 'Selettore Lingua Login', 
+     'changes': [
+         'Selezione lingua IT/EN nelle pagine di autenticazione',
+         'Traduzione automatica di tutti i testi'
+     ]},
+    {'version': '0.061', 'date': '2026-03-10', 'title': 'Sistema Pre-Ingaggio Completato', 
+     'changes': [
+         'Creazione bozze film (Pre-Film)',
+         'Ingaggio anticipato del cast',
+         'Sistema di negoziazione con offerte',
+         'Penali per licenziamento cast',
+         'Conversione pre-film in produzione'
+     ]},
+    {'version': '0.060', 'date': '2026-03-09', 'title': 'Recupero Credenziali', 
+     'changes': [
+         'Recupero password via email',
+         'Recupero nickname via email',
+         'Integrazione Resend per email transazionali'
+     ]},
     {'version': '0.050', 'date': '2026-03-09', 'title': 'Release Notes Dinamiche', 
      'changes': ['Note di rilascio salvate nel database', 'Aggiornamento automatico', 'Endpoint POST /api/admin/release-notes']},
     {'version': '0.049', 'date': '2026-03-09', 'title': 'Sistema Autonomo 24/7', 
@@ -9902,25 +9946,31 @@ async def get_festival_notifications(timezone: str = 'Europe/Rome', language: st
         time_until = ceremony_dt_local - now_local
         hours_until = time_until.total_seconds() / 3600
         
-        # Generate notifications based on time
+        # Generate notifications based on time with motivational tips
+        bonus_tip = {
+            'en': "💰 Watch live to earn up to +10% revenue bonus!",
+            'it': "💰 Guarda in diretta per ottenere fino a +10% di bonus sulle entrate!",
+            'es': "💰 ¡Mira en vivo para ganar hasta +10% de bonificación en ingresos!"
+        }
+        
         notification_messages = {
             'en': {
-                '6_hours': f"📢 {fest['names']['en']} ceremony in 6 hours!",
-                '3_hours': f"⏰ {fest['names']['en']} ceremony in 3 hours!",
-                '1_hour': f"🔔 {fest['names']['en']} ceremony in 1 hour!",
-                'starting': f"🎬 {fest['names']['en']} is starting NOW!"
+                '6_hours': f"📢 {fest['names']['en']} ceremony in 6 hours! {bonus_tip['en']}",
+                '3_hours': f"⏰ {fest['names']['en']} ceremony in 3 hours! Don't miss the live show! {bonus_tip['en']}",
+                '1_hour': f"🔔 {fest['names']['en']} ceremony in 1 hour! Get ready! {bonus_tip['en']}",
+                'starting': f"🎬 {fest['names']['en']} is starting NOW! Join now for revenue bonuses!"
             },
             'it': {
-                '6_hours': f"📢 Cerimonia {fest['names']['it']} tra 6 ore!",
-                '3_hours': f"⏰ Cerimonia {fest['names']['it']} tra 3 ore!",
-                '1_hour': f"🔔 Cerimonia {fest['names']['it']} tra 1 ora!",
-                'starting': f"🎬 {fest['names']['it']} sta iniziando ORA!"
+                '6_hours': f"📢 Cerimonia {fest['names']['it']} tra 6 ore! {bonus_tip['it']}",
+                '3_hours': f"⏰ Cerimonia {fest['names']['it']} tra 3 ore! Non perderti lo show! {bonus_tip['it']}",
+                '1_hour': f"🔔 Cerimonia {fest['names']['it']} tra 1 ora! Preparati! {bonus_tip['it']}",
+                'starting': f"🎬 {fest['names']['it']} sta iniziando ORA! Unisciti per i bonus sulle entrate!"
             },
             'es': {
-                '6_hours': f"📢 ¡Ceremonia {fest['names']['es']} en 6 horas!",
-                '3_hours': f"⏰ ¡Ceremonia {fest['names']['es']} en 3 horas!",
-                '1_hour': f"🔔 ¡Ceremonia {fest['names']['es']} en 1 hora!",
-                'starting': f"🎬 ¡{fest['names']['es']} está comenzando AHORA!"
+                '6_hours': f"📢 ¡Ceremonia {fest['names']['es']} en 6 horas! {bonus_tip['es']}",
+                '3_hours': f"⏰ ¡Ceremonia {fest['names']['es']} en 3 horas! ¡No te pierdas el show! {bonus_tip['es']}",
+                '1_hour': f"🔔 ¡Ceremonia {fest['names']['es']} en 1 hora! ¡Prepárate! {bonus_tip['es']}",
+                'starting': f"🎬 ¡{fest['names']['es']} está comenzando AHORA! ¡Únete para bonificaciones!"
             }
         }
         
@@ -10216,23 +10266,116 @@ async def announce_winner(festival_id: str, category_id: str, language: str = 'e
 
 @api_router.post("/festivals/{festival_id}/join-ceremony")
 async def join_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
-    """Join as a viewer in the live ceremony."""
+    """Join as a viewer in the live ceremony. Track viewing time for revenue bonus."""
     today = datetime.now(timezone.utc)
     edition_id = f"{festival_id}_{today.year}_{today.month}"
     
-    # Upsert viewer
-    await db.ceremony_viewers.update_one(
-        {'edition_id': edition_id, 'user_id': user['id']},
-        {
-            '$set': {
-                'nickname': user.get('nickname'),
-                'last_seen': datetime.now(timezone.utc).isoformat()
+    # Check if viewer exists
+    existing = await db.ceremony_viewers.find_one({
+        'edition_id': edition_id, 
+        'user_id': user['id']
+    })
+    
+    now = datetime.now(timezone.utc)
+    
+    if existing:
+        # Calculate time since last ping (max 2 minutes count)
+        last_seen = datetime.fromisoformat(existing.get('last_seen', now.isoformat()).replace('Z', '+00:00'))
+        time_diff = (now - last_seen).total_seconds()
+        
+        # Only add time if ping is within 2 minutes (active viewing)
+        if time_diff <= 120:
+            added_minutes = min(time_diff / 60, 2)  # Max 2 minutes per ping
+        else:
+            added_minutes = 0
+        
+        await db.ceremony_viewers.update_one(
+            {'edition_id': edition_id, 'user_id': user['id']},
+            {
+                '$set': {
+                    'nickname': user.get('nickname'),
+                    'last_seen': now.isoformat()
+                },
+                '$inc': {
+                    'total_viewing_minutes': added_minutes
+                }
             }
-        },
-        upsert=True
+        )
+    else:
+        # New viewer
+        await db.ceremony_viewers.insert_one({
+            'edition_id': edition_id,
+            'user_id': user['id'],
+            'nickname': user.get('nickname'),
+            'joined_at': now.isoformat(),
+            'last_seen': now.isoformat(),
+            'total_viewing_minutes': 0
+        })
+    
+    # Get updated viewer data
+    viewer = await db.ceremony_viewers.find_one({
+        'edition_id': edition_id, 
+        'user_id': user['id']
+    }, {'_id': 0})
+    
+    # Calculate current bonus (max 10%)
+    # 30 minutes = 5%, 60 minutes = 10%
+    viewing_minutes = viewer.get('total_viewing_minutes', 0) if viewer else 0
+    bonus_percent = min(viewing_minutes / 6, 10)  # 6 minutes = 1%, max 10%
+    
+    return {
+        'success': True,
+        'viewing_minutes': round(viewing_minutes, 1),
+        'bonus_percent': round(bonus_percent, 2),
+        'max_bonus': 10
+    }
+
+@api_router.get("/festivals/viewing-bonus")
+async def get_viewing_bonus(user: dict = Depends(get_current_user)):
+    """Get total viewing bonus accumulated from all ceremonies this month."""
+    today = datetime.now(timezone.utc)
+    month_pattern = f"_{today.year}_{today.month}"
+    
+    # Sum all viewing time this month
+    viewers = await db.ceremony_viewers.find({
+        'user_id': user['id'],
+        'edition_id': {'$regex': month_pattern}
+    }).to_list(100)
+    
+    total_minutes = sum(v.get('total_viewing_minutes', 0) for v in viewers)
+    bonus_percent = min(total_minutes / 6, 10)  # Max 10%
+    
+    return {
+        'total_viewing_minutes': round(total_minutes, 1),
+        'bonus_percent': round(bonus_percent, 2),
+        'max_bonus': 10,
+        'ceremonies_watched': len(viewers)
+    }
+
+@api_router.post("/festivals/apply-viewing-bonus")
+async def apply_viewing_bonus(user: dict = Depends(get_current_user)):
+    """Apply viewing bonus to user's revenue (called during revenue calculation)."""
+    today = datetime.now(timezone.utc)
+    month_pattern = f"_{today.year}_{today.month}"
+    
+    viewers = await db.ceremony_viewers.find({
+        'user_id': user['id'],
+        'edition_id': {'$regex': month_pattern}
+    }).to_list(100)
+    
+    total_minutes = sum(v.get('total_viewing_minutes', 0) for v in viewers)
+    bonus_percent = min(total_minutes / 6, 10) / 100  # Convert to multiplier (0.0 - 0.1)
+    
+    # Store bonus in user profile for revenue calculations
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'ceremony_viewing_bonus': bonus_percent}}
     )
     
-    return {'success': True}
+    return {
+        'bonus_applied': bonus_percent,
+        'bonus_percent_display': round(bonus_percent * 100, 2)
+    }
 
 class TTSAnnouncementRequest(BaseModel):
     text: str

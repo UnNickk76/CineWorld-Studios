@@ -8968,12 +8968,20 @@ const FestivalsPage = () => {
   };
 
   // Live Ceremony functions
+  const [viewingBonus, setViewingBonus] = useState({ viewing_minutes: 0, bonus_percent: 0 });
+  
   const loadLiveCeremony = async (festivalId) => {
     try {
       const res = await api.get(`/festivals/${festivalId}/live-ceremony?language=${language}`);
       setLiveCeremony(res.data);
-      // Join as viewer
-      await api.post(`/festivals/${festivalId}/join-ceremony`);
+      // Join as viewer and get bonus info
+      const joinRes = await api.post(`/festivals/${festivalId}/join-ceremony`);
+      if (joinRes.data) {
+        setViewingBonus({
+          viewing_minutes: joinRes.data.viewing_minutes || 0,
+          bonus_percent: joinRes.data.bonus_percent || 0
+        });
+      }
     } catch (e) {
       console.error('Error loading live ceremony:', e);
     }
@@ -8983,10 +8991,10 @@ const FestivalsPage = () => {
     setSelectedFestival(festival.id);
     loadLiveCeremony(festival.id);
     setShowLiveCeremony(true);
-    // Start chat refresh interval
+    // Start chat refresh interval (also pings for viewing bonus)
     chatRefreshInterval.current = setInterval(() => {
       loadLiveCeremony(festival.id);
-    }, 5000);
+    }, 5000);  // Ping every 5 seconds to track viewing time
   };
 
   const closeLiveCeremony = () => {
@@ -9728,9 +9736,20 @@ const FestivalsPage = () => {
                       <Tv className="w-8 h-8" />
                       {liveCeremony.festival_name}
                     </h1>
-                    <p className="text-gray-400 flex items-center gap-2">
+                    <p className="text-gray-400 flex items-center gap-2 flex-wrap">
                       <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                       LIVE • {liveCeremony.viewers_count} {language === 'it' ? 'spettatori' : 'viewers'}
+                      {/* Viewing Bonus Indicator */}
+                      <span className="ml-2 px-2 py-0.5 bg-green-500/20 rounded-full text-green-400 text-xs flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        +{viewingBonus.bonus_percent.toFixed(1)}% {language === 'it' ? 'bonus' : 'bonus'} 
+                        <span className="text-gray-500">({viewingBonus.viewing_minutes.toFixed(0)}min)</span>
+                      </span>
+                      {viewingBonus.bonus_percent < 10 && (
+                        <span className="text-xs text-gray-500">
+                          {language === 'it' ? '(max 10%)' : '(max 10%)'}
+                        </span>
+                      )}
                       {playingAudio && (
                         <span className="flex items-center gap-1 text-green-400 ml-2">
                           <Music className="w-3 h-3 animate-bounce" />

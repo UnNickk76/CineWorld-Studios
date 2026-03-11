@@ -3,55 +3,62 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.091
+## Versione Attuale: v0.092
 
 ## Funzionalità Implementate (Ultime)
 
-### v0.091 - Fix Hamburger, Trailer Sora 2, Grafica Sfide, Cast Espanso - 11/03/2026
-- **Hamburger visibile su web**: Rimosso `lg:hidden`, ora visibile su tutti gli schermi (mobile + desktop)
-- **Generazione Trailer Sora 2**: Sostituito FFmpeg con Sora 2 AI per generare trailer video reali dalla trama. Durate: 4s, 8s, 12s. Costo variabile: base 10k, esponenziale per durata e rating. Rimborso automatico in caso di errore.
-- **Nuovo endpoint /api/ai/trailer-cost**: Preview costo trailer prima della generazione
-- **Sfide Offline - Grafica Uniforme**: Card offline ridisegnata con stile identico alle sfide online (gradient, icona, freccia)
-- **Cast Espanso**: Aggiunte 13 nuove nazionalità (Russia, Australia, Nigeria, Turkey, Sweden, Argentina, Canada, Poland, Thailand, Egypt, Iran, South Africa). Pool iniziale aumentato da 2000 a 4000+. Generazione giornaliera da 10-20 a 25-50 per tipo.
-- **Rinegoziazione Cast**: Verificata funzionante in entrambi i flussi (FilmWizard e PreEngagement)
-- **Sfide Offline Default ON**: Confermato attivo, badge "Accepting" visibile
+### v0.092 - Refactoring Backend Step 1 + Feature v0.091 - 11/03/2026
+**Refactoring:**
+- Estratte auth routes in `routes/auth.py` (369 righe): register, login, recovery, profile, reset, avatar
+- Estratte notification routes in `routes/notifications.py` (69 righe): CRUD notifiche, count, read, delete
+- Creato `database.py`: connessione MongoDB condivisa
+- Creato `auth_utils.py`: funzioni auth condivise (hash_password, verify_password, create_token, get_current_user)
+- server.py ridotto da 15.564 a 15.026 righe (-538 righe)
+- Rimossi duplicati route notifiche (erano presenti 2 volte)
 
-### v0.090 - Fluidità Navigazione & Ottimizzazioni - 11/03/2026
-- Transizioni di Pagina Animate con PageTransition + AnimatePresence
-- Code-Splitting con React.lazy() per ReleaseNotes, TutorialPage, CreditsPage
-- Ottimizzazione Polling API (da ~8 a ~2 chiamate per navigazione)
-- CSS Transizioni Smooth per bottoni e link
+**Feature v0.091:**
+- Hamburger visibile su web
+- Generazione Trailer con Sora 2 AI (costi variabili: base 10k, esponenziale)
+- Sfide Offline grafica uniforme alle Online
+- Cast espanso a 25 nazionalità (4000+ pool)
+- Rinegoziazione cast verificata funzionante
 
 ### Versioni Precedenti
-- v0.089: Report Manche Singole, Notifiche Cliccabili, Notifica Film Uscito, Sfide Offline Default
+- v0.090: Fluidità Navigazione (PageTransition, Code-Splitting, Polling ottimizzato)
+- v0.089: Report Manche Singole, Notifiche Cliccabili
 - v0.087: Battaglie 3 Manche, Fix Qualità Film, Rinegoziazione Cast
-- v0.085: Poster AI GPT Image 1, Popup IMDb, Bonus Online
-- v0.083: Mini-Giochi VS 1v1, Fix BattleAnimation, Fix Pydantic
+- v0.085: Poster AI, Popup IMDb, Bonus Online
+- v0.083: Mini-Giochi VS 1v1, Fix BattleAnimation
 
-## Architettura
-- Backend: FastAPI + MongoDB (motor), server.py (~15.6k righe)
-- Frontend: React + TailwindCSS + Shadcn/UI, App.js (~15k righe)
-- AI: OpenAI GPT-4o (text), GPT Image 1 (poster), Sora 2 (trailer) via Emergent LLM Key
-- Battle: challenge_system.py (3 manche x 8 skill + tiebreaker)
-- Cast: cast_system.py (25 nazionalità, 4000+ pool)
-- DB: films, users, user_infrastructures, challenges, minigame_versus, rejections, negotiations, notifications
-- Animations: framer-motion per transizioni di pagina
+## Architettura Attuale
+```
+/app/backend/
+├── server.py          # 15.026 righe (era 15.564) - Riduzione in corso
+├── database.py        # Connessione MongoDB condivisa  
+├── auth_utils.py      # Auth utilities condivise
+├── models/            # Pydantic models
+├── routes/
+│   ├── auth.py        # Auth routes (369 righe)
+│   └── notifications.py # Notification routes (69 righe)
+├── cast_system.py     # Sistema cast (25 nazionalità)
+├── challenge_system.py # Sistema sfide (3 manche)
+└── ...
+```
 
-## Backlog
+## Backlog Refactoring (In Corso)
+- [ ] **Step 2**: Estrarre routes chat + users
+- [ ] **Step 3**: Estrarre routes films  
+- [ ] **Step 4**: Estrarre routes challenges
+- [ ] **Step 5**: Estrarre routes infrastructure, marketplace
+- [ ] **Step 6**: Estrarre routes festivals, minigames
+- [ ] **Step 7**: Frontend - Estrarre pagine da App.js in file separati
 
-### P0 - Critico
-- [ ] Refactoring server.py e App.js (>15k righe ciascuno) - URGENTE
-
-### P1 - Prossimi
-- [ ] Completamento Gameplay Contest Live (matchmaking, classifiche)
-- [ ] Attività delle Major (espansione)
-
-### P2 - Futuri
-- [ ] Sistema Acquisto CineCoins (Stripe)
-- [ ] Classifiche VS e sistema ELO
-
-### P3 - Backlog
-- [ ] Scalabilità (Redis, load balancer)
+## Backlog Feature
+- P1: Completamento Gameplay Contest Live
+- P1: Attività Major
+- P2: Sistema Acquisto CineCoins (Stripe)
+- P2: Classifiche VS / ELO
+- P3: Scalabilità (Redis, load balancer)
 
 ## Credenziali di Test
 - TestPlayer1: test1@test.com / Test1234!

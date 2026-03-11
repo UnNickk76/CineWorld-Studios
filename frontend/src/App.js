@@ -2396,6 +2396,11 @@ const ChallengesPage = () => {
   const [showPending, setShowPending] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [offlineMode, setOfflineMode] = useState(user?.accept_offline_challenges || false);
+  const [offlinePlayers, setOfflinePlayers] = useState([]);
+  const [offlineOpponent, setOfflineOpponent] = useState(null);
+  const [showOfflineDialog, setShowOfflineDialog] = useState(false);
+  const [offlineLoading, setOfflineLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -2524,6 +2529,52 @@ const ChallengesPage = () => {
       loadData();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const toggleOfflineMode = async () => {
+    try {
+      const res = await api.post('/challenges/toggle-offline');
+      setOfflineMode(res.data.accept_offline_challenges);
+      toast.success(res.data.message);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const loadOfflinePlayers = async () => {
+    try {
+      const res = await api.get('/users/all-players');
+      const players = (Array.isArray(res.data) ? res.data : []).filter(
+        p => p.accept_offline_challenges && p.id !== user.id
+      );
+      setOfflinePlayers(players);
+    } catch (e) { setOfflinePlayers([]); }
+  };
+
+  const startOfflineBattle = async () => {
+    if (!offlineOpponent || selectedFilms.length !== 3) {
+      toast.error('Seleziona un avversario e 3 film!');
+      return;
+    }
+    setOfflineLoading(true);
+    try {
+      const res = await api.post('/challenges/offline-battle', {
+        opponent_id: offlineOpponent.id,
+        film_ids: selectedFilms.map(f => f.id)
+      });
+      toast.success(`Sfida completata! ${res.data.winner_name} vince!`);
+      setActiveBattle(res.data.result);
+      setView('battle');
+      runBattleAnimation(res.data.result);
+      setShowOfflineDialog(false);
+      setOfflineOpponent(null);
+      setSelectedFilms([]);
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore sfida offline');
+    } finally {
+      setOfflineLoading(false);
     }
   };
 
@@ -3021,7 +3072,7 @@ const ChallengesPage = () => {
 
         {/* Free For All */}
         <Card 
-          className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border-purple-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-6" 
+          className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border-purple-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-4" 
           onClick={() => selectChallengeType('ffa')}
           data-testid="challenge-ffa"
         >
@@ -3036,6 +3087,116 @@ const ChallengesPage = () => {
             <ChevronRight className="w-6 h-6 text-gray-500" />
           </CardContent>
         </Card>
+
+        {/* Offline Challenge Section */}
+        <Card className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-cyan-500/20 mb-4">
+          <CardContent className="p-4 space-y-3">
+            {/* Toggle offline availability */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-cyan-500/20 rounded-lg"><Shield className="w-5 h-5 text-cyan-400" /></div>
+                <div>
+                  <h3 className="font-['Bebas_Neue'] text-lg text-cyan-400">SFIDA OFFLINE VS</h3>
+                  <p className="text-[10px] text-gray-400">L'AI sceglie i film per il difensore. Penalità perdente ridotte dell'80%.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={offlineMode ? "default" : "outline"}
+                className={offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white h-8" : "border-cyan-500/30 text-cyan-400 h-8"}
+                onClick={toggleOfflineMode}
+                data-testid="toggle-offline-btn"
+              >
+                {offlineMode ? 'Attivo' : 'Disattivo'}
+              </Button>
+            </div>
+            
+            {/* Launch offline challenge */}
+            <Button
+              className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white h-10"
+              onClick={() => { loadOfflinePlayers(); setShowOfflineDialog(true); setSelectedFilms([]); }}
+              data-testid="offline-challenge-btn"
+            >
+              <Swords className="w-4 h-4 mr-2" /> Sfida un Giocatore Offline
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Offline Challenge Dialog */}
+        <Dialog open={showOfflineDialog} onOpenChange={setShowOfflineDialog}>
+          <DialogContent className="bg-[#1A1A1A] border-cyan-500/20 max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-xl text-cyan-400 flex items-center gap-2">
+                <Swords className="w-5 h-5" /> SFIDA OFFLINE VS
+              </DialogTitle>
+              <DialogDescription>Scegli un avversario e 3 film. L'AI sceglierà i migliori film dell'avversario.</DialogDescription>
+            </DialogHeader>
+            
+            {/* Step 1: Select opponent */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-cyan-400">1. Scegli Avversario</h4>
+              <ScrollArea className="h-32 border border-white/10 rounded-lg p-2">
+                {offlinePlayers.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-4">Nessun giocatore disponibile per sfide offline</p>
+                ) : (
+                  <div className="space-y-1">
+                    {offlinePlayers.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => setOfflineOpponent(p)}
+                        className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${offlineOpponent?.id === p.id ? 'bg-cyan-500/20 border border-cyan-500/40' : 'hover:bg-white/5'}`}
+                        data-testid={`offline-player-${p.id}`}
+                      >
+                        <Avatar className="w-7 h-7"><AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-xs">{p.nickname?.[0]}</AvatarFallback></Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{p.nickname}</p>
+                          <p className="text-[10px] text-gray-400">{p.production_house_name}</p>
+                        </div>
+                        <Badge className={`text-[10px] ${p.is_online ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                          {p.is_online ? 'Online' : 'Offline'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
+            {/* Step 2: Select films */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-yellow-400">2. Scegli 3 Film ({selectedFilms.length}/3)</h4>
+              <ScrollArea className="h-36 border border-white/10 rounded-lg p-2">
+                <div className="space-y-1">
+                  {myFilms.map(film => (
+                    <div
+                      key={film.id}
+                      onClick={() => toggleFilmSelection(film)}
+                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${selectedFilms.find(f => f.id === film.id) ? 'bg-yellow-500/20 border border-yellow-500/40' : 'hover:bg-white/5'}`}
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold">{film.title}</p>
+                        <p className="text-[10px] text-gray-400">{film.genre} | Q:{film.quality_score}</p>
+                      </div>
+                      {selectedFilms.find(f => f.id === film.id) && <Check className="w-4 h-4 text-yellow-400" />}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowOfflineDialog(false)}>Annulla</Button>
+              <Button
+                onClick={startOfflineBattle}
+                disabled={!offlineOpponent || selectedFilms.length !== 3 || offlineLoading}
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white"
+                data-testid="start-offline-battle-btn"
+              >
+                {offlineLoading ? 'Combattimento...' : 'Lancia Sfida!'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-3 mb-6">

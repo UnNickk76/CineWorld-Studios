@@ -9699,6 +9699,7 @@ const InfrastructurePage = () => {
   const [infraDetail, setInfraDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [prices, setPrices] = useState({});
+  const [showPricesDialog, setShowPricesDialog] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   
   // Film management state
@@ -10135,66 +10136,64 @@ const InfrastructurePage = () => {
                 </div>
               )}
 
-              {/* Prices Section */}
-              {['cinema', 'megaplex', 'drive_in', 'mall'].includes(selectedInfra?.type) && (
+              {/* Attendance & Satisfaction Stats */}
+              {infraDetail?.stats && (
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-yellow-500" /> Imposta Prezzi
+                    <TrendingUp className="w-4 h-4 text-cyan-400" /> Statistiche Cinema
                   </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Biglietto ($)</Label>
-                      <Input
-                        type="number"
-                        value={prices.ticket || 12}
-                        onChange={e => setPrices({...prices, ticket: parseInt(e.target.value) || 0})}
-                        className="h-9 bg-black/20 border-white/10"
-                        min={1}
-                        max={50}
-                      />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 bg-cyan-500/10 rounded border border-cyan-500/20 text-center">
+                      <p className="text-[10px] text-gray-400">Affluenza/giorno</p>
+                      <p className="text-base font-bold text-cyan-400">{infraDetail.stats.daily_attendance?.toLocaleString()}</p>
                     </div>
-                    <div>
-                      <Label className="text-xs">Popcorn ($)</Label>
-                      <Input
-                        type="number"
-                        value={prices.popcorn || 8}
-                        onChange={e => setPrices({...prices, popcorn: parseInt(e.target.value) || 0})}
-                        className="h-9 bg-black/20 border-white/10"
-                        min={1}
-                        max={30}
-                      />
+                    <div className="p-2.5 bg-green-500/10 rounded border border-green-500/20 text-center">
+                      <p className="text-[10px] text-gray-400">Occupazione</p>
+                      <p className="text-base font-bold text-green-400">{infraDetail.stats.occupancy_rate}%</p>
                     </div>
-                    <div>
-                      <Label className="text-xs">Bevande ($)</Label>
-                      <Input
-                        type="number"
-                        value={prices.drinks || 5}
-                        onChange={e => setPrices({...prices, drinks: parseInt(e.target.value) || 0})}
-                        className="h-9 bg-black/20 border-white/10"
-                        min={1}
-                        max={20}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Combo ($)</Label>
-                      <Input
-                        type="number"
-                        value={prices.combo || 18}
-                        onChange={e => setPrices({...prices, combo: parseInt(e.target.value) || 0})}
-                        className="h-9 bg-black/20 border-white/10"
-                        min={1}
-                        max={60}
-                      />
+                    <div className="p-2.5 bg-yellow-500/10 rounded border border-yellow-500/20 text-center">
+                      <p className="text-[10px] text-gray-400">Gradimento</p>
+                      <p className={`text-base font-bold ${infraDetail.stats.satisfaction_index >= 70 ? 'text-green-400' : infraDetail.stats.satisfaction_index >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {infraDetail.stats.satisfaction_index}/100
+                      </p>
                     </div>
                   </div>
-                  <Button 
-                    onClick={savePrices} 
-                    disabled={savingPrices}
-                    className="w-full bg-yellow-500 text-black hover:bg-yellow-400"
-                  >
-                    {savingPrices ? 'Salvando...' : 'Salva Prezzi'}
-                  </Button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 bg-white/5 rounded border border-white/10 text-center">
+                      <p className="text-[10px] text-gray-400">Ricavi Biglietti</p>
+                      <p className="text-sm font-bold text-green-400">${(infraDetail.stats.ticket_revenue || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="p-2.5 bg-white/5 rounded border border-white/10 text-center">
+                      <p className="text-[10px] text-gray-400">Ricavi Food</p>
+                      <p className="text-sm font-bold text-orange-400">${(infraDetail.stats.food_revenue || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="p-2.5 bg-white/5 rounded border border-white/10 text-center">
+                      <p className="text-[10px] text-gray-400">Qualità Film</p>
+                      <p className="text-sm font-bold text-purple-400">{infraDetail.stats.film_quality_avg}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-white/5 rounded border border-white/10">
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span>{infraDetail.stats.screens} schermi</span>
+                      <span>|</span>
+                      <span>{infraDetail.stats.seats_per_screen} posti/schermo</span>
+                      <span>|</span>
+                      <span>Capienza: {infraDetail.stats.total_capacity?.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {/* Prices Button - opens separate dialog */}
+              {['cinema', 'megaplex', 'drive_in', 'mall', 'multiplex_small', 'multiplex_medium', 'multiplex_large', 'vip_cinema'].includes(selectedInfra?.type) && (
+                <Button 
+                  variant="outline" 
+                  className="w-full h-10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+                  onClick={() => setShowPricesDialog(true)}
+                  data-testid="open-prices-btn"
+                >
+                  <DollarSign className="w-4 h-4 mr-2" /> Modifica Prezzi
+                </Button>
               )}
 
               {/* Film Management Section */}
@@ -10272,6 +10271,42 @@ const InfrastructurePage = () => {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Chiudi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Prices Dialog (separate popup) */}
+      <Dialog open={showPricesDialog} onOpenChange={setShowPricesDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-yellow-500" /> Gestione Prezzi
+            </DialogTitle>
+            <DialogDescription>{selectedInfra?.custom_name}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Biglietto ($)</Label>
+              <Input type="number" value={prices.ticket || 12} onChange={e => setPrices({...prices, ticket: parseInt(e.target.value) || 0})} className="h-9 bg-black/20 border-white/10" min={1} max={50} />
+            </div>
+            <div>
+              <Label className="text-xs">Popcorn ($)</Label>
+              <Input type="number" value={prices.popcorn || 8} onChange={e => setPrices({...prices, popcorn: parseInt(e.target.value) || 0})} className="h-9 bg-black/20 border-white/10" min={1} max={30} />
+            </div>
+            <div>
+              <Label className="text-xs">Bevande ($)</Label>
+              <Input type="number" value={prices.drinks || 5} onChange={e => setPrices({...prices, drinks: parseInt(e.target.value) || 0})} className="h-9 bg-black/20 border-white/10" min={1} max={20} />
+            </div>
+            <div>
+              <Label className="text-xs">Combo ($)</Label>
+              <Input type="number" value={prices.combo || 18} onChange={e => setPrices({...prices, combo: parseInt(e.target.value) || 0})} className="h-9 bg-black/20 border-white/10" min={1} max={60} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowPricesDialog(false)}>Annulla</Button>
+            <Button onClick={savePrices} disabled={savingPrices} className="bg-yellow-500 text-black hover:bg-yellow-400" data-testid="save-prices-btn">
+              {savingPrices ? 'Salvando...' : 'Salva Prezzi'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

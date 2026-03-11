@@ -9063,7 +9063,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
 
 @api_router.get("/infrastructure/{infra_id}")
 async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_current_user)):
-    """Get detailed infrastructure information."""
+    """Get detailed infrastructure information with attendance & satisfaction stats."""
     infra = await db.infrastructure.find_one(
         {'id': infra_id, 'owner_id': user['id']},
         {'_id': 0}
@@ -9074,9 +9074,65 @@ async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_curr
     
     infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
     
+    # Calculate attendance & satisfaction stats
+    level = infra.get('level', 1)
+    city = infra.get('city', {})
+    population = city.get('population', 500000)
+    wealth = city.get('wealth', 1.0)
+    screens = infra_type.get('screens', 2 + level * 2) if infra_type else 4
+    seats_per_screen = 100 + level * 25
+    total_capacity = screens * seats_per_screen
+    
+    # Calculate daily attendance based on films showing
+    films_showing = infra.get('films_showing', [])
+    film_quality_avg = 50
+    if films_showing:
+        film_ids = [f.get('film_id') for f in films_showing if f.get('film_id')]
+        if film_ids:
+            actual_films = await db.films.find(
+                {'id': {'$in': film_ids}}, {'_id': 0, 'quality_score': 1, 'audience_satisfaction': 1}
+            ).to_list(len(film_ids))
+            if actual_films:
+                film_quality_avg = sum(f.get('quality_score', 50) for f in actual_films) / len(actual_films)
+    
+    base_daily = (population / 100000) * 50 * wealth
+    quality_mult = 0.5 + (film_quality_avg / 100)
+    daily_attendance = int(base_daily * screens * quality_mult * (1 + level * 0.15))
+    daily_attendance = min(daily_attendance, total_capacity * 3)  # Max 3 showings/day
+    
+    # Satisfaction index (based on prices, quality, level)
+    prices = infra.get('prices', {})
+    ticket_price = prices.get('ticket', prices.get('ticket_adult', 12))
+    price_factor = max(0.4, 1.2 - (ticket_price / 30))
+    satisfaction = min(100, int(film_quality_avg * 0.6 + price_factor * 25 + level * 2))
+    
+    # Occupancy rate
+    occupancy = min(100, int((daily_attendance / max(1, total_capacity)) * 100)) if total_capacity > 0 else 0
+    
+    # Revenue breakdown
+    total_rev = infra.get('total_revenue', 0)
+    ticket_rev = int(total_rev * 0.65)
+    food_rev = int(total_rev * 0.25)
+    other_rev = total_rev - ticket_rev - food_rev
+    
+    stats = {
+        'daily_attendance': daily_attendance,
+        'total_capacity': total_capacity,
+        'occupancy_rate': occupancy,
+        'satisfaction_index': satisfaction,
+        'screens': screens,
+        'seats_per_screen': seats_per_screen,
+        'film_quality_avg': round(film_quality_avg, 1),
+        'ticket_revenue': ticket_rev,
+        'food_revenue': food_rev,
+        'other_revenue': other_rev,
+        'films_count': len(films_showing),
+    }
+    
     return {
         **infra,
-        'type_info': infra_type
+        'type_info': infra_type,
+        'stats': stats
     }
 
 @api_router.put("/infrastructure/{infra_id}/prices")

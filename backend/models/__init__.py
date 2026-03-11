@@ -310,3 +310,6 @@ class FeedbackVote(BaseModel):
 class FeedbackComment(BaseModel):
     feedback_id: str
     content: str
+
+class NotificationMarkReadRequest(BaseModel):
+    notification_ids: List[str] = []

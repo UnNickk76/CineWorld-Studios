@@ -3,48 +3,42 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.085
+## Versione Attuale: v0.087
 
 ## Funzionalità Implementate
 
-### v0.085 - Poster AI, Battaglie 8 Skill & Popup IMDb - 11/03/2026 (COMPLETATO)
-- **Locandine AI (GPT Image 1)**: Poster generati dall'AI coerenti con titolo, genere e descrizione del film
-- **Sistema Battaglie 8 Skill**: Ogni sfida ha 8 mini-battaglie (Regia, Fotografia, Sceneggiatura, Recitazione, Colonna Sonora, Effetti Speciali, Montaggio, Carisma) con commenti coerenti
-- **Meccanica Upset**: Film con skill inferiori possono vincere raramente (3-15% probabilità)
-- **Popup IMDb**: Cliccando sul punteggio IMDb mostra 6 fattori di valutazione dettagliati
-- **Bonus Online**: +15% ricompense per chi gioca sfide in modalità online
-- **Dashboard pulita**: Rimosse statistiche contest dalla dashboard, mantenute nei mini-giochi
-- **Rimosso tasto Aggiorna** dalla sezione sfide VS
+### v0.087 - Battaglie 3 Manche, Fix Qualità & Rinegoziazione - 11/03/2026 (COMPLETATO)
+- **Battaglie 3 Manche**: Ogni sfida = 3 manche, ciascuna Film vs Film con 8 skill battles
+- **Spareggio Gradimento**: Se una manche finisce 4-4, spareggio basato sul gradimento del pubblico
+- **Fix Qualità Film**: Base qualità da 35→42, luck factor bilanciato, random roll simmetrico. I film non escono più tutti scarsi/flop
+- **Rinegoziazione Cast**: Quando un attore rifiuta, puoi rilanciare fino a 3 volte con offerta più alta
 
-### v0.083 - Mini-Giochi VS 1v1 & Fix Stabilità - 11/03/2026 (COMPLETATO)
-- Mini-Giochi VS 1v1 competitivo con 5 endpoint backend + UI completa
-- Fix BattleAnimation (Chiudi/Salta/Continua)
-- Fix Pydantic FilmResponse + script migrazione dati (45 film, 41 utenti)
-- Miglioramento mobile dialogs
+### v0.085 - Poster AI, Battaglie 8 Skill & Popup IMDb (COMPLETATO)
+- Locandine AI GPT Image 1, Popup IMDb dettaglio, Bonus Online +15%, Dashboard pulita
+
+### v0.083 - Mini-Giochi VS 1v1 & Fix Stabilità (COMPLETATO)
+- Mini-Giochi VS 1v1, Fix BattleAnimation, Fix Pydantic, Script migrazione dati
 
 ### Versioni precedenti (v0.080-v0.082)
-- Sfide Offline VS AI, Upgrade Infrastrutture, Statistiche Cinema
-- Locandine/Trailer Gratuiti, Contest, Revenue Infrastruttura
-- GlobalPlayerPopup, Mini-Giochi AI, Note di Rilascio
+- Sfide Offline VS AI, Upgrade Infrastrutture, Statistiche Cinema, Locandine Gratuite
 
 ## Architettura
 - Backend: FastAPI + MongoDB (motor), server.py (~15.5k righe)
-- Frontend: React + TailwindCSS + Shadcn/UI, App.js (~14.9k righe)
+- Frontend: React + TailwindCSS + Shadcn/UI, App.js (~15k righe)
 - AI: OpenAI GPT-4o (text), GPT Image 1 (poster) via Emergent LLM Key
-- Media: FFmpeg (trailer)
-- DB Collections: films, users, user_infrastructures, challenges, minigame_versus, notifications
+- Battle System: challenge_system.py (3 manche x 8 skill + tiebreaker)
+- DB Collections: films, users, user_infrastructures, challenges, minigame_versus, rejections, notifications
 
 ## API Endpoints Chiave
 - `POST /api/ai/poster` - Genera poster AI con GPT Image 1
+- `POST /api/cast/renegotiate/{id}` - Rinegozia contratto cast (max 3 tentativi)
 - `POST /api/minigames/versus/create` - Crea sfida VS mini-giochi
-- `POST /api/minigames/versus/{id}/answer` - Risposte VS
-- `GET /api/minigames/versus/pending` - Sfide aperte
 - `POST /api/challenges/offline-battle` - Sfida offline vs AI
 
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: server.py e App.js monolitici
+- [ ] **Refactoring Critico**: server.py e App.js monolitici (>15k righe ciascuno)
 
 ### P1 - Prossimi
 - [ ] **Completamento Gameplay Contest Live**: matchmaking avanzato, classifiche

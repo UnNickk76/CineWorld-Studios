@@ -5680,6 +5680,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.087', 'date': '2026-03-11', 'title': 'Battaglie 3 Manche, Fix Qualità Film & Rinegoziazione Cast',
+     'changes': [
+         {'type': 'new', 'text': 'Sistema Battaglie 3 Manche: ogni sfida ha 3 manche (film vs film) con 8 skill battles ciascuna'},
+         {'type': 'new', 'text': 'Spareggio: se una manche finisce 4-4, il gradimento del pubblico decide il vincitore'},
+         {'type': 'new', 'text': 'Rinegoziazione Cast: quando un attore rifiuta, puoi rilanciate fino a 3 volte con un\'offerta più alta'},
+         {'type': 'fix', 'text': 'Fix qualità film: i film non escono più tutti scarsi/flop. Distribuzione bilanciata con più film buoni e ottimi'},
+         {'type': 'improvement', 'text': 'Report battaglia dettagliato: ogni manche mostra titoli dei film, skill per skill, e spareggi'}
+     ]},
     {'version': '0.085', 'date': '2026-03-11', 'title': 'Poster AI, Battaglie 8 Skill & Popup IMDb',
      'changes': [
          {'type': 'new', 'text': 'Locandine AI: generazione poster con GPT Image 1, coerenti con titolo e genere del film'},

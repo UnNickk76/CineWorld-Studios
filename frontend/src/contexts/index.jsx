@@ -130,3 +130,8 @@ export const LanguageProvider = ({ children }) => {
     </LanguageContext.Provider>
   );
 };
+
+
+// Player Popup Context - allows any component to open a player profile popup
+export const PlayerPopupContext = React.createContext({ openPlayerPopup: () => {} });
+export const usePlayerPopup = () => React.useContext(PlayerPopupContext);

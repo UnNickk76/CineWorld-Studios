@@ -1438,33 +1438,33 @@ class FilmResponse(BaseModel):
     subtitle: Optional[str] = None  # Subtitle for sequels/sagas
     genre: str
     subgenres: List[str] = []
-    release_date: str
-    weeks_in_theater: int
+    release_date: Optional[str] = None
+    weeks_in_theater: Optional[int] = 0
     actual_weeks_in_theater: int = 0
     sponsor: Optional[Dict[str, Any]] = None
-    equipment_package: str
-    locations: List[str]
-    location_costs: Dict[str, float]
-    screenwriter: Dict[str, Any]
-    director: Dict[str, Any]
-    cast: List[Dict[str, Any]]  # Includes role for each actor
-    extras_count: int
-    extras_cost: float
-    screenplay: str
-    screenplay_source: str
+    equipment_package: Optional[str] = None
+    locations: Optional[List[str]] = []
+    location_costs: Optional[Dict[str, float]] = {}
+    screenwriter: Optional[Dict[str, Any]] = None
+    director: Optional[Dict[str, Any]] = None
+    cast: Optional[List[Dict[str, Any]]] = []
+    extras_count: Optional[int] = 0
+    extras_cost: Optional[float] = 0
+    screenplay: Optional[str] = None
+    screenplay_source: Optional[str] = None
     poster_url: Optional[str] = None
-    ad_duration_seconds: int
-    ad_revenue: float
-    total_budget: float
-    status: str
-    quality_score: float
+    ad_duration_seconds: Optional[int] = 0
+    ad_revenue: Optional[float] = 0
+    total_budget: Optional[float] = 0
+    status: str = 'released'
+    quality_score: float = 0
     audience_satisfaction: float = 50.0
-    likes_count: int
-    box_office: Dict[str, Any]
-    daily_revenues: List[Dict[str, Any]]
+    likes_count: int = 0
+    box_office: Optional[Dict[str, Any]] = {}
+    daily_revenues: Optional[List[Dict[str, Any]]] = []
     opening_day_revenue: float = 0
     total_revenue: float = 0
-    created_at: str
+    created_at: Optional[str] = None
     # New fields
     synopsis: Optional[str] = None
     cineboard_score: Optional[float] = None
@@ -5599,6 +5599,19 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.083', 'date': '2026-03-11', 'title': 'Mini-Giochi VS 1v1 & Fix Stabilità',
+     'changes': [
+         {'type': 'new', 'text': 'Mini-Giochi VS 1v1: sfida altri giocatori con le stesse domande!'},
+         {'type': 'new', 'text': 'Crea sfida VS, rispondi alle domande e attendi un avversario'},
+         {'type': 'new', 'text': 'Tab sfide aperte per accettare sfide di altri giocatori'},
+         {'type': 'new', 'text': 'Storico sfide VS con vittorie, sconfitte e pareggi'},
+         {'type': 'new', 'text': 'Ricompense VS: vincitore x1.5, perdente x0.3, pareggio x0.8'},
+         {'type': 'fix', 'text': 'Fix pulsante "Continua" nella schermata report battaglia (non più bloccante)'},
+         {'type': 'fix', 'text': 'Aggiunto pulsante Chiudi (X) e Salta Animazione nella battaglia'},
+         {'type': 'fix', 'text': 'Fix errori di validazione Pydantic per film vecchi nel database'},
+         {'type': 'improvement', 'text': 'Script di migrazione dati per allineare documenti vecchi'},
+         {'type': 'improvement', 'text': 'Migliorata compatibilità mobile per tutti i dialog'}
+     ]},
     {'version': '0.080', 'date': '2026-03-10', 'title': 'Locandina & Trailer Gratuiti',
      'changes': [
          {'type': 'fix', 'text': 'Generazione locandina ora usa immagini gratuite (loremflickr) basate sul genere del film'},
@@ -7106,6 +7119,226 @@ async def submit_mini_game(submission: MiniGameSubmit, user: dict = Depends(get_
         'level_info': new_level_info,
         'results': results
     }
+
+# ==================== MINI-GAMES VERSUS SYSTEM ====================
+
+@api_router.post("/minigames/versus/create")
+async def create_versus_challenge(data: dict, user: dict = Depends(get_current_user)):
+    """Create a 1v1 mini-game challenge. Creator answers first, then waits for opponent."""
+    game_id = data.get('game_id')
+    game = next((g for g in MINI_GAMES if g['id'] == game_id), None)
+    if not game:
+        raise HTTPException(status_code=404, detail="Gioco non trovato")
+    
+    # Check cooldown
+    play_history = user.get('minigame_plays', [])
+    cooldown_status = check_minigame_cooldown(play_history, game_id)
+    if not cooldown_status['can_play']:
+        raise HTTPException(status_code=429, detail=f"Limite raggiunto. Prossimo reset tra {cooldown_status['minutes_until_reset']} minuti.")
+    
+    user_language = user.get('language', 'en')
+    seen_questions = user.get(f'seen_questions_{game_id}', [])
+    questions = await generate_ai_questions(game_id, user_language, game['questions_count'], seen_questions)
+    if len(questions) > game['questions_count']:
+        questions = random.sample(questions, game['questions_count'])
+    
+    challenge_id = str(uuid.uuid4())
+    versus_doc = {
+        'id': challenge_id,
+        'game_id': game_id,
+        'game_name': game['name'],
+        'questions': questions,
+        'creator_id': user['id'],
+        'creator_nickname': user.get('nickname', 'Player'),
+        'creator_avatar': user.get('avatar_url'),
+        'creator_answers': None,
+        'creator_score': None,
+        'opponent_id': None,
+        'opponent_nickname': None,
+        'opponent_avatar': None,
+        'opponent_answers': None,
+        'opponent_score': None,
+        'status': 'answering',
+        'winner_id': None,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    }
+    await db.minigame_versus.insert_one(versus_doc)
+    
+    play_history.append({'game_id': game_id, 'played_at': datetime.now(timezone.utc).isoformat()})
+    new_seen = [q.get('question', '')[:80] for q in questions]
+    await db.users.update_one({'id': user['id']}, {'$set': {
+        'minigame_plays': play_history,
+        f'seen_questions_{game_id}': (seen_questions + new_seen)[-50:]
+    }})
+    
+    questions_safe = [{'question': q['question'], 'options': q['options'], 'index': i} for i, q in enumerate(questions)]
+    return {'challenge_id': challenge_id, 'questions': questions_safe, 'game': game}
+
+
+@api_router.post("/minigames/versus/{challenge_id}/answer")
+async def submit_versus_answer(challenge_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Submit answers for a VS challenge (works for both creator and opponent)."""
+    versus = await db.minigame_versus.find_one({'id': challenge_id}, {'_id': 0})
+    if not versus:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    answers = data.get('answers', [])
+    questions = versus['questions']
+    
+    correct = 0
+    results = []
+    for ans in answers:
+        idx = ans.get('question_index', 0)
+        if idx < len(questions):
+            q = questions[idx]
+            is_correct = ans.get('answer') == q['answer']
+            if is_correct:
+                correct += 1
+            results.append({'question': q['question'], 'your_answer': ans.get('answer'), 'correct_answer': q['answer'], 'is_correct': is_correct})
+    
+    score = int((correct / len(questions)) * 100) if questions else 0
+    is_creator = user['id'] == versus['creator_id']
+    
+    if is_creator and versus['creator_answers'] is None:
+        update = {
+            'creator_answers': results,
+            'creator_score': score,
+            'status': 'waiting'
+        }
+        await db.minigame_versus.update_one({'id': challenge_id}, {'$set': update})
+        return {'score': score, 'correct': correct, 'total': len(questions), 'results': results, 'status': 'waiting', 'message': 'In attesa di un avversario...'}
+    
+    elif not is_creator and versus['status'] == 'waiting' and versus['opponent_id'] is None:
+        raise HTTPException(status_code=400, detail="Devi prima unirti alla sfida con /join")
+    
+    elif not is_creator and user['id'] == versus.get('opponent_id') and versus['opponent_answers'] is None:
+        creator_score = versus['creator_score'] or 0
+        
+        if score > creator_score:
+            winner_id = user['id']
+        elif score < creator_score:
+            winner_id = versus['creator_id']
+        else:
+            winner_id = 'draw'
+        
+        update = {
+            'opponent_answers': results,
+            'opponent_score': score,
+            'status': 'completed',
+            'winner_id': winner_id,
+            'completed_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.minigame_versus.update_one({'id': challenge_id}, {'$set': update})
+        
+        game = next((g for g in MINI_GAMES if g['id'] == versus['game_id']), None)
+        base_reward = game['reward_max'] if game else 50000
+        
+        winner_reward = int(base_reward * 1.5)
+        loser_reward = int(base_reward * 0.3)
+        draw_reward = int(base_reward * 0.8)
+        xp_winner = XP_REWARDS.get('minigame_win', 30) + XP_REWARDS.get('minigame_play', 10)
+        xp_loser = XP_REWARDS.get('minigame_play', 10)
+        
+        if winner_id == 'draw':
+            for uid in [versus['creator_id'], user['id']]:
+                await db.users.update_one({'id': uid}, {'$inc': {'funds': draw_reward, 'total_xp': xp_winner}})
+            creator_reward = draw_reward
+            opp_reward = draw_reward
+        elif winner_id == user['id']:
+            await db.users.update_one({'id': user['id']}, {'$inc': {'funds': winner_reward, 'total_xp': xp_winner}})
+            await db.users.update_one({'id': versus['creator_id']}, {'$inc': {'funds': loser_reward, 'total_xp': xp_loser}})
+            creator_reward = loser_reward
+            opp_reward = winner_reward
+        else:
+            await db.users.update_one({'id': versus['creator_id']}, {'$inc': {'funds': winner_reward, 'total_xp': xp_winner}})
+            await db.users.update_one({'id': user['id']}, {'$inc': {'funds': loser_reward, 'total_xp': xp_loser}})
+            creator_reward = winner_reward
+            opp_reward = loser_reward
+        
+        # Notify creator
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()), 'user_id': versus['creator_id'],
+            'type': 'versus_result', 'title': 'Risultato Mini-Game VS!',
+            'message': f'{user.get("nickname")} ha accettato la tua sfida {versus["game_name"]}! '
+                       f'Tu: {creator_score}% vs {user.get("nickname")}: {score}%. '
+                       f'{"Pareggio" if winner_id == "draw" else "Hai vinto!" if winner_id == versus["creator_id"] else "Hai perso!"}. '
+                       f'Ricompensa: ${creator_reward:,}',
+            'data': {'challenge_id': challenge_id}, 'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {
+            'score': score, 'correct': correct, 'total': len(questions), 'results': results,
+            'status': 'completed', 'winner_id': winner_id,
+            'creator_score': creator_score, 'opponent_score': score,
+            'creator_nickname': versus['creator_nickname'], 'opponent_nickname': user.get('nickname'),
+            'reward': opp_reward
+        }
+    
+    raise HTTPException(status_code=400, detail="Non puoi rispondere a questa sfida")
+
+
+@api_router.get("/minigames/versus/pending")
+async def get_pending_versus(user: dict = Depends(get_current_user)):
+    """Get open VS challenges available to join."""
+    now = datetime.now(timezone.utc).isoformat()
+    challenges = await db.minigame_versus.find({
+        'status': 'waiting',
+        'creator_id': {'$ne': user['id']},
+        'expires_at': {'$gt': now}
+    }, {'_id': 0, 'questions': 0, 'creator_answers': 0}).sort('created_at', -1).to_list(20)
+    return challenges
+
+
+@api_router.post("/minigames/versus/{challenge_id}/join")
+async def join_versus_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Join an open VS challenge and get the questions."""
+    versus = await db.minigame_versus.find_one({'id': challenge_id}, {'_id': 0})
+    if not versus:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    if versus['status'] != 'waiting':
+        raise HTTPException(status_code=400, detail="Questa sfida non è più disponibile")
+    if versus['creator_id'] == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+    
+    # Check cooldown
+    play_history = user.get('minigame_plays', [])
+    cooldown_status = check_minigame_cooldown(play_history, versus['game_id'])
+    if not cooldown_status['can_play']:
+        raise HTTPException(status_code=429, detail=f"Limite raggiunto. Reset tra {cooldown_status['minutes_until_reset']} minuti.")
+    
+    await db.minigame_versus.update_one({'id': challenge_id}, {'$set': {
+        'opponent_id': user['id'],
+        'opponent_nickname': user.get('nickname', 'Player'),
+        'opponent_avatar': user.get('avatar_url'),
+        'status': 'playing'
+    }})
+    
+    play_history.append({'game_id': versus['game_id'], 'played_at': datetime.now(timezone.utc).isoformat()})
+    await db.users.update_one({'id': user['id']}, {'$set': {'minigame_plays': play_history}})
+    
+    questions_safe = [{'question': q['question'], 'options': q['options'], 'index': i} for i, q in enumerate(versus['questions'])]
+    game = next((g for g in MINI_GAMES if g['id'] == versus['game_id']), None)
+    return {
+        'challenge_id': challenge_id,
+        'questions': questions_safe,
+        'game': game,
+        'creator_nickname': versus['creator_nickname'],
+        'creator_score': versus['creator_score']
+    }
+
+
+@api_router.get("/minigames/versus/my")
+async def get_my_versus(user: dict = Depends(get_current_user)):
+    """Get user's VS history."""
+    challenges = await db.minigame_versus.find(
+        {'$or': [{'creator_id': user['id']}, {'opponent_id': user['id']}]},
+        {'_id': 0, 'questions': 0, 'creator_answers': 0, 'opponent_answers': 0}
+    ).sort('created_at', -1).to_list(20)
+    return challenges
+
+
 
 # Challenges
 @api_router.get("/challenges")

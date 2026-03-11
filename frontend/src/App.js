@@ -10020,7 +10020,7 @@ const InfrastructurePage = () => {
 
       {/* Purchase Dialog */}
       <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
-        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl">Acquista {selectedType?.name_it || selectedType?.name}</DialogTitle>
           </DialogHeader>
@@ -10079,7 +10079,7 @@ const InfrastructurePage = () => {
 
       {/* Infrastructure Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg">
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
               <Building className="w-5 h-5 text-yellow-500" /> {selectedInfra?.custom_name || 'Dettaglio Infrastruttura'}
@@ -10334,7 +10334,7 @@ const InfrastructurePage = () => {
 
       {/* Rent Film Dialog */}
       <Dialog open={showRentFilmDialog} onOpenChange={setShowRentFilmDialog}>
-        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg">
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-blue-500" /> Affitta Film di Altri Giocatori

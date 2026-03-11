@@ -214,19 +214,19 @@ const TopNavbar = () => {
   });
   
   // Check if we can go back
-  const canGoBack = location.pathname !== '/dashboard' && window.history.length > 1;
+  const canGoBack = location.pathname !== '/dashboard';
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10] border-b border-white/10 z-50">
       <div className="max-w-7xl mx-auto h-full px-2 sm:px-3 flex items-center justify-between">
         {/* Left section: Logo */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Back Button - Hidden on very small screens */}
+          {/* Back Button - Always visible on non-Dashboard pages */}
           {canGoBack && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="hidden sm:flex h-8 w-8 p-0 text-gray-400 hover:text-white"
+              className="flex h-8 w-8 p-0 text-gray-400 hover:text-white"
               onClick={() => navigate(-1)}
               data-testid="back-btn"
             >
@@ -259,20 +259,22 @@ const TopNavbar = () => {
 
         {/* Right section: Quick Icons + Mobile Menu */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Festival/TV Button - Always visible */}
+          {/* Festival/TV Button - Only visible when a live festival is starting */}
+          {festivalNotifications.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${festivalNotifications.length > 0 ? 'text-yellow-400 animate-pulse' : location.pathname === '/festivals' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
-            onClick={() => festivalNotifications.length > 0 ? navigate(`/festivals?live=${festivalNotifications[0].festival_id}`) : navigate('/festivals')}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-yellow-400 animate-pulse`}
+            onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
             data-testid="festival-tv-btn"
-            title={festivalNotifications.length > 0 ? (festivalNotifications[0].message || 'Festival Live') : (language === 'it' ? 'Festival' : 'Festivals')}
+            title={festivalNotifications[0].message || 'Festival Live'}
           >
             <Tv className="w-4 h-4" />
-            {festivalNotifications.length > 0 && festivalNotifications[0].type === 'starting' && (
+            {festivalNotifications[0].type === 'starting' && (
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
             )}
           </Button>
+          )}
           
           {/* Major - Always visible */}
           <Button
@@ -369,18 +371,6 @@ const TopNavbar = () => {
               ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
             </span>
           </div>
-          
-          {/* Friends - Always visible */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/friends' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
-            onClick={() => navigate('/friends')}
-            data-testid="friends-btn"
-            title={language === 'it' ? 'Amici' : 'Friends'}
-          >
-            <UserPlus className="w-4 h-4" />
-          </Button>
           
           {/* Online Users - Always visible */}
           <Button

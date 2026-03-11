@@ -9163,6 +9163,203 @@ async def update_infrastructure_logo(infra_id: str, logo_url: str = Query(...), 
     
     return {'success': True, 'logo_url': logo_url}
 
+# ==================== INFRASTRUCTURE UPGRADE SYSTEM ====================
+
+# Products unlocked per infra level
+INFRA_PRODUCTS = {
+    1: [{'id': 'ticket', 'name': 'Biglietto', 'base_price': 12}, {'id': 'popcorn', 'name': 'Popcorn', 'base_price': 8}, {'id': 'drinks', 'name': 'Bevande', 'base_price': 5}, {'id': 'combo', 'name': 'Combo', 'base_price': 18}],
+    2: [{'id': 'nachos', 'name': 'Nachos', 'base_price': 7}],
+    3: [{'id': 'hotdog', 'name': 'Hot Dog', 'base_price': 6}],
+    4: [{'id': 'gelato', 'name': 'Gelato', 'base_price': 5}],
+    5: [{'id': 'merchandise', 'name': 'Merchandising', 'base_price': 15}],
+    6: [{'id': 'vip_lounge', 'name': 'VIP Lounge', 'base_price': 30}],
+    7: [{'id': 'premium_3d', 'name': 'Premium 3D', 'base_price': 8}],
+    8: [{'id': 'cocktail_bar', 'name': 'Cocktail Bar', 'base_price': 12}],
+}
+
+def calculate_upgrade_cost(base_cost: int, current_level: int) -> int:
+    """Exponential but accessible cost: base * 0.4 * 1.7^(level-1)"""
+    return int(base_cost * 0.4 * (1.7 ** (current_level - 1)))
+
+def calculate_upgrade_benefits(infra_type_data: dict, current_level: int, next_level: int):
+    """Calculate what benefits the next level gives."""
+    base_screens = infra_type_data.get('screens', 0)
+    base_seats = infra_type_data.get('seats_per_screen', 100)
+    
+    current_screens = base_screens + (current_level - 1) * 2 if base_screens > 0 else 0
+    next_screens = base_screens + (next_level - 1) * 2 if base_screens > 0 else 0
+    
+    current_seats = base_seats + (current_level - 1) * 25
+    next_seats = base_seats + (next_level - 1) * 25
+    
+    current_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (current_level - 1) * 0.2)
+    next_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (next_level - 1) * 0.2)
+    
+    # Collect all products unlocked up to each level
+    current_products = []
+    next_products = []
+    for lvl in range(1, current_level + 1):
+        current_products.extend(INFRA_PRODUCTS.get(lvl, []))
+    for lvl in range(1, next_level + 1):
+        next_products.extend(INFRA_PRODUCTS.get(lvl, []))
+    
+    new_products = [p for p in next_products if p not in current_products]
+    
+    return {
+        'current': {
+            'screens': current_screens,
+            'seats_per_screen': current_seats,
+            'total_capacity': current_screens * current_seats if current_screens > 0 else 0,
+            'revenue_multiplier': round(current_rev_mult, 2),
+            'products_count': len(current_products),
+        },
+        'next': {
+            'screens': next_screens,
+            'seats_per_screen': next_seats,
+            'total_capacity': next_screens * next_seats if next_screens > 0 else 0,
+            'revenue_multiplier': round(next_rev_mult, 2),
+            'products_count': len(next_products),
+        },
+        'new_products': new_products,
+        'screens_added': next_screens - current_screens,
+        'seats_added': next_seats - current_seats,
+    }
+
+@api_router.get("/infrastructure/{infra_id}/upgrade-info")
+async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get upgrade info: cost, benefits, requirements."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type:
+        raise HTTPException(status_code=400, detail="Unknown infrastructure type")
+    
+    current_level = infra.get('level', 1)
+    next_level = current_level + 1
+    max_level = 10
+    
+    if current_level >= max_level:
+        return {
+            'can_upgrade': False,
+            'reason': 'Livello massimo raggiunto!',
+            'current_level': current_level,
+            'max_level': max_level,
+        }
+    
+    # Player level requirement: base level + 3 levels per infra upgrade
+    base_level_req = infra_type.get('level_required', 5)
+    player_level_required = base_level_req + (current_level * 3)
+    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    
+    upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
+    user_funds = user.get('funds', 0)
+    
+    benefits = calculate_upgrade_benefits(infra_type, current_level, next_level)
+    
+    # All products for next level
+    all_products = []
+    for lvl in range(1, next_level + 1):
+        all_products.extend(INFRA_PRODUCTS.get(lvl, []))
+    
+    can_upgrade = player_level >= player_level_required and user_funds >= upgrade_cost
+    reason = ''
+    if player_level < player_level_required:
+        reason = f'Richiesto livello giocatore {player_level_required} (attuale: {player_level})'
+    elif user_funds < upgrade_cost:
+        reason = f'Fondi insufficienti: ${upgrade_cost:,} richiesti'
+    
+    return {
+        'can_upgrade': can_upgrade,
+        'reason': reason,
+        'current_level': current_level,
+        'next_level': next_level,
+        'max_level': max_level,
+        'upgrade_cost': upgrade_cost,
+        'player_level_required': player_level_required,
+        'player_level': player_level,
+        'user_funds': user_funds,
+        'benefits': benefits,
+        'all_products_next': all_products,
+    }
+
+@api_router.post("/infrastructure/{infra_id}/upgrade")
+async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current_user)):
+    """Upgrade an infrastructure to the next level."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastructure not found")
+    
+    infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+    if not infra_type:
+        raise HTTPException(status_code=400, detail="Unknown infrastructure type")
+    
+    current_level = infra.get('level', 1)
+    max_level = 10
+    
+    if current_level >= max_level:
+        raise HTTPException(status_code=400, detail="Livello massimo raggiunto!")
+    
+    # Check player level requirement
+    base_level_req = infra_type.get('level_required', 5)
+    player_level_required = base_level_req + (current_level * 3)
+    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    
+    if player_level < player_level_required:
+        raise HTTPException(status_code=400, detail=f"Richiesto livello giocatore {player_level_required}")
+    
+    # Check funds
+    upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
+    user_funds = user.get('funds', 0)
+    
+    if user_funds < upgrade_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti: ${upgrade_cost:,} richiesti")
+    
+    next_level = current_level + 1
+    benefits = calculate_upgrade_benefits(infra_type, current_level, next_level)
+    
+    # Collect all products for next level
+    all_products = []
+    for lvl in range(1, next_level + 1):
+        all_products.extend(INFRA_PRODUCTS.get(lvl, []))
+    
+    # Apply upgrade
+    update_data = {
+        'level': next_level,
+        'screens': benefits['next']['screens'],
+        'seats_per_screen': benefits['next']['seats_per_screen'],
+        'products': all_products,
+        'upgraded_at': datetime.now(timezone.utc).isoformat(),
+    }
+    
+    await db.infrastructure.update_one({'id': infra_id}, {'$set': update_data})
+    
+    # Deduct funds
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -upgrade_cost}})
+    
+    # Send notification
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'type': 'infrastructure_upgrade',
+        'title': 'Upgrade Completato!',
+        'message': f'{infra.get("custom_name", "Infrastruttura")} migliorata al Livello {next_level}! +{benefits["screens_added"]} sale, nuovi prodotti sbloccati.',
+        'data': {'infra_id': infra_id, 'new_level': next_level},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        'success': True,
+        'new_level': next_level,
+        'cost_paid': upgrade_cost,
+        'benefits': benefits,
+        'new_products': benefits.get('new_products', []),
+        'all_products': all_products,
+    }
+
+
 # ==================== CINEMA FILM MANAGEMENT ====================
 
 class AddFilmToCinemaRequest(BaseModel):

@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -9701,6 +9701,8 @@ const InfrastructurePage = () => {
   const [prices, setPrices] = useState({});
   const [showPricesDialog, setShowPricesDialog] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
+  const [upgradeInfo, setUpgradeInfo] = useState(null);
+  const [upgrading, setUpgrading] = useState(false);
   
   // Film management state
   const [showAddFilmDialog, setShowAddFilmDialog] = useState(false);
@@ -9766,15 +9768,50 @@ const InfrastructurePage = () => {
     setSelectedInfra(infra);
     setLoadingDetail(true);
     setShowDetailDialog(true);
+    setUpgradeInfo(null);
     try {
-      const res = await api.get(`/infrastructure/${infra.id}`);
-      setInfraDetail(res.data);
-      setPrices(res.data.prices || { ticket: 12, popcorn: 8, drinks: 5, combo: 18 });
+      const [detailRes, upgradeRes] = await Promise.all([
+        api.get(`/infrastructure/${infra.id}`),
+        api.get(`/infrastructure/${infra.id}/upgrade-info`)
+      ]);
+      setInfraDetail(detailRes.data);
+      setPrices(detailRes.data.prices || { ticket: 12, popcorn: 8, drinks: 5, combo: 18 });
+      setUpgradeInfo(upgradeRes.data);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nel caricamento');
       setShowDetailDialog(false);
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (!selectedInfra || upgrading) return;
+    setUpgrading(true);
+    try {
+      const res = await api.post(`/infrastructure/${selectedInfra.id}/upgrade`);
+      toast.success(`Upgrade al Livello ${res.data.new_level} completato!`);
+      // Refresh detail and upgrade info
+      const [detailRes, upgradeRes] = await Promise.all([
+        api.get(`/infrastructure/${selectedInfra.id}`),
+        api.get(`/infrastructure/${selectedInfra.id}/upgrade-info`)
+      ]);
+      setInfraDetail(detailRes.data);
+      setUpgradeInfo(upgradeRes.data);
+      // Refresh infrastructure list
+      try {
+        const myRes = await api.get('/infrastructure/my');
+        setMyInfrastructure(myRes.data);
+      } catch {}
+      // Refresh user funds in header
+      try {
+        const userRes = await api.get('/auth/me');
+        if (userRes.data) setUser(prev => ({ ...prev, funds: userRes.data.funds }));
+      } catch {}
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nell\'upgrade');
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -10181,6 +10218,82 @@ const InfrastructurePage = () => {
                       <span>Capienza: {infraDetail.stats.total_capacity?.toLocaleString()}</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Upgrade Section */}
+              {upgradeInfo && (
+                <div className="space-y-2 p-3 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-lg border border-purple-500/20">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <ArrowUpCircle className="w-4 h-4 text-purple-400" />
+                      {upgradeInfo.current_level >= upgradeInfo.max_level 
+                        ? 'Livello Massimo!' 
+                        : `Upgrade Lv.${upgradeInfo.current_level} → Lv.${upgradeInfo.next_level}`}
+                    </h4>
+                    <Badge className="bg-purple-500/20 text-purple-400 text-xs">
+                      Lv.{upgradeInfo.current_level}/{upgradeInfo.max_level}
+                    </Badge>
+                  </div>
+                  
+                  {upgradeInfo.current_level < upgradeInfo.max_level && (
+                    <>
+                      {/* Benefits preview */}
+                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                        {upgradeInfo.benefits?.screens_added > 0 && (
+                          <div className="p-1.5 bg-cyan-500/10 rounded border border-cyan-500/20">
+                            <p className="text-gray-400">Sale</p>
+                            <p className="text-cyan-400 font-bold">+{upgradeInfo.benefits.screens_added}</p>
+                          </div>
+                        )}
+                        {upgradeInfo.benefits?.seats_added > 0 && (
+                          <div className="p-1.5 bg-green-500/10 rounded border border-green-500/20">
+                            <p className="text-gray-400">Posti/Sala</p>
+                            <p className="text-green-400 font-bold">+{upgradeInfo.benefits.seats_added}</p>
+                          </div>
+                        )}
+                        <div className="p-1.5 bg-yellow-500/10 rounded border border-yellow-500/20">
+                          <p className="text-gray-400">Revenue</p>
+                          <p className="text-yellow-400 font-bold">x{upgradeInfo.benefits?.next?.revenue_multiplier}</p>
+                        </div>
+                      </div>
+                      
+                      {/* New products */}
+                      {upgradeInfo.benefits?.new_products?.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[10px] text-gray-400">Nuovi prodotti:</span>
+                          {upgradeInfo.benefits.new_products.map(p => (
+                            <Badge key={p.id} className="bg-green-500/20 text-green-400 text-[10px]">
+                              {p.name} (${p.base_price})
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Cost and requirements */}
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-gray-400">
+                          Costo: <span className={`font-bold ${(upgradeInfo.user_funds || 0) >= upgradeInfo.upgrade_cost ? 'text-green-400' : 'text-red-400'}`}>
+                            ${upgradeInfo.upgrade_cost?.toLocaleString()}
+                          </span>
+                        </span>
+                        <span className="text-gray-400">
+                          Lv. giocatore: <span className={`font-bold ${upgradeInfo.player_level >= upgradeInfo.player_level_required ? 'text-green-400' : 'text-red-400'}`}>
+                            {upgradeInfo.player_level}/{upgradeInfo.player_level_required}
+                          </span>
+                        </span>
+                      </div>
+                      
+                      <Button
+                        onClick={handleUpgrade}
+                        disabled={!upgradeInfo.can_upgrade || upgrading}
+                        className={`w-full h-9 font-bold ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
+                        data-testid="upgrade-infra-btn"
+                      >
+                        {upgrading ? 'Miglioramento in corso...' : upgradeInfo.can_upgrade ? `Migliora a Lv.${upgradeInfo.next_level}` : upgradeInfo.reason}
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
 

@@ -3487,7 +3487,7 @@ const ChallengesPage = () => {
             </motion.div>
           )}
 
-          {/* Skill Battles - 8 mini-battles */}
+          {/* Skill Battles - 3 Matches with 8 skill battles each */}
           {battleStep === 2 && (
             <motion.div
               key="skill-battles"
@@ -3496,50 +3496,102 @@ const ChallengesPage = () => {
               exit={{ opacity: 0 }}
               className="w-full max-w-2xl px-4"
             >
-              <h2 className="font-['Bebas_Neue'] text-2xl text-center mb-4">{language === 'it' ? 'SCONTRO SKILL' : 'SKILL BATTLES'}</h2>
+              <h2 className="font-['Bebas_Neue'] text-2xl text-center mb-3">{language === 'it' ? 'MANCHE DI BATTAGLIA' : 'BATTLE MATCHES'}</h2>
               <ScrollArea className="h-[60vh]">
-                <div className="space-y-2">
-                  {(battle.skill_battles || battle.rounds || []).map((sb, i) => (
+                <div className="space-y-4">
+                  {(battle.matches || []).map((match, mi) => (
+                    <motion.div
+                      key={mi}
+                      initial={{ y: 30, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: mi * 1.2, duration: 0.5 }}
+                      className={`rounded-lg border p-3 ${
+                        match.winner === 'team_a' ? 'border-red-500/40 bg-red-500/5' :
+                        match.winner === 'team_b' ? 'border-blue-500/40 bg-blue-500/5' :
+                        'border-yellow-500/40 bg-yellow-500/5'
+                      }`}
+                    >
+                      {/* Match Header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'MANCHE' : 'MATCH'} {match.match}</span>
+                        <Badge className={`text-[10px] ${match.winner === 'team_a' ? 'bg-red-500/30 text-red-300' : match.winner === 'team_b' ? 'bg-blue-500/30 text-blue-300' : 'bg-yellow-500/30 text-yellow-300'}`}>
+                          {match.winner === 'team_a' ? battle.team_a?.name : match.winner === 'team_b' ? battle.team_b?.name : 'DRAW'}
+                        </Badge>
+                      </div>
+                      
+                      {/* Films */}
+                      <div className="flex items-center justify-between text-xs text-gray-300 mb-2 px-1">
+                        <span className="font-semibold text-red-400 truncate max-w-[40%]">{match.film_a?.title}</span>
+                        <span className="text-gray-500">VS</span>
+                        <span className="font-semibold text-blue-400 truncate max-w-[40%] text-right">{match.film_b?.title}</span>
+                      </div>
+                      
+                      {/* 8 Skill Battles */}
+                      <div className="space-y-1">
+                        {match.skill_battles.map((sb, si) => (
+                          <motion.div
+                            key={si}
+                            initial={{ x: si % 2 === 0 ? -20 : 20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: mi * 1.2 + si * 0.15, duration: 0.3 }}
+                            className="flex items-center gap-1 text-[11px]"
+                          >
+                            <span className="w-3 text-center">{getSkillIcon(sb.skill || '')}</span>
+                            <span className={`w-4 text-right font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_a_value}</span>
+                            <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden flex">
+                              <div className="h-full bg-red-500" style={{ width: `${(sb.team_a_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
+                              <div className="h-full bg-blue-500" style={{ width: `${(sb.team_b_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
+                            </div>
+                            <span className={`w-4 font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_b_value}</span>
+                            <span className="w-16 truncate text-gray-400">{sb.skill_name_it}</span>
+                            {sb.is_upset && <span className="text-orange-400 text-[9px] font-bold">!</span>}
+                          </motion.div>
+                        ))}
+                      </div>
+                      
+                      {/* Tiebreaker */}
+                      {match.tiebreaker && (
+                        <div className="mt-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-center">
+                          <p className="text-xs font-bold text-yellow-400">{match.tiebreaker.name_it}</p>
+                          <div className="flex justify-center gap-3 text-xs mt-1">
+                            <span className={match.tiebreaker.winner === 'team_a' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_a_value}</span>
+                            <span className="text-gray-500">vs</span>
+                            <span className={match.tiebreaker.winner === 'team_b' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_b_value}</span>
+                          </div>
+                          <p className="text-[10px] text-yellow-300/70 mt-1 italic">{match.tiebreaker.comment}</p>
+                        </div>
+                      )}
+                      
+                      {/* Score */}
+                      <div className="flex justify-center gap-3 mt-2 text-xs">
+                        <span className="text-red-400">{match.team_a_skill_wins}</span>
+                        <span className="text-gray-500">-</span>
+                        <span className="text-blue-400">{match.team_b_skill_wins}</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                  
+                  {/* Fallback for old battles without matches */}
+                  {(!battle.matches || battle.matches.length === 0) && (battle.skill_battles || []).map((sb, i) => (
                     <motion.div
                       key={i}
                       initial={{ x: i % 2 === 0 ? -60 : 60, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: i * 0.4, duration: 0.4 }}
-                      className={`p-3 rounded-lg border ${
-                        sb.winner === 'team_a' ? 'bg-red-500/10 border-red-500/30' :
-                        sb.winner === 'team_b' ? 'bg-blue-500/10 border-blue-500/30' :
-                        'bg-yellow-500/10 border-yellow-500/30'
-                      }`}
+                      transition={{ delay: i * 0.3, duration: 0.4 }}
+                      className={`p-2 rounded border ${sb.winner === 'team_a' ? 'bg-red-500/10 border-red-500/30' : sb.winner === 'team_b' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-lg">{getSkillIcon(sb.skill || '')}</span>
-                        <span className="font-['Bebas_Neue'] text-sm text-gray-300">
-                          {sb.skill_name_it || sb.skill || `Round ${sb.round || i+1}`}
-                        </span>
-                        {sb.is_upset && <Badge className="bg-orange-500/80 text-[9px]">UPSET!</Badge>}
+                      <div className="flex items-center justify-between text-sm">
+                        <span>{getSkillIcon(sb.skill || '')} {sb.skill_name_it || sb.skill}</span>
+                        <span className="text-xs">{sb.team_a_value} vs {sb.team_b_value}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 text-right">
-                          <span className={`text-sm font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-400'}`}>
-                            {sb.team_a_value || Math.round(sb.team_a_power)}
-                          </span>
-                        </div>
-                        <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden flex">
-                          <div className="h-full bg-red-500 transition-all" style={{ width: `${(sb.team_a_power / (sb.team_a_power + sb.team_b_power)) * 100}%` }} />
-                          <div className="h-full bg-blue-500 transition-all" style={{ width: `${(sb.team_b_power / (sb.team_a_power + sb.team_b_power)) * 100}%` }} />
-                        </div>
-                        <div className="flex-1">
-                          <span className={`text-sm font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-400'}`}>
-                            {sb.team_b_value || Math.round(sb.team_b_power)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1 text-center italic">{sb.comment}</p>
+                      <p className="text-xs text-gray-400 italic">{sb.comment}</p>
                     </motion.div>
                   ))}
                 </div>
               </ScrollArea>
-              <div className="flex justify-center gap-4 mt-3 text-sm">
+              
+              {/* Overall Score */}
+              <div className="flex justify-center gap-6 mt-3 text-sm font-bold">
                 <span className="text-red-400">{battle.team_a?.name}: {battle.team_a?.rounds_won}</span>
                 <span className="text-gray-500">vs</span>
                 <span className="text-blue-400">{battle.team_b?.name}: {battle.team_b?.rounds_won}</span>
@@ -4176,6 +4228,8 @@ const FilmWizard = () => {
   // Rejection system states
   const [refusedIds, setRefusedIds] = useState(new Set());
   const [rejectionModal, setRejectionModal] = useState(null);
+  const [renegotiateOffer, setRenegotiateOffer] = useState(0);
+  const [renegotiating, setRenegotiating] = useState(false);
   const [checkingOffer, setCheckingOffer] = useState(null);
   
   // Pre-engagement states
@@ -4484,13 +4538,19 @@ const FilmWizard = () => {
       } else {
         // Refused!
         setRefusedIds(prev => new Set([...prev, person.id]));
+        setRenegotiateOffer(Math.round(res.data.requested_fee || person.fee * 1.2 || 60000));
         setRejectionModal({
           name: res.data.person_name,
           type: res.data.person_type,
           reason: res.data.reason,
           stars: res.data.stars,
           fame: res.data.fame,
-          alreadyRefused: res.data.already_refused
+          alreadyRefused: res.data.already_refused,
+          negotiation_id: res.data.negotiation_id,
+          can_renegotiate: res.data.can_renegotiate,
+          requested_fee: res.data.requested_fee,
+          person_id: person.id,
+          onAccept: onAccept
         });
       }
     } catch (e) {
@@ -5223,6 +5283,60 @@ const FilmWizard = () => {
             >
               {language === 'it' ? 'Ho capito' : 'I understand'}
             </Button>
+            
+            {rejectionModal.can_renegotiate && rejectionModal.negotiation_id && !rejectionModal.alreadyRefused && (
+              <div className="mt-3 p-3 rounded bg-yellow-500/10 border border-yellow-500/30">
+                <p className="text-xs text-yellow-400 font-semibold mb-2">
+                  {language === 'it' ? 'Vuoi rinegoziare? Offri di più!' : 'Want to renegotiate? Offer more!'}
+                </p>
+                <p className="text-[10px] text-gray-400 mb-2">
+                  {language === 'it' ? 'Richiesta minima' : 'Min. request'}: ${Math.round(rejectionModal.requested_fee || 0).toLocaleString()}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    value={renegotiateOffer}
+                    onChange={e => setRenegotiateOffer(Number(e.target.value))}
+                    className="h-8 text-sm bg-black/30 border-yellow-500/30"
+                    data-testid="renegotiate-offer-input"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={renegotiating || renegotiateOffer <= 0}
+                    className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold whitespace-nowrap"
+                    data-testid="renegotiate-btn"
+                    onClick={async () => {
+                      setRenegotiating(true);
+                      try {
+                        const res = await api.post(`/cast/renegotiate/${rejectionModal.negotiation_id}`, { new_offer: renegotiateOffer });
+                        if (res.data.accepted) {
+                          toast.success(res.data.message);
+                          setRefusedIds(prev => { const n = new Set(prev); n.delete(rejectionModal.person_id); return n; });
+                          if (rejectionModal.onAccept) rejectionModal.onAccept();
+                          setRejectionModal(null);
+                        } else {
+                          setRenegotiateOffer(Math.round(res.data.requested_fee || renegotiateOffer * 1.2));
+                          setRejectionModal(prev => ({
+                            ...prev,
+                            reason: res.data.reason,
+                            requested_fee: res.data.requested_fee,
+                            can_renegotiate: res.data.can_renegotiate,
+                            negotiation_id: res.data.negotiation_id
+                          }));
+                          toast.error(`${res.data.person_name}: "${res.data.reason}" (${res.data.attempts_left || 0} ${language === 'it' ? 'tentativi rimasti' : 'attempts left'})`);
+                        }
+                      } catch (e) {
+                        toast.error(e.response?.data?.detail || 'Errore rinegoziazione');
+                      } finally {
+                        setRenegotiating(false);
+                      }
+                    }}
+                  >
+                    {renegotiating ? '...' : (language === 'it' ? 'Rinegozia' : 'Renegotiate')}
+                  </Button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}

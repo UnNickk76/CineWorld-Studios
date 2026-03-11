@@ -286,82 +286,126 @@ def simulate_round(team_a_scores: Dict[str, float], team_b_scores: Dict[str, flo
         'team_b_power': round(b_net, 1)
     }
 
+def simulate_match(film_a: Dict, film_b: Dict, match_num: int) -> Dict[str, Any]:
+    """
+    Simulate a single match: 1 film VS 1 film with 8 skill battles.
+    If tied 4-4, a tiebreaker based on audience satisfaction determines the winner.
+    """
+    skills_a = film_a.get('challenge_skills', calculate_film_challenge_skills(film_a))
+    skills_b = film_b.get('challenge_skills', calculate_film_challenge_skills(film_b))
+    
+    skill_order = list(CHALLENGE_SKILLS.keys())
+    random.shuffle(skill_order)
+    
+    skill_battles = []
+    a_wins = 0
+    b_wins = 0
+    
+    for skill_name in skill_order:
+        result = simulate_skill_battle(skill_name, skills_a.get(skill_name, 5), skills_b.get(skill_name, 5))
+        skill_battles.append(result)
+        if result['winner'] == 'team_a':
+            a_wins += 1
+        elif result['winner'] == 'team_b':
+            b_wins += 1
+    
+    tiebreaker = None
+    if a_wins == b_wins:
+        sat_a = film_a.get('audience_satisfaction', 50) + random.uniform(-10, 10)
+        sat_b = film_b.get('audience_satisfaction', 50) + random.uniform(-10, 10)
+        if sat_a > sat_b:
+            tb_winner = 'team_a'
+        elif sat_b > sat_a:
+            tb_winner = 'team_b'
+        else:
+            tb_winner = random.choice(['team_a', 'team_b'])
+        
+        tiebreaker = {
+            'type': 'audience_satisfaction',
+            'name_it': 'Gradimento Pubblico',
+            'team_a_value': round(sat_a, 1),
+            'team_b_value': round(sat_b, 1),
+            'winner': tb_winner,
+            'comment': f"Spareggio! Il pubblico ha deciso: {'il primo film' if tb_winner == 'team_a' else 'il secondo film'} conquista la folla!"
+        }
+        if tb_winner == 'team_a':
+            a_wins += 1
+        else:
+            b_wins += 1
+    
+    if a_wins > b_wins:
+        match_winner = 'team_a'
+    elif b_wins > a_wins:
+        match_winner = 'team_b'
+    else:
+        match_winner = 'draw'
+    
+    return {
+        'match': match_num,
+        'film_a': {'id': film_a.get('id', ''), 'title': film_a.get('title', 'Film A'), 'skills': skills_a},
+        'film_b': {'id': film_b.get('id', ''), 'title': film_b.get('title', 'Film B'), 'skills': skills_b},
+        'skill_battles': skill_battles,
+        'tiebreaker': tiebreaker,
+        'team_a_skill_wins': a_wins,
+        'team_b_skill_wins': b_wins,
+        'winner': match_winner,
+        'comment': random.choice(ROUND_COMMENTS_IT['winner']) if match_winner != 'draw' else random.choice(ROUND_COMMENTS_IT['draw'])
+    }
+
+
 def simulate_challenge(
     team_a: Dict[str, Any],
     team_b: Dict[str, Any],
     challenge_type: str = '1v1'
 ) -> Dict[str, Any]:
     """
-    Simulate a complete challenge between two teams with 8 skill-based mini-battles.
-    Returns full battle report with skill battles and winner.
+    Simulate a complete challenge: 3 matches, each match is 1 film VS 1 film.
+    Each match has 8 skill battles. If 4-4, tiebreaker on audience satisfaction.
+    Each match gives 1 point. Winner is who has more points out of 3.
     """
-    # Calculate team skills (average across all films)
-    def get_team_skills(films):
-        all_skills = {}
-        for film in films:
-            skills = film.get('challenge_skills', calculate_film_challenge_skills(film))
-            for s, v in skills.items():
-                all_skills.setdefault(s, []).append(v)
-        return {s: round(sum(vals) / len(vals)) for s, vals in all_skills.items()}
+    intro = random.choice(INTRO_COMMENTS_IT)
     
-    team_a_skills = get_team_skills(team_a['films'])
-    team_b_skills = get_team_skills(team_b['films'])
+    films_a = list(team_a.get('films', []))
+    films_b = list(team_b.get('films', []))
     
-    # Also get aggregate scores for overview
+    while len(films_a) < 3:
+        films_a.append(films_a[-1] if films_a else {'title': 'Film Sconosciuto', 'id': 'unknown', 'quality_score': 30})
+    while len(films_b) < 3:
+        films_b.append(films_b[-1] if films_b else {'title': 'Film Sconosciuto', 'id': 'unknown', 'quality_score': 30})
+    
+    random.shuffle(films_a)
+    random.shuffle(films_b)
+    
+    matches = []
+    team_a_match_wins = 0
+    team_b_match_wins = 0
+    all_skill_battles = []
+    
+    for i in range(3):
+        match_result = simulate_match(films_a[i], films_b[i], i + 1)
+        matches.append(match_result)
+        all_skill_battles.extend(match_result['skill_battles'])
+        if match_result['winner'] == 'team_a':
+            team_a_match_wins += 1
+        elif match_result['winner'] == 'team_b':
+            team_b_match_wins += 1
+    
+    rounds = [{
+        'round': m['match'],
+        'winner': m['winner'],
+        'comment': m['comment'],
+        'team_a_power': m['team_a_skill_wins'],
+        'team_b_power': m['team_b_skill_wins']
+    } for m in matches]
+    
     team_a_scores = calculate_team_scores(team_a['films'])
     team_b_scores = calculate_team_scores(team_b['films'])
     
-    intro = random.choice(INTRO_COMMENTS_IT)
-    
-    # Simulate 8 skill battles
-    skill_battles = []
-    team_a_wins = 0
-    team_b_wins = 0
-    
-    skill_order = list(CHALLENGE_SKILLS.keys())
-    random.shuffle(skill_order)
-    
-    for skill_name in skill_order:
-        a_val = team_a_skills.get(skill_name, 5)
-        b_val = team_b_skills.get(skill_name, 5)
-        result = simulate_skill_battle(skill_name, a_val, b_val)
-        skill_battles.append(result)
-        
-        if result['winner'] == 'team_a':
-            team_a_wins += 1
-        elif result['winner'] == 'team_b':
-            team_b_wins += 1
-    
-    # Also produce 3 legacy rounds for backward compatibility
-    rounds = []
-    for i in range(3):
-        batch_start = i * 2
-        batch_end = min(batch_start + 3, 8)
-        batch = skill_battles[batch_start:batch_end]
-        a_round_wins = sum(1 for b in batch if b['winner'] == 'team_a')
-        b_round_wins = sum(1 for b in batch if b['winner'] == 'team_b')
-        
-        if a_round_wins > b_round_wins:
-            rw = 'team_a'
-        elif b_round_wins > a_round_wins:
-            rw = 'team_b'
-        else:
-            rw = 'draw'
-        
-        rounds.append({
-            'round': i + 1,
-            'winner': rw,
-            'comment': batch[0]['comment'] if batch else '',
-            'team_a_power': sum(b['team_a_power'] for b in batch),
-            'team_b_power': sum(b['team_b_power'] for b in batch)
-        })
-    
-    # Determine overall winner
-    if team_a_wins > team_b_wins:
+    if team_a_match_wins > team_b_match_wins:
         winner = 'team_a'
         winner_comment = random.choice(ROUND_COMMENTS_IT['winner'])
         loser_comment = random.choice(ROUND_COMMENTS_IT['loser'])
-    elif team_b_wins > team_a_wins:
+    elif team_b_match_wins > team_a_match_wins:
         winner = 'team_b'
         winner_comment = random.choice(ROUND_COMMENTS_IT['winner'])
         loser_comment = random.choice(ROUND_COMMENTS_IT['loser'])
@@ -371,30 +415,30 @@ def simulate_challenge(
         loser_comment = ""
     
     duration_map = {'1v1': 60, '2v2': 90, '3v3': 150, '4v4': 210, 'ffa': 300}
-    duration_seconds = duration_map.get(challenge_type, 60)
     
     return {
         'intro': intro,
         'team_a': {
             'name': team_a['name'],
             'players': team_a['players'],
-            'films': [{'id': f['id'], 'title': f['title'], 'skills': f.get('challenge_skills', {})} for f in team_a['films']],
+            'films': [{'id': f.get('id', ''), 'title': f.get('title', ''), 'skills': f.get('challenge_skills', {})} for f in films_a[:3]],
             'scores': team_a_scores,
-            'rounds_won': team_a_wins
+            'rounds_won': team_a_match_wins
         },
         'team_b': {
             'name': team_b['name'],
             'players': team_b['players'],
-            'films': [{'id': f['id'], 'title': f['title'], 'skills': f.get('challenge_skills', {})} for f in team_b['films']],
+            'films': [{'id': f.get('id', ''), 'title': f.get('title', ''), 'skills': f.get('challenge_skills', {})} for f in films_b[:3]],
             'scores': team_b_scores,
-            'rounds_won': team_b_wins
+            'rounds_won': team_b_match_wins
         },
         'rounds': rounds,
-        'skill_battles': skill_battles,
+        'matches': matches,
+        'skill_battles': all_skill_battles,
         'winner': winner,
         'winner_comment': winner_comment,
         'loser_comment': loser_comment,
-        'duration_seconds': duration_seconds
+        'duration_seconds': duration_map.get(challenge_type, 60)
     }
 
 # ==================== REWARDS CALCULATION ====================

@@ -2481,13 +2481,21 @@ async def make_cast_offer(request: CastOfferRequest, user: dict = Depends(get_cu
     
     if will_refuse:
         # Save the rejection so they can't be asked again today
+        rejection_id = str(uuid.uuid4())
+        expected_fee = person.get('fee', 50000)
+        requested_fee = round(expected_fee * (1.1 + random.random() * 0.3))
+        
         await db.rejections.insert_one({
-            'id': str(uuid.uuid4()),
+            'id': rejection_id,
             'user_id': user['id'],
             'person_id': request.person_id,
             'person_name': person['name'],
             'person_type': person.get('type', request.person_type),
             'reason': reason,
+            'can_renegotiate': True,
+            'requested_fee': requested_fee,
+            'expected_fee': expected_fee,
+            'renegotiation_count': 0,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
         
@@ -2498,7 +2506,10 @@ async def make_cast_offer(request: CastOfferRequest, user: dict = Depends(get_cu
             'person_type': person.get('type', request.person_type),
             'reason': reason,
             'stars': person.get('stars', 3),
-            'fame': person.get('fame_score', 50)
+            'fame': person.get('fame_score', 50),
+            'negotiation_id': rejection_id,
+            'can_renegotiate': True,
+            'requested_fee': requested_fee
         }
     
     # Accepted!
@@ -2524,6 +2535,76 @@ async def get_my_rejections(user: dict = Depends(get_current_user)):
         'rejections': rejections,
         'refused_ids': refused_ids
     }
+
+@api_router.post("/cast/renegotiate/{negotiation_id}")
+async def renegotiate_cast_offer(negotiation_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Renegotiate with a cast member who rejected. Higher offer = better chance."""
+    rejection = await db.rejections.find_one({'id': negotiation_id, 'user_id': user['id']}, {'_id': 0})
+    if not rejection:
+        raise HTTPException(status_code=404, detail="Negoziazione non trovata")
+    
+    if not rejection.get('can_renegotiate', False):
+        raise HTTPException(status_code=400, detail="Non puoi più rinegoziare con questa persona")
+    
+    new_offer = data.get('new_offer', 0)
+    requested_fee = rejection.get('requested_fee', 50000)
+    expected_fee = rejection.get('expected_fee', 50000)
+    renegotiation_count = rejection.get('renegotiation_count', 0) + 1
+    
+    # Acceptance chance: based on how close the offer is to requested fee
+    offer_ratio = new_offer / requested_fee if requested_fee > 0 else 1
+    base_chance = min(90, max(10, offer_ratio * 75))
+    # Penalty for multiple renegotiations
+    chance = base_chance - (renegotiation_count - 1) * 15
+    chance = max(5, min(90, chance))
+    
+    accepted = random.random() * 100 < chance
+    
+    if accepted:
+        # Remove from refused list
+        await db.rejections.delete_one({'id': negotiation_id})
+        
+        person = await db.people.find_one({'id': rejection['person_id']}, {'_id': 0})
+        
+        return {
+            'accepted': True,
+            'person_id': rejection['person_id'],
+            'person_name': rejection['person_name'],
+            'message': f"{rejection['person_name']} ha accettato la rinegoziazione a ${new_offer:,.0f}!"
+        }
+    else:
+        # Still refused - increase requested fee and limit renegotiations
+        new_requested = round(requested_fee * 1.2)
+        can_renegotiate = renegotiation_count < 3
+        
+        new_reason = random.choice([
+            "Non è ancora abbastanza, devo pensarci...",
+            "Apprezzo lo sforzo, ma non è il mio prezzo.",
+            "Ci sto pensando, ma serve un'offerta migliore.",
+            "Il mio agente dice che posso ottenere di più altrove."
+        ])
+        
+        await db.rejections.update_one(
+            {'id': negotiation_id},
+            {'$set': {
+                'renegotiation_count': renegotiation_count,
+                'requested_fee': new_requested,
+                'can_renegotiate': can_renegotiate,
+                'reason': new_reason
+            }}
+        )
+        
+        return {
+            'accepted': False,
+            'person_name': rejection['person_name'],
+            'reason': new_reason,
+            'requested_fee': new_requested,
+            'can_renegotiate': can_renegotiate,
+            'attempts_left': 3 - renegotiation_count,
+            'negotiation_id': negotiation_id
+        }
+
+
 
 # Sponsors, Locations, Equipment
 @api_router.get("/sponsors")
@@ -3983,17 +4064,17 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if total_budget > available_funds:
         raise HTTPException(status_code=400, detail="Insufficient funds")
     
-    # === REWORKED QUALITY SYSTEM v2 - Realistic distribution with flops ===
-    # Base quality starts at 35 - player bonuses push it up, randomness can pull it down
-    base_quality = 35
+    # === REWORKED QUALITY SYSTEM v3 - Balanced distribution ===
+    # Base quality starts at 42 - ensures average films for new players
+    base_quality = 42
     
     # Equipment bonus (dampened: usually 2-8)
-    base_quality += equipment['quality_bonus'] * 0.55
+    base_quality += equipment['quality_bonus'] * 0.65
     
-    # Director talent factor (0-8 based on fame)
+    # Director talent factor (0-10 based on fame)
     director = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'fame': 1, 'avg_film_quality': 1})
     if director:
-        director_bonus = min(8, (director.get('fame', 3) - 3) * 2)
+        director_bonus = min(10, (director.get('fame', 3) - 2) * 2.5)
         base_quality += director_bonus
     
     # Load cast members from DB for quality calculation
@@ -4003,38 +4084,38 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         if actor_doc:
             cast_members.append(actor_doc)
     
-    # Cast average quality influence (±6)
+    # Cast average quality influence (±8)
     cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50
-    cast_influence = (cast_avg_quality - 50) / 8
+    cast_influence = (cast_avg_quality - 45) / 6
     base_quality += cast_influence
     
-    # Budget influence (max +5)
+    # Budget influence (max +6)
     budget_millions = total_budget / 1000000
-    budget_bonus = min(5, budget_millions * 1.5)
+    budget_bonus = min(6, budget_millions * 2)
     base_quality += budget_bonus
     
-    # Player experience bonus (small, 0-5 based on level)
+    # Player experience bonus (0-7 based on level)
     player_level = user.get('level', 1)
-    experience_bonus = min(5, player_level * 0.5)
+    experience_bonus = min(7, player_level * 0.7)
     base_quality += experience_bonus
     
-    # === THE CRUCIAL RANDOM FACTOR ===
-    # Bell curve centered at 0 with std dev 16
-    random_roll = random.gauss(0, 16)
-    random_roll = max(-40, min(30, random_roll))
+    # === BALANCED RANDOM FACTOR ===
+    # Bell curve centered at 0 with std dev 12
+    random_roll = random.gauss(0, 12)
+    random_roll = max(-25, min(25, random_roll))
     
-    # "Bad day" factor: 10% chance of production problems
-    if random.random() < 0.10:
-        bad_day_penalty = random.uniform(-15, -5)
+    # "Bad day" factor: 8% chance of production problems
+    if random.random() < 0.08:
+        bad_day_penalty = random.uniform(-12, -4)
         random_roll += bad_day_penalty
     
-    # "Magic" factor: 5% chance something amazing happens
-    if random.random() < 0.05:
-        magic_bonus = random.uniform(10, 20)
+    # "Magic" factor: 8% chance something amazing happens
+    if random.random() < 0.08:
+        magic_bonus = random.uniform(8, 18)
         random_roll += magic_bonus
     
-    # Luck factor - weighted towards negative outcomes
-    luck_factor = random.choice([-20, -15, -10, -5, -5, 0, 0, 0, 5, 10])
+    # Luck factor - balanced distribution
+    luck_factor = random.choice([-10, -5, -3, 0, 0, 0, 3, 5, 8, 12])
     
     # Combine all factors
     quality_score = base_quality + random_roll + luck_factor

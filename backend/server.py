@@ -679,8 +679,12 @@ def calculate_rejection_chance(person: dict, user: dict, film_genre: str = None)
         if genre_skill < 30:
             base_rejection_chance += 0.10
     
+    # Minimum rejection chance so negotiation mechanic is always relevant
+    # Even 1-star cast may refuse if they're having a bad day
+    min_rejection = 0.12  # 12% minimum for all interactions
+    
     # Cap at 60% max rejection chance
-    final_chance = max(0, min(0.60, base_rejection_chance))
+    final_chance = max(min_rejection, min(0.60, base_rejection_chance))
     
     # Roll the dice
     will_refuse = random.random() < final_chance

@@ -3431,7 +3431,31 @@ const ChallengesPage = () => {
     
     return (
       <div className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-transparent to-purple-500/10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+        
+        {/* Close button - always visible */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-4 right-4 z-[60] text-white/60 hover:text-white bg-black/40 hover:bg-black/60 rounded-full w-10 h-10 p-0"
+          onClick={() => { setView('home'); setActiveBattle(null); setBattleStep(0); loadData(); }}
+          data-testid="battle-close-btn"
+        >
+          <X className="w-5 h-5" />
+        </Button>
+        
+        {/* Skip animation button - visible during rounds */}
+        {battleStep < 99 && battleStep > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute bottom-6 right-4 z-[60] text-white/40 hover:text-white text-xs"
+            onClick={() => setBattleStep(99)}
+            data-testid="battle-skip-btn"
+          >
+            {language === 'it' ? 'Salta >' : 'Skip >'}
+          </Button>
+        )}
         
         <AnimatePresence mode="wait">
           {/* Intro */}
@@ -3570,7 +3594,8 @@ const ChallengesPage = () => {
               
               <Button 
                 className="bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg px-8"
-                onClick={() => { setView('home'); setActiveBattle(null); loadData(); }}
+                onClick={() => { setView('home'); setActiveBattle(null); setBattleStep(0); loadData(); }}
+                data-testid="battle-continue-btn"
               >
                 {language === 'it' ? 'CONTINUA' : 'CONTINUE'}
               </Button>

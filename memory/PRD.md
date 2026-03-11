@@ -3,66 +3,60 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.083
+## Versione Attuale: v0.085
 
 ## Funzionalità Implementate
 
+### v0.085 - Poster AI, Battaglie 8 Skill & Popup IMDb - 11/03/2026 (COMPLETATO)
+- **Locandine AI (GPT Image 1)**: Poster generati dall'AI coerenti con titolo, genere e descrizione del film
+- **Sistema Battaglie 8 Skill**: Ogni sfida ha 8 mini-battaglie (Regia, Fotografia, Sceneggiatura, Recitazione, Colonna Sonora, Effetti Speciali, Montaggio, Carisma) con commenti coerenti
+- **Meccanica Upset**: Film con skill inferiori possono vincere raramente (3-15% probabilità)
+- **Popup IMDb**: Cliccando sul punteggio IMDb mostra 6 fattori di valutazione dettagliati
+- **Bonus Online**: +15% ricompense per chi gioca sfide in modalità online
+- **Dashboard pulita**: Rimosse statistiche contest dalla dashboard, mantenute nei mini-giochi
+- **Rimosso tasto Aggiorna** dalla sezione sfide VS
+
 ### v0.083 - Mini-Giochi VS 1v1 & Fix Stabilità - 11/03/2026 (COMPLETATO)
-- **Mini-Giochi VS 1v1**: Nuova modalità competitiva per tutti i 5 mini-giochi
-  - Crea una sfida VS, rispondi alle domande e attendi un avversario
-  - Tab "Sfide Aperte" per accettare sfide di altri giocatori
-  - Tab "Storico" con vittorie, sconfitte e pareggi
-  - Ricompense: vincitore x1.5, perdente x0.3, pareggio x0.8
-  - Notifica al creatore quando l'avversario completa la sfida
-- **Fix BattleAnimation (P0)**: Pulsante Chiudi (X), Salta Animazione e CONTINUA funzionanti
-- **Fix Pydantic (P2)**: FilmResponse con campi Optional per compatibilità dati vecchi
-- **Script Migrazione Dati**: 45 film e 41 utenti aggiornati con campi mancanti
-- **Miglioramento Mobile**: overflow safety aggiunto a tutti i dialog
-- **Note di Rilascio v0.083**: Aggiunte tutte le nuove funzionalità
+- Mini-Giochi VS 1v1 competitivo con 5 endpoint backend + UI completa
+- Fix BattleAnimation (Chiudi/Salta/Continua)
+- Fix Pydantic FilmResponse + script migrazione dati (45 film, 41 utenti)
+- Miglioramento mobile dialogs
 
-### v0.082 - Sfide Offline VS + Upgrade Infrastrutture (COMPLETATO)
-- Sfide Offline VS, Upgrade Infrastrutture, Statistiche Cinema, Popup Prezzi
-
-### v0.080 - Locandina & Trailer Gratuiti (COMPLETATO)
-### v0.079 - Contest, Revenue Infrastruttura & Mini-Giochi AI (COMPLETATO)
-### v0.078 - GlobalPlayerPopup & Nickname Cliccabili (COMPLETATO)
+### Versioni precedenti (v0.080-v0.082)
+- Sfide Offline VS AI, Upgrade Infrastrutture, Statistiche Cinema
+- Locandine/Trailer Gratuiti, Contest, Revenue Infrastruttura
+- GlobalPlayerPopup, Mini-Giochi AI, Note di Rilascio
 
 ## Architettura
-- Backend: FastAPI + MongoDB (motor), ~15.5k righe server.py
-- Frontend: React + TailwindCSS + Shadcn/UI, ~14.7k righe App.js
-- AI: OpenAI GPT-4o (Emergent LLM Key) per testo e mini-giochi
-- Media: loremflickr.com (poster), FFmpeg (trailer)
-- DB Collections nuove: `minigame_versus` per le sfide VS
+- Backend: FastAPI + MongoDB (motor), server.py (~15.5k righe)
+- Frontend: React + TailwindCSS + Shadcn/UI, App.js (~14.9k righe)
+- AI: OpenAI GPT-4o (text), GPT Image 1 (poster) via Emergent LLM Key
+- Media: FFmpeg (trailer)
+- DB Collections: films, users, user_infrastructures, challenges, minigame_versus, notifications
 
-## API Endpoints Nuovi (v0.083)
-- `POST /api/minigames/versus/create` - Crea sfida VS
-- `POST /api/minigames/versus/{id}/answer` - Invia risposte VS
+## API Endpoints Chiave
+- `POST /api/ai/poster` - Genera poster AI con GPT Image 1
+- `POST /api/minigames/versus/create` - Crea sfida VS mini-giochi
+- `POST /api/minigames/versus/{id}/answer` - Risposte VS
 - `GET /api/minigames/versus/pending` - Sfide aperte
-- `POST /api/minigames/versus/{id}/join` - Unisciti a sfida VS
-- `GET /api/minigames/versus/my` - Storico sfide VS
+- `POST /api/challenges/offline-battle` - Sfida offline vs AI
 
 ## Backlog
 
 ### P0 - Critico
-- [ ] **Refactoring Critico**: server.py e App.js monolitici (>14k righe ciascuno)
+- [ ] **Refactoring Critico**: server.py e App.js monolitici
 
 ### P1 - Prossimi
-- [ ] **Completamento Gameplay Contest Live**: matchmaking in tempo reale, classifiche
-- [ ] **Attività delle Major**: espandere sistema attività Major
+- [ ] **Completamento Gameplay Contest Live**: matchmaking avanzato, classifiche
+- [ ] **Attività delle Major**: espandere sistema attività
 
 ### P2 - Futuri
 - [ ] Sistema Acquisto CineCoins (Stripe)
-- [ ] Mini-giochi Versus miglioramenti (classifiche VS, ELO system)
+- [ ] Classifiche VS e sistema ELO per mini-giochi
 
 ### P3 - Backlog
-- [ ] Scalabilità (Redis, load balancer, etc.)
+- [ ] Scalabilità (Redis, load balancer)
 
-## Completati in questa sessione
-- [x] Fix BattleAnimation (P0) - Pulsanti chiudi/salta/continua
-- [x] Fix Mobile UI (P1) - overflow safety dialogs
-- [x] Fix Pydantic Validation (P2) - FilmResponse Optional
-- [x] Script Migrazione Dati (P3) - 45 film, 41 utenti aggiornati
-- [x] Mini-Giochi VS 1v1 (P3) - Nuova funzionalità completa
-- [x] Traduzione Categorie Festival (P3) - Già completato
-- [x] Note di Rilascio v0.083
-- [x] Pulizia codice morto backend (dead code dopo offline-battle)
+## Credenziali di Test
+- TestPlayer1: test1@test.com / Test1234!
+- TestPlayer2: test2@test.com / Test1234!

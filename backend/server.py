@@ -5599,6 +5599,16 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.085', 'date': '2026-03-11', 'title': 'Poster AI, Battaglie 8 Skill & Popup IMDb',
+     'changes': [
+         {'type': 'new', 'text': 'Locandine AI: generazione poster con GPT Image 1, coerenti con titolo e genere del film'},
+         {'type': 'new', 'text': 'Sistema Battaglie 8 Skill: ogni sfida ha 8 mini-battaglie basate su Regia, Fotografia, Sceneggiatura, Recitazione, Colonna Sonora, Effetti, Montaggio e Carisma'},
+         {'type': 'new', 'text': 'Meccanica Upset: i film con skill inferiori possono vincere come evento raro!'},
+         {'type': 'new', 'text': 'Popup IMDb: cliccando sul punteggio IMDb si vedono i 6 fattori di valutazione dettagliati'},
+         {'type': 'new', 'text': 'Bonus Online: +15% ricompense per chi gioca sfide in modalità online'},
+         {'type': 'improvement', 'text': 'Dashboard: rimosse statistiche contest, ora solo nella board Mini Giochi'},
+         {'type': 'improvement', 'text': 'Rimosso tasto Aggiorna dalla sezione sfide VS'}
+     ]},
     {'version': '0.083', 'date': '2026-03-11', 'title': 'Mini-Giochi VS 1v1 & Fix Stabilità',
      'changes': [
          {'type': 'new', 'text': 'Mini-Giochi VS 1v1: sfida altri giocatori con le stesse domande!'},

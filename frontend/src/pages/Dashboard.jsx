@@ -39,7 +39,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 
@@ -63,6 +63,80 @@ const Dashboard = () => {
   const openStatDetail = (statType) => {
     setSelectedStatType(statType);
     setShowStatsDetail(true);
+  };
+
+  const StatsDetailModal = ({ isOpen, onClose, statType }) => {
+    const [detailedStats, setDetailedStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    
+    useEffect(() => {
+      if (isOpen) {
+        setLoading(true);
+        api.get('/stats/detailed')
+          .then(res => { setDetailedStats(res.data); setLoading(false); })
+          .catch(() => setLoading(false));
+      }
+    }, [isOpen]);
+    
+    if (!isOpen) return null;
+    
+    const lt = (key) => {
+      const tr = {
+        films: language === 'it' ? 'Film' : 'Films', revenue: language === 'it' ? 'Incassi' : 'Revenue',
+        likes: language === 'it' ? 'Like' : 'Likes', quality: language === 'it' ? 'Qualità' : 'Quality',
+        byGenre: language === 'it' ? 'Per Genere' : 'By Genre', topFilms: language === 'it' ? 'Top Film' : 'Top Films',
+        distribution: language === 'it' ? 'Distribuzione' : 'Distribution', excellent: language === 'it' ? 'Eccellente' : 'Excellent',
+        good: language === 'it' ? 'Buono' : 'Good', average: language === 'it' ? 'Medio' : 'Average',
+        poor: language === 'it' ? 'Scarso' : 'Poor', total: language === 'it' ? 'Totale' : 'Total',
+        avgPerFilm: language === 'it' ? 'Media per Film' : 'Average per Film'
+      };
+      return tr[key] || key;
+    };
+    
+    const renderContent = () => {
+      if (!detailedStats) return null;
+      switch(statType) {
+        case 'films':
+          return (<div className="space-y-4">
+            <div><h4 className="text-sm font-semibold mb-2">{lt('byGenre')}</h4>
+              <div className="grid grid-cols-2 gap-2">{Object.entries(detailedStats.films?.by_genre || {}).map(([genre, count]) => (
+                <div key={genre} className="bg-black/30 rounded p-2 flex justify-between"><span className="text-xs text-gray-400">{genre}</span><span className="text-xs font-bold text-yellow-500">{count}</span></div>
+              ))}</div></div>
+            <div><h4 className="text-sm font-semibold mb-2">{lt('topFilms')} ({lt('revenue')})</h4>
+              <div className="space-y-1">{(detailedStats.films?.top_by_revenue || []).map((film, i) => (
+                <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { onClose(); navigate(`/films/${film.id}`); }}>
+                  <span className="text-xs hover:text-yellow-500">{i + 1}. {film.title}</span><span className="text-xs text-green-500">${(film.revenue / 1000000).toFixed(2)}M</span>
+                </div>))}</div></div></div>);
+        case 'revenue':
+          return (<div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-green-500/10 rounded p-3 text-center border border-green-500/20"><p className="text-2xl font-bold text-green-500">${((detailedStats.revenue?.total || 0) / 1000000).toFixed(2)}M</p><p className="text-xs text-gray-400">{language === 'it' ? 'Box Office Attuale' : 'Current Box Office'}</p></div>
+              <div className="bg-blue-500/10 rounded p-3 text-center border border-blue-500/20"><p className="text-2xl font-bold text-blue-500">${((detailedStats.revenue?.average_per_film || 0) / 1000000).toFixed(2)}M</p><p className="text-xs text-gray-400">{lt('avgPerFilm')}</p></div>
+            </div></div>);
+        case 'likes':
+          return (<div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-pink-500/10 rounded p-3 text-center"><p className="text-2xl font-bold text-pink-500">{detailedStats.likes?.total || 0}</p><p className="text-xs text-gray-400">{lt('total')} {lt('likes')}</p></div>
+              <div className="bg-blue-500/10 rounded p-3 text-center"><p className="text-2xl font-bold text-blue-500">{(detailedStats.likes?.average_per_film || 0).toFixed(1)}</p><p className="text-xs text-gray-400">{lt('avgPerFilm')}</p></div>
+            </div></div>);
+        case 'quality':
+          return (<div className="space-y-4">
+            <div className="bg-blue-500/10 rounded p-4 text-center"><p className="text-3xl font-bold text-blue-500">{(detailedStats.quality?.average || 0).toFixed(1)}%</p><p className="text-sm text-gray-400">{lt('average')} {lt('quality')}</p></div>
+          </div>);
+        default: return <p className="text-gray-400 text-center py-8">Select a stat</p>;
+      }
+    };
+    
+    const titles = { films: language === 'it' ? 'Dettagli Film' : 'Films Details', revenue: language === 'it' ? 'Dettagli Incassi' : 'Revenue Details', likes: language === 'it' ? 'Dettagli Like' : 'Likes Details', quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details' };
+    
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md" data-testid="stats-detail-modal">
+          <DialogHeader><DialogTitle>{titles[statType] || 'Details'}</DialogTitle></DialogHeader>
+          {loading ? <div className="flex items-center justify-center py-12"><div className="animate-spin h-8 w-8 border-2 border-yellow-500 border-t-transparent rounded-full"></div></div> : renderContent()}
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   const loadPendingRevenue = async () => {

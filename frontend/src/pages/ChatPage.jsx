@@ -63,6 +63,82 @@ const ChatPage = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [showUserProfile, setShowUserProfile] = useState(false);
 
+  const UserProfileModal = ({ userId, isOpen, onClose }) => {
+    const { language } = useContext(LanguageContext);
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [friendStatus, setFriendStatus] = useState(null);
+    const [actionLoading, setActionLoading] = useState(null);
+    const navigate = useNavigate();
+    
+    useEffect(() => {
+      if (isOpen && userId) {
+        setLoading(true);
+        Promise.all([
+          api.get(`/users/${userId}/full-profile`),
+          api.get('/friends'),
+          api.get('/friends/requests')
+        ]).then(([profileRes, friendsRes, requestsRes]) => {
+          setProfile(profileRes.data);
+          const isFriend = friendsRes.data?.some(f => f.id === userId);
+          const hasPendingRequest = requestsRes.data?.outgoing?.some(r => r.user?.id === userId);
+          setFriendStatus(isFriend ? 'friends' : hasPendingRequest ? 'pending' : 'none');
+          setLoading(false);
+        }).catch(() => setLoading(false));
+      }
+    }, [isOpen, userId]);
+    
+    if (!isOpen) return null;
+    
+    const sendFriendRequest = async () => {
+      try {
+        setActionLoading('friend');
+        await api.post('/friends/request', { user_id: userId });
+        setFriendStatus('pending');
+        toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
+      } catch (e) {
+        toast.error(e.response?.data?.detail || 'Error');
+      } finally { setActionLoading(null); }
+    };
+    
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="user-profile-modal">
+          {loading ? (
+            <div className="flex items-center justify-center py-12"><div className="animate-spin h-8 w-8 border-2 border-yellow-500 border-t-transparent rounded-full"></div></div>
+          ) : profile ? (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-16 h-16"><AvatarImage src={profile.user?.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xl">{profile.user?.nickname?.[0]}</AvatarFallback></Avatar>
+                  <div>
+                    <DialogTitle className="text-xl flex items-center gap-2">{profile.user?.nickname}
+                      {profile.is_online ? <Badge className="bg-green-500/20 text-green-400 text-xs">Online</Badge> : <Badge className="bg-gray-500/20 text-gray-400 text-xs">Offline</Badge>}
+                    </DialogTitle>
+                    <p className="text-sm text-gray-400">{profile.user?.production_house_name}</p>
+                  </div>
+                </div>
+              </DialogHeader>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 my-4">
+                {[{l:'Film',v:profile.stats?.total_films,c:'text-yellow-500'},{l:'Revenue',v:`$${((profile.stats?.total_revenue||0)/1e6).toFixed(1)}M`,c:'text-green-500'},{l:'Like',v:profile.stats?.total_likes,c:'text-pink-500'},{l:'Qualità',v:`${profile.stats?.avg_quality||0}%`,c:'text-blue-500'},{l:'Premi',v:profile.stats?.awards_count,c:'text-purple-500'},{l:'Infra',v:profile.stats?.infrastructure_count,c:'text-orange-500'}].map(s=>(
+                  <div key={s.l} className="bg-black/30 rounded p-2 text-center"><p className={`text-lg font-bold ${s.c}`}>{s.v}</p><p className="text-xs text-gray-400">{s.l}</p></div>
+                ))}
+              </div>
+              {!profile.is_own_profile && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Button className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400" onClick={() => { onClose(); navigate('/chat'); }}><MessageSquare className="w-4 h-4 mr-2" /> Messaggio</Button>
+                  {friendStatus === 'friends' ? <Button variant="outline" className="flex-1 border-green-500/30 text-green-400" disabled><UserCheck className="w-4 h-4 mr-2" /> Amici</Button>
+                   : friendStatus === 'pending' ? <Button variant="outline" className="flex-1 border-yellow-500/30 text-yellow-400" disabled><Clock className="w-4 h-4 mr-2" /> In Attesa</Button>
+                   : <Button variant="outline" className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-500/10" onClick={sendFriendRequest} disabled={actionLoading === 'friend'}><UserPlus className="w-4 h-4 mr-2" /> Amicizia</Button>}
+                </div>
+              )}
+            </>
+          ) : <div className="text-center py-12 text-gray-400">User not found</div>}
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   // Fetch rooms and online users
   useEffect(() => {
     const fetchData = async () => {

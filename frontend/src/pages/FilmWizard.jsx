@@ -21,11 +21,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
+import { Calendar as CalendarComponent } from '../components/ui/calendar';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
-  Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
+  Film, Star, Award, TrendingUp, TrendingDown, Clock, Play, Pause, Volume2, Users, Clapperboard,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
   Zap, Globe, Trophy, Shield, Swords, Heart, MessageSquare, Bell, Home,
   Plus, Minus, Search, Filter, Trash2, Edit, Save, Copy, ExternalLink,
@@ -49,6 +50,26 @@ const FilmWizard = () => {
   const { api, user, updateFunds } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const navigate = useNavigate();
+
+  const SkillBadge = ({ name, value, change, language: lang = 'it' }) => {
+    const getBgColor = () => {
+      if (change > 0) return 'bg-green-500/20 border-green-500/30';
+      if (change < 0) return 'bg-red-500/20 border-red-500/30';
+      return 'bg-white/5 border-white/10';
+    };
+    const translatedName = SKILL_TRANSLATIONS[name]?.[lang] || SKILL_TRANSLATIONS[name]?.['en'] || name;
+    return (
+      <div className={`flex items-center justify-between px-1.5 py-0.5 rounded border ${getBgColor()}`}>
+        <span className="text-xs truncate mr-1">{translatedName}</span>
+        <div className="flex items-center gap-0.5">
+          <span className={`font-bold text-xs ${change > 0 ? 'text-green-500' : change < 0 ? 'text-red-500' : ''}`}>{value}</span>
+          {change > 0 && <TrendingUp className="w-2.5 h-2.5 text-green-500" />}
+          {change < 0 && <TrendingDown className="w-2.5 h-2.5 text-red-500" />}
+        </div>
+      </div>
+    );
+  };
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);

@@ -35,10 +35,10 @@ import { Checkbox } from './components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import '@/App.css';
+import './App.css';
 
 // Import from refactored modules
-import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations } from './contexts';
+import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations, API, PlayerPopupContext, usePlayerPopup } from './contexts';
 import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 
@@ -75,6 +75,10 @@ const PreEngagementPage = React.lazy(() => import('./pages/PreEngagementPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
+const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
+const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
+const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
+const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
 
 // ==================== COMPONENTS ====================
 

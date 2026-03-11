@@ -39,6 +39,31 @@
                 linear-gradient(to bottom, #0F0F10 0%, #0F0F10 100%);
 }
 
+/* Smooth page transitions */
+.page-enter {
+    opacity: 0;
+    transform: translateY(8px);
+}
+.page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+/* Smooth skeleton pulse */
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.04; }
+    50% { opacity: 0.08; }
+}
+.skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Smooth link/navigation transitions */
+a, button {
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
 /* Hide/reposition Emergent badge on mobile */
 @media screen and (max-width: 768px) {
     /* Target the Emergent "Made with" badge */

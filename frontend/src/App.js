@@ -40,11 +40,12 @@ import '@/App.css';
 // Import from refactored modules
 import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations } from './contexts';
 import { SKILL_TRANSLATIONS } from './constants';
+import { PageTransition, PageSkeleton } from './components/PageTransition';
 
-// Import pages from separate files
-import ReleaseNotes from './pages/ReleaseNotes';
-import TutorialPage from './pages/TutorialPage';
-import CreditsPage from './pages/CreditsPage';
+// Lazy-load pages from separate files for code-splitting
+const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
+const TutorialPage = React.lazy(() => import('./pages/TutorialPage'));
+const CreditsPage = React.lazy(() => import('./pages/CreditsPage'));
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -94,6 +95,7 @@ const TopNavbar = () => {
   const { openPlayerPopup: _ctxOpen, popupData, setPopupData } = usePlayerPopup();
   const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
 
+  // Core data - fetch once on mount + poll
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
@@ -112,7 +114,7 @@ const TopNavbar = () => {
       }).catch(() => {});
     };
     fetchOnlineUsers();
-    const onlineInterval = setInterval(fetchOnlineUsers, 30000);
+    const onlineInterval = setInterval(fetchOnlineUsers, 60000);
     
     // Festival notifications polling
     const fetchFestivalNotifications = () => {
@@ -120,7 +122,6 @@ const TopNavbar = () => {
         .then(r => {
           const notifs = r.data.notifications || [];
           setFestivalNotifications(notifs);
-          // Show toast for starting ceremonies
           notifs.filter(n => n.type === 'starting').forEach(n => {
             toast.info(n.message, { duration: 10000 });
           });
@@ -128,10 +129,16 @@ const TopNavbar = () => {
     };
     
     fetchFestivalNotifications();
-    const interval = setInterval(fetchFestivalNotifications, 60000); // Check every minute
+    const festivalInterval = setInterval(fetchFestivalNotifications, 60000);
     
-    return () => { clearInterval(interval); clearInterval(onlineInterval); };
-  }, [api, user?.total_xp, location.pathname, userTimezone, language]);
+    return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
+  }, [api, userTimezone, language]);
+
+  // Lightweight refresh on navigation - only notification counts
+  useEffect(() => {
+    api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
+    api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
+  }, [location.pathname]);
 
 
   const viewUserProfile = async (userId) => {
@@ -9395,18 +9402,14 @@ const ChatPage = () => {
     return () => clearInterval(interval);
   }, [api]);
 
-  // Refresh online users periodically
+  // Refresh rooms periodically (online users already polled by TopNavbar)
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const [onlineRes, roomsRes] = await Promise.all([
-          api.get('/users/online'),
-          api.get('/chat/rooms')
-        ]);
-        setOnlineUsers(onlineRes.data);
+        const roomsRes = await api.get('/chat/rooms');
         setRooms(roomsRes.data);
       } catch(e) {}
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [api]);
 
@@ -9425,7 +9428,7 @@ const ChatPage = () => {
         const res = await api.get(`/chat/rooms/${activeRoom.id}/messages`);
         setMessages(res.data);
       } catch(e) {}
-    }, 5000);
+    }, 10000); // Was 5s, now 10s
     return () => clearInterval(interval);
   }, [activeRoom, api]);
 
@@ -14922,6 +14925,7 @@ const NotificationsPage = () => {
 const ProtectedRoute = ({ children }) => {
   const { user, loading, api } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const [popupData, setPopupData] = useState(null);
   
   const openPlayerPopup = async (userId) => {
@@ -14940,7 +14944,18 @@ const ProtectedRoute = ({ children }) => {
   
   if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
-  return <><PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}><TopNavbar />{children}</PlayerPopupContext.Provider></>;
+  return (
+    <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
+      <TopNavbar />
+      <AnimatePresence mode="wait">
+        <PageTransition key={location.pathname}>
+          <React.Suspense fallback={<PageSkeleton />}>
+            {children}
+          </React.Suspense>
+        </PageTransition>
+      </AnimatePresence>
+    </PlayerPopupContext.Provider>
+  );
 };
 
 // Main App

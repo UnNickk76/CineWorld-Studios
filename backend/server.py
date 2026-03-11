@@ -8405,6 +8405,20 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
     import httpx
     
     try:
+        # Check if ffmpeg is available
+        try:
+            subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            logging.error("ffmpeg not available - trailer generation skipped")
+            await db.films.update_one({'id': film_id}, {'$set': {'trailer_generating': False, 'trailer_error': 'ffmpeg non disponibile nel server'}})
+            await db.notifications.insert_one({
+                'id': str(uuid.uuid4()), 'user_id': user_id, 'type': 'trailer_error',
+                'title': 'Errore Trailer', 'message': 'ffmpeg non disponibile. Il trailer non può essere generato.',
+                'data': {'film_id': film_id, 'path': f'/film/{film_id}'}, 'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            })
+            return
+        
         os.makedirs('/app/trailers', exist_ok=True)
         
         film = await db.films.find_one({'id': film_id}, {'_id': 0})

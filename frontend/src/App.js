@@ -2552,8 +2552,10 @@ const ChallengesPage = () => {
   const runBattleAnimation = (battle) => {
     setBattleStep(0);
     setTimeout(() => setBattleStep(1), 2000);   // Teams
-    setTimeout(() => setBattleStep(2), 5000);   // Skill Battles
-    setTimeout(() => setBattleStep(99), 18000); // Final Result
+    setTimeout(() => setBattleStep(2), 5000);   // Manche 1
+    setTimeout(() => setBattleStep(3), 12000);  // Manche 2
+    setTimeout(() => setBattleStep(4), 19000);  // Manche 3
+    setTimeout(() => setBattleStep(99), 25000); // Final Result
   };
 
   const getSkillIcon = (skill) => {
@@ -3487,117 +3489,115 @@ const ChallengesPage = () => {
             </motion.div>
           )}
 
-          {/* Skill Battles - 3 Matches with 8 skill battles each */}
-          {battleStep === 2 && (
-            <motion.div
-              key="skill-battles"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full max-w-2xl px-4"
-            >
-              <h2 className="font-['Bebas_Neue'] text-2xl text-center mb-3">{language === 'it' ? 'MANCHE DI BATTAGLIA' : 'BATTLE MATCHES'}</h2>
-              <ScrollArea className="h-[60vh]">
-                <div className="space-y-4">
-                  {(battle.matches || []).map((match, mi) => (
+          {/* Manche 1, 2, 3 - One per page */}
+          {[2, 3, 4].map(step => {
+            const matchIndex = step - 2;
+            const match = (battle.matches || [])[matchIndex];
+            if (battleStep !== step || !match) return null;
+            
+            return (
+              <motion.div
+                key={`match-${step}`}
+                initial={{ opacity: 0, x: 60 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -60 }}
+                className="w-full max-w-lg px-4"
+              >
+                {/* Manche Header */}
+                <div className="text-center mb-3">
+                  <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'MANCHE' : 'MATCH'} {matchIndex + 1}/3</p>
+                  <h2 className="font-['Bebas_Neue'] text-2xl">{match.film_a?.title} <span className="text-gray-500 text-lg">VS</span> {match.film_b?.title}</h2>
+                </div>
+                
+                {/* 8 Skill Battles */}
+                <div className="space-y-1.5 mb-3">
+                  {match.skill_battles.map((sb, si) => (
                     <motion.div
-                      key={mi}
-                      initial={{ y: 30, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: mi * 1.2, duration: 0.5 }}
-                      className={`rounded-lg border p-3 ${
-                        match.winner === 'team_a' ? 'border-red-500/40 bg-red-500/5' :
-                        match.winner === 'team_b' ? 'border-blue-500/40 bg-blue-500/5' :
-                        'border-yellow-500/40 bg-yellow-500/5'
+                      key={si}
+                      initial={{ x: si % 2 === 0 ? -30 : 30, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: si * 0.25, duration: 0.3 }}
+                      className={`p-2 rounded-lg border ${
+                        sb.winner === 'team_a' ? 'border-red-500/30 bg-red-500/5' :
+                        sb.winner === 'team_b' ? 'border-blue-500/30 bg-blue-500/5' :
+                        'border-white/10 bg-white/5'
                       }`}
                     >
-                      {/* Match Header */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'MANCHE' : 'MATCH'} {match.match}</span>
-                        <Badge className={`text-[10px] ${match.winner === 'team_a' ? 'bg-red-500/30 text-red-300' : match.winner === 'team_b' ? 'bg-blue-500/30 text-blue-300' : 'bg-yellow-500/30 text-yellow-300'}`}>
-                          {match.winner === 'team_a' ? battle.team_a?.name : match.winner === 'team_b' ? battle.team_b?.name : 'DRAW'}
-                        </Badge>
-                      </div>
-                      
-                      {/* Films */}
-                      <div className="flex items-center justify-between text-xs text-gray-300 mb-2 px-1">
-                        <span className="font-semibold text-red-400 truncate max-w-[40%]">{match.film_a?.title}</span>
-                        <span className="text-gray-500">VS</span>
-                        <span className="font-semibold text-blue-400 truncate max-w-[40%] text-right">{match.film_b?.title}</span>
-                      </div>
-                      
-                      {/* 8 Skill Battles */}
-                      <div className="space-y-1">
-                        {match.skill_battles.map((sb, si) => (
-                          <motion.div
-                            key={si}
-                            initial={{ x: si % 2 === 0 ? -20 : 20, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            transition={{ delay: mi * 1.2 + si * 0.15, duration: 0.3 }}
-                            className="flex items-center gap-1 text-[11px]"
-                          >
-                            <span className="w-3 text-center">{getSkillIcon(sb.skill || '')}</span>
-                            <span className={`w-4 text-right font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_a_value}</span>
-                            <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden flex">
-                              <div className="h-full bg-red-500" style={{ width: `${(sb.team_a_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
-                              <div className="h-full bg-blue-500" style={{ width: `${(sb.team_b_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
-                            </div>
-                            <span className={`w-4 font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_b_value}</span>
-                            <span className="w-16 truncate text-gray-400">{sb.skill_name_it}</span>
-                            {sb.is_upset && <span className="text-orange-400 text-[9px] font-bold">!</span>}
-                          </motion.div>
-                        ))}
-                      </div>
-                      
-                      {/* Tiebreaker */}
-                      {match.tiebreaker && (
-                        <div className="mt-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-center">
-                          <p className="text-xs font-bold text-yellow-400">{match.tiebreaker.name_it}</p>
-                          <div className="flex justify-center gap-3 text-xs mt-1">
-                            <span className={match.tiebreaker.winner === 'team_a' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_a_value}</span>
-                            <span className="text-gray-500">vs</span>
-                            <span className={match.tiebreaker.winner === 'team_b' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_b_value}</span>
-                          </div>
-                          <p className="text-[10px] text-yellow-300/70 mt-1 italic">{match.tiebreaker.comment}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{getSkillIcon(sb.skill || '')}</span>
+                        <span className="text-xs font-semibold flex-1">{sb.skill_name_it || sb.skill}</span>
+                        <span className={`text-sm font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_a_value}</span>
+                        <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden flex">
+                          <div className="h-full bg-red-500" style={{ width: `${(sb.team_a_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
+                          <div className="h-full bg-blue-500" style={{ width: `${(sb.team_b_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
                         </div>
-                      )}
-                      
-                      {/* Score */}
-                      <div className="flex justify-center gap-3 mt-2 text-xs">
-                        <span className="text-red-400">{match.team_a_skill_wins}</span>
-                        <span className="text-gray-500">-</span>
-                        <span className="text-blue-400">{match.team_b_skill_wins}</span>
+                        <span className={`text-sm font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_b_value}</span>
+                        {sb.is_upset && <Badge className="bg-orange-500/80 text-[8px] px-1">UPSET</Badge>}
                       </div>
-                    </motion.div>
-                  ))}
-                  
-                  {/* Fallback for old battles without matches */}
-                  {(!battle.matches || battle.matches.length === 0) && (battle.skill_battles || []).map((sb, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ x: i % 2 === 0 ? -60 : 60, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: i * 0.3, duration: 0.4 }}
-                      className={`p-2 rounded border ${sb.winner === 'team_a' ? 'bg-red-500/10 border-red-500/30' : sb.winner === 'team_b' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}
-                    >
-                      <div className="flex items-center justify-between text-sm">
-                        <span>{getSkillIcon(sb.skill || '')} {sb.skill_name_it || sb.skill}</span>
-                        <span className="text-xs">{sb.team_a_value} vs {sb.team_b_value}</span>
-                      </div>
-                      <p className="text-xs text-gray-400 italic">{sb.comment}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 italic pl-7">{sb.comment}</p>
                     </motion.div>
                   ))}
                 </div>
-              </ScrollArea>
-              
-              {/* Overall Score */}
-              <div className="flex justify-center gap-6 mt-3 text-sm font-bold">
-                <span className="text-red-400">{battle.team_a?.name}: {battle.team_a?.rounds_won}</span>
-                <span className="text-gray-500">vs</span>
-                <span className="text-blue-400">{battle.team_b?.name}: {battle.team_b?.rounds_won}</span>
-              </div>
-            </motion.div>
-          )}
+                
+                {/* Tiebreaker */}
+                {match.tiebreaker && (
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 2.2 }}
+                    className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center mb-3"
+                  >
+                    <p className="text-xs font-bold text-yellow-400 mb-1">{match.tiebreaker.name_it || 'Spareggio!'}</p>
+                    <div className="flex justify-center gap-4 text-sm">
+                      <span className={match.tiebreaker.winner === 'team_a' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_a_value}</span>
+                      <span className="text-gray-500">vs</span>
+                      <span className={match.tiebreaker.winner === 'team_b' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_b_value}</span>
+                    </div>
+                    <p className="text-[10px] text-yellow-300/70 mt-1 italic">{match.tiebreaker.comment}</p>
+                  </motion.div>
+                )}
+                
+                {/* Match Result */}
+                <motion.div 
+                  initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 2.5 }}
+                  className="text-center"
+                >
+                  <div className="flex justify-center gap-6 text-2xl font-bold mb-2">
+                    <span className="text-red-400">{match.team_a_skill_wins}</span>
+                    <span className="text-gray-500">-</span>
+                    <span className="text-blue-400">{match.team_b_skill_wins}</span>
+                  </div>
+                  <Badge className={`text-sm px-4 py-1 ${
+                    match.winner === 'team_a' ? 'bg-red-500/30 text-red-300' :
+                    match.winner === 'team_b' ? 'bg-blue-500/30 text-blue-300' :
+                    'bg-yellow-500/30 text-yellow-300'
+                  }`}>
+                    {match.winner === 'team_a' ? `${battle.team_a?.name} ${language === 'it' ? 'VINCE LA MANCHE!' : 'WINS!'}` :
+                     match.winner === 'team_b' ? `${battle.team_b?.name} ${language === 'it' ? 'VINCE LA MANCHE!' : 'WINS!'}` :
+                     (language === 'it' ? 'PAREGGIO!' : 'DRAW!')}
+                  </Badge>
+                </motion.div>
+                
+                {/* Navigation */}
+                <div className="flex justify-between mt-4">
+                  <Button 
+                    variant="ghost" size="sm" 
+                    onClick={() => setBattleStep(step - 1)} 
+                    disabled={step === 2}
+                    className="text-gray-400"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" /> {language === 'it' ? 'Indietro' : 'Back'}
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setBattleStep(step < 4 ? step + 1 : 99)}
+                    className="bg-white/10 hover:bg-white/20"
+                    data-testid={`match-next-${matchIndex}`}
+                  >
+                    {step < 4 ? (language === 'it' ? 'Manche Successiva' : 'Next Match') : (language === 'it' ? 'Risultato Finale' : 'Final Result')} <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </motion.div>
+            );
+          })}
 
           {/* Final Result */}
           {battleStep === 99 && (
@@ -14857,8 +14857,39 @@ const NotificationsPage = () => {
                   className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${notif.read ? 'bg-white/5' : 'bg-yellow-500/10 border border-yellow-500/20'}`}
                   onClick={() => { 
                     if (!notif.read) markAsRead(notif.id);
-                    if (notif.link) navigate(notif.link);
-                    else if (notif.data?.path) navigate(notif.data.path);
+                    // Smart navigation based on notification type
+                    const navPath = notif.link || notif.data?.path;
+                    if (navPath) {
+                      navigate(navPath);
+                    } else {
+                      // Fallback routing based on notification type
+                      const typeRoutes = {
+                        'versus_result': '/challenges',
+                        'challenge_accepted': '/challenges',
+                        'challenge_completed': '/challenges',
+                        'challenge_cancelled': '/challenges',
+                        'challenge_welcome': '/challenges',
+                        'offline_battle_result': '/challenges',
+                        'offline_challenge_result': '/challenges',
+                        'offline_challenge_report': '/challenges',
+                        'film_released': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'trailer_ready': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'trailer_generated': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'trailer_announcement': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'trailer_error': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'festival_nomination': '/festivals',
+                        'festival_award': '/festivals',
+                        'festival_started': '/festivals',
+                        'friend_request': '/social',
+                        'friend_accepted': '/social',
+                        'major_invite': '/social',
+                        'review_published': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'minigame_challenge': '/games',
+                        'box_office_update': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                      };
+                      const route = typeRoutes[notif.type];
+                      if (route) navigate(route);
+                    }
                   }}
                 >
                   <div className="flex-shrink-0 mt-0.5">
@@ -14874,6 +14905,9 @@ const NotificationsPage = () => {
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400" onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
+                  {(notif.link || notif.data?.path || notif.data?.film_id || ['versus_result','challenge_accepted','challenge_completed','offline_battle_result','offline_challenge_result','offline_challenge_report','film_released','trailer_ready','trailer_generated','festival_nomination','festival_award','friend_request','review_published','minigame_challenge'].includes(notif.type)) && (
+                    <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0 self-center" />
+                  )}
                 </div>
               ))}
             </div>

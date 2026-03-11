@@ -1332,6 +1332,7 @@ class UserResponse(BaseModel):
     fame: float = 50.0
     total_lifetime_revenue: float = 0
     leaderboard_score: float = 0
+    accept_offline_challenges: bool = True
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -1797,7 +1798,8 @@ async def register(user_data: UserCreate):
         'total_xp': 0,
         'level': 0,
         'fame': 50.0,
-        'total_lifetime_revenue': 0
+        'total_lifetime_revenue': 0,
+        'accept_offline_challenges': True
     }
     
     await db.users.insert_one(user)
@@ -4483,6 +4485,22 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
         }
     }, room='general')
     
+    # Create "Film Released" notification for the user
+    tier_label = film.get('film_tier', 'average')
+    tier_labels_it = {'blockbuster': 'Blockbuster', 'hit': 'Hit', 'good': 'Buono', 'average': 'Nella Media', 'mediocre': 'Mediocre', 'flop': 'Flop'}
+    tier_text = tier_labels_it.get(tier_label, tier_label)
+    
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'type': 'film_released',
+        'title': f'Il tuo film "{film_data.title}" è uscito!' if user_lang == 'it' else f'Your film "{film_data.title}" is out!',
+        'message': f'Qualità: {quality_score:.0f}% ({tier_text}) | Incasso giorno 1: ${opening_day_revenue:,.0f}',
+        'data': {'film_id': film['id'], 'path': f'/film/{film["id"]}'},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
     return FilmResponse(**{k: v for k, v in film.items() if k != '_id'})
 
 @api_router.get("/films/my", response_model=List[FilmResponse])
@@ -5680,6 +5698,15 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.089', 'date': '2026-03-11', 'title': 'Manche Singole, Notifiche Cliccabili & Film Uscito',
+     'changes': [
+         {'type': 'new', 'text': 'Report Manche Singole: ogni manche della sfida ha ora la sua pagina dedicata con navigazione Avanti/Indietro'},
+         {'type': 'new', 'text': 'Notifiche Cliccabili: ogni notifica ti porta direttamente al contenuto (sfida, film, trailer, festival, social)'},
+         {'type': 'new', 'text': 'Notifica Film Uscito: ricevi una notifica con qualità e incasso quando il tuo film esce'},
+         {'type': 'new', 'text': 'Freccia indicatore su notifiche cliccabili per mostrare che portano a una pagina'},
+         {'type': 'improvement', 'text': 'Sfide Offline attive di default per tutti i giocatori'},
+         {'type': 'improvement', 'text': 'Navigazione intelligente notifiche con routing per tipo (sfide, film, festival, social)'}
+     ]},
     {'version': '0.087', 'date': '2026-03-11', 'title': 'Battaglie 3 Manche, Fix Qualità Film & Rinegoziazione Cast',
      'changes': [
          {'type': 'new', 'text': 'Sistema Battaglie 3 Manche: ogni sfida ha 3 manche (film vs film) con 8 skill battles ciascuna'},
@@ -7363,7 +7390,7 @@ async def submit_versus_answer(challenge_id: str, data: dict, user: dict = Depen
                        f'Tu: {creator_score}% vs {user.get("nickname")}: {score}%. '
                        f'{"Pareggio" if winner_id == "draw" else "Hai vinto!" if winner_id == versus["creator_id"] else "Hai perso!"}. '
                        f'Ricompensa: ${creator_reward:,}',
-            'data': {'challenge_id': challenge_id}, 'read': False,
+            'data': {'challenge_id': challenge_id, 'path': '/games'}, 'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
         
@@ -8520,7 +8547,7 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
             'type': 'trailer_ready',
             'title': 'Trailer Pronto!',
             'message': f'Il trailer del tuo film è pronto! +{quality_bonus} bonus qualità ({bonus_percentage:.1f}%).',
-            'data': {'film_id': film_id},
+            'data': {'film_id': film_id, 'path': f'/film/{film_id}'},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
@@ -8564,7 +8591,7 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
             'type': 'trailer_error',
             'title': 'Errore Generazione Trailer',
             'message': f'Errore nella generazione del trailer. Riprova. Errore: {str(e)[:80]}',
-            'data': {'film_id': film_id},
+            'data': {'film_id': film_id, 'path': f'/film/{film_id}'},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
@@ -12911,7 +12938,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
         'type': 'offline_challenge_result',
         'title': 'Sfida Offline Completata!',
         'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
-        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner')},
+        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'path': '/challenges'},
         'read': False,
         'created_at': datetime.now(timezone.utc).isoformat()
     })
@@ -12934,7 +12961,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
         'type': 'offline_challenge_report',
         'title': 'Report Sfida Offline!',
         'message': report_msg,
-        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'battle_result': battle_result},
+        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'battle_result': battle_result, 'path': '/challenges'},
         'read': False,
         'created_at': datetime.now(timezone.utc).isoformat()
     })

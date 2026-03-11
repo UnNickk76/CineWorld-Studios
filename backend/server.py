@@ -1593,12 +1593,12 @@ def generate_person_name():
     }
 
 async def initialize_cast_pool_if_needed():
-    """Initialize the full cast pool (2000+ members) if not already done."""
+    """Initialize the full cast pool (4000+ members) if not already done."""
     counts = {
-        'actor': 500,
-        'director': 500,
-        'screenwriter': 500,
-        'composer': 500
+        'actor': 1000,
+        'director': 1000,
+        'screenwriter': 1000,
+        'composer': 1000
     }
     
     for role_type, target_count in counts.items():
@@ -8368,11 +8368,11 @@ async def generate_soundtrack_description(request: SoundtrackRequest, user: dict
 class TrailerRequest(BaseModel):
     film_id: str
     style: str = 'cinematic'  # cinematic, action, dramatic, comedy, horror
-    duration: int = 4  # Must be 4, 8, or 12 seconds
+    duration: int = 4  # 4, 8, or 12 seconds
 
 @api_router.post("/ai/generate-trailer")
 async def generate_trailer(request: TrailerRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    """Generate a video trailer for a film using FFmpeg (free)."""
+    """Generate a video trailer for a film using Sora 2 AI."""
     if request.duration not in [4, 8, 12]:
         request.duration = 4
     
@@ -8386,38 +8386,53 @@ async def generate_trailer(request: TrailerRequest, background_tasks: Background
     if film.get('trailer_generating'):
         return {'status': 'generating', 'message': 'Trailer in generazione...'}
     
+    # Calculate cost: base 10k + exponential based on duration and film rating
+    film_rating = film.get('imdb_rating', 5.0)
+    base_cost = 10000
+    duration_multiplier = {4: 1.0, 8: 2.5, 12: 5.0}.get(request.duration, 1.0)
+    rating_multiplier = 1.0 + (film_rating / 10.0)
+    trailer_cost = int(base_cost * duration_multiplier * rating_multiplier)
+    
+    # Check funds
+    if user['funds'] < trailer_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo trailer: ${trailer_cost:,}")
+    
+    # Deduct funds
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -trailer_cost}})
+    
     await db.films.update_one({'id': request.film_id}, {
-        '$set': {'trailer_generating': True, 'trailer_started_at': datetime.now(timezone.utc).isoformat()},
+        '$set': {'trailer_generating': True, 'trailer_started_at': datetime.now(timezone.utc).isoformat(), 'trailer_cost': trailer_cost},
         '$unset': {'trailer_error': ''}
     })
     
-    background_tasks.add_task(generate_trailer_task_ffmpeg, request.film_id, request.style, request.duration, user['id'])
+    background_tasks.add_task(generate_trailer_task_sora2, request.film_id, request.style, request.duration, user['id'], trailer_cost)
     
     return {
         'status': 'started',
-        'message': f'Generazione trailer avviata! Ci vorranno circa 30 secondi.',
-        'film_id': request.film_id
+        'message': f'Generazione trailer AI avviata! Costo: ${trailer_cost:,}. Ci vorranno 2-5 minuti.',
+        'film_id': request.film_id,
+        'cost': trailer_cost
     }
 
-async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, user_id: str):
-    """Generate a trailer using FFmpeg from poster image with Ken Burns effect + text overlays."""
-    import subprocess
-    import httpx
+@api_router.get("/ai/trailer-cost")
+async def get_trailer_cost(film_id: str, duration: int = 4, user: dict = Depends(get_current_user)):
+    """Get the cost preview for generating a trailer."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0, 'imdb_rating': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
+    film_rating = film.get('imdb_rating', 5.0)
+    base_cost = 10000
+    duration_multiplier = {4: 1.0, 8: 2.5, 12: 5.0}.get(duration, 1.0)
+    rating_multiplier = 1.0 + (film_rating / 10.0)
+    cost = int(base_cost * duration_multiplier * rating_multiplier)
+    
+    return {'cost': cost, 'duration': duration, 'film_rating': film_rating}
+
+async def generate_trailer_task_sora2(film_id: str, style: str, duration: int, user_id: str, cost: int):
+    """Generate a trailer using Sora 2 AI from film plot description."""
     try:
-        # Check if ffmpeg is available
-        try:
-            subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            logging.error("ffmpeg not available - trailer generation skipped")
-            await db.films.update_one({'id': film_id}, {'$set': {'trailer_generating': False, 'trailer_error': 'ffmpeg non disponibile nel server'}})
-            await db.notifications.insert_one({
-                'id': str(uuid.uuid4()), 'user_id': user_id, 'type': 'trailer_error',
-                'title': 'Errore Trailer', 'message': 'ffmpeg non disponibile. Il trailer non può essere generato.',
-                'data': {'film_id': film_id, 'path': f'/film/{film_id}'}, 'read': False,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            })
-            return
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
         
         os.makedirs('/app/trailers', exist_ok=True)
         
@@ -8427,120 +8442,56 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
         
         title = film.get('title', 'Film')
         genre = film.get('genre', 'Drama')
-        quality = film.get('quality_score', 50)
-        studio_name = ''
-        user_data = await db.users.find_one({'id': user_id}, {'_id': 0, 'production_house_name': 1})
-        if user_data:
-            studio_name = user_data.get('production_house_name', '')
-        
-        # Get cast info
+        description = film.get('description', '')
         cast = film.get('cast_members', [])
         cast_names = ', '.join([c.get('name', '') for c in cast[:3]]) if cast else ''
         
-        # Step 1: Get poster image (or download a genre-based one)
-        poster_path = f'/app/trailers/{film_id}_poster.jpg'
-        poster_url = film.get('poster_url', '')
-        
-        if poster_url and poster_url.startswith('data:'):
-            # Decode base64 poster
-            b64_data = poster_url.split(',', 1)[1] if ',' in poster_url else poster_url
-            with open(poster_path, 'wb') as f:
-                f.write(base64.b64decode(b64_data))
-        else:
-            # Download a genre-themed image
-            genre_kw = genre.lower().replace(' ', ',')
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                resp = await client.get(f"https://loremflickr.com/1280/720/{genre_kw},cinema")
-                if resp.status_code != 200 or len(resp.content) < 1000:
-                    resp = await client.get("https://picsum.photos/1280/720")
-                if resp.status_code == 200 and len(resp.content) > 1000:
-                    with open(poster_path, 'wb') as f:
-                        f.write(resp.content)
-                else:
-                    # Use a solid color background as last resort
-                    subprocess.run([
-                        'ffmpeg', '-y', '-f', 'lavfi', '-i',
-                        'color=c=0x1a1a2e:s=1280x720:d=1', '-frames:v', '1',
-                        poster_path
-                    ], capture_output=True, timeout=10)
-        
-        output_path = f'/app/trailers/{film_id}.mp4'
-        fps = 30
-        total_frames = duration * fps
-        
-        # Style-based color schemes
-        style_colors = {
-            'cinematic': ('white', '0x1a1a2e80'),
-            'action': ('red', '0x8B000080'),
-            'dramatic': ('gold', '0x2d2d4480'),
-            'comedy': ('yellow', '0x2d4a2d80'),
-            'horror': ('red', '0x0d0d0d80'),
+        # Build cinematic prompt
+        style_prompts = {
+            'cinematic': 'cinematic, dramatic lighting, film grain, professional color grading',
+            'action': 'dynamic camera movement, fast cuts, explosive energy, action movie style',
+            'dramatic': 'emotional, slow motion, dramatic music feel, intimate close-ups',
+            'comedy': 'bright and colorful, energetic, fun atmosphere, lighthearted mood',
+            'horror': 'dark atmosphere, suspenseful, eerie lighting, shadows, mysterious fog'
         }
-        text_color, overlay_color = style_colors.get(style, style_colors['cinematic'])
+        style_desc = style_prompts.get(style, style_prompts['cinematic'])
         
-        # Escape text for FFmpeg
-        safe_title = title.replace("'", "'\\''").replace(":", "\\:")
-        safe_studio = studio_name.replace("'", "'\\''").replace(":", "\\:")
-        safe_cast = cast_names.replace("'", "'\\''").replace(":", "\\:")
-        safe_genre = genre.replace("'", "'\\''").replace(":", "\\:")
+        prompt = f"""A {genre.lower()} movie trailer for "{title}". {description[:300] if description else f'A compelling {genre.lower()} film.'} Style: {style_desc}. Widescreen cinematic format, movie trailer aesthetic with dramatic pacing."""
         
-        # Build FFmpeg filter with Ken Burns + text overlays + fade
-        fade_in = min(1.5, duration * 0.15)
-        fade_out_start = duration - min(1.5, duration * 0.15)
+        logging.info(f"[TRAILER] Generating Sora 2 trailer for {film_id}, duration={duration}s")
         
-        # Zoom from 1.0 to 1.3 over the duration (Ken Burns effect)
-        filter_complex = (
-            f"[0:v]loop=loop={total_frames}:size=1:start=0,"
-            f"scale=1920:1080,setsar=1,"
-            f"zoompan=z='min(zoom+0.001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=1280x720:fps={fps},"
-            f"format=yuv420p,"
-            # Dark overlay
-            f"drawbox=x=0:y=0:w=iw:h=ih:color={overlay_color}:t=fill,"
-            # Title text (centered, large)
-            f"drawtext=text='{safe_title}':fontsize=64:fontcolor={text_color}:x=(w-text_w)/2:y=(h-text_h)/2-40:"
-            f"borderw=3:bordercolor=black:enable='between(t,{fade_in},{fade_out_start})',"
-            # Genre badge
-            f"drawtext=text='{safe_genre}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=(h/2)+40:"
-            f"borderw=2:bordercolor=black:box=1:boxcolor={overlay_color}:boxborderw=8:"
-            f"enable='between(t,{fade_in+0.5},{fade_out_start})',"
-            # Studio name (bottom)
-            f"drawtext=text='{safe_studio}':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=h-60:"
-            f"borderw=1:bordercolor=black:enable='between(t,{fade_in+1},{fade_out_start})',"
-            # Cast names
-            f"drawtext=text='{safe_cast}':fontsize=22:fontcolor=white:x=(w-text_w)/2:y=(h/2)+80:"
-            f"borderw=1:bordercolor=black:enable='between(t,{min(fade_in+1.5, duration-2)},{fade_out_start})',"
-            # Fade in/out
-            f"fade=t=in:st=0:d={fade_in},fade=t=out:st={fade_out_start}:d={duration-fade_out_start}"
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise Exception("EMERGENT_LLM_KEY not configured")
+        
+        video_gen = OpenAIVideoGeneration(api_key=api_key)
+        output_path = f'/app/trailers/{film_id}.mp4'
+        
+        video_bytes = video_gen.text_to_video(
+            prompt=prompt,
+            model="sora-2",
+            size="1280x720",
+            duration=duration,
+            max_wait_time=600
         )
         
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', poster_path,
-            '-filter_complex', filter_complex,
-            '-t', str(duration),
-            '-c:v', 'libx264', '-preset', 'fast',
-            '-pix_fmt', 'yuv420p',
-            '-movflags', '+faststart',
-            output_path
-        ]
+        if not video_bytes:
+            raise Exception("Sora 2 non ha generato il video")
         
-        logging.info(f"[TRAILER] Generating FFmpeg trailer for {film_id}, duration={duration}s")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        
-        if result.returncode != 0:
-            logging.error(f"[TRAILER] FFmpeg error: {result.stderr[-500:]}")
-            raise Exception(f"FFmpeg failed: {result.stderr[-200:]}")
+        video_gen.save_video(video_bytes, output_path)
         
         file_size = os.path.getsize(output_path)
-        logging.info(f"[TRAILER] Success! Film {film_id}, {file_size} bytes")
+        logging.info(f"[TRAILER] Sora 2 Success! Film {film_id}, {file_size} bytes")
         
         trailer_url = f"/api/trailers/{film_id}.mp4"
         
-        # Calculate trailer bonus
-        film_rating = film.get('imdb_rating', 5.0)
-        bonus_percentage = min(15, max(1, 1 + (film_rating - 1) * 1.556))
-        current_quality = film.get('quality_score', 50)
-        quality_bonus = max(5, int(current_quality * bonus_percentage / 100))
+        # Calculate trailer bonus - scales with duration
+        base_bonus = {4: 3, 8: 5, 12: 8}.get(duration, 3)
+        rating_bonus = max(1, int(film.get('imdb_rating', 5.0) / 2))
+        quality_bonus = base_bonus + rating_bonus
+        
+        user_data = await db.users.find_one({'id': user_id}, {'_id': 0, 'production_house_name': 1})
+        studio_name = user_data.get('production_house_name', '') if user_data else ''
         
         await db.films.update_one(
             {'id': film_id},
@@ -8549,7 +8500,9 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
                     'trailer_url': trailer_url,
                     'trailer_generating': False,
                     'trailer_generated_at': datetime.now(timezone.utc).isoformat(),
-                    'trailer_bonus_percentage': bonus_percentage
+                    'trailer_bonus': quality_bonus,
+                    'trailer_duration': duration,
+                    'trailer_cost': cost
                 },
                 '$inc': {'quality_score': quality_bonus}
             }
@@ -8558,10 +8511,10 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
         await db.notifications.insert_one({
             'id': str(uuid.uuid4()),
             'user_id': user_id,
-            'type': 'trailer_ready',
+            'type': 'trailer_generated',
             'title': 'Trailer Pronto!',
-            'message': f'Il trailer del tuo film è pronto! +{quality_bonus} bonus qualità ({bonus_percentage:.1f}%).',
-            'data': {'film_id': film_id, 'path': f'/film/{film_id}'},
+            'message': f'Il trailer di "{title}" ({duration}s) e pronto! +{quality_bonus} bonus qualita. Costo: ${cost:,}.',
+            'data': {'film_id': film_id, 'path': f'/films/{film_id}', 'type': 'film'},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
@@ -8578,7 +8531,7 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
                     'avatar_url': 'https://api.dicebear.com/9.x/bottts/svg?seed=cinebot',
                     'production_house_name': 'CineWorld System'
                 },
-                'content': f"NUOVO TRAILER! \"{title}\" di {studio_name} è ora disponibile!",
+                'content': f"NUOVO TRAILER AI! \"{title}\" di {studio_name} - Trailer {duration}s generato con Sora 2!",
                 'message_type': 'trailer_announcement',
                 'film_id': film_id,
                 'trailer_url': trailer_url,
@@ -8586,26 +8539,22 @@ async def generate_trailer_task_ffmpeg(film_id: str, style: str, duration: int, 
             }
             await db.chat_messages.insert_one(bot_message)
         
-        # Cleanup temp poster
-        try:
-            os.remove(poster_path)
-        except:
-            pass
-            
     except Exception as e:
-        logging.error(f"[TRAILER] Error: {e}")
+        logging.error(f"[TRAILER] Sora 2 Error for {film_id}: {str(e)}")
         await db.films.update_one(
             {'id': film_id},
-            {'$set': {'trailer_generating': False, 'trailer_error': str(e)}}
+            {'$set': {'trailer_generating': False, 'trailer_error': str(e)[:500]}}
         )
+        # Refund the cost on error
+        await db.users.update_one({'id': user_id}, {'$inc': {'funds': cost}})
         
         await db.notifications.insert_one({
             'id': str(uuid.uuid4()),
             'user_id': user_id,
             'type': 'trailer_error',
-            'title': 'Errore Generazione Trailer',
-            'message': f'Errore nella generazione del trailer. Riprova. Errore: {str(e)[:80]}',
-            'data': {'film_id': film_id, 'path': f'/film/{film_id}'},
+            'title': 'Errore Trailer',
+            'message': f'Errore generazione trailer. Costo rimborsato: ${cost:,}. Errore: {str(e)[:80]}',
+            'data': {'film_id': film_id, 'path': f'/films/{film_id}', 'type': 'film'},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
@@ -8964,8 +8913,8 @@ async def generate_daily_cast_members():
         logging.info("Daily cast generation already done for today")
         return
     
-    # Generate 10-20 new members per type daily
-    new_members_per_type = random.randint(10, 20)
+    # Generate 25-50 new members per type daily
+    new_members_per_type = random.randint(25, 50)
     total_generated = 0
     
     for role_type in ['actor', 'director', 'screenwriter', 'composer']:

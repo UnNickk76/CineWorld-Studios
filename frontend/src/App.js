@@ -457,10 +457,10 @@ const TopNavbar = () => {
             </PopoverContent>
           </Popover>
 
-          {/* MOBILE HAMBURGER MENU - Always visible on mobile */}
+          {/* HAMBURGER MENU - Visible on all screen sizes */}
           <Button 
             variant="ghost" 
-            className="lg:hidden flex items-center justify-center p-1 h-8 w-8 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
+            className="flex items-center justify-center p-1 h-8 w-8 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             data-testid="mobile-menu-btn"
           >
@@ -469,7 +469,7 @@ const TopNavbar = () => {
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown - SOLID DARK BACKGROUND */}
+      {/* Menu Dropdown - Visible on all screens */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -477,7 +477,7 @@ const TopNavbar = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="lg:hidden absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto"
+            className="absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto"
           >
             {/* Mobile User Info Header */}
             <div className="flex items-center justify-between px-3 py-3 bg-[#111111] border-b border-white/10">
@@ -3061,37 +3061,32 @@ const ChallengesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Offline Challenge Section */}
-        <Card className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-cyan-500/20 mb-4">
-          <CardContent className="p-4 space-y-3">
-            {/* Toggle offline availability */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-cyan-500/20 rounded-lg"><Shield className="w-5 h-5 text-cyan-400" /></div>
-                <div>
-                  <h3 className="font-['Bebas_Neue'] text-lg text-cyan-400">SFIDA OFFLINE VS</h3>
-                  <p className="text-[10px] text-gray-400">L'AI sceglie i film per il difensore. Penalità perdente ridotte dell'80%.</p>
-                </div>
-              </div>
+        {/* Offline Challenge Section - Same style as online challenges */}
+        <Card 
+          className="bg-gradient-to-br from-cyan-500/20 to-blue-600/5 border-cyan-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-4"
+          onClick={() => { loadOfflinePlayers(); setShowOfflineDialog(true); setSelectedFilms([]); }}
+          data-testid="offline-challenge-btn"
+        >
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg">
+              <Shield className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-['Bebas_Neue'] text-xl text-cyan-400">SFIDA OFFLINE VS</h3>
+              <p className="text-sm text-gray-400">{language === 'it' ? "Sfida un giocatore offline! L'AI sceglie i suoi film." : "Challenge an offline player! AI picks their films."}</p>
+            </div>
+            <div className="flex flex-col items-end gap-2">
               <Button
                 size="sm"
                 variant={offlineMode ? "default" : "outline"}
-                className={offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white h-8" : "border-cyan-500/30 text-cyan-400 h-8"}
-                onClick={toggleOfflineMode}
+                className={offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white h-7 text-xs" : "border-cyan-500/30 text-cyan-400 h-7 text-xs"}
+                onClick={(e) => { e.stopPropagation(); toggleOfflineMode(); }}
                 data-testid="toggle-offline-btn"
               >
-                {offlineMode ? 'Attivo' : 'Disattivo'}
+                {offlineMode ? (language === 'it' ? 'Accetto Sfide' : 'Accepting') : (language === 'it' ? 'Non Accetto' : 'Not Accepting')}
               </Button>
+              <ChevronRight className="w-5 h-5 text-gray-500" />
             </div>
-            
-            {/* Launch offline challenge */}
-            <Button
-              className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white h-10"
-              onClick={() => { loadOfflinePlayers(); setShowOfflineDialog(true); setSelectedFilms([]); }}
-              data-testid="offline-challenge-btn"
-            >
-              <Swords className="w-4 h-4 mr-2" /> Sfida un Giocatore Offline
-            </Button>
           </CardContent>
         </Card>
 
@@ -6470,6 +6465,7 @@ const FilmDetail = () => {
   const [processing, setProcessing] = useState(false);
   const [trailerStatus, setTrailerStatus] = useState(null);
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
+  const [trailerCosts, setTrailerCosts] = useState({4: 10000, 8: 25000, 12: 50000});
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
   const [distribution, setDistribution] = useState(null);
@@ -6500,9 +6496,20 @@ const FilmDetail = () => {
     setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
     if (trailerRes.data) setTrailerStatus(trailerRes.data);
-    if (actionsRes.data) setFilmActions(actionsRes.data);
+    if (filmRes.data) setFilmActions(actionsRes.data);
     if (distRes.data) setDistribution(distRes.data);
     if (virtualRes.data) setVirtualAudience(virtualRes.data);
+    
+    // Load trailer costs
+    if (!filmRes.data.trailer_url) {
+      Promise.all([
+        api.get(`/ai/trailer-cost?film_id=${id}&duration=4`).catch(() => ({data:{cost:10000}})),
+        api.get(`/ai/trailer-cost?film_id=${id}&duration=8`).catch(() => ({data:{cost:25000}})),
+        api.get(`/ai/trailer-cost?film_id=${id}&duration=12`).catch(() => ({data:{cost:50000}}))
+      ]).then(([c4, c8, c12]) => {
+        setTrailerCosts({4: c4.data.cost, 8: c8.data.cost, 12: c12.data.cost});
+      });
+    }
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -6695,22 +6702,35 @@ const FilmDetail = () => {
               clearInterval(pollInterval);
               setGeneratingTrailer(false);
               if (statusRes.data.has_trailer) {
-                toast.success('Trailer generato con successo! +5 bonus qualità');
+                toast.success('Trailer AI generato con successo!');
               } else if (statusRes.data.error) {
-                toast.error('Errore nella generazione del trailer. Puoi riprovare.');
+                toast.error('Errore generazione trailer. Costo rimborsato.');
               }
-              loadFilm(); // Reload to update filmActions
+              loadFilm();
             }
           } catch (e) {
             clearInterval(pollInterval);
             setGeneratingTrailer(false);
           }
-        }, 10000); // Poll ogni 10 secondi
+        }, 15000); // Poll ogni 15 secondi (Sora 2 richiede più tempo)
       }
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella generazione del trailer');
       setGeneratingTrailer(false);
     }
+  };
+  
+  // Load trailer cost preview
+  const loadTrailerCosts = async () => {
+    if (!film?.id) return;
+    try {
+      const [c4, c8, c12] = await Promise.all([
+        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=4`),
+        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=8`),
+        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=12`)
+      ]);
+      setTrailerCosts({4: c4.data.cost, 8: c8.data.cost, 12: c12.data.cost});
+    } catch(e) {}
   };
 
   const getRoleName = (roleId) => {
@@ -7259,7 +7279,7 @@ const FilmDetail = () => {
               ) : trailerStatus?.generating || generatingTrailer ? (
                 <div className="text-center py-8 space-y-3">
                   <RefreshCw className="w-10 h-10 mx-auto text-purple-400 animate-spin" />
-                  <p className="text-purple-300">Generazione trailer in corso...</p>
+                  <p className="text-purple-300">Sora 2 sta generando il trailer AI...</p>
                   <p className="text-xs text-gray-400">Questo processo richiede 2-5 minuti. Puoi tornare più tardi.</p>
                   <Progress value={33} className="h-1.5 max-w-xs mx-auto" />
                 </div>
@@ -7272,13 +7292,13 @@ const FilmDetail = () => {
                     <p className="text-xs text-gray-400">{language === 'it' ? 'Riprova la generazione:' : 'Retry generation:'}</p>
                     <div className="flex gap-2">
                       <Button onClick={() => generateTrailer(4)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
-                        4 sec
+                        4s (${trailerCosts[4]?.toLocaleString() || '10,000'})
                       </Button>
                       <Button onClick={() => generateTrailer(8)} size="sm" className="bg-purple-600 hover:bg-purple-500">
-                        <RefreshCw className="w-3 h-3 mr-1" /> 8 sec ($50,000)
+                        <RefreshCw className="w-3 h-3 mr-1" /> 8s (${trailerCosts[8]?.toLocaleString() || '25,000'})
                       </Button>
                       <Button onClick={() => generateTrailer(12)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
-                        12 sec
+                        12s (${trailerCosts[12]?.toLocaleString() || '50,000'})
                       </Button>
                     </div>
                   </div>
@@ -7292,6 +7312,7 @@ const FilmDetail = () => {
                   {/* Only show generation buttons if owner */}
                   {isOwner && (
                     <div className="flex flex-col items-center gap-3">
+                      <p className="text-xs text-gray-400">{language === 'it' ? 'Genera trailer AI (Sora 2) - Scegli durata:' : 'Generate AI trailer (Sora 2) - Choose duration:'}</p>
                       <div className="flex gap-2">
                         <Button 
                           onClick={() => generateTrailer(4)} 
@@ -7300,7 +7321,7 @@ const FilmDetail = () => {
                           className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
                           data-testid="generate-trailer-4s"
                         >
-                          4 sec
+                          4s (${trailerCosts[4]?.toLocaleString() || '10,000'})
                         </Button>
                         <Button 
                           onClick={() => generateTrailer(8)} 
@@ -7309,7 +7330,7 @@ const FilmDetail = () => {
                           data-testid="generate-trailer-btn"
                         >
                           <Sparkles className="w-4 h-4 mr-2" />
-                          8 sec ($50,000)
+                          8s (${trailerCosts[8]?.toLocaleString() || '25,000'})
                         </Button>
                         <Button 
                           onClick={() => generateTrailer(12)} 
@@ -7318,10 +7339,10 @@ const FilmDetail = () => {
                           className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
                           data-testid="generate-trailer-12s"
                         >
-                          12 sec
+                          12s (${trailerCosts[12]?.toLocaleString() || '50,000'})
                         </Button>
                       </div>
-                      <p className="text-[10px] text-gray-500">Generato da Sora 2 • +5 bonus qualità</p>
+                      <p className="text-[10px] text-gray-500">Generato da Sora 2 AI • Bonus qualità variabile in base a durata e rating</p>
                     </div>
                   )}
                   {!isOwner && (

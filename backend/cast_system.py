@@ -184,6 +184,102 @@ EXPANDED_NAMES = {
                          'Sofía', 'Valentina', 'Camila', 'Ximena', 'Fernanda', 'Daniela', 'Regina', 'Lucía', 'Natalia', 'Isabella'],
         'last': ['García', 'Hernández', 'López', 'Martínez', 'González', 'Rodríguez', 'Pérez', 'Sánchez', 'Ramírez', 'Cruz',
                  'Flores', 'Gómez', 'Morales', 'Vázquez', 'Jiménez', 'Reyes', 'Díaz', 'Torres', 'Gutiérrez', 'Ruiz']
+    },
+    'Russia': {
+        'first_male': ['Alexander', 'Dmitri', 'Sergei', 'Andrei', 'Nikolai', 'Ivan', 'Mikhail', 'Vladimir', 'Pavel', 'Maxim',
+                       'Aleksei', 'Yuri', 'Viktor', 'Oleg', 'Boris', 'Igor', 'Konstantin', 'Anatoli', 'Grigori', 'Roman'],
+        'first_female': ['Anastasia', 'Elena', 'Natalia', 'Olga', 'Tatiana', 'Irina', 'Svetlana', 'Maria', 'Ekaterina', 'Anna',
+                         'Oksana', 'Yulia', 'Valentina', 'Galina', 'Ludmila', 'Daria', 'Polina', 'Vera', 'Nadezhda', 'Larisa'],
+        'last': ['Ivanov', 'Smirnov', 'Kuznetsov', 'Popov', 'Sokolov', 'Lebedev', 'Kozlov', 'Novikov', 'Morozov', 'Petrov',
+                 'Volkov', 'Solovyov', 'Vasiliev', 'Zaytsev', 'Pavlov', 'Fedorov', 'Orlov', 'Andreev', 'Makarov', 'Nikolaev']
+    },
+    'Australia': {
+        'first_male': ['Liam', 'Noah', 'Oliver', 'Jack', 'William', 'Leo', 'Lucas', 'Henry', 'Ethan', 'James',
+                       'Mason', 'Archer', 'Hudson', 'Hunter', 'Cooper', 'Finn', 'Harrison', 'Lachlan', 'Riley', 'Kai'],
+        'first_female': ['Charlotte', 'Amelia', 'Olivia', 'Isla', 'Mia', 'Ava', 'Grace', 'Willow', 'Harper', 'Ella',
+                         'Zoe', 'Chloe', 'Ruby', 'Lily', 'Ivy', 'Sienna', 'Matilda', 'Evie', 'Frankie', 'Billie'],
+        'last': ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Anderson',
+                 'Thompson', 'Nguyen', 'Thomas', 'Walker', 'Harris', 'Lee', 'Ryan', 'Robinson', 'Kelly', 'King']
+    },
+    'Nigeria': {
+        'first_male': ['Chukwuemeka', 'Oluwaseun', 'Adebayo', 'Chibueze', 'Emeka', 'Oluwatobi', 'Ifeanyi', 'Nnamdi', 'Obinna', 'Tunde',
+                       'Babajide', 'Olumide', 'Chinedu', 'Segun', 'Ikenna', 'Damilola', 'Femi', 'Kelechi', 'Ayodeji', 'Uche'],
+        'first_female': ['Ngozi', 'Chiamaka', 'Aisha', 'Oluwadamilola', 'Chioma', 'Funmilayo', 'Adaeze', 'Ifeoma', 'Temitope', 'Blessing',
+                         'Nneka', 'Amara', 'Folake', 'Yetunde', 'Adeola', 'Zainab', 'Obioma', 'Titilayo', 'Chinyere', 'Omolara'],
+        'last': ['Okafor', 'Adeyemi', 'Okonkwo', 'Ibrahim', 'Abubakar', 'Ogundimu', 'Olawale', 'Nwachukwu', 'Balogun', 'Adeniyi',
+                 'Eze', 'Udoh', 'Amadi', 'Chukwu', 'Okoro', 'Adekunle', 'Onyeka', 'Idris', 'Obiora', 'Nnaji']
+    },
+    'Turkey': {
+        'first_male': ['Mehmet', 'Ali', 'Mustafa', 'Ahmet', 'Hakan', 'Emre', 'Burak', 'Can', 'Kaan', 'Yusuf',
+                       'Omer', 'Murat', 'Kemal', 'Serkan', 'Tolga', 'Deniz', 'Baran', 'Eren', 'Furkan', 'Onur'],
+        'first_female': ['Fatma', 'Ayse', 'Zeynep', 'Elif', 'Merve', 'Ebru', 'Selin', 'Defne', 'Esra', 'Dilara',
+                         'Naz', 'Ceren', 'Buse', 'Ece', 'Gamze', 'Tugba', 'Sibel', 'Hande', 'Melis', 'Pinar'],
+        'last': ['Yilmaz', 'Kaya', 'Demir', 'Celik', 'Sahin', 'Yildiz', 'Yildirim', 'Ozturk', 'Aydin', 'Ozdemir',
+                 'Arslan', 'Dogan', 'Kilic', 'Aslan', 'Cetin', 'Koc', 'Kurt', 'Ozkan', 'Simsek', 'Polat']
+    },
+    'Sweden': {
+        'first_male': ['Erik', 'Lars', 'Anders', 'Johan', 'Karl', 'Per', 'Nils', 'Lennart', 'Sven', 'Olof',
+                       'Gustaf', 'Axel', 'Oscar', 'Hugo', 'Elias', 'Liam', 'Lucas', 'William', 'Viktor', 'Felix'],
+        'first_female': ['Anna', 'Eva', 'Maria', 'Karin', 'Sara', 'Lena', 'Kristina', 'Birgitta', 'Marie', 'Ingrid',
+                         'Maja', 'Ebba', 'Ella', 'Astrid', 'Wilma', 'Saga', 'Freja', 'Alva', 'Alma', 'Elsa'],
+        'last': ['Andersson', 'Johansson', 'Karlsson', 'Nilsson', 'Eriksson', 'Larsson', 'Olsson', 'Persson', 'Svensson', 'Gustafsson',
+                 'Pettersson', 'Jonsson', 'Hansson', 'Bengtsson', 'Jönsson', 'Lindberg', 'Jakobsson', 'Magnusson', 'Lindström', 'Olofsson']
+    },
+    'Argentina': {
+        'first_male': ['Santiago', 'Mateo', 'Nicolás', 'Valentín', 'Joaquín', 'Lautaro', 'Benjamín', 'Tomás', 'Facundo', 'Thiago',
+                       'Martín', 'Agustín', 'Felipe', 'Ignacio', 'Gonzalo', 'Maximiliano', 'Ramiro', 'Federico', 'Emiliano', 'Luciano'],
+        'first_female': ['Sofía', 'Valentina', 'Isabella', 'Mía', 'Catalina', 'Emilia', 'Martina', 'Lucía', 'Julieta', 'Renata',
+                         'Florencia', 'Camila', 'Pilar', 'Agustina', 'Delfina', 'Sol', 'Rocío', 'Celeste', 'Bianca', 'Victoria'],
+        'last': ['González', 'Rodríguez', 'Gómez', 'Fernández', 'López', 'Díaz', 'Martínez', 'Pérez', 'García', 'Sánchez',
+                 'Romero', 'Sosa', 'Álvarez', 'Torres', 'Ruiz', 'Ramírez', 'Flores', 'Acosta', 'Medina', 'Benítez']
+    },
+    'Canada': {
+        'first_male': ['Liam', 'Noah', 'Jack', 'Benjamin', 'Lucas', 'Henry', 'Ethan', 'Oliver', 'Owen', 'James',
+                       'Logan', 'Alexander', 'William', 'Theodore', 'Nathan', 'Gabriel', 'Samuel', 'Dylan', 'Jacob', 'Ryan'],
+        'first_female': ['Emma', 'Olivia', 'Charlotte', 'Amelia', 'Sophia', 'Ava', 'Mia', 'Isla', 'Chloe', 'Ella',
+                         'Zoey', 'Riley', 'Nora', 'Lily', 'Eleanor', 'Hannah', 'Abigail', 'Harper', 'Aria', 'Scarlett'],
+        'last': ['Smith', 'Brown', 'Tremblay', 'Martin', 'Roy', 'Wilson', 'Macdonald', 'Taylor', 'Campbell', 'Anderson',
+                 'Jones', 'Gagnon', 'Thompson', 'Leblanc', 'White', 'Williams', 'Côté', 'Johnson', 'Lee', 'Walker']
+    },
+    'Poland': {
+        'first_male': ['Jan', 'Andrzej', 'Piotr', 'Krzysztof', 'Stanislaw', 'Tomasz', 'Pawel', 'Marcin', 'Marek', 'Michal',
+                       'Grzegorz', 'Jerzy', 'Tadeusz', 'Adam', 'Lukasz', 'Zbigniew', 'Ryszard', 'Dariusz', 'Wojciech', 'Rafal'],
+        'first_female': ['Anna', 'Maria', 'Katarzyna', 'Malgorzata', 'Agnieszka', 'Barbara', 'Ewa', 'Krystyna', 'Elzbieta', 'Joanna',
+                         'Monika', 'Dorota', 'Aleksandra', 'Zofia', 'Magdalena', 'Beata', 'Renata', 'Iwona', 'Teresa', 'Danuta'],
+        'last': ['Nowak', 'Kowalski', 'Wisniewski', 'Wojciechowski', 'Kaminski', 'Lewandowski', 'Zielinski', 'Szymanski', 'Wozniak', 'Dabrowski',
+                 'Kozlowski', 'Jankowski', 'Mazur', 'Kwiatkowski', 'Krawczyk', 'Piotrowski', 'Grabowski', 'Pawlak', 'Michalski', 'Zajac']
+    },
+    'Thailand': {
+        'first_male': ['Somchai', 'Somsak', 'Somporn', 'Surachai', 'Wichai', 'Chai', 'Nattapong', 'Pongsakorn', 'Thanakorn', 'Kittisak',
+                       'Supachai', 'Wattana', 'Prawit', 'Anon', 'Panya', 'Boonsri', 'Niran', 'Krit', 'Thana', 'Anek'],
+        'first_female': ['Suda', 'Malee', 'Supatra', 'Nong', 'Ploy', 'Fah', 'Kanya', 'Nattaya', 'Siriporn', 'Naree',
+                         'Wannee', 'Lalita', 'Pornthip', 'Ratana', 'Siriwan', 'Araya', 'Anchan', 'Buppha', 'Duangjai', 'Kaewta'],
+        'last': ['Saetang', 'Srisai', 'Kaewprasert', 'Chaiyaphum', 'Phanomwan', 'Thongchai', 'Rattanakorn', 'Phoonsiri', 'Wongsakorn', 'Narongrit',
+                 'Limsakul', 'Thaweesak', 'Phongphaew', 'Somkid', 'Prasoet', 'Bunnak', 'Jantarakul', 'Wongsawat', 'Suwannarat', 'Chaiprasit']
+    },
+    'Egypt': {
+        'first_male': ['Mohamed', 'Ahmed', 'Mahmoud', 'Ali', 'Hassan', 'Omar', 'Ibrahim', 'Mostafa', 'Youssef', 'Khaled',
+                       'Amr', 'Tarek', 'Karim', 'Sami', 'Hossam', 'Adel', 'Nabil', 'Sherif', 'Walid', 'Ashraf'],
+        'first_female': ['Fatma', 'Mona', 'Heba', 'Nour', 'Dina', 'Rania', 'Yasmine', 'Sara', 'Laila', 'Amira',
+                         'Mariam', 'Aya', 'Hana', 'Salma', 'Ghada', 'Nesma', 'Eman', 'Amal', 'Nagwa', 'Sahar'],
+        'last': ['El-Sayed', 'Hassan', 'Mohamed', 'Ahmed', 'Ali', 'Ibrahim', 'Mansour', 'Abdel-Fattah', 'Farouk', 'Khalil',
+                 'Naguib', 'Shafik', 'Rizk', 'Mourad', 'Samir', 'Osman', 'Youssef', 'Abdallah', 'Kamal', 'Selim']
+    },
+    'Iran': {
+        'first_male': ['Ali', 'Mohammad', 'Hossein', 'Amir', 'Reza', 'Mehdi', 'Hamid', 'Saeed', 'Majid', 'Javad',
+                       'Farhad', 'Babak', 'Dariush', 'Behnam', 'Kourosh', 'Arash', 'Shahram', 'Omid', 'Parviz', 'Nader'],
+        'first_female': ['Fatemeh', 'Zahra', 'Maryam', 'Sara', 'Parisa', 'Leila', 'Nasrin', 'Shirin', 'Azadeh', 'Mina',
+                         'Sahar', 'Niloufar', 'Bahar', 'Golnaz', 'Sepideh', 'Mahsa', 'Nazanin', 'Atefeh', 'Elham', 'Neda'],
+        'last': ['Ahmadi', 'Hosseini', 'Mohammadi', 'Rezaei', 'Karimi', 'Hashemi', 'Mousavi', 'Moradi', 'Jafari', 'Ebrahimi',
+                 'Rahimi', 'Ghorbani', 'Noori', 'Safari', 'Bagheri', 'Khanizadeh', 'Shirazi', 'Tehrani', 'Esfahani', 'Tabatabai']
+    },
+    'South Africa': {
+        'first_male': ['Thabo', 'Sipho', 'Mandla', 'Bongani', 'Sifiso', 'Nkosinathi', 'Lwazi', 'Sandile', 'Themba', 'Kagiso',
+                       'Pieter', 'Johan', 'Jan', 'Andries', 'Willem', 'Hennie', 'Francois', 'Charl', 'Riaan', 'Deon'],
+        'first_female': ['Nomzamo', 'Thandiwe', 'Zanele', 'Lerato', 'Palesa', 'Nomvula', 'Sibongile', 'Nandi', 'Ayanda', 'Thuli',
+                         'Charlize', 'Anette', 'Elise', 'Marié', 'Sarie', 'Lindiwe', 'Mpho', 'Khanyi', 'Pearl', 'Minnie'],
+        'last': ['Nkosi', 'Dlamini', 'Ndlovu', 'Zulu', 'Mthembu', 'Van der Merwe', 'Botha', 'Pretorius', 'Du Plessis', 'Naidoo',
+                 'Pillay', 'Govender', 'Mokoena', 'Molefe', 'Khumalo', 'Mkhize', 'Ngcobo', 'Joubert', 'Venter', 'Jansen']
     }
 }
 

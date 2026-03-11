@@ -8128,58 +8128,40 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
 
 @api_router.post("/ai/poster")
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
-    """Generate a movie poster using free Unsplash images + server-side composition."""
+    """Generate a movie poster using GPT Image 1 (OpenAI) via Emergent LLM Key."""
     logging.info(f"Poster generation request for: {request.title} ({request.genre})")
     
-    genre_keywords = {
-        'action': 'action movie explosion fire',
-        'comedy': 'comedy funny colorful',
-        'drama': 'dramatic cinematic portrait',
-        'horror': 'dark horror shadows night',
-        'sci-fi': 'science fiction space futuristic',
-        'fantasy': 'fantasy magical castle',
-        'romance': 'romance love sunset couple',
-        'thriller': 'thriller suspense dark city',
-        'animation': 'animation colorful cartoon',
-        'documentary': 'documentary nature landscape',
-        'war': 'war military dramatic',
-        'western': 'western desert cowboy',
-        'crime': 'crime noir detective city night',
-        'mystery': 'mystery fog shadows',
-        'adventure': 'adventure landscape epic journey',
-        'musical': 'music concert stage lights',
-        'historical': 'historical castle ancient architecture',
-    }
-    
-    genre = (request.genre or 'drama').lower()
-    keywords = genre_keywords.get(genre, f'{genre} cinematic movie')
+    if not EMERGENT_LLM_KEY:
+        return {'poster_url': '', 'error': 'AI key not configured'}
     
     try:
-        import httpx
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
         
-        # Use loremflickr for genre-themed images (free, no API key)
-        search_query = keywords.replace(' ', ',')
-        primary_url = f"https://loremflickr.com/600/900/{search_query}"
-        fallback_url = "https://picsum.photos/600/900"
+        # Build a detailed prompt from user's input
+        user_desc = request.description or request.title
+        prompt = (
+            f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
+            f"Description: {user_desc}. "
+            f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, no text overlay."
+        )
         
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-            response = await client.get(primary_url)
-            
-            if response.status_code != 200 or len(response.content) < 1000:
-                logging.warning(f"loremflickr failed ({response.status_code}), trying picsum")
-                response = await client.get(fallback_url)
-            
-            if response.status_code == 200 and len(response.content) > 1000:
-                image_base64 = base64.b64encode(response.content).decode('utf-8')
-                content_type = response.headers.get('content-type', 'image/jpeg')
-                poster_data_url = f"data:{content_type};base64,{image_base64}"
-                logging.info(f"Poster generated, size: {len(response.content)} bytes")
-                return {'poster_base64': image_base64, 'poster_url': poster_data_url}
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1
+        )
         
-        return {'poster_url': 'https://picsum.photos/600/900'}
+        if images and len(images) > 0:
+            image_base64 = base64.b64encode(images[0]).decode('utf-8')
+            poster_data_url = f"data:image/png;base64,{image_base64}"
+            logging.info(f"AI Poster generated, size: {len(images[0])} bytes")
+            return {'poster_base64': image_base64, 'poster_url': poster_data_url}
+        
+        return {'poster_url': '', 'error': 'No image generated'}
     except Exception as e:
-        logging.error(f"Poster generation error: {type(e).__name__}: {e}")
-        return {'poster_url': 'https://picsum.photos/600/900'}
+        logging.error(f"AI Poster generation error: {type(e).__name__}: {e}")
+        return {'poster_url': '', 'error': str(e)}
 
 @api_router.post("/ai/translate")
 async def translate_text(request: TranslationRequest, user: dict = Depends(get_current_user)):
@@ -12775,7 +12757,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
     await db.challenges.insert_one(challenge)
     
     # Calculate rewards — loser penalties reduced by 80% in offline mode
-    winner_rewards, loser_penalties = calculate_challenge_rewards(battle_result['winner'], '1v1', False)
+    winner_rewards, loser_penalties = calculate_challenge_rewards(battle_result['winner'], '1v1', False, is_online=False)
     
     # Apply 80% reduction to loser penalties
     offline_loser_penalties = {

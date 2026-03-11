@@ -149,10 +149,109 @@ def calculate_team_scores(films: List[Dict[str, Any]]) -> Dict[str, float]:
         'defense': round(total_defense, 1)
     }
 
+SKILL_BATTLE_COMMENTS_IT = {
+    'direction': {
+        'win': ["La regia è magistrale! Un colpo da maestro!", "Visione registica superiore, il pubblico è in delirio!", "Il regista ha creato una sequenza indimenticabile!"],
+        'lose': ["La regia non convince, troppo prevedibile.", "Scelte registiche discutibili in questo scontro.", "Il regista non è riuscito a impressionare."],
+        'upset': ["Colpo di scena! Una regia inaspettatamente brillante ribalta il pronostico!"]
+    },
+    'cinematography': {
+        'win': ["Fotografia mozzafiato! Ogni inquadratura è un quadro!", "L'uso della luce è semplicemente perfetto!", "Immagini che restano impresse nella retina!"],
+        'lose': ["La fotografia è piatta, manca di impatto visivo.", "Inquadrature banali che non emozionano.", "Il direttore della fotografia non è all'altezza."],
+        'upset': ["Incredibile! Un'inquadratura geniale cambia tutto!"]
+    },
+    'screenplay': {
+        'win': ["Sceneggiatura brillante! I dialoghi sono puro fuoco!", "La trama avvince dall'inizio alla fine!", "Colpi di scena che lasciano a bocca aperta!"],
+        'lose': ["La sceneggiatura è debole, dialoghi prevedibili.", "La trama non regge il confronto.", "Script poco ispirato in questo round."],
+        'upset': ["Un twist narrativo geniale ribalta completamente lo scontro!"]
+    },
+    'acting': {
+        'win': ["Performance attoriale da Oscar! Emozioni pure!", "Il cast dà una prova straordinaria!", "Interpretazione che buca lo schermo!"],
+        'lose': ["Il cast non riesce a convincere.", "Recitazione forzata, manca naturalezza.", "Gli attori non sono al loro meglio."],
+        'upset': ["Un'interpretazione magistrale dell'underdog conquista il pubblico!"]
+    },
+    'soundtrack': {
+        'win': ["La colonna sonora emoziona e travolge!", "Musica epica che esalta ogni scena!", "Le note perfette accompagnano un trionfo!"],
+        'lose': ["La colonna sonora è dimenticabile.", "La musica non supporta adeguatamente le scene.", "Scelte musicali poco azzeccate."],
+        'upset': ["Un tema musicale memorabile cambia l'esito dello scontro!"]
+    },
+    'effects': {
+        'win': ["Effetti speciali devastanti! Tecnologia al servizio dell'arte!", "VFX spettacolari che conquistano il pubblico!", "Gli effetti visivi sono un vero spettacolo!"],
+        'lose': ["Gli effetti speciali deludono le aspettative.", "VFX mediocri che non impressionano.", "Effetti visivi sotto la media."],
+        'upset': ["Un effetto speciale mozzafiato ribalta la situazione!"]
+    },
+    'editing': {
+        'win': ["Montaggio impeccabile! Ritmo perfetto!", "Il montaggio crea una tensione magistrale!", "Taglio e ritmo al servizio della narrazione!"],
+        'lose': ["Il montaggio è confuso, il ritmo non funziona.", "Tagli troppo bruschi che spezzano l'immersione.", "Il montaggio non riesce a dare ritmo."],
+        'upset': ["Un montaggio alternato geniale capovolge il risultato!"]
+    },
+    'charisma': {
+        'win': ["Il carisma del film è irresistibile! Star power al massimo!", "Presenza scenica che magnetizza il pubblico!", "Il fascino del film conquista tutti!"],
+        'lose': ["Manca quel quid in più, il carisma non basta.", "Il film non riesce a catturare l'attenzione.", "Carisma insufficiente per questo scontro."],
+        'upset': ["Un momento di puro carisma inaspettato conquista la giuria!"]
+    }
+}
+
+def simulate_skill_battle(skill_name: str, team_a_skill: int, team_b_skill: int) -> Dict[str, Any]:
+    """
+    Simulate a single skill battle between two teams.
+    Skill values are 1-9. Higher skill has advantage but randomness can cause upsets.
+    """
+    # Base power from skill value (0-100 range)
+    a_base = team_a_skill * 10 + random.uniform(-8, 8)
+    b_base = team_b_skill * 10 + random.uniform(-8, 8)
+    
+    # Critical hit chance (rare event for weaker side)
+    diff = abs(team_a_skill - team_b_skill)
+    upset_chance = max(0.03, 0.15 - diff * 0.02)  # 3-15% upset chance
+    
+    is_upset = False
+    if random.random() < upset_chance:
+        # The weaker side gets an upset bonus
+        if a_base < b_base:
+            a_base += random.uniform(15, 30)
+            is_upset = True
+        elif b_base < a_base:
+            b_base += random.uniform(15, 30)
+            is_upset = True
+    
+    # Small draw zone
+    if abs(a_base - b_base) < 3:
+        winner = 'draw'
+        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
+        comment = f"Pareggio su {CHALLENGE_SKILLS[skill_name]['name_it']}! Scontro equilibratissimo!"
+    elif a_base > b_base:
+        winner = 'team_a'
+        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
+        if is_upset and team_a_skill < team_b_skill:
+            comment = random.choice(comments.get('upset', comments.get('win', ['Vittoria inaspettata!'])))
+        else:
+            comment = random.choice(comments.get('win', ['Vittoria!']))
+    else:
+        winner = 'team_b'
+        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
+        if is_upset and team_b_skill < team_a_skill:
+            comment = random.choice(comments.get('upset', comments.get('win', ['Vittoria inaspettata!'])))
+        else:
+            comment = random.choice(comments.get('win', ['Vittoria!']))
+    
+    return {
+        'skill': skill_name,
+        'skill_name_it': CHALLENGE_SKILLS[skill_name]['name_it'],
+        'skill_name_en': CHALLENGE_SKILLS[skill_name]['name_en'],
+        'team_a_value': team_a_skill,
+        'team_b_value': team_b_skill,
+        'team_a_power': round(a_base, 1),
+        'team_b_power': round(b_base, 1),
+        'winner': winner,
+        'comment': comment,
+        'is_upset': is_upset and winner != 'draw'
+    }
+
 # ==================== BATTLE SIMULATION ====================
 
 def simulate_round(team_a_scores: Dict[str, float], team_b_scores: Dict[str, float], round_num: int) -> Dict[str, Any]:
-    """Simulate a single round of battle."""
+    """Simulate a single round of battle (legacy, kept for compatibility)."""
     # Calculate round advantage based on attack vs defense
     a_attack_power = team_a_scores['attack'] + random.uniform(-5, 5)
     b_defense_power = team_b_scores['defense'] + random.uniform(-5, 5)
@@ -193,29 +292,69 @@ def simulate_challenge(
     challenge_type: str = '1v1'
 ) -> Dict[str, Any]:
     """
-    Simulate a complete challenge between two teams.
-    Returns full battle report with rounds and winner.
+    Simulate a complete challenge between two teams with 8 skill-based mini-battles.
+    Returns full battle report with skill battles and winner.
     """
-    # Calculate team scores
+    # Calculate team skills (average across all films)
+    def get_team_skills(films):
+        all_skills = {}
+        for film in films:
+            skills = film.get('challenge_skills', calculate_film_challenge_skills(film))
+            for s, v in skills.items():
+                all_skills.setdefault(s, []).append(v)
+        return {s: round(sum(vals) / len(vals)) for s, vals in all_skills.items()}
+    
+    team_a_skills = get_team_skills(team_a['films'])
+    team_b_skills = get_team_skills(team_b['films'])
+    
+    # Also get aggregate scores for overview
     team_a_scores = calculate_team_scores(team_a['films'])
     team_b_scores = calculate_team_scores(team_b['films'])
     
-    # Intro
     intro = random.choice(INTRO_COMMENTS_IT)
     
-    # Simulate 3 rounds
-    rounds = []
+    # Simulate 8 skill battles
+    skill_battles = []
     team_a_wins = 0
     team_b_wins = 0
     
-    for i in range(3):
-        round_result = simulate_round(team_a_scores, team_b_scores, i + 1)
-        rounds.append(round_result)
+    skill_order = list(CHALLENGE_SKILLS.keys())
+    random.shuffle(skill_order)
+    
+    for skill_name in skill_order:
+        a_val = team_a_skills.get(skill_name, 5)
+        b_val = team_b_skills.get(skill_name, 5)
+        result = simulate_skill_battle(skill_name, a_val, b_val)
+        skill_battles.append(result)
         
-        if round_result['winner'] == 'team_a':
+        if result['winner'] == 'team_a':
             team_a_wins += 1
-        elif round_result['winner'] == 'team_b':
+        elif result['winner'] == 'team_b':
             team_b_wins += 1
+    
+    # Also produce 3 legacy rounds for backward compatibility
+    rounds = []
+    for i in range(3):
+        batch_start = i * 2
+        batch_end = min(batch_start + 3, 8)
+        batch = skill_battles[batch_start:batch_end]
+        a_round_wins = sum(1 for b in batch if b['winner'] == 'team_a')
+        b_round_wins = sum(1 for b in batch if b['winner'] == 'team_b')
+        
+        if a_round_wins > b_round_wins:
+            rw = 'team_a'
+        elif b_round_wins > a_round_wins:
+            rw = 'team_b'
+        else:
+            rw = 'draw'
+        
+        rounds.append({
+            'round': i + 1,
+            'winner': rw,
+            'comment': batch[0]['comment'] if batch else '',
+            'team_a_power': sum(b['team_a_power'] for b in batch),
+            'team_b_power': sum(b['team_b_power'] for b in batch)
+        })
     
     # Determine overall winner
     if team_a_wins > team_b_wins:
@@ -231,7 +370,6 @@ def simulate_challenge(
         winner_comment = "Pareggio incredibile! Entrambe le squadre meritano gli applausi!"
         loser_comment = ""
     
-    # Calculate duration based on challenge type
     duration_map = {'1v1': 60, '2v2': 90, '3v3': 150, '4v4': 210, 'ffa': 300}
     duration_seconds = duration_map.get(challenge_type, 60)
     
@@ -252,6 +390,7 @@ def simulate_challenge(
             'rounds_won': team_b_wins
         },
         'rounds': rounds,
+        'skill_battles': skill_battles,
         'winner': winner,
         'winner_comment': winner_comment,
         'loser_comment': loser_comment,
@@ -263,11 +402,13 @@ def simulate_challenge(
 def calculate_challenge_rewards(
     winner: str,
     challenge_type: str,
-    is_live: bool = False
+    is_live: bool = False,
+    is_online: bool = True
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Calculate rewards/penalties for challenge participants.
     Returns (winner_rewards, loser_penalties).
+    Online players get a 15% bonus.
     """
     # Base rewards by challenge type
     base_rewards = {
@@ -284,6 +425,11 @@ def calculate_challenge_rewards(
     if is_live:
         for key in base:
             base[key] = int(base[key] * 1.2)
+    
+    # Online bonus (15% more) 
+    if is_online:
+        for key in base:
+            base[key] = int(base[key] * 1.15)
     
     # Winner rewards
     winner_rewards = {

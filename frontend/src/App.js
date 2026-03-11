@@ -2297,35 +2297,6 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      <Card className="bg-[#1A1A1A] border-white/5 mb-4">
-        <CardHeader className="pb-2 pt-3 px-3">
-          <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-yellow-500" /> {t('challenges')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3">
-          <Tabs defaultValue="daily">
-            <TabsList className="h-7 mb-2"><TabsTrigger value="daily" className="text-xs h-6 px-2">{t('daily')}</TabsTrigger><TabsTrigger value="weekly" className="text-xs h-6 px-2">{t('weekly')}</TabsTrigger></TabsList>
-            <TabsContent value="daily" className="mt-0">
-              <div className="space-y-1.5">{challenges.daily.slice(0, 3).map(c => (
-                <div key={c.id} className="flex items-center justify-between p-1.5 rounded bg-white/5">
-                  <div><p className="text-xs font-semibold">{c.name}</p><p className="text-xs text-gray-400">{c.current}/{c.target}</p></div>
-                  <p className="text-xs text-yellow-500">${c.reward.toLocaleString()}</p>
-                </div>
-              ))}</div>
-            </TabsContent>
-            <TabsContent value="weekly" className="mt-0">
-              <div className="space-y-1.5">{challenges.weekly.slice(0, 3).map(c => (
-                <div key={c.id} className="flex items-center justify-between p-1.5 rounded bg-white/5">
-                  <div><p className="text-xs font-semibold">{c.name}</p><p className="text-xs text-gray-400">{c.current}/{c.target}</p></div>
-                  <p className="text-xs text-yellow-500">${c.reward.toLocaleString()}</p>
-                </div>
-              ))}</div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
       {films.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -2580,16 +2551,9 @@ const ChallengesPage = () => {
 
   const runBattleAnimation = (battle) => {
     setBattleStep(0);
-    // Intro
-    setTimeout(() => setBattleStep(1), 2000);
-    // Round 1
-    setTimeout(() => setBattleStep(2), 5000);
-    // Round 2
-    setTimeout(() => setBattleStep(3), 10000);
-    // Round 3
-    setTimeout(() => setBattleStep(4), 15000);
-    // Final result
-    setTimeout(() => setBattleStep(99), 20000);
+    setTimeout(() => setBattleStep(1), 2000);   // Teams
+    setTimeout(() => setBattleStep(2), 5000);   // Skill Battles
+    setTimeout(() => setBattleStep(99), 18000); // Final Result
   };
 
   const getSkillIcon = (skill) => {
@@ -3523,37 +3487,63 @@ const ChallengesPage = () => {
             </motion.div>
           )}
 
-          {/* Rounds */}
-          {[2, 3, 4].includes(battleStep) && battle.rounds && (
+          {/* Skill Battles - 8 mini-battles */}
+          {battleStep === 2 && (
             <motion.div
-              key={`round-${battleStep}`}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              className="text-center max-w-md px-4"
+              key="skill-battles"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full max-w-2xl px-4"
             >
-              <h2 className="font-['Bebas_Neue'] text-3xl mb-4">ROUND {battleStep - 1}</h2>
-              <div className="bg-white/10 rounded-lg p-6 mb-4">
-                <p className="text-lg mb-4">{battle.rounds[battleStep - 2]?.comment}</p>
-                <div className="flex justify-center gap-8">
-                  <div className={`p-4 rounded-lg ${battle.rounds[battleStep - 2]?.winner === 'team_a' ? 'bg-green-500/30 border-2 border-green-500' : 'bg-white/5'}`}>
-                    <p className="font-bold">{battle.team_a?.name}</p>
-                    <p className="text-sm text-gray-400">{battle.rounds[battleStep - 2]?.team_a_power}</p>
-                  </div>
-                  <div className={`p-4 rounded-lg ${battle.rounds[battleStep - 2]?.winner === 'team_b' ? 'bg-green-500/30 border-2 border-green-500' : 'bg-white/5'}`}>
-                    <p className="font-bold">{battle.team_b?.name}</p>
-                    <p className="text-sm text-gray-400">{battle.rounds[battleStep - 2]?.team_b_power}</p>
-                  </div>
+              <h2 className="font-['Bebas_Neue'] text-2xl text-center mb-4">{language === 'it' ? 'SCONTRO SKILL' : 'SKILL BATTLES'}</h2>
+              <ScrollArea className="h-[60vh]">
+                <div className="space-y-2">
+                  {(battle.skill_battles || battle.rounds || []).map((sb, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ x: i % 2 === 0 ? -60 : 60, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: i * 0.4, duration: 0.4 }}
+                      className={`p-3 rounded-lg border ${
+                        sb.winner === 'team_a' ? 'bg-red-500/10 border-red-500/30' :
+                        sb.winner === 'team_b' ? 'bg-blue-500/10 border-blue-500/30' :
+                        'bg-yellow-500/10 border-yellow-500/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-lg">{getSkillIcon(sb.skill || '')}</span>
+                        <span className="font-['Bebas_Neue'] text-sm text-gray-300">
+                          {sb.skill_name_it || sb.skill || `Round ${sb.round || i+1}`}
+                        </span>
+                        {sb.is_upset && <Badge className="bg-orange-500/80 text-[9px]">UPSET!</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 text-right">
+                          <span className={`text-sm font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-400'}`}>
+                            {sb.team_a_value || Math.round(sb.team_a_power)}
+                          </span>
+                        </div>
+                        <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden flex">
+                          <div className="h-full bg-red-500 transition-all" style={{ width: `${(sb.team_a_power / (sb.team_a_power + sb.team_b_power)) * 100}%` }} />
+                          <div className="h-full bg-blue-500 transition-all" style={{ width: `${(sb.team_b_power / (sb.team_a_power + sb.team_b_power)) * 100}%` }} />
+                        </div>
+                        <div className="flex-1">
+                          <span className={`text-sm font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-400'}`}>
+                            {sb.team_b_value || Math.round(sb.team_b_power)}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1 text-center italic">{sb.comment}</p>
+                    </motion.div>
+                  ))}
                 </div>
+              </ScrollArea>
+              <div className="flex justify-center gap-4 mt-3 text-sm">
+                <span className="text-red-400">{battle.team_a?.name}: {battle.team_a?.rounds_won}</span>
+                <span className="text-gray-500">vs</span>
+                <span className="text-blue-400">{battle.team_b?.name}: {battle.team_b?.rounds_won}</span>
               </div>
-              <Badge className={`text-lg px-4 py-2 ${
-                battle.rounds[battleStep - 2]?.winner === 'team_a' ? 'bg-red-500' :
-                battle.rounds[battleStep - 2]?.winner === 'team_b' ? 'bg-blue-500' : 'bg-yellow-500'
-              }`}>
-                {battle.rounds[battleStep - 2]?.winner === 'draw' 
-                  ? (language === 'it' ? 'PAREGGIO!' : 'DRAW!')
-                  : (battle.rounds[battleStep - 2]?.winner === 'team_a' ? battle.team_a?.name : battle.team_b?.name) + ' WINS!'}
-              </Badge>
             </motion.div>
           )}
 
@@ -3956,7 +3946,6 @@ const MiniGamesPage = () => {
                 <CardContent className="p-6 text-center text-gray-400">
                   <Swords className="w-10 h-10 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">{language === 'it' ? 'Nessuna sfida VS aperta al momento.' : 'No open VS challenges right now.'}</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={loadVsData}>{language === 'it' ? 'Aggiorna' : 'Refresh'}</Button>
                 </CardContent>
               </Card>
             ) : (
@@ -4440,13 +4429,13 @@ const FilmWizard = () => {
       const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); 
       if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
         setFilmData({...filmData, poster_url: res.data.poster_url}); 
-        toast.success(language === 'it' ? 'Locandina generata!' : 'Poster generated!'); 
+        toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!'); 
       } else {
-        toast.error(language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again');
+        toast.error(res.data.error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again'));
       }
     } catch(e) { 
       console.error('Poster generation error:', e);
-      toast.error(language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.'); 
+      toast.error(e.response?.data?.error || (language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.')); 
     } finally { 
       setGenerating(false); 
     }
@@ -6370,6 +6359,7 @@ const FilmDetail = () => {
   const [endRunData, setEndRunData] = useState(null);
   // Virtual Audience System
   const [virtualAudience, setVirtualAudience] = useState(null);
+  const [showImdbDetail, setShowImdbDetail] = useState(false);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -6659,7 +6649,11 @@ const FilmDetail = () => {
             </div>
             
             {/* IMDb-style Rating */}
-            <div className="flex items-center gap-3 mb-3 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
+            <div 
+              className="flex items-center gap-3 mb-3 p-2 rounded bg-yellow-500/10 border border-yellow-500/20 cursor-pointer hover:bg-yellow-500/15 transition-colors"
+              onClick={() => setShowImdbDetail && setShowImdbDetail(true)}
+              data-testid="imdb-rating-card"
+            >
               <div className="text-center">
                 <div className="flex items-center gap-1">
                   <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
@@ -7425,11 +7419,70 @@ const FilmDetail = () => {
           </motion.div>
         </div>
       )}
+
+      {/* IMDb Detail Popup */}
+      <Dialog open={showImdbDetail} onOpenChange={setShowImdbDetail}>
+        <DialogContent className="bg-[#1A1A1A] border-yellow-500/20 max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> IMDb Rating Breakdown
+            </DialogTitle>
+          </DialogHeader>
+          {film && (() => {
+            const quality = film.quality_score || 0;
+            const qualityRating = (quality / 100) * 4;
+            const likes = film.likes_count || 0;
+            const engagementRating = Math.min(Math.log10(likes + 1) / 2.5, 1.0) * 3;
+            const awards = (film.awards || []).length;
+            const nominations = (film.nominations || []).length;
+            const criticalRating = Math.min((awards * 0.5 + nominations * 0.2) / 2, 1.0) * 2;
+            const budget = film.total_budget || 1000000;
+            const revenue = film.total_revenue || 0;
+            const roi = budget > 0 ? revenue / budget : 0;
+            const revenueRating = Math.min(roi / 5, 1.0) * 1;
+            const total = qualityRating + engagementRating + criticalRating + revenueRating;
+            const imdb = Math.min(4 + (total / 10) * 6, 10.0);
+            
+            const factors = [
+              { name: language === 'it' ? 'Qualità Produzione' : 'Production Quality', weight: '40%', score: qualityRating, max: 4, detail: `${quality.toFixed(0)}%`, icon: Film },
+              { name: language === 'it' ? 'Engagement Pubblico' : 'Audience Engagement', weight: '30%', score: engagementRating, max: 3, detail: `${likes} likes`, icon: Heart },
+              { name: language === 'it' ? 'Ricezione Critica' : 'Critical Reception', weight: '20%', score: criticalRating, max: 2, detail: `${awards} premi, ${nominations} nomine`, icon: Award },
+              { name: language === 'it' ? 'Successo Commerciale' : 'Commercial Success', weight: '10%', score: revenueRating, max: 1, detail: `ROI: ${(roi * 100).toFixed(0)}%`, icon: DollarSign },
+              { name: language === 'it' ? 'Punteggio Audience' : 'Audience Score', weight: 'bonus', score: (film.audience_satisfaction || 50) / 100, max: 1, detail: `${(film.audience_satisfaction || 50).toFixed(0)}%`, icon: Users },
+              { name: language === 'it' ? 'Popolarità' : 'Popularity', weight: 'bonus', score: Math.min((film.popularity_score || 0) / 100, 1), max: 1, detail: `${(film.popularity_score || 0).toFixed(0)}`, icon: TrendingUp }
+            ].sort((a, b) => b.score - a.score).slice(0, 6);
+            
+            return (
+              <div className="space-y-3">
+                <div className="text-center py-3">
+                  <div className="text-5xl font-bold text-yellow-500">{imdb.toFixed(1)}</div>
+                  <p className="text-xs text-gray-400 mt-1">{language === 'it' ? 'su 10' : 'out of 10'}</p>
+                </div>
+                <div className="space-y-2">
+                  {factors.map((f, i) => (
+                    <div key={i} className="p-2 rounded bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <f.icon className="w-3.5 h-3.5 text-yellow-500" />
+                          <span className="text-sm font-semibold">{f.name}</span>
+                        </div>
+                        <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{f.weight}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Progress value={(f.score / f.max) * 100} className="flex-1 h-1.5" />
+                        <span className="text-xs text-gray-400 w-16 text-right">{f.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
-
-// Discovered Stars - Hall of Fame with hiring
 const DiscoveredStars = () => {
   const { api, user, updateFunds } = useContext(AuthContext);
   const { language } = useTranslations();

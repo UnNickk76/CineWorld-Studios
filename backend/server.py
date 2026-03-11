@@ -5599,6 +5599,15 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.080', 'date': '2026-03-10', 'title': 'Locandina & Trailer Gratuiti',
+     'changes': [
+         {'type': 'fix', 'text': 'Generazione locandina ora usa immagini gratuite (loremflickr) basate sul genere del film'},
+         {'type': 'fix', 'text': 'Generazione trailer ora usa FFmpeg (gratuito) con effetto Ken Burns, testo e transizioni'},
+         {'type': 'improvement', 'text': 'Trailer generato in ~3 secondi invece dei 5+ minuti precedenti'},
+         {'type': 'improvement', 'text': 'Trailer in formato H.264 1280x720, durate 4/8/12 secondi'},
+         {'type': 'fix', 'text': 'Rimossi servizi a pagamento (gpt-image-1, Sora 2) che davano errori intermittenti'},
+         {'type': 'fix', 'text': 'Card "Sfide" nella Dashboard ripristinata con nome corretto'}
+     ]},
     {'version': '0.079', 'date': '2026-03-10', 'title': 'Contest, Revenue Infrastruttura & Mini-Giochi AI',
      'changes': [
          {'type': 'new', 'text': 'Sezione "Sfide" rinominata "Contest" in tutte le lingue (IT, EN, ES, FR, DE)'},

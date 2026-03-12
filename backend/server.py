@@ -4945,6 +4945,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.099', 'date': '2026-03-12', 'title': 'Sfide 1v1: Scelta Offline/Online & Auto-Accept',
+     'changes': [
+         {'type': 'new', 'text': 'Nuovo flusso sfide: dopo la selezione film, scegli se sfida Offline o Online'},
+         {'type': 'new', 'text': 'Sfide Offline: accettate automaticamente, battaglia immediata'},
+         {'type': 'new', 'text': 'Sfide Online: lista giocatori online con notifica popup in tempo reale'},
+         {'type': 'improvement', 'text': "L'avversario online riceve un popup per accettare/rifiutare la sfida"},
+         {'type': 'improvement', 'text': 'Separazione chiara tra giocatori online (pallino verde) e offline'},
+     ]},
     {'version': '0.098', 'date': '2026-03-12', 'title': 'Fix Cast: 8 Skill, Rating IMDb & Migrazione Dati',
      'changes': [
          {'type': 'fix', 'text': 'Corretto rating IMDb: ora calcolato realmente in base a skill, fama ed esperienza (0-100)'},
@@ -9792,13 +9800,14 @@ from challenge_system import (
 )
 
 class ChallengeCreate(BaseModel):
-    challenge_type: str  # '1v1', '2v2', '3v3', '4v4', 'ffa'
+    challenge_type: str  # '1v1'
     film_ids: List[str]  # 3 film IDs selected by creator
-    opponent_id: Optional[str] = None  # For 1v1 specific opponent
-    team_type: Optional[str] = None  # 'random', 'friends', 'major'
-    teammate_ids: Optional[List[str]] = None  # For team challenges
-    is_live: bool = False  # Live challenge with popup
-    ffa_player_count: Optional[int] = None  # For FFA mode (4-10)
+    opponent_id: Optional[str] = None  # Specific opponent
+    team_type: Optional[str] = None
+    teammate_ids: Optional[List[str]] = None
+    is_live: bool = False  # Online challenge
+    is_offline_challenge: bool = False  # Offline auto-accept
+    ffa_player_count: Optional[int] = None
 
 @api_router.get("/challenges/types")
 async def get_challenge_types(user: dict = Depends(get_current_user)):
@@ -9968,8 +9977,56 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     
     await db.challenges.insert_one(challenge)
     
-    # If specific opponent, send notification with popup flag
-    if data.opponent_id:
+    # OFFLINE CHALLENGE: auto-accept and simulate immediately
+    if data.is_offline_challenge and data.opponent_id:
+        # Get opponent's best 3 films (AI picks them)
+        opponent_films = await db.films.find(
+            {'user_id': data.opponent_id, 'status': {'$in': ['in_theaters', 'completed', 'classic']}},
+            {'_id': 0}
+        ).sort('scores.global', -1).to_list(3)
+        
+        if len(opponent_films) < 3:
+            # Not enough films - refund and cancel
+            await db.users.update_one({'id': user_id}, {'$inc': {'funds': PARTICIPATION_COST}})
+            await db.challenges.delete_one({'id': challenge_id})
+            raise HTTPException(status_code=400, detail="L'avversario non ha abbastanza film (servono almeno 3)")
+        
+        # Calculate skills for opponent films
+        for film in opponent_films:
+            film['challenge_skills'] = calculate_film_challenge_skills(film)
+        
+        opponent_doc = await db.users.find_one({'id': data.opponent_id}, {'_id': 0, 'nickname': 1})
+        opponent_nick = opponent_doc.get('nickname', 'Avversario') if opponent_doc else 'Avversario'
+        
+        # Add opponent as participant
+        opponent_participant = {
+            'user_id': data.opponent_id,
+            'nickname': opponent_nick,
+            'film_ids': [f['id'] for f in opponent_films],
+            'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
+            'team': 'b',
+            'ready': True
+        }
+        
+        await db.challenges.update_one(
+            {'id': challenge_id},
+            {'$push': {'participants': opponent_participant}, '$set': {'status': 'ready'}}
+        )
+        
+        # Run simulation immediately
+        result = await run_challenge_simulation(challenge_id)
+        return {
+            'success': True,
+            'challenge_id': challenge_id,
+            'status': 'completed',
+            'participation_cost': PARTICIPATION_COST,
+            'prize_pool': PARTICIPATION_COST * 2,
+            'result': result,
+            'message': f'Sfida offline completata! Costo: ${PARTICIPATION_COST:,}.'
+        }
+    
+    # ONLINE CHALLENGE: send notification with popup flag
+    if data.opponent_id and not data.is_offline_challenge:
         await db.notifications.insert_one({
             'id': str(uuid.uuid4()),
             'user_id': data.opponent_id,
@@ -9993,7 +10050,7 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
         'status': challenge['status'],
         'participation_cost': PARTICIPATION_COST,
         'prize_pool': PARTICIPATION_COST * 2,
-        'message': f'Sfida creata! Costo: ${PARTICIPATION_COST:,}. In attesa di avversari.' if challenge['status'] == 'waiting' else f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}.'
+        'message': f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}. In attesa che l\'avversario accetti.'
     }
 
 @api_router.post("/challenges/{challenge_id}/join")

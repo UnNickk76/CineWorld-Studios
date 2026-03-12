@@ -39,7 +39,8 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, History
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, History,
+  Wifi, WifiOff
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
@@ -98,11 +99,30 @@ const ChallengesPage = () => {
     }
   };
 
+  // State for challenge mode selection
+  const [challengeMode, setChallengeMode] = useState(null); // 'offline' | 'online'
+  const [onlinePlayers, setOnlinePlayers] = useState([]);
+  const [offlinePlayersList, setOfflinePlayersList] = useState([]);
+
+  const loadPlayersForChallenge = async () => {
+    try {
+      const res = await api.get('/users/all-players');
+      const players = Array.isArray(res.data) ? res.data : [];
+      const others = players.filter(p => p.id !== user?.id);
+      setOnlinePlayers(others.filter(p => p.is_online));
+      setOfflinePlayersList(others.filter(p => !p.is_online));
+    } catch (e) { 
+      setOnlinePlayers([]); 
+      setOfflinePlayersList([]); 
+    }
+  };
+
   const selectChallengeType = (type) => {
     setChallengeType(type);
     setSelectedFilms([]);
+    setChallengeMode(null);
+    setOpponentId('');
     setView('create');
-    loadOfflinePlayers(); // Auto-load players list
   };
 
   const toggleFilmSelection = (film) => {
@@ -118,24 +138,31 @@ const ChallengesPage = () => {
       toast.error('Seleziona esattamente 3 film!');
       return;
     }
+    if (!opponentId) {
+      toast.error('Seleziona un avversario!');
+      return;
+    }
     
     setLoading(true);
     try {
+      const isOffline = challengeMode === 'offline';
       const res = await api.post('/challenges/create', {
         challenge_type: '1v1',
         film_ids: selectedFilms.map(f => f.id),
-        opponent_id: opponentId || undefined,
-        is_live: true
+        opponent_id: opponentId,
+        is_live: !isOffline,
+        is_offline_challenge: isOffline
       });
       
       toast.success(res.data.message);
       
       if (res.data.result) {
-        // Battle started immediately
+        // Battle started immediately (offline auto-accept)
         setActiveBattle(res.data.result);
         setView('battle');
         runBattleAnimation(res.data.result);
       } else {
+        // Online - waiting for opponent to accept
         setView('home');
         loadData();
       }
@@ -859,16 +886,204 @@ const ChallengesPage = () => {
     );
   }
 
-  // CREATE VIEW - Film Selection (1v1 only)
+  // CREATE VIEW - Film Selection then Mode Choice
   if (view === 'create') {
+    // Sub-view: choose mode (after selecting 3 films and pressing LANCIA)
+    if (challengeMode === 'choose') {
+      return (
+        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Button variant="ghost" size="sm" onClick={() => setChallengeMode(null)} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+              <h1 className="font-['Bebas_Neue'] text-3xl">SCEGLI TIPO SFIDA</h1>
+            </div>
+            <p className="text-gray-400 text-sm">Film selezionati: {selectedFilms.map(f => f.title).join(', ')}</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {/* OFFLINE */}
+            <Card 
+              className="bg-gradient-to-br from-cyan-500/20 to-blue-600/5 border-cyan-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              onClick={() => { setChallengeMode('offline'); loadPlayersForChallenge(); }}
+              data-testid="mode-offline"
+            >
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="p-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full w-16 h-16 flex items-center justify-center flex-shrink-0">
+                  <WifiOff className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-['Bebas_Neue'] text-xl text-cyan-400">SFIDA OFFLINE</h3>
+                  <p className="text-xs text-gray-400">Sfida un giocatore offline. La sfida viene sempre accettata automaticamente!</p>
+                  <Badge className="mt-2 bg-cyan-500/20 text-cyan-400 text-[10px]">Accettata automaticamente</Badge>
+                </div>
+                <ChevronRight className="w-6 h-6 text-gray-500" />
+              </CardContent>
+            </Card>
+
+            {/* ONLINE */}
+            <Card 
+              className="bg-gradient-to-br from-green-500/20 to-emerald-600/5 border-green-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              onClick={() => { setChallengeMode('online'); loadPlayersForChallenge(); }}
+              data-testid="mode-online"
+            >
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="p-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full w-16 h-16 flex items-center justify-center flex-shrink-0">
+                  <Wifi className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-['Bebas_Neue'] text-xl text-green-400">SFIDA ONLINE</h3>
+                  <p className="text-xs text-gray-400">Sfida un giocatore online. Riceverà una notifica popup per accettare o rifiutare.</p>
+                  <Badge className="mt-2 bg-green-500/20 text-green-400 text-[10px]">Notifica in tempo reale</Badge>
+                </div>
+                <ChevronRight className="w-6 h-6 text-gray-500" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Cost reminder */}
+          <Card className="bg-gradient-to-r from-yellow-500/10 to-green-500/5 border-yellow-500/30 mt-4">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Coins className="w-4 h-4 text-yellow-400" />
+                <span className="text-yellow-400 font-semibold">Costo: $50.000</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Trophy className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 font-semibold">Premio: $100.000</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Sub-view: Offline player selection
+    if (challengeMode === 'offline') {
+      return (
+        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Button variant="ghost" size="sm" onClick={() => setChallengeMode('choose')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+              <h1 className="font-['Bebas_Neue'] text-3xl text-cyan-400">SFIDA OFFLINE</h1>
+            </div>
+            <p className="text-gray-400 text-sm">Scegli un avversario offline. La sfida sarà accettata automaticamente.</p>
+          </motion.div>
+
+          <ScrollArea className="h-[400px] border border-white/10 rounded-lg mb-4">
+            {offlinePlayersList.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-12">Nessun giocatore offline trovato</p>
+            ) : (
+              <div className="space-y-1 p-2">
+                {offlinePlayersList.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => setOpponentId(p.id)}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${opponentId === p.id ? 'bg-cyan-500/20 border border-cyan-500/40' : 'hover:bg-white/5'}`}
+                    data-testid={`offline-player-${p.id}`}
+                  >
+                    <Avatar className="w-9 h-9"><AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-sm">{p.nickname?.[0]}</AvatarFallback></Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">{p.nickname}</p>
+                      <p className="text-[10px] text-gray-400">{p.production_house_name} {p.level ? `• Lv.${p.level}` : ''}</p>
+                    </div>
+                    <Badge className="bg-gray-500/20 text-gray-400 text-[10px]">Offline</Badge>
+                    {opponentId === p.id && <CheckCircle className="w-5 h-5 text-cyan-400" />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="fixed bottom-20 left-0 right-0 p-3 bg-gradient-to-t from-[#0D0D0D] to-transparent">
+            <Button 
+              className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 font-['Bebas_Neue'] text-lg"
+              onClick={() => { createChallenge(); }}
+              disabled={!opponentId || loading}
+              data-testid="launch-offline-btn"
+            >
+              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
+                <><Swords className="w-5 h-5 mr-2" /> LANCIA SFIDA OFFLINE ($50.000)</>
+              )}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // Sub-view: Online player selection
+    if (challengeMode === 'online') {
+      return (
+        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Button variant="ghost" size="sm" onClick={() => setChallengeMode('choose')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+              <h1 className="font-['Bebas_Neue'] text-3xl text-green-400">SFIDA ONLINE</h1>
+            </div>
+            <p className="text-gray-400 text-sm">Scegli un avversario online. Riceverà una notifica popup per accettare.</p>
+          </motion.div>
+
+          {onlinePlayers.length === 0 ? (
+            <Card className="bg-[#1A1A1A] border-white/5 mb-4">
+              <CardContent className="p-8 text-center">
+                <Wifi className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                <p className="text-gray-400">Nessun giocatore online al momento</p>
+                <p className="text-xs text-gray-500 mt-2">Riprova più tardi o sfida un giocatore offline</p>
+                <Button variant="outline" className="mt-3 border-cyan-500/30 text-cyan-400" onClick={() => setChallengeMode('choose')}>
+                  Torna alla scelta
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <ScrollArea className="h-[400px] border border-white/10 rounded-lg mb-4">
+              <div className="space-y-1 p-2">
+                {onlinePlayers.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => setOpponentId(p.id)}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${opponentId === p.id ? 'bg-green-500/20 border border-green-500/40' : 'hover:bg-white/5'}`}
+                    data-testid={`online-player-${p.id}`}
+                  >
+                    <div className="relative">
+                      <Avatar className="w-9 h-9"><AvatarFallback className="bg-green-500/20 text-green-400 text-sm">{p.nickname?.[0]}</AvatarFallback></Avatar>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0D0D0D]"></div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">{p.nickname}</p>
+                      <p className="text-[10px] text-gray-400">{p.production_house_name} {p.level ? `• Lv.${p.level}` : ''}</p>
+                    </div>
+                    <Badge className="bg-green-500/20 text-green-400 text-[10px]">Online</Badge>
+                    {opponentId === p.id && <CheckCircle className="w-5 h-5 text-green-400" />}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          {onlinePlayers.length > 0 && (
+            <div className="fixed bottom-20 left-0 right-0 p-3 bg-gradient-to-t from-[#0D0D0D] to-transparent">
+              <Button 
+                className="w-full h-12 bg-green-500 hover:bg-green-600 font-['Bebas_Neue'] text-lg"
+                onClick={() => { createChallenge(); }}
+                disabled={!opponentId || loading}
+                data-testid="launch-online-btn"
+              >
+                {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
+                  <><Swords className="w-5 h-5 mr-2" /> INVIA SFIDA ONLINE ($50.000)</>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Main create view: Film Selection
     return (
       <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
-            <h1 className="font-['Bebas_Neue'] text-3xl">
-              CREA SFIDA 1v1
-            </h1>
+            <h1 className="font-['Bebas_Neue'] text-3xl">CREA SFIDA 1v1</h1>
           </div>
           <p className="text-gray-400 text-sm">Seleziona 3 film per la sfida</p>
         </motion.div>
@@ -878,11 +1093,11 @@ const ChallengesPage = () => {
           <CardContent className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
               <Coins className="w-4 h-4 text-yellow-400" />
-              <span className="text-yellow-400 font-semibold">Costo partecipazione: $50.000</span>
+              <span className="text-yellow-400 font-semibold">Costo: $50.000</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Trophy className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-semibold">Premio vittoria: $100.000</span>
+              <span className="text-green-400 font-semibold">Premio: $100.000</span>
             </div>
           </CardContent>
         </Card>
@@ -908,79 +1123,14 @@ const ChallengesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Opponent Selection - Search online/offline players */}
-        <Card className="bg-[#1A1A1A] border-white/5 mb-4">
-          <CardContent className="p-4">
-            <h3 className="font-['Bebas_Neue'] text-lg mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4 text-pink-400" /> SCEGLI AVVERSARIO
-            </h3>
-            <div className="flex gap-2 mb-3">
-              <Input 
-                placeholder="Cerca per nickname..." 
-                value={opponentId ? '' : ''}
-                onChange={() => {}}
-                className="bg-black/30 border-white/10 text-sm h-9"
-                data-testid="opponent-search-input"
-              />
-              <Button size="sm" className="bg-pink-500 hover:bg-pink-600" onClick={loadOfflinePlayers}>
-                <Search className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            {/* Toggle offline mode */}
-            <div className="flex items-center justify-between mb-3 p-2 bg-white/5 rounded-lg">
-              <span className="text-xs text-gray-400">Accetta sfide quando sei offline</span>
-              <Button
-                size="sm"
-                variant={offlineMode ? "default" : "outline"}
-                className={`h-6 text-[10px] ${offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white" : "border-cyan-500/30 text-cyan-400"}`}
-                onClick={toggleOfflineMode}
-                data-testid="toggle-offline-btn"
-              >
-                {offlineMode ? 'Attivo' : 'Disattivo'}
-              </Button>
-            </div>
-            
-            {/* Player list */}
-            <ScrollArea className="h-32 border border-white/10 rounded-lg">
-              {offlinePlayers.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-8">Premi "Cerca" per trovare avversari</p>
-              ) : (
-                <div className="space-y-1 p-2">
-                  {offlinePlayers.map(p => (
-                    <div
-                      key={p.id}
-                      onClick={() => setOpponentId(p.id)}
-                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${opponentId === p.id ? 'bg-pink-500/20 border border-pink-500/40' : 'hover:bg-white/5'}`}
-                      data-testid={`opponent-player-${p.id}`}
-                    >
-                      <Avatar className="w-7 h-7"><AvatarFallback className="bg-pink-500/20 text-pink-400 text-xs">{p.nickname?.[0]}</AvatarFallback></Avatar>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold">{p.nickname}</p>
-                        <p className="text-[10px] text-gray-400">{p.production_house_name}</p>
-                      </div>
-                      <Badge className={`text-[10px] ${p.is_online ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                        {p.is_online ? 'Online' : 'Offline'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-            <p className="text-[10px] text-gray-500 mt-2">
-              Lascia vuoto per matchmaking casuale. Sfida un utente online: riceverà un popup con la tua sfida!
-            </p>
-          </CardContent>
-        </Card>
-
         {/* Film Grid */}
-        <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'I TUOI FILM' : 'YOUR FILMS'}</h3>
+        <h3 className="font-['Bebas_Neue'] text-lg mb-3">I TUOI FILM</h3>
         {myFilms.length === 0 ? (
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-8 text-center">
               <Film className="w-12 h-12 mx-auto mb-3 text-gray-500" />
-              <p className="text-gray-400">{language === 'it' ? 'Non hai film disponibili per le sfide.' : 'You have no films available for challenges.'}</p>
-              <p className="text-xs text-gray-500 mt-2">{language === 'it' ? 'Crea film e portali nei cinema!' : 'Create films and release them!'}</p>
+              <p className="text-gray-400">Non hai film disponibili per le sfide.</p>
+              <p className="text-xs text-gray-500 mt-2">Crea film e portali nei cinema!</p>
             </CardContent>
           </Card>
         ) : (
@@ -1003,22 +1153,16 @@ const ChallengesPage = () => {
                           <h4 className="font-semibold truncate max-w-[150px]">{film.title}</h4>
                           {isSelected && <CheckCircle className="w-5 h-5 text-pink-500" />}
                         </div>
-                        
-                        {/* Skills */}
                         <div className="grid grid-cols-4 gap-1 mb-2">
-                          {Object.entries(film.skills).slice(0, 4).map(([skill, value]) => (
+                          {Object.entries(film.skills || {}).slice(0, 4).map(([skill, value]) => (
                             <div key={skill} className="text-center bg-black/30 rounded p-1">
                               <p className="text-[10px]">{getSkillIcon(skill)}</p>
                               <p className="text-xs font-bold">{value}</p>
                             </div>
                           ))}
                         </div>
-                        
-                        {/* Scores */}
                         <div className="flex gap-2 text-xs">
-                          <span className="text-yellow-400">⚡ {film.scores.global}</span>
-                          <span className="text-red-400">⚔️ {film.scores.attack}</span>
-                          <span className="text-blue-400">🛡️ {film.scores.defense}</span>
+                          <span className="text-yellow-400">Punteggio: {film.scores?.global}</span>
                         </div>
                       </div>
                     </div>
@@ -1029,17 +1173,15 @@ const ChallengesPage = () => {
           </div>
         )}
 
-        {/* Create Button */}
+        {/* LANCIA SFIDA - goes to mode selection */}
         <div className="fixed bottom-20 left-0 right-0 p-3 bg-gradient-to-t from-[#0D0D0D] to-transparent">
           <Button 
             className="w-full h-12 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg"
-            onClick={createChallenge}
-            disabled={selectedFilms.length !== 3 || loading}
-            data-testid="create-challenge-btn"
+            onClick={() => setChallengeMode('choose')}
+            disabled={selectedFilms.length !== 3}
+            data-testid="launch-challenge-btn"
           >
-            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
-              <><Swords className="w-5 h-5 mr-2" /> LANCIA SFIDA! (Costo: $50.000)</>
-            )}
+            <Swords className="w-5 h-5 mr-2" /> LANCIA SFIDA! ({selectedFilms.length}/3 film)
           </Button>
         </div>
       </div>

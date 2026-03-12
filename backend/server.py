@@ -1163,6 +1163,7 @@ class PosterRequest(BaseModel):
     genre: str
     description: str
     style: str = 'cinematic'
+    cast_names: Optional[List[str]] = None
 
 class TranslationRequest(BaseModel):
     text: str
@@ -7239,34 +7240,57 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
     if not EMERGENT_LLM_KEY:
         return {'poster_url': '', 'error': 'AI key not configured'}
     
-    try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        
-        # Build a detailed prompt from user's input
-        user_desc = request.description or request.title
-        prompt = (
-            f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
-            f"Description: {user_desc}. "
-            f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, no text overlay."
-        )
-        
-        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
-        images = await image_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        
-        if images and len(images) > 0:
-            image_base64 = base64.b64encode(images[0]).decode('utf-8')
-            poster_data_url = f"data:image/png;base64,{image_base64}"
-            logging.info(f"AI Poster generated, size: {len(images[0])} bytes")
-            return {'poster_base64': image_base64, 'poster_url': poster_data_url}
-        
-        return {'poster_url': '', 'error': 'No image generated'}
-    except Exception as e:
-        logging.error(f"AI Poster generation error: {type(e).__name__}: {e}")
-        return {'poster_url': '', 'error': str(e)}
+    max_retries = 2
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            
+            # Build a detailed prompt including cast names if available
+            user_desc = request.description or request.title
+            cast_text = ""
+            if hasattr(request, 'cast_names') and request.cast_names:
+                cast_text = f" Starring: {', '.join(request.cast_names[:3])}."
+            
+            prompt = (
+                f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\".{cast_text} "
+                f"Description: {user_desc}. "
+                f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
+                f"The title \"{request.title}\" should appear prominently on the poster in stylized cinematic typography."
+            )
+            
+            image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+            images = await image_gen.generate_images(
+                prompt=prompt,
+                model="gpt-image-1",
+                number_of_images=1,
+                quality="low"
+            )
+            
+            if images and len(images) > 0:
+                # Compress PNG to JPEG to reduce size
+                from io import BytesIO
+                from PIL import Image as PILImage
+                img = PILImage.open(BytesIO(images[0]))
+                jpeg_buffer = BytesIO()
+                img.convert('RGB').save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
+                jpeg_bytes = jpeg_buffer.getvalue()
+                
+                image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+                poster_data_url = f"data:image/jpeg;base64,{image_base64}"
+                logging.info(f"AI Poster generated, raw: {len(images[0])} bytes, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
+                return {'poster_base64': image_base64, 'poster_url': poster_data_url}
+            
+            last_error = 'No image generated'
+            logging.warning(f"Poster attempt {attempt+1}: No image returned")
+        except Exception as e:
+            last_error = str(e)
+            logging.error(f"AI Poster attempt {attempt+1} error: {type(e).__name__}: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)
+    
+    return {'poster_url': '', 'error': last_error or 'Generation failed after retries'}
 
 @api_router.post("/ai/translate")
 async def translate_text(request: TranslationRequest, user: dict = Depends(get_current_user)):

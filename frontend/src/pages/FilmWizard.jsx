@@ -362,7 +362,18 @@ const FilmWizard = () => {
   const generatePoster = async () => { 
     setGenerating(true); 
     try { 
-      const res = await api.post('/ai/poster', { title: filmData.title, genre: filmData.genre, description: filmData.poster_prompt || filmData.title, style: 'cinematic' }); 
+      // Collect cast names for poster text
+      const castNames = [];
+      if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
+      if (filmData.director) castNames.unshift(filmData.director.name);
+      
+      const res = await api.post('/ai/poster', { 
+        title: filmData.title, 
+        genre: filmData.genre, 
+        description: filmData.poster_prompt || filmData.title, 
+        style: 'cinematic',
+        cast_names: castNames.slice(0, 4)
+      }); 
       if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
         setFilmData({...filmData, poster_url: res.data.poster_url}); 
         toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!'); 

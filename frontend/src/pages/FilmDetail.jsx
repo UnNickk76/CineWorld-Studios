@@ -900,40 +900,11 @@ const FilmDetail = () => {
                   <p className="text-gray-400 text-sm">
                     {language === 'it' ? 'Nessun trailer generato per questo film' : 'No trailer generated for this film'}
                   </p>
-                  {/* Only show generation buttons if owner */}
+                  {/* Trailer generation temporarily disabled */}
                   {isOwner && (
-                    <div className="flex flex-col items-center gap-3">
-                      <p className="text-xs text-gray-400">{language === 'it' ? 'Genera trailer AI (Sora 2) - Scegli durata:' : 'Generate AI trailer (Sora 2) - Choose duration:'}</p>
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={() => generateTrailer(4)} 
-                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
-                          variant="outline"
-                          className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
-                          data-testid="generate-trailer-4s"
-                        >
-                          4s (${trailerCosts[4]?.toLocaleString() || '10,000'})
-                        </Button>
-                        <Button 
-                          onClick={() => generateTrailer(8)} 
-                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
-                          className={`${!isActionAvailable('generate_trailer') ? 'opacity-50 bg-purple-600/50' : 'bg-purple-600 hover:bg-purple-500'}`}
-                          data-testid="generate-trailer-btn"
-                        >
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          8s (${trailerCosts[8]?.toLocaleString() || '25,000'})
-                        </Button>
-                        <Button 
-                          onClick={() => generateTrailer(12)} 
-                          disabled={generatingTrailer || !isActionAvailable('generate_trailer')}
-                          variant="outline"
-                          className={`border-purple-500/30 ${!isActionAvailable('generate_trailer') ? 'opacity-50' : 'text-purple-400'}`}
-                          data-testid="generate-trailer-12s"
-                        >
-                          12s (${trailerCosts[12]?.toLocaleString() || '50,000'})
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-gray-500">Generato da Sora 2 AI • Bonus qualità variabile in base a durata e rating</p>
+                    <div className="flex flex-col items-center gap-2 opacity-50">
+                      <p className="text-xs text-gray-500">{language === 'it' ? 'Generazione trailer temporaneamente in pausa' : 'Trailer generation temporarily paused'}</p>
+                      <Badge className="bg-yellow-500/10 text-yellow-500/70 border border-yellow-500/20">In pausa</Badge>
                     </div>
                   )}
                   {!isOwner && (

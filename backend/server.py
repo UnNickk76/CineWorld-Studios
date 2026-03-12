@@ -1222,12 +1222,12 @@ def generate_person_name():
     }
 
 async def initialize_cast_pool_if_needed():
-    """Initialize the full cast pool (4000+ members) if not already done."""
+    """Initialize the full cast pool (8000+ members) if not already done."""
     counts = {
-        'actor': 1000,
-        'director': 1000,
-        'screenwriter': 1000,
-        'composer': 1000
+        'actor': 2000,
+        'director': 2000,
+        'screenwriter': 2000,
+        'composer': 2000
     }
     
     for role_type, target_count in counts.items():
@@ -1397,7 +1397,7 @@ async def get_translations(lang: str):
 @api_router.get("/actors")
 async def get_actors(
     page: int = 1,
-    limit: int = 20,
+    limit: int = 50,
     genre: Optional[str] = None,
     category: Optional[str] = None,
     skill: Optional[str] = None,
@@ -1415,10 +1415,10 @@ async def get_actors(
     if skill:
         query[f'skills.{skill}'] = {'$exists': True}
     
-    # Get actors
-    skip = (page - 1) * limit
-    actors = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    # Use random sampling for variety on each refresh
     total = await db.people.count_documents(query)
+    pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
+    actors = await db.people.aggregate(pipeline).to_list(limit)
     
     # Get user's films to check "has worked with us"
     user_films = await db.films.find({'user_id': user_id}, {'cast': 1}).to_list(1000)
@@ -1452,7 +1452,7 @@ async def get_actors(
 @api_router.get("/directors")
 async def get_directors(
     page: int = 1,
-    limit: int = 20,
+    limit: int = 50,
     category: Optional[str] = None,
     skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
@@ -1466,8 +1466,9 @@ async def get_directors(
     if skill:
         query[f'skills.{skill}'] = {'$exists': True}
     
-    skip = (page - 1) * limit
-    directors = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.people.count_documents(query)
+    pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
+    directors = await db.people.aggregate(pipeline).to_list(limit)
     total = await db.people.count_documents(query)
     
     # Check "has worked with us"
@@ -1500,7 +1501,7 @@ async def get_directors(
 @api_router.get("/screenwriters")
 async def get_screenwriters(
     page: int = 1,
-    limit: int = 20,
+    limit: int = 50,
     category: Optional[str] = None,
     skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
@@ -1514,9 +1515,9 @@ async def get_screenwriters(
     if skill:
         query[f'skills.{skill}'] = {'$exists': True}
     
-    skip = (page - 1) * limit
-    screenwriters = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
     total = await db.people.count_documents(query)
+    pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
+    screenwriters = await db.people.aggregate(pipeline).to_list(limit)
     
     # Check "has worked with us"
     user_films = await db.films.find({'user_id': user_id}, {'screenwriter': 1}).to_list(1000)
@@ -1548,7 +1549,7 @@ async def get_screenwriters(
 @api_router.get("/composers")
 async def get_composers(
     page: int = 1,
-    limit: int = 20,
+    limit: int = 50,
     category: Optional[str] = None,
     skill: Optional[str] = None,
     user: dict = Depends(get_current_user)
@@ -1562,9 +1563,9 @@ async def get_composers(
     if skill:
         query[f'skills.{skill}'] = {'$exists': True}
     
-    skip = (page - 1) * limit
-    composers = await db.people.find(query, {'_id': 0}).skip(skip).limit(limit).to_list(limit)
     total = await db.people.count_documents(query)
+    pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
+    composers = await db.people.aggregate(pipeline).to_list(limit)
     
     # Check "has worked with us"
     user_films = await db.films.find({'user_id': user_id}, {'composer': 1}).to_list(1000)
@@ -4357,28 +4358,28 @@ async def get_cinema_journal(
         film['owner'] = owner
         
         # Get director details
-        director_id = film.get('director', {}).get('id')
-        director = await db.people.find_one({'id': director_id}, {'_id': 0})
+        director_id = (film.get('director') or {}).get('id')
+        director = await db.people.find_one({'id': director_id}, {'_id': 0}) if director_id else None
         if director:
             film['director_details'] = director
         else:
             film['director_details'] = {
                 'id': director_id,
-                'name': film.get('director', {}).get('name', 'Director'),
-                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=dir{director_id[:6] if director_id else 'unknown'}",
+                'name': (film.get('director') or {}).get('name', 'Director'),
+                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=dir{(director_id or 'unknown')[:6]}",
                 'nationality': 'Unknown'
             }
         
         # Get screenwriter details
-        screenwriter_id = film.get('screenwriter', {}).get('id')
-        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0})
+        screenwriter_id = (film.get('screenwriter') or {}).get('id')
+        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0}) if screenwriter_id else None
         if screenwriter:
             film['screenwriter_details'] = screenwriter
         else:
             film['screenwriter_details'] = {
                 'id': screenwriter_id,
-                'name': film.get('screenwriter', {}).get('name', 'Screenwriter'),
-                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=scr{screenwriter_id[:6] if screenwriter_id else 'unknown'}",
+                'name': (film.get('screenwriter') or {}).get('name', 'Screenwriter'),
+                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=scr{(screenwriter_id or 'unknown')[:6]}",
                 'nationality': 'Unknown'
             }
         
@@ -4878,6 +4879,21 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.095', 'date': '2026-03-12', 'title': 'Ottimizzazione Velocità & Nuova Colonna Sonora',
+     'changes': [
+         {'type': 'fix', 'text': 'Fix crash Giornale del Cinema: la pagina ora si apre correttamente'},
+         {'type': 'fix', 'text': 'Fix login: autenticazione più stabile e veloce'},
+         {'type': 'new', 'text': 'Colonna Sonora automatica: punteggio stile IMDb basato su compositore e genere'},
+         {'type': 'new', 'text': 'Riepilogo costi dettagliato prima della creazione del film'},
+         {'type': 'new', 'text': 'Cast ampliato a 2000 per tipo (8000 totali) con 25+ nazionalità'},
+         {'type': 'new', 'text': '50 cast visibili per genere con refresh casuale per massima varietà'},
+         {'type': 'new', 'text': 'ErrorBoundary: le pagine non si bloccano più, mostrano un pulsante "Riprova"'},
+         {'type': 'new', 'text': 'Spinner di caricamento su ogni sezione del gioco'},
+         {'type': 'improvement', 'text': 'Infrastrutture e Sfide VS in pausa temporanea per ottimizzazione'},
+         {'type': 'improvement', 'text': 'Generazione trailer temporaneamente in pausa'},
+         {'type': 'improvement', 'text': 'Rimossa generazione AI colonna sonora (sostituita con sistema automatico)'},
+         {'type': 'improvement', 'text': 'Timeout API ridotto da 2 minuti a 30 secondi per maggiore reattività'}
+     ]},
     {'version': '0.089', 'date': '2026-03-11', 'title': 'Manche Singole, Notifiche Cliccabili & Film Uscito',
      'changes': [
          {'type': 'new', 'text': 'Report Manche Singole: ogni manche della sfida ha ora la sua pagina dedicata con navigazione Avanti/Indietro'},

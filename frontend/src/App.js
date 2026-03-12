@@ -41,6 +41,7 @@ import './App.css';
 import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations, API, PlayerPopupContext, usePlayerPopup } from './contexts';
 import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
+import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
@@ -212,7 +213,7 @@ const TopNavbar = () => {
     { path: '/drafts', icon: Clock, label: 'drafts_preengagement' },
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
-    { path: '/infrastructure', icon: Building, label: 'infrastructure' },
+    { path: '/infrastructure', icon: Building, label: 'infrastructure', disabled: true, pauseLabel: 'In pausa' },
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace' },
     { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
@@ -311,10 +312,10 @@ const TopNavbar = () => {
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/infrastructure' ? 'text-blue-400' : 'text-gray-400 hover:text-blue-400'}`}
-            onClick={() => navigate('/infrastructure')}
+            className="relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-gray-600 cursor-not-allowed opacity-40"
+            disabled
             data-testid="infrastructure-btn"
-            title={language === 'it' ? 'Infrastrutture' : 'Infrastructure'}
+            title="In pausa"
           >
             <Building2 className="w-4 h-4" />
           </Button>
@@ -343,14 +344,14 @@ const TopNavbar = () => {
             <Newspaper className="w-4 h-4" />
           </Button>
           
-          {/* Challenges/Sfide - Always visible */}
+          {/* Challenges/Sfide - In pausa */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/challenges' ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'}`}
-            onClick={() => navigate('/challenges')}
+            className="relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-gray-600 cursor-not-allowed opacity-40"
+            disabled
             data-testid="challenges-nav-btn"
-            title={language === 'it' ? 'Contest' : 'Contest'}
+            title="In pausa"
           >
             <Swords className="w-4 h-4" />
           </Button>
@@ -533,14 +534,15 @@ const TopNavbar = () => {
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
                   className={`flex flex-col items-center gap-1.5 h-16 py-2 px-1 relative rounded-xl ${
+                    item.disabled ? 'opacity-40 cursor-not-allowed' :
                     location.pathname === item.path 
                       ? 'bg-yellow-500 text-black hover:bg-yellow-400' 
                       : 'bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 border border-white/5'
                   }`}
-                  onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+                  onClick={() => { if (!item.disabled) { navigate(item.path); setMobileMenuOpen(false); } }}
                 >
                   <item.icon className="w-5 h-5" />
-                  <span className="text-[9px] font-medium truncate w-full text-center leading-tight">{t(item.label)}</span>
+                  <span className="text-[9px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
                   {item.notificationCount > 0 && (
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                   )}
@@ -958,9 +960,11 @@ const ProtectedRoute = ({ children }) => {
       <TopNavbar />
       <AnimatePresence mode="wait">
         <PageTransition key={location.pathname}>
-          <React.Suspense fallback={<PageSkeleton />}>
+          <ErrorBoundary>
+          <React.Suspense fallback={<LoadingSpinner />}>
             {children}
           </React.Suspense>
+          </ErrorBoundary>
         </PageTransition>
       </AnimatePresence>
     </PlayerPopupContext.Provider>

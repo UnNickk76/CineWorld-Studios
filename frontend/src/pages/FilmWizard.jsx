@@ -363,20 +363,6 @@ const FilmWizard = () => {
       setGenerating(false); 
     }
   };
-  const generateSoundtrack = async () => { 
-    setGenerating(true); 
-    try { 
-      const res = await api.post('/ai/soundtrack-description', { title: filmData.title, genre: filmData.genre, mood: 'epic', custom_prompt: filmData.soundtrack_prompt, language }); 
-      setFilmData({...filmData, soundtrack_description: res.data.description}); 
-      toast.success(language === 'it' ? 'Descrizione colonna sonora generata!' : 'Soundtrack description generated!'); 
-    } catch(e) { 
-      console.error('Soundtrack generation error:', e);
-      toast.error(language === 'it' ? 'Errore generazione. Riprova.' : 'Generation error. Try again.'); 
-    } finally { 
-      setGenerating(false); 
-    }
-  };
-  
   // Load rejections on mount
   useEffect(() => {
     api.get('/cast/rejections').then(r => {
@@ -1032,24 +1018,50 @@ const FilmWizard = () => {
         <Input value={filmData.screenplay_prompt} onChange={e=>setFilmData({...filmData,screenplay_prompt:e.target.value})} placeholder="La tua idea per la sceneggiatura... (opzionale per AI)" className="bg-black/20 border-white/10 text-sm" />
         <Textarea value={filmData.screenplay} onChange={e=>setFilmData({...filmData,screenplay:e.target.value})} placeholder="Sceneggiatura..." className="min-h-[200px] bg-black/20 border-white/10" />
       </div>);
-      case 9: return (<div className="space-y-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Music className="w-5 h-5 text-purple-400" />
-          <p className="text-sm">Genera una descrizione per la colonna sonora AI</p>
-        </div>
-        <Input value={filmData.soundtrack_prompt} onChange={e=>setFilmData({...filmData,soundtrack_prompt:e.target.value})} placeholder="Il tuo concept per la colonna sonora... (es: epica orchestrale con cori)" className="bg-black/20 border-white/10 text-sm" />
-        <Button variant="outline" onClick={generateSoundtrack} disabled={generating||!filmData.title} className="border-purple-500/30 text-purple-400">
-          <Sparkles className="w-3 h-3 mr-1" />{generating?'Generazione...':'Genera Descrizione AI'}
-        </Button>
-        {filmData.soundtrack_description && (
-          <Card className="bg-purple-500/10 border-purple-500/30">
-            <CardContent className="p-3">
-              <p className="text-sm text-purple-200">{filmData.soundtrack_description}</p>
+      case 9: {
+        // Auto-calculate soundtrack score from composer skills
+        const selectedComposer = composers.find(c => c.id === filmData.composer_id);
+        const composerSkill = selectedComposer?.skills?.[filmData.genre] || selectedComposer?.skills?.overall || 50;
+        const composerStars = selectedComposer?.stars || 1;
+        const soundtrackScore = Math.min(10, ((composerSkill / 100) * 6 + composerStars * 0.8).toFixed(1));
+        return (<div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Music className="w-5 h-5 text-purple-400" />
+            <p className="text-sm font-semibold">{language === 'it' ? 'Valutazione Colonna Sonora' : 'Soundtrack Rating'}</p>
+          </div>
+          <Card className="bg-gradient-to-r from-purple-500/10 to-yellow-500/10 border-purple-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm text-gray-400">{language === 'it' ? 'Compositore' : 'Composer'}</p>
+                  <p className="font-bold">{selectedComposer?.name || 'N/A'}</p>
+                </div>
+                <div className="flex items-center gap-2 bg-black/30 px-4 py-2 rounded-lg">
+                  <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                  <span className="text-2xl font-bold text-yellow-500">{soundtrackScore}</span>
+                  <span className="text-xs text-gray-400">/10</span>
+                </div>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">{language === 'it' ? 'Abilità genere' : 'Genre skill'} ({filmData.genre})</span>
+                  <Progress value={composerSkill} className="w-32 h-2" />
+                  <span className="text-purple-400 font-bold">{composerSkill}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">{language === 'it' ? 'Fama compositore' : 'Composer fame'}</span>
+                  <div className="flex">{Array.from({length: 5}).map((_, i) => <Star key={i} className={`w-3 h-3 ${i < composerStars ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600'}`} />)}</div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-3 italic">
+                {soundtrackScore >= 8 ? (language === 'it' ? 'Colonna sonora eccezionale! Aumenterà notevolmente la qualità del film.' : 'Exceptional soundtrack! Will greatly increase film quality.') :
+                 soundtrackScore >= 5 ? (language === 'it' ? 'Buona colonna sonora. Contribuirà alla qualità del film.' : 'Good soundtrack. Will contribute to film quality.') :
+                 (language === 'it' ? 'Colonna sonora nella media. Considera un compositore più esperto.' : 'Average soundtrack. Consider a more experienced composer.')}
+              </p>
             </CardContent>
           </Card>
-        )}
-        <p className="text-xs text-gray-500">La descrizione verrà usata per generare la colonna sonora nel trailer del film.</p>
-      </div>);
+        </div>);
+      }
       case 10: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder="Describe poster..." className="min-h-[100px] bg-black/20 border-white/10" />
@@ -1065,9 +1077,20 @@ const FilmWizard = () => {
       </div>);
       case 12:
         const budget=calculateBudget(), sponsor=getSponsorBudget(), net=budget-sponsor-filmData.ad_revenue;
-        return (<Card className="bg-[#1A1A1A] border-white/10"><CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-xl">{filmData.title}</CardTitle><CardDescription>{t(filmData.genre)} • {filmData.weeks_in_theater}w</CardDescription></CardHeader><CardContent className="space-y-2">
+        return (<Card className="bg-[#1A1A1A] border-white/10"><CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-xl">{filmData.title}</CardTitle><CardDescription>{t(filmData.genre)} • {filmData.weeks_in_theater}w</CardDescription></CardHeader><CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-xs"><div><span className="text-gray-400">Release</span><p>{format(releaseDate,'PPP')}</p></div><div><span className="text-gray-400">Sponsor</span><p>{filmData.sponsor_id||'None'}</p></div><div><span className="text-gray-400">Equipment</span><p>{filmData.equipment_package}</p></div><div><span className="text-gray-400">Cast</span><p>{filmData.actors.length}+{filmData.extras_count}</p></div><div><span className="text-gray-400">Composer</span><p>{composers.find(c=>c.id===filmData.composer_id)?.name||'None'}</p></div></div>
-          <div className="pt-2 border-t border-white/10 space-y-1 text-sm"><div className="flex justify-between"><span>Budget</span><span className="text-red-400">-${budget.toLocaleString()}</span></div>{sponsor>0&&<div className="flex justify-between"><span>Sponsor</span><span className="text-green-400">+${sponsor.toLocaleString()}</span></div>}{filmData.ad_revenue>0&&<div className="flex justify-between"><span>Ads</span><span className="text-green-400">+${filmData.ad_revenue.toLocaleString()}</span></div>}<div className="flex justify-between font-bold pt-1 border-t border-white/10"><span>Net</span><span className={net>0?'text-red-400':'text-green-400'}>${Math.abs(net).toLocaleString()}</span></div></div>
+          <div className="pt-2 border-t border-white/10 text-sm space-y-1">
+            <p className="font-bold text-yellow-500 mb-2">{language === 'it' ? 'Riepilogo Costi' : 'Cost Breakdown'}</p>
+            <div className="flex justify-between"><span className="text-gray-400">{language === 'it' ? 'Costo Attrezzatura' : 'Equipment'}</span><span className="text-red-400">-${(filmData.equipment_cost||0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-gray-400">{language === 'it' ? 'Costo Cast' : 'Cast Fees'}</span><span className="text-red-400">-${((filmData.actors_cost||0)+(filmData.extras_cost||0)).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-gray-400">{language === 'it' ? 'Costo Location' : 'Location'}</span><span className="text-red-400">-${(filmData.location_cost||0).toLocaleString()}</span></div>
+            <div className="flex justify-between font-semibold border-t border-white/5 pt-1"><span>{language === 'it' ? 'Budget Totale' : 'Total Budget'}</span><span className="text-red-400">-${budget.toLocaleString()}</span></div>
+            {sponsor>0&&<div className="flex justify-between text-green-400"><span>Sponsor</span><span>+${sponsor.toLocaleString()}</span></div>}
+            {filmData.ad_revenue>0&&<div className="flex justify-between text-green-400"><span>Ads</span><span>+${filmData.ad_revenue.toLocaleString()}</span></div>}
+            <div className="flex justify-between font-bold pt-1 border-t border-white/10 text-base"><span>{language === 'it' ? 'Costo Netto' : 'Net Cost'}</span><span className={net>user.funds?'text-red-500':'text-green-400'}>${Math.abs(net).toLocaleString()}</span></div>
+            <div className="flex justify-between text-xs"><span className="text-gray-400">{language === 'it' ? 'I tuoi fondi' : 'Your funds'}</span><span className="text-yellow-500">${user.funds?.toLocaleString()}</span></div>
+            {net>user.funds&&<p className="text-xs text-red-500 mt-1">{language === 'it' ? 'Fondi insufficienti!' : 'Insufficient funds!'}</p>}
+          </div>
         </CardContent></Card>);
       default: return null;
     }

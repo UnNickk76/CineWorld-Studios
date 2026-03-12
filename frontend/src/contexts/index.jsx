@@ -22,13 +22,26 @@ export const useTranslations = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('cineworld_token'));
+  const tokenRef = React.useRef(localStorage.getItem('cineworld_token'));
+  const [token, setTokenState] = useState(tokenRef.current);
 
-  const api = axios.create({
-    baseURL: API,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    timeout: 120000  // 2 minutes timeout for AI generation calls
-  });
+  const setToken = (t) => {
+    tokenRef.current = t;
+    setTokenState(t);
+  };
+
+  const api = React.useMemo(() => {
+    const instance = axios.create({
+      baseURL: API,
+      timeout: 30000
+    });
+    instance.interceptors.request.use(config => {
+      const t = tokenRef.current;
+      if (t) config.headers.Authorization = `Bearer ${t}`;
+      return config;
+    });
+    return instance;
+  }, []);
 
   // Auto-login on app load
   useEffect(() => {
@@ -43,7 +56,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, api]);
 
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });

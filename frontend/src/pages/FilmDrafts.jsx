@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -105,17 +106,8 @@ const FilmDrafts = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-700 rounded w-1/3"></div>
-          <div className="h-24 bg-gray-700 rounded"></div>
-          <div className="h-24 bg-gray-700 rounded"></div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
+
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="film-drafts-page">

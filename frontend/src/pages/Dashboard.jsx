@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -97,6 +98,7 @@ const Dashboard = () => {
       if (!detailedStats) return null;
       switch(statType) {
         case 'films':
+
           return (<div className="space-y-4">
             <div><h4 className="text-sm font-semibold mb-2">{lt('byGenre')}</h4>
               <div className="grid grid-cols-2 gap-2">{Object.entries(detailedStats.films?.by_genre || {}).map(([genre, count]) => (

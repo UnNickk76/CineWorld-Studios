@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -111,6 +112,9 @@ const CinemaTourPage = () => {
   };
 
   if (loading) return <div className="pt-16 flex items-center justify-center h-96"><RefreshCw className="w-8 h-8 animate-spin text-yellow-500" /></div>;
+
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="tour-page">

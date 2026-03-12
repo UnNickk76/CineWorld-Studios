@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 

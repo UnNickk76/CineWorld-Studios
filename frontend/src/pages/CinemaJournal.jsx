@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, MessageCircle
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -125,6 +126,7 @@ const CinemaJournal = () => {
   const StarRating = ({ value, onChange, readonly = false, size = 'md' }) => {
     const stars = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
     const sizeClass = size === 'sm' ? 'w-3 h-3' : 'w-5 h-5';
+
     return (
       <div className="flex items-center gap-0.5">
         {[1, 2, 3, 4, 5].map(star => (
@@ -159,6 +161,8 @@ const CinemaJournal = () => {
     const badge = badges[role] || badges.supporting;
     return <Badge className={`${badge.color} text-[10px] h-4`}>{badge.label}</Badge>;
   };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-5xl mx-auto" data-testid="cinema-journal-page">

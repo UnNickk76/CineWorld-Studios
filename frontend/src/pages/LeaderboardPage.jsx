@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -96,6 +97,9 @@ const LeaderboardPage = () => {
       </div>
     </div>
   );
+
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="leaderboard-page">

@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -151,6 +152,9 @@ const FriendsPage = () => {
   
   if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
   
+
+  if (loading) return <LoadingSpinner />;
+
   return (
     <div className="pt-16 pb-6 px-3 max-w-2xl mx-auto">
       <h1 className="font-['Bebas_Neue'] text-3xl mb-4 flex items-center gap-2">

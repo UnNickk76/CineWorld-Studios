@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { AuthContext, useTranslations } from '../contexts';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 const ReleaseNotes = () => {
   const { api } = useContext(AuthContext);
@@ -26,16 +27,8 @@ const ReleaseNotes = () => {
     }).finally(() => setLoading(false));
   }, [api]);
 
-  if (loading) {
-    return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-700 rounded w-1/3"></div>
-          {[1,2,3].map(i => <div key={i} className="h-32 bg-gray-700 rounded"></div>)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
+
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="release-notes-page">

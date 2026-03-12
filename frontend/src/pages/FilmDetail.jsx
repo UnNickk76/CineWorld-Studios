@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 

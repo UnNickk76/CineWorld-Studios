@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -118,6 +119,9 @@ const NotificationsPage = () => {
   
   if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
   
+
+  if (loading) return <LoadingSpinner />;
+
   return (
     <div className="pt-16 pb-6 px-3 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4">

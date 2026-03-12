@@ -43,6 +43,7 @@ import {
   Car, Building2, GraduationCap, ArrowUpCircle, ShoppingBag, Landmark
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 

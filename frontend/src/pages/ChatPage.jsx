@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -101,6 +102,7 @@ const ChatPage = () => {
       } finally { setActionLoading(null); }
     };
     
+
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="user-profile-modal">

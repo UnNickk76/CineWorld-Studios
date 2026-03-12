@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -258,13 +259,8 @@ const PreEngagementPage = () => {
     return labels[type] || type;
   };
 
-  if (loading) {
-    return (
-      <div className="pt-20 p-4 flex justify-center">
-        <RefreshCw className="w-8 h-8 animate-spin text-yellow-500" />
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
+
 
   return (
     <div className="pt-20 pb-24 px-4 max-w-6xl mx-auto">

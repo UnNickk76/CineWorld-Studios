@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -107,6 +108,9 @@ const CineBoard = () => {
     if (rank <= 10) return 'bg-purple-500/20 text-purple-400';
     return 'bg-white/10 text-gray-400';
   };
+
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-page">

@@ -8,6 +8,7 @@ import { Progress } from '../components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { toast } from 'sonner';
 import { Film, Heart, Trophy, Building, MessageSquare, RefreshCw } from 'lucide-react';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 const PlayerPublicProfile = () => {
   const { api, user } = useContext(AuthContext);
@@ -29,6 +30,9 @@ const PlayerPublicProfile = () => {
 
   if (loading) return <div className="pt-16 flex items-center justify-center h-96"><RefreshCw className="w-8 h-8 animate-spin text-yellow-500" /></div>;
   if (!player) return null;
+
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-2xl mx-auto" data-testid="player-profile-page">

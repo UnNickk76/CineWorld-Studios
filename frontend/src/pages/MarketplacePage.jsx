@@ -42,6 +42,7 @@ import {
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, ShoppingBag, Ticket
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
@@ -182,6 +183,9 @@ const MarketplacePage = () => {
   };
 
   if (loading) return <div className="pt-20 text-center">Caricamento...</div>;
+
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="marketplace-page">

@@ -1014,7 +1014,6 @@ const ProtectedRoute = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [popupData, setPopupData] = useState(null);
-  const [popupView, setPopupView] = useState('stats'); // 'stats' or 'studio'
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
   
   // Check for pending challenge invites on login

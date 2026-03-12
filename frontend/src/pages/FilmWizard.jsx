@@ -240,8 +240,7 @@ const FilmWizard = () => {
           setLastAutoSave(new Date());
           // Silent save - no toast to avoid spam
         } catch (e) {
-          // Silent fail for auto-save
-          console.log('Auto-save failed:', e);
+          // Silent fail for auto-save - no action needed
         }
       }
     }, 30000); // 30 seconds
@@ -303,8 +302,7 @@ const FilmWizard = () => {
       }
       if (res.data.categories) setCastCategories(res.data.categories);
     } catch(err) {
-      console.error(`Failed to fetch ${type}:`, err);
-      // Retry once after 1 second
+      // Retry once after 1 second on failure
       setTimeout(async () => {
         try {
           let url = `/${type}?limit=200`;
@@ -314,7 +312,7 @@ const FilmWizard = () => {
           else if(type==='directors') setDirectors(retryRes.data.directors || []);
           else if(type==='composers') setComposers(retryRes.data.composers || []);
           if (retryRes.data.categories) setCastCategories(retryRes.data.categories);
-        } catch(e) { console.error(`Retry failed for ${type}:`, e); }
+        } catch(e) { /* Silent retry fail */ }
       }, 1000);
     }
   };
@@ -340,7 +338,6 @@ const FilmWizard = () => {
       setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); 
       toast.success(language === 'it' ? 'Sceneggiatura generata!' : 'Screenplay generated!'); 
     } catch(e) { 
-      console.error('Screenplay generation error:', e);
       toast.error(language === 'it' ? 'Errore generazione sceneggiatura. Riprova.' : 'Screenplay generation error. Try again.'); 
     } finally { 
       setGenerating(false); 
@@ -357,7 +354,6 @@ const FilmWizard = () => {
         toast.error(res.data.error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again'));
       }
     } catch(e) { 
-      console.error('Poster generation error:', e);
       toast.error(e.response?.data?.error || (language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.')); 
     } finally { 
       setGenerating(false); 
@@ -370,7 +366,6 @@ const FilmWizard = () => {
       setFilmData({...filmData, soundtrack_description: res.data.description}); 
       toast.success(language === 'it' ? 'Descrizione colonna sonora generata!' : 'Soundtrack description generated!'); 
     } catch(e) { 
-      console.error('Soundtrack generation error:', e);
       toast.error(language === 'it' ? 'Errore generazione. Riprova.' : 'Generation error. Try again.'); 
     } finally { 
       setGenerating(false); 

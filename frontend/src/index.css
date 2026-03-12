@@ -100,14 +100,22 @@ code {
     background: radial-gradient(ellipse at center, rgba(234, 179, 8, 0.1) 0%, transparent 70%);
 }
 
-/* Card Hover Effect */
+/* Card Hover Effect - Optimized */
 .card-hover {
-    transition: all 0.3s ease;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                box-shadow 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                border-color 0.2s ease;
+    will-change: transform;
 }
 
 .card-hover:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    transform: translateY(-3px) translateZ(0);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    border-color: rgba(234, 179, 8, 0.2);
+}
+
+.card-hover:active {
+    transform: translateY(-1px) translateZ(0);
 }
 
 /* Movie Poster Aspect Ratio */
@@ -214,3 +222,60 @@ button:active {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Shimmer Loading Effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+/* GPU-accelerated transitions */
+.gpu-accelerate {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Smooth card hover with GPU acceleration */
+.card-smooth {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+              box-shadow 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+
+.card-smooth:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Button smooth transition */
+button, .btn {
+  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Faster animations for interactive elements */
+.fast-transition {
+  transition-duration: 0.15s !important;
+}
+
+/* Loading spinner optimization */
+@keyframes spin-smooth {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner-smooth {
+  animation: spin-smooth 0.8s linear infinite;
+  will-change: transform;
+}

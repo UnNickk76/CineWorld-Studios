@@ -114,7 +114,7 @@ const FestivalsPage = () => {
       const res = await api.get(`/festivals?language=${language}`);
       setFestivals(res.data.festivals);
     } catch (e) {
-      console.error(e);
+      // Silent fail - festivals display will be empty
     }
   };
 
@@ -123,7 +123,7 @@ const FestivalsPage = () => {
       const res = await api.get('/custom-festivals');
       setCustomFestivals(res.data.festivals || []);
     } catch (e) {
-      console.error(e);
+      // Silent fail
     }
   };
 
@@ -132,7 +132,7 @@ const FestivalsPage = () => {
       const res = await api.get('/custom-festivals/creation-cost');
       setCreationCost(res.data);
     } catch (e) {
-      console.error(e);
+      // Silent fail
     }
   };
 
@@ -194,7 +194,7 @@ const FestivalsPage = () => {
       const res = await api.get(`/festivals/awards/leaderboard?period=${period}&language=${language}`);
       setLeaderboard(res.data);
     } catch (e) {
-      console.error(e);
+      // Silent fail
     }
   };
 
@@ -203,7 +203,7 @@ const FestivalsPage = () => {
       const res = await api.get(`/festivals/my-awards?language=${language}`);
       setMyAwards(res.data);
     } catch (e) {
-      console.error(e);
+      // Silent fail
     }
   };
 
@@ -242,7 +242,7 @@ const FestivalsPage = () => {
         });
       }
     } catch (e) {
-      console.error('Error loading live ceremony:', e);
+      // Ceremony load failed - will retry on next interval
     }
   };
 

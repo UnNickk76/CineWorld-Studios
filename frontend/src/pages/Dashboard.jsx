@@ -144,7 +144,7 @@ const Dashboard = () => {
       const res = await api.get('/revenue/pending-all');
       setPendingRevenue(res.data);
     } catch (e) {
-      console.error('Error loading pending revenue:', e);
+      // Silent fail - revenue will refresh on next interval
     }
   };
 
@@ -194,7 +194,7 @@ const Dashboard = () => {
         setChallenges(challengesRes.data);
         setPendingRevenue(pendingRes.data);
       } catch (err) {
-        console.error(err);
+        // Data load failed - will retry on component remount
       }
     };
     fetchData();

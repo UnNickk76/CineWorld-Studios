@@ -93,7 +93,7 @@ const ChallengesPage = () => {
       setWaitingChallenges(waitingRes.data);
       setMyStats(statsRes.data);
     } catch (e) {
-      console.error(e);
+      // Data load failed - will retry on refresh
     }
   };
 
@@ -673,6 +673,41 @@ const ChallengesPage = () => {
                   <p className="text-2xl font-bold text-pink-400">{myStats.win_rate}%</p>
                   <p className="text-xs text-gray-400">Win Rate</p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Live Matchmaking Banner - Shows when there are waiting challenges */}
+        {waitingChallenges.length > 0 && (
+          <Card className="bg-gradient-to-r from-emerald-500/20 via-green-500/10 to-emerald-500/20 border-green-500/40 mb-4 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(34,197,94,0.1),transparent)] animate-pulse" />
+            <CardContent className="p-4 relative">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="p-2 bg-green-500 rounded-lg">
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-ping" />
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full" />
+                  </div>
+                  <div>
+                    <h3 className="font-['Bebas_Neue'] text-lg text-green-400">
+                      {language === 'it' ? 'MATCHMAKING ATTIVO' : 'LIVE MATCHMAKING'}
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      {waitingChallenges.length} {language === 'it' ? 'sfide in attesa di avversari' : 'challenges waiting for opponents'}
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  size="sm" 
+                  className="bg-green-500 hover:bg-green-600 text-white"
+                  onClick={() => setShowPending(true)}
+                >
+                  {language === 'it' ? 'Unisciti' : 'Join'}
+                </Button>
               </div>
             </CardContent>
           </Card>

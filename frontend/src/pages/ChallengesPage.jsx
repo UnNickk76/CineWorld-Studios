@@ -102,6 +102,7 @@ const ChallengesPage = () => {
     setChallengeType(type);
     setSelectedFilms([]);
     setView('create');
+    loadOfflinePlayers(); // Auto-load players list
   };
 
   const toggleFilmSelection = (film) => {
@@ -216,10 +217,9 @@ const ChallengesPage = () => {
   const loadOfflinePlayers = async () => {
     try {
       const res = await api.get('/users/all-players');
-      const players = (Array.isArray(res.data) ? res.data : []).filter(
-        p => p.accept_offline_challenges && p.id !== user.id
-      );
-      setOfflinePlayers(players);
+      const players = Array.isArray(res.data) ? res.data : [];
+      // Show ALL players (online and offline), exclude self
+      setOfflinePlayers(players.filter(p => p.id !== user?.id));
     } catch (e) { setOfflinePlayers([]); }
   };
 

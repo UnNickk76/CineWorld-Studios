@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   const api = React.useMemo(() => {
     const instance = axios.create({
       baseURL: API,
-      timeout: 30000
+      timeout: 120000
     });
     instance.interceptors.request.use(config => {
       const t = tokenRef.current;

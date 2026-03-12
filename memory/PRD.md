@@ -3,78 +3,77 @@
 ## Descrizione
 Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola Fabio**.
 
-## Versione Attuale: v0.094
+## Versione Attuale: v0.095
 
 ## Funzionalità Implementate (Ultime)
 
+### v0.095 - Ottimizzazione Velocità & Nuova Colonna Sonora - 12/03/2026
+- **P0 Fix Critici:**
+  - Fix crash Giornale del Cinema (NoneType su director/screenwriter)
+  - Fix autenticazione login (axios interceptor per token reattivo, timeout ridotto a 30s)
+  - Generazione trailer temporaneamente disabilitata (badge "In pausa")
+- **P1 Velocità e Fluidità:**
+  - Loading spinner ("Caricamento...") su ogni sezione del gioco con Suspense fallback
+  - ErrorBoundary: le pagine non si bloccano più, mostrano pulsante "Riprova"
+  - Infrastrutture disabilitate (visibili ma non cliccabili, opacity 40%)
+  - Sfide VS disabilitate (visibili ma non cliccabili, opacity 40%)
+- **P2 Gameplay:**
+  - Rimossa generazione AI colonna sonora e relativo prompt
+  - Nuovo sistema colonna sonora automatico: punteggio stile IMDb (stella + voto /10) basato su abilità compositore + genere film
+  - Riepilogo costi dettagliato prima della creazione del film (Attrezzatura, Cast, Location, Sponsor, Net Cost vs Fondi)
+  - Cast ampliato a 2000 per tipo (8000 totali) con 25+ nazionalità
+  - 50 cast visibili per genere con refresh casuale ($sample) per massima varietà
+- **P3:** Note di rilascio aggiornate a v0.095
+
 ### v0.094 - Fix Refactoring Frontend + Rinegoziazione - 11/03/2026
-- **Fix critico frontend post-refactoring:**
-  - Creati 4 componenti pagina mancanti: PasswordRecoveryPage, NicknameRecoveryPage, StatisticsPage, PlayerPublicProfile
-  - Aggiunti 3 inner components mancanti: StatsDetailModal (Dashboard), SkillBadge (FilmWizard), UserProfileModal (ChatPage)
-  - Corretti 8+ import mancanti di icone lucide-react in 6 file (ChallengesPage, InfrastructurePage, MarketplacePage, Dashboard, CinemaJournal, AuthPage)
-  - Fix import mancanti: Smartphone, PlayerPopupContext, usePlayerPopup, API, TrendingDown, Calendar
-  - Rimosso codice duplicato da NotificationsPage.jsx (App/ProtectedRoute/UrlManager)
-  - Fix path alias (`@/` → `./`) per index.js e App.js
-  - Esportato `API` da contexts per uso in UrlManager
-- **Fix rinegoziazione contratti cast (P1):**
-  - Introdotta probabilità minima di rifiuto del 12% per rendere la meccanica di rinegoziazione visibile a tutti i livelli
-  - La rinegoziazione era tecnicamente funzionante ma invisibile per giocatori di basso livello con cast a 1-2 stelle
-- **Test di regressione completo:** 18+ pagine verificate, 100% frontend pass rate (iteration 41)
-
-### v0.093 - Refactoring Backend P0 Completo (Steps 2, 4-6) - 11/03/2026
-- Estratti 6 moduli route da server.py (auth, notifications, social, infrastructure, minigames)
-- server.py ridotto da 15.564 a 12.771 righe (-18%)
-
-### v0.091-092 - Feature + Refactoring Step 1
-- Hamburger visibile su web, Trailer Sora 2 AI, Cast espanso 25 nazionalità
-- Sfide Offline grafica uniforme, PageTransition animato, Code-splitting
+- Fix critico frontend post-refactoring (4 pagine + 3 inner components + 8+ import mancanti)
+- Fix rinegoziazione contratti cast (probabilità minima 12%)
+- Test di regressione completo frontend (iteration 41)
 
 ## Architettura Attuale
 ```
 /app/backend/
-├── server.py              # 12.771 righe - In corso di riduzione
-├── database.py            # Connessione MongoDB condivisa
-├── auth_utils.py          # Auth utilities condivise
-├── game_state.py          # Stato globale (online_users, CHAT_BOTS)
-├── game_data_minigames.py # Costanti minigame e trivia
-├── models/                # Pydantic models
-├── routes/
-│   ├── auth.py            # 369 righe
-│   ├── notifications.py   # 69 righe
-│   ├── social.py          # 189 righe
-│   ├── infrastructure.py  # 1.220 righe
-│   └── minigames.py       # 431 righe
-├── cast_system.py, challenge_system.py, game_systems.py, social_system.py
+├── server.py              # ~12.7k righe - In corso di riduzione
+├── database.py, auth_utils.py, game_state.py
+├── models/, routes/ (auth, notifications, social, infrastructure, minigames)
 
 /app/frontend/
 ├── src/
-│   ├── App.js             # ~1.000 righe (router + TopNavbar + ProtectedRoute + UrlManager)
-│   ├── contexts/index.jsx # AuthContext, LanguageContext, PlayerPopupContext, API
-│   ├── constants/index.js # SKILL_TRANSLATIONS
-│   ├── components/        # PageTransition, shared UI, shadcn/ui
-│   └── pages/             # 31 file di pagina estratti (lazy-loaded)
+│   ├── App.js             # ~1k righe (router + TopNavbar + ProtectedRoute)
+│   ├── contexts/index.jsx # Auth con interceptor, LanguageContext, PlayerPopupContext
+│   ├── components/        # ErrorBoundary, LoadingSpinner, PageTransition, shadcn/ui
+│   └── pages/             # 31+ file di pagina (lazy-loaded)
 ```
 
-## Backlog Refactoring Rimanente
-- [ ] Estrarre routes films (~48 endpoint) da server.py
-- [ ] Estrarre routes challenges (~20 endpoint) da server.py
-- [ ] Estrarre routes festivals (~20 endpoint) da server.py
+## Features Disabilitate Temporaneamente
+- Generazione Trailer AI (Sora 2)
+- Infrastrutture (visibili, non cliccabili)
+- Sfide VS Online (visibili, non cliccabili)
+- Generazione AI Colonna Sonora (sostituita con scoring automatico)
+
+## Backlog Refactoring
+- [ ] Estrarre routes films da server.py
+- [ ] Estrarre routes challenges da server.py
+- [ ] Estrarre routes festivals da server.py
 - [ ] Estrarre routes chat da server.py
-- [ ] Frontend: Estrarre TopNavbar, ProtectedRoute, UrlManager da App.js in components/
+- [ ] Estrarre TopNavbar, ProtectedRoute, UrlManager da App.js
 
 ## Backlog Feature
-- P1: Completamento Gameplay Contest Live (matchmaking, classifiche)
+- P1: Completamento Gameplay Contest Live
 - P1: Attività Major
+- P1: Riabilitare Infrastrutture (dopo ottimizzazione)
+- P1: Riabilitare Sfide VS (dopo ottimizzazione)
+- P1: Fix e riabilitazione Trailer AI
 - P2: Sistema Acquisto CineCoins (Stripe)
 - P2: Classifiche VS / ELO
-- P3: Script di migrazione dati permanente
+- P3: Script migrazione dati permanente
 
-## Credenziali
+## Credenziali Test
 - TestPlayer1: test1@test.com / Test1234!
 - TestPlayer2: test2@test.com / Test1234!
 
 ## 3rd Party Integrations
-- OpenAI GPT-4o (Text Generation) - Emergent LLM Key
-- OpenAI GPT-Image-1 (Image Generation) - Emergent LLM Key
-- Sora 2 (Video Generation) - Emergent LLM Key
-- Resend (Email) - User API Key (RESEND_API_KEY)
+- OpenAI GPT-4o (Text) - Emergent LLM Key
+- OpenAI GPT-Image-1 (Images) - Emergent LLM Key
+- Sora 2 (Video) - Emergent LLM Key (DISABILITATO TEMP)
+- Resend (Email) - User API Key

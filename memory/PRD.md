@@ -7,63 +7,53 @@ Gioco multiplayer online di produzione cinematografica. Proprietà di **Andreola
 
 ## Funzionalità Implementate (Ultime)
 
-### v0.095 - Ottimizzazione Velocità & Nuova Colonna Sonora - 12/03/2026
-- **P0 Fix Critici:**
-  - Fix crash Giornale del Cinema (NoneType su director/screenwriter)
-  - Fix autenticazione login (axios interceptor per token reattivo, timeout ridotto a 30s)
-  - Generazione trailer temporaneamente disabilitata (badge "In pausa")
-- **P1 Velocità e Fluidità:**
-  - Loading spinner ("Caricamento...") su ogni sezione del gioco con Suspense fallback
-  - ErrorBoundary: le pagine non si bloccano più, mostrano pulsante "Riprova"
-  - Infrastrutture disabilitate (visibili ma non cliccabili, opacity 40%)
-  - Sfide VS disabilitate (visibili ma non cliccabili, opacity 40%)
-- **P2 Gameplay:**
-  - Rimossa generazione AI colonna sonora e relativo prompt
-  - Nuovo sistema colonna sonora automatico: punteggio stile IMDb (stella + voto /10) basato su abilità compositore + genere film
-  - Riepilogo costi dettagliato prima della creazione del film (Attrezzatura, Cast, Location, Sponsor, Net Cost vs Fondi)
-  - Cast ampliato a 2000 per tipo (8000 totali) con 25+ nazionalità
-  - 50 cast visibili per genere con refresh casuale ($sample) per massima varietà
-- **P3:** Note di rilascio aggiornate a v0.095
+### v0.095b - Cast Realistico & Solo Italiano - 12/03/2026
+- **Distribuzione età attori realistica:**
+  - 45% (18-36), 33% (37-50), 12% (51-70), 5% (70-90), 3% (14-17), 2% (6-13 baby actors)
+  - Registi, sceneggiatori, compositori hanno distribuzioni separate più mature
+- **Skill decimali 0-100** (es. 78.7, 42.3) — 0 rarissimo, distribuzione realistica
+  - SkillBadge mostra i decimali nell'interfaccia
+  - `calculate_stars` ricalibrato per scala 0-100
+- **Refresh cast automatico** ogni 12 giorni: +5% nuovi membri per tipo
+- **Lingua forzata a italiano** — selettore lingua rimosso da TopNavbar, sidebar e AuthPage
+- 8000 cast rigenerati (2000/tipo) con nuove regole
 
-### v0.094 - Fix Refactoring Frontend + Rinegoziazione - 11/03/2026
-- Fix critico frontend post-refactoring (4 pagine + 3 inner components + 8+ import mancanti)
-- Fix rinegoziazione contratti cast (probabilità minima 12%)
-- Test di regressione completo frontend (iteration 41)
+### v0.095 - Ottimizzazione Velocità & Nuova Colonna Sonora - 12/03/2026
+- Fix crash Giornale del Cinema, fix login auth (interceptor)
+- Colonna Sonora automatica con punteggio IMDb
+- Riepilogo costi dettagliato prima della creazione film
+- Cast ampliato a 2000/tipo, 50 visibili con refresh casuale
+- ErrorBoundary + LoadingSpinner su tutte le pagine
+- Infrastrutture e Sfide VS disabilitate temporaneamente
+- Generazione trailer disabilitata temporaneamente
 
 ## Architettura Attuale
 ```
 /app/backend/
-├── server.py              # ~12.7k righe - In corso di riduzione
+├── server.py              # ~12.7k righe
+├── cast_system.py         # Sistema cast con età/skill realistiche
 ├── database.py, auth_utils.py, game_state.py
-├── models/, routes/ (auth, notifications, social, infrastructure, minigames)
+├── routes/ (auth, notifications, social, infrastructure, minigames)
+├── tests/ (test_iter43_cast_skills.py)
 
 /app/frontend/
 ├── src/
-│   ├── App.js             # ~1k righe (router + TopNavbar + ProtectedRoute)
-│   ├── contexts/index.jsx # Auth con interceptor, LanguageContext, PlayerPopupContext
-│   ├── components/        # ErrorBoundary, LoadingSpinner, PageTransition, shadcn/ui
-│   └── pages/             # 31+ file di pagina (lazy-loaded)
+│   ├── App.js             # Router, TopNavbar (senza selettore lingua)
+│   ├── contexts/index.jsx # Auth interceptor, lingua forzata IT
+│   ├── components/        # ErrorBoundary, LoadingSpinner, PageTransition
+│   └── pages/             # 31+ pagine (lazy-loaded)
 ```
 
 ## Features Disabilitate Temporaneamente
 - Generazione Trailer AI (Sora 2)
 - Infrastrutture (visibili, non cliccabili)
 - Sfide VS Online (visibili, non cliccabili)
-- Generazione AI Colonna Sonora (sostituita con scoring automatico)
 
-## Backlog Refactoring
-- [ ] Estrarre routes films da server.py
-- [ ] Estrarre routes challenges da server.py
-- [ ] Estrarre routes festivals da server.py
-- [ ] Estrarre routes chat da server.py
-- [ ] Estrarre TopNavbar, ProtectedRoute, UrlManager da App.js
-
-## Backlog Feature
+## Backlog
+- P1: Riabilitare Infrastrutture, Sfide VS, Trailer
 - P1: Completamento Gameplay Contest Live
 - P1: Attività Major
-- P1: Riabilitare Infrastrutture (dopo ottimizzazione)
-- P1: Riabilitare Sfide VS (dopo ottimizzazione)
-- P1: Fix e riabilitazione Trailer AI
+- P1: Continuare refactoring backend (films, challenges, festivals, chat)
 - P2: Sistema Acquisto CineCoins (Stripe)
 - P2: Classifiche VS / ELO
 - P3: Script migrazione dati permanente

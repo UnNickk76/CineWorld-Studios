@@ -103,6 +103,8 @@ const ChallengesPage = () => {
   const [challengeMode, setChallengeMode] = useState(null); // 'offline' | 'online'
   const [onlinePlayers, setOnlinePlayers] = useState([]);
   const [offlinePlayersList, setOfflinePlayersList] = useState([]);
+  const [boosterFilmId, setBoosterFilmId] = useState(null); // Film to boost
+  const [boosterActive, setBoosterActive] = useState(false);
 
   const loadPlayersForChallenge = async () => {
     try {
@@ -122,7 +124,19 @@ const ChallengesPage = () => {
     setSelectedFilms([]);
     setChallengeMode(null);
     setOpponentId('');
+    setBoosterFilmId(null);
+    setBoosterActive(false);
     setView('create');
+  };
+
+  // Booster cost: exponential based on film quality (worse film = higher cost)
+  const getBoosterCost = (film) => {
+    if (!film) return 0;
+    const quality = film.quality_score || film.scores?.global || 50;
+    // Inverse exponential: low quality = expensive, high quality = cheap
+    // quality 20 → $80k, quality 50 → $40k, quality 80 → $15k, quality 100 → $5k
+    const cost = Math.round(100000 * Math.exp(-quality / 40));
+    return Math.max(5000, Math.min(100000, cost));
   };
 
   const toggleFilmSelection = (film) => {
@@ -151,7 +165,8 @@ const ChallengesPage = () => {
         film_ids: selectedFilms.map(f => f.id),
         opponent_id: opponentId,
         is_live: !isOffline,
-        is_offline_challenge: isOffline
+        is_offline_challenge: isOffline,
+        booster_film_id: boosterActive && boosterFilmId ? boosterFilmId : undefined
       });
       
       toast.success(res.data.message);
@@ -276,19 +291,132 @@ const ChallengesPage = () => {
     }
   };
 
+  // Battle phrases pool - varied and exciting
+  const battlePhrases = {
+    win_dominant: [
+      "Dominio assoluto! Nessuno può competere con questa potenza.",
+      "Vittoria schiacciante! L'avversario non ha avuto scampo.",
+      "Maestria pura! Un capolavoro di superiorità tecnica.",
+      "Impressionante! La differenza di classe è evidente.",
+      "Devastante! Come un uragano che spazza via tutto.",
+    ],
+    win_close: [
+      "Per un soffio! La tensione era palpabile fino all'ultimo!",
+      "Vittoria di misura! Il pubblico è in delirio!",
+      "Che battaglia! Solo i dettagli hanno fatto la differenza.",
+      "Incredibile! Un finale da brividi decide tutto.",
+      "Adrenalina pura! Vince chi ha osato di più.",
+    ],
+    lose: [
+      "Sconfitto... ma con onore! La prossima volta sarà diverso.",
+      "Non è bastato... l'avversario era troppo forte stavolta.",
+      "Caduti in battaglia, ma mai arresi!",
+      "Bruciante sconfitta... il dolore della creatività tradita.",
+      "Ci vuole coraggio per sfidare i migliori. Ritorna più forte!",
+    ],
+    draw: [
+      "Pareggio perfetto! Due titani si equivalgono!",
+      "Nessun vincitore, nessun perdente. Solo puro cinema!",
+      "Equilibrio totale! Entrambi meritano la gloria.",
+    ],
+    skill_win: [
+      "Colpo magistrale! {winner} domina in {skill}!",
+      "{winner} non lascia scampo: {skill} superiore!",
+      "Che classe! {winner} mostra la sua forza in {skill}.",
+      "{skill} parla chiaro: {winner} è imbattibile!",
+      "Netta superiorità! {winner} conquista {skill} con stile.",
+      "Il pubblico applaude! {winner} eccelle in {skill}.",
+      "{winner} dimostra perché è il migliore: {skill} perfetta!",
+      "Standing ovation per {winner}! {skill} da manuale.",
+    ],
+    skill_close: [
+      "Che duello in {skill}! {winner} vince per un pelo!",
+      "{skill}: quasi pareggio, ma {winner} la spunta!",
+      "Tensione alle stelle! {winner} strappa {skill} all'ultimo!",
+      "Colpo di scena in {skill}! {winner} ribalta tutto!",
+      "Il pubblico trattiene il fiato... {winner} vince {skill}!",
+    ],
+    skill_draw: [
+      "Pareggio in {skill}! Due visioni si equivalgono!",
+      "{skill}: impossibile separarli! Pari perfetto.",
+      "Nessuno cede in {skill}! Un muro contro muro epico.",
+    ]
+  };
+
+  const getRandomPhrase = (category, vars = {}) => {
+    const pool = battlePhrases[category] || battlePhrases.win_close;
+    let phrase = pool[Math.floor(Math.random() * pool.length)];
+    Object.entries(vars).forEach(([k, v]) => { phrase = phrase.replace(`{${k}}`, v); });
+    return phrase;
+  };
+
+  // Per-skill animation state
+  const [currentSkillIndex, setCurrentSkillIndex] = useState(-1);
+  const [skillPhrase, setSkillPhrase] = useState('');
+  const [mancheComplete, setMancheComplete] = useState(false);
+
   const runBattleAnimation = (battle) => {
     setBattleStep(0);
+    setCurrentSkillIndex(-1);
+    setMancheComplete(false);
     setTimeout(() => setBattleStep(1), 2000);   // Teams
-    setTimeout(() => setBattleStep(2), 5000);   // Manche 1
-    setTimeout(() => setBattleStep(3), 12000);  // Manche 2
-    setTimeout(() => setBattleStep(4), 19000);  // Manche 3
-    setTimeout(() => setBattleStep(99), 25000); // Final Result
+    setTimeout(() => { setBattleStep(2); animateSkills(battle, 0); }, 5000);
+  };
+
+  const animateSkills = (battle, matchIndex) => {
+    const match = (battle.matches || [])[matchIndex];
+    if (!match) return;
+    const skills = match.skill_battles || [];
+    setCurrentSkillIndex(-1);
+    setMancheComplete(false);
+    
+    // Animate each skill: 2.5-4s per skill = ~20-32s for 8 skills
+    const SKILL_DELAY = 3000; // 3s per skill
+    skills.forEach((sb, i) => {
+      setTimeout(() => {
+        setCurrentSkillIndex(i);
+        const winner = sb.winner === 'team_a' ? (battle.team_a?.name || 'Team A') : 
+                       sb.winner === 'team_b' ? (battle.team_b?.name || 'Team B') : null;
+        const skillName = sb.skill_name_it || sb.skill;
+        if (!winner) {
+          setSkillPhrase(getRandomPhrase('skill_draw', { skill: skillName }));
+        } else {
+          const diff = Math.abs((sb.team_a_power || 0) - (sb.team_b_power || 0));
+          setSkillPhrase(getRandomPhrase(diff > 20 ? 'skill_win' : 'skill_close', { winner, skill: skillName }));
+        }
+      }, i * SKILL_DELAY);
+    });
+    
+    // After all skills, show manche result
+    setTimeout(() => {
+      setMancheComplete(true);
+    }, skills.length * SKILL_DELAY + 500);
+  };
+
+  const advanceToNextManche = (battle, currentStep) => {
+    const nextStep = currentStep + 1;
+    if (nextStep <= 4) {
+      setBattleStep(nextStep);
+      setCurrentSkillIndex(-1);
+      setMancheComplete(false);
+      setTimeout(() => animateSkills(battle, nextStep - 2), 500);
+    } else {
+      setBattleStep(99);
+    }
   };
 
   const getSkillIcon = (skill) => {
     const icons = {
       direction: '🎬', cinematography: '📷', screenplay: '📝', acting: '🎭',
-      soundtrack: '🎵', effects: '💥', editing: '✂️', charisma: '⭐'
+      soundtrack: '🎵', effects: '💥', editing: '✂️', charisma: '⭐',
+      drama: '🎭', comedy: '😂', action: '💥', horror: '👻',
+      voice_acting: '🎙️', improvisation: '🎪', physical_acting: '🤸',
+      emotional_depth: '💎', method_acting: '🎯', timing: '⏱️',
+      vision: '👁️', leadership: '👑', storytelling: '📖', innovation: '💡',
+      pacing: '🏃', atmosphere: '🌙', dialogue: '💬', originality: '✨',
+      humor_writing: '😄', suspense_craft: '🔍', melodic: '🎹',
+      orchestration: '🎼', emotional_scoring: '💗', genre_versatility: '🎪',
+      sound_design: '🔊', rhythm: '🥁', harmony: '🎶'
     };
     return icons[skill] || '🎯';
   };
@@ -1175,6 +1303,43 @@ const ChallengesPage = () => {
 
         {/* LANCIA SFIDA - goes to mode selection */}
         <div className="fixed bottom-20 left-0 right-0 p-3 bg-gradient-to-t from-[#0D0D0D] to-transparent">
+          {/* Booster System */}
+          {selectedFilms.length === 3 && (
+            <div className="mb-2 p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                  <Flame className="w-3 h-3" /> BOOSTER (opzionale)
+                </span>
+                <Button
+                  size="sm"
+                  variant={boosterActive ? 'default' : 'outline'}
+                  className={`h-5 text-[10px] ${boosterActive ? 'bg-orange-500 text-white' : 'border-orange-500/30 text-orange-400'}`}
+                  onClick={() => setBoosterActive(!boosterActive)}
+                >
+                  {boosterActive ? 'Attivo' : 'Attiva'}
+                </Button>
+              </div>
+              {boosterActive && (
+                <div className="flex gap-1">
+                  {selectedFilms.map(f => {
+                    const cost = getBoosterCost(f);
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => setBoosterFilmId(f.id)}
+                        className={`flex-1 p-1.5 rounded text-center cursor-pointer transition-colors ${
+                          boosterFilmId === f.id ? 'bg-orange-500/20 border border-orange-500' : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <p className="text-[9px] font-semibold truncate">{f.title}</p>
+                        <p className="text-[10px] text-orange-400">${cost.toLocaleString()}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           <Button 
             className="w-full h-12 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg"
             onClick={() => setChallengeMode('choose')}
@@ -1286,7 +1451,7 @@ const ChallengesPage = () => {
             </motion.div>
           )}
 
-          {/* Manche 1, 2, 3 - One per page */}
+          {/* Manche 1, 2, 3 - Animated skill by skill */}
           {[2, 3, 4].map(step => {
             const matchIndex = step - 2;
             const match = (battle.matches || [])[matchIndex];
@@ -1295,51 +1460,120 @@ const ChallengesPage = () => {
             return (
               <motion.div
                 key={`match-${step}`}
-                initial={{ opacity: 0, x: 60 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -60 }}
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -40 }}
                 className="w-full max-w-lg px-4"
               >
                 {/* Manche Header */}
-                <div className="text-center mb-3">
-                  <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'MANCHE' : 'MATCH'} {matchIndex + 1}/3</p>
-                  <h2 className="font-['Bebas_Neue'] text-2xl">{match.film_a?.title} <span className="text-gray-500 text-lg">VS</span> {match.film_b?.title}</h2>
+                <div className="text-center mb-4">
+                  <motion.p 
+                    className="text-xs text-pink-400 font-bold tracking-widest mb-1"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                  >
+                    MANCHE {matchIndex + 1}/3
+                  </motion.p>
+                  <h2 className="font-['Bebas_Neue'] text-xl">
+                    <span className="text-red-400">{match.film_a?.title}</span>
+                    <span className="text-gray-500 mx-2 text-base">VS</span>
+                    <span className="text-blue-400">{match.film_b?.title}</span>
+                  </h2>
                 </div>
                 
-                {/* 8 Skill Battles */}
+                {/* Skill Battles - revealed one by one */}
                 <div className="space-y-1.5 mb-3">
-                  {match.skill_battles.map((sb, si) => (
-                    <motion.div
-                      key={si}
-                      initial={{ x: si % 2 === 0 ? -30 : 30, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: si * 0.25, duration: 0.3 }}
-                      className={`p-2 rounded-lg border ${
-                        sb.winner === 'team_a' ? 'border-red-500/30 bg-red-500/5' :
-                        sb.winner === 'team_b' ? 'border-blue-500/30 bg-blue-500/5' :
-                        'border-white/10 bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{getSkillIcon(sb.skill || '')}</span>
-                        <span className="text-xs font-semibold flex-1">{sb.skill_name_it || sb.skill}</span>
-                        <span className={`text-sm font-bold ${sb.winner === 'team_a' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_a_value}</span>
-                        <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden flex">
-                          <div className="h-full bg-red-500" style={{ width: `${(sb.team_a_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
-                          <div className="h-full bg-blue-500" style={{ width: `${(sb.team_b_power / Math.max(sb.team_a_power + sb.team_b_power, 1)) * 100}%` }} />
-                        </div>
-                        <span className={`text-sm font-bold ${sb.winner === 'team_b' ? 'text-green-400' : 'text-gray-500'}`}>{sb.team_b_value}</span>
-                        {sb.is_upset && <Badge className="bg-orange-500/80 text-[8px] px-1">UPSET</Badge>}
+                  {match.skill_battles.map((sb, si) => {
+                    const revealed = si <= currentSkillIndex;
+                    const isCurrent = si === currentSkillIndex;
+                    const aWin = sb.winner === 'team_a';
+                    const bWin = sb.winner === 'team_b';
+                    const totalPower = Math.max((sb.team_a_power || 0) + (sb.team_b_power || 0), 1);
+                    
+                    if (!revealed) return (
+                      <div key={si} className="p-2 rounded-lg border border-white/5 bg-white/2 h-10 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-white/10 animate-pulse" />
                       </div>
-                      <p className="text-[10px] text-gray-400 mt-0.5 italic pl-7">{sb.comment}</p>
-                    </motion.div>
-                  ))}
+                    );
+                    
+                    return (
+                      <motion.div
+                        key={si}
+                        initial={{ scale: 0.8, opacity: 0, rotateX: -20 }}
+                        animate={{ 
+                          scale: isCurrent ? 1.03 : 1, 
+                          opacity: 1, 
+                          rotateX: 0,
+                          boxShadow: isCurrent ? '0 0 20px rgba(236,72,153,0.3)' : '0 0 0 transparent'
+                        }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        className={`p-2 rounded-lg border transition-all ${
+                          isCurrent ? 'border-pink-500/50 bg-pink-500/10' :
+                          aWin ? 'border-red-500/20 bg-red-500/5' :
+                          bWin ? 'border-blue-500/20 bg-blue-500/5' :
+                          'border-white/10 bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <motion.span 
+                            className="text-lg"
+                            animate={isCurrent ? { scale: [1, 1.3, 1] } : {}}
+                            transition={{ duration: 0.5 }}
+                          >
+                            {getSkillIcon(sb.skill || '')}
+                          </motion.span>
+                          <span className="text-xs font-semibold flex-1 truncate">{sb.skill_name_it || sb.skill}</span>
+                          <motion.span 
+                            className={`text-sm font-bold min-w-[24px] text-right ${aWin ? 'text-green-400' : 'text-gray-500'}`}
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+                          >
+                            {sb.team_a_value}
+                          </motion.span>
+                          <div className="w-16 h-2 bg-white/10 rounded-full overflow-hidden flex">
+                            <motion.div 
+                              className="h-full bg-red-500 rounded-l-full" 
+                              initial={{ width: '50%' }}
+                              animate={{ width: `${((sb.team_a_power || 0) / totalPower) * 100}%` }}
+                              transition={{ delay: 0.4, duration: 0.6 }}
+                            />
+                            <motion.div 
+                              className="h-full bg-blue-500 rounded-r-full"
+                              initial={{ width: '50%' }}
+                              animate={{ width: `${((sb.team_b_power || 0) / totalPower) * 100}%` }}
+                              transition={{ delay: 0.4, duration: 0.6 }}
+                            />
+                          </div>
+                          <motion.span 
+                            className={`text-sm font-bold min-w-[24px] ${bWin ? 'text-green-400' : 'text-gray-500'}`}
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+                          >
+                            {sb.team_b_value}
+                          </motion.span>
+                          {sb.is_upset && <Badge className="bg-orange-500/80 text-[8px] px-1 ml-1">UPSET</Badge>}
+                        </div>
+                        {/* Animated phrase for current skill */}
+                        {isCurrent && (
+                          <motion.p 
+                            className="text-[10px] text-pink-300/80 mt-1 italic pl-7"
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                          >
+                            {skillPhrase}
+                          </motion.p>
+                        )}
+                        {!isCurrent && sb.comment && (
+                          <p className="text-[10px] text-gray-500 mt-0.5 italic pl-7">{sb.comment}</p>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
                 
                 {/* Tiebreaker */}
-                {match.tiebreaker && (
+                {mancheComplete && match.tiebreaker && (
                   <motion.div 
-                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 2.2 }}
+                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                     className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center mb-3"
                   >
                     <p className="text-xs font-bold text-yellow-400 mb-1">{match.tiebreaker.name_it || 'Spareggio!'}</p>
@@ -1348,98 +1582,190 @@ const ChallengesPage = () => {
                       <span className="text-gray-500">vs</span>
                       <span className={match.tiebreaker.winner === 'team_b' ? 'text-green-400 font-bold' : 'text-gray-400'}>{match.tiebreaker.team_b_value}</span>
                     </div>
-                    <p className="text-[10px] text-yellow-300/70 mt-1 italic">{match.tiebreaker.comment}</p>
                   </motion.div>
                 )}
                 
-                {/* Match Result */}
-                <motion.div 
-                  initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 2.5 }}
-                  className="text-center"
-                >
-                  <div className="flex justify-center gap-6 text-2xl font-bold mb-2">
-                    <span className="text-red-400">{match.team_a_skill_wins}</span>
-                    <span className="text-gray-500">-</span>
-                    <span className="text-blue-400">{match.team_b_skill_wins}</span>
-                  </div>
-                  <Badge className={`text-sm px-4 py-1 ${
-                    match.winner === 'team_a' ? 'bg-red-500/30 text-red-300' :
-                    match.winner === 'team_b' ? 'bg-blue-500/30 text-blue-300' :
-                    'bg-yellow-500/30 text-yellow-300'
-                  }`}>
-                    {match.winner === 'team_a' ? `${battle.team_a?.name} ${language === 'it' ? 'VINCE LA MANCHE!' : 'WINS!'}` :
-                     match.winner === 'team_b' ? `${battle.team_b?.name} ${language === 'it' ? 'VINCE LA MANCHE!' : 'WINS!'}` :
-                     (language === 'it' ? 'PAREGGIO!' : 'DRAW!')}
-                  </Badge>
-                </motion.div>
-                
-                {/* Navigation */}
-                <div className="flex justify-between mt-4">
-                  <Button 
-                    variant="ghost" size="sm" 
-                    onClick={() => setBattleStep(step - 1)} 
-                    disabled={step === 2}
-                    className="text-gray-400"
+                {/* Match Result - shown after all skills revealed */}
+                {mancheComplete && (
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                    className="text-center mt-3"
                   >
-                    <ChevronLeft className="w-4 h-4 mr-1" /> {language === 'it' ? 'Indietro' : 'Back'}
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={() => setBattleStep(step < 4 ? step + 1 : 99)}
-                    className="bg-white/10 hover:bg-white/20"
-                    data-testid={`match-next-${matchIndex}`}
-                  >
-                    {step < 4 ? (language === 'it' ? 'Manche Successiva' : 'Next Match') : (language === 'it' ? 'Risultato Finale' : 'Final Result')} <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
+                    <div className="flex justify-center gap-6 text-2xl font-bold mb-2">
+                      <span className="text-red-400">{match.team_a_skill_wins}</span>
+                      <span className="text-gray-500">-</span>
+                      <span className="text-blue-400">{match.team_b_skill_wins}</span>
+                    </div>
+                    <Badge className={`text-sm px-4 py-1 ${
+                      match.winner === 'team_a' ? 'bg-red-500/30 text-red-300' :
+                      match.winner === 'team_b' ? 'bg-blue-500/30 text-blue-300' :
+                      'bg-yellow-500/30 text-yellow-300'
+                    }`}>
+                      {match.winner === 'team_a' ? `${battle.team_a?.name} VINCE LA MANCHE!` :
+                       match.winner === 'team_b' ? `${battle.team_b?.name} VINCE LA MANCHE!` :
+                       'PAREGGIO!'}
+                    </Badge>
+                    
+                    {/* Next manche button */}
+                    <div className="mt-4">
+                      <Button 
+                        size="sm" 
+                        onClick={() => advanceToNextManche(battle, step)}
+                        className="bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue']"
+                        data-testid={`match-next-${matchIndex}`}
+                      >
+                        {step < 4 ? 'MANCHE SUCCESSIVA' : 'RISULTATO FINALE'} <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
             );
           })}
 
-          {/* Final Result */}
-          {battleStep === 99 && (
-            <motion.div
-              key="final"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="text-center max-w-md px-4"
-            >
+          {/* Final Result - Victory/Defeat Animation */}
+          {battleStep === 99 && (() => {
+            const isWinner = (battle.winner === 'team_a' && battle.team_a?.players?.includes(user?.id)) ||
+                             (battle.winner === 'team_b' && battle.team_b?.players?.includes(user?.id));
+            const isDraw = battle.winner === 'draw';
+            const winnerName = battle.winner === 'team_a' ? battle.team_a?.name : battle.team_b?.name;
+            const loserName = battle.winner === 'team_a' ? battle.team_b?.name : battle.team_a?.name;
+
+            return (
               <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
+                key="final"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="text-center max-w-md px-4 relative"
               >
-                <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
+                {/* Victory particles */}
+                {(isWinner || isDraw) && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    {[...Array(20)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className={`absolute w-2 h-2 rounded-full ${['bg-yellow-400', 'bg-pink-400', 'bg-green-400', 'bg-blue-400'][i % 4]}`}
+                        initial={{ 
+                          x: '50%', y: '50%', opacity: 1, scale: 0 
+                        }}
+                        animate={{ 
+                          x: `${Math.random() * 100}%`, 
+                          y: `${Math.random() * 100}%`, 
+                          opacity: [1, 1, 0], 
+                          scale: [0, 1.5, 0],
+                          rotate: Math.random() * 360
+                        }}
+                        transition={{ duration: 2 + Math.random() * 2, delay: Math.random() * 0.5, repeat: Infinity, repeatDelay: 1 }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Defeat dark overlay */}
+                {!isWinner && !isDraw && (
+                  <motion.div 
+                    className="absolute inset-0 pointer-events-none" 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-b from-red-900/20 to-transparent rounded-3xl" />
+                  </motion.div>
+                )}
+
+                {/* Icon */}
+                <motion.div
+                  animate={isWinner || isDraw ? { scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] } : { opacity: [0.5, 1, 0.5] }}
+                  transition={{ repeat: Infinity, duration: isWinner ? 1.5 : 3 }}
+                >
+                  {isWinner ? (
+                    <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4 drop-shadow-[0_0_30px_rgba(234,179,8,0.5)]" />
+                  ) : isDraw ? (
+                    <Handshake className="w-24 h-24 text-yellow-400 mx-auto mb-4" />
+                  ) : (
+                    <Shield className="w-24 h-24 text-red-400/60 mx-auto mb-4" />
+                  )}
+                </motion.div>
+                
+                {/* Title */}
+                <motion.h1 
+                  className={`font-['Bebas_Neue'] text-4xl mb-2 ${isWinner ? 'text-yellow-400' : isDraw ? 'text-yellow-300' : 'text-red-400'}`}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {isWinner ? 'VITTORIA!' : isDraw ? 'PAREGGIO!' : 'SCONFITTA'}
+                </motion.h1>
+                
+                <motion.p 
+                  className="text-gray-300 mb-4 text-sm italic"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+                >
+                  {isWinner ? getRandomPhrase('win_dominant') : isDraw ? getRandomPhrase('draw') : getRandomPhrase('lose')}
+                </motion.p>
+                
+                {/* Scores */}
+                <motion.div 
+                  className="flex justify-center gap-4 mb-4"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                >
+                  <div className={`p-3 rounded-lg ${battle.winner === 'team_a' || isDraw ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500/50'}`}>
+                    <p className="font-['Bebas_Neue'] text-lg">{battle.team_a?.name}</p>
+                    <p className="text-2xl font-bold">{battle.team_a?.rounds_won}</p>
+                  </div>
+                  <div className="flex items-center text-xl text-gray-500 font-bold">VS</div>
+                  <div className={`p-3 rounded-lg ${battle.winner === 'team_b' || isDraw ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500/50'}`}>
+                    <p className="font-['Bebas_Neue'] text-lg">{battle.team_b?.name}</p>
+                    <p className="text-2xl font-bold">{battle.team_b?.rounds_won}</p>
+                  </div>
+                </motion.div>
+                
+                {/* Prize info */}
+                {isWinner && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 }}
+                    className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4"
+                  >
+                    <p className="text-yellow-400 font-bold text-lg">+$100.000</p>
+                    <p className="text-xs text-gray-400">Montepremi incassato!</p>
+                  </motion.div>
+                )}
+
+                {/* Buttons */}
+                <motion.div 
+                  className="flex gap-2 mt-4"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                >
+                  <Button 
+                    className="flex-1 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-base"
+                    onClick={() => { setView('home'); setActiveBattle(null); setBattleStep(0); loadData(); }}
+                    data-testid="battle-continue-btn"
+                  >
+                    CONTINUA
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="flex-1 border-pink-500/40 text-pink-400 hover:bg-pink-500/10 font-['Bebas_Neue'] text-base"
+                    onClick={() => {
+                      const oppId = battle.team_a?.players?.[0] === user?.id 
+                        ? battle.team_b?.players?.[0] 
+                        : battle.team_a?.players?.[0];
+                      if (oppId) {
+                        setOpponentId(oppId);
+                        setSelectedFilms([]);
+                        setChallengeMode(null);
+                        setActiveBattle(null);
+                        setBattleStep(0);
+                        setView('create');
+                      }
+                    }}
+                    data-testid="counter-challenge-btn"
+                  >
+                    <Swords className="w-4 h-4 mr-1" /> CONTRO-SFIDA
+                  </Button>
+                </motion.div>
               </motion.div>
-              
-              <h1 className="font-['Bebas_Neue'] text-4xl mb-2">
-                {battle.winner === 'draw' 
-                  ? (language === 'it' ? 'PAREGGIO!' : 'DRAW!')
-                  : (battle.winner === 'team_a' ? battle.team_a?.name : battle.team_b?.name)}
-              </h1>
-              
-              <p className="text-lg text-gray-300 mb-6">{battle.winner_comment}</p>
-              
-              <div className="flex justify-center gap-4 mb-6">
-                <div className={`p-4 rounded-lg ${battle.winner === 'team_a' || battle.winner === 'draw' ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500'}`}>
-                  <p className="font-['Bebas_Neue'] text-xl">{battle.team_a?.name}</p>
-                  <p className="text-2xl font-bold">{battle.team_a?.rounds_won}</p>
-                </div>
-                <div className="flex items-center text-2xl text-gray-500">VS</div>
-                <div className={`p-4 rounded-lg ${battle.winner === 'team_b' || battle.winner === 'draw' ? 'bg-green-500/20 border-2 border-green-500' : 'bg-red-500/20 border-2 border-red-500'}`}>
-                  <p className="font-['Bebas_Neue'] text-xl">{battle.team_b?.name}</p>
-                  <p className="text-2xl font-bold">{battle.team_b?.rounds_won}</p>
-                </div>
-              </div>
-              
-              <Button 
-                className="bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg px-8"
-                onClick={() => { setView('home'); setActiveBattle(null); setBattleStep(0); loadData(); }}
-                data-testid="battle-continue-btn"
-              >
-                {language === 'it' ? 'CONTINUA' : 'CONTINUE'}
-              </Button>
-            </motion.div>
-          )}
+            );
+          })()}
         </AnimatePresence>
       </div>
     );

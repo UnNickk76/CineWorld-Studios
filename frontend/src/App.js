@@ -914,6 +914,20 @@ const ProtectedRoute = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [popupData, setPopupData] = useState(null);
+  const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
+  
+  // Check for pending challenge invites on login
+  useEffect(() => {
+    if (user && api) {
+      api.get('/notifications?limit=50').then(r => {
+        const notifs = r.data?.notifications || r.data || [];
+        const pending = notifs.find(n => 
+          n.type === 'challenge_invite' && !n.read && n.data?.is_popup
+        );
+        if (pending) setPendingChallengePopup(pending);
+      }).catch(() => {});
+    }
+  }, [user, api]);
   
   const openPlayerPopup = async (userId) => {
     if (!userId || userId === user?.id) return;
@@ -943,6 +957,47 @@ const ProtectedRoute = ({ children }) => {
           </ErrorBoundary>
         </PageTransition>
       </AnimatePresence>
+
+      {/* Challenge Invite Popup */}
+      {pendingChallengePopup && (
+        <Dialog open={!!pendingChallengePopup} onOpenChange={(o) => { if(!o) setPendingChallengePopup(null); }}>
+          <DialogContent className="bg-[#1A1A1A] border-pink-500/30 max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-['Bebas_Neue'] text-2xl text-pink-400 flex items-center gap-2">
+                <Swords className="w-6 h-6" /> Sfida 1v1 Ricevuta!
+              </DialogTitle>
+              <DialogDescription className="text-gray-300 text-sm">
+                {pendingChallengePopup.message}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 mt-2">
+              <div className="flex-1 text-center p-3 bg-yellow-500/10 rounded-lg">
+                <p className="text-xs text-gray-400">Costo</p>
+                <p className="text-lg font-bold text-yellow-400">${(pendingChallengePopup.data?.participation_cost || 50000).toLocaleString()}</p>
+              </div>
+              <div className="flex-1 text-center p-3 bg-green-500/10 rounded-lg">
+                <p className="text-xs text-gray-400">Premio</p>
+                <p className="text-lg font-bold text-green-400">${(pendingChallengePopup.data?.prize_pool || 100000).toLocaleString()}</p>
+              </div>
+            </div>
+            <DialogFooter className="flex gap-2 mt-3">
+              <Button variant="outline" className="flex-1 border-gray-500" onClick={() => {
+                api.post(`/notifications/${pendingChallengePopup.id}/read`).catch(() => {});
+                setPendingChallengePopup(null);
+              }} data-testid="decline-challenge-btn">
+                Rifiuta
+              </Button>
+              <Button className="flex-1 bg-pink-500 hover:bg-pink-600" onClick={() => {
+                api.post(`/notifications/${pendingChallengePopup.id}/read`).catch(() => {});
+                setPendingChallengePopup(null);
+                navigate('/challenges');
+              }} data-testid="accept-challenge-btn">
+                <Swords className="w-4 h-4 mr-1" /> Accetta Sfida!
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </PlayerPopupContext.Provider>
   );
 };

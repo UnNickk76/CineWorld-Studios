@@ -4973,6 +4973,16 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.101', 'date': '2026-03-12', 'title': 'Animazioni Battaglia, Booster, Contro-Sfida & Fix Notifiche',
+     'changes': [
+         {'type': 'new', 'text': 'Animazioni battaglia: ogni skill si rivela una per volta con frasi epiche in italiano'},
+         {'type': 'new', 'text': 'Animazione vittoria con confetti e sconfitta con effetto drammatico'},
+         {'type': 'new', 'text': 'Sistema Booster per sfide 1v1: +20% skill su un film a scelta (costo inversamente proporzionale alla qualità)'},
+         {'type': 'new', 'text': 'Tasto Contro-Sfida: lancia una rivincita immediata a fine match'},
+         {'type': 'new', 'text': 'Popup sfida al login: gli utenti offline vedono le sfide ricevute appena entrano'},
+         {'type': 'fix', 'text': 'Fix notifiche: ogni tipo di notifica ora reindirizza alla pagina corretta'},
+         {'type': 'improvement', 'text': 'Ogni manche dura 20-30 secondi con animazioni fluide per ogni skill'},
+     ]},
     {'version': '0.100', 'date': '2026-03-12', 'title': 'Ricalibrazione Economia, Colonna Sonora & Impatto Botteghino',
      'changes': [
          {'type': 'improvement', 'text': 'Costi del film ricalibrati: cast ora costa 3x in più (attori $150k base, registi $300k base)'},
@@ -9845,6 +9855,7 @@ class ChallengeCreate(BaseModel):
     is_live: bool = False  # Online challenge
     is_offline_challenge: bool = False  # Offline auto-accept
     ffa_player_count: Optional[int] = None
+    booster_film_id: Optional[str] = None  # Film to boost
 
 @api_router.get("/challenges/types")
 async def get_challenge_types(user: dict = Depends(get_current_user)):
@@ -9973,6 +9984,24 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     for film in user_films:
         film['challenge_skills'] = calculate_film_challenge_skills(film)
     
+    # Booster system: boost one film's skills by 20% (costs extra)
+    booster_info = None
+    if data.booster_film_id and data.booster_film_id in data.film_ids:
+        boosted_film = next((f for f in user_films if f['id'] == data.booster_film_id), None)
+        if boosted_film:
+            quality = boosted_film.get('quality_score', 50)
+            import math
+            booster_cost = max(5000, min(100000, round(100000 * math.exp(-quality / 40))))
+            
+            user_remaining = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+            if (user_remaining.get('funds', 0) or 0) < booster_cost:
+                pass  # Not enough funds, skip booster silently
+            else:
+                await db.users.update_one({'id': user_id}, {'$inc': {'funds': -booster_cost}})
+                for skill_key in boosted_film.get('challenge_skills', {}):
+                    boosted_film['challenge_skills'][skill_key] = int(boosted_film['challenge_skills'][skill_key] * 1.2)
+                booster_info = {'film_id': data.booster_film_id, 'cost': booster_cost, 'boost_percent': 20}
+    
     # Create challenge document
     challenge_id = str(uuid.uuid4())
     challenge = {
@@ -9996,6 +10025,7 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
             'team': 'a',
             'ready': True
         }],
+        'booster': booster_info,
         'created_at': datetime.now(timezone.utc).isoformat(),
         'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
     }

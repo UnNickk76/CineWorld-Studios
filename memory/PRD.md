@@ -3,52 +3,36 @@
 ## Original Problem Statement
 CineWorld Studio's is a cinematic simulation game. Players manage a film production house, create films with a cast system, compete in challenges, and grow their studio.
 
-## Core Requirements
-- Film creation wizard with cast selection (actors, directors, screenwriters, composers)
-- Cast system with 50 unique skills (8 per member), IMDb rating, Star/Famous status
-- Challenge system (1v1 only, with $50K participation cost and $100K prize)
-- Festival system, cinema journal, social features, friends
-- Infrastructure and marketplace (currently paused)
-- Italian-only language
-
 ## Architecture
 - **Backend:** FastAPI + MongoDB + APScheduler
 - **Frontend:** React + TailwindCSS + Shadcn/UI + Framer Motion
 - **Integrations:** OpenAI GPT-4o (text), GPT-Image-1 (poster), Resend (email)
 
-## Key DB Collections
-- `users`, `films`, `people` (cast), `challenges`, `notifications`, `release_notes`
-
 ## What's Been Implemented
 
-### v0.098 (2026-03-12) - Fix Cast & Data Migration
-- Migrazione completa: 8000 cast aggiornati con 8 skill ciascuno (0-100)
-- Rating IMDb calcolato per tutti in base a skill/fama/esperienza
-- Fame, is_star, fame_badge calcolati per tutti
-- Spinner caricamento aggiunto a 15+ pagine
-- Release notes aggiornate
+### v0.101 - Animazioni Battaglia, Booster & Fix Notifiche
+- Animazioni battaglia: skill si rivelano una per volta con frasi epiche italiane
+- Animazione vittoria (confetti) e sconfitta (effetto drammatico)
+- Sistema Booster: +20% skill su un film (costo esponenziale inversamente proporzionale alla qualità)
+- Tasto Contro-Sfida a fine match
+- Popup sfida al login per utenti offline
+- Fix routing notifiche (ogni tipo → pagina corretta)
 
-### v0.097 (2026-03-12) - Sfide 1v1 & UI Improvements
-- Sfide 1v1 riabilitate con costo/premio ($50K/$100K)
-- Filtri età attori, barra info film fissa, marketplace in pausa
-- Menu bozze separato da pre-ingaggi
+### v0.100 - Ricalibrazione Economia & Colonna Sonora
+- Costi film 3x, incasso iniziale 10x base
+- Rating colonna sonora visibile + 25% impatto su rating film
+- Boost esponenziale colonna sonora primi 3 giorni al botteghino
 
 ### Previous versions
-- Cast system overhaul (8 skills/50 total pool)
-- Advanced cast search by skill
-- ErrorBoundary, global loading spinners
-- Italian-only language enforcement
-- Disabled: Infrastructure, Marketplace, Trailer generation
+- v0.099: Sfide offline/online separate
+- v0.098: Fix cast 8 skill, IMDb rating, migrazione 8000 cast
+- v0.097: Sfide 1v1 riabilitate ($50K/$100K), filtri età, barra info film
 
 ## Paused Features
-- Infrastructure section (UI disabled)
-- Marketplace (UI disabled) 
-- Trailer generation (disabled)
+- Infrastructure section, Marketplace, Trailer generation
 
-## Backlog / Future Tasks
-- (P1) Re-enable Infrastructure interactively
-- (P2) CineCoins purchase system (Stripe)
-- (P2) Major activities system
-- (P3) Robust data migration scripts
-- Refactor: Extract film creation logic from server.py
-- Refactor: Create useFilmWizard custom hook
+## Backlog
+- (P1) Riattivazione Infrastrutture
+- (P2) Sistema acquisto CineCoins (Stripe)
+- (P2) Attività delle Major
+- Refactor server.py, custom hook useFilmWizard

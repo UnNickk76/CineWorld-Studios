@@ -158,6 +158,9 @@ const NotificationsPage = () => {
                     } else {
                       // Fallback routing based on notification type
                       const typeRoutes = {
+                        'challenge_invite': '/challenges',
+                        'challenge_won': '/challenges',
+                        'challenge_lost': '/challenges',
                         'versus_result': '/challenges',
                         'challenge_accepted': '/challenges',
                         'challenge_completed': '/challenges',
@@ -174,12 +177,14 @@ const NotificationsPage = () => {
                         'festival_nomination': '/festivals',
                         'festival_award': '/festivals',
                         'festival_started': '/festivals',
-                        'friend_request': '/social',
-                        'friend_accepted': '/social',
-                        'major_invite': '/social',
+                        'friend_request': '/friends',
+                        'friend_accepted': '/friends',
+                        'major_invite': '/major',
                         'review_published': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
                         'minigame_challenge': '/games',
                         'box_office_update': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'system': '/release-notes',
+                        'welcome': '/',
                       };
                       const route = typeRoutes[notif.type];
                       if (route) navigate(route);

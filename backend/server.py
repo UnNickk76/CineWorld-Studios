@@ -3396,23 +3396,23 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         film_tier = 'flop'         # ~3-22%
     
     # Calculate opening day revenue - Quality matters but with variance
-    base_revenue = 5000  # Base $5000
+    base_revenue = 50000  # Base $50,000
     quality_multiplier = (quality_score / 50) ** 2  # Exponential: quality 50 = 1x, 100 = 4x, 25 = 0.25x
     random_factor = random.uniform(0.6, 1.4)  # ±40% variance
     
     # Tier influences opening - flops get negative buzz, masterpieces get hype
     tier_multiplier = {
-        'masterpiece': 2.5,
-        'excellent': 1.8,
-        'good': 1.3,
+        'masterpiece': 3.0,
+        'excellent': 2.2,
+        'good': 1.5,
         'average': 1.0,
-        'mediocre': 0.7,
-        'poor': 0.4,
-        'flop': 0.2
+        'mediocre': 0.6,
+        'poor': 0.3,
+        'flop': 0.15
     }.get(film_tier, 1.0)
     
     opening_day_revenue = int(base_revenue * quality_multiplier * tier_multiplier * random_factor)
-    opening_day_revenue = max(1000, min(opening_day_revenue, 800000))  # $1k-$800k cap
+    opening_day_revenue = max(5000, min(5000000, opening_day_revenue))  # $5k-$5M cap
     
     # === SEQUEL BONUS/MALUS SYSTEM ===
     # Sequels get bonus/malus based on parent film performance
@@ -3486,8 +3486,28 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     # Get composer if provided
     composer_doc = None
+    soundtrack_rating = 0
     if film_data.composer_id:
-        composer_doc = await db.people.find_one({'id': film_data.composer_id}, {'_id': 0, 'name': 1, 'fame': 1})
+        composer_doc = await db.people.find_one({'id': film_data.composer_id}, {'_id': 0, 'name': 1, 'fame': 1, 'imdb_rating': 1, 'skills': 1})
+        if composer_doc:
+            soundtrack_rating = composer_doc.get('imdb_rating', 0) or 0
+            # Soundtrack quality bonus: 25% weight on film quality
+            soundtrack_quality_factor = (soundtrack_rating / 100) * 25
+            quality_score = (quality_score * 0.75) + soundtrack_quality_factor
+            quality_score = max(3, min(100, quality_score))
+            
+            # Recalculate tier with soundtrack influence
+            if quality_score >= 88: film_tier = 'masterpiece'
+            elif quality_score >= 75: film_tier = 'excellent'
+            elif quality_score >= 62: film_tier = 'good'
+            elif quality_score >= 48: film_tier = 'average'
+            elif quality_score >= 35: film_tier = 'mediocre'
+            elif quality_score >= 20: film_tier = 'poor'
+            else: film_tier = 'flop'
+            
+            # Soundtrack boost on opening revenue (exponential first 3 days effect)
+            soundtrack_boost = 1.0 + (soundtrack_rating / 100) * 0.5  # Up to +50% from great soundtrack
+            opening_day_revenue = int(opening_day_revenue * soundtrack_boost)
     
     # Enrich cast with names
     enriched_cast = []
@@ -3553,7 +3573,15 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     if composer_doc:
         film['composer'] = {
             'id': film_data.composer_id,
-            'name': composer_doc.get('name', 'Unknown')
+            'name': composer_doc.get('name', 'Unknown'),
+            'imdb_rating': soundtrack_rating
+        }
+        film['soundtrack_rating'] = soundtrack_rating
+        # Soundtrack exponential boost for first 3 days
+        film['soundtrack_boost'] = {
+            'day_1_multiplier': round(1.0 + (soundtrack_rating / 100) * 1.5, 2),  # Up to +150%
+            'day_2_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.8, 2),  # Up to +80%
+            'day_3_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.3, 2),  # Up to +30%
         }
     
     # Calculate IMDb-style rating
@@ -4945,6 +4973,15 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.100', 'date': '2026-03-12', 'title': 'Ricalibrazione Economia, Colonna Sonora & Impatto Botteghino',
+     'changes': [
+         {'type': 'improvement', 'text': 'Costi del film ricalibrati: cast ora costa 3x in più (attori $150k base, registi $300k base)'},
+         {'type': 'improvement', 'text': 'Incasso iniziale aumentato: da $5k a $50k base, con cap fino a $5M per i capolavori'},
+         {'type': 'new', 'text': 'Rating Colonna Sonora visibile nel riepilogo film dopo il nome del compositore'},
+         {'type': 'new', 'text': 'La colonna sonora ha un impatto del 25% sul rating totale del film'},
+         {'type': 'new', 'text': 'Boost esponenziale colonna sonora nei primi 3 giorni: fino a +150% (G1), +80% (G2), +30% (G3) al botteghino'},
+         {'type': 'improvement', 'text': 'Moltiplicatori tier film aumentati: capolavoro 3x, eccellente 2.2x, buono 1.5x'},
+     ]},
     {'version': '0.099', 'date': '2026-03-12', 'title': 'Sfide 1v1: Scelta Offline/Online & Auto-Accept',
      'changes': [
          {'type': 'new', 'text': 'Nuovo flusso sfide: dopo la selezione film, scegli se sfida Offline o Online'},

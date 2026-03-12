@@ -473,8 +473,11 @@ const FilmDetail = () => {
               <div className="text-center p-2 rounded bg-white/5"><BarChart3 className="w-4 h-4 mx-auto mb-0.5 text-blue-400" /><p className="font-bold text-sm">{film.actual_weeks_in_theater || 0}</p><p className="text-[9px] text-gray-500">{language === 'it' ? 'Settimane' : 'Weeks'}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
-              <div className="flex justify-between text-xs"><span className="text-gray-400">Quality</span><span>{film.quality_score?.toFixed(0)}%</span></div><Progress value={film.quality_score} className="h-1.5" />
-              <div className="flex justify-between text-xs"><span className="text-gray-400">Satisfaction</span><span>{(film.audience_satisfaction||50).toFixed(0)}%</span></div><Progress value={film.audience_satisfaction||50} className="h-1.5" />
+              <div className="flex justify-between text-xs"><span className="text-gray-400">Qualità</span><span>{film.quality_score?.toFixed(0)}%</span></div><Progress value={film.quality_score} className="h-1.5" />
+              <div className="flex justify-between text-xs"><span className="text-gray-400">Soddisfazione</span><span>{(film.audience_satisfaction||50).toFixed(0)}%</span></div><Progress value={film.audience_satisfaction||50} className="h-1.5" />
+              {film.soundtrack_rating > 0 && (
+                <><div className="flex justify-between text-xs"><span className="text-gray-400">Colonna Sonora</span><span className="text-emerald-400">{film.soundtrack_rating}/100</span></div><Progress value={film.soundtrack_rating} className="h-1.5" /></>
+              )}
             </div>
             
             {/* Synopsis */}
@@ -798,6 +801,31 @@ const FilmDetail = () => {
                         <p className="text-[10px] text-gray-400">{film.screenwriter.nationality}</p>
                       </div>
                     </div>
+                  </div>
+                )}
+                {film.composer && (
+                  <div className="p-2 rounded bg-white/5">
+                    <p className="text-[10px] text-gray-500 uppercase mb-1">Colonna Sonora</p>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-8 h-8"><AvatarFallback className="text-[10px] bg-emerald-500/20 text-emerald-400">{film.composer.name?.[0]}</AvatarFallback></Avatar>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold">{film.composer.name}</p>
+                        {film.composer.imdb_rating > 0 && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            <span className="text-xs text-yellow-400 font-bold">{film.composer.imdb_rating}/100</span>
+                            <span className="text-[10px] text-gray-500 ml-1">Rating Colonna Sonora</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {film.soundtrack_boost && (
+                      <div className="mt-1.5 flex gap-1">
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G1: +{Math.round((film.soundtrack_boost.day_1_multiplier - 1) * 100)}%</span>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G2: +{Math.round((film.soundtrack_boost.day_2_multiplier - 1) * 100)}%</span>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G3: +{Math.round((film.soundtrack_boost.day_3_multiplier - 1) * 100)}%</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

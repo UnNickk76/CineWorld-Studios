@@ -1084,6 +1084,17 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     if days_in_theater > 1:
         final_revenue *= 1.10  # +10% boost
     
+    # SOUNDTRACK BOOST: Exponential benefit in first 3 days
+    soundtrack_boost = film.get('soundtrack_boost', {})
+    soundtrack_mult = 1.0
+    if days_in_theater == 1 and soundtrack_boost:
+        soundtrack_mult = soundtrack_boost.get('day_1_multiplier', 1.0)
+    elif days_in_theater == 2 and soundtrack_boost:
+        soundtrack_mult = soundtrack_boost.get('day_2_multiplier', 1.0)
+    elif days_in_theater == 3 and soundtrack_boost:
+        soundtrack_mult = soundtrack_boost.get('day_3_multiplier', 1.0)
+    final_revenue *= soundtrack_mult
+    
     final_revenue = max(100, int(final_revenue))  # Minimum $100
     
     return {
@@ -1098,6 +1109,7 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
             'hour_mult': round(hour_mult, 2),
             'day_mult': round(day_mult, 2),
             'decay_mult': round(decay_mult, 2),
+            'soundtrack_mult': round(soundtrack_mult, 2),
             'competition_mult': round(competition_mult, 2),
             'unpredictability': round(unpredictability, 2),
             'weather_mult': round(weather_mult, 2),

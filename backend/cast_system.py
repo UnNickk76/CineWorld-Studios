@@ -436,18 +436,18 @@ def get_fame_category_from_score(fame: float) -> str:
 def calculate_cast_cost(stars: int, fame: float, role_type: str, years_active: int) -> int:
     """Calculate hiring cost based on stars, fame, role and experience."""
     base_costs = {
-        'actor': 50000,
-        'director': 100000,
-        'screenwriter': 40000,
-        'composer': 60000
+        'actor': 150000,
+        'director': 300000,
+        'screenwriter': 120000,
+        'composer': 180000
     }
-    base = base_costs.get(role_type, 50000)
+    base = base_costs.get(role_type, 150000)
     
-    star_multipliers = {1: 0.5, 2: 1.0, 3: 2.0, 4: 4.0, 5: 8.0}
+    star_multipliers = {1: 0.5, 2: 1.0, 3: 2.5, 4: 5.0, 5: 10.0}
     star_mult = star_multipliers.get(stars, 1.0)
     
-    fame_mult = 0.5 + (fame / 100) * 2.5
-    exp_bonus = min(years_active * 5000, 100000)
+    fame_mult = 0.5 + (fame / 100) * 3.0
+    exp_bonus = min(years_active * 15000, 300000)
     
     cost = int((base * star_mult * fame_mult) + exp_bonus)
     return int(cost * 1.2)

@@ -4945,6 +4945,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.098', 'date': '2026-03-12', 'title': 'Fix Cast: 8 Skill, Rating IMDb & Migrazione Dati',
+     'changes': [
+         {'type': 'fix', 'text': 'Corretto rating IMDb: ora calcolato realmente in base a skill, fama ed esperienza (0-100)'},
+         {'type': 'fix', 'text': 'Tutti i cast hanno ora esattamente 8 skill (da un pool di 50 possibili)'},
+         {'type': 'fix', 'text': 'Migrazione completa: 8000 membri del cast aggiornati con skill, IMDb, fama'},
+         {'type': 'fix', 'text': 'Verificata generazione trama AI: funziona correttamente'},
+         {'type': 'improvement', 'text': 'Spinner di caricamento aggiunto a tutte le pagine'},
+     ]},
     {'version': '0.097', 'date': '2026-03-12', 'title': 'Sfide 1v1 Riabilitate, Filtro Età Cast & Info Film Fisso',
      'changes': [
          {'type': 'new', 'text': 'Sfide 1v1 riabilitate: sfida giocatori online e offline con costo partecipazione $50.000'},

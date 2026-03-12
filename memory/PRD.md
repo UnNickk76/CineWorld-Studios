@@ -19,18 +19,26 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 ## Key DB Collections
 - `users`, `films`, `people` (cast), `challenges`, `notifications`, `release_notes`
 
-## What's Been Implemented (v0.097)
-- Complete cast system overhaul (8 skills/50 total, IMDb rating, Star/Famous)
+## What's Been Implemented
+
+### v0.098 (2026-03-12) - Fix Cast & Data Migration
+- Migrazione completa: 8000 cast aggiornati con 8 skill ciascuno (0-100)
+- Rating IMDb calcolato per tutti in base a skill/fama/esperienza
+- Fame, is_star, fame_badge calcolati per tutti
+- Spinner caricamento aggiunto a 15+ pagine
+- Release notes aggiornate
+
+### v0.097 (2026-03-12) - Sfide 1v1 & UI Improvements
+- Sfide 1v1 riabilitate con costo/premio ($50K/$100K)
+- Filtri età attori, barra info film fissa, marketplace in pausa
+- Menu bozze separato da pre-ingaggi
+
+### Previous versions
+- Cast system overhaul (8 skills/50 total pool)
 - Advanced cast search by skill
-- Age filter for actors (Giovani, 18-30, 31-50, 51+)
-- Fixed film info bar during creation (title + genre)
-- 1v1 challenges re-enabled with cost/prize system ($50K/$100K)
-- 2v2/3v3/4v4/FFA removed
-- Marketplace paused
-- Drafts menu separated from pre-engagement
-- System release notes updated to v0.097
 - ErrorBoundary, global loading spinners
 - Italian-only language enforcement
+- Disabled: Infrastructure, Marketplace, Trailer generation
 
 ## Paused Features
 - Infrastructure section (UI disabled)
@@ -38,7 +46,6 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 - Trailer generation (disabled)
 
 ## Backlog / Future Tasks
-- (P0) Cast data migration for existing player saves
 - (P1) Re-enable Infrastructure interactively
 - (P2) CineCoins purchase system (Stripe)
 - (P2) Major activities system

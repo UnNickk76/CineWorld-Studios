@@ -113,18 +113,16 @@ const ChallengesPage = () => {
 
   const createChallenge = async () => {
     if (selectedFilms.length !== 3) {
-      toast.error(language === 'it' ? 'Seleziona esattamente 3 film!' : 'Select exactly 3 films!');
+      toast.error('Seleziona esattamente 3 film!');
       return;
     }
     
     setLoading(true);
     try {
       const res = await api.post('/challenges/create', {
-        challenge_type: challengeType,
+        challenge_type: '1v1',
         film_ids: selectedFilms.map(f => f.id),
-        team_type: ['2v2', '3v3', '4v4'].includes(challengeType) ? teamType : undefined,
-        opponent_id: challengeType === '1v1' && opponentId ? opponentId : undefined,
-        ffa_player_count: challengeType === 'ffa' ? ffaPlayerCount : undefined,
+        opponent_id: opponentId || undefined,
         is_live: true
       });
       
@@ -302,9 +300,7 @@ const ChallengesPage = () => {
                     {language === 'it' ? 'Scegli la Modalità' : 'Choose Mode'}
                   </h3>
                   <p className="text-gray-300">
-                    {language === 'it' 
-                      ? 'Seleziona il tipo di sfida: 1v1 per duelli diretti, 2v2/3v3/4v4 per battaglie a squadre, o Tutti contro Tutti per il caos totale!'
-                      : 'Select challenge type: 1v1 for direct duels, 2v2/3v3/4v4 for team battles, or Free For All for total chaos!'}
+                    Seleziona la sfida 1v1 per un duello diretto contro un altro giocatore, online o offline!
                   </p>
                 </div>
 
@@ -370,12 +366,16 @@ const ChallengesPage = () => {
                   </h3>
                   <div className="space-y-2 text-gray-300">
                     <p className="flex items-center gap-2">
-                      <span className="text-green-400">🏆</span> 
-                      {language === 'it' ? 'Vincitori: +XP, +Fama, +CineCoins, +Qualità Film, +Affluenze' : 'Winners: +XP, +Fame, +CineCoins, +Film Quality, +Attendance'}
+                      <span className="text-yellow-400">$</span> 
+                      Costo partecipazione: $50.000
                     </p>
                     <p className="flex items-center gap-2">
-                      <span className="text-red-400">💔</span> 
-                      {language === 'it' ? 'Perdenti: +XP consolazione, -Fama, -Affluenze' : 'Losers: +consolation XP, -Fame, -Attendance'}
+                      <span className="text-green-400">$</span> 
+                      Vincitori: $100.000 (tutto il montepremi), +XP, +Fama, +Qualità Film
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <span className="text-red-400">-</span> 
+                      Perdenti: +XP consolazione, -Fama, -Affluenze. Perdi il costo di partecipazione.
                     </p>
                   </div>
                 </div>
@@ -678,109 +678,29 @@ const ChallengesPage = () => {
           </Card>
         )}
 
-        {/* Challenge Type Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Card 
-            className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
-            onClick={() => selectChallengeType('1v1')}
-            data-testid="challenge-1v1"
-          >
-            <CardContent className="p-4 text-center">
-              <div className="p-4 bg-red-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                <span className="text-2xl font-bold">1v1</span>
-              </div>
-              <h3 className="font-['Bebas_Neue'] text-xl">1 VS 1</h3>
-              <p className="text-xs text-gray-400">{language === 'it' ? 'Sfida diretta' : 'Direct duel'}</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
-            onClick={() => selectChallengeType('2v2')}
-            data-testid="challenge-2v2"
-          >
-            <CardContent className="p-4 text-center">
-              <div className="p-4 bg-orange-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                <span className="text-2xl font-bold">2v2</span>
-              </div>
-              <h3 className="font-['Bebas_Neue'] text-xl">2 VS 2</h3>
-              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 2' : '2-player teams'}</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
-            onClick={() => selectChallengeType('3v3')}
-            data-testid="challenge-3v3"
-          >
-            <CardContent className="p-4 text-center">
-              <div className="p-4 bg-yellow-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                <span className="text-2xl font-bold text-black">3v3</span>
-              </div>
-              <h3 className="font-['Bebas_Neue'] text-xl">3 VS 3</h3>
-              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 3' : '3-player teams'}</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="bg-gradient-to-br from-green-500/20 to-green-600/5 border-green-500/20 cursor-pointer hover:scale-[1.02] transition-transform" 
-            onClick={() => selectChallengeType('4v4')}
-            data-testid="challenge-4v4"
-          >
-            <CardContent className="p-4 text-center">
-              <div className="p-4 bg-green-500 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                <span className="text-2xl font-bold">4v4</span>
-              </div>
-              <h3 className="font-['Bebas_Neue'] text-xl">4 VS 4</h3>
-              <p className="text-xs text-gray-400">{language === 'it' ? 'Squadre da 4' : '4-player teams'}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Free For All */}
+        {/* Challenge Type Grid - Only 1v1 */}
         <Card 
-          className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border-purple-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-4" 
-          onClick={() => selectChallengeType('ffa')}
-          data-testid="challenge-ffa"
+          className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer hover:scale-[1.02] transition-transform mb-4" 
+          onClick={() => selectChallengeType('1v1')}
+          data-testid="challenge-1v1"
         >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
-              <Flame className="w-8 h-8 text-white" />
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="p-4 bg-red-500 rounded-full w-16 h-16 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl font-bold">1v1</span>
             </div>
             <div className="flex-1">
-              <h3 className="font-['Bebas_Neue'] text-xl">{language === 'it' ? 'TUTTI CONTRO TUTTI' : 'FREE FOR ALL'}</h3>
-              <p className="text-sm text-gray-400">{language === 'it' ? 'Da 4 a 10 giocatori, tutti contro tutti!' : '4-10 players battle royale!'}</p>
+              <h3 className="font-['Bebas_Neue'] text-xl">SFIDA 1 VS 1</h3>
+              <p className="text-xs text-gray-400">Sfida diretta contro un altro giocatore (online o offline)</p>
+              <div className="flex items-center gap-3 mt-2">
+                <Badge className="bg-yellow-500/20 text-yellow-400">
+                  <Coins className="w-3 h-3 mr-1" /> Costo: $50.000
+                </Badge>
+                <Badge className="bg-green-500/20 text-green-400">
+                  <Trophy className="w-3 h-3 mr-1" /> Premio: $100.000
+                </Badge>
+              </div>
             </div>
             <ChevronRight className="w-6 h-6 text-gray-500" />
-          </CardContent>
-        </Card>
-
-        {/* Offline Challenge Section - Same style as online challenges */}
-        <Card 
-          className="bg-gradient-to-br from-cyan-500/20 to-blue-600/5 border-cyan-500/20 cursor-pointer hover:scale-[1.01] transition-transform mb-4"
-          onClick={() => { loadOfflinePlayers(); setShowOfflineDialog(true); setSelectedFilms([]); }}
-          data-testid="offline-challenge-btn"
-        >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg">
-              <Shield className="w-8 h-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-['Bebas_Neue'] text-xl text-cyan-400">SFIDA OFFLINE VS</h3>
-              <p className="text-sm text-gray-400">{language === 'it' ? "Sfida un giocatore offline! L'AI sceglie i suoi film." : "Challenge an offline player! AI picks their films."}</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <Button
-                size="sm"
-                variant={offlineMode ? "default" : "outline"}
-                className={offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white h-7 text-xs" : "border-cyan-500/30 text-cyan-400 h-7 text-xs"}
-                onClick={(e) => { e.stopPropagation(); toggleOfflineMode(); }}
-                data-testid="toggle-offline-btn"
-              >
-                {offlineMode ? (language === 'it' ? 'Accetto Sfide' : 'Accepting') : (language === 'it' ? 'Non Accetto' : 'Not Accepting')}
-              </Button>
-              <ChevronRight className="w-5 h-5 text-gray-500" />
-            </div>
           </CardContent>
         </Card>
 
@@ -938,7 +858,7 @@ const ChallengesPage = () => {
     );
   }
 
-  // CREATE VIEW - Film Selection
+  // CREATE VIEW - Film Selection (1v1 only)
   if (view === 'create') {
     return (
       <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
@@ -946,23 +866,37 @@ const ChallengesPage = () => {
           <div className="flex items-center gap-2 mb-2">
             <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
             <h1 className="font-['Bebas_Neue'] text-3xl">
-              {language === 'it' ? 'CREA SFIDA' : 'CREATE CHALLENGE'} - {challengeType?.toUpperCase()}
+              CREA SFIDA 1v1
             </h1>
           </div>
-          <p className="text-gray-400 text-sm">{language === 'it' ? 'Seleziona 3 film per la sfida' : 'Select 3 films for the challenge'}</p>
+          <p className="text-gray-400 text-sm">Seleziona 3 film per la sfida</p>
         </motion.div>
+
+        {/* Cost Info Banner */}
+        <Card className="bg-gradient-to-r from-yellow-500/10 to-green-500/5 border-yellow-500/30 mb-4">
+          <CardContent className="p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <Coins className="w-4 h-4 text-yellow-400" />
+              <span className="text-yellow-400 font-semibold">Costo partecipazione: $50.000</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Trophy className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 font-semibold">Premio vittoria: $100.000</span>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Selected Films */}
         <Card className="bg-gradient-to-r from-pink-500/20 to-purple-500/10 border-pink-500/30 mb-4">
           <CardContent className="p-4">
-            <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'FILM SELEZIONATI' : 'SELECTED FILMS'} ({selectedFilms.length}/3)</h3>
+            <h3 className="font-['Bebas_Neue'] text-lg mb-3">FILM SELEZIONATI ({selectedFilms.length}/3)</h3>
             <div className="flex gap-2">
               {[0, 1, 2].map(i => (
                 <div key={i} className={`flex-1 h-24 rounded-lg border-2 border-dashed flex items-center justify-center ${selectedFilms[i] ? 'border-pink-500 bg-pink-500/10' : 'border-gray-600'}`}>
                   {selectedFilms[i] ? (
                     <div className="text-center p-2">
                       <p className="text-xs font-semibold truncate max-w-[80px]">{selectedFilms[i].title}</p>
-                      <p className="text-[10px] text-pink-400">⚡ {selectedFilms[i].scores.global}</p>
+                      <p className="text-[10px] text-pink-400">{selectedFilms[i].scores?.global}</p>
                     </div>
                   ) : (
                     <Plus className="w-6 h-6 text-gray-500" />
@@ -973,47 +907,70 @@ const ChallengesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Team Options for 2v2+ */}
-        {['2v2', '3v3', '4v4'].includes(challengeType) && (
-          <Card className="bg-[#1A1A1A] border-white/5 mb-4">
-            <CardContent className="p-4">
-              <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'TIPO SQUADRA' : 'TEAM TYPE'}</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {['random', 'friends', 'major'].map(type => (
-                  <Button 
-                    key={type}
-                    variant={teamType === type ? 'default' : 'outline'}
-                    className={teamType === type ? 'bg-pink-500' : ''}
-                    onClick={() => setTeamType(type)}
-                  >
-                    {type === 'random' ? '🎲 Random' : type === 'friends' ? '👥 Amici' : '🏢 Major'}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* FFA Player Count */}
-        {challengeType === 'ffa' && (
-          <Card className="bg-[#1A1A1A] border-white/5 mb-4">
-            <CardContent className="p-4">
-              <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'NUMERO GIOCATORI' : 'PLAYER COUNT'}: {ffaPlayerCount}</h3>
-              <Slider 
-                value={[ffaPlayerCount]} 
-                onValueChange={(v) => setFfaPlayerCount(v[0])}
-                min={4} 
-                max={10} 
-                step={1}
-                className="w-full"
+        {/* Opponent Selection - Search online/offline players */}
+        <Card className="bg-[#1A1A1A] border-white/5 mb-4">
+          <CardContent className="p-4">
+            <h3 className="font-['Bebas_Neue'] text-lg mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4 text-pink-400" /> SCEGLI AVVERSARIO
+            </h3>
+            <div className="flex gap-2 mb-3">
+              <Input 
+                placeholder="Cerca per nickname..." 
+                value={opponentId ? '' : ''}
+                onChange={() => {}}
+                className="bg-black/30 border-white/10 text-sm h-9"
+                data-testid="opponent-search-input"
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>4</span>
-                <span>10</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              <Button size="sm" className="bg-pink-500 hover:bg-pink-600" onClick={loadOfflinePlayers}>
+                <Search className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            {/* Toggle offline mode */}
+            <div className="flex items-center justify-between mb-3 p-2 bg-white/5 rounded-lg">
+              <span className="text-xs text-gray-400">Accetta sfide quando sei offline</span>
+              <Button
+                size="sm"
+                variant={offlineMode ? "default" : "outline"}
+                className={`h-6 text-[10px] ${offlineMode ? "bg-cyan-600 hover:bg-cyan-500 text-white" : "border-cyan-500/30 text-cyan-400"}`}
+                onClick={toggleOfflineMode}
+                data-testid="toggle-offline-btn"
+              >
+                {offlineMode ? 'Attivo' : 'Disattivo'}
+              </Button>
+            </div>
+            
+            {/* Player list */}
+            <ScrollArea className="h-32 border border-white/10 rounded-lg">
+              {offlinePlayers.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-8">Premi "Cerca" per trovare avversari</p>
+              ) : (
+                <div className="space-y-1 p-2">
+                  {offlinePlayers.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => setOpponentId(p.id)}
+                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${opponentId === p.id ? 'bg-pink-500/20 border border-pink-500/40' : 'hover:bg-white/5'}`}
+                      data-testid={`opponent-player-${p.id}`}
+                    >
+                      <Avatar className="w-7 h-7"><AvatarFallback className="bg-pink-500/20 text-pink-400 text-xs">{p.nickname?.[0]}</AvatarFallback></Avatar>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold">{p.nickname}</p>
+                        <p className="text-[10px] text-gray-400">{p.production_house_name}</p>
+                      </div>
+                      <Badge className={`text-[10px] ${p.is_online ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {p.is_online ? 'Online' : 'Offline'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+            <p className="text-[10px] text-gray-500 mt-2">
+              Lascia vuoto per matchmaking casuale. Sfida un utente online: riceverà un popup con la tua sfida!
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Film Grid */}
         <h3 className="font-['Bebas_Neue'] text-lg mb-3">{language === 'it' ? 'I TUOI FILM' : 'YOUR FILMS'}</h3>
@@ -1077,9 +1034,10 @@ const ChallengesPage = () => {
             className="w-full h-12 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg"
             onClick={createChallenge}
             disabled={selectedFilms.length !== 3 || loading}
+            data-testid="create-challenge-btn"
           >
             {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
-              <><Swords className="w-5 h-5 mr-2" /> {language === 'it' ? 'CREA SFIDA!' : 'CREATE CHALLENGE!'}</>
+              <><Swords className="w-5 h-5 mr-2" /> LANCIA SFIDA! (Costo: $50.000)</>
             )}
           </Button>
         </div>

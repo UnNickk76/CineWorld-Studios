@@ -7,69 +7,94 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Set
 import uuid
 
-# ==================== SKILL DEFINITIONS ====================
+# ==================== SKILL DEFINITIONS (50+ skill totali) ====================
+# Ogni tipo di cast ha ~13 skill possibili, ogni membro ne riceve esattamente 8
 
-# All possible skills for each role - each cast member will have a SUBSET of these
-SCREENWRITER_SKILLS = {
-    'dialogue': {'en': 'Dialogue', 'it': 'Dialoghi', 'es': 'Diálogos', 'fr': 'Dialogues', 'de': 'Dialoge'},
-    'plot_structure': {'en': 'Plot Structure', 'it': 'Struttura Trama', 'es': 'Estructura Argumental', 'fr': 'Structure Narrative', 'de': 'Handlungsstruktur'},
-    'character_development': {'en': 'Character Dev.', 'it': 'Sviluppo Personaggi', 'es': 'Desarrollo Personajes', 'fr': 'Dév. Personnages', 'de': 'Charakterentwicklung'},
-    'originality': {'en': 'Originality', 'it': 'Originalità', 'es': 'Originalidad', 'fr': 'Originalité', 'de': 'Originalität'},
-    'adaptation': {'en': 'Adaptation', 'it': 'Adattamento', 'es': 'Adaptación', 'fr': 'Adaptation', 'de': 'Adaption'},
-    'pacing': {'en': 'Pacing', 'it': 'Ritmo', 'es': 'Ritmo', 'fr': 'Rythme', 'de': 'Tempo'},
-    'world_building': {'en': 'World Building', 'it': 'Creazione Mondi', 'es': 'Creación Mundos', 'fr': 'Création Univers', 'de': 'Weltenbau'},
-    'emotional_impact': {'en': 'Emotional Impact', 'it': 'Impatto Emotivo', 'es': 'Impacto Emocional', 'fr': 'Impact Émotionnel', 'de': 'Emotionale Wirkung'},
+ACTOR_SKILLS = {
+    'drama': {'it': 'Dramma'},
+    'comedy': {'it': 'Commedia'},
+    'action': {'it': 'Azione'},
+    'romance': {'it': 'Romantico'},
+    'horror': {'it': 'Horror'},
+    'sci_fi': {'it': 'Fantascienza'},
+    'voice_acting': {'it': 'Doppiaggio'},
+    'improvisation': {'it': 'Improvvisazione'},
+    'physical_acting': {'it': 'Recitazione Fisica'},
+    'emotional_depth': {'it': 'Profondità Emotiva'},
+    'charisma': {'it': 'Carisma'},
+    'method_acting': {'it': 'Metodo Stanislavskij'},
+    'timing': {'it': 'Senso del Tempo'},
 }
 
 DIRECTOR_SKILLS = {
-    'vision': {'en': 'Vision', 'it': 'Visione', 'es': 'Visión', 'fr': 'Vision', 'de': 'Vision'},
-    'leadership': {'en': 'Leadership', 'it': 'Leadership', 'es': 'Liderazgo', 'fr': 'Leadership', 'de': 'Führung'},
-    'actor_direction': {'en': 'Actor Direction', 'it': 'Direzione Attori', 'es': 'Dirección Actores', 'fr': 'Direction Acteurs', 'de': 'Schauspielführung'},
-    'visual_style': {'en': 'Visual Style', 'it': 'Stile Visivo', 'es': 'Estilo Visual', 'fr': 'Style Visuel', 'de': 'Visueller Stil'},
-    'storytelling': {'en': 'Storytelling', 'it': 'Narrazione', 'es': 'Narrativa', 'fr': 'Narration', 'de': 'Erzählung'},
-    'technical': {'en': 'Technical', 'it': 'Tecnico', 'es': 'Técnico', 'fr': 'Technique', 'de': 'Technik'},
-    'innovation': {'en': 'Innovation', 'it': 'Innovazione', 'es': 'Innovación', 'fr': 'Innovation', 'de': 'Innovation'},
-    'pacing': {'en': 'Pacing', 'it': 'Ritmo', 'es': 'Ritmo', 'fr': 'Rythme', 'de': 'Tempo'},
+    'vision': {'it': 'Visione Artistica'},
+    'leadership': {'it': 'Leadership'},
+    'actor_direction': {'it': 'Direzione Attori'},
+    'visual_style': {'it': 'Stile Visivo'},
+    'storytelling': {'it': 'Narrazione'},
+    'technical': {'it': 'Tecnica'},
+    'innovation': {'it': 'Innovazione'},
+    'pacing': {'it': 'Ritmo'},
+    'atmosphere': {'it': 'Atmosfera'},
+    'casting_sense': {'it': 'Senso del Casting'},
+    'editing_instinct': {'it': 'Istinto di Montaggio'},
+    'world_building': {'it': 'Costruzione Mondi'},
+    'budget_management': {'it': 'Gestione Budget'},
+}
+
+SCREENWRITER_SKILLS = {
+    'dialogue': {'it': 'Dialoghi'},
+    'plot_structure': {'it': 'Struttura Trama'},
+    'character_development': {'it': 'Sviluppo Personaggi'},
+    'originality': {'it': 'Originalità'},
+    'adaptation': {'it': 'Adattamento'},
+    'pacing': {'it': 'Ritmo Narrativo'},
+    'world_building': {'it': 'Creazione Mondi'},
+    'emotional_impact': {'it': 'Impatto Emotivo'},
+    'humor_writing': {'it': 'Scrittura Umoristica'},
+    'suspense_craft': {'it': 'Costruzione Suspense'},
+    'subtext': {'it': 'Sottotesto'},
+    'theme_depth': {'it': 'Profondità Tematica'},
+    'research': {'it': 'Ricerca'},
 }
 
 COMPOSER_SKILLS = {
-    'melodic': {'en': 'Melodic Comp.', 'it': 'Comp. Melodica', 'es': 'Comp. Melódica', 'fr': 'Comp. Mélodique', 'de': 'Melodische Komp.'},
-    'orchestration': {'en': 'Orchestration', 'it': 'Orchestrazione', 'es': 'Orquestación', 'fr': 'Orchestration', 'de': 'Orchestrierung'},
-    'emotional_scoring': {'en': 'Emotional Scoring', 'it': 'Musica Emotiva', 'es': 'Música Emotiva', 'fr': 'Musique Émotive', 'de': 'Emotionale Musik'},
-    'genre_versatility': {'en': 'Genre Versatility', 'it': 'Versatilità Generi', 'es': 'Versatilidad Géneros', 'fr': 'Polyvalence Genres', 'de': 'Genre-Vielseitigkeit'},
-    'sound_design': {'en': 'Sound Design', 'it': 'Sound Design', 'es': 'Diseño Sonoro', 'fr': 'Design Sonore', 'de': 'Sound Design'},
-    'theme_development': {'en': 'Theme Dev.', 'it': 'Sviluppo Temi', 'es': 'Desarrollo Temas', 'fr': 'Dév. Thèmes', 'de': 'Themenentwicklung'},
+    'melodic': {'it': 'Composizione Melodica'},
+    'orchestration': {'it': 'Orchestrazione'},
+    'emotional_scoring': {'it': 'Musica Emotiva'},
+    'genre_versatility': {'it': 'Versatilità Generi'},
+    'sound_design': {'it': 'Sound Design'},
+    'theme_development': {'it': 'Sviluppo Temi'},
+    'rhythm': {'it': 'Ritmo'},
+    'harmony': {'it': 'Armonia'},
+    'electronic_production': {'it': 'Produzione Elettronica'},
+    'leitmotif': {'it': 'Leitmotiv'},
+    'ambient_scoring': {'it': 'Musica Ambientale'},
+    'mixing': {'it': 'Missaggio'},
+    'vocal_arrangements': {'it': 'Arrangiamenti Vocali'},
 }
 
-ACTOR_SKILLS = {
-    'drama': {'en': 'Drama', 'it': 'Dramma', 'es': 'Drama', 'fr': 'Drame', 'de': 'Drama'},
-    'comedy': {'en': 'Comedy', 'it': 'Commedia', 'es': 'Comedia', 'fr': 'Comédie', 'de': 'Komödie'},
-    'action': {'en': 'Action', 'it': 'Azione', 'es': 'Acción', 'fr': 'Action', 'de': 'Action'},
-    'romance': {'en': 'Romance', 'it': 'Romantico', 'es': 'Romance', 'fr': 'Romance', 'de': 'Romantik'},
-    'horror': {'en': 'Horror', 'it': 'Horror', 'es': 'Terror', 'fr': 'Horreur', 'de': 'Horror'},
-    'sci_fi': {'en': 'Sci-Fi', 'it': 'Fantascienza', 'es': 'Ciencia Ficción', 'fr': 'Science-Fiction', 'de': 'Science-Fiction'},
-    'voice_acting': {'en': 'Voice Acting', 'it': 'Doppiaggio', 'es': 'Doblaje', 'fr': 'Doublage', 'de': 'Synchronsprechen'},
-    'improvisation': {'en': 'Improvisation', 'it': 'Improvvisazione', 'es': 'Improvisación', 'fr': 'Improvisation', 'de': 'Improvisation'},
-}
+# SKILLS_PER_MEMBER: ogni membro del cast ha esattamente 8 skill
+SKILLS_PER_MEMBER = 8
 
 # Film genres and their matching actor skills for bonus/malus
 GENRE_SKILL_MAPPING = {
-    'action': ['action'],
-    'comedy': ['comedy'],
-    'drama': ['drama'],
-    'horror': ['horror'],
-    'sci_fi': ['sci_fi'],
-    'romance': ['romance'],
-    'thriller': ['drama', 'action'],
-    'animation': ['voice_acting'],
-    'documentary': ['drama'],
-    'fantasy': ['drama', 'action'],
-    'musical': ['voice_acting', 'comedy'],
-    'western': ['action', 'drama'],
-    'war': ['drama', 'action'],
-    'noir': ['drama'],
-    'adventure': ['action'],
-    'biographical': ['drama'],
+    'action': ['action', 'physical_acting'],
+    'comedy': ['comedy', 'timing', 'improvisation'],
+    'drama': ['drama', 'emotional_depth', 'method_acting'],
+    'horror': ['horror', 'physical_acting'],
+    'sci_fi': ['sci_fi', 'voice_acting'],
+    'romance': ['romance', 'emotional_depth', 'charisma'],
+    'thriller': ['drama', 'action', 'emotional_depth'],
+    'animation': ['voice_acting', 'comedy', 'timing'],
+    'documentary': ['drama', 'charisma'],
+    'fantasy': ['drama', 'action', 'physical_acting'],
+    'musical': ['voice_acting', 'comedy', 'timing'],
+    'western': ['action', 'drama', 'physical_acting'],
+    'war': ['drama', 'action', 'emotional_depth'],
+    'noir': ['drama', 'emotional_depth'],
+    'adventure': ['action', 'charisma', 'physical_acting'],
+    'biographical': ['drama', 'method_acting', 'emotional_depth'],
 }
 
 # Categories and their star ranges
@@ -344,6 +369,39 @@ def calculate_stars(skills: dict) -> int:
     else:
         return 1
 
+
+def calculate_imdb_rating(skills: dict, fame_score: float, films_count: int) -> float:
+    """Calculate IMDb-style rating (0.0 to 100.0 with 1 decimal).
+    Based on: average skills (60%), fame (25%), experience (15%).
+    """
+    if not skills:
+        return 0.0
+    avg_skill = sum(skills.values()) / len(skills)
+    fame_factor = min(100, fame_score)
+    experience_factor = min(100, films_count * 3)
+    
+    rating = (avg_skill * 0.60) + (fame_factor * 0.25) + (experience_factor * 0.15)
+    return round(max(0.0, min(100.0, rating)), 1)
+
+
+def is_cast_star(fame_category: str, stars: int, avg_film_quality: float) -> bool:
+    """Determine if a cast member is a Star."""
+    return fame_category == 'star' or (stars >= 4 and avg_film_quality >= 70)
+
+
+def get_fame_badge(role_type: str, is_star: bool, fame_category: str) -> dict:
+    """Get fame badge/indicator for cast member."""
+    if not is_star and fame_category != 'star':
+        return None
+    
+    badges = {
+        'actor': {'icon': 'star', 'label': 'Star del Cinema', 'color': 'gold'},
+        'director': {'icon': 'crown', 'label': 'Regista Celebre', 'color': 'purple'},
+        'screenwriter': {'icon': 'award', 'label': 'Sceneggiatore Premiato', 'color': 'blue'},
+        'composer': {'icon': 'music', 'label': 'Maestro Compositore', 'color': 'emerald'},
+    }
+    return badges.get(role_type, {'icon': 'star', 'label': 'Famoso', 'color': 'gold'})
+
 def get_category_from_stars(stars: int) -> str:
     """Get category name from star rating."""
     if stars >= 5:
@@ -434,15 +492,14 @@ def generate_other_cast_age(role_type: str) -> int:
         )[0]
 
 
-def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, int]:
+def generate_variable_skills(all_skills: Dict, min_skills: int = 8, max_skills: int = 8) -> Dict[str, int]:
     """
-    Generate a VARIABLE subset of skills for a cast member.
-    Skills are integer values from 0 to 100.
-    0 is extremely rare, distribution skews toward medium values.
+    Generate exactly 8 skills for a cast member from the pool.
+    Skills are integer values from 0 to 100. 0 is extremely rare.
     """
     skill_keys = list(all_skills.keys())
-    num_skills = random.randint(min_skills, max_skills)
-    selected_skill_keys = random.sample(skill_keys, min(num_skills, len(skill_keys)))
+    num_skills = min(SKILLS_PER_MEMBER, len(skill_keys))
+    selected_skill_keys = random.sample(skill_keys, num_skills)
     
     skills = {}
     for key in selected_skill_keys:
@@ -494,27 +551,26 @@ def generate_cast_member_v2(
         first_name = random.choice(names['first_female'])
     last_name = random.choice(names['last'])
     
-    # Get skill definitions based on role
+    # Get skill definitions based on role — all types get exactly 8 skills from 13
     if role_type == 'actor':
         all_skills = ACTOR_SKILLS
-        min_skills, max_skills = 3, 6  # Out of 8 possible
     elif role_type == 'director':
         all_skills = DIRECTOR_SKILLS
-        min_skills, max_skills = 4, 6  # Out of 8 possible
     elif role_type == 'composer':
         all_skills = COMPOSER_SKILLS
-        min_skills, max_skills = 3, 5  # Out of 6 possible
     else:  # screenwriter
         all_skills = SCREENWRITER_SKILLS
-        min_skills, max_skills = 4, 6  # Out of 8 possible
     
-    # Generate variable skills
-    skills = generate_variable_skills(all_skills, min_skills, max_skills)
+    # Generate exactly 8 skills
+    skills = generate_variable_skills(all_skills)
     
     # If ensure_skills specified, make sure they're present
     if ensure_skills:
         for skill_key in ensure_skills:
             if skill_key in all_skills and skill_key not in skills:
+                # Replace the lowest skill
+                lowest = min(skills, key=skills.get)
+                del skills[lowest]
                 skills[skill_key] = random.randint(10, 80)
     
     # Adjust skills based on category (target star range)
@@ -540,7 +596,17 @@ def generate_cast_member_v2(
     
     fame = calculate_fame_from_career(years_active, films_count, avg_film_quality)
     fame_category = get_fame_category_from_score(fame)
-    cost = calculate_cast_cost(stars, fame, role_type, years_active)
+    
+    # Star system
+    cast_is_star = is_cast_star(fame_category, stars, avg_film_quality)
+    fame_badge = get_fame_badge(role_type, cast_is_star, fame_category)
+    
+    # IMDb-style rating
+    imdb_rating = calculate_imdb_rating(skills, fame, films_count)
+    
+    # Star cost bonus (+40% for stars)
+    base_cost = calculate_cast_cost(stars, fame, role_type, years_active)
+    cost = int(base_cost * 1.4) if cast_is_star else base_cost
     
     # Generate avatar
     seed = f"{first_name}{last_name}{role_type}".replace(' ', '')
@@ -568,6 +634,9 @@ def generate_cast_member_v2(
         'primary_skills': primary_skills,
         'secondary_skill': secondary_skill,
         'stars': stars,
+        'imdb_rating': imdb_rating,
+        'is_star': cast_is_star,
+        'fame_badge': fame_badge,
         'years_active': years_active,
         'films_count': films_count,
         'avg_film_quality': round(avg_film_quality, 1),
@@ -577,7 +646,7 @@ def generate_cast_member_v2(
         'cost': cost,
         'cost_per_film': cost,
         'avatar_url': avatar_url,
-        'films_worked': [],  # Will track film IDs this person worked on
+        'films_worked': [],
         'created_at': datetime.now(timezone.utc).isoformat()
     }
 

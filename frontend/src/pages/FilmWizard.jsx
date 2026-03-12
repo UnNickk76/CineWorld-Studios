@@ -93,6 +93,10 @@ const FilmWizard = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSkill, setSelectedSkill] = useState('all');
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState([{skill: '', min_value: 50}]);
+  const [advancedSkillList, setAdvancedSkillList] = useState([]);
+  const [selectedAgeRange, setSelectedAgeRange] = useState('all');
   
   // Rejection system states
   const [refusedIds, setRefusedIds] = useState(new Set());
@@ -278,11 +282,19 @@ const FilmWizard = () => {
     api.get('/films/my/for-sequel').then(r=>setMyFilmsForSequel(r.data.films || [])).catch(()=>{});
   }, [api]);
   
-  const fetchPeople = async (type, category = '', skill = '') => {
+  const fetchPeople = async (type, category = '', skill = '', ageRange = '') => {
     try {
       let url = `/${type}?limit=200`;
       if (category && category !== 'all') url += `&category=${category}`;
       if (skill && skill !== 'all') url += `&skill=${skill}`;
+      // Age range filter for actors
+      if (type === 'actors' && ageRange && ageRange !== 'all') {
+        const ageRanges = { 'young': [0, 17], '18-30': [18, 30], '31-50': [31, 50], '51+': [51, 100] };
+        const range = ageRanges[ageRange];
+        if (range) {
+          url += `&min_age=${range[0]}&max_age=${range[1]}`;
+        }
+      }
       
       const res = await api.get(url);
       if(type==='screenwriters') {
@@ -323,14 +335,15 @@ const FilmWizard = () => {
     if(step===4) { fetchPeople('screenwriters', selectedCategory, selectedSkill); }
     if(step===5) { fetchPeople('directors', selectedCategory, selectedSkill); }
     if(step===6) { fetchPeople('composers', selectedCategory, selectedSkill); }
-    if(step===7) { fetchPeople('actors', selectedCategory, selectedSkill); }
-  }, [step, selectedCategory, selectedSkill]);
+    if(step===7) { fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange); }
+  }, [step, selectedCategory, selectedSkill, selectedAgeRange]);
   
   // Reset filters when changing steps
   useEffect(() => {
     setSelectedCategory('all');
     setSelectedSkill('all');
     setSkillSearchQuery('');
+    setSelectedAgeRange('all');
   }, [step]);
 
   const generateScreenplay = async () => { 
@@ -369,6 +382,34 @@ const FilmWizard = () => {
       setRefusedIds(new Set(r.data.refused_ids || []));
     }).catch(() => {});
   }, [api]);
+
+  // Load available skills when step requires cast selection
+  const loadSkillList = async (castType) => {
+    try {
+      const res = await api.get(`/cast/skill-list/${castType}`);
+      setAdvancedSkillList(res.data.skills || []);
+    } catch(e) { console.error(e); }
+  };
+
+  const doAdvancedSearch = async (castType) => {
+    const filters = advancedFilters.filter(f => f.skill);
+    if (filters.length === 0) { toast.error('Seleziona almeno una skill'); return; }
+    try {
+      const res = await api.post('/cast/search-advanced', {
+        cast_type: castType,
+        skill_filters: filters,
+        limit: 50
+      });
+      const data = res.data.cast || [];
+      if (castType === 'actor') setActors(data);
+      else if (castType === 'director') setDirectors(data);
+      else if (castType === 'screenwriter') setScreenwriters(data);
+      else if (castType === 'composer') setComposers(data);
+      toast.success(`Trovati ${data.length} risultati (${res.data.total} totali)`);
+      setShowAdvancedSearch(false);
+    } catch(e) { toast.error('Errore nella ricerca'); }
+  };
+
   
   // Function to make an offer to a cast member
   const makeOffer = async (person, personType, onAccept) => {
@@ -639,36 +680,43 @@ const FilmWizard = () => {
             </div>
           )}
           
-          {/* Header: Avatar, Name, Cost */}
+          {/* Header: Avatar, Name, Star badge, Cost */}
           <div className="flex items-start gap-2 mb-1.5">
             <Avatar className="w-10 h-10 flex-shrink-0"><AvatarImage src={person.avatar_url} /><AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">{person.name[0]}</AvatarFallback></Avatar>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1 flex-wrap">
+                {person.is_star && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
                 <h4 className="font-semibold text-xs truncate max-w-[100px]">{person.name}</h4>
                 <span className="text-[10px] text-gray-400">{person.gender === 'female' ? '♀' : '♂'}</span>
-                {person.is_hidden_gem && <Sparkles className="w-2.5 h-2.5 text-green-500" title="Hidden Gem!" />}
+                {person.fame_badge && (
+                  <Badge className={`text-[8px] h-3.5 px-1 ${
+                    person.fame_badge.color === 'gold' ? 'bg-yellow-500/20 text-yellow-400' :
+                    person.fame_badge.color === 'purple' ? 'bg-purple-500/20 text-purple-400' :
+                    person.fame_badge.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                    'bg-emerald-500/20 text-emerald-400'
+                  } whitespace-nowrap`}>
+                    {person.fame_badge.label}
+                  </Badge>
+                )}
+                {person.is_hidden_gem && !person.is_star && <Sparkles className="w-2.5 h-2.5 text-green-500" title="Hidden Gem!" />}
                 {person.has_worked_with_us && (
                   <Badge className="text-[8px] h-3.5 px-1 bg-cyan-500/20 text-cyan-400 whitespace-nowrap">
-                    {language === 'it' ? 'Ha lavorato con noi' : 'Worked with us'}
+                    Ha lavorato con noi
                   </Badge>
                 )}
               </div>
-              {/* Primary & Secondary Skills inline */}
-              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                {primarySkillsDisplay.slice(0, 2).map((skill, idx) => (
-                  <span key={idx} className="text-[9px] text-yellow-400 bg-yellow-500/10 px-1 py-0.5 rounded">
-                    {skill}
-                  </span>
-                ))}
-                {secondarySkillDisplay && (
-                  <span className="text-[9px] text-gray-400 bg-white/5 px-1 py-0.5 rounded">
-                    {secondarySkillDisplay}
-                  </span>
-                )}
+              {/* IMDb Rating */}
+              <div className="flex items-center gap-1 mt-0.5">
+                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                <span className="text-xs font-bold text-yellow-500">{person.imdb_rating?.toFixed(1) || '0.0'}</span>
+                <span className="text-[8px] text-gray-500">/100</span>
               </div>
-              <p className="text-[10px] text-gray-400 mt-0.5">{person.nationality} • {person.age}yo • {person.years_active}y exp</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{person.nationality} • {person.age} anni • {person.years_active} anni esp.</p>
             </div>
-            <p className="text-yellow-500 font-bold text-xs whitespace-nowrap">${((person.cost_per_film || 0)/1000).toFixed(0)}K</p>
+            <div className="text-right">
+              <p className="text-yellow-500 font-bold text-xs whitespace-nowrap">${((person.cost_per_film || 0)/1000).toFixed(0)}K</p>
+              {person.is_star && <p className="text-[8px] text-yellow-500/60">+40%</p>}
+            </div>
           </div>
           
           {/* Stars, Category row */}
@@ -694,9 +742,9 @@ const FilmWizard = () => {
             )}
           </div>
           
-          {/* Skills grid - show only 4 */}
+          {/* Skills grid - show all 8 */}
           <div className="grid grid-cols-2 gap-0.5">
-            {Object.entries(person.skills||{}).slice(0,4).map(([s,v])=><SkillBadge key={s} name={s} value={v} change={person.skill_changes?.[s]||0} language={language} />)}
+            {Object.entries(person.skills||{}).slice(0,8).map(([s,v])=><SkillBadge key={s} name={s} value={v} change={person.skill_changes?.[s]||0} language={language} />)}
           </div>
           
           {showRoleSelect && isSelected && (
@@ -962,7 +1010,28 @@ const FilmWizard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors', selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
+          {/* Age Filter Buttons */}
+          <div className="flex gap-1.5" data-testid="age-filter-row">
+            {[
+              { id: 'all', label: 'Tutti' },
+              { id: 'young', label: 'Giovani' },
+              { id: '18-30', label: '18-30' },
+              { id: '31-50', label: '31-50' },
+              { id: '51+', label: '51+' }
+            ].map(age => (
+              <Button
+                key={age.id}
+                variant={selectedAgeRange === age.id ? 'default' : 'outline'}
+                size="sm"
+                className={`h-6 text-[10px] px-2 ${selectedAgeRange === age.id ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'border-white/10 hover:bg-white/5'}`}
+                onClick={() => setSelectedAgeRange(age.id)}
+                data-testid={`age-filter-${age.id}`}
+              >
+                {age.label}
+              </Button>
+            ))}
           </div>
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-400">{language === 'it' ? 'Selezionati' : 'Selected'}: {filmData.actors.length} {language === 'it' ? 'attori' : 'actors'} • {actors.length} {language === 'it' ? 'disponibili' : 'available'}</p>
@@ -1104,6 +1173,19 @@ const FilmWizard = () => {
         <div className="flex items-center justify-between mb-2 overflow-x-auto pb-1">{steps.map((s,i)=>(<div key={s.num} className="flex items-center"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step===s.num?'bg-yellow-500 text-black':step>s.num?'bg-green-500 text-white':'bg-gray-700 text-gray-400'}`}>{step>s.num?'✓':s.num}</div>{i<steps.length-1&&<div className={`w-3 h-0.5 mx-0.5 ${step>s.num?'bg-green-500':'bg-gray-700'}`} />}</div>))}</div>
         <h2 className="font-['Bebas_Neue'] text-xl">{steps[step-1].title}</h2>
       </div>
+      {/* Fixed Film Info Reminder - visible from step 2 onwards when title is set */}
+      {step > 1 && filmData.title && (
+        <div className="mb-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3" data-testid="film-info-reminder">
+          <Film className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="font-bold text-yellow-400">{filmData.title}</span>
+            <Badge className="bg-white/10 text-gray-300 h-4 text-[10px]">{genres[filmData.genre]?.name || filmData.genre}</Badge>
+            {filmData.subgenres.length > 0 && filmData.subgenres.map(sg => (
+              <Badge key={sg} className="bg-purple-500/20 text-purple-300 h-4 text-[10px]">{sg}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
       <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
       <div className="flex justify-between items-center mt-3">
         <div className="flex gap-2 items-center">

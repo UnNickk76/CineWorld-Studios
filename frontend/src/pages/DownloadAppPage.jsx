@@ -39,7 +39,8 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding,
+  Link2
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 

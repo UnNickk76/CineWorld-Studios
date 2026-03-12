@@ -496,7 +496,7 @@ GENRES = {
     },
     'comedy': {
         'name': 'Comedy', 
-        'subgenres': ['Romantic Comedy', 'Dark Comedy', 'Parody', 'Slapstick', 'Satire', 'Buddy Comedy']
+        'subgenres': ['Romantic Comedy', 'Dark Comedy', 'Parody', 'Slapstick', 'Satire', 'Buddy Comedy', 'Film Comico', 'Commedia Italiana']
     },
     'drama': {
         'name': 'Drama',
@@ -679,8 +679,15 @@ def calculate_rejection_chance(person: dict, user: dict, film_genre: str = None)
         if genre_skill < 30:
             base_rejection_chance += 0.10
     
+    # Factor 6: Star cast (+15% if never worked with player)
+    if person.get('is_star', False):
+        player_films_worked = person.get('films_worked', [])
+        player_id = user.get('id', '')
+        has_worked_together = any(f.get('user_id') == player_id for f in player_films_worked) if isinstance(player_films_worked, list) and player_films_worked and isinstance(player_films_worked[0], dict) else False
+        if not has_worked_together:
+            base_rejection_chance += 0.15
+    
     # Minimum rejection chance so negotiation mechanic is always relevant
-    # Even 1-star cast may refuse if they're having a bad day
     min_rejection = 0.12  # 12% minimum for all interactions
     
     # Cap at 60% max rejection chance
@@ -1255,6 +1262,9 @@ async def initialize_cast_pool_if_needed():
                     'fame_score': round(member['fame'], 1),
                     'years_active': member['years_active'],
                     'stars': member['stars'],
+                    'imdb_rating': member.get('imdb_rating', 50.0),
+                    'is_star': member.get('is_star', False),
+                    'fame_badge': member.get('fame_badge'),
                     'category': member.get('category', 'unknown'),
                     'avg_film_quality': round(member['avg_film_quality'], 1),
                     'is_hidden_gem': member['fame_category'] == 'unknown' and member['stars'] >= 4,
@@ -1303,6 +1313,9 @@ async def get_or_create_person(person_type: str) -> dict:
             'fame_score': round(cast_member['fame'], 1),
             'years_active': cast_member['years_active'],
             'stars': cast_member['stars'],
+            'imdb_rating': cast_member.get('imdb_rating', 50.0),
+            'is_star': cast_member.get('is_star', False),
+            'fame_badge': cast_member.get('fame_badge'),
             'category': cast_member.get('category', 'unknown'),
             'avg_film_quality': cast_member['avg_film_quality'],
             'is_hidden_gem': cast_member['fame_category'] == 'unknown' and cast_member['stars'] >= 4,
@@ -1396,9 +1409,11 @@ async def get_actors(
     genre: Optional[str] = None,
     category: Optional[str] = None,
     skill: Optional[str] = None,
+    min_age: Optional[int] = None,
+    max_age: Optional[int] = None,
     user: dict = Depends(get_current_user)
 ):
-    """Get actors with filtering by category and skill search."""
+    """Get actors with filtering by category, skill search, and age range."""
     user_id = user['id']
     
     # Build query
@@ -1409,6 +1424,15 @@ async def get_actors(
     # Skill search - find actors that have this skill
     if skill:
         query[f'skills.{skill}'] = {'$exists': True}
+    
+    # Age range filter
+    if min_age is not None or max_age is not None:
+        age_q = {}
+        if min_age is not None:
+            age_q['$gte'] = min_age
+        if max_age is not None:
+            age_q['$lte'] = max_age
+        query['age'] = age_q
     
     # Use random sampling for variety on each refresh
     total = await db.people.count_documents(query)
@@ -1616,6 +1640,53 @@ async def get_available_cast(
     cast = await db.people.find(query, {'_id': 0}).sort('fame', -1).skip(skip).limit(limit).to_list(limit)
     
     return {'cast': cast, 'count': len(cast)}
+
+@api_router.post("/cast/search-advanced")
+async def search_cast_advanced(request: dict = Body(...), user: dict = Depends(get_current_user)):
+    """
+    Ricerca avanzata cast con filtro per skill e valore minimo.
+    Body: {
+        "cast_type": "actor|director|screenwriter|composer",
+        "skill_filters": [{"skill": "drama", "min_value": 60}, ...] (max 3),
+        "limit": 50
+    }
+    """
+    cast_type = request.get('cast_type', 'actor')
+    skill_filters = request.get('skill_filters', [])[:3]  # Max 3 skill filters
+    limit = min(request.get('limit', 50), 100)
+    
+    query = {'type': cast_type}
+    
+    for sf in skill_filters:
+        skill_name = sf.get('skill', '')
+        min_val = sf.get('min_value', 0)
+        if skill_name and isinstance(min_val, (int, float)):
+            query[f'skills.{skill_name}'] = {'$gte': min_val}
+    
+    total = await db.people.count_documents(query)
+    
+    if total > limit:
+        pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
+        results = await db.people.aggregate(pipeline).to_list(limit)
+    else:
+        results = await db.people.find(query, {'_id': 0}).to_list(limit)
+    
+    return {'cast': results, 'total': total, 'filters_applied': len(skill_filters)}
+
+
+@api_router.get("/cast/skill-list/{cast_type}")
+async def get_skill_list(cast_type: str):
+    """Restituisce la lista delle skill disponibili per un tipo di cast."""
+    from cast_system import ACTOR_SKILLS, DIRECTOR_SKILLS, SCREENWRITER_SKILLS, COMPOSER_SKILLS
+    skill_map = {
+        'actor': ACTOR_SKILLS,
+        'director': DIRECTOR_SKILLS,
+        'screenwriter': SCREENWRITER_SKILLS,
+        'composer': COMPOSER_SKILLS
+    }
+    skills = skill_map.get(cast_type, {})
+    return {'skills': [{'key': k, 'label': v.get('it', k)} for k, v in skills.items()]}
+
 
 # ==================== CAST OFFER/REJECTION SYSTEM ====================
 
@@ -4874,6 +4945,28 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.097', 'date': '2026-03-12', 'title': 'Sfide 1v1 Riabilitate, Filtro Età Cast & Info Film Fisso',
+     'changes': [
+         {'type': 'new', 'text': 'Sfide 1v1 riabilitate: sfida giocatori online e offline con costo partecipazione $50.000'},
+         {'type': 'new', 'text': 'Premio vittoria $100.000: il vincitore si porta a casa tutto il montepremi'},
+         {'type': 'new', 'text': 'Notifica popup per sfide in tempo reale ai giocatori online'},
+         {'type': 'new', 'text': 'Filtro età cast: Giovani, 18-30, 31-50, 51+ nella selezione attori'},
+         {'type': 'new', 'text': 'Barra info film fissa: nome film e genere sempre visibili durante la creazione'},
+         {'type': 'improvement', 'text': 'Sfide semplificate: rimossi 2v2, 3v3, 4v4 e Tutti contro Tutti'},
+         {'type': 'improvement', 'text': 'Menu Bozze separato da Pre-Ingaggi'},
+         {'type': 'improvement', 'text': 'Mercato Infrastrutture in pausa temporanea'},
+     ]},
+    {'version': '0.096', 'date': '2026-03-12', 'title': 'Sistema Cast Rinnovato & Ricerca Avanzata',
+     'changes': [
+         {'type': 'new', 'text': '50 skill totali divise per ruolo (13 per tipo), ogni membro del cast ha esattamente 8 skill'},
+         {'type': 'new', 'text': 'Valutazione IMDb: stella singola + punteggio globale 0-100 con decimale'},
+         {'type': 'new', 'text': 'Sistema Star: stella dorata per attori famosi (+40% costo, +15% rifiuto se mai lavorato insieme)'},
+         {'type': 'new', 'text': 'Badge fama per registi (corona), sceneggiatori (premio), compositori (nota musicale)'},
+         {'type': 'new', 'text': 'Ricerca avanzata cast: filtra fino a 3 skill con valore minimo desiderato'},
+         {'type': 'new', 'text': 'Sottogeneri Comici aggiunti: Film Comico e Commedia Italiana'},
+         {'type': 'improvement', 'text': 'Skill intere 0-100 per tutti i tipi di cast con distribuzione realistica'},
+         {'type': 'improvement', 'text': 'Cast completamente rigenerato con nuove regole (8000 membri)'},
+     ]},
     {'version': '0.095', 'date': '2026-03-12', 'title': 'Ottimizzazione Velocità & Nuova Colonna Sonora',
      'changes': [
          {'type': 'fix', 'text': 'Fix crash Giornale del Cinema: la pagina ora si apre correttamente'},
@@ -9789,11 +9882,22 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     user_id = user['id']
     language = user.get('language', 'it')
     
-    # Validate challenge type
+    # Validate challenge type - only 1v1 allowed now
+    if data.challenge_type != '1v1':
+        raise HTTPException(status_code=400, detail="Solo sfide 1v1 disponibili")
+    
     if data.challenge_type not in CHALLENGE_TYPES:
         raise HTTPException(status_code=400, detail="Tipo di sfida non valido")
     
     challenge_config = CHALLENGE_TYPES[data.challenge_type]
+    
+    # Participation cost
+    PARTICIPATION_COST = 50000
+    
+    # Check if user has enough funds
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
     
     # Validate film count
     if len(data.film_ids) != 3:
@@ -9808,6 +9912,9 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     if len(user_films) != 3:
         raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
     
+    # Deduct participation cost
+    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
+    
     # Calculate skills for user's films
     for film in user_films:
         film['challenge_skills'] = calculate_film_challenge_skills(film)
@@ -9817,7 +9924,7 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     challenge = {
         'id': challenge_id,
         'type': data.challenge_type,
-        'status': 'pending',  # pending, in_progress, completed
+        'status': 'pending',
         'is_live': data.is_live,
         'creator_id': user_id,
         'creator_nickname': user.get('nickname', 'Player'),
@@ -9826,6 +9933,8 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
         'team_type': data.team_type,
         'teammate_ids': data.teammate_ids or [],
         'ffa_player_count': data.ffa_player_count,
+        'participation_cost': PARTICIPATION_COST,
+        'prize_pool': PARTICIPATION_COST * 2,
         'participants': [{
             'user_id': user_id,
             'nickname': user.get('nickname', 'Player'),
@@ -9851,15 +9960,21 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
     
     await db.challenges.insert_one(challenge)
     
-    # If specific opponent, send notification
+    # If specific opponent, send notification with popup flag
     if data.opponent_id:
         await db.notifications.insert_one({
             'id': str(uuid.uuid4()),
             'user_id': data.opponent_id,
             'type': 'challenge_invite',
-            'title': 'Sfida Ricevuta!' if language == 'it' else 'Challenge Received!',
-            'message': f'{user.get("nickname", "Un giocatore")} ti ha sfidato! Accetta o rifiuta entro 24 ore.',
-            'data': {'challenge_id': challenge_id, 'challenger': user.get('nickname')},
+            'title': 'Sfida 1v1 Ricevuta!',
+            'message': f'{user.get("nickname", "Un giocatore")} ti ha sfidato a un 1v1! Costo partecipazione: ${PARTICIPATION_COST:,}. Premio vittoria: ${PARTICIPATION_COST * 2:,}. Accetta o rifiuta entro 24 ore.',
+            'data': {
+                'challenge_id': challenge_id, 
+                'challenger': user.get('nickname'),
+                'participation_cost': PARTICIPATION_COST,
+                'prize_pool': PARTICIPATION_COST * 2,
+                'is_popup': True
+            },
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
@@ -9868,7 +9983,9 @@ async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_curre
         'success': True,
         'challenge_id': challenge_id,
         'status': challenge['status'],
-        'message': 'Sfida creata! In attesa di avversari.' if challenge['status'] == 'waiting' else 'Sfida inviata!'
+        'participation_cost': PARTICIPATION_COST,
+        'prize_pool': PARTICIPATION_COST * 2,
+        'message': f'Sfida creata! Costo: ${PARTICIPATION_COST:,}. In attesa di avversari.' if challenge['status'] == 'waiting' else f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}.'
     }
 
 @api_router.post("/challenges/{challenge_id}/join")
@@ -9886,6 +10003,17 @@ async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = De
     # Check if already participating
     if any(p['user_id'] == user_id for p in challenge.get('participants', [])):
         raise HTTPException(status_code=400, detail="Stai già partecipando a questa sfida")
+    
+    # Participation cost
+    PARTICIPATION_COST = challenge.get('participation_cost', 50000)
+    
+    # Check if user has enough funds
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
+    
+    # Deduct participation cost
+    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
     
     # Validate films
     if len(film_ids) != 3:
@@ -9908,7 +10036,7 @@ async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = De
     challenge_type = challenge['type']
     
     if challenge_type == 'ffa':
-        team = None  # FFA has no teams
+        team = None
     else:
         team_a_count = sum(1 for p in participants if p.get('team') == 'a')
         team_b_count = sum(1 for p in participants if p.get('team') == 'b')
@@ -9939,7 +10067,6 @@ async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = De
     
     # If ready, start the challenge
     if ready_to_start:
-        # Run challenge simulation
         result = await run_challenge_simulation(challenge_id)
         return {'success': True, 'message': 'Sfida iniziata!', 'result': result}
     
@@ -10068,6 +10195,9 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
         battle_result['winner'], challenge_type, is_live
     )
     
+    # Prize pool from participation costs
+    prize_pool = challenge.get('prize_pool', 100000)
+    
     # Determine winners and losers
     if challenge_type == 'ffa':
         winner_user_ids = [p['user_id'] for p in participants if p['nickname'] == battle_result['winner']]
@@ -10080,18 +10210,23 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
             winner_user_ids = battle_result['team_b']['players']
             loser_user_ids = battle_result['team_a']['players']
         else:
-            # Draw
+            # Draw - refund both
+            for p in participants:
+                refund = challenge.get('participation_cost', 50000)
+                await db.users.update_one({'id': p['user_id']}, {'$inc': {'funds': refund}})
             winner_user_ids = battle_result['team_a']['players'] + battle_result['team_b']['players']
             loser_user_ids = []
+            prize_pool = 0
     
-    # Apply rewards to winners
+    # Apply rewards to winners (including prize pool)
+    prize_per_winner = prize_pool // max(len(winner_user_ids), 1) if prize_pool > 0 else 0
     for uid in winner_user_ids:
         await db.users.update_one(
             {'id': uid},
             {'$inc': {
                 'xp': winner_rewards['xp'],
                 'fame': winner_rewards['fame'],
-                'funds': winner_rewards['funds'],
+                'funds': winner_rewards['funds'] + prize_per_winner,
                 'challenge_wins': 1,
                 'challenge_total': 1
             }}
@@ -10113,9 +10248,9 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
             'id': str(uuid.uuid4()),
             'user_id': uid,
             'type': 'challenge_won',
-            'title': '🏆 Sfida Vinta!',
-            'message': f'Hai vinto la sfida! +{winner_rewards["xp"]} XP, +{winner_rewards["funds"]:,} CineCoins',
-            'data': {'challenge_id': challenge_id},
+            'title': 'Sfida Vinta!',
+            'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP',
+            'data': {'challenge_id': challenge_id, 'prize': prize_per_winner},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })

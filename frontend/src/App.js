@@ -210,11 +210,11 @@ const TopNavbar = () => {
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create', icon: Plus, label: 'create_film' },
-    { path: '/drafts', icon: Clock, label: 'drafts_preengagement' },
+    { path: '/drafts', icon: Clock, label: 'drafts' },
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure', disabled: true, pauseLabel: 'In pausa' },
-    { path: '/marketplace', icon: ShoppingBag, label: 'marketplace' },
+    { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'In pausa' },
     { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/stars', icon: Star, label: 'discovered_stars' },
@@ -344,14 +344,14 @@ const TopNavbar = () => {
             <Newspaper className="w-4 h-4" />
           </Button>
           
-          {/* Challenges/Sfide - In pausa */}
+          {/* Challenges/Sfide - Re-enabled */}
           <Button
             variant="ghost"
             size="sm"
-            className="relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-gray-600 cursor-not-allowed opacity-40"
-            disabled
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/challenges' ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'}`}
+            onClick={() => navigate('/challenges')}
             data-testid="challenges-nav-btn"
-            title="In pausa"
+            title="Sfide"
           >
             <Swords className="w-4 h-4" />
           </Button>

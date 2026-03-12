@@ -85,7 +85,7 @@ const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile
 
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
-  const { language, setLanguage } = useContext(LanguageContext);
+  const { language } = useContext(LanguageContext);
   const { t } = useTranslations();
   const navigate = useNavigate();
   const location = useLocation();
@@ -417,19 +417,7 @@ const TopNavbar = () => {
             </div>
           )}
 
-          {/* Language selector - Hidden on small screens */}
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger className="hidden md:flex w-12 h-7 text-xs bg-transparent border-white/10 px-1" data-testid="language-selector">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">EN</SelectItem>
-              <SelectItem value="it">IT</SelectItem>
-              <SelectItem value="es">ES</SelectItem>
-              <SelectItem value="fr">FR</SelectItem>
-              <SelectItem value="de">DE</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Lingua: Solo italiano */}
 
           {/* Profile Avatar - Hidden on mobile */}
           <Popover>
@@ -511,19 +499,7 @@ const TopNavbar = () => {
                   </div>
                 </div>
               </div>
-              {/* Language Selector in Mobile */}
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-14 h-8 text-xs bg-white/5 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">EN</SelectItem>
-                  <SelectItem value="it">IT</SelectItem>
-                  <SelectItem value="es">ES</SelectItem>
-                  <SelectItem value="fr">FR</SelectItem>
-                  <SelectItem value="de">DE</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Lingua: Solo italiano */}
             </div>
             
             {/* Mobile Navigation Grid - Solid Background */}

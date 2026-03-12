@@ -98,29 +98,9 @@ const AuthPage = () => {
         className="w-full max-w-md"
       >
         <Card className="bg-[#1A1A1A] border-white/10 relative">
-          {/* Language Selector */}
-          <div className="absolute top-4 right-4 z-10">
-            <div className="flex items-center gap-1 bg-black/40 rounded-full p-1">
-              <button
-                onClick={() => setLanguage('it')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  language === 'it' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                🇮🇹 IT
-              </button>
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  language === 'en' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                🇬🇧 EN
-              </button>
-            </div>
-          </div>
+          {/* Language Selector removed - Italian only */}
           
-          <CardHeader className="text-center space-y-3 pb-4 pt-12">
+          <CardHeader className="text-center space-y-3 pb-4 pt-6">
             <div className="flex justify-center">
               <Clapperboard className="w-12 h-12 text-yellow-500" />
             </div>

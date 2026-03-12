@@ -102,41 +102,20 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Language Provider
+// Language Provider - Solo italiano (forced to Italian only)
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState(localStorage.getItem('cineworld_lang') || 'en');
+  const [language] = useState('it');
   const [translations, setTranslations] = useState({});
 
-  // Listen for localStorage changes (from login/register)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const storedLang = localStorage.getItem('cineworld_lang');
-      if (storedLang && storedLang !== language) {
-        setLanguage(storedLang);
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    // Also check periodically for same-tab changes
-    const interval = setInterval(() => {
-      const storedLang = localStorage.getItem('cineworld_lang');
-      if (storedLang && storedLang !== language) {
-        setLanguage(storedLang);
-      }
-    }, 500);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, [language]);
+  // setLanguage is a no-op since language is forced to Italian
+  const setLanguage = () => {};
 
   useEffect(() => {
-    axios.get(`${API}/translations/${language}`)
+    localStorage.setItem('cineworld_lang', 'it');
+    axios.get(`${API}/translations/it`)
       .then(res => setTranslations(res.data))
       .catch(() => {});
-    localStorage.setItem('cineworld_lang', language);
-  }, [language]);
+  }, []);
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, translations }}>

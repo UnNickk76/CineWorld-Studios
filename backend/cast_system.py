@@ -329,17 +329,17 @@ def get_all_locations_flat() -> List[dict]:
 # ==================== SKILL UTILITIES ====================
 
 def calculate_stars(skills: dict) -> int:
-    """Calculate star rating (1-5) based on average skills."""
+    """Calculate star rating (1-5) based on average skills (0-100 scale)."""
     if not skills:
         return 1
     avg = sum(skills.values()) / len(skills)
-    if avg >= 9:
+    if avg >= 85:
         return 5
-    elif avg >= 7:
+    elif avg >= 65:
         return 4
-    elif avg >= 5:
+    elif avg >= 45:
         return 3
-    elif avg >= 3:
+    elif avg >= 25:
         return 2
     else:
         return 1
@@ -396,10 +396,49 @@ def calculate_cast_cost(stars: int, fame: float, role_type: str, years_active: i
 
 # ==================== CAST GENERATION ====================
 
-def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, int]:
+def generate_actor_age() -> int:
+    """Generate realistic age distribution for actors.
+    45% 18-36, 33% 37-50, 12% 51-70, 5% 70-90, 3% 14-17, 2% 6-13
+    """
+    roll = random.random()
+    if roll < 0.02:      # 2% baby actors
+        return random.randint(6, 13)
+    elif roll < 0.05:    # 3% teen actors
+        return random.randint(14, 17)
+    elif roll < 0.50:    # 45% young adults (biggest pool)
+        return random.randint(18, 36)
+    elif roll < 0.83:    # 33% experienced adults
+        return random.randint(37, 50)
+    elif roll < 0.95:    # 12% senior actors
+        return random.randint(51, 70)
+    else:                # 5% veteran/elderly actors
+        return random.randint(70, 90)
+
+
+def generate_other_cast_age(role_type: str) -> int:
+    """Generate realistic age for directors, screenwriters, composers."""
+    if role_type == 'director':
+        return random.choices(
+            [random.randint(25, 35), random.randint(36, 50), random.randint(51, 70), random.randint(71, 85)],
+            weights=[25, 40, 25, 10]
+        )[0]
+    elif role_type == 'screenwriter':
+        return random.choices(
+            [random.randint(22, 35), random.randint(36, 50), random.randint(51, 65), random.randint(66, 80)],
+            weights=[30, 35, 25, 10]
+        )[0]
+    else:  # composer
+        return random.choices(
+            [random.randint(20, 35), random.randint(36, 50), random.randint(51, 70), random.randint(71, 85)],
+            weights=[25, 35, 30, 10]
+        )[0]
+
+
+def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, float]:
     """
     Generate a VARIABLE subset of skills for a cast member.
-    Not every member has the same skills!
+    Skills are decimal values from 0.0 to 100.0.
+    0 is extremely rare, distribution skews toward medium values.
     """
     skill_keys = list(all_skills.keys())
     num_skills = random.randint(min_skills, max_skills)
@@ -407,19 +446,23 @@ def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: 
     
     skills = {}
     for key in selected_skill_keys:
-        # Generate skill value with some variation
-        # Higher chance for medium values, rare extremes
         roll = random.random()
-        if roll < 0.1:  # 10% chance for very high (8-10)
-            value = random.randint(8, 10)
-        elif roll < 0.3:  # 20% chance for high (6-7)
-            value = random.randint(6, 7)
-        elif roll < 0.7:  # 40% chance for medium (4-5)
-            value = random.randint(4, 5)
-        elif roll < 0.9:  # 20% chance for low (2-3)
-            value = random.randint(2, 3)
-        else:  # 10% chance for very low (1)
-            value = 1
+        if roll < 0.005:      # 0.5% chance for near-zero (0.1-5.0) — extremely rare
+            value = round(random.uniform(0.1, 5.0), 1)
+        elif roll < 0.05:     # 4.5% chance for very low (5.1-20.0)
+            value = round(random.uniform(5.1, 20.0), 1)
+        elif roll < 0.15:     # 10% low (20.1-35.0)
+            value = round(random.uniform(20.1, 35.0), 1)
+        elif roll < 0.40:     # 25% below average (35.1-50.0)
+            value = round(random.uniform(35.1, 50.0), 1)
+        elif roll < 0.70:     # 30% average (50.1-65.0)
+            value = round(random.uniform(50.1, 65.0), 1)
+        elif roll < 0.88:     # 18% good (65.1-80.0)
+            value = round(random.uniform(65.1, 80.0), 1)
+        elif roll < 0.96:     # 8% very good (80.1-90.0)
+            value = round(random.uniform(80.1, 90.0), 1)
+        else:                 # 4% excellent (90.1-100.0)
+            value = round(random.uniform(90.1, 100.0), 1)
         skills[key] = value
     
     return skills
@@ -472,28 +515,28 @@ def generate_cast_member_v2(
     if ensure_skills:
         for skill_key in ensure_skills:
             if skill_key in all_skills and skill_key not in skills:
-                skills[skill_key] = random.randint(1, 10)
+                skills[skill_key] = round(random.uniform(10.0, 80.0), 1)
     
     # Adjust skills based on category (target star range)
     if category != 'random' and category in CAST_CATEGORIES:
         min_stars, max_stars = CAST_CATEGORIES[category]['stars_range']
-        target_avg = (min_stars + max_stars) / 2 * 2  # Convert stars to avg skill
+        target_avg = (min_stars + max_stars) / 2 * 20  # Convert stars to avg skill (0-100 scale)
         
-        current_avg = sum(skills.values()) / len(skills) if skills else 5
+        current_avg = sum(skills.values()) / len(skills) if skills else 50
         adjustment = (target_avg - current_avg) * 0.5
         
         for key in skills:
-            new_val = skills[key] + int(adjustment) + random.randint(-1, 1)
-            skills[key] = max(1, min(10, new_val))
+            new_val = skills[key] + adjustment + random.uniform(-5, 5)
+            skills[key] = round(max(0.1, min(100.0, new_val)), 1)
     
     # Calculate derived stats
     stars = calculate_stars(skills)
     
-    avg_skill = sum(skills.values()) / len(skills) if skills else 5
-    base_years = max(1, int(avg_skill * 1.5) + random.randint(-2, 5))
+    avg_skill = sum(skills.values()) / len(skills) if skills else 50
+    base_years = max(1, int(avg_skill / 7) + random.randint(-2, 5))
     years_active = min(40, max(1, base_years))
     films_count = max(0, int(years_active * random.uniform(0.5, 2)))
-    avg_film_quality = min(100, max(20, avg_skill * 8 + random.randint(-10, 20)))
+    avg_film_quality = min(100, max(20, avg_skill * 0.8 + random.randint(-10, 20)))
     
     fame = calculate_fame_from_career(years_active, films_count, avg_film_quality)
     fame_category = get_fame_category_from_score(fame)
@@ -519,7 +562,7 @@ def generate_cast_member_v2(
         'name': f"{first_name} {last_name}",
         'gender': gender,
         'nationality': nationality,
-        'age': random.randint(22, 65),
+        'age': generate_actor_age() if role_type == 'actor' else generate_other_cast_age(role_type),
         'role_type': role_type,
         'skills': skills,
         'primary_skills': primary_skills,
@@ -594,17 +637,17 @@ def calculate_cast_film_bonus(actor_skills: dict, film_genre: str) -> dict:
             'reason': f'No {film_genre} skills'
         }
     
-    # Calculate bonus based on skill values
+    # Calculate bonus based on skill values (0-100 scale)
     avg_matched = total_skill_value / len(matched)
     
-    if avg_matched >= 8:
-        return {'bonus_percent': 20, 'type': 'major_bonus', 'reason': f'Expert in {film_genre}'}
-    elif avg_matched >= 6:
-        return {'bonus_percent': 10, 'type': 'bonus', 'reason': f'Skilled in {film_genre}'}
-    elif avg_matched >= 4:
-        return {'bonus_percent': 5, 'type': 'minor_bonus', 'reason': f'Adequate {film_genre} skills'}
+    if avg_matched >= 80:
+        return {'bonus_percent': 20, 'type': 'major_bonus', 'reason': f'Esperto in {film_genre}'}
+    elif avg_matched >= 60:
+        return {'bonus_percent': 10, 'type': 'bonus', 'reason': f'Abile in {film_genre}'}
+    elif avg_matched >= 40:
+        return {'bonus_percent': 5, 'type': 'minor_bonus', 'reason': f'Competente in {film_genre}'}
     else:
-        return {'bonus_percent': -5, 'type': 'minor_malus', 'reason': f'Weak {film_genre} skills'}
+        return {'bonus_percent': -5, 'type': 'minor_malus', 'reason': f'Debole in {film_genre}'}
 
 def get_skill_translation(skill_key: str, role_type: str, language: str = 'en') -> str:
     """Get translated skill name."""

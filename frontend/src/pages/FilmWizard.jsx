@@ -62,7 +62,7 @@ const FilmWizard = () => {
       <div className={`flex items-center justify-between px-1.5 py-0.5 rounded border ${getBgColor()}`}>
         <span className="text-xs truncate mr-1">{translatedName}</span>
         <div className="flex items-center gap-0.5">
-          <span className={`font-bold text-xs ${change > 0 ? 'text-green-500' : change < 0 ? 'text-red-500' : ''}`}>{value}</span>
+          <span className={`font-bold text-xs ${change > 0 ? 'text-green-500' : change < 0 ? 'text-red-500' : ''}`}>{typeof value === 'number' ? value.toFixed(1) : value}</span>
           {change > 0 && <TrendingUp className="w-2.5 h-2.5 text-green-500" />}
           {change < 0 && <TrendingDown className="w-2.5 h-2.5 text-red-500" />}
         </div>

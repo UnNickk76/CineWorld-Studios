@@ -434,10 +434,10 @@ def generate_other_cast_age(role_type: str) -> int:
         )[0]
 
 
-def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, float]:
+def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: int = 6) -> Dict[str, int]:
     """
     Generate a VARIABLE subset of skills for a cast member.
-    Skills are decimal values from 0.0 to 100.0.
+    Skills are integer values from 0 to 100.
     0 is extremely rare, distribution skews toward medium values.
     """
     skill_keys = list(all_skills.keys())
@@ -447,22 +447,22 @@ def generate_variable_skills(all_skills: Dict, min_skills: int = 3, max_skills: 
     skills = {}
     for key in selected_skill_keys:
         roll = random.random()
-        if roll < 0.005:      # 0.5% chance for near-zero (0.1-5.0) — extremely rare
-            value = round(random.uniform(0.1, 5.0), 1)
-        elif roll < 0.05:     # 4.5% chance for very low (5.1-20.0)
-            value = round(random.uniform(5.1, 20.0), 1)
-        elif roll < 0.15:     # 10% low (20.1-35.0)
-            value = round(random.uniform(20.1, 35.0), 1)
-        elif roll < 0.40:     # 25% below average (35.1-50.0)
-            value = round(random.uniform(35.1, 50.0), 1)
-        elif roll < 0.70:     # 30% average (50.1-65.0)
-            value = round(random.uniform(50.1, 65.0), 1)
-        elif roll < 0.88:     # 18% good (65.1-80.0)
-            value = round(random.uniform(65.1, 80.0), 1)
-        elif roll < 0.96:     # 8% very good (80.1-90.0)
-            value = round(random.uniform(80.1, 90.0), 1)
-        else:                 # 4% excellent (90.1-100.0)
-            value = round(random.uniform(90.1, 100.0), 1)
+        if roll < 0.005:      # 0.5% chance for near-zero (1-5) — extremely rare
+            value = random.randint(1, 5)
+        elif roll < 0.05:     # 4.5% chance for very low (6-20)
+            value = random.randint(6, 20)
+        elif roll < 0.15:     # 10% low (21-35)
+            value = random.randint(21, 35)
+        elif roll < 0.40:     # 25% below average (36-50)
+            value = random.randint(36, 50)
+        elif roll < 0.70:     # 30% average (51-65)
+            value = random.randint(51, 65)
+        elif roll < 0.88:     # 18% good (66-80)
+            value = random.randint(66, 80)
+        elif roll < 0.96:     # 8% very good (81-90)
+            value = random.randint(81, 90)
+        else:                 # 4% excellent (91-100)
+            value = random.randint(91, 100)
         skills[key] = value
     
     return skills
@@ -515,7 +515,7 @@ def generate_cast_member_v2(
     if ensure_skills:
         for skill_key in ensure_skills:
             if skill_key in all_skills and skill_key not in skills:
-                skills[skill_key] = round(random.uniform(10.0, 80.0), 1)
+                skills[skill_key] = random.randint(10, 80)
     
     # Adjust skills based on category (target star range)
     if category != 'random' and category in CAST_CATEGORIES:
@@ -527,7 +527,7 @@ def generate_cast_member_v2(
         
         for key in skills:
             new_val = skills[key] + adjustment + random.uniform(-5, 5)
-            skills[key] = round(max(0.1, min(100.0, new_val)), 1)
+            skills[key] = max(1, min(100, int(new_val)))
     
     # Calculate derived stats
     stars = calculate_stars(skills)

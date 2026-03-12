@@ -1249,7 +1249,7 @@ async def initialize_cast_pool_if_needed():
                     'skills': member['skills'],  # decimal values 0.0-100.0
                     'primary_skills': member.get('primary_skills', []),
                     'secondary_skill': member.get('secondary_skill'),
-                    'skill_changes': {k: 0.0 for k in member['skills']},
+                    'skill_changes': {k: 0 for k in member['skills']},
                     'films_count': member['films_count'],
                     'fame_category': member['fame_category'],
                     'fame_score': round(member['fame'], 1),
@@ -1297,7 +1297,7 @@ async def get_or_create_person(person_type: str) -> dict:
             'skills': cast_member['skills'],  # decimal 0.0-100.0
             'primary_skills': cast_member.get('primary_skills', []),
             'secondary_skill': cast_member.get('secondary_skill'),
-            'skill_changes': {k: 0.0 for k in cast_member['skills']},
+            'skill_changes': {k: 0 for k in cast_member['skills']},
             'films_count': cast_member['films_count'],
             'fame_category': cast_member['fame_category'],
             'fame_score': round(cast_member['fame'], 1),
@@ -7734,7 +7734,7 @@ async def generate_daily_cast_members():
                 'skills': member['skills'],  # decimal values 0-100
                 'primary_skills': member.get('primary_skills', []),
                 'secondary_skill': member.get('secondary_skill'),
-                'skill_changes': {k: 0.0 for k in member['skills']},
+                'skill_changes': {k: 0 for k in member['skills']},
                 'films_count': member['films_count'],
                 'fame_category': member['fame_category'],
                 'fame_score': round(member['fame'], 1),

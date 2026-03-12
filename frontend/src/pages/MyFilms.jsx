@@ -94,33 +94,33 @@ const MyFilms = () => {
       {films.length === 0 ? (
         <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center"><Film className="w-10 h-10 mx-auto mb-3 text-gray-600" /><h3 className="text-base mb-2">No films yet</h3><Button onClick={() => navigate('/create')} className="bg-yellow-500 text-black text-sm">Create First Film</Button></Card>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
           {films.map(film => (
             <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
               <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
                 <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
-                <Badge className={`absolute top-1 right-1 text-[8px] px-1 ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status}</Badge>
+                <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status === 'in_theaters' ? 'LIVE' : film.status}</Badge>
                 {(film.virtual_likes > 0) && (
-                  <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
-                    <Heart className="w-2 h-2 text-pink-400 fill-pink-400" />
-                    <span className="text-[8px] text-pink-300">{film.virtual_likes}</span>
+                  <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
+                    <Heart className="w-1.5 h-1.5 text-pink-400 fill-pink-400" />
+                    <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
                   </div>
                 )}
               </div>
-              <CardContent className="p-1 sm:p-1.5">
-                <h3 className="font-semibold text-[10px] sm:text-xs truncate">{film.title}</h3>
-                <div className="flex justify-between mt-0.5 text-[9px] sm:text-[10px]">
-                  <span className="text-gray-400"><Heart className="w-2 h-2 inline" /> {(film.likes_count || 0) + (film.virtual_likes || 0)}</span>
+              <CardContent className="p-1">
+                <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{film.title}</h3>
+                <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px]">
+                  <span className="text-gray-400">{(film.likes_count || 0) + (film.virtual_likes || 0)} lk</span>
                   <span className="text-green-400">${((film.total_revenue||0)/1000).toFixed(0)}K</span>
                 </div>
                 {film.status === 'in_theaters' && (
-                  <div className="flex gap-0.5 mt-1">
-                    <Button variant="outline" size="sm" className="flex-1 h-5 text-[9px] border-yellow-500/30 text-yellow-400 px-0.5" onClick={() => setShowAdDialog(film)}>
-                      <Sparkles className="w-2 h-2 mr-0.5" /> Ads
+                  <div className="flex gap-0.5 mt-0.5">
+                    <Button variant="outline" size="sm" className="flex-1 h-4 text-[7px] border-yellow-500/30 text-yellow-400 px-0.5 py-0" onClick={() => setShowAdDialog(film)}>
+                      Ads
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="flex-1 h-5 text-[9px] border-orange-500/30 text-orange-400 px-0.5"><Trash2 className="w-2 h-2" /></Button>
+                        <Button variant="outline" size="sm" className="h-4 text-[7px] border-orange-500/30 text-orange-400 px-1 py-0"><Trash2 className="w-2 h-2" /></Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
                         <AlertDialogHeader><AlertDialogTitle className="text-base">Withdraw?</AlertDialogTitle></AlertDialogHeader>

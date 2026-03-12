@@ -387,22 +387,23 @@ const ChallengesPage = () => {
       }, i * SKILL_DELAY);
     });
     
-    // After all skills, show manche result
+    // After all skills, show manche result then auto-advance
+    const step = matchIndex + 2; // matchIndex 0 → step 2, 1 → step 3, 2 → step 4
     setTimeout(() => {
       setMancheComplete(true);
+      // Auto-advance to next manche after 3 seconds
+      setTimeout(() => {
+        const nextStep = step + 1;
+        if (nextStep <= 4) {
+          setBattleStep(nextStep);
+          setCurrentSkillIndex(-1);
+          setMancheComplete(false);
+          setTimeout(() => animateSkills(battle, nextStep - 2), 500);
+        } else {
+          setBattleStep(99);
+        }
+      }, 3000);
     }, skills.length * SKILL_DELAY + 500);
-  };
-
-  const advanceToNextManche = (battle, currentStep) => {
-    const nextStep = currentStep + 1;
-    if (nextStep <= 4) {
-      setBattleStep(nextStep);
-      setCurrentSkillIndex(-1);
-      setMancheComplete(false);
-      setTimeout(() => animateSkills(battle, nextStep - 2), 500);
-    } else {
-      setBattleStep(99);
-    }
   };
 
   const getSkillIcon = (skill) => {
@@ -948,9 +949,9 @@ const ChallengesPage = () => {
           <Button 
             variant="outline" 
             className="border-blue-500/30 text-blue-400 h-12"
-            onClick={() => loadData()}
+            onClick={() => setShowHistory(true)}
           >
-            <RefreshCw className="w-4 h-4 mr-2" /> {language === 'it' ? 'Aggiorna' : 'Refresh'}
+            <History className="w-4 h-4 mr-2" /> {language === 'it' ? 'Storico' : 'History'}
           </Button>
         </div>
 
@@ -1606,16 +1607,10 @@ const ChallengesPage = () => {
                        'PAREGGIO!'}
                     </Badge>
                     
-                    {/* Next manche button */}
-                    <div className="mt-4">
-                      <Button 
-                        size="sm" 
-                        onClick={() => advanceToNextManche(battle, step)}
-                        className="bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue']"
-                        data-testid={`match-next-${matchIndex}`}
-                      >
-                        {step < 4 ? 'MANCHE SUCCESSIVA' : 'RISULTATO FINALE'} <ChevronRight className="w-4 h-4 ml-1" />
-                      </Button>
+                    {/* Auto-advance indicator */}
+                    <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-400">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      {step < 4 ? 'Prossima manche...' : 'Risultato finale...'}
                     </div>
                   </motion.div>
                 )}

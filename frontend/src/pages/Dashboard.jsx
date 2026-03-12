@@ -187,7 +187,7 @@ const Dashboard = () => {
         
         const [statsRes, filmsRes, challengesRes, pendingRes] = await Promise.all([
           api.get('/statistics/my'),
-          api.get('/films/my/featured?limit=6'),  // Use featured films sorted by attendance
+          api.get('/films/my/featured?limit=10'),  // Use featured films sorted by attendance
           api.get('/challenges'),
           api.get('/revenue/pending-all')
         ]);
@@ -398,30 +398,27 @@ const Dashboard = () => {
             <h2 className="font-['Bebas_Neue'] text-xl">{t('my_films')}</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-7 text-xs">View All <ChevronRight className="w-3 h-3 ml-1" /></Button>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
             {films.map(film => (
               <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer hover:border-white/15 transition-colors" onClick={() => navigate(`/films/${film.id}`)}>
                 <div className="aspect-[2/3] relative">
                   <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
                   {film.is_sequel && (
-                    <div className="absolute top-1 right-1 bg-purple-600/90 text-white text-[8px] px-1 py-0.5 rounded font-bold">
-                      SEQUEL #{film.sequel_number || 2}
+                    <div className="absolute top-0.5 right-0.5 bg-purple-600/90 text-white text-[6px] px-1 py-0.5 rounded font-bold">
+                      #{film.sequel_number || 2}
                     </div>
                   )}
                   {(film.virtual_likes > 0) && (
-                    <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
-                      <Heart className="w-2.5 h-2.5 text-pink-400 fill-pink-400" />
-                      <span className="text-[9px] text-pink-300">{film.virtual_likes}</span>
+                    <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
+                      <Heart className="w-2 h-2 text-pink-400 fill-pink-400" />
+                      <span className="text-[7px] text-pink-300">{film.virtual_likes}</span>
                     </div>
                   )}
                 </div>
-                <CardContent className="p-1.5">
-                  <h3 className="font-semibold text-[10px] sm:text-xs truncate">
-                    {film.title}
-                  </h3>
-                  <div className="flex justify-between mt-0.5 text-[9px] sm:text-[10px] text-gray-400">
-                    <span><Heart className="w-2 h-2 inline" /> {(film.likes_count || 0) + (film.virtual_likes || 0)}</span>
-                    <span className="text-green-400">${((film.total_revenue || 0)/1000).toFixed(0)}K</span>
+                <CardContent className="p-1">
+                  <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{film.title}</h3>
+                  <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px] text-gray-400">
+                    <span>${((film.total_revenue || 0)/1000).toFixed(0)}K</span>
                   </div>
                 </CardContent>
               </Card>

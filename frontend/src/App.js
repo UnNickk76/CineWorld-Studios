@@ -107,6 +107,7 @@ const TopNavbar = () => {
   const [globalPlayerPopup, setGlobalPlayerPopup] = useState(null); // unused, kept for compat
   const { openPlayerPopup: _ctxOpen, popupData, setPopupData } = usePlayerPopup();
   const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
+  const [popupView, setPopupView] = useState('stats'); // 'stats' or 'studio' - for global player popup
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -788,8 +789,8 @@ const TopNavbar = () => {
       </Dialog>
 
       {/* Global Player Popup - Opens from any nickname click */}
-      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) setPopupData(null); }}>
-        <DialogContent className="max-w-sm max-h-[85vh] overflow-hidden bg-[#111] border-cyan-500/30 p-0">
+      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) { setPopupData(null); setPopupView('stats'); } }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden bg-[#111] border-cyan-500/30 p-0">
           {popupData?.profile ? (
             <div className="flex flex-col max-h-[80vh]">
               {/* Sticky header with actions */}
@@ -805,7 +806,7 @@ const TopNavbar = () => {
               </div>
               
               {/* Action buttons - sticky */}
-              <div className="sticky top-[52px] z-10 bg-[#111]/95 backdrop-blur-md border-b border-white/10 p-2 flex gap-1.5 justify-center">
+              <div className="sticky top-[52px] z-10 bg-[#111]/95 backdrop-blur-md border-b border-white/10 p-2 flex gap-1.5 justify-center flex-wrap">
                 {popupData.friendStatus?.status === 'friends' ? (
                   <Button 
                     size="sm" variant="outline"
@@ -834,7 +835,7 @@ const TopNavbar = () => {
                 <Button 
                   size="sm"
                   className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-3 text-[10px] font-bold"
-                  onClick={() => { setPopupData(null); navigate('/challenges'); }}
+                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/challenges'); }}
                   data-testid="global-challenge-btn"
                 >
                   <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida 1v1' : '1v1 Challenge'}
@@ -842,15 +843,24 @@ const TopNavbar = () => {
                 <Button 
                   size="sm" variant="outline"
                   className="border-white/10 text-gray-300 h-7 px-3 text-[10px]"
-                  onClick={() => { setPopupData(null); navigate('/chat'); }}
+                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/chat'); }}
                   data-testid="global-message-btn"
                 >
                   <MessageSquare className="w-3 h-3 mr-1" /> {language === 'it' ? 'Messaggio' : 'Message'}
+                </Button>
+                <Button 
+                  size="sm"
+                  className={`h-7 px-3 text-[10px] font-bold ${popupView === 'studio' ? 'bg-yellow-500 text-black' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}
+                  onClick={() => setPopupView(popupView === 'studio' ? 'stats' : 'studio')}
+                  data-testid="global-visit-studio-btn"
+                >
+                  <Building className="w-3 h-3 mr-1" /> {language === 'it' ? 'Visita Studio' : 'Visit Studio'}
                 </Button>
               </div>
               
               {/* Profile content */}
               <ScrollArea className="flex-1">
+                {popupView === 'stats' ? (
                 <div className="p-4 space-y-4">
                   {/* Stats grid */}
                   <div className="grid grid-cols-3 gap-2">
@@ -875,7 +885,7 @@ const TopNavbar = () => {
                       <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
                       <div className="space-y-1.5">
                         {popupData.profile.recent_films.slice(0, 5).map(film => (
-                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); navigate(`/films/${film.id}`); }}>
+                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
                             {film.poster_url ? (
                               <img src={film.poster_url} alt="" className="w-8 h-12 rounded object-cover" />
                             ) : (
@@ -892,6 +902,96 @@ const TopNavbar = () => {
                     </div>
                   )}
                 </div>
+                ) : (
+                <div className="p-4 space-y-4">
+                  {/* STUDIO VIEW - Dashboard style */}
+                  {/* Financial Overview */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-green-500/10 rounded-lg p-2 text-center border border-green-500/20">
+                      <p className="text-lg font-bold text-green-400">${((popupData.profile.stats?.total_revenue || 0)/1000000).toFixed(1)}M</p>
+                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Box Office' : 'Box Office'}</p>
+                    </div>
+                    <div className="bg-blue-500/10 rounded-lg p-2 text-center border border-blue-500/20">
+                      <p className="text-lg font-bold text-blue-400">{popupData.profile.stats?.total_films || 0}</p>
+                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Film Prodotti' : 'Films Made'}</p>
+                    </div>
+                    <div className="bg-yellow-500/10 rounded-lg p-2 text-center border border-yellow-500/20">
+                      <p className="text-lg font-bold text-yellow-400">{popupData.profile.stats?.avg_quality || 0}%</p>
+                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Qualità Media' : 'Avg Quality'}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Genre breakdown */}
+                  {popupData.profile.genre_breakdown && Object.keys(popupData.profile.genre_breakdown).length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi Prodotti' : 'Genres'}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(popupData.profile.genre_breakdown).map(([genre, count]) => (
+                          <Badge key={genre} className="bg-purple-500/20 text-purple-300 text-[10px]">{genre}: {count}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Best film */}
+                  {popupData.profile.best_film && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Miglior Film' : 'Best Film'}</p>
+                      <div className="flex items-center gap-3 bg-yellow-500/10 rounded-lg p-2 border border-yellow-500/20 cursor-pointer hover:bg-yellow-500/15" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${popupData.profile.best_film.id}`); }}>
+                        {popupData.profile.best_film.poster_url ? (
+                          <img src={popupData.profile.best_film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
+                        ) : (
+                          <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Crown className="w-4 h-4 text-yellow-500" /></div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{popupData.profile.best_film.title}</p>
+                          <p className="text-[10px] text-gray-400">{popupData.profile.best_film.genre}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-green-400 text-sm font-bold">${((popupData.profile.best_film.revenue || popupData.profile.best_film.total_revenue || 0)/1000000).toFixed(1)}M</p>
+                          <p className="text-[9px] text-gray-400">Q:{popupData.profile.best_film.quality_score?.toFixed(0)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* All Films Grid */}
+                  {popupData.profile.all_films?.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Tutti i Film' : 'All Films'} ({popupData.profile.all_films.length})</p>
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
+                        {popupData.profile.all_films.map(film => (
+                          <div key={film.id} className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
+                            <div className="aspect-[2/3] rounded overflow-hidden bg-gray-800">
+                              {film.poster_url ? (
+                                <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center"><Film className="w-4 h-4 text-gray-600" /></div>
+                              )}
+                            </div>
+                            <p className="text-[8px] font-semibold truncate mt-0.5">{film.title}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Awards */}
+                  {popupData.profile.awards?.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Premi Vinti' : 'Awards Won'} ({popupData.profile.awards.length})</p>
+                      <div className="space-y-1">
+                        {popupData.profile.awards.slice(0, 5).map((award, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-amber-500/10 rounded p-1.5 border border-amber-500/20">
+                            <Award className="w-3 h-3 text-amber-400 shrink-0" />
+                            <p className="text-[10px] truncate">{award.award_name || award.name || 'Award'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                )}
               </ScrollArea>
             </div>
           ) : (
@@ -914,6 +1014,7 @@ const ProtectedRoute = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [popupData, setPopupData] = useState(null);
+  const [popupView, setPopupView] = useState('stats'); // 'stats' or 'studio'
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
   
   // Check for pending challenge invites on login

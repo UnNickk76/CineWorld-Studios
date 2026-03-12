@@ -41,7 +41,7 @@ import {
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
 } from 'lucide-react';
-import { SKILL_TRANSLATIONS } from '../constants';
+import { SKILL_TRANSLATIONS, GENRES_LIST } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts

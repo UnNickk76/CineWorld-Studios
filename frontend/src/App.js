@@ -79,6 +79,7 @@ const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
 const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
 const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
 const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
+const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays'));
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
 
 // ==================== COMPONENTS ====================
@@ -1193,6 +1194,7 @@ function App() {
                 <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
                 <Route path="/pre-engagement" element={<ProtectedRoute><PreEngagementPage /></ProtectedRoute>} />
+                <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />

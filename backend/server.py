@@ -60,6 +60,11 @@ from cast_system import (
     EXPANDED_NAMES, FILMING_LOCATIONS, CAST_CATEGORIES,
     ACTOR_SKILLS, DIRECTOR_SKILLS, SCREENWRITER_SKILLS, COMPOSER_SKILLS
 )
+from emerging_screenplays import (
+    generate_title, generate_synopsis, calculate_story_rating,
+    calculate_full_package_rating, calculate_screenplay_cost,
+    calculate_full_package_cost, get_roles_for_genre
+)
 
 # Import social system (Major, Friends, Notifications)
 from social_system import (
@@ -7457,6 +7462,13 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2)
         poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'Generazione fallita dopo i tentativi'}
+        # Try fallback poster
+        try:
+            fallback = await _generate_fallback_poster(request)
+            poster_tasks[task_id] = {'status': 'done', 'poster_url': fallback['poster_url'], 'error': '', 'is_fallback': True}
+            logging.info(f"Poster task {task_id}: fallback poster generated successfully")
+        except Exception as fb_err:
+            logging.error(f"Poster task {task_id}: fallback also failed: {fb_err}")
     
     asyncio.create_task(_generate())
     return {'task_id': task_id}
@@ -7479,7 +7491,8 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
     logging.info(f"Poster generation request for: {request.title} ({request.genre})")
     
     if not EMERGENT_LLM_KEY:
-        return {'poster_url': '', 'error': 'AI key not configured'}
+        # Fallback to pre-made poster
+        return await _generate_fallback_poster(request)
     
     max_retries = 2
     last_error = None
@@ -7527,7 +7540,79 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
             if attempt < max_retries - 1:
                 await asyncio.sleep(2)
     
-    return {'poster_url': '', 'error': last_error or 'Generation failed after retries'}
+    # AI failed, try fallback
+    try:
+        return await _generate_fallback_poster(request)
+    except Exception:
+        return {'poster_url': '', 'error': last_error or 'Generation failed after retries'}
+
+
+# Fallback poster colors per genre (gradient top, gradient bottom, accent)
+POSTER_GENRE_THEMES = {
+    'action': [(180, 40, 20), (20, 10, 5), (255, 100, 0)],
+    'comedy': [(220, 180, 50), (40, 30, 10), (255, 220, 80)],
+    'drama': [(30, 50, 90), (10, 15, 30), (120, 160, 220)],
+    'horror': [(60, 10, 30), (5, 0, 5), (150, 0, 50)],
+    'sci_fi': [(10, 40, 80), (5, 10, 25), (0, 180, 255)],
+    'romance': [(140, 40, 80), (30, 10, 20), (255, 100, 150)],
+    'thriller': [(50, 50, 50), (10, 10, 10), (200, 180, 0)],
+    'animation': [(80, 40, 160), (20, 10, 40), (180, 100, 255)],
+    'documentary': [(40, 60, 40), (10, 15, 10), (100, 180, 100)],
+    'fantasy': [(60, 20, 100), (10, 5, 25), (180, 80, 255)],
+    'musical': [(120, 30, 80), (20, 5, 15), (255, 80, 180)],
+    'western': [(120, 80, 30), (25, 15, 5), (220, 170, 80)],
+    'war': [(60, 60, 50), (15, 15, 10), (180, 160, 100)],
+    'noir': [(30, 30, 35), (5, 5, 8), (150, 150, 160)],
+    'adventure': [(20, 80, 60), (5, 20, 15), (80, 220, 160)],
+    'biographical': [(60, 50, 80), (15, 12, 20), (160, 140, 200)],
+}
+
+
+async def _generate_fallback_poster(request) -> dict:
+    """Generate a fallback poster using Pillow with genre-themed gradient and text overlay."""
+    from io import BytesIO
+    from PIL import Image as PILImage, ImageDraw
+    
+    width, height = 600, 900
+    img = PILImage.new('RGB', (width, height))
+    draw = ImageDraw.Draw(img)
+    
+    genre = (request.genre or 'drama').lower()
+    theme = POSTER_GENRE_THEMES.get(genre, POSTER_GENRE_THEMES['drama'])
+    top_color, bottom_color, accent = theme
+    
+    # Draw gradient background
+    for y in range(height):
+        ratio = y / height
+        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+    
+    # Add accent line
+    draw.rectangle([(0, height//3 - 2), (width, height//3 + 2)], fill=accent + (80,))
+    
+    # Add decorative elements
+    import random as rng
+    rng.seed(hash(request.title) if request.title else 42)
+    for _ in range(20):
+        x = rng.randint(0, width)
+        y = rng.randint(0, height // 2)
+        size = rng.randint(1, 3)
+        alpha = rng.randint(40, 120)
+        draw.ellipse([(x, y), (x + size, y + size)], fill=(255, 255, 255, alpha))
+    
+    # Apply text overlay
+    img = _overlay_poster_text(img, request.title or 'Film', request.cast_names or [])
+    
+    jpeg_buffer = BytesIO()
+    img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
+    jpeg_bytes = jpeg_buffer.getvalue()
+    image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+    poster_data_url = f"data:image/jpeg;base64,{image_base64}"
+    
+    logging.info(f"Fallback poster generated for '{request.title}' ({genre}): {len(jpeg_bytes)} bytes")
+    return {'poster_base64': image_base64, 'poster_url': poster_data_url, 'is_fallback': True}
 
 @api_router.post("/ai/translate")
 async def translate_text(request: TranslationRequest, user: dict = Depends(get_current_user)):
@@ -8044,6 +8129,19 @@ async def startup_event():
     # Check and generate daily new cast members
     await generate_daily_cast_members()
     
+    # Initialize emerging screenplays if needed
+    available_count = await db.emerging_screenplays.count_documents({
+        'status': 'available',
+        'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+    })
+    if available_count < 3:
+        num = random.randint(3, 6)
+        for _ in range(num):
+            await generate_emerging_screenplay()
+        logging.info(f"Initialized {num} emerging screenplays")
+    else:
+        logging.info(f"Emerging screenplays: {available_count} available")
+    
     # Fix existing cast members with decimal skills
     await fix_decimal_skills_in_db()
     
@@ -8138,6 +8236,21 @@ async def startup_event():
         update_film_attendance,
         IntervalTrigger(minutes=10),
         id='update_film_attendance',
+        replace_existing=True
+    )
+    
+    # Every 2 hours: Generate new emerging screenplays and expire old ones
+    async def emerging_screenplays_task():
+        try:
+            await expire_old_screenplays()
+            await generate_batch_screenplays()
+        except Exception as e:
+            logging.error(f"Emerging screenplays task error: {e}")
+    
+    scheduler.add_job(
+        emerging_screenplays_task,
+        IntervalTrigger(hours=2),
+        id='emerging_screenplays',
         replace_existing=True
     )
     
@@ -13268,6 +13381,317 @@ async def get_scheduler_status():
         'jobs': jobs,
         'message': 'Il gioco funziona autonomamente 24/7 senza intervento dell\'Agent'
     }
+
+# ==================== EMERGING SCREENPLAYS SYSTEM ====================
+
+async def generate_emerging_screenplay():
+    """Generate a single emerging screenplay with screenwriter, cast, and ratings."""
+    # Pick genre
+    genre = random.choice(GENRE_LIST)
+    genre_info = GENRES[genre]
+    subgenres = random.sample(genre_info['subgenres'], min(3, len(genre_info['subgenres'])))
+    
+    # Decide if new or existing screenwriter (20% new, 80% existing)
+    is_new_screenwriter = random.random() < 0.20
+    
+    if is_new_screenwriter:
+        screenwriter = generate_cast_member_v2('screenwriter', category='random')
+        # Save to people collection so they become permanent
+        sw_doc = {k: v for k, v in screenwriter.items() if k != '_id'}
+        await db.people.insert_one(sw_doc)
+    else:
+        # Pick from existing screenwriters
+        screenwriters = await db.people.find(
+            {'role_type': 'screenwriter'}, {'_id': 0}
+        ).to_list(length=200)
+        if screenwriters:
+            screenwriter = random.choice(screenwriters)
+        else:
+            screenwriter = generate_cast_member_v2('screenwriter', category='random')
+            sw_doc = {k: v for k, v in screenwriter.items() if k != '_id'}
+            await db.people.insert_one(sw_doc)    
+    # Generate title and synopsis
+    title = generate_title(genre)
+    synopsis = generate_synopsis(genre)
+    
+    # Pick director from pool
+    directors = await db.people.find(
+        {'role_type': 'director'}, {'_id': 0}
+    ).to_list(length=200)
+    director = random.choice(directors) if directors else generate_cast_member_v2('director')
+    
+    # Pick actors (3-5)
+    num_actors = random.randint(3, 5)
+    actors_pool = await db.people.find(
+        {'role_type': 'actor'}, {'_id': 0}
+    ).to_list(length=300)
+    
+    selected_actors = random.sample(actors_pool, min(num_actors, len(actors_pool))) if actors_pool else []
+    
+    # Assign roles
+    roles = get_roles_for_genre(genre, len(selected_actors))
+    cast_with_roles = []
+    for i, actor in enumerate(selected_actors):
+        cast_with_roles.append({
+            **actor,
+            'role': roles[i] if i < len(roles) else f'Personaggio {i+1}'
+        })
+    
+    # Pick composer (70% chance)
+    composer = None
+    if random.random() < 0.70:
+        composers = await db.people.find(
+            {'role_type': 'composer'}, {'_id': 0}
+        ).to_list(length=100)
+        if composers:
+            composer = random.choice(composers)
+    
+    # Pick locations (1-3)
+    num_locations = random.randint(1, 3)
+    selected_locations = random.sample(LOCATIONS, min(num_locations, len(LOCATIONS)))
+    location_names = [loc['name'] for loc in selected_locations]
+    location_days = {loc['name']: random.randint(5, 14) for loc in selected_locations}
+    
+    # Pick equipment
+    equipment = random.choice(EQUIPMENT_PACKAGES)
+    
+    # Calculate ratings
+    story_rating = calculate_story_rating(screenwriter.get('skills', {}), genre)
+    full_rating = calculate_full_package_rating(story_rating, cast_with_roles, director)
+    
+    # Calculate costs
+    screenplay_cost = calculate_screenplay_cost(story_rating, screenwriter.get('stars', 3))
+    full_cost = calculate_full_package_cost(screenplay_cost, cast_with_roles, director)
+    
+    # Expiration: 24-48 hours
+    hours_to_expire = random.randint(24, 48)
+    
+    screenplay = {
+        'id': str(uuid.uuid4()),
+        'screenwriter': {
+            'id': screenwriter['id'],
+            'name': screenwriter.get('name', 'Unknown'),
+            'nationality': screenwriter.get('nationality', 'USA'),
+            'gender': screenwriter.get('gender', 'male'),
+            'avatar_url': screenwriter.get('avatar_url', ''),
+            'skills': screenwriter.get('skills', {}),
+            'stars': screenwriter.get('stars', 3),
+            'fame': screenwriter.get('fame', 50),
+            'fame_category': screenwriter.get('fame_category', 'unknown'),
+            'cost': screenwriter.get('cost', 100000),
+            'is_star': screenwriter.get('is_star', False),
+        },
+        'is_new_screenwriter': is_new_screenwriter,
+        'title': title,
+        'genre': genre,
+        'subgenres': subgenres,
+        'synopsis': synopsis,
+        'proposed_cast': {
+            'director': {
+                'id': director['id'],
+                'name': director.get('name', 'Unknown'),
+                'nationality': director.get('nationality', 'USA'),
+                'gender': director.get('gender', 'male'),
+                'avatar_url': director.get('avatar_url', ''),
+                'skills': director.get('skills', {}),
+                'stars': director.get('stars', 3),
+                'fame': director.get('fame', 50),
+                'cost': director.get('cost', 200000),
+                'is_star': director.get('is_star', False),
+            },
+            'actors': [{
+                'id': a['id'],
+                'name': a.get('name', 'Unknown'),
+                'nationality': a.get('nationality', 'USA'),
+                'gender': a.get('gender', 'male'),
+                'avatar_url': a.get('avatar_url', ''),
+                'skills': a.get('skills', {}),
+                'stars': a.get('stars', 3),
+                'fame': a.get('fame', 50),
+                'cost': a.get('cost', 100000),
+                'is_star': a.get('is_star', False),
+                'role': a.get('role', 'Attore'),
+            } for a in cast_with_roles],
+            'composer': {
+                'id': composer['id'],
+                'name': composer.get('name', 'Unknown'),
+                'avatar_url': composer.get('avatar_url', ''),
+                'skills': composer.get('skills', {}),
+                'stars': composer.get('stars', 3),
+                'cost': composer.get('cost', 100000),
+            } if composer else None,
+        },
+        'proposed_locations': location_names,
+        'proposed_location_days': location_days,
+        'proposed_equipment': equipment['name'],
+        'story_rating': story_rating,
+        'full_package_rating': full_rating,
+        'screenplay_cost': screenplay_cost,
+        'full_package_cost': full_cost,
+        'status': 'available',
+        'accepted_by': None,
+        'accepted_by_nickname': None,
+        'accepted_option': None,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(hours=hours_to_expire)).isoformat(),
+    }
+    
+    sp_doc = {k: v for k, v in screenplay.items() if k != '_id'}
+    await db.emerging_screenplays.insert_one(sp_doc)
+    return screenplay['id']
+
+
+async def generate_batch_screenplays():
+    """Generate a random batch of screenplays. Called by scheduler."""
+    # Check how many are currently available
+    available_count = await db.emerging_screenplays.count_documents({
+        'status': 'available',
+        'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+    })
+    
+    # Generate 0-5 new ones, but never exceed ~10 active
+    max_new = max(0, 10 - available_count)
+    if max_new <= 0:
+        return 0
+    
+    num_to_generate = random.randint(1, min(5, max_new))
+    
+    for _ in range(num_to_generate):
+        await generate_emerging_screenplay()
+    
+    logging.info(f"Generated {num_to_generate} emerging screenplays (total available: {available_count + num_to_generate})")
+    return num_to_generate
+
+
+async def expire_old_screenplays():
+    """Mark expired screenplays."""
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.emerging_screenplays.update_many(
+        {'status': 'available', 'expires_at': {'$lte': now}},
+        {'$set': {'status': 'expired'}}
+    )
+    if result.modified_count > 0:
+        logging.info(f"Expired {result.modified_count} emerging screenplays")
+
+
+@api_router.get("/emerging-screenplays")
+async def get_emerging_screenplays(user: dict = Depends(get_current_user)):
+    """Get all available emerging screenplays."""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Expire old ones first
+    await expire_old_screenplays()
+    
+    screenplays = await db.emerging_screenplays.find(
+        {'status': 'available', 'expires_at': {'$gt': now}},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(length=50)
+    
+    return screenplays
+
+
+@api_router.get("/emerging-screenplays/count")
+async def get_emerging_screenplays_count(user: dict = Depends(get_current_user)):
+    """Get count of available screenplays for notification badge."""
+    now = datetime.now(timezone.utc).isoformat()
+    count = await db.emerging_screenplays.count_documents({
+        'status': 'available',
+        'expires_at': {'$gt': now}
+    })
+    
+    # Track last seen timestamp per user
+    last_seen = user.get('emerging_screenplays_last_seen', '')
+    new_count = await db.emerging_screenplays.count_documents({
+        'status': 'available',
+        'expires_at': {'$gt': now},
+        'created_at': {'$gt': last_seen} if last_seen else {'$exists': True}
+    })
+    
+    return {'total': count, 'new': new_count}
+
+
+@api_router.post("/emerging-screenplays/mark-seen")
+async def mark_screenplays_seen(user: dict = Depends(get_current_user)):
+    """Mark all current screenplays as seen (clears notification badge)."""
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'emerging_screenplays_last_seen': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {'success': True}
+
+
+@api_router.get("/emerging-screenplays/{screenplay_id}")
+async def get_emerging_screenplay_detail(screenplay_id: str, user: dict = Depends(get_current_user)):
+    """Get details of a specific emerging screenplay."""
+    screenplay = await db.emerging_screenplays.find_one({'id': screenplay_id}, {'_id': 0})
+    if not screenplay:
+        raise HTTPException(status_code=404, detail="Sceneggiatura non trovata")
+    return screenplay
+
+
+@api_router.post("/emerging-screenplays/{screenplay_id}/accept")
+async def accept_emerging_screenplay(
+    screenplay_id: str,
+    body: dict = Body(...),
+    user: dict = Depends(get_current_user)
+):
+    """Accept an emerging screenplay. Options: 'full_package' or 'screenplay_only'."""
+    option = body.get('option', 'screenplay_only')
+    if option not in ('full_package', 'screenplay_only'):
+        raise HTTPException(status_code=400, detail="Opzione non valida")
+    
+    screenplay = await db.emerging_screenplays.find_one({'id': screenplay_id}, {'_id': 0})
+    if not screenplay:
+        raise HTTPException(status_code=404, detail="Sceneggiatura non trovata")
+    
+    if screenplay['status'] != 'available':
+        raise HTTPException(status_code=400, detail="Questa sceneggiatura non è più disponibile")
+    
+    # Check expiration
+    if screenplay['expires_at'] < datetime.now(timezone.utc).isoformat():
+        await db.emerging_screenplays.update_one({'id': screenplay_id}, {'$set': {'status': 'expired'}})
+        raise HTTPException(status_code=400, detail="Questa sceneggiatura è scaduta")
+    
+    # Check funds
+    cost = screenplay['full_package_cost'] if option == 'full_package' else screenplay['screenplay_cost']
+    if user['funds'] < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,.0f}")
+    
+    # Deduct funds
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -cost}}
+    )
+    
+    # Mark screenplay as accepted
+    await db.emerging_screenplays.update_one(
+        {'id': screenplay_id},
+        {'$set': {
+            'status': 'accepted',
+            'accepted_by': user['id'],
+            'accepted_by_nickname': user.get('nickname', 'Unknown'),
+            'accepted_option': option,
+            'accepted_at': datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    
+    # Award XP for purchasing
+    xp_reward = 15
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'total_xp': xp_reward}}
+    )
+    
+    # Return the screenplay data so frontend can navigate to wizard
+    return {
+        'success': True,
+        'option': option,
+        'cost': cost,
+        'screenplay': screenplay,
+        'xp_earned': xp_reward,
+        'message': f"Sceneggiatura acquistata! -{cost:,.0f}$"
+    }
+
 
 # Include router and middleware
 app.include_router(api_router)

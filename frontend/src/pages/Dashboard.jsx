@@ -39,7 +39,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown, Pen
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
@@ -55,6 +55,7 @@ const Dashboard = () => {
   const [catchupData, setCatchupData] = useState(null);
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collecting, setCollecting] = useState(false);
+  const [emergingCount, setEmergingCount] = useState(0);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -195,6 +196,12 @@ const Dashboard = () => {
         setFilms(filmsRes.data);  // Already limited and sorted by backend
         setChallenges(challengesRes.data);
         setPendingRevenue(pendingRes.data);
+        
+        // Fetch emerging screenplays count for badge
+        try {
+          const emergingRes = await api.get('/emerging-screenplays/count');
+          setEmergingCount(emergingRes.data.new || 0);
+        } catch {}
       } catch (err) {
         console.error(err);
       }
@@ -370,6 +377,13 @@ const Dashboard = () => {
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-orange-500 rounded-lg"><Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Pre-Ingaggio' : 'Pre-Engage'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Ingaggia cast' : 'Engage cast'}</p></div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border-emerald-500/20 cursor-pointer relative" onClick={() => navigate('/emerging-screenplays')} data-testid="emerging-screenplays-card">
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-emerald-500 rounded-lg"><Pen className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sceneggiature' : 'Screenplays'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Trame pronte' : 'Ready scripts'}</p></div>
+            {emergingCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{emergingCount}</span>}
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-blue-500/20 to-blue-600/5 border-blue-500/20 cursor-pointer" onClick={() => navigate('/games')}>

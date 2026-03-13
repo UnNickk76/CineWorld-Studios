@@ -40,7 +40,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, Pen
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 
@@ -195,7 +195,51 @@ const FilmWizard = () => {
   };
   
   // Load draft from URL params or localStorage
+  const location = useLocation();
+  
+  // Emerging screenplay support
+  const [emergingScreenplay, setEmergingScreenplay] = useState(null);
+  const [emergingOption, setEmergingOption] = useState(null);
+  
   useEffect(() => {
+    // Check for emerging screenplay in navigation state
+    if (location.state?.emergingScreenplay) {
+      const sp = location.state.emergingScreenplay;
+      const option = location.state.emergingOption;
+      setEmergingScreenplay(sp);
+      setEmergingOption(option);
+      
+      // Pre-fill film data from screenplay
+      const newData = {
+        ...filmData,
+        title: sp.title,
+        genre: sp.genre,
+        subgenres: sp.subgenres || [],
+        screenwriter_id: sp.screenwriter?.id || '',
+        locations: sp.proposed_locations || [],
+        location_days: sp.proposed_location_days || {},
+        equipment_package: sp.proposed_equipment || 'Standard',
+        screenplay: sp.synopsis || '',
+        screenplay_source: 'emerging',
+      };
+      
+      if (option === 'full_package') {
+        // Lock everything: also set director, actors, composer
+        newData.director_id = sp.proposed_cast?.director?.id || '';
+        newData.composer_id = sp.proposed_cast?.composer?.id || '';
+        newData.actors = (sp.proposed_cast?.actors || []).map(a => ({
+          id: a.id, role: a.role || 'Lead', fee: a.cost || 100000
+        }));
+      }
+      
+      setFilmData(newData);
+      toast.info(
+        option === 'full_package'
+          ? 'Sceneggiatura e cast caricati. Puoi scegliere solo la locandina!'
+          : 'Sceneggiatura caricata. Lo sceneggiatore è bloccato, scegli il resto del cast!'
+      );
+    }
+    
     const params = new URLSearchParams(window.location.search);
     const draftId = params.get('draft');
     if (draftId) {
@@ -1267,6 +1311,20 @@ const FilmWizard = () => {
   };
 
   const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 2:return filmData.locations.length>0; case 3:return filmData.screenwriter_id; case 4:return filmData.director_id; case 5:return filmData.composer_id; case 6:return filmData.actors.length>0; case 7:return filmData.screenplay; default:return true; }};
+  
+  // Check if current step is locked by emerging screenplay
+  const isStepLocked = (s) => {
+    if (!emergingScreenplay) return false;
+    if (emergingOption === 'full_package') {
+      // Only poster step (9) is editable
+      return s !== 9 && s !== 12;
+    }
+    if (emergingOption === 'screenplay_only') {
+      // Only screenwriter (3) and script (7) are locked
+      return s === 3 || s === 7;
+    }
+    return false;
+  };
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="film-wizard">
@@ -1298,7 +1356,36 @@ const FilmWizard = () => {
           </div>
         </div>
       )}
-      <Card className="bg-[#1A1A1A] border-white/10 mt-2"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
+      {/* Emerging screenplay info banner */}
+      {emergingScreenplay && (
+        <div className="mt-2 mb-1 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg" data-testid="emerging-banner">
+          <div className="flex items-center gap-2 text-xs">
+            <Pen className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span className="text-emerald-300 font-medium">
+              {emergingOption === 'full_package' 
+                ? 'Pacchetto completo - solo la locandina è modificabile'
+                : 'Sceneggiatura acquistata - sceneggiatore bloccato'}
+            </span>
+          </div>
+        </div>
+      )}
+      <Card className="bg-[#1A1A1A] border-white/10 mt-2"><CardContent className="p-3 relative">
+        <AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence>
+        {/* Locked step overlay */}
+        {isStepLocked(step) && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center z-10" data-testid="locked-overlay">
+            <Lock className="w-8 h-8 text-yellow-500/70 mb-2" />
+            <p className="text-sm text-white/60 text-center px-4">
+              {emergingOption === 'full_package' 
+                ? 'Questo step è incluso nel pacchetto completo'
+                : 'Lo sceneggiatore è stato scelto dalla sceneggiatura'}
+            </p>
+            <Button variant="ghost" size="sm" className="mt-2 text-yellow-500" onClick={() => setStep(step + 1)}>
+              Vai avanti <ChevronRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+        )}
+      </CardContent></Card>
 
       {/* Rejection Modal */}
       {rejectionModal && (

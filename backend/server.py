@@ -1073,7 +1073,7 @@ class FilmCreate(BaseModel):
     screenwriter_id: str
     director_id: str
     composer_id: Optional[str] = None  # Composer for soundtrack
-    actors: List[Dict[str, str]]  # Each actor has {id, role}
+    actors: List[Dict[str, Any]]  # Each actor has {actor_id, role}
     extras_count: int
     extras_cost: float
     screenplay: str
@@ -7574,63 +7574,190 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
         return {'poster_url': '', 'error': last_error or 'Generation failed after retries'}
 
 
-# Fallback poster colors per genre (gradient top, gradient bottom, accent)
+# Multiple color themes per genre for variety
 POSTER_GENRE_THEMES = {
-    'action': [(180, 40, 20), (20, 10, 5), (255, 100, 0)],
-    'comedy': [(220, 180, 50), (40, 30, 10), (255, 220, 80)],
-    'drama': [(30, 50, 90), (10, 15, 30), (120, 160, 220)],
-    'horror': [(60, 10, 30), (5, 0, 5), (150, 0, 50)],
-    'sci_fi': [(10, 40, 80), (5, 10, 25), (0, 180, 255)],
-    'romance': [(140, 40, 80), (30, 10, 20), (255, 100, 150)],
-    'thriller': [(50, 50, 50), (10, 10, 10), (200, 180, 0)],
-    'animation': [(80, 40, 160), (20, 10, 40), (180, 100, 255)],
-    'documentary': [(40, 60, 40), (10, 15, 10), (100, 180, 100)],
-    'fantasy': [(60, 20, 100), (10, 5, 25), (180, 80, 255)],
-    'musical': [(120, 30, 80), (20, 5, 15), (255, 80, 180)],
-    'western': [(120, 80, 30), (25, 15, 5), (220, 170, 80)],
-    'war': [(60, 60, 50), (15, 15, 10), (180, 160, 100)],
-    'noir': [(30, 30, 35), (5, 5, 8), (150, 150, 160)],
-    'adventure': [(20, 80, 60), (5, 20, 15), (80, 220, 160)],
-    'biographical': [(60, 50, 80), (15, 12, 20), (160, 140, 200)],
+    'action': [
+        [(180, 40, 20), (20, 10, 5), (255, 100, 0)],
+        [(200, 60, 0), (10, 5, 0), (255, 200, 0)],
+        [(60, 0, 0), (0, 0, 0), (255, 50, 50)],
+    ],
+    'comedy': [
+        [(220, 180, 50), (40, 30, 10), (255, 220, 80)],
+        [(255, 150, 50), (50, 20, 0), (255, 255, 100)],
+        [(200, 100, 180), (30, 10, 25), (255, 180, 220)],
+    ],
+    'drama': [
+        [(30, 50, 90), (10, 15, 30), (120, 160, 220)],
+        [(50, 30, 70), (10, 5, 15), (180, 120, 200)],
+        [(20, 40, 60), (5, 5, 10), (100, 180, 200)],
+    ],
+    'horror': [
+        [(60, 10, 30), (5, 0, 5), (150, 0, 50)],
+        [(30, 0, 0), (0, 0, 0), (200, 0, 0)],
+        [(0, 20, 0), (0, 0, 0), (0, 200, 50)],
+    ],
+    'sci_fi': [
+        [(10, 40, 80), (5, 10, 25), (0, 180, 255)],
+        [(0, 10, 40), (0, 0, 10), (0, 255, 200)],
+        [(40, 0, 60), (5, 0, 10), (200, 0, 255)],
+    ],
+    'romance': [
+        [(140, 40, 80), (30, 10, 20), (255, 100, 150)],
+        [(180, 60, 60), (40, 10, 10), (255, 150, 180)],
+        [(100, 30, 100), (20, 5, 20), (255, 120, 200)],
+    ],
+    'thriller': [
+        [(50, 50, 50), (10, 10, 10), (200, 180, 0)],
+        [(40, 30, 20), (5, 5, 5), (255, 200, 100)],
+        [(20, 20, 40), (0, 0, 5), (180, 180, 255)],
+    ],
+    'fantasy': [
+        [(60, 20, 100), (10, 5, 25), (180, 80, 255)],
+        [(20, 40, 80), (5, 5, 15), (100, 200, 255)],
+        [(80, 20, 60), (15, 5, 10), (255, 100, 200)],
+    ],
 }
+# Default themes for genres not listed above
+POSTER_DEFAULT_THEMES = [
+    [(40, 40, 50), (10, 10, 15), (180, 180, 200)],
+    [(50, 40, 30), (10, 8, 5), (200, 170, 120)],
+    [(30, 50, 40), (5, 10, 8), (120, 200, 160)],
+]
+
+# Decorative pattern types
+POSTER_PATTERNS = ['circles', 'lines', 'diamonds', 'rays', 'grid', 'nebula', 'vignette']
 
 
 async def _generate_fallback_poster(request) -> dict:
-    """Generate a fallback poster using Pillow with genre-themed gradient and text overlay."""
+    """Generate a diverse fallback poster using Pillow with genre-themed visuals."""
     from io import BytesIO
     from PIL import Image as PILImage, ImageDraw
+    import math
     
     width, height = 600, 900
     img = PILImage.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
     
     genre = (request.genre or 'drama').lower()
-    theme = POSTER_GENRE_THEMES.get(genre, POSTER_GENRE_THEMES['drama'])
+    title = request.title or 'Film'
+    
+    # Use title hash for consistent but varied results per film
+    seed = hash(title + genre) % 2**32
+    import random as rng
+    rng.seed(seed)
+    
+    # Pick a random theme variant for this genre
+    themes = POSTER_GENRE_THEMES.get(genre, POSTER_DEFAULT_THEMES)
+    theme = rng.choice(themes)
     top_color, bottom_color, accent = theme
     
-    # Draw gradient background
+    # Randomize colors slightly for more variety
+    def jitter(color, amount=25):
+        return tuple(max(0, min(255, c + rng.randint(-amount, amount))) for c in color)
+    
+    top_color = jitter(top_color, 20)
+    bottom_color = jitter(bottom_color, 10)
+    accent = jitter(accent, 15)
+    
+    # Draw gradient background (with optional diagonal)
+    diagonal = rng.random() < 0.4
     for y in range(height):
-        ratio = y / height
-        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
+        for x in range(width) if diagonal else [0]:
+            if diagonal:
+                ratio = (y / height * 0.7 + x / width * 0.3)
+            else:
+                ratio = y / height
+            r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+            g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+            b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+            if diagonal:
+                draw.point((x, y), fill=(r, g, b))
+            else:
+                draw.line([(0, y), (width, y)], fill=(r, g, b))
     
-    # Add accent line
-    draw.rectangle([(0, height//3 - 2), (width, height//3 + 2)], fill=accent + (80,))
+    # Choose decorative pattern
+    pattern = rng.choice(POSTER_PATTERNS)
     
-    # Add decorative elements
-    import random as rng
-    rng.seed(hash(request.title) if request.title else 42)
-    for _ in range(20):
+    if pattern == 'circles':
+        for _ in range(rng.randint(5, 15)):
+            cx, cy = rng.randint(-50, width + 50), rng.randint(-50, height)
+            r = rng.randint(30, 200)
+            opacity = rng.randint(10, 40)
+            col = accent + (opacity,)
+            draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], outline=col, width=rng.randint(1, 3))
+    
+    elif pattern == 'lines':
+        for _ in range(rng.randint(5, 20)):
+            y_pos = rng.randint(0, height)
+            opacity = rng.randint(15, 50)
+            col = accent + (opacity,)
+            draw.line([(0, y_pos), (width, y_pos + rng.randint(-100, 100))], fill=col, width=rng.randint(1, 4))
+    
+    elif pattern == 'diamonds':
+        for _ in range(rng.randint(3, 10)):
+            cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
+            s = rng.randint(20, 80)
+            opacity = rng.randint(15, 45)
+            col = accent + (opacity,)
+            draw.polygon([(cx, cy - s), (cx + s, cy), (cx, cy + s), (cx - s, cy)], outline=col, fill=None)
+    
+    elif pattern == 'rays':
+        cx, cy = width // 2, height // 3
+        for i in range(rng.randint(8, 24)):
+            angle = (i / 24) * 2 * math.pi + rng.uniform(-0.1, 0.1)
+            ex = cx + int(math.cos(angle) * 800)
+            ey = cy + int(math.sin(angle) * 800)
+            opacity = rng.randint(8, 30)
+            col = accent + (opacity,)
+            draw.line([(cx, cy), (ex, ey)], fill=col, width=rng.randint(1, 3))
+    
+    elif pattern == 'grid':
+        spacing = rng.randint(40, 80)
+        for x in range(0, width, spacing):
+            opacity = rng.randint(8, 25)
+            draw.line([(x, 0), (x, height)], fill=accent + (opacity,), width=1)
+        for y in range(0, height, spacing):
+            opacity = rng.randint(8, 25)
+            draw.line([(0, y), (width, y)], fill=accent + (opacity,), width=1)
+    
+    elif pattern == 'nebula':
+        for _ in range(rng.randint(30, 80)):
+            cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
+            r = rng.randint(2, 40)
+            opacity = rng.randint(5, 30)
+            c = jitter(accent, 40) + (opacity,)
+            draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=c)
+    
+    elif pattern == 'vignette':
+        # Dark corners
+        for r in range(max(width, height), 0, -3):
+            opacity = max(0, min(60, int((1 - r / max(width, height)) * 60)))
+            draw.ellipse(
+                [(width // 2 - r, height // 2 - r), (width // 2 + r, height // 2 + r)],
+                outline=(0, 0, 0, opacity)
+            )
+    
+    # Always add some subtle stars/particles in upper half
+    for _ in range(rng.randint(10, 40)):
         x = rng.randint(0, width)
         y = rng.randint(0, height // 2)
         size = rng.randint(1, 3)
-        alpha = rng.randint(40, 120)
-        draw.ellipse([(x, y), (x + size, y + size)], fill=(255, 255, 255, alpha))
+        brightness = rng.randint(100, 255)
+        draw.ellipse([(x, y), (x + size, y + size)], fill=(brightness, brightness, brightness))
+    
+    # Add accent bars (genre-specific feel)
+    bar_style = rng.choice(['top', 'bottom', 'both', 'none'])
+    if bar_style in ('top', 'both'):
+        bar_h = rng.randint(2, 6)
+        bar_y = rng.randint(height // 5, height // 3)
+        draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
+    if bar_style in ('bottom', 'both'):
+        bar_h = rng.randint(2, 6)
+        bar_y = rng.randint(height * 2 // 3, height * 3 // 4)
+        draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
     
     # Apply text overlay
-    img = _overlay_poster_text(img, request.title or 'Film', request.cast_names or [])
+    img = _overlay_poster_text(img, title, request.cast_names or [])
     
     jpeg_buffer = BytesIO()
     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
@@ -7638,7 +7765,7 @@ async def _generate_fallback_poster(request) -> dict:
     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
     poster_data_url = f"data:image/jpeg;base64,{image_base64}"
     
-    logging.info(f"Fallback poster generated for '{request.title}' ({genre}): {len(jpeg_bytes)} bytes")
+    logging.info(f"Fallback poster generated for '{title}' ({genre}, pattern={pattern}): {len(jpeg_bytes)} bytes")
     return {'poster_base64': image_base64, 'poster_url': poster_data_url, 'is_fallback': True}
 
 @api_router.post("/ai/translate")

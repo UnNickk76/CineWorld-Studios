@@ -1,0 +1,89 @@
+{
+  "summary": "Bug Fixes Verification (iteration 51): Both reported bugs have been VERIFIED FIXED. Bug #1 (actor format error 'Input should be a valid string') - Backend test confirms POST /api/films accepts actors in {actor_id, role} format. Bug #2 (AI poster generation) - All poster endpoints working: /start returns task_id, /status returns status, fallback generates base64 images. All 13 backend tests pass (100%).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "component": "EmergingScreenplays modal",
+        "issue": "Minor HTML validation warning: div inside p element in DialogDescription",
+        "severity": "LOW"
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bug_fixes_iter51.py",
+    "/app/test_reports/pytest/pytest_iter51.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Bug #1 FIX VERIFIED: FilmWizard.jsx line 234-235 correctly maps emerging screenplay actors to {actor_id, role} format",
+    "Bug #1 FIX VERIFIED: server.py FilmCreate model changed actors from Dict[str,str] to Dict[str,Any]",
+    "Bug #1 FIX VERIFIED: server.py line 3463 uses actor_info.get('actor_id') to process actors",
+    "Bug #2 FIX VERIFIED: POST /api/ai/poster/start returns task_id for async poster generation",
+    "Bug #2 FIX VERIFIED: GET /api/ai/poster/status/{task_id} polls correctly and returns done/error",
+    "Bug #2 FIX VERIFIED: POST /api/ai/poster with force_fallback=true always returns poster_url",
+    "Bug #2 FIX VERIFIED: Fallback posters work for all genres (action, comedy, horror, sci_fi, drama, romance)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bug_fixes_iter51.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (full_package purchase flow verified)"
+  },
+  "test_credentials": {
+    "email": "fandrex1@gmail.com",
+    "password": "Ciaociao1"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both user-reported bugs are verified fixed: 1) Creating film from emerging screenplay with full_package option no longer throws 'Input should be a valid string' error - actors are now correctly formatted as {actor_id, role}. 2) AI poster generation endpoints all work correctly with polling and fallback. Available screenplays for testing: 'Che Matrimonio!' (comedy), 'Fibonacci: Una Vita' (biographical), 'Operazione Vacanza' (comedy).",
+  "features_tested": {
+    "bug_1_actor_format": {
+      "description": "Film creation with actors in {actor_id, role} format",
+      "test": "POST /api/films with actors=[{actor_id: 'xxx', role: 'protagonist'}]",
+      "result": "PASS - Payload accepted, no 'valid string' error",
+      "evidence": "test_create_film_with_actor_id_format passed"
+    },
+    "bug_2_poster_start": {
+      "description": "AI poster generation start endpoint",
+      "test": "POST /api/ai/poster/start",
+      "result": "PASS - Returns task_id",
+      "evidence": "test_poster_start_endpoint_returns_task_id passed"
+    },
+    "bug_2_poster_status": {
+      "description": "AI poster generation status polling",
+      "test": "GET /api/ai/poster/status/{task_id}",
+      "result": "PASS - Returns pending/done/error status",
+      "evidence": "test_poster_status_endpoint, test_poster_status_polling_eventually_completes passed"
+    },
+    "bug_2_poster_fallback": {
+      "description": "Fallback poster generation",
+      "test": "POST /api/ai/poster with force_fallback=true",
+      "result": "PASS - Returns base64 poster_url for all genres",
+      "evidence": "test_poster_fallback_always_returns_image, test_poster_fallback_multiple_genres passed"
+    },
+    "emerging_screenplays_api": {
+      "description": "Emerging screenplays listing and detail",
+      "test": "GET /api/emerging-screenplays, GET /api/emerging-screenplays/{id}",
+      "result": "PASS - Returns screenplay list and details",
+      "evidence": "test_get_emerging_screenplays_list, test_get_screenplay_detail passed"
+    },
+    "frontend_full_package_flow": {
+      "description": "UI flow for purchasing screenplay with full_package",
+      "test": "Click screenplay card -> Click 'Pacchetto Completo' -> Navigate to wizard",
+      "result": "PASS - Redirects to /create with pre-filled data",
+      "evidence": "Screenshots show wizard with 'Fibonacci: Una Vita' loaded, steps 1-4 completed"
+    }
+  },
+  "rca_of_issue": {
+    "bug_1": "The original bug occurred because when accepting a full_package emerging screenplay, the frontend was mapping actors as {id, role, fee} but the backend expected {actor_id, role}. The fix changed FilmWizard.jsx line 234-235 to use actor_id instead of id, and the Pydantic model was changed from Dict[str,str] to Dict[str,Any] to accept the object format.",
+    "bug_2": "The poster polling was failing silently on network errors. The fix added try/catch around individual poll requests in generatePoster() and changed setFilmData calls to use functional updates (prev => ...) to avoid stale state issues."
+  }
+}

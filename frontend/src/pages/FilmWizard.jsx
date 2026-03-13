@@ -232,7 +232,7 @@ const FilmWizard = () => {
         newData.director_id = sp.proposed_cast?.director?.id || '';
         newData.composer_id = sp.proposed_cast?.composer?.id || '';
         newData.actors = (sp.proposed_cast?.actors || []).map(a => ({
-          id: a.id, role: a.role || 'Lead', fee: a.cost || 100000
+          actor_id: a.id, role: a.role || 'protagonist'
         }));
       }
       
@@ -268,7 +268,10 @@ const FilmWizard = () => {
         screenwriter_id: draft.screenwriter_id || '',
         director_id: draft.director_id || '',
         composer_id: draft.composer_id || '',
-        actors: draft.actors || [],
+        actors: (draft.actors || []).map(a => ({
+          actor_id: a.actor_id || a.id || '',
+          role: a.role || 'protagonist'
+        })),
         extras_count: draft.extras_count || 50,
         extras_cost: draft.extras_cost || 50000,
         screenplay: draft.screenplay || '',
@@ -310,9 +313,8 @@ const FilmWizard = () => {
           setFilmData(prev => ({
             ...prev, 
             actors: preCast.actors.map(a => ({
-              id: a.id,
-              role: 'Lead',
-              fee: a.offered_fee
+              actor_id: a.id,
+              role: 'Lead'
             }))
           }));
         }
@@ -477,8 +479,12 @@ const FilmWizard = () => {
     setPosterProgress(language === 'it' ? 'Avvio generazione...' : 'Starting generation...');
     try {
       const castNames = [];
-      if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
-      if (filmData.director) castNames.unshift(filmData.director.name);
+      const dirObj = directors.find(d => d.id === filmData.director_id);
+      if (dirObj) castNames.push(dirObj.name);
+      filmData.actors?.forEach(a => {
+        const actObj = actors.find(ac => ac.id === (a.actor_id || a.id));
+        if (actObj) castNames.push(actObj.name);
+      });
       
       // Step 1: Start generation (fast response)
       const startRes = await api.post('/ai/poster/start', { 
@@ -486,7 +492,7 @@ const FilmWizard = () => {
         genre: filmData.genre, 
         description: filmData.poster_prompt || filmData.title, 
         style: 'cinematic',
-        cast_names: castNames.slice(0, 4)
+        cast_names: castNames.slice(0, 5)
       });
       
       const taskId = startRes.data.task_id;
@@ -495,34 +501,73 @@ const FilmWizard = () => {
       setPosterProgress(language === 'it' ? 'Generazione AI in corso... ~20s' : 'AI generating... ~20s');
       
       // Step 2: Poll for result every 3 seconds
-      const maxPolls = 40; // 40 * 3s = 120s max
+      const maxPolls = 40;
+      let gotResult = false;
       for (let i = 0; i < maxPolls; i++) {
         await new Promise(r => setTimeout(r, 3000));
-        const statusRes = await api.get(`/ai/poster/status/${taskId}`);
-        const { status, poster_url, error } = statusRes.data;
-        
-        if (status === 'done' && poster_url) {
-          setFilmData({...filmData, poster_url});
-          setPosterProgress('');
-          toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!');
-          setGenerating(false);
-          return;
-        } else if (status === 'error') {
-          toast.error(error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed'));
-          break;
+        try {
+          const statusRes = await api.get(`/ai/poster/status/${taskId}`);
+          const { status, poster_url, error, is_fallback } = statusRes.data;
+          
+          if (status === 'done' && poster_url) {
+            setFilmData(prev => ({...prev, poster_url}));
+            setPosterProgress('');
+            toast.success(is_fallback 
+              ? (language === 'it' ? 'Locandina classica generata (AI non disponibile)' : 'Classic poster generated (AI unavailable)')
+              : (language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!'));
+            setGenerating(false);
+            gotResult = true;
+            return;
+          } else if (status === 'error') {
+            break; // Will auto-fallback below
+          }
+        } catch (pollErr) {
+          console.warn('Poll error, retrying...', pollErr);
+          // Continue polling on network errors
         }
-        // Still pending
         const elapsed = (i + 1) * 3;
         setPosterProgress(language === 'it' ? `Generazione in corso... ${elapsed}s` : `Generating... ${elapsed}s`);
       }
       
-      toast.error(language === 'it' ? 'Tempo scaduto, riprova' : 'Timeout, try again');
+      // AI failed or timed out - auto-fallback
+      if (!gotResult) {
+        setPosterProgress(language === 'it' ? 'AI non disponibile, genero locandina classica...' : 'AI unavailable, generating classic poster...');
+        await _doFallbackPoster(castNames);
+      }
     } catch(e) { 
       console.error('Poster generation error:', e);
-      toast.error(language === 'it' ? 'Errore connessione. Riprova.' : 'Connection error. Try again.');
+      // Auto-fallback on any error
+      try {
+        setPosterProgress(language === 'it' ? 'Genero locandina classica...' : 'Generating classic poster...');
+        const castNames = [];
+        const dirObj = directors.find(d => d.id === filmData.director_id);
+        if (dirObj) castNames.push(dirObj.name);
+        filmData.actors?.forEach(a => {
+          const actObj = actors.find(ac => ac.id === (a.actor_id || a.id));
+          if (actObj) castNames.push(actObj.name);
+        });
+        await _doFallbackPoster(castNames);
+      } catch(e2) {
+        toast.error(language === 'it' ? 'Errore generazione locandina' : 'Poster generation error');
+      }
     }
     setPosterProgress('');
     setGenerating(false);
+  };
+  
+  const _doFallbackPoster = async (castNames) => {
+    const res = await api.post('/ai/poster', {
+      title: filmData.title,
+      genre: filmData.genre,
+      description: filmData.poster_prompt || filmData.title,
+      style: 'classic',
+      cast_names: castNames.slice(0, 5),
+      force_fallback: true
+    });
+    if (res.data.poster_url) {
+      setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));
+      toast.success(language === 'it' ? 'Locandina classica generata!' : 'Classic poster generated!');
+    }
   };
   
   const [generatingFallback, setGeneratingFallback] = useState(false);
@@ -533,7 +578,7 @@ const FilmWizard = () => {
       const dirObj = directors.find(d => d.id === filmData.director_id);
       if (dirObj) castNames.push(dirObj.name);
       filmData.actors?.forEach(a => {
-        const actObj = actors.find(ac => ac.id === a.id);
+        const actObj = actors.find(ac => ac.id === (a.actor_id || a.id));
         if (actObj) castNames.push(actObj.name);
       });
       
@@ -546,7 +591,7 @@ const FilmWizard = () => {
         force_fallback: true
       });
       if (res.data.poster_url) {
-        setFilmData({...filmData, poster_url: res.data.poster_url});
+        setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));
         toast.success('Locandina classica generata!');
       }
     } catch(e) {
@@ -756,7 +801,7 @@ const FilmWizard = () => {
       } else if (dismissModal.castType === 'actor') {
         setFilmData(prev => ({
           ...prev,
-          actors: prev.actors.filter(a => a.id !== dismissModal.castId)
+          actors: prev.actors.filter(a => (a.actor_id || a.id) !== dismissModal.castId)
         }));
       }
       

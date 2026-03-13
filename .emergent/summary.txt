@@ -1,171 +1,169 @@
 <analysis>Here is the summary of the last session.
 
 **original_problem_statement:**
-L'utente ha richiesto una revisione completa del wizard di creazione dei film, insieme ad altre correzioni e miglioramenti:
+The user requested a complete overhaul of the movie creation wizard, along with other fixes and improvements. In the last session, the user requested a major new feature called Emerging Screenwriters and reported several bugs.
 
 **PRODUCT REQUIREMENTS (New & In-Progress):**
-1.  **Miglioramenti UI/UX (P0):**
-    *   **Navbar Mobile:** Ripristinare la visibilità di tutte le icone nella barra di navigazione superiore sui dispositivi mobili.
-    *   **Wizard Creazione Film:**
-        *   Rendere fissi (sticky) l'intestazione dello step (es. Sponsor) e la barra di navigazione inferiore (Pausa, Indietro, Avanti) durante lo scorrimento della pagina.
-        *   Spostare la barra di navigazione nella posizione indicata dall'utente (sotto l'indicatore di step).
-2.  **Miglioramenti Gameplay (P0):**
-    *   **Nuove Location:** Aggiungere almeno 80 nuove location per le riprese, suddivise in 4 categorie tematiche (es. Urbano, Natura, etc.).
-    *   **Sistema di Sponsor Dinamico:**
-        *   Spostare lo step Sponsor alla posizione 11 del wizard.
-        *   Rendere le offerte degli sponsor variabili. L'offerta dipenderà da un pre-rating nascosto del film, calcolato in base alle scelte fatte nei 10 step precedenti.
-        *   Un film può ricevere da 0 a 4 offerte di sponsor.
-        *   Una volta raggiunto lo step 11 (Sponsor), non è più possibile tornare indietro.
-        *   Il valore finale del film sarà influenzato dallo sponsor scelto.
-3.  **Gestione Account (Completato):**
-    *   Aggiungere una funzione di Cambio Password nel profilo utente.
-4.  **Bug Fixes (Indirizzati, da verificare):**
-    *   Risolvere definitivamente il problema della generazione di locandine AI, che falliva specialmente su mobile.
+1.  **Emerging Screenwriters Feature (P0 - Mostly Complete, bugs pending):**
+    *   Add a new section where the player can buy pre-written screenplays.
+    *   These screenplays come with a pre-selected plot, cast, and a base IMDb-style rating.
+    *   The player can choose to buy the screenplay only or a full package with the proposed cast.
+    *   When creating a film from a purchased screenplay, the corresponding steps in the film creation wizard should be locked (viewable but not editable), except for the poster creation step.
+    *   The feature should include a system for generating new screenplays periodically, with an expiration date.
+2.  **AI Poster Generation Fallback (P0 - In Progress):**
+    *   When AI poster generation fails, provide a fallback option.
+    *   The fallback posters should be varied and partially personalized with the movie title, director, and main actors.
+3.  **Bug Fixes (P0 - In Progress):**
+    *   Fix a recurring bug where clicking on certain films on the dashboard/social feed causes the app to crash with a Something went wrong message.
+    *   Fix an error occurring at step 12 of the film wizard when creating a film from a purchased screenplay.
+    *   Fix various UI/UX issues reported via screenshots (e.g., page titles hidden by the navbar on mobile, UI for locked steps).
+4.  **Draft/Save System Improvement (P0 - Complete):**
+    *   Ensure the pause and auto-save functionality in the film wizard correctly saves and restores the state for films created from an emerging screenplay.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-L'applicazione ha completato e testato con successo la massiccia ristrutturazione del wizard di creazione film, inclusa la nuova logica per sponsor e location. È stata anche implementata una nuova funzionalità per sovrapporre testo (titolo, attori) sulle locandine generate dall'IA.
+The application is a full-stack movie studio simulation game. A major new feature, Emerging Screenwriters, has been implemented on both the backend and frontend. This includes new API endpoints, database collections, a scheduled job for generation, a new UI page, and complex logic within the existing  to handle locked steps. A significantly improved fallback system for AI-generated posters has also been built, creating varied, genre-themed images using the Pillow library.
 
-Tuttavia, il sito di produzione è attualmente **INUTILIZZABILE**. Il backend del deploy live è andato in crash (restituisce errori 520), impedendo a tutti gli utenti di effettuare il login. Numerosi tentativi di deploy per applicare le nuove modifiche sono falliti a causa di una serie complessa di problemi infrastrutturali (race condition di Nginx, errori DNS, context del Docker build), che sono stati progressivamente diagnosticati e corretti nel codice. L'ultima correzione, un fallback per servire il frontend direttamente dal backend, ha introdotto una regressione nell'ambiente di preview.
+Several critical bugs have been fixed, including a long-standing issue where clicking certain films would crash the application, which was traced to a missing  definition when rendering trailers.
+
+However, three key issues reported by the user remain: AI poster generation still fails on the frontend, the final step of the film wizard is bugged for purchased screenplays, and the production environment remains inaccessible due to an external infrastructure issue.
 
 **Last working item**:
-- **Last item agent was working:** Debugging di una regressione critica introdotta nell'ambiente di preview. Dopo aver aggiunto una route catch-all in  per far servire i file statici del frontend direttamente da FastAPI come soluzione di fallback per il deploy, le chiamate API specifiche (come cliccare su un film per vederne i dettagli) hanno smesso di funzionare, probabilmente perché vengono intercettate dalla nuova route generica.
-- **Status:** BLOCKED
+- **Last item agent was working:** Investigating a bug reported by the user (with a screenshot) that occurs at step 12 of the film creation wizard, specifically when the film originates from a purchased emerging screenplay. The agent had started debugging by examining the  function in  to understand the data being submitted to the backend upon film completion.
+- **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** main agent to test via curl. L'agente deve verificare che le chiamate API (es. ) non vengano più intercettate dalla route statica.
-- **User Testing Done:** Y (l'utente ha segnalato il bug con uno screenshot).
+- **Which testing method agent to use?** both. The issue involves frontend state being sent to a backend endpoint. A test should involve creating a film from a purchased screenplay and inspecting the network request at the final step to validate the payload, then checking the backend logs for validation errors.
+- **User Testing Done:** Y (User reported the bug).
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Il sito di produzione è inaccessibile (P0)**
-    - **Description:** Il backend del sito live () è down e restituisce errori 520 di Cloudflare. Nessun utente può fare il login. Questo è il problema più critico perché blocca completamente il gioco.
-    - **Attempted fixes:** L'utente ha contattato il supporto tecnico di Emergent. Il problema è lato infrastruttura, non codice.
+- **Issue 1: Error at step 12 of Film Wizard for emerging screenwriter films (P0)**
+    - **Description:** When a user tries to complete a film created from a purchased screenplay, an error occurs at the final step (step 12).
+    - **Attempted fixes:** The agent started to investigate .
     - **Next debug checklist:**
-        1.  Attendere conferma dal supporto Emergent sulla risoluzione del problema infrastrutturale.
-        2.  NON tentare nuovi deploy finché il supporto non dà il via libera.
-        3.  Verificare manualmente l'URL di produzione per confermare che le API rispondano correttamente.
-    - **Why fix this issue and what will be achieved with the fix?** Ripristinerà l'accesso al gioco per tutti gli utenti.
-    - **Status:** BLOCKED
-    - **Is recurring issue?** Y (il deploy è fallito ripetutamente).
-    - **Should Test frontend/backend/both after fix?** both
-    - **Blocked on other issue:** Bloccato dal supporto tecnico Emergent.
-
-- **Issue 2: Regressione: la navigazione nell'app è rotta nel preview (P0)**
-    - **Description:** L'aggiunta di una route catch-all per i file statici in  () ha rotto le route API del frontend. Cliccare sui film per vederne i dettagli ora fallisce.
-    - **Attempted fixes:** Nessuno. Il problema è stato appena identificato.
-    - **Next debug checklist:**
-        1.  Aprire .
-        2.  Spostare la riga  ALLA FINE del file, dopo la definizione di tutte le altre route API. In FastAPI, l'ordine delle route è fondamentale.
-        3.  Riavviare il backend e verificare con  che una route API (es. {"action":{"name":"Action","subgenres":["Martial Arts","Spy","Superhero","Military","Disaster","Heist"]},"comedy":{"name":"Comedy","subgenres":["Romantic Comedy","Dark Comedy","Parody","Slapstick","Satire","Buddy Comedy","Film Comico","Commedia Italiana"]},"drama":{"name":"Drama","subgenres":["Legal Drama","Medical Drama","Political","Family","Sports Drama","Tragedy"]},"horror":{"name":"Horror","subgenres":["Supernatural","Slasher","Psychological","Zombie","Found Footage","Gothic"]},"sci_fi":{"name":"Sci-Fi","subgenres":["Space Opera","Cyberpunk","Time Travel","Dystopian","Alien Invasion","Post-Apocalyptic"]},"romance":{"name":"Romance","subgenres":["Period Romance","Teen Romance","Tragic Romance","LGBTQ+","Second Chance","Forbidden Love"]},"thriller":{"name":"Thriller","subgenres":["Psychological Thriller","Crime Thriller","Conspiracy","Techno-Thriller","Mystery","Survival"]},"animation":{"name":"Animation","subgenres":["3D Animation","Anime","Stop Motion","Musical Animation","Family Animation","Adult Animation"]},"documentary":{"name":"Documentary","subgenres":["Nature","True Crime","Historical","Music Documentary","Sports Documentary","Social Issues"]},"fantasy":{"name":"Fantasy","subgenres":["Epic Fantasy","Urban Fantasy","Dark Fantasy","Fairy Tale","Mythological","Sword & Sorcery"]},"musical":{"name":"Musical","subgenres":["Broadway Adaptation","Jukebox Musical","Rock Musical","Dance Film","Opera","Concert Film"]},"western":{"name":"Western","subgenres":["Spaghetti Western","Neo-Western","Revisionist Western","Comedy Western","Epic Western","Outlaw"]},"war":{"name":"War","subgenres":["World War II","Vietnam War","Civil War","Modern Warfare","Anti-War","War Drama"]},"noir":{"name":"Noir","subgenres":["Classic Noir","Neo-Noir","Tech-Noir","Femme Fatale","Hardboiled","Crime Noir"]},"adventure":{"name":"Adventure","subgenres":["Treasure Hunt","Survival Adventure","Jungle Adventure","Sea Adventure","Expedition","Swashbuckler"]},"biographical":{"name":"Biographical","subgenres":["Music Biopic","Sports Biopic","Historical Figure","Political Biopic","Artist Biopic","Criminal Biopic"]}}) funzioni e che la route root (<!doctype html><html lang="it"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/><meta name="theme-color" content="#eab308"/><meta name="description" content="CineWorld Studio's - Gioco multiplayer di produzione cinematografica"/><meta name="application-name" content="CineWorld Studio's"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><meta name="apple-mobile-web-app-title" content="CineWorld"/><meta name="mobile-web-app-capable" content="yes"/><meta name="msapplication-TileColor" content="#eab308"/><meta name="msapplication-tap-highlight" content="no"/><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"/><link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"/><link rel="apple-touch-icon" href="/apple-touch-icon.png"/><link rel="manifest" href="/manifest.json"/><meta name="apple-mobile-web-app-capable" content="yes"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet"/><title>CineWorld Studio's - Beta</title><script>window.addEventListener("error",function(e){e.error instanceof DOMException&&"DataCloneError"===e.error.name&&e.message&&e.message.includes("PerformanceServerTiming")&&(e.stopImmediatePropagation(),e.preventDefault())},!0)</script><script src="https://assets.emergent.sh/scripts/emergent-main.js"></script><script>"serviceWorker"in navigator&&window.addEventListener("load",()=>{navigator.serviceWorker.register("/service-worker.js").then(e=>console.log("SW registered:",e.scope)).catch(e=>console.log("SW registration failed:",e))})</script><script defer="defer" src="/static/js/main.45806e7f.js"></script><link href="/static/css/main.99d3626c.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><a id="emergent-badge" target="_blank" href="https://app.emergent.sh/?utm_source=emergent-badge" style="display:inline-flex!important;box-sizing:border-box;width:178px;height:40px;padding:8px 12px 8px 12px;align-items:center!important;gap:8px;border-radius:50px!important;background:#000!important;position:fixed!important;bottom:16px;right:16px;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,&quot;z-index:9999!important"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15.5702 8.13142C15.7729 8.0412 16.0007 8.18878 15.9892 8.4103C15.8374 11.3192 14.0965 14.0405 11.2531 15.3065C8.40964 16.5725 5.2224 16.0453 2.95912 14.2117C2.78676 14.072 2.82955 13.804 3.03219 13.7137L4.95677 12.8568C5.04866 12.8159 5.15446 12.823 5.24204 12.8725C6.73377 13.7153 8.59176 13.8649 10.2772 13.1145C11.9626 12.3641 13.0947 10.8833 13.4665 9.21075C13.4883 9.11256 13.5539 9.02918 13.6457 8.98827L15.5702 8.13142Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M15.3066 4.74698L15.5067 5.19653C15.5759 5.35178 15.5061 5.53366 15.3508 5.60278L1.29992 11.8586C1.14467 11.9278 0.962794 11.8579 0.893675 11.7027L0.701732 11.2716L0.693457 11.2531C-1.10317 7.21778 0.711626 2.49007 4.74692 0.693443C8.78221 -1.10318 13.51 0.711693 15.3066 4.74698ZM2.82356 8.55367C2.63552 8.63739 2.41991 8.51617 2.40853 8.31065C2.28373 6.05724 3.53858 3.85787 5.72286 2.88536C7.90715 1.91286 10.3813 2.45199 11.9724 4.05256C12.1175 4.19854 12.0633 4.43988 11.8753 4.5236L2.82356 8.55367Z" fill="white"/></svg><p style="color:#fff!important;font-family:Inter,sans-serif!important;font-size:13px!important;font-style:normal!important;font-weight:600!important;line-height:20px!important;margin:0!important;white-space:nowrap!important">Made with Emergent</p></a><script>!function(e,t){var r,s,o,i;t.__SV||(window.posthog=t,t._i=[],t.init=function(n,a,p){function c(e,t){var r=t.split(".");2==r.length&&(e=e[r[0]],t=r[1]),e[t]=function(){e.push([t].concat(Array.prototype.slice.call(arguments,0)))}}(o=e.createElement("script")).type="text/javascript",o.crossOrigin="anonymous",o.async=!0,o.src=a.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(i=e.getElementsByTagName("script")[0]).parentNode.insertBefore(o,i);var g=t;for(void 0!==p?g=t[p]=[]:p="posthog",g.people=g.people||[],g.toString=function(e){var t="posthog";return"posthog"!==p&&(t+="."+p),e||(t+=" (stub)"),t},g.people.toString=function(){return g.toString(1)+".people (stub)"},r="init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),s=0;s<r.length;s++)c(g,r[s]);t._i.push([n,a,p])},t.__SV=1)}(document,window.posthog||[]),posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",session_recording:{recordCrossOriginIframes:!0,capturePerformance:!1}})</script></body></html>) restituisca ancora l'HTML del frontend.
-        4.  Usare lo screenshot tool sulla dashboard per confermare visivamente che il click su un film funziona di nuovo.
-    - **Why fix this issue and what will be achieved with the fix?** Risolverà la regressione e renderà l'ambiente di preview nuovamente utilizzabile per i test, sbloccando la possibilità di un deploy futuro.
-    - **Status:** NOT STARTED
+        1.  Analyze the  function in .
+        2.  Log the  object just before it's sent to the  endpoint.
+        3.  Compare this payload with the one from a normally created film to spot discrepancies.
+        4.  Examine the backend  endpoint in  and its Pydantic models to check for validation rules that might be failing with the pre-filled data from a purchased screenplay.
+    - **Why fix this issue and what will be achieved with the fix?** This bug blocks the completion of the main loop for the newly implemented Emerging Screenwriters feature, making it unusable.
+    - **Status:** IN PROGRESS
     - **Is recurring issue?** N
     - **Should Test frontend/backend/both after fix?** both
     - **Blocked on other issue:** No.
 
+- **Issue 2: AI poster generation consistently fails on the frontend (P0)**
+    - **Description:** The user reports that AI poster generation always fails with a connection error, despite backend tests showing the API works.
+    - **Attempted fixes:** The agent confirmed the backend endpoint works via  and implemented an automatic fallback mechanism in the frontend. However, the user's report indicates the initial failure is still happening.
+    - **Next debug checklist:**
+        1.  In , review the async polling logic that calls  and .
+        2.  Use the browser's developer tools to inspect the network requests and console logs when triggering AI generation to capture the exact error message.
+        3.  Ensure the  block for the AI generation properly triggers the  function as intended.
+    - **Why fix this issue and what will be achieved with the fix?** The AI poster generation is a core feature. Fixing this will restore intended functionality and improve user experience.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** frontend
+    - **Blocked on other issue:** No.
+
+- **Issue 3: Production site is down (BLOCKER)**
+    - **Description:** The live production environment is inaccessible (Cloudflare 520 errors), preventing all users from playing. The user has expressed frustration that support from Emergent has ceased.
+    - **Attempted fixes:** This is an infrastructure issue. User has contacted Emergent support.
+    - **Next debug checklist:** There are no actions for the agent. The agent must wait for the user to confirm that the external infrastructure issue is resolved. **DO NOT ATTEMPT TO DEPLOY.**
+    - **Why fix this issue and what will be achieved with the fix?** Will restore access to the game for the entire user base.
+    - **Status:** BLOCKED
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** Blocked by external support/infrastructure.
+
 **In progress Task List**:
-- Nessuno.
+- None.
 
 **Upcoming and Future Tasks**
 **Upcoming Tasks:**
--   Nessuno. La priorità assoluta è risolvere i problemi di deploy e la regressione.
+-   None. The priority is to fix the critical bugs blocking the core gameplay loops.
 
 **Future Tasks:**
--   (P1) **Riattivazione Funzionalità Disabilitate:** Pianificare il ripristino del Mercato Infrastrutture.
--   (P2) **Sistema di acquisto CineCoins:** Integrazione con un provider di pagamento come Stripe.
--   (P2) **Attività delle Major**.
--   (P3) **Script di migrazione dati permanente e robusto.**
+-   (P1) **Re-enable Infrastructure Market**: Plan and restore this disabled feature.
+-   (P2) **CineCoins Purchase System**: Integrate a payment provider like Stripe.
+-   (P2) **Major Studio Activities**: Implement gameplay related to major film studios.
+-   (P3) **Robust Data Migration Script**: Create a permanent script for data migrations.
 
 **Completed work in this session**
-- **Test e Convalida del Film Wizard:** L'intera ristrutturazione del wizard di creazione film (UI/UX, 80+ nuove location, sistema di sponsor dinamico) è stata testata end-to-end con successo tramite il .
-- **Miglioramento Locandine AI:** Implementata una nuova funzionalità lato backend () che sovrappone dinamicamente il titolo del film e i nomi degli attori sull'immagine generata dall'IA, utilizzando la libreria Pillow.
-- **Risoluzione Problemi di Deploy:** Affrontata una lunga e complessa serie di problemi che impedivano il deploy:
-    - Aggiunto un endpoint  al backend per i controlli di Kubernetes.
-    - Creato un file  per ridurre le dimensioni del context di build.
-    - Rimosso  da  del frontend per includere i file statici nell'immagine Docker.
-    - Implementato uno script nell'evento  di FastAPI () che:
-        1.  Copia i file del build React nella directory servita da Nginx ().
-        2.  Ricarica Nginx con  per risolvere una race condition all'avvio.
-        3.  Monta i file statici del frontend direttamente da FastAPI come fallback definitivo in caso di problemi con Nginx.
-- **Bug Fix:** Corretto un bug critico nel calcolo del  in .
+- **Implemented Emerging Screenwriters Feature:** A major gameplay feature was added from scratch, including backend models, APIs, scheduled jobs, and a complete frontend experience with a new page and modifications to the core film wizard.
+- **Fixed Critical  Crash:** Diagnosed and fixed a  in  that crashed the app when viewing films with trailers, resolving a long-standing, hard-to-reproduce bug.
+- **Improved AI Poster Fallback:** Replaced the single static fallback image with a dynamic generator in  that creates varied, genre-themed posters using Pillow.
+- **Fixed Draft System:** Updated the frontend and backend to correctly save and load the  context, enabling the pause/resume functionality for the new feature.
+- **Fixed Multiple UI/UX Bugs:** Addressed all UI issues reported by the user via screenshots, including fixing the step locked overlay, correcting mobile layout issues, and adding the new feature to navigation menus.
+- **API Routing Fix:** Resolved a critical regression in the preview environment by reordering the  catch-all route in , which was breaking all API calls.
+- **Fulfilled User Request:** Added 0M to the 'NeoMorpheus' user account for testing purposes.
 
 **Earlier issues found/mentioned but not fixed**
-- Nessuno. I problemi sono stati tutti affrontati, anche se il deploy finale è ancora bloccato.
+- The pending issues list covers all known unfixed problems.
 
 **Known issue recurrence from previous fork**
-- **Deployment Failures:** Questo è diventato il problema ricorrente principale della sessione, manifestandosi in modi diversi (nginx default page, DNS error, race conditions). Sebbene il codice sia stato reso molto più robusto, il problema non è stato risolto a livello infrastrutturale.
+- **Deployment Failures:** The production environment remains down and inaccessible. This is a persistent infrastructure-level problem that the agent cannot solve. The user is very frustrated with the lack of resolution from external support.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **FastAPI Startup Events for Deployment Hooks:** Utilizzo dell'evento  per eseguire comandi shell (, ) prima che il servizio sia live. Questo è stato usato come meccanismo per configurare l'ambiente di produzione (copia file, ricarica nginx) dall'interno dell'applicazione.
-- **Static File Serving from FastAPI:** Configurazione di FastAPI per servire un'applicazione React compilata, inclusa una route catch-all per gestire il routing lato client ().
-- **Nginx Race Conditions:** Diagnosi e risoluzione di un problema in cui Nginx si avviava prima che i file da servire fossero pronti, richiedendo un  per aggiornarlo.
-- **Image Manipulation (Pillow):** Utilizzo della libreria Pillow per sovrapporre testo (con font, dimensioni, colori e ombre personalizzate) su immagini generate dinamicamente.
-
-**key DB schema**
-- Nessuna modifica.
-
-**changes in tech stack**
-- Nessuna.
+- **APScheduler:** Used in  to create a scheduled job that periodically generates new emerging screenplays.
+- **Pillow (PIL):** Used extensively in a new  function in  to create dynamic, varied, and aesthetically pleasing fallback images with gradients, patterns, symbols, and text overlays.
+- **React State Management for Complex Forms:** Deep modifications to  to handle a locked state, where form steps are pre-filled and non-interactive based on data passed via .
+- **Frontend/Backend Data Synchronization:** The session involved significant work to ensure data structures matched between the frontend state ( in React) and backend Pydantic models (,  in FastAPI), especially for saving/loading drafts.
 
 **All files of reference**
--   : File più critico. Contiene la logica di  per il deploy e la route  che sta causando la regressione. La soluzione all'Issue 2 è qui.
--   : Contiene le logiche principali del gioco. È stato testato e funziona.
--   : Modificato per consentire al  di essere incluso nel deploy.
--   : Creato per ottimizzare i build Docker.
--   : File di configurazione Nginx che veniva copiato nello startup event. Attualmente non è più utilizzato, ma è presente.
-
-**Areas that need refactoring**:
--   **:** L'evento  è diventato un collettore di script per il deploy. Funziona, ma è un code smell. A lungo termine, questi passaggi dovrebbero essere gestiti da un Dockerfile multi-stage o da uno script di entrypoint più pulito, non dalla logica dell'applicazione.
-
-**key api endpoints**
--   : **(NUOVO e PROBLEMATICO)**. Questa route, aggiunta in , è la causa della regressione attuale. Deve essere spostata alla fine del file.
+-   : Core backend logic. Contains APIs for screenwriters, the improved poster fallback generator, and draft endpoints.
+-   : The heart of the film creation process. Contains all logic for the new feature, locked steps, and fallback buttons. **This is where the next debugging step for Issue #1 is located.**
+-   : Component for displaying film details. Was the source of a critical, now-fixed crash.
+-   : The newly created page for the Emerging Screenwriters feature.
 
 **Critical Info for New Agent**
--   **LINGUA:** Rispondi sempre e solo in **italiano**.
--   **PROBLEMA #1 (BLOCCANTE):** Il sito di produzione è **DOWN**. Gli utenti non possono giocare. Il backend del deploy live restituisce errori 520. L'utente ha contattato il supporto Emergent. **NON FARE NULLA** relativo al deploy finché l'utente non conferma che il supporto ha risolto il problema lato infrastruttura.
--   **PROBLEMA #2 (DA RISOLVERE SUBITO):** C'è una regressione critica nell'ambiente di preview. Il  in  intercetta tutte le richieste, rompendo la navigazione. La tua prima azione deve essere aprire  e spostare quella riga alla fine del file per ripristinare la funzionalità.
--   **Contesto del Deploy:** L'agente ha attraversato un lungo processo per rendere l'app deployabile. La soluzione finale è un robusto sistema a 3 fallback in  (copia build per Nginx, ricarica Nginx, e servire i file da FastAPI stesso). Comprendere questa logica è fondamentale prima di toccare qualsiasi cosa relativa al deploy.
+-   **LANGUAGE:** You MUST respond in **Italiano**.
+-   **PRODUCTION IS DOWN:** The live site is broken. This is an external issue being handled (or not) by support. **DO NOT attempt to deploy anything.** Acknowledge the user's frustration but focus your work on the preview environment.
+-   **IMMEDIATE PRIORITIES:** Address the user's three latest bug reports in this order:
+    1.  **P0: Error at step 12 in wizard:** This blocks the new feature. Start debugging in .
+    2.  **P0: AI posters still failing:** Investigate the frontend's async polling and error handling.
+-   The user is amareggiato (bitter/disappointed) about the deployment situation. Maintain an empathetic and helpful tone, focusing on what can be fixed within the codebase.
 
 **documents and test reports created in this job**
--    (test completo E2E superato)
--    (test wizard superato)
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Il sito live non permette più il login a nessuno. (Status: **INVESTIGATED** - Confermato backend down con errore 520)
-2.  **User:** Dalla preview (l'unica che funziona), cliccare sui film dà un errore. (Status: **PENDING FIX** - Identificata come regressione causata dalla route catch-all)
-3.  **User:** Dice che il supporto gli ha detto di fare Replace Deployment. (Status: **ADDRESSED** - Spiegato all'utente come procedere, ma i deploy continuano a fallire)
-4.  **User:** Dice che il preview usa un database separato, quindi non è una soluzione. (Status: **ADDRESSED** - Confermato e spiegato che il problema è il sito live)
-5.  **User:** Chiede se un dominio personale risolverebbe i problemi DNS. (Status: **ADDRESSED** - Spiegato che aiuta ma prima serve un deploy funzionante)
-6.  **User:** Ha acquistato un dominio e spiega che il gioco era online prima delle ultime modifiche. (Status: **ACTION TAKEN** - Ha portato a una nuova ipotesi di debug)
-7.  **User:** Chiede aiuto per scrivere l'email al supporto, fornendo il Job ID. (Status: **ADDRESSED**)
-8.  **User:** Chiede dove trovare il Job ID e conferma circa 10 tentativi di deploy falliti. (Status: **ADDRESSED**)
-9.  **User:** Esprime frustrazione per i crediti spesi a causa di problemi di infrastruttura. (Status: **ADDRESSED**)
-10. **User:** Chiede quale opzione di database scegliere durante il deploy (corrente o nuovo). (Status: **ADDRESSED** - Consigliato Database corrente)
+1.  **User:** Requests adding 0M to user 'NeoMorpheus'. (Status: **COMPLETED**)
+2.  **User:** Reports the film detail crash is still happening on mobile for many films. (Status: **RESOLVED** - Root cause found and fixed)
+3.  **User:** The AI poster generation still fails with a connection error. Asks if the AI model is the problem and suggests an alternative. (Status: **PENDING**)
+4.  **User:** Notes that the non-AI fallback poster is always the same image. (Status: **RESOLVED** - Fallback generator was completely rewritten to add variety).
+5.  **User:** Reports an error at step 12 when creating a film from a purchased screenplay. (Status: **PENDING - Last Working Item**)
+6.  **User:** Expresses deep frustration that support has stopped responding about the deployment issue. (Status: **ACKNOWLEDGED - Blocker**)
+7.  **User:** Reports that clicking any film from any board gives a Something went wrong error. (Status: **RESOLVED** - Part of the larger  crash).
+8.  **User:** Asks for autosave/pause functionality to be present for purchased screenplays too. (Status: **COMPLETED**)
+9.  **User:** Provides screenshots of several UI bugs (locked step overlay, fallback button needed, mobile title positioning). (Status: **COMPLETED**)
+10. **User:** Requests adding the new Emerging Screenwriters feature. (Status: **COMPLETED**)
 
 **Project Health Check:**
--   **Broken:** L'ambiente di produzione è completamente inaccessibile. La funzionalità di navigazione nell'ambiente di preview è rotta a causa di una regressione.
--   **Mocked:** La sezione Mercato Infrastrutture rimane disabilitata.
+-   **Broken:**
+    -   The entire production environment is inaccessible.
+    -   The core gameplay loop for the new Emerging Screenwriters feature is blocked by a bug at the final step.
+    -   AI Poster generation is reportedly failing for the end-user on the frontend.
+-   **Mocked:** The Infrastructure Market feature remains disabled.
 
 **3rd Party Integrations**
--   **OpenAI GPT-4o (Text Generation):** Usa Emergent LLM Key.
--   **OpenAI GPT-Image-1 (Image Generation):** Usa Emergent LLM Key.
--   **Sora 2 (Video Generation):** Usa Emergent LLM Key (Disabilitato).
--   **Resend (Email):** Richiede User API Key.
--   **APScheduler:** Utilizzato per task periodici.
+-   **OpenAI GPT-4o (Text Generation):** Uses Emergent LLM Key.
+-   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key. (This is likely the service that is failing on the frontend).
+-   **Sora 2 (Video Generation):** Uses Emergent LLM Key (Disabled).
+-   **Resend (Email):** Requires User API Key.
+-   **APScheduler:** Used for backend scheduled tasks.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES. Usato con successo per validare il wizard e per confermare la prontezza al deploy prima degli ultimi fallimenti.
+-   **Testing agent used after significant changes:** YES. The agent ran the testing agent multiple times with 100% success, but user-reported bugs appeared afterward, indicating gaps in test coverage for specific data states (e.g., films with/without trailers) and UI interactions.
 -   **Troubleshoot agent used after agent stuck in loop:** NO.
 -   **Test files created:** NO.
--   **Known regressions:** [Sì] La navigazione frontend (es. click sui film) è rotta nel preview a causa della route catch-all in .
+-   **Known regressions:** None currently, previous regressions have been fixed.
 
 **Credentials to test flow:**
 -   User: 
 -   Password: 
 
 **What agent forgot to execute**
-L'agente ha eseguito un lavoro di debug molto approfondito. L'unico errore è stato introdurre la route  in  in una posizione che ha creato una regressione, senza testarla immediatamente dopo averla scritta. Ha però identificato la causa nell'ultimo step.</analysis>
+The agent performed extensive debugging and implementation. However, after implementing the automatic fallback for AI posters, it did not thoroughly test the frontend flow from a user's perspective to confirm the connection error was handled gracefully. It focused on improving the fallback image quality instead of first solving the user-facing error flow.</analysis>

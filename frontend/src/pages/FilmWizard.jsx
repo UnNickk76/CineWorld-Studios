@@ -359,33 +359,45 @@ const FilmWizard = () => {
       setGenerating(false); 
     }
   };
+  const [posterProgress, setPosterProgress] = useState('');
   const generatePoster = async () => { 
     setGenerating(true); 
-    try { 
-      // Collect cast names for poster text
-      const castNames = [];
-      if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
-      if (filmData.director) castNames.unshift(filmData.director.name);
-      
-      const res = await api.post('/ai/poster', { 
-        title: filmData.title, 
-        genre: filmData.genre, 
-        description: filmData.poster_prompt || filmData.title, 
-        style: 'cinematic',
-        cast_names: castNames.slice(0, 4)
-      }); 
-      if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
-        setFilmData({...filmData, poster_url: res.data.poster_url}); 
-        toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!'); 
-      } else {
-        toast.error(res.data.error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again'));
+    setPosterProgress(language === 'it' ? 'Invio richiesta...' : 'Sending request...');
+    const maxRetries = 2;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try { 
+        setPosterProgress(language === 'it' ? `Generazione in corso... ~20s` : `Generating... ~20s`);
+        const castNames = [];
+        if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
+        if (filmData.director) castNames.unshift(filmData.director.name);
+        const res = await api.post('/ai/poster', { 
+          title: filmData.title, 
+          genre: filmData.genre, 
+          description: filmData.poster_prompt || filmData.title, 
+          style: 'cinematic',
+          cast_names: castNames.slice(0, 4)
+        }); 
+        if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
+          setFilmData({...filmData, poster_url: res.data.poster_url}); 
+          setPosterProgress('');
+          toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!');
+          setGenerating(false);
+          return;
+        } else {
+          if (attempt < maxRetries) { setPosterProgress(language === 'it' ? 'Riprovo...' : 'Retrying...'); continue; }
+          toast.error(res.data.error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again'));
+        }
+      } catch(e) { 
+        console.error('Poster generation error:', e);
+        if (attempt < maxRetries) { setPosterProgress(language === 'it' ? 'Errore, riprovo...' : 'Error, retrying...'); continue; }
+        const errMsg = e.code === 'ECONNABORTED' 
+          ? (language === 'it' ? 'Timeout - riprova' : 'Timeout - try again')
+          : (e.response?.data?.error || (language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.'));
+        toast.error(errMsg);
       }
-    } catch(e) { 
-      console.error('Poster generation error:', e);
-      toast.error(e.response?.data?.error || (language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.')); 
-    } finally { 
-      setGenerating(false); 
     }
+    setPosterProgress('');
+    setGenerating(false);
   };
   // Load rejections on mount
   useEffect(() => {
@@ -1144,9 +1156,11 @@ const FilmWizard = () => {
       }
       case 10: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder="Describe poster..." className="min-h-[100px] bg-black/20 border-white/10" />
-          <Button onClick={generatePoster} disabled={generating} className="w-full bg-yellow-500 text-black"><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'Generate AI Poster'}</Button>
-          <Input value={filmData.poster_url} onChange={e=>setFilmData({...filmData,poster_url:e.target.value})} placeholder="Or paste URL..." className="bg-black/20 border-white/10" />
+          <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder={language === 'it' ? 'Descrivi la locandina...' : 'Describe poster...'} className="min-h-[100px] bg-black/20 border-white/10" />
+          <Button onClick={generatePoster} disabled={generating} className="w-full bg-yellow-500 text-black" data-testid="generate-poster-btn">
+            {generating ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{posterProgress || '...'}</> : <><Sparkles className="w-3 h-3 mr-1" />{language === 'it' ? 'Genera Locandina AI' : 'Generate AI Poster'}</>}
+          </Button>
+          <Input value={filmData.poster_url} onChange={e=>setFilmData({...filmData,poster_url:e.target.value})} placeholder={language === 'it' ? 'Oppure incolla URL...' : 'Or paste URL...'} className="bg-black/20 border-white/10" />
         </div>
         <div className="aspect-[2/3] bg-[#1A1A1A] rounded border border-white/10 overflow-hidden">{filmData.poster_url?<img src={filmData.poster_url} alt="Poster" className="w-full h-full object-cover" />:<div className="w-full h-full flex items-center justify-center text-gray-500"><Image className="w-10 h-10 opacity-50" /></div>}</div>
       </div>);

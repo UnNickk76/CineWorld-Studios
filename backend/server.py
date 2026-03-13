@@ -7232,6 +7232,73 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
         logging.error(f"Screenplay generation error: {type(e).__name__}: {e}")
         return {'screenplay': f"[Sample] {request.title} - A {request.genre} story about..."}
 
+# In-memory poster generation tasks
+poster_tasks = {}
+
+@api_router.post("/ai/poster/start")
+async def start_poster_generation(request: PosterRequest, user: dict = Depends(get_current_user)):
+    """Start poster generation asynchronously. Returns task_id for polling."""
+    import uuid as uuid_mod
+    task_id = str(uuid_mod.uuid4())
+    poster_tasks[task_id] = {'status': 'pending', 'poster_url': '', 'error': ''}
+    logging.info(f"Poster task {task_id} started for: {request.title} ({request.genre})")
+    
+    if not EMERGENT_LLM_KEY:
+        poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'AI key not configured'}
+        return {'task_id': task_id}
+    
+    # Run generation in background
+    async def _generate():
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+                user_desc = request.description or request.title
+                cast_text = ""
+                if request.cast_names:
+                    cast_text = f" Starring: {', '.join(request.cast_names[:3])}."
+                prompt = (
+                    f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\".{cast_text} "
+                    f"Description: {user_desc}. "
+                    f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
+                    f"The title \"{request.title}\" should appear prominently on the poster in stylized cinematic typography."
+                )
+                image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+                images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1, quality="low")
+                if images and len(images) > 0:
+                    from io import BytesIO
+                    from PIL import Image as PILImage
+                    img = PILImage.open(BytesIO(images[0]))
+                    jpeg_buffer = BytesIO()
+                    img.convert('RGB').save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
+                    jpeg_bytes = jpeg_buffer.getvalue()
+                    image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+                    poster_data_url = f"data:image/jpeg;base64,{image_base64}"
+                    logging.info(f"AI Poster task {task_id} generated, raw: {len(images[0])} bytes, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
+                    poster_tasks[task_id] = {'status': 'done', 'poster_url': poster_data_url, 'error': ''}
+                    return
+                logging.warning(f"Poster task {task_id} attempt {attempt+1}: No image returned")
+            except Exception as e:
+                logging.error(f"AI Poster task {task_id} attempt {attempt+1} error: {type(e).__name__}: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+        poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'Generazione fallita dopo i tentativi'}
+    
+    asyncio.create_task(_generate())
+    return {'task_id': task_id}
+
+@api_router.get("/ai/poster/status/{task_id}")
+async def get_poster_status(task_id: str, user: dict = Depends(get_current_user)):
+    """Poll poster generation status."""
+    task = poster_tasks.get(task_id)
+    if not task:
+        return {'status': 'error', 'error': 'Task not found'}
+    result = {**task}
+    # Cleanup completed tasks after retrieval
+    if task['status'] in ('done', 'error'):
+        poster_tasks.pop(task_id, None)
+    return result
+
 @api_router.post("/ai/poster")
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
     """Generate a movie poster using GPT Image 1 (OpenAI) via Emergent LLM Key."""

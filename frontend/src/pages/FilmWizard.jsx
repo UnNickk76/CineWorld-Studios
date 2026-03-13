@@ -362,39 +362,52 @@ const FilmWizard = () => {
   const [posterProgress, setPosterProgress] = useState('');
   const generatePoster = async () => { 
     setGenerating(true); 
-    setPosterProgress(language === 'it' ? 'Invio richiesta...' : 'Sending request...');
-    const maxRetries = 2;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try { 
-        setPosterProgress(language === 'it' ? `Generazione in corso... ~20s` : `Generating... ~20s`);
-        const castNames = [];
-        if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
-        if (filmData.director) castNames.unshift(filmData.director.name);
-        const res = await api.post('/ai/poster', { 
-          title: filmData.title, 
-          genre: filmData.genre, 
-          description: filmData.poster_prompt || filmData.title, 
-          style: 'cinematic',
-          cast_names: castNames.slice(0, 4)
-        }); 
-        if (res.data.poster_url && res.data.poster_url.startsWith('data:')) {
-          setFilmData({...filmData, poster_url: res.data.poster_url}); 
+    setPosterProgress(language === 'it' ? 'Avvio generazione...' : 'Starting generation...');
+    try {
+      const castNames = [];
+      if (filmData.actors) filmData.actors.forEach(a => castNames.push(a.name));
+      if (filmData.director) castNames.unshift(filmData.director.name);
+      
+      // Step 1: Start generation (fast response)
+      const startRes = await api.post('/ai/poster/start', { 
+        title: filmData.title, 
+        genre: filmData.genre, 
+        description: filmData.poster_prompt || filmData.title, 
+        style: 'cinematic',
+        cast_names: castNames.slice(0, 4)
+      });
+      
+      const taskId = startRes.data.task_id;
+      if (!taskId) throw new Error('No task_id received');
+      
+      setPosterProgress(language === 'it' ? 'Generazione AI in corso... ~20s' : 'AI generating... ~20s');
+      
+      // Step 2: Poll for result every 3 seconds
+      const maxPolls = 40; // 40 * 3s = 120s max
+      for (let i = 0; i < maxPolls; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const statusRes = await api.get(`/ai/poster/status/${taskId}`);
+        const { status, poster_url, error } = statusRes.data;
+        
+        if (status === 'done' && poster_url) {
+          setFilmData({...filmData, poster_url});
           setPosterProgress('');
           toast.success(language === 'it' ? 'Locandina AI generata!' : 'AI Poster generated!');
           setGenerating(false);
           return;
-        } else {
-          if (attempt < maxRetries) { setPosterProgress(language === 'it' ? 'Riprovo...' : 'Retrying...'); continue; }
-          toast.error(res.data.error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed, try again'));
+        } else if (status === 'error') {
+          toast.error(error || (language === 'it' ? 'Generazione fallita, riprova' : 'Generation failed'));
+          break;
         }
-      } catch(e) { 
-        console.error('Poster generation error:', e);
-        if (attempt < maxRetries) { setPosterProgress(language === 'it' ? 'Errore, riprovo...' : 'Error, retrying...'); continue; }
-        const errMsg = e.code === 'ECONNABORTED' 
-          ? (language === 'it' ? 'Timeout - riprova' : 'Timeout - try again')
-          : (e.response?.data?.error || (language === 'it' ? 'Errore generazione locandina. Riprova.' : 'Poster generation error. Try again.'));
-        toast.error(errMsg);
+        // Still pending
+        const elapsed = (i + 1) * 3;
+        setPosterProgress(language === 'it' ? `Generazione in corso... ${elapsed}s` : `Generating... ${elapsed}s`);
       }
+      
+      toast.error(language === 'it' ? 'Tempo scaduto, riprova' : 'Timeout, try again');
+    } catch(e) { 
+      console.error('Poster generation error:', e);
+      toast.error(language === 'it' ? 'Errore connessione. Riprova.' : 'Connection error. Try again.');
     }
     setPosterProgress('');
     setGenerating(false);

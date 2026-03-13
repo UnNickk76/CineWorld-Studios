@@ -13214,6 +13214,10 @@ async def redirect_to_current_game():
         return RedirectResponse(url=config['url'], status_code=302)
     return {'error': 'No game URL configured'}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

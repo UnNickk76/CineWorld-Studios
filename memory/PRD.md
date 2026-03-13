@@ -10,6 +10,13 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.108 - Locandine AI con Testo (2026-03-13)
+- Text overlay via Pillow: titolo film (bianco, grande) e nomi attori (oro, separati da bullet) sovrapposti all'immagine AI
+- Gradiente scuro in basso per leggibilità garantita su qualsiasi sfondo
+- Prompt AI aggiornato: richiede NO testo nell'immagine + bottom scuro per text placement
+- Applicato sia all'endpoint asincrono (/ai/poster/start) che sincrono (/ai/poster)
+- Testato con generazione reale: titolo e cast sempre leggibili
+
 ### v0.107 - Deploy Fixes (2026-03-13)
 - Added `/health` endpoint (root level, no /api prefix) for Kubernetes health checks
 - Removed hardcoded FRONTEND_URL fallback in auth.py
@@ -57,7 +64,6 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 - Preview usa database separato dal gioco live (progressi non sincronizzati)
 
 ## Backlog
-- (P1) Migliorare Locandine AI con Testo (titolo film + nomi attori)
 - (P1) Riattivazione Infrastrutture
 - (P2) Sistema acquisto CineCoins (Stripe)
 - (P2) Attivita delle Major

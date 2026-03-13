@@ -7350,6 +7350,65 @@ async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(g
 # In-memory poster generation tasks
 poster_tasks = {}
 
+
+def _overlay_poster_text(img, title: str, cast_names: list) -> 'PILImage':
+    """Overlay film title and cast names on the poster image using Pillow."""
+    from PIL import ImageDraw, ImageFont
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+
+    # Draw dark gradient at bottom for text readability
+    for y in range(int(h * 0.65), h):
+        alpha = int(200 * ((y - h * 0.65) / (h * 0.35)))
+        alpha = min(alpha, 200)
+        draw.line([(0, y), (w, y)], fill=(0, 0, 0, alpha) if img.mode == 'RGBA' else (0, 0, 0))
+    # Redraw gradient with transparency simulation on RGB
+    overlay = img.copy()
+    overlay_draw = ImageDraw.Draw(overlay)
+    for y in range(int(h * 0.65), h):
+        opacity = ((y - h * 0.65) / (h * 0.35))
+        opacity = min(opacity, 0.85)
+        r = int(0 * opacity)
+        overlay_draw.line([(0, y), (w, y)], fill=(r, r, r))
+    from PIL import Image as PILImage2
+    img = PILImage2.blend(img, overlay, 0.75)
+    draw = ImageDraw.Draw(img)
+
+    # Load fonts
+    try:
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", max(28, w // 16))
+        font_cast = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", max(16, w // 30))
+        font_cast_regular = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSansBold.ttf", max(14, w // 35))
+    except Exception:
+        font_title = ImageFont.load_default()
+        font_cast = ImageFont.load_default()
+        font_cast_regular = ImageFont.load_default()
+
+    # Draw title with shadow
+    title_upper = title.upper()
+    bbox = draw.textbbox((0, 0), title_upper, font=font_title)
+    tw = bbox[2] - bbox[0]
+    title_x = (w - tw) // 2
+    title_y = int(h * 0.82)
+    # Shadow
+    for dx, dy in [(2, 2), (-1, -1), (2, 0), (0, 2)]:
+        draw.text((title_x + dx, title_y + dy), title_upper, font=font_title, fill=(0, 0, 0))
+    draw.text((title_x, title_y), title_upper, font=font_title, fill=(255, 255, 255))
+
+    # Draw cast names
+    if cast_names and len(cast_names) > 0:
+        names_text = "  \u2022  ".join([n.upper() for n in cast_names[:4]])
+        bbox2 = draw.textbbox((0, 0), names_text, font=font_cast)
+        nw = bbox2[2] - bbox2[0]
+        names_x = (w - nw) // 2
+        names_y = title_y - int(h * 0.05)
+        for dx, dy in [(1, 1), (-1, -1)]:
+            draw.text((names_x + dx, names_y + dy), names_text, font=font_cast, fill=(0, 0, 0))
+        draw.text((names_x, names_y), names_text, font=font_cast, fill=(220, 180, 50))
+
+    return img
+
+
 @api_router.post("/ai/poster/start")
 async def start_poster_generation(request: PosterRequest, user: dict = Depends(get_current_user)):
     """Start poster generation asynchronously. Returns task_id for polling."""
@@ -7369,27 +7428,27 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
             try:
                 from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
                 user_desc = request.description or request.title
-                cast_text = ""
-                if request.cast_names:
-                    cast_text = f" Starring: {', '.join(request.cast_names[:3])}."
+                # Prompt WITHOUT text overlay request - Pillow handles text
                 prompt = (
-                    f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\".{cast_text} "
+                    f"Professional cinematic movie poster artwork for a {request.genre} film. "
                     f"Description: {user_desc}. "
                     f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
-                    f"The title \"{request.title}\" should appear prominently on the poster in stylized cinematic typography."
+                    f"Leave the bottom 20% of the image darker or with a gradient to black for text placement. "
+                    f"Do NOT include any text, titles, or written words on the poster."
                 )
                 image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
                 images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1, quality="low")
                 if images and len(images) > 0:
                     from io import BytesIO
-                    from PIL import Image as PILImage
-                    img = PILImage.open(BytesIO(images[0]))
+                    from PIL import Image as PILImage, ImageDraw, ImageFont
+                    img = PILImage.open(BytesIO(images[0])).convert('RGB')
+                    img = _overlay_poster_text(img, request.title, request.cast_names or [])
                     jpeg_buffer = BytesIO()
-                    img.convert('RGB').save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
+                    img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                     jpeg_bytes = jpeg_buffer.getvalue()
                     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
                     poster_data_url = f"data:image/jpeg;base64,{image_base64}"
-                    logging.info(f"AI Poster task {task_id} generated, raw: {len(images[0])} bytes, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
+                    logging.info(f"AI Poster task {task_id} generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
                     poster_tasks[task_id] = {'status': 'done', 'poster_url': poster_data_url, 'error': ''}
                     return
                 logging.warning(f"Poster task {task_id} attempt {attempt+1}: No image returned")
@@ -7429,17 +7488,13 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
         try:
             from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
             
-            # Build a detailed prompt including cast names if available
             user_desc = request.description or request.title
-            cast_text = ""
-            if hasattr(request, 'cast_names') and request.cast_names:
-                cast_text = f" Starring: {', '.join(request.cast_names[:3])}."
-            
             prompt = (
-                f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\".{cast_text} "
+                f"Professional cinematic movie poster artwork for a {request.genre} film. "
                 f"Description: {user_desc}. "
                 f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
-                f"The title \"{request.title}\" should appear prominently on the poster in stylized cinematic typography."
+                f"Leave the bottom 20% of the image darker or with a gradient to black for text placement. "
+                f"Do NOT include any text, titles, or written words on the poster."
             )
             
             image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
@@ -7451,17 +7506,17 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
             )
             
             if images and len(images) > 0:
-                # Compress PNG to JPEG to reduce size
                 from io import BytesIO
                 from PIL import Image as PILImage
-                img = PILImage.open(BytesIO(images[0]))
+                img = PILImage.open(BytesIO(images[0])).convert('RGB')
+                img = _overlay_poster_text(img, request.title, request.cast_names or [])
                 jpeg_buffer = BytesIO()
-                img.convert('RGB').save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
+                img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                 jpeg_bytes = jpeg_buffer.getvalue()
                 
                 image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
                 poster_data_url = f"data:image/jpeg;base64,{image_base64}"
-                logging.info(f"AI Poster generated, raw: {len(images[0])} bytes, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
+                logging.info(f"AI Poster generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
                 return {'poster_base64': image_base64, 'poster_url': poster_data_url}
             
             last_error = 'No image generated'

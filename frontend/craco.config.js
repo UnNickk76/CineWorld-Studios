@@ -38,16 +38,6 @@ let webpackConfig = {
     },
     configure: (webpackConfig) => {
 
-      // Production build: output directly to /var/www/html for nginx
-      if (process.env.NODE_ENV === 'production') {
-        try {
-          const fs = require('fs');
-          if (fs.existsSync('/var/www/html')) {
-            webpackConfig.output.path = '/var/www/html';
-          }
-        } catch(e) { /* ignore in environments without /var/www/html */ }
-      }
-
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
           ...webpackConfig.watchOptions,
@@ -64,27 +54,6 @@ let webpackConfig = {
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
-      }
-
-      // Production: copy nginx config after build
-      if (process.env.NODE_ENV === 'production') {
-        const CopyNginxPlugin = {
-          apply: (compiler) => {
-            compiler.hooks.afterEmit.tapAsync('CopyNginxPlugin', (compilation, callback) => {
-              try {
-                const fs = require('fs');
-                const src = '/app/nginx.conf';
-                const dest = '/etc/nginx/sites-available/default';
-                if (fs.existsSync(src)) {
-                  fs.copyFileSync(src, dest);
-                  console.log('[CopyNginxPlugin] nginx.conf copied to ' + dest);
-                }
-              } catch(e) { console.log('[CopyNginxPlugin] skipped: ' + e.message); }
-              callback();
-            });
-          }
-        };
-        webpackConfig.plugins.push(CopyNginxPlugin);
       }
 
       return webpackConfig;

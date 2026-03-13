@@ -7977,6 +7977,31 @@ async def view_premiere(invite_id: str, user: dict = Depends(get_current_user)):
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
+    # === PRODUCTION DEPLOY: Setup nginx to serve React build ===
+    import shutil
+    build_dir = '/app/frontend/build'
+    nginx_html = '/var/www/html'
+    nginx_conf_src = '/app/nginx.conf'
+    nginx_conf_dest = '/etc/nginx/sites-available/default'
+    try:
+        if os.path.isdir(build_dir) and os.path.isdir(nginx_html):
+            # Copy React build files to nginx root
+            for item in os.listdir(nginx_html):
+                p = os.path.join(nginx_html, item)
+                if os.path.isfile(p): os.remove(p)
+                elif os.path.isdir(p): shutil.rmtree(p)
+            for item in os.listdir(build_dir):
+                s = os.path.join(build_dir, item)
+                d = os.path.join(nginx_html, item)
+                if os.path.isdir(s): shutil.copytree(s, d)
+                else: shutil.copy2(s, d)
+            logging.info(f"Copied React build from {build_dir} to {nginx_html}")
+        if os.path.isfile(nginx_conf_src):
+            shutil.copy2(nginx_conf_src, nginx_conf_dest)
+            logging.info(f"Copied nginx config to {nginx_conf_dest}")
+    except Exception as e:
+        logging.warning(f"Deploy setup (non-critical): {e}")
+
     default_rooms = [
         {'id': 'general', 'name': 'General', 'is_private': False, 'participant_ids': [], 'created_by': 'system'},
         {'id': 'producers', 'name': 'Producers Lounge', 'is_private': False, 'participant_ids': [], 'created_by': 'system'},

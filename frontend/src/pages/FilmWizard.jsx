@@ -180,7 +180,11 @@ const FilmWizard = () => {
       const draftData = {
         ...filmData,
         current_step: step,
-        paused_reason: reason
+        paused_reason: reason,
+        // Preserve emerging screenplay context
+        emerging_screenplay_id: emergingScreenplay?.id || null,
+        emerging_screenplay: emergingScreenplay || null,
+        emerging_option: emergingOption || null,
       };
       const res = await api.post('/films/drafts', draftData);
       toast.success(language === 'it' ? 'Bozza salvata! Puoi riprendere dalla pagina "Film Incompleti"' : 'Draft saved! You can resume from "Incomplete Films"');
@@ -280,6 +284,12 @@ const FilmWizard = () => {
       setStep(draft.current_step || 1);
       setResumedDraftId(draftId);
       
+      // Restore emerging screenplay context from draft
+      if (draft.emerging_screenplay) {
+        setEmergingScreenplay(draft.emerging_screenplay);
+        setEmergingOption(draft.emerging_option || null);
+      }
+      
       // Check if this draft comes from a pre-film
       if (draft.from_pre_film && draft.pre_film_id) {
         setPreFilmId(draft.pre_film_id);
@@ -332,7 +342,10 @@ const FilmWizard = () => {
           const draftData = {
             ...filmData,
             current_step: step,
-            paused_reason: 'autosave'
+            paused_reason: 'autosave',
+            emerging_screenplay_id: emergingScreenplay?.id || null,
+            emerging_screenplay: emergingScreenplay || null,
+            emerging_option: emergingOption || null,
           };
           await api.post('/films/drafts', draftData);
           setLastAutoSave(new Date());
@@ -355,7 +368,10 @@ const FilmWizard = () => {
         const draftData = {
           ...filmData,
           current_step: step,
-          paused_reason: 'browser_close'
+          paused_reason: 'browser_close',
+          emerging_screenplay_id: emergingScreenplay?.id || null,
+          emerging_screenplay: emergingScreenplay || null,
+          emerging_option: emergingOption || null,
         };
         // Use sendBeacon for reliable save on page close
         const blob = new Blob([JSON.stringify(draftData)], { type: 'application/json' });
@@ -365,7 +381,7 @@ const FilmWizard = () => {
     
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [filmData, step, api]);
+  }, [filmData, step, api, emergingScreenplay, emergingOption]);
 
   useEffect(() => { 
     api.get('/sponsors').then(r=>setSponsors(r.data)); 

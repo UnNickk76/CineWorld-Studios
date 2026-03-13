@@ -1114,6 +1114,10 @@ class FilmDraft(BaseModel):
     # Sequel system
     is_sequel: bool = False
     sequel_parent_id: Optional[str] = None
+    # Emerging screenplay system
+    emerging_screenplay_id: Optional[str] = None
+    emerging_screenplay: Optional[Dict[str, Any]] = None
+    emerging_option: Optional[str] = None  # 'full_package' or 'screenplay_only'
 
 # ============== PRE-ENGAGEMENT MODELS ==============
 
@@ -2608,6 +2612,9 @@ async def save_film_draft(draft_data: FilmDraft, user: dict = Depends(get_curren
         'ad_revenue': draft_data.ad_revenue,
         'current_step': draft_data.current_step,
         'paused_reason': draft_data.paused_reason,
+        'emerging_screenplay_id': draft_data.emerging_screenplay_id,
+        'emerging_screenplay': draft_data.emerging_screenplay,
+        'emerging_option': draft_data.emerging_option,
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
     

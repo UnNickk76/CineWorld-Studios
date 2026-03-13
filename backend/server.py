@@ -8007,6 +8007,15 @@ async def startup_event():
                 if os.path.isdir(s): shutil.copytree(s, d)
                 else: shutil.copy2(s, d)
             logging.info(f"Copied React build from {build_dir} to {nginx_html}")
+            # Reload nginx to pick up new files (nginx may have started before copy)
+            try:
+                result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    logging.info("Nginx reloaded successfully after build copy")
+                else:
+                    logging.info(f"Nginx reload skipped (not running yet): {result.stderr.strip()}")
+            except Exception:
+                logging.info("Nginx reload skipped (not available)")
     except Exception as e:
         logging.warning(f"Deploy setup: {e}")
 

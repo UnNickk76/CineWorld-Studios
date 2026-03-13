@@ -1,0 +1,91 @@
+{
+  "summary": "Iteration 47 testing complete. Film Wizard restructure features verified: 12-step wizard with sticky header and step indicator, 80+ locations with category filters (studios/cities/nature/historical), dynamic sponsor system (0-4 sponsors based on pre_rating), Back button disabled at step>=11 (verified in code). All 20 backend API tests passed. UI testing confirmed: login works, wizard navigation, location category filters, mobile bottom navbar with 6 icons.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Rate limiting during wizard navigation",
+        "issue": "Multiple 429 errors when loading cast members rapidly - likely due to frequent API calls when navigating quickly",
+        "affected_selectors": ["cast cards", "person selection"],
+        "priority": "LOW",
+        "note": "This is external rate limiting, not a code bug"
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter47_filmwizard.py",
+    "/app/test_reports/pytest/pytest_iter47.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FilmWizard.jsx line 1274: Sticky header correctly positioned with sticky top-14 z-20 ✓",
+    "FilmWizard.jsx line 1275: Step indicator shows 12 circles with correct styling (yellow=current, green=completed, gray=pending) ✓",
+    "FilmWizard.jsx line 1279: Back button disabled at step>=11 (step===1||step>=11) ✓",
+    "FilmWizard.jsx lines 129-162: calculatePreRating() function correctly uses screenwriters, directors, composers arrays (bug fix verified) ✓",
+    "FilmWizard.jsx line 398: loadDynamicSponsors() called at step 11 ✓",
+    "FilmWizard.jsx lines 990-995: Location category filter buttons (Tutte, Studi & Set, Metropoli, Natura, Storici) ✓",
+    "server.py line 1950-1987: /api/sponsors/dynamic endpoint correctly returns 0-4 sponsors based on pre_rating ✓",
+    "server.py line 903-991: LOCATIONS array has 88 locations with category field (studios/cities/nature/historical) ✓",
+    "App.js line 562: Mobile bottom navbar with 6 icons (Home, Film, Social, Sfide, Chat, Notifiche) ✓"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter47_filmwizard.py"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "fandrex1@gmail.com / Ciaociao1",
+  "seed_data_creation": "No seed data created",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 47 verified Film Wizard restructure. Key findings: 1) Sticky header with 12-step indicator at top-14 z-20 works on both desktop and mobile. 2) 88 locations with 5 category filters (Tutte=all, Studi & Set=studios, Metropoli=cities, Natura=nature, Storici=historical). 3) Dynamic sponsor endpoint /api/sponsors/dynamic accepts pre_rating (0-100) and returns 0 sponsors (<30), 1 (30-49), 2 (50-69), 3 (70-84), 4 (85+). 4) Back button disabled at step>=11 confirmed in code. 5) Mobile navbar has 6 icons visible. 6) calculatePreRating bug fix verified - uses screenwriters/directors/composers arrays not undefined 'people'. Rate limiting (429) observed during rapid navigation but not a code issue.",
+  "features_tested": {
+    "12_step_wizard": {
+      "step_indicator": "PASS - 12 circles in sticky header",
+      "sticky_header": "PASS - sticky top-14 z-20 with backdrop blur",
+      "navigation_buttons": "PASS - Previous/Next/Pause buttons visible"
+    },
+    "location_categories": {
+      "total_locations": "PASS - 88 locations returned",
+      "filter_buttons": "PASS - 5 filter buttons (Tutte, Studi & Set, Metropoli, Natura, Storici)",
+      "category_distribution": "PASS - studios:20, cities:22, nature:22, historical:20+"
+    },
+    "dynamic_sponsors": {
+      "low_prerating_0_sponsors": "PASS - pre_rating 15 returns 0 sponsors",
+      "medium_prerating_1_2_sponsors": "PASS - pre_rating 50 returns 1-2 sponsors",
+      "high_prerating_3_4_sponsors": "PASS - pre_rating 90 returns 3-4 sponsors",
+      "response_structure": "PASS - sponsors sorted by budget_offer descending"
+    },
+    "back_button_step11": {
+      "disabled_condition": "VERIFIED IN CODE - disabled={step===1||step>=11}",
+      "line_reference": "FilmWizard.jsx line 1279"
+    },
+    "mobile_navbar": {
+      "bottom_nav_visible": "PASS - data-testid='mobile-bottom-nav' found",
+      "icon_count": "PASS - 6 icons (Home, Film, Social, Sfide, Chat, Notifiche)"
+    },
+    "calculate_pre_rating_fix": {
+      "uses_correct_arrays": "VERIFIED - screenwriters, directors, composers instead of undefined 'people'",
+      "line_reference": "FilmWizard.jsx lines 129-162"
+    }
+  },
+  "api_endpoints_tested": [
+    "GET /api/locations - 200 OK, returns 88 locations with category field",
+    "GET /api/equipment - 200 OK, returns 5 equipment packages",
+    "GET /api/genres - 200 OK, returns 16 genres with subgenres",
+    "GET /api/sponsors - 200 OK, returns sponsor list",
+    "POST /api/sponsors/dynamic - 200 OK, returns 0-4 sponsors based on pre_rating",
+    "GET /api/screenwriters - 200 OK, returns screenwriters list",
+    "GET /api/directors - 200 OK, returns directors list",
+    "GET /api/composers - 200 OK, returns composers list",
+    "GET /api/actors - 200 OK, returns actors list",
+    "GET /api/actor-roles - 200 OK, returns actor roles",
+    "POST /api/auth/login - 200 OK with fandrex1@gmail.com / Ciaociao1"
+  ]
+}

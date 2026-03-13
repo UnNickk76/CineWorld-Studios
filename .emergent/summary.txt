@@ -1,0 +1,166 @@
+<analysis>**original_problem_statement:**
+L'utente ha richiesto una revisione completa del wizard di creazione dei film, insieme ad altre correzioni e miglioramenti:
+
+**PRODUCT REQUIREMENTS (New & In-Progress):**
+1.  **Miglioramenti UI/UX (P0):**
+    *   **Navbar Mobile:** Ripristinare la visibilità di tutte le icone nella barra di navigazione superiore sui dispositivi mobili.
+    *   **Wizard Creazione Film:**
+        *   Rendere fissi (sticky) l'intestazione dello step (es. Sponsor) e la barra di navigazione inferiore (Pausa, Indietro, Avanti) durante lo scorrimento della pagina.
+        *   Spostare la barra di navigazione nella posizione indicata dall'utente (sotto l'indicatore di step).
+2.  **Miglioramenti Gameplay (P0):**
+    *   **Nuove Location:** Aggiungere almeno 80 nuove location per le riprese, suddivise in 4 categorie tematiche (es. Urbano, Natura, etc.).
+    *   **Sistema di Sponsor Dinamico:**
+        *   Spostare lo step Sponsor alla posizione 11 del wizard.
+        *   Rendere le offerte degli sponsor variabili. L'offerta dipenderà da un pre-rating nascosto del film, calcolato in base alle scelte fatte nei 10 step precedenti.
+        *   Un film può ricevere da 0 a 4 offerte di sponsor.
+        *   Una volta raggiunto lo step 11 (Sponsor), non è più possibile tornare indietro.
+        *   Il valore finale del film sarà influenzato dallo sponsor scelto.
+3.  **Gestione Account (Completato):**
+    *   Aggiungere una funzione di Cambio Password nel profilo utente.
+4.  **Bug Fixes (Indirizzati, da verificare):**
+    *   Risolvere definitivamente il problema della generazione di locandine AI, che falliva specialmente su mobile.
+
+**User's preferred language**: Italiano
+
+**what currently exists?**
+L'applicazione è un gioco di simulazione di uno studio cinematografico. Nell'ultima sessione, l'agente ha eseguito una massiccia revisione del wizard di creazione dei film per implementare un nuovo sistema di sponsor dinamici, ha aggiunto decine di nuove location, e ha riorganizzato l'intero flusso di creazione. Inoltre, ha implementato un sistema di polling per rendere affidabile la generazione di locandine AI, ha ottimizzato l'UI per mobile introducendo una nuova barra di navigazione inferiore, e ha aggiunto la funzionalità di cambio password. L'applicazione è stata lasciata in uno stato in cui tutte queste nuove modifiche sono state codificate ma non sono ancora state testate.
+
+**Last working item**:
+- **Last item agent was working:** L'agente ha appena finito di scrivere il codice per la complessa ristrutturazione del  e delle relative API backend. Questo include il nuovo sistema di sponsor dinamici, la riorganizzazione degli step, l'aggiunta di location categorizzate e la UI sticky per la navigazione del wizard.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** both. È fondamentale un test E2E completo. L'agente di test frontend deve validare l'intero flusso del wizard (navigazione, UI sticky, logica degli sponsor). L'agente di test backend deve verificare i nuovi endpoint (,  con categorie).
+- **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+- **Issue 1: Testare e validare la ristrutturazione del Wizard di Creazione Film (P0)**
+    - **Attempted fixes:** L'agente ha scritto tutto il codice necessario sia per il frontend che per il backend, toccando , ,  e aggiungendo nuove costanti.
+    - **Next debug checklist:**
+        1.  Avviare la creazione di un nuovo film.
+        2.  Verificare che la nuova barra di navigazione del wizard (step, titolo, pulsanti) sia sticky e posizionata correttamente.
+        3.  Nello step delle location, verificare la presenza delle nuove 80+ location e il funzionamento del filtro per categorie.
+        4.  Completare gli step da 1 a 10.
+        5.  Arrivati allo step 11 (Sponsor), verificare che le offerte caricate siano dinamiche (provare a creare un film buono e uno scarso per vedere la differenza).
+        6.  Verificare che il pulsante Indietro sia disabilitato allo step 11.
+        7.  Verificare che la navbar superiore su mobile mostri di nuovo tutte le icone.
+        8.  Completare il wizard e finalizzare il film per assicurarsi che non ci siano crash.
+    - **Why fix this issue and what will be achieved with the fix?** È la richiesta principale dell'utente. Il fix completerà una feature fondamentale del gameplay, rendendola più strategica e migliorando l'usabilità.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** No.
+
+**In progress Task List**:
+- **Task 1: Completare la ristrutturazione del Wizard di Creazione Film (P0)**
+    - **Where to resume:** Il codice è stato scritto. Il prossimo passo è avviare un test end-to-end completo, partendo con uno screenshot della nuova UI del wizard per una validazione visiva immediata.
+    - **What will be achieved with this?** Una nuova esperienza di creazione del film, più dinamica, strategica e con una migliore interfaccia utente, come richiesto dall'utente.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on something:** No.
+
+**Upcoming and Future Tasks**
+**Upcoming Tasks:**
+-   **(P1) Task 1: Migliorare Locandine AI con Testo:** Indagare la fattibilità di modificare il prompt per far apparire dinamicamente il titolo del film e i nomi degli attori sulla locandina generata.
+
+**Future Tasks:**
+-   (P1) **Riattivazione Funzionalità Disabilitate:** Pianificare il ripristino del Mercato Infrastrutture.
+-   (P2) **Sistema di acquisto CineCoins:** Integrazione con un provider di pagamento come Stripe.
+-   (P2) **Attività delle Major**.
+-   (P3) **Script di migrazione dati permanente e robusto.**
+
+**Completed work in this session**
+- **Affidabilità Generazione Locandina AI:** Implementato un sistema di polling a 2 fasi (, ) per risolvere i timeout su mobile. Aggiunta compressione (JPEG) e logica di retry sul backend e migliorata l'UX del frontend con indicatori di caricamento e messaggi di stato.
+- **Ottimizzazione UI Mobile:** Ripristinati gli iconi nella navbar superiore, introdotta una nuova barra di navigazione inferiore in , e rese responsive le griglie dei film in  e .
+- **Gestione Account:** Aggiunta la funzionalità di Cambio Password con relativo endpoint backend () e UI nel profilo utente ( e modale in ).
+- **Bug Fixes e QoL:**
+    - Risolto un crash nella pagina  (import mancante).
+    - Implementato un popup Visita Studio per vedere la dashboard di altri utenti.
+    - Rimosso un pulsante Aggiorna e automatizzato il passaggio di turno nelle sfide 1vs1.
+- **Gestione Dati:** Cancellati alcuni utenti di test e ripristinata la password di un utente su richiesta.
+
+**Earlier issues found/mentioned but not fixed**
+- Nessuno.
+
+**Known issue recurrence from previous fork**
+- **Generazione Locandine AI:** Questo problema era ricorrente. L'ultima soluzione implementata (sistema di polling asincrono) è la più robusta finora e dovrebbe averlo risolto definitivamente, ma richiede una conferma finale dall'utente.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- **Polling Asincrono:** Utilizzato per gestire operazioni lunghe (generazione AI) senza incorrere in timeout HTTP, specialmente su reti mobili instabili.
+- **Responsive Design:** Utilizzo di classi condizionali di TailwindCSS (, , ) per creare layout diversi per mobile e desktop, inclusa la visualizzazione/nascondiglio di intere barre di navigazione.
+- **State Management Complesso in React:** Gestione di un wizard multi-step con stato dipendente e calcoli dinamici ().
+
+**key DB schema**
+-   **users:** Il campo  viene ora modificato dal nuovo endpoint di cambio password.
+-   **locations:** La collection è stata espansa con ~80 nuovi documenti e ogni documento ora include un campo  (stringa).
+
+**changes in tech stack**
+- Nessuna.
+
+**All files of reference**
+-   : File principale della ristrutturazione. Contiene la nuova logica per gli step, la UI sticky, il pre-rating e gli sponsor dinamici.
+-   : Contiene i nuovi endpoint per il pre-rating (), il sistema di polling per le locandine () e la logica aggiornata per servire le location categorizzate.
+-   : Contiene la nuova barra di navigazione inferiore per mobile e le correzioni alla navbar superiore.
+-   : Contiene il nuovo endpoint .
+-   : Contiene l'UI per la funzione di cambio password.
+-   : Modificato per ripristinare la visibilità delle icone su mobile.
+
+**Areas that need refactoring**:
+-   ****: Questo file è diventato estremamente grande e complesso. È un candidato primario per essere scomposto in componenti più piccoli (es. , ) e custom hooks (es. , ).
+-   ****: La logica di business continua a crescere. Le funzionalità di pre-rating e la gestione delle location dovrebbero essere estratte in moduli dedicati sotto .
+
+**key api endpoints**
+-   : **(NUOVO)** Consente a un utente autenticato di cambiare la propria password.
+-   : **(NUOVO)** Calcola un punteggio preliminare per un film in fase di creazione.
+-   : **(NUOVO)** Avvia in modo asincrono la generazione di una locandina e restituisce un .
+-   : **(NUOVO)** Controlla lo stato di una generazione di locandina in corso.
+-   : Aggiornato per restituire le location con il loro nuovo campo .
+
+**Critical Info for New Agent**
+-   **Lingua:** L'utente è italiano. Rispondi sempre e solo in **italiano**.
+-   **Priorità Assoluta (P0):** L'intero wizard di creazione film è stato riscritto ma è **completamente non testato**. Il primo passo in assoluto è eseguire un test end-to-end completo del nuovo flusso, verificando ogni singola richiesta dell'utente (UI sticky, nuove location, logica sponsor, ecc.).
+-   **Database di Preview:** Ricorda all'utente, se necessario, che l'ambiente di preview utilizza un database separato e isolato dal gioco live. I progressi non sono condivisi. Questo è stato un punto di confusione per l'utente.
+-   **Complessità del Wizard:** Il file  è ora il componente più complesso dell'applicazione. Procedi con estrema cautela prima di apportare qualsiasi modifica.
+
+**documents and test reports created in this job**
+-   
+-   
+-    (aggiornato)
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User:** Richiede una complessa revisione del wizard di creazione film (UI sticky, nuove location, sistema di sponsor dinamico). (Status: **IN PROGRESS - CODICE SCRITTO, NON TESTATO**)
+2.  **User:** Chiede se la correzione per la generazione delle locandine si applica anche alle bozze. (Status: **ADDRESSED**)
+3.  **User:** Richiede ottimizzazioni per la velocità su mobile. (Status: **COMPLETED**)
+4.  **User:** Segnala che la generazione della locandina fallisce ancora, fornendo uno screenshot. (Status: **ADDRESSED** con il nuovo sistema di polling)
+5.  **User:** Segnala invalid credentials per il suo account. (Status: **COMPLETED**, password ripristinata)
+6.  **User:** Segnala la scomparsa delle navbar, chiede della sincronizzazione dei dati e richiede la funzione di cambio password. (Status: **COMPLETED**)
+7.  **User:** Chiede di ripristinare utenti reali cancellati per errore. (Status: **RESOLVED**, l'utente ha accettato la perdita dati)
+8.  **User:** Conferma che il problema di generazione locandina non è risolto. (Status: **ADDRESSED** con aumento timeout, poi superato dal polling)
+9.  **User:** Segnala ancora il fallimento della generazione della locandina. (Status: **INVESTIGATING**, ha portato al sistema di polling)
+10. **User:** Dice lasciamo così, fa nulla riguardo agli utenti cancellati. (Status: **RESOLVED**)
+
+**Project Health Check:**
+-   **Broken:** La funzionalità di Creazione Film è a rischio elevato. Le modifiche massive e non testate potrebbero averla resa inutilizzabile.
+-   **Mocked:** La sezione Mercato Infrastrutture rimane disabilitata.
+
+**3rd Party Integrations**
+-   **OpenAI GPT-4o (Text Generation):** Usa Emergent LLM Key.
+-   **OpenAI GPT-Image-1 (Image Generation):** Usa Emergent LLM Key.
+-   **Sora 2 (Video Generation):** Usa Emergent LLM Key (Disabilitato).
+-   **Resend (Email):** Richiede User API Key.
+-   **APScheduler:** Utilizzato per task periodici.
+
+**Testing status**
+-   **Testing agent used after significant changes:** YES (per le feature precedenti all'ultima richiesta).
+-   **Troubleshoot agent used after agent stuck in loop:** NO.
+-   **Test files created:** NO.
+-   **Known regressions:** Nessuna, ma il rischio di regressioni nel  è altissimo.
+
+**Credentials to test flow:**
+-   User: 
+-   Password: 
+
+**What agent forgot to execute**
+L'agente non ha eseguito alcun test dopo aver implementato una delle richieste più grandi e complesse del progetto (la ristrutturazione del ). Ha scritto tutto il codice ma non ha verificato se funzionasse, nemmeno con uno screenshot mirato, lasciando il task principale in uno stato IN PROGRESS molto rischioso.</analysis>

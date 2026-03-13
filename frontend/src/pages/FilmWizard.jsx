@@ -121,7 +121,57 @@ const FilmWizard = () => {
   });
   const [myFilmsForSequel, setMyFilmsForSequel] = useState([]);
   const [releaseDate, setReleaseDate] = useState(new Date());
-  const steps = [{num:1,title:'Title'},{num:2,title:'Sponsor'},{num:3,title:'Equipment'},{num:4,title:'Writer'},{num:5,title:'Director'},{num:6,title:'Composer'},{num:7,title:'Cast'},{num:8,title:'Script'},{num:9,title:'Soundtrack'},{num:10,title:'Poster'},{num:11,title:'Ads'},{num:12,title:'Review'}];
+  const steps = [{num:1,title:'Title'},{num:2,title:'Equipment'},{num:3,title:'Writer'},{num:4,title:'Director'},{num:5,title:'Composer'},{num:6,title:'Cast'},{num:7,title:'Script'},{num:8,title:'Soundtrack'},{num:9,title:'Poster'},{num:10,title:'Ads'},{num:11,title:'Sponsor'},{num:12,title:'Review'}];
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [dynamicSponsors, setDynamicSponsors] = useState([]);
+  
+  // Calculate hidden pre-rating based on choices so far
+  const calculatePreRating = () => {
+    let score = 0;
+    // Equipment quality (0-25)
+    const eqMap = {'standard': 5, 'professional': 12, 'premium': 20, 'hollywood_elite': 25};
+    const eqKey = (filmData.equipment_package || '').toLowerCase().replace(/ /g, '_');
+    score += eqMap[eqKey] || 5;
+    // Locations count & quality
+    if (filmData.locations.length > 0) { score += Math.min(filmData.locations.length * 4, 15); }
+    // Screenwriter IMDb
+    if (filmData.screenwriter_id && screenwriters.length > 0) {
+      const sw = screenwriters.find(p => p.id === filmData.screenwriter_id);
+      if (sw?.imdb_rating) { score += sw.imdb_rating * 2.5; }
+    }
+    // Director IMDb
+    if (filmData.director_id && directors.length > 0) {
+      const dir = directors.find(p => p.id === filmData.director_id);
+      if (dir?.imdb_rating) { score += dir.imdb_rating * 3; }
+    }
+    // Composer IMDb
+    if (filmData.composer_id && composers.length > 0) {
+      const comp = composers.find(p => p.id === filmData.composer_id);
+      if (comp?.imdb_rating) { score += comp.imdb_rating * 2; }
+    }
+    // Actors average
+    if (filmData.actors.length > 0) {
+      const avgImdb = filmData.actors.reduce((sum, a) => sum + (a.imdb_rating || 5), 0) / filmData.actors.length;
+      score += avgImdb * 2.5;
+    }
+    // Screenplay exists
+    if (filmData.screenplay) { score += 8; }
+    // Poster exists
+    if (filmData.poster_url) { score += 5; }
+    return Math.min(100, Math.round(score));
+  };
+  
+  // Load dynamic sponsors when reaching step 11
+  const loadDynamicSponsors = async () => {
+    try {
+      const preRating = calculatePreRating();
+      const res = await api.post('/sponsors/dynamic', { pre_rating: preRating });
+      setDynamicSponsors(res.data.sponsors || []);
+    } catch(e) {
+      console.error('Failed to load sponsors:', e);
+      setDynamicSponsors([]);
+    }
+  };
 
   // Function to save draft (pause)
   const saveDraft = async (reason = 'paused') => {
@@ -332,10 +382,10 @@ const FilmWizard = () => {
   };
   
   useEffect(() => { 
-    if(step===4) { fetchPeople('screenwriters', selectedCategory, selectedSkill); }
-    if(step===5) { fetchPeople('directors', selectedCategory, selectedSkill); }
-    if(step===6) { fetchPeople('composers', selectedCategory, selectedSkill); }
-    if(step===7) { fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange); }
+    if(step===3) { fetchPeople('screenwriters', selectedCategory, selectedSkill); }
+    if(step===4) { fetchPeople('directors', selectedCategory, selectedSkill); }
+    if(step===5) { fetchPeople('composers', selectedCategory, selectedSkill); }
+    if(step===6) { fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange); }
   }, [step, selectedCategory, selectedSkill, selectedAgeRange]);
   
   // Reset filters when changing steps
@@ -344,6 +394,8 @@ const FilmWizard = () => {
     setSelectedSkill('all');
     setSkillSearchQuery('');
     setSelectedAgeRange('all');
+    // Load dynamic sponsors when reaching step 11
+    if (step === 11) { loadDynamicSponsors(); }
   }, [step]);
 
   const generateScreenplay = async () => { 
@@ -931,19 +983,22 @@ const FilmWizard = () => {
         <div><Label className="text-xs">{t('release_date')}</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full h-9 justify-start bg-black/20 border-white/10"><Calendar className="w-3 h-3 mr-2" />{format(releaseDate,'PPP')}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 bg-[#1A1A1A] border-white/10"><CalendarComponent mode="single" selected={releaseDate} onSelect={setReleaseDate} disabled={d=>d<new Date(new Date().setHours(0,0,0,0))} /></PopoverContent></Popover></div>
         <div><Label className="text-xs">Weeks: {filmData.weeks_in_theater}</Label><Slider value={[filmData.weeks_in_theater]} onValueChange={([v])=>setFilmData({...filmData,weeks_in_theater:v})} min={1} max={12} /></div>
       </div>);
-      case 2: return (<div className="space-y-2">
-        <Card className={`border-2 cursor-pointer ${!filmData.sponsor_id?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,sponsor_id:null})}><CardContent className="p-2 flex items-center gap-2"><X className="w-4 h-4" /><span className="text-sm">No Sponsor</span></CardContent></Card>
-        {sponsors.map(s=><Card key={s.name} className={`border-2 cursor-pointer ${filmData.sponsor_id===s.name?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,sponsor_id:s.name})}><CardContent className="p-2 flex justify-between items-center"><span className="text-sm">{s.name}</span><div className="text-right"><span className="text-green-400 text-sm">+${s.budget_offer.toLocaleString()}</span><span className="text-red-400 text-xs ml-2">-{s.revenue_share}%</span></div></CardContent></Card>)}
-      </div>);
-      case 3: return (<div className="space-y-3">
+      case 2: return (<div className="space-y-3">
         <div><Label className="text-xs">Equipment</Label><div className="space-y-1">{equipment.map(e=><Card key={e.name} className={`border-2 cursor-pointer ${filmData.equipment_package===e.name?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,equipment_package:e.name})}><CardContent className="p-2 flex justify-between"><span className="text-sm">{e.name} <span className="text-gray-400">(+{e.quality_bonus}%)</span></span><span className="text-yellow-500 text-sm">${e.cost.toLocaleString()}</span></CardContent></Card>)}</div></div>
-        <div><Label className="text-xs">Locations</Label><div className="grid grid-cols-2 gap-1">{locations.map(l=>{const sel=filmData.locations.includes(l.name);return<Card key={l.name} className={`border-2 cursor-pointer ${sel?'border-yellow-500':'border-white/10'}`} onClick={()=>{if(sel)setFilmData({...filmData,locations:filmData.locations.filter(x=>x!==l.name)});else setFilmData({...filmData,locations:[...filmData.locations,l.name],location_days:{...filmData.location_days,[l.name]:7}});}}><CardContent className="p-1.5 text-xs"><span>{l.name}</span><span className="text-yellow-500 block">${l.cost_per_day.toLocaleString()}/day</span></CardContent></Card>;})}</div></div>
+        <div><Label className="text-xs">Locations</Label>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {[{key:'all',label:'Tutte'},{key:'studios',label:'Studi & Set'},{key:'cities',label:'Metropoli'},{key:'nature',label:'Natura'},{key:'historical',label:'Storici'}].map(f=>(
+              <Button key={f.key} size="sm" variant={locationFilter===f.key?'default':'outline'} className={`h-6 text-[10px] px-2 ${locationFilter===f.key?'bg-yellow-500 text-black':'border-white/10 text-gray-400'}`} onClick={()=>setLocationFilter(f.key)}>{f.label}</Button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-1 max-h-[40vh] overflow-y-auto">{locations.filter(l=>locationFilter==='all'||l.category===locationFilter).map(l=>{const sel=filmData.locations.includes(l.name);return<Card key={l.name} className={`border-2 cursor-pointer ${sel?'border-yellow-500':'border-white/10'}`} onClick={()=>{if(sel)setFilmData({...filmData,locations:filmData.locations.filter(x=>x!==l.name)});else setFilmData({...filmData,locations:[...filmData.locations,l.name],location_days:{...filmData.location_days,[l.name]:7}});}}><CardContent className="p-1.5 text-xs"><span>{l.name}</span><span className="text-yellow-500 block">${l.cost_per_day.toLocaleString()}/day</span></CardContent></Card>;})}</div>
+        </div>
       </div>);
-      case 4: case 5:
-        const people45 = step===4?screenwriters:directors;
-        const selId = step===4?filmData.screenwriter_id:filmData.director_id;
-        const roleType45 = step===4?'screenwriters':'directors';
-        const skills45 = step===4?availableSkills.screenwriters:availableSkills.directors;
+      case 3: case 4:
+        const people45 = step===3?screenwriters:directors;
+        const selId = step===3?filmData.screenwriter_id:filmData.director_id;
+        const roleType45 = step===3?'screenwriters':'directors';
+        const skills45 = step===3?availableSkills.screenwriters:availableSkills.directors;
         return (<div className="space-y-2">
           {/* Filters Row */}
           <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
@@ -973,10 +1028,10 @@ const FilmWizard = () => {
             </Select>
             <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleType45, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
           </div>
-          <p className="text-xs text-gray-400">{people45.length} {step===4?(language==='it'?'sceneggiatori':'screenwriters'):(language==='it'?'registi':'directors')} {language==='it'?'trovati':'found'}</p>
-          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType={step===4?'screenwriter':'director'} onSelect={()=>{if(step===4)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
+          <p className="text-xs text-gray-400">{people45.length} {step===3?(language==='it'?'sceneggiatori':'screenwriters'):(language==='it'?'registi':'directors')} {language==='it'?'trovati':'found'}</p>
+          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType={step===3?'screenwriter':'director'} onSelect={()=>{if(step===3)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
         </div>);
-      case 6:
+      case 5:
         return (<div className="space-y-2">
           {/* Filters Row */}
           <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
@@ -1018,7 +1073,7 @@ const FilmWizard = () => {
             </div>
           </ScrollArea>
         </div>);
-      case 7:
+      case 6:
         return (<div className="space-y-2">
           {/* Filters Row */}
           <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
@@ -1118,12 +1173,12 @@ const FilmWizard = () => {
           </ScrollArea>
           <div><Label className="text-xs">Extras: {filmData.extras_count} (${filmData.extras_cost.toLocaleString()})</Label><Slider value={[filmData.extras_count]} onValueChange={([v])=>setFilmData({...filmData,extras_count:v,extras_cost:v*1000})} min={0} max={500} step={10} /></div>
         </div>);
-      case 8: return (<div className="space-y-3">
+      case 7: return (<div className="space-y-3">
         <div className="flex gap-2"><Button variant={filmData.screenplay_source==='manual'?'default':'outline'} size="sm" onClick={()=>setFilmData({...filmData,screenplay_source:'manual'})} className={filmData.screenplay_source==='manual'?'bg-yellow-500 text-black':''}>Manuale</Button><Button variant="outline" size="sm" onClick={generateScreenplay} disabled={generating||!filmData.title}><Sparkles className="w-3 h-3 mr-1" />{generating?'...':'Genera con AI'}</Button></div>
         <Input value={filmData.screenplay_prompt} onChange={e=>setFilmData({...filmData,screenplay_prompt:e.target.value})} placeholder="La tua idea per la sceneggiatura... (opzionale per AI)" className="bg-black/20 border-white/10 text-sm" />
         <Textarea value={filmData.screenplay} onChange={e=>setFilmData({...filmData,screenplay:e.target.value})} placeholder="Sceneggiatura..." className="min-h-[200px] bg-black/20 border-white/10" />
       </div>);
-      case 9: {
+      case 8: {
         // Auto-calculate soundtrack score from composer skills
         const selectedComposer = composers.find(c => c.id === filmData.composer_id);
         const composerSkill = selectedComposer?.skills?.[filmData.genre] || selectedComposer?.skills?.overall || 50;
@@ -1167,7 +1222,7 @@ const FilmWizard = () => {
           </Card>
         </div>);
       }
-      case 10: return (<div className="grid md:grid-cols-2 gap-3">
+      case 9: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder={language === 'it' ? 'Descrivi la locandina...' : 'Describe poster...'} className="min-h-[100px] bg-black/20 border-white/10" />
           <Button onClick={generatePoster} disabled={generating} className="w-full bg-yellow-500 text-black" data-testid="generate-poster-btn">
@@ -1177,10 +1232,18 @@ const FilmWizard = () => {
         </div>
         <div className="aspect-[2/3] bg-[#1A1A1A] rounded border border-white/10 overflow-hidden">{filmData.poster_url?<img src={filmData.poster_url} alt="Poster" className="w-full h-full object-cover" />:<div className="w-full h-full flex items-center justify-center text-gray-500"><Image className="w-10 h-10 opacity-50" /></div>}</div>
       </div>);
-      case 11: return (<div className="space-y-3">
+      case 10: return (<div className="space-y-3">
         <p className="text-xs text-gray-400">Ads give immediate revenue but may reduce satisfaction.</p>
         <div><Label className="text-xs">Duration: {filmData.ad_duration_seconds}s</Label><Slider value={[filmData.ad_duration_seconds]} onValueChange={([v])=>setFilmData({...filmData,ad_duration_seconds:v,ad_revenue:v*5000})} min={0} max={180} step={15} /></div>
         <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><div className="flex justify-between"><span>Immediate Revenue</span><span className="text-green-400 text-lg">+${filmData.ad_revenue.toLocaleString()}</span></div>{filmData.ad_duration_seconds>60&&<p className="text-xs text-yellow-500 mt-1">⚠️ High ads may reduce satisfaction</p>}</CardContent></Card>
+      </div>);
+      case 11: return (<div className="space-y-3">
+        <div className="text-center py-2">
+          <p className="text-sm text-gray-400 mb-1">{language === 'it' ? 'In base alle aspettative del tuo film, ecco gli sponsor interessati:' : 'Based on film expectations, here are interested sponsors:'}</p>
+          {dynamicSponsors.length === 0 && <p className="text-yellow-500 text-sm font-semibold">{language === 'it' ? 'Nessuno sponsor interessato. Il tuo film non ha attirato abbastanza attenzione.' : 'No sponsors interested. Your film hasn\'t attracted enough attention.'}</p>}
+        </div>
+        <Card className={`border-2 cursor-pointer ${!filmData.sponsor_id?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,sponsor_id:null})}><CardContent className="p-2 flex items-center gap-2"><X className="w-4 h-4" /><span className="text-sm">{language === 'it' ? 'Nessuno Sponsor' : 'No Sponsor'}</span></CardContent></Card>
+        {dynamicSponsors.map(s=><Card key={s.name} className={`border-2 cursor-pointer ${filmData.sponsor_id===s.name?'border-yellow-500':'border-white/10'}`} onClick={()=>setFilmData({...filmData,sponsor_id:s.name})}><CardContent className="p-2 flex justify-between items-center"><div><span className="text-sm font-semibold">{s.name}</span><p className="text-[10px] text-gray-400">{s.genre_focus || 'Multi-genre'}</p></div><div className="text-right"><span className="text-green-400 text-sm font-bold">+${s.budget_offer.toLocaleString()}</span><span className="text-red-400 text-xs ml-2">-{s.revenue_share}%</span></div></CardContent></Card>)}
       </div>);
       case 12:
         const budget=calculateBudget(), sponsor=getSponsorBudget(), net=budget-sponsor-filmData.ad_revenue;
@@ -1203,17 +1266,28 @@ const FilmWizard = () => {
     }
   };
 
-  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 3:return filmData.locations.length>0; case 4:return filmData.screenwriter_id; case 5:return filmData.director_id; case 6:return filmData.composer_id; case 7:return filmData.actors.length>0; case 8:return filmData.screenplay; default:return true; }};
+  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 2:return filmData.locations.length>0; case 3:return filmData.screenwriter_id; case 4:return filmData.director_id; case 5:return filmData.composer_id; case 6:return filmData.actors.length>0; case 7:return filmData.screenplay; default:return true; }};
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="film-wizard">
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2 overflow-x-auto pb-1">{steps.map((s,i)=>(<div key={s.num} className="flex items-center"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step===s.num?'bg-yellow-500 text-black':step>s.num?'bg-green-500 text-white':'bg-gray-700 text-gray-400'}`}>{step>s.num?'✓':s.num}</div>{i<steps.length-1&&<div className={`w-3 h-0.5 mx-0.5 ${step>s.num?'bg-green-500':'bg-gray-700'}`} />}</div>))}</div>
-        <h2 className="font-['Bebas_Neue'] text-xl">{steps[step-1].title}</h2>
+      {/* Sticky step bar + title + navigation */}
+      <div className="sticky top-14 z-20 bg-[#0F0F10]/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-white/10">
+        <div className="flex items-center justify-between mb-1 overflow-x-auto pb-1">{steps.map((s,i)=>(<div key={s.num} className="flex items-center"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step===s.num?'bg-yellow-500 text-black':step>s.num?'bg-green-500 text-white':'bg-gray-700 text-gray-400'}`}>{step>s.num?'✓':s.num}</div>{i<steps.length-1&&<div className={`w-3 h-0.5 mx-0.5 ${step>s.num?'bg-green-500':'bg-gray-700'}`} />}</div>))}</div>
+        <div className="flex items-center justify-between">
+          <h2 className="font-['Bebas_Neue'] text-xl">{steps[step-1].title}</h2>
+          <div className="flex gap-1.5 items-center">
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={()=>setStep(step-1)} disabled={step===1||step>=11}>Previous</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2 text-orange-400 border-orange-400/50 hover:bg-orange-500/10" onClick={()=>saveDraft('paused')} disabled={savingDraft}>
+              {savingDraft ? '...' : (language === 'it' ? 'Pausa' : 'Pause')}
+            </Button>
+            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
+          </div>
+        </div>
+        {lastAutoSave && <p className="text-[10px] text-gray-500 flex items-center gap-1"><CheckCircle className="w-2.5 h-2.5 text-green-500" />{language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>}
       </div>
       {/* Fixed Film Info Reminder - visible from step 2 onwards when title is set */}
       {step > 1 && filmData.title && (
-        <div className="mb-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3" data-testid="film-info-reminder">
+        <div className="mt-2 mb-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-3" data-testid="film-info-reminder">
           <Film className="w-4 h-4 text-yellow-500 flex-shrink-0" />
           <div className="flex items-center gap-2 flex-wrap text-xs">
             <span className="font-bold text-yellow-400">{filmData.title}</span>
@@ -1224,22 +1298,7 @@ const FilmWizard = () => {
           </div>
         </div>
       )}
-      <Card className="bg-[#1A1A1A] border-white/10"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
-      <div className="flex justify-between items-center mt-3">
-        <div className="flex gap-2 items-center">
-          <Button variant="outline" size="sm" onClick={()=>setStep(step-1)} disabled={step===1}>Previous</Button>
-          <Button variant="outline" size="sm" onClick={()=>saveDraft('paused')} disabled={savingDraft} className="text-orange-400 border-orange-400/50 hover:bg-orange-500/10">
-            {savingDraft ? '...' : (language === 'it' ? 'Metti in Pausa' : 'Pause')}
-          </Button>
-          {lastAutoSave && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-green-500" />
-              {language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-            </span>
-          )}
-        </div>
-        {step<12?<Button size="sm" onClick={()=>setStep(step+1)} disabled={!canProceed()} className="bg-yellow-500 text-black">Next <ChevronRight className="w-3 h-3 ml-1" /></Button>:<Button size="sm" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds} className="bg-yellow-500 text-black">{loading?'...':'Create Film'}</Button>}
-      </div>
+      <Card className="bg-[#1A1A1A] border-white/10 mt-2"><CardContent className="p-3"><AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence></CardContent></Card>
 
       {/* Rejection Modal */}
       {rejectionModal && (

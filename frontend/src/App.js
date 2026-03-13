@@ -297,11 +297,11 @@ const TopNavbar = () => {
           </Button>
           )}
           
-          {/* Major - Hidden on mobile */}
+          {/* Major */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
             onClick={() => navigate('/major')}
             data-testid="major-btn"
             title="Major"
@@ -309,11 +309,11 @@ const TopNavbar = () => {
             <Crown className="w-4 h-4" />
           </Button>
           
-          {/* CineBoard/Social - Hidden on mobile */}
+          {/* CineBoard/Social */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
             onClick={() => navigate('/social')}
             data-testid="cineboard-btn"
             title="CineBoard"
@@ -321,11 +321,11 @@ const TopNavbar = () => {
             <Globe className="w-4 h-4" />
           </Button>
           
-          {/* Cinema Journal - Hidden on mobile */}
+          {/* Cinema Journal */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/journal')}
             data-testid="journal-nav-btn"
             title={language === 'it' ? 'Giornale del Cinema' : 'Cinema Journal'}
@@ -345,11 +345,11 @@ const TopNavbar = () => {
             <Swords className="w-4 h-4" />
           </Button>
           
-          {/* Chat - Hidden on mobile */}
+          {/* Chat */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')}
             data-testid="chat-nav-btn"
             title="Chat"
@@ -381,11 +381,11 @@ const TopNavbar = () => {
             </span>
           </div>
           
-          {/* Online Users - Hidden on mobile */}
+          {/* Online Users */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
             onClick={() => setShowOnlineUsersPanel(true)}
             data-testid="online-users-btn"
             title={language === 'it' ? 'Utenti Online' : 'Online Users'}

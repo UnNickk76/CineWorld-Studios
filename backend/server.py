@@ -901,16 +901,93 @@ SPONSORS = [
 ]
 
 LOCATIONS = [
-    {'name': 'Hollywood Studio', 'cost_per_day': 60000, 'type': 'studio'},
-    {'name': 'New York City', 'cost_per_day': 96000, 'type': 'urban'},
-    {'name': 'Paris Streets', 'cost_per_day': 84000, 'type': 'urban'},
-    {'name': 'Sahara Desert', 'cost_per_day': 48000, 'type': 'natural'},
-    {'name': 'Alps Mountains', 'cost_per_day': 72000, 'type': 'natural'},
-    {'name': 'Tokyo District', 'cost_per_day': 90000, 'type': 'urban'},
-    {'name': 'Caribbean Beach', 'cost_per_day': 66000, 'type': 'natural'},
-    {'name': 'London Set', 'cost_per_day': 78000, 'type': 'urban'},
-    {'name': 'Amazon Jungle', 'cost_per_day': 54000, 'type': 'natural'},
-    {'name': 'Rome Colosseum', 'cost_per_day': 90000, 'type': 'historical'}
+    # STUDI & SET (Film Studios & Backlots)
+    {'name': 'Hollywood Studio', 'cost_per_day': 60000, 'category': 'studios'},
+    {'name': 'Cinecittà Roma', 'cost_per_day': 55000, 'category': 'studios'},
+    {'name': 'Pinewood Studios', 'cost_per_day': 65000, 'category': 'studios'},
+    {'name': 'Babelsberg Studio', 'cost_per_day': 50000, 'category': 'studios'},
+    {'name': 'Warner Bros Lot', 'cost_per_day': 75000, 'category': 'studios'},
+    {'name': 'Paramount Backlot', 'cost_per_day': 70000, 'category': 'studios'},
+    {'name': 'Shepperton Studios', 'cost_per_day': 58000, 'category': 'studios'},
+    {'name': 'Fox Studio Australia', 'cost_per_day': 52000, 'category': 'studios'},
+    {'name': 'Barrandov Studios Praga', 'cost_per_day': 40000, 'category': 'studios'},
+    {'name': 'Toho Studios Tokyo', 'cost_per_day': 62000, 'category': 'studios'},
+    {'name': 'Leavesden Studios', 'cost_per_day': 68000, 'category': 'studios'},
+    {'name': 'Nu Boyana Sofia', 'cost_per_day': 35000, 'category': 'studios'},
+    {'name': 'Churubusco Studios Mexico', 'cost_per_day': 38000, 'category': 'studios'},
+    {'name': 'Bollywood Film City', 'cost_per_day': 30000, 'category': 'studios'},
+    {'name': 'Mosfilm Studios Mosca', 'cost_per_day': 42000, 'category': 'studios'},
+    {'name': 'Atlas Studios Marocco', 'cost_per_day': 28000, 'category': 'studios'},
+    {'name': 'Dino De Laurentiis Studio', 'cost_per_day': 55000, 'category': 'studios'},
+    {'name': 'Tyler Perry Studios', 'cost_per_day': 60000, 'category': 'studios'},
+    {'name': 'Orion Sound Stage', 'cost_per_day': 45000, 'category': 'studios'},
+    {'name': 'Seoul Drama Center', 'cost_per_day': 48000, 'category': 'studios'},
+    # METROPOLI & CITTÀ (Cities & Urban)
+    {'name': 'New York City', 'cost_per_day': 96000, 'category': 'cities'},
+    {'name': 'Paris Streets', 'cost_per_day': 84000, 'category': 'cities'},
+    {'name': 'Tokyo District', 'cost_per_day': 90000, 'category': 'cities'},
+    {'name': 'London Set', 'cost_per_day': 78000, 'category': 'cities'},
+    {'name': 'Los Angeles', 'cost_per_day': 85000, 'category': 'cities'},
+    {'name': 'Shanghai Bund', 'cost_per_day': 72000, 'category': 'cities'},
+    {'name': 'Dubai Marina', 'cost_per_day': 88000, 'category': 'cities'},
+    {'name': 'Roma Centro', 'cost_per_day': 80000, 'category': 'cities'},
+    {'name': 'Berlino', 'cost_per_day': 65000, 'category': 'cities'},
+    {'name': 'Hong Kong Neon', 'cost_per_day': 82000, 'category': 'cities'},
+    {'name': 'Mumbai Streets', 'cost_per_day': 45000, 'category': 'cities'},
+    {'name': 'Istanbul Bazaar', 'cost_per_day': 50000, 'category': 'cities'},
+    {'name': 'Bangkok Night Market', 'cost_per_day': 42000, 'category': 'cities'},
+    {'name': 'Sydney Harbour', 'cost_per_day': 75000, 'category': 'cities'},
+    {'name': 'Barcellona Gothic', 'cost_per_day': 68000, 'category': 'cities'},
+    {'name': 'San Francisco Bay', 'cost_per_day': 80000, 'category': 'cities'},
+    {'name': 'Seoul Gangnam', 'cost_per_day': 70000, 'category': 'cities'},
+    {'name': 'Buenos Aires Tango', 'cost_per_day': 40000, 'category': 'cities'},
+    {'name': 'Napoli Quartieri', 'cost_per_day': 55000, 'category': 'cities'},
+    {'name': 'Chicago Downtown', 'cost_per_day': 78000, 'category': 'cities'},
+    {'name': 'Havana Vieja', 'cost_per_day': 35000, 'category': 'cities'},
+    {'name': 'Amsterdam Canali', 'cost_per_day': 62000, 'category': 'cities'},
+    # NATURA & PAESAGGI (Nature & Landscapes)
+    {'name': 'Sahara Desert', 'cost_per_day': 48000, 'category': 'nature'},
+    {'name': 'Alps Mountains', 'cost_per_day': 72000, 'category': 'nature'},
+    {'name': 'Caribbean Beach', 'cost_per_day': 66000, 'category': 'nature'},
+    {'name': 'Amazon Jungle', 'cost_per_day': 54000, 'category': 'nature'},
+    {'name': 'Islanda Ghiacciai', 'cost_per_day': 78000, 'category': 'nature'},
+    {'name': 'Norvegia Fiordi', 'cost_per_day': 70000, 'category': 'nature'},
+    {'name': 'Grand Canyon', 'cost_per_day': 58000, 'category': 'nature'},
+    {'name': 'Maldive Atollo', 'cost_per_day': 85000, 'category': 'nature'},
+    {'name': 'Serengeti Safari', 'cost_per_day': 52000, 'category': 'nature'},
+    {'name': 'Foresta Nera Germania', 'cost_per_day': 45000, 'category': 'nature'},
+    {'name': 'Patagonia', 'cost_per_day': 60000, 'category': 'nature'},
+    {'name': 'Hawaii Vulcano', 'cost_per_day': 75000, 'category': 'nature'},
+    {'name': 'Cascate Niagara', 'cost_per_day': 55000, 'category': 'nature'},
+    {'name': 'Monument Valley', 'cost_per_day': 50000, 'category': 'nature'},
+    {'name': 'Dolomiti', 'cost_per_day': 65000, 'category': 'nature'},
+    {'name': 'Costa Amalfitana', 'cost_per_day': 80000, 'category': 'nature'},
+    {'name': 'Nuova Zelanda Hobbiton', 'cost_per_day': 90000, 'category': 'nature'},
+    {'name': 'Outback Australiano', 'cost_per_day': 42000, 'category': 'nature'},
+    {'name': 'Bali Risaie', 'cost_per_day': 38000, 'category': 'nature'},
+    {'name': 'Toscana Campagna', 'cost_per_day': 55000, 'category': 'nature'},
+    {'name': 'Cascate Victoria', 'cost_per_day': 48000, 'category': 'nature'},
+    # STORICI & CULTURALI (Historical & Cultural)
+    {'name': 'Rome Colosseum', 'cost_per_day': 90000, 'category': 'historical'},
+    {'name': 'Egitto Piramidi', 'cost_per_day': 75000, 'category': 'historical'},
+    {'name': 'Grecia Partenone', 'cost_per_day': 70000, 'category': 'historical'},
+    {'name': 'Machu Picchu', 'cost_per_day': 65000, 'category': 'historical'},
+    {'name': 'Angkor Wat', 'cost_per_day': 55000, 'category': 'historical'},
+    {'name': 'Petra Giordania', 'cost_per_day': 60000, 'category': 'historical'},
+    {'name': 'Versailles', 'cost_per_day': 85000, 'category': 'historical'},
+    {'name': 'Castello di Neuschwanstein', 'cost_per_day': 72000, 'category': 'historical'},
+    {'name': 'Taj Mahal', 'cost_per_day': 68000, 'category': 'historical'},
+    {'name': 'Grande Muraglia Cinese', 'cost_per_day': 78000, 'category': 'historical'},
+    {'name': 'Pompei', 'cost_per_day': 62000, 'category': 'historical'},
+    {'name': 'Alhambra Granada', 'cost_per_day': 58000, 'category': 'historical'},
+    {'name': 'Stonehenge', 'cost_per_day': 55000, 'category': 'historical'},
+    {'name': 'Vaticano', 'cost_per_day': 95000, 'category': 'historical'},
+    {'name': 'Kyoto Templi', 'cost_per_day': 80000, 'category': 'historical'},
+    {'name': 'Dubrovnik Mura', 'cost_per_day': 52000, 'category': 'historical'},
+    {'name': 'San Pietroburgo Hermitage', 'cost_per_day': 65000, 'category': 'historical'},
+    {'name': 'Gerusalemme Vecchia', 'cost_per_day': 70000, 'category': 'historical'},
+    {'name': 'Praga Castello', 'cost_per_day': 48000, 'category': 'historical'},
+    {'name': 'Edinburgh Castle', 'cost_per_day': 56000, 'category': 'historical'},
 ]
 
 EQUIPMENT_PACKAGES = [
@@ -1868,8 +1945,46 @@ async def get_sponsors():
 
 @api_router.get("/locations")
 async def get_locations():
-    # Return expanded filming locations from cast_system
-    return get_all_locations_flat()
+    return LOCATIONS
+
+@api_router.post("/sponsors/dynamic")
+async def get_dynamic_sponsors(data: dict, user: dict = Depends(get_current_user)):
+    """Return sponsors based on film pre-rating. 0-4 sponsors depending on quality."""
+    pre_rating = data.get('pre_rating', 0)
+    
+    # Exponential sponsor interest: bad film = 0 sponsors, great film = 4
+    if pre_rating < 25:
+        num_sponsors = 0
+    elif pre_rating < 45:
+        num_sponsors = 1
+    elif pre_rating < 65:
+        num_sponsors = 2
+    elif pre_rating < 82:
+        num_sponsors = 3
+    else:
+        num_sponsors = 4
+    
+    if num_sponsors == 0:
+        return {'sponsors': [], 'pre_rating': pre_rating, 'num_sponsors': 0}
+    
+    # Select sponsors weighted by pre_rating
+    # Higher pre_rating = higher tier sponsors
+    import random
+    tier_min = max(1, int(pre_rating / 25))
+    eligible = [s for s in SPONSORS if s['rating'] >= tier_min]
+    if not eligible:
+        eligible = SPONSORS
+    
+    selected = random.sample(eligible, min(num_sponsors, len(eligible)))
+    
+    # Adjust budget_offer based on pre_rating (multiplier 0.5x to 2x)
+    multiplier = 0.5 + (pre_rating / 100) * 1.5
+    result = []
+    for s in selected:
+        adjusted = {**s, 'budget_offer': int(s['budget_offer'] * multiplier)}
+        result.append(adjusted)
+    
+    return {'sponsors': sorted(result, key=lambda x: -x['budget_offer']), 'pre_rating': pre_rating, 'num_sponsors': num_sponsors}
 
 @api_router.get("/equipment")
 async def get_equipment():

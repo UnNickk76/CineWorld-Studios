@@ -7995,27 +7995,33 @@ async def startup_event():
                 logging.info("React build completed successfully")
             else:
                 logging.error(f"React build failed: {result.stderr[-500:]}")
-        # Copy build files to nginx html root
-        if os.path.isdir(build_dir) and os.path.isdir(nginx_html):
-            for item in os.listdir(nginx_html):
-                p = os.path.join(nginx_html, item)
-                if os.path.isfile(p): os.remove(p)
-                elif os.path.isdir(p): shutil.rmtree(p)
-            for item in os.listdir(build_dir):
-                s = os.path.join(build_dir, item)
-                d = os.path.join(nginx_html, item)
-                if os.path.isdir(s): shutil.copytree(s, d)
-                else: shutil.copy2(s, d)
-            logging.info(f"Copied React build from {build_dir} to {nginx_html}")
-            # Reload nginx to pick up new files (nginx may have started before copy)
+        # Copy build files to ALL possible nginx root directories
+        if os.path.isdir(build_dir):
+            nginx_roots = ['/var/www/html', '/usr/share/nginx/html']
+            for nginx_root in nginx_roots:
+                if os.path.isdir(nginx_root):
+                    try:
+                        for item in os.listdir(nginx_root):
+                            p = os.path.join(nginx_root, item)
+                            if os.path.isfile(p): os.remove(p)
+                            elif os.path.isdir(p): shutil.rmtree(p)
+                        for item in os.listdir(build_dir):
+                            s = os.path.join(build_dir, item)
+                            d = os.path.join(nginx_root, item)
+                            if os.path.isdir(s): shutil.copytree(s, d)
+                            else: shutil.copy2(s, d)
+                        logging.info(f"Copied React build to {nginx_root}")
+                    except Exception as e:
+                        logging.warning(f"Failed to copy to {nginx_root}: {e}")
+            # Reload nginx to pick up new files
             try:
                 result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     logging.info("Nginx reloaded successfully after build copy")
                 else:
-                    logging.info(f"Nginx reload skipped (not running yet): {result.stderr.strip()}")
+                    logging.info(f"Nginx reload note: {result.stderr.strip()}")
             except Exception:
-                logging.info("Nginx reload skipped (not available)")
+                logging.info("Nginx reload skipped")
     except Exception as e:
         logging.warning(f"Deploy setup: {e}")
 
@@ -13314,6 +13320,22 @@ async def redirect_to_current_game():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+# Serve React build as fallback (production: nginx may proxy all to backend)
+_build_dir = '/app/frontend/build'
+if os.path.isdir(_build_dir) and os.path.isfile(os.path.join(_build_dir, 'index.html')):
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    # Serve static assets
+    if os.path.isdir(os.path.join(_build_dir, 'static')):
+        app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, 'static')), name="static-files")
+    # Catch-all: serve index.html for SPA routing
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(_build_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_build_dir, 'index.html'))
 
 app.add_middleware(
     CORSMiddleware,

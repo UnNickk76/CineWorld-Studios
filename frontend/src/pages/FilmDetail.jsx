@@ -75,17 +75,27 @@ const FilmDetail = () => {
   const [filmActions, setFilmActions] = useState(null);
   const [performingAction, setPerformingAction] = useState(null);
 
+  const [loadError, setLoadError] = useState(null);
+  
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
-    const [filmRes, rolesRes, trailerRes, actionsRes, distRes, virtualRes] = await Promise.all([
-      api.get(`/films/${id}`),
-      api.get('/actor-roles').catch(() => ({ data: [] })),
-      api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
-      api.get(`/films/${id}/actions`).catch(() => ({ data: null })),
-      api.get(`/films/${id}/distribution`).catch(() => ({ data: null })),
-      api.get(`/films/${id}/virtual-audience`).catch(() => ({ data: null }))
-    ]);
-    setFilm(filmRes.data);
+    try {
+      const [filmRes, rolesRes, trailerRes, actionsRes, distRes, virtualRes] = await Promise.all([
+        api.get(`/films/${id}`),
+        api.get('/actor-roles').catch(() => ({ data: [] })),
+        api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
+        api.get(`/films/${id}/actions`).catch(() => ({ data: null })),
+        api.get(`/films/${id}/distribution`).catch(() => ({ data: null })),
+        api.get(`/films/${id}/virtual-audience`).catch(() => ({ data: null }))
+      ]);
+      
+      // Verify the response is a valid film (not an error object)
+      if (!filmRes.data || filmRes.data.detail || !filmRes.data.title) {
+        setLoadError(filmRes.data?.detail || 'Film non trovato');
+        return;
+      }
+      
+      setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
     if (trailerRes.data) setTrailerStatus(trailerRes.data);
     if (filmRes.data) setFilmActions(actionsRes.data);
@@ -133,6 +143,10 @@ const FilmDetail = () => {
         }
       }
     }
+    } catch (err) {
+      console.error('Film load error:', err);
+      setLoadError(err.response?.data?.detail || 'Errore nel caricamento del film');
+    }
   };
   
   const handleRerelease = async () => {
@@ -170,6 +184,19 @@ const FilmDetail = () => {
       loadLikersData();
     }
   }, [showLikersPopup, film?.id, api]);
+  
+  if (loadError) return (
+    <div className="pt-16 p-4 text-center space-y-4">
+      <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+        <Film className="w-8 h-8 text-red-400" />
+      </div>
+      <h2 className="text-lg font-bold text-white">{typeof loadError === 'string' ? loadError : 'Film non trovato'}</h2>
+      <p className="text-sm text-gray-400">Questo film potrebbe non essere disponibile o è stato rimosso.</p>
+      <Button onClick={() => navigate(-1)} variant="outline" className="border-white/20">
+        <ChevronLeft className="w-4 h-4 mr-1" /> Torna indietro
+      </Button>
+    </div>
+  );
   
   if (!film) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
   

@@ -10,6 +10,14 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.106 - Film Wizard Ristrutturazione Completa (2026-03-13)
+- Wizard 12 step con header sticky (step indicator + navigazione)
+- 88 nuove location suddivise in 4 categorie (studios, cities, nature, historical) con filtri
+- Sistema sponsor dinamici (step 11): 0-4 offerte basate sul pre-rating del film
+- Pulsante "Indietro" disabilitato da step 11 in poi
+- Fix bug critico: calculatePreRating usava variabile 'people' inesistente
+- Test E2E completo: 100% backend (20/20), 100% frontend
+
 ### v0.105 - Mobile Nav, Password Change, Poster Polling (2026-03-13)
 - Barra navigazione inferiore mobile: Home, Film, Social, Sfide, Chat, Notifiche
 - Navbar superiore mobile: solo icone essenziali, secondari nascosti
@@ -43,7 +51,9 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 - Preview usa database separato dal gioco live (progressi non sincronizzati)
 
 ## Backlog
+- (P1) Migliorare Locandine AI con Testo (titolo film + nomi attori)
 - (P1) Riattivazione Infrastrutture
 - (P2) Sistema acquisto CineCoins (Stripe)
 - (P2) Attivita delle Major
-- Refactor server.py, ChallengesPage.jsx
+- (P3) Script migrazione dati permanente
+- Refactor: FilmWizard.jsx (scomposizione componenti), server.py (moduli dedicati)

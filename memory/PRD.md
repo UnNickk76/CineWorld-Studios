@@ -10,33 +10,33 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.104 - Ottimizzazione Mobile (2026-03-13)
+- Navbar mobile: nascosti icone secondari (Major, Social, Journal, Chat, Utenti Online), solo essenziali visibili
+- Griglia film mobile: 3 colonne (da 4), locandine piu grandi e leggibili
+- Touch targets migliorati: pulsanti Ads/Trash piu grandi su mobile
+- Card azioni Dashboard compatte su mobile (padding ridotto)
+- Poster generation: indicatore di progresso "Generazione in corso... ~20s", retry automatico frontend, gestione timeout esplicita
+- Testi poster generation tradotti in italiano
+
 ### v0.103 - Manche Automatiche, Studio View & Pulizia (2026-03-12)
-- Sfide 1vs1: manche avanzano automaticamente (rimosso pulsante MANCHE SUCCESSIVA)
-- Rimosso pulsante "Aggiorna" dalla board sfide, sostituito con "Storico"
-- Popup giocatore: nuovo pulsante "Visita Studio" con vista completa della casa di produzione (Box Office, tutti i film, generi, premi, miglior film)
-- Locandine ridimensionate 50%: griglia 10 colonne su desktop (grid-cols-4 sm:6 md:8 lg:10)
-- Fix pagina Pre-Ingaggio: risolto crash dovuto a GENRES_LIST mancante
-- Pulizia database: rimossi 49 utenti test, mantenuti solo 6 utenti reali
-- Release notes v0.103 aggiunte
+- Sfide 1vs1: manche avanzano automaticamente
+- Rimosso pulsante "Aggiorna" dalla board sfide
+- Popup giocatore: "Visita Studio" con vista completa casa di produzione
+- Locandine ridimensionate 50%: griglia 10 colonne su desktop
+- Fix pagina Pre-Ingaggio: import GENRES_LIST
+- Pulizia database: rimossi utenti test
 
 ### v0.102 - Griglia Locandine, Header Fissi & Fix AI Poster (2026-03-12)
-- Fix generazione locandine AI: compressione JPEG (12x piu leggero), retry, prompt con titolo+attori
-- Header sezioni sticky con backdrop-blur durante lo scroll
+- Fix generazione locandine AI: compressione JPEG (12x piu leggero), retry backend, prompt con titolo+attori
+- Header sezioni sticky con backdrop-blur
 - Dashboard mostra 10 film in evidenza
 
-### v0.101 - Animazioni Battaglia, Booster & Fix Notifiche
-- Animazioni battaglia skill, vittoria/sconfitta
-- Sistema Booster per sfide
-- Popup sfida al login per utenti offline
-
-### v0.100 - Ricalibrazione Economia & Colonna Sonora
-- Costi film 3x, incasso iniziale 10x
-- Rating colonna sonora + 25% impatto su rating film
-
 ### Previous versions
-- v0.099: Sfide offline/online separate
-- v0.098: Fix cast 8 skill, IMDb rating, migrazione 8000 cast
-- v0.097: Sfide 1v1 riabilitate ($50K/$100K), filtri eta
+- v0.101: Animazioni battaglia, sistema booster, popup sfide
+- v0.100: Ricalibrazione economia, colonna sonora
+- v0.099: Sfide offline/online
+- v0.098: Fix cast 8 skill, migrazione 8000 cast
+- v0.097: Sfide 1v1, filtri eta
 
 ## Active Users (6)
 - emiliano.andreola1@gmail.com (Emilians) - 5 film
@@ -51,7 +51,6 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## Backlog
 - (P1) Riattivazione Infrastrutture
-- (P1) Migliorare locandine AI con testo (titolo + attori) - esplorativo
 - (P2) Sistema acquisto CineCoins (Stripe)
 - (P2) Attivita delle Major
 - Refactor server.py, ChallengesPage.jsx

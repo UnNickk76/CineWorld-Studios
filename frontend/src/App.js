@@ -279,7 +279,7 @@ const TopNavbar = () => {
         </div>
 
         {/* Right section: Quick Icons + Mobile Menu */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           {/* Festival/TV Button - Only visible when a live festival is starting */}
           {festivalNotifications.length > 0 && (
           <Button
@@ -297,11 +297,11 @@ const TopNavbar = () => {
           </Button>
           )}
           
-          {/* Major - Always visible */}
+          {/* Major - Hidden on mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
             onClick={() => navigate('/major')}
             data-testid="major-btn"
             title="Major"
@@ -309,23 +309,11 @@ const TopNavbar = () => {
             <Crown className="w-4 h-4" />
           </Button>
           
-          {/* Infrastructure - Always visible */}
+          {/* CineBoard/Social - Hidden on mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className="relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-gray-600 cursor-not-allowed opacity-40"
-            disabled
-            data-testid="infrastructure-btn"
-            title="In pausa"
-          >
-            <Building2 className="w-4 h-4" />
-          </Button>
-          
-          {/* CineBoard/Social - Always visible */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
             onClick={() => navigate('/social')}
             data-testid="cineboard-btn"
             title="CineBoard"
@@ -333,11 +321,11 @@ const TopNavbar = () => {
             <Globe className="w-4 h-4" />
           </Button>
           
-          {/* Cinema Journal - Always visible */}
+          {/* Cinema Journal - Hidden on mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/journal')}
             data-testid="journal-nav-btn"
             title={language === 'it' ? 'Giornale del Cinema' : 'Cinema Journal'}
@@ -345,7 +333,7 @@ const TopNavbar = () => {
             <Newspaper className="w-4 h-4" />
           </Button>
           
-          {/* Challenges/Sfide - Re-enabled */}
+          {/* Challenges/Sfide - Always visible */}
           <Button
             variant="ghost"
             size="sm"
@@ -357,11 +345,11 @@ const TopNavbar = () => {
             <Swords className="w-4 h-4" />
           </Button>
           
-          {/* Chat - Always visible */}
+          {/* Chat - Hidden on mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')}
             data-testid="chat-nav-btn"
             title="Chat"
@@ -393,11 +381,11 @@ const TopNavbar = () => {
             </span>
           </div>
           
-          {/* Online Users - Always visible */}
+          {/* Online Users - Hidden on mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
             onClick={() => setShowOnlineUsersPanel(true)}
             data-testid="online-users-btn"
             title={language === 'it' ? 'Utenti Online' : 'Online Users'}

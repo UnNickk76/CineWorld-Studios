@@ -94,7 +94,7 @@ const MyFilms = () => {
       {films.length === 0 ? (
         <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center"><Film className="w-10 h-10 mx-auto mb-3 text-gray-600" /><h3 className="text-base mb-2">No films yet</h3><Button onClick={() => navigate('/create')} className="bg-yellow-500 text-black text-sm">Create First Film</Button></Card>
       ) : (
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
+        <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
           {films.map(film => (
             <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
               <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
@@ -115,12 +115,12 @@ const MyFilms = () => {
                 </div>
                 {film.status === 'in_theaters' && (
                   <div className="flex gap-0.5 mt-0.5">
-                    <Button variant="outline" size="sm" className="flex-1 h-4 text-[7px] border-yellow-500/30 text-yellow-400 px-0.5 py-0" onClick={() => setShowAdDialog(film)}>
+                    <Button variant="outline" size="sm" className="flex-1 h-5 sm:h-6 text-[7px] sm:text-[8px] border-yellow-500/30 text-yellow-400 px-1 py-0" onClick={() => setShowAdDialog(film)}>
                       Ads
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-4 text-[7px] border-orange-500/30 text-orange-400 px-1 py-0"><Trash2 className="w-2 h-2" /></Button>
+                        <Button variant="outline" size="sm" className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-orange-500/30 text-orange-400 px-1 py-0"><Trash2 className="w-2.5 h-2.5" /></Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
                         <AlertDialogHeader><AlertDialogTitle className="text-base">Withdraw?</AlertDialogTitle></AlertDialogHeader>

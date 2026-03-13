@@ -237,7 +237,7 @@ const Dashboard = () => {
             onClick={() => openStatDetail(stat.statType)}
             data-testid={`stat-card-${stat.statType}`}
           >
-            <CardContent className="p-2.5 flex items-center gap-2">
+            <CardContent className="p-2 sm:p-2.5 flex items-center gap-2">
               <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
               <div>
                 <p className="text-lg font-bold">{stat.value}</p>
@@ -353,41 +353,41 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 mb-4">
         <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer" onClick={() => navigate('/festivals')}>
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-red-500 rounded-lg"><Award className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Award className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create')}>
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-yellow-500 rounded-lg"><Plus className="w-5 h-5 text-black" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{t('create_film')}</h3><p className="text-xs text-gray-400">New blockbuster</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Plus className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('create_film')}</h3><p className="text-[10px] sm:text-xs text-gray-400">New blockbuster</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer" onClick={() => navigate('/pre-engagement')}>
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-orange-500 rounded-lg"><Users className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Pre-Ingaggio' : 'Pre-Engage'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Ingaggia cast' : 'Engage cast'}</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-orange-500 rounded-lg"><Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Pre-Ingaggio' : 'Pre-Engage'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Ingaggia cast' : 'Engage cast'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-blue-500/20 to-blue-600/5 border-blue-500/20 cursor-pointer" onClick={() => navigate('/games')}>
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-blue-500 rounded-lg"><Gamepad2 className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{t('mini_games')}</h3><p className="text-xs text-gray-400">Earn rewards</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-blue-500 rounded-lg"><Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('mini_games')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Earn rewards</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-500/20 to-purple-600/5 border-purple-500/20 cursor-pointer" onClick={() => navigate('/social')}>
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-purple-500 rounded-lg"><Globe className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{t('social')}</h3><p className="text-xs text-gray-400">Explore films</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-purple-500 rounded-lg"><Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('social')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Explore films</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
-          <CardContent className="p-3 flex items-center gap-2">
-            <div className="p-2 bg-pink-500 rounded-lg"><Swords className="w-5 h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-pink-500 rounded-lg"><Swords className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
           </CardContent>
         </Card>
       </div>
@@ -398,7 +398,7 @@ const Dashboard = () => {
             <h2 className="font-['Bebas_Neue'] text-xl">{t('my_films')}</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-7 text-xs">View All <ChevronRight className="w-3 h-3 ml-1" /></Button>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
             {films.map(film => (
               <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer hover:border-white/15 transition-colors" onClick={() => navigate(`/films/${film.id}`)}>
                 <div className="aspect-[2/3] relative">

@@ -140,7 +140,7 @@ async def request_recovery(request: RecoveryRequest):
         'created_at': datetime.now(timezone.utc).isoformat()
     })
     
-    app_url = os.environ.get('FRONTEND_URL', 'https://cineworld-studios.com')
+    app_url = os.environ.get('FRONTEND_URL')
     
     try:
         resend.api_key = os.environ.get('RESEND_API_KEY')

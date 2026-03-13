@@ -10,6 +10,12 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.107 - Deploy Fixes (2026-03-13)
+- Added `/health` endpoint (root level, no /api prefix) for Kubernetes health checks
+- Removed hardcoded FRONTEND_URL fallback in auth.py
+- Created `.dockerignore` to exclude 3GB node_modules from Docker build context
+- Cleaned corrupted `.gitignore` (removed invalid `-e` entries and duplicate patterns)
+
 ### v0.106 - Film Wizard Ristrutturazione Completa (2026-03-13)
 - Wizard 12 step con header sticky (step indicator + navigazione)
 - 88 nuove location suddivise in 4 categorie (studios, cities, nature, historical) con filtri

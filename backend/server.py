@@ -7977,13 +7977,11 @@ async def view_premiere(invite_id: str, user: dict = Depends(get_current_user)):
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
-    # === PRODUCTION DEPLOY: Setup nginx to serve React build ===
+    # === PRODUCTION DEPLOY: Copy React build to nginx html root ===
     import shutil
     import subprocess
     build_dir = '/app/frontend/build'
     nginx_html = '/var/www/html'
-    nginx_conf_src = '/app/nginx.conf'
-    nginx_conf_dest = '/etc/nginx/sites-available/default'
     try:
         # If build doesn't exist (gitignored), build it
         if not os.path.isdir(build_dir) and os.path.isdir('/app/frontend'):
@@ -8009,9 +8007,6 @@ async def startup_event():
                 if os.path.isdir(s): shutil.copytree(s, d)
                 else: shutil.copy2(s, d)
             logging.info(f"Copied React build from {build_dir} to {nginx_html}")
-        if os.path.isfile(nginx_conf_src):
-            shutil.copy2(nginx_conf_src, nginx_conf_dest)
-            logging.info(f"Copied nginx config to {nginx_conf_dest}")
     except Exception as e:
         logging.warning(f"Deploy setup: {e}")
 

@@ -22,6 +22,7 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 - Removed hardcoded FRONTEND_URL fallback in auth.py
 - Created `.dockerignore` to exclude 3GB node_modules from Docker build context
 - Cleaned corrupted `.gitignore` (removed invalid `-e` entries and duplicate patterns)
+- Fixed nginx default page issue: postbuild copies React build to /var/www/html/ and custom nginx.conf with SPA routing + API proxy
 
 ### v0.106 - Film Wizard Ristrutturazione Completa (2026-03-13)
 - Wizard 12 step con header sticky (step indicator + navigazione)

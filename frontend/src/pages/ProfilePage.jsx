@@ -45,6 +45,53 @@ import { SKILL_TRANSLATIONS } from '../constants';
 
 // useTranslations imported from contexts
 
+const ChangePasswordInline = ({ api, language }) => {
+  const [open, setOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  
+  const handleSave = async () => {
+    if (newPw.length < 6) { toast.error(language === 'it' ? 'Minimo 6 caratteri' : 'Min 6 characters'); return; }
+    if (newPw !== confirmPw) { toast.error(language === 'it' ? 'Le password non corrispondono' : 'Passwords do not match'); return; }
+    setSaving(true);
+    try {
+      await api.post('/auth/change-password', { current_password: currentPw, new_password: newPw });
+      toast.success(language === 'it' ? 'Password aggiornata!' : 'Password updated!');
+      setOpen(false); setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    } catch(e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+    setSaving(false);
+  };
+  
+  return (
+    <div className="mb-4">
+      {!open ? (
+        <Button variant="outline" className="w-full border-white/10 text-gray-400 h-8 text-sm" onClick={() => setOpen(true)} data-testid="change-password-btn">
+          <Lock className="w-3.5 h-3.5 mr-2" /> {language === 'it' ? 'Cambia Password' : 'Change Password'}
+        </Button>
+      ) : (
+        <div className="space-y-2 p-3 bg-black/30 rounded-lg border border-white/10">
+          <p className="text-xs font-semibold flex items-center gap-1"><Lock className="w-3 h-3 text-yellow-500" /> {language === 'it' ? 'Cambia Password' : 'Change Password'}</p>
+          <Input type="password" placeholder={language === 'it' ? 'Password attuale' : 'Current password'} value={currentPw} onChange={e => setCurrentPw(e.target.value)} className="bg-black/20 border-white/10 h-8 text-sm" data-testid="current-password-input" />
+          <Input type="password" placeholder={language === 'it' ? 'Nuova password (min 6)' : 'New password (min 6)'} value={newPw} onChange={e => setNewPw(e.target.value)} className="bg-black/20 border-white/10 h-8 text-sm" data-testid="new-password-input" />
+          <Input type="password" placeholder={language === 'it' ? 'Conferma nuova password' : 'Confirm'} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className="bg-black/20 border-white/10 h-8 text-sm" data-testid="confirm-password-input" />
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-yellow-500 text-black h-8 text-sm" onClick={handleSave} disabled={saving} data-testid="save-password-btn">
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : (language === 'it' ? 'Salva' : 'Save')}
+            </Button>
+            <Button variant="outline" className="border-white/10 h-8 text-sm" onClick={() => { setOpen(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }}>
+              {language === 'it' ? 'Annulla' : 'Cancel'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProfilePage = () => {
   const { api, user, refreshUser, logout } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
@@ -208,6 +255,10 @@ const ProfilePage = () => {
             <Label className="text-xs">Language</Label>
             <Select value={language} onValueChange={setLanguage}><SelectTrigger className="bg-black/20 border-white/10 h-8 sm:h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="it">Italiano</SelectItem><SelectItem value="es">Español</SelectItem><SelectItem value="fr">Français</SelectItem><SelectItem value="de">Deutsch</SelectItem></SelectContent></Select>
           </div>
+          
+          {/* Change Password */}
+          <ChangePasswordInline api={api} language={language} />
+          
           <Button onClick={saveProfile} disabled={saving} className="w-full bg-yellow-500 text-black mb-2 h-8 sm:h-9 text-sm">{saving ? 'Saving...' : 'Save Changes'}</Button>
           
           {/* Reset Player Button */}

@@ -10,44 +10,37 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.105 - Mobile Nav, Password Change, Poster Polling (2026-03-13)
+- Barra navigazione inferiore mobile: Home, Film, Social, Sfide, Chat, Notifiche
+- Navbar superiore mobile: solo icone essenziali, secondari nascosti
+- Cambio password dal profilo utente (backend + frontend)
+- Generazione locandine AI: sistema a polling (start + status) per evitare timeout su mobile
+- Fix JSX parsing error per Online Users Panel Dialog
+
 ### v0.104 - Ottimizzazione Mobile (2026-03-13)
-- Navbar mobile: nascosti icone secondari (Major, Social, Journal, Chat, Utenti Online), solo essenziali visibili
-- Griglia film mobile: 3 colonne (da 4), locandine piu grandi e leggibili
-- Touch targets migliorati: pulsanti Ads/Trash piu grandi su mobile
-- Card azioni Dashboard compatte su mobile (padding ridotto)
-- Poster generation: indicatore di progresso "Generazione in corso... ~20s", retry automatico frontend, gestione timeout esplicita
-- Testi poster generation tradotti in italiano
+- Griglia film mobile: 3 colonne, touch targets migliorati
+- Card azioni Dashboard compatte
+- Poster generation: indicatore progresso, retry frontend, timeout 120s
 
 ### v0.103 - Manche Automatiche, Studio View & Pulizia (2026-03-12)
-- Sfide 1vs1: manche avanzano automaticamente
-- Rimosso pulsante "Aggiorna" dalla board sfide
-- Popup giocatore: "Visita Studio" con vista completa casa di produzione
-- Locandine ridimensionate 50%: griglia 10 colonne su desktop
-- Fix pagina Pre-Ingaggio: import GENRES_LIST
-- Pulizia database: rimossi utenti test
+- Sfide manche automatiche, Visita Studio popup, Pre-Ingaggio fix
+- Pulizia utenti test, release notes v0.103
 
 ### v0.102 - Griglia Locandine, Header Fissi & Fix AI Poster (2026-03-12)
-- Fix generazione locandine AI: compressione JPEG (12x piu leggero), retry backend, prompt con titolo+attori
-- Header sezioni sticky con backdrop-blur
-- Dashboard mostra 10 film in evidenza
+- JPEG compression (12x smaller), header sticky, 10 film featured
 
 ### Previous versions
-- v0.101: Animazioni battaglia, sistema booster, popup sfide
-- v0.100: Ricalibrazione economia, colonna sonora
-- v0.099: Sfide offline/online
-- v0.098: Fix cast 8 skill, migrazione 8000 cast
-- v0.097: Sfide 1v1, filtri eta
+- v0.101: Animazioni battaglia, booster, popup sfide
+- v0.100: Economia ricalibrata, colonna sonora
+- v0.097-099: Sfide 1v1, filtri eta, cast migration
 
 ## Active Users (6)
-- emiliano.andreola1@gmail.com (Emilians) - 5 film
-- fandrex1@gmail.com (NeoMorpheus) - 5 film
-- michi.me.1d@gmail.com (mic) - 4 film
-- demo@cineworld.com (DemoUser) - 2 film
-- fabriidesi@gmail.com (fabbro) - 1 film
-- benedettavecchioni@outlook.it (Benny) - 0 film
+- emiliano.andreola1@gmail.com (Emilians), fandrex1@gmail.com (NeoMorpheus)
+- michi.me.1d@gmail.com (mic), demo@cineworld.com (DemoUser)
+- fabriidesi@gmail.com (fabbro), benedettavecchioni@outlook.it (Benny)
 
-## Paused Features
-- Infrastructure section, Marketplace, Trailer generation
+## Note
+- Preview usa database separato dal gioco live (progressi non sincronizzati)
 
 ## Backlog
 - (P1) Riattivazione Infrastrutture

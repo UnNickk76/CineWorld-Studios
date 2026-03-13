@@ -558,6 +558,35 @@ const TopNavbar = () => {
         )}
       </AnimatePresence>
 
+      {/* Mobile Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-1" data-testid="mobile-bottom-nav">
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')}>
+          <Clapperboard className="w-5 h-5" />
+          <span className="text-[9px]">Home</span>
+        </button>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/films' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/films')}>
+          <Film className="w-5 h-5" />
+          <span className="text-[9px]">Film</span>
+        </button>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/social' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/social')}>
+          <Globe className="w-5 h-5" />
+          <span className="text-[9px]">Social</span>
+        </button>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')}>
+          <Swords className="w-5 h-5" />
+          <span className="text-[9px]">Sfide</span>
+        </button>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/chat' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/chat')}>
+          <MessageSquare className="w-5 h-5" />
+          <span className="text-[9px]">Chat</span>
+        </button>
+        <button className={`relative flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')}>
+          <Bell className="w-5 h-5" />
+          {notificationCount > 0 && <span className="absolute top-0 right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
+          <span className="text-[9px]">Notifiche</span>
+        </button>
+      </div>
+
       {/* Online Users Panel */}
       <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); } }}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-hidden bg-[#111] border-green-500/30 p-0">

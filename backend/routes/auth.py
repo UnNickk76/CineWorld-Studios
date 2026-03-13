@@ -239,6 +239,23 @@ async def update_profile(
     return updated_user
 
 
+# ==================== CHANGE PASSWORD ====================
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/auth/change-password")
+async def change_password(request: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    if not verify_password(request.current_password, user['password']):
+        raise HTTPException(status_code=400, detail="Password attuale non corretta")
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="La nuova password deve essere almeno 6 caratteri")
+    hashed = hash_password(request.new_password)
+    await db.users.update_one({'id': user['id']}, {'$set': {'password': hashed}})
+    return {'success': True, 'message': 'Password aggiornata con successo!'}
+
+
 # ==================== PLAYER RESET ====================
 
 @router.post("/auth/reset")

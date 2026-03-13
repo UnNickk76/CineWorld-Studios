@@ -325,6 +325,53 @@ const SkillBadge = ({ name, value, change, language = 'it' }) => {
 };
 
 // User Profile Modal Component
+const ChangePasswordSection = ({ api, language }) => {
+  const [showForm, setShowForm] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  
+  const handleChange = async () => {
+    if (newPw.length < 6) { toast.error(language === 'it' ? 'Minimo 6 caratteri' : 'Minimum 6 characters'); return; }
+    if (newPw !== confirmPw) { toast.error(language === 'it' ? 'Le password non corrispondono' : 'Passwords do not match'); return; }
+    setSaving(true);
+    try {
+      await api.post('/auth/change-password', { current_password: currentPw, new_password: newPw });
+      toast.success(language === 'it' ? 'Password aggiornata!' : 'Password updated!');
+      setShowForm(false); setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    } catch(e) {
+      toast.error(e.response?.data?.detail || (language === 'it' ? 'Errore aggiornamento' : 'Update error'));
+    }
+    setSaving(false);
+  };
+  
+  if (!showForm) return (
+    <div className="mt-4">
+      <Button variant="outline" className="w-full border-white/10 text-gray-400 h-9 text-sm" onClick={() => setShowForm(true)} data-testid="change-password-btn">
+        <Lock className="w-4 h-4 mr-2" /> {language === 'it' ? 'Cambia Password' : 'Change Password'}
+      </Button>
+    </div>
+  );
+  
+  return (
+    <div className="mt-4 space-y-2 p-3 bg-black/30 rounded-lg border border-white/10">
+      <h4 className="text-sm font-semibold flex items-center gap-2"><Lock className="w-4 h-4 text-yellow-500" /> {language === 'it' ? 'Cambia Password' : 'Change Password'}</h4>
+      <Input type="password" placeholder={language === 'it' ? 'Password attuale' : 'Current password'} value={currentPw} onChange={e => setCurrentPw(e.target.value)} className="bg-black/20 border-white/10 h-9" data-testid="current-password-input" />
+      <Input type="password" placeholder={language === 'it' ? 'Nuova password (min 6 car.)' : 'New password (min 6 char.)'} value={newPw} onChange={e => setNewPw(e.target.value)} className="bg-black/20 border-white/10 h-9" data-testid="new-password-input" />
+      <Input type="password" placeholder={language === 'it' ? 'Conferma nuova password' : 'Confirm new password'} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className="bg-black/20 border-white/10 h-9" data-testid="confirm-password-input" />
+      <div className="flex gap-2">
+        <Button className="flex-1 bg-yellow-500 text-black h-9 text-sm" onClick={handleChange} disabled={saving} data-testid="save-password-btn">
+          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Salva' : 'Save')}
+        </Button>
+        <Button variant="outline" className="border-white/10 h-9 text-sm" onClick={() => { setShowForm(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }}>
+          {language === 'it' ? 'Annulla' : 'Cancel'}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
   const { language } = useContext(LanguageContext);
   const { user } = useContext(AuthContext);
@@ -516,7 +563,7 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
               </div>
             )}
             
-            {/* Actions */}
+            {/* Actions for other users */}
             {!profile.is_own_profile && (
               <div className="flex flex-wrap gap-2 mt-4">
                 {/* Send Message */}
@@ -583,6 +630,11 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                   )
                 )}
               </div>
+            )}
+            
+            {/* Change Password - Own Profile */}
+            {profile.is_own_profile && (
+              <ChangePasswordSection api={api} language={language} />
             )}
           </>
         ) : (

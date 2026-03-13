@@ -7979,13 +7979,26 @@ async def view_premiere(invite_id: str, user: dict = Depends(get_current_user)):
 async def startup_event():
     # === PRODUCTION DEPLOY: Setup nginx to serve React build ===
     import shutil
+    import subprocess
     build_dir = '/app/frontend/build'
     nginx_html = '/var/www/html'
     nginx_conf_src = '/app/nginx.conf'
     nginx_conf_dest = '/etc/nginx/sites-available/default'
     try:
+        # If build doesn't exist (gitignored), build it
+        if not os.path.isdir(build_dir) and os.path.isdir('/app/frontend'):
+            logging.info("React build not found, running yarn build...")
+            result = subprocess.run(
+                ['yarn', 'build'],
+                cwd='/app/frontend',
+                capture_output=True, text=True, timeout=180
+            )
+            if result.returncode == 0:
+                logging.info("React build completed successfully")
+            else:
+                logging.error(f"React build failed: {result.stderr[-500:]}")
+        # Copy build files to nginx html root
         if os.path.isdir(build_dir) and os.path.isdir(nginx_html):
-            # Copy React build files to nginx root
             for item in os.listdir(nginx_html):
                 p = os.path.join(nginx_html, item)
                 if os.path.isfile(p): os.remove(p)
@@ -8000,7 +8013,7 @@ async def startup_event():
             shutil.copy2(nginx_conf_src, nginx_conf_dest)
             logging.info(f"Copied nginx config to {nginx_conf_dest}")
     except Exception as e:
-        logging.warning(f"Deploy setup (non-critical): {e}")
+        logging.warning(f"Deploy setup: {e}")
 
     default_rooms = [
         {'id': 'general', 'name': 'General', 'is_private': False, 'participant_ids': [], 'created_by': 'system'},

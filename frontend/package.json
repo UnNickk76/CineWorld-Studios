@@ -60,7 +60,7 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build && cp -r build/* /var/www/html/ 2>/dev/null && cp /app/nginx.conf /etc/nginx/sites-available/default 2>/dev/null || true",
+    "build": "craco build; mkdir -p /app/frontend/build && cp -r /var/www/html/* /app/frontend/build/ 2>/dev/null; true",
     "test": "craco test"
   },
   "browserslist": {

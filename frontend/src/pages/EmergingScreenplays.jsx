@@ -135,9 +135,9 @@ export default function EmergingScreenplays() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-20">
+    <div className="min-h-screen bg-[#0a0a0a] text-white pb-20 pt-16">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-[#0a0a0a]/95 backdrop-blur-md border-b border-white/5 px-4 py-3">
+      <div className="bg-[#0a0a0a]/95 border-b border-white/5 px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')} data-testid="back-btn">
             <ChevronLeft className="w-4 h-4" />

@@ -508,6 +508,37 @@ const FilmWizard = () => {
     setPosterProgress('');
     setGenerating(false);
   };
+  
+  const [generatingFallback, setGeneratingFallback] = useState(false);
+  const generateFallbackPoster = async () => {
+    setGeneratingFallback(true);
+    try {
+      const castNames = [];
+      const dirObj = directors.find(d => d.id === filmData.director_id);
+      if (dirObj) castNames.push(dirObj.name);
+      filmData.actors?.forEach(a => {
+        const actObj = actors.find(ac => ac.id === a.id);
+        if (actObj) castNames.push(actObj.name);
+      });
+      
+      const res = await api.post('/ai/poster', {
+        title: filmData.title,
+        genre: filmData.genre,
+        description: filmData.title,
+        style: 'classic',
+        cast_names: castNames.slice(0, 5),
+        force_fallback: true
+      });
+      if (res.data.poster_url) {
+        setFilmData({...filmData, poster_url: res.data.poster_url});
+        toast.success('Locandina classica generata!');
+      }
+    } catch(e) {
+      toast.error('Errore nella generazione della locandina');
+    } finally {
+      setGeneratingFallback(false);
+    }
+  };
   // Load rejections on mount
   useEffect(() => {
     api.get('/cast/rejections').then(r => {
@@ -636,7 +667,9 @@ const FilmWizard = () => {
       
       updateFunds(user.funds - calculateBudget() + getSponsorBudget() + filmData.ad_revenue + res.data.opening_day_revenue); 
     } catch(e) { 
-      toast.error(e.response?.data?.detail||'Failed'); 
+      const detail = e.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(d => d.msg || JSON.stringify(d)).join(', ') : 'Errore nella creazione del film';
+      toast.error(msg); 
     } finally { 
       setLoading(false); 
     }
@@ -1269,8 +1302,11 @@ const FilmWizard = () => {
       case 9: return (<div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Textarea value={filmData.poster_prompt} onChange={e=>setFilmData({...filmData,poster_prompt:e.target.value})} placeholder={language === 'it' ? 'Descrivi la locandina...' : 'Describe poster...'} className="min-h-[100px] bg-black/20 border-white/10" />
-          <Button onClick={generatePoster} disabled={generating} className="w-full bg-yellow-500 text-black" data-testid="generate-poster-btn">
+          <Button onClick={generatePoster} disabled={generating || generatingFallback} className="w-full bg-yellow-500 text-black" data-testid="generate-poster-btn">
             {generating ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{posterProgress || '...'}</> : <><Sparkles className="w-3 h-3 mr-1" />{language === 'it' ? 'Genera Locandina AI' : 'Generate AI Poster'}</>}
+          </Button>
+          <Button onClick={generateFallbackPoster} disabled={generating || generatingFallback} variant="outline" className="w-full border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" data-testid="generate-fallback-poster-btn">
+            {generatingFallback ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Generazione...</> : <><Palette className="w-3 h-3 mr-1" />Locandina Classica</>}
           </Button>
           <Input value={filmData.poster_url} onChange={e=>setFilmData({...filmData,poster_url:e.target.value})} placeholder={language === 'it' ? 'Oppure incolla URL...' : 'Or paste URL...'} className="bg-black/20 border-white/10" />
         </div>
@@ -1370,21 +1406,25 @@ const FilmWizard = () => {
         </div>
       )}
       <Card className="bg-[#1A1A1A] border-white/10 mt-2"><CardContent className="p-3 relative">
-        <AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence>
-        {/* Locked step overlay */}
+        {/* Locked step banner - non-blocking, content still visible */}
         {isStepLocked(step) && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center z-10" data-testid="locked-overlay">
-            <Lock className="w-8 h-8 text-yellow-500/70 mb-2" />
-            <p className="text-sm text-white/60 text-center px-4">
-              {emergingOption === 'full_package' 
-                ? 'Questo step è incluso nel pacchetto completo'
-                : 'Lo sceneggiatore è stato scelto dalla sceneggiatura'}
-            </p>
-            <Button variant="ghost" size="sm" className="mt-2 text-yellow-500" onClick={() => setStep(step + 1)}>
-              Vai avanti <ChevronRight className="w-3 h-3 ml-1" />
+          <div className="mb-3 flex items-center justify-between bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2" data-testid="locked-banner">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+              <span className="text-xs text-yellow-300">
+                {emergingOption === 'full_package' 
+                  ? 'Incluso nel pacchetto - solo visione'
+                  : 'Sceneggiatore dalla sceneggiatura'}
+              </span>
+            </div>
+            <Button variant="ghost" size="sm" className="h-6 text-xs text-yellow-500 px-2" onClick={() => setStep(step < 12 ? step + 1 : step)}>
+              Avanti <ChevronRight className="w-3 h-3 ml-0.5" />
             </Button>
           </div>
         )}
+        <div className={isStepLocked(step) ? 'opacity-60 pointer-events-none' : ''}>
+          <AnimatePresence mode="wait"><motion.div key={step} initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-20}}>{renderStep()}</motion.div></AnimatePresence>
+        </div>
       </CardContent></Card>
 
       {/* Rejection Modal */}

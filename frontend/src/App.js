@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -94,6 +94,7 @@ const TopNavbar = () => {
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
+  const [emergingScreenplaysCount, setEmergingScreenplaysCount] = useState(0);
   const [majorInfo, setMajorInfo] = useState(null);
   const [festivalNotifications, setFestivalNotifications] = useState([]);
   const [showOnlineUsersPanel, setShowOnlineUsersPanel] = useState(false);
@@ -115,6 +116,7 @@ const TopNavbar = () => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
+    api.get('/emerging-screenplays/count').then(r => setEmergingScreenplaysCount(r.data.new || 0)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
     
     // Online users + all players polling
@@ -214,6 +216,7 @@ const TopNavbar = () => {
     { path: '/create', icon: Plus, label: 'create_film' },
     { path: '/drafts', icon: Clock, label: 'drafts' },
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
+    { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure', disabled: true, pauseLabel: 'In pausa' },
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'In pausa' },

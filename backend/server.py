@@ -239,6 +239,7 @@ TRANSLATIONS = {
         'drafts': 'Drafts',
         'drafts_preengagement': 'Drafts & Pre-Engagements',
         'pre_engagement': 'Pre-Engagement',
+        'screenplays': 'Screenplays',
         'social': 'Social',
         'cineboard': 'CineBoard',
         'chat': 'Chat',
@@ -298,6 +299,7 @@ TRANSLATIONS = {
         'drafts': 'Bozze',
         'drafts_preengagement': 'Bozze & Pre-Ingaggi',
         'pre_engagement': 'Pre-Ingaggio',
+        'screenplays': 'Sceneggiature',
         'social': 'Social',
         'cineboard': 'CineBoard',
         'chat': 'Chat',
@@ -1246,6 +1248,7 @@ class PosterRequest(BaseModel):
     description: str
     style: str = 'cinematic'
     cast_names: Optional[List[str]] = None
+    force_fallback: Optional[bool] = False
 
 class TranslationRequest(BaseModel):
     text: str
@@ -5094,6 +5097,20 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.110', 'date': '2026-03-13', 'title': 'Sceneggiature Emergenti & Locandine Classiche',
+     'changes': [
+         {'type': 'new', 'text': 'Nuova sezione "Sceneggiature Emergenti": sceneggiature pronte da produrre con cast, rating e prezzo'},
+         {'type': 'new', 'text': 'Due opzioni: "Solo Sceneggiatura" (scegli il tuo cast) o "Pacchetto Completo" (tutto incluso, scegli solo la locandina)'},
+         {'type': 'new', 'text': 'Rating IMDb per trama e trama+cast - il valore finale dipende anche dalla produzione'},
+         {'type': 'new', 'text': 'Sceneggiatori emergenti: 20% delle sceneggiature hanno un nuovo talento che entra nel pool permanente'},
+         {'type': 'new', 'text': 'Locandina Classica: pulsante fallback per generare locandine tematiche con gradiente e testo overlay'},
+         {'type': 'new', 'text': 'Pallino rosso notifica per nuove sceneggiature disponibili'},
+         {'type': 'new', 'text': 'Sezione Sceneggiature aggiunta nel menu hamburger'},
+         {'type': 'fix', 'text': 'Fix errore creazione film: gestione corretta errori validazione Pydantic'},
+         {'type': 'fix', 'text': 'Fix overlay step bloccati: ora è un banner non invasivo che permette di vedere il contenuto'},
+         {'type': 'fix', 'text': 'Fix titolo pagina nascosto dalla navbar su mobile'},
+         {'type': 'fix', 'text': 'Fix regressione preview: route catch-all non intercetta più le API'},
+     ]},
     {'version': '0.101', 'date': '2026-03-12', 'title': 'Animazioni Battaglia, Booster, Contro-Sfida & Fix Notifiche',
      'changes': [
          {'type': 'new', 'text': 'Animazioni battaglia: ogni skill si rivela una per volta con frasi epiche in italiano'},
@@ -7489,6 +7506,9 @@ async def get_poster_status(task_id: str, user: dict = Depends(get_current_user)
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
     """Generate a movie poster using GPT Image 1 (OpenAI) via Emergent LLM Key."""
     logging.info(f"Poster generation request for: {request.title} ({request.genre})")
+    
+    if request.force_fallback:
+        return await _generate_fallback_poster(request)
     
     if not EMERGENT_LLM_KEY:
         # Fallback to pre-made poster

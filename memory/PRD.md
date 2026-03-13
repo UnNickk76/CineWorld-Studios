@@ -11,25 +11,18 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 ## What's Been Implemented
 
 ### v0.110 - Sceneggiature Emergenti & Bug Fixes (2026-03-13)
-- **Sceneggiature Emergenti**: sceneggiature pronte con cast, rating IMDb, costi
-  - Due opzioni: Solo Sceneggiatura / Pacchetto Completo
-  - Integrazione FilmWizard con step bloccati (banner non invasivo)
-  - Pausa e auto-save preservano contesto sceneggiatura acquistata
-  - 20% sceneggiatori nuovi, scadenza 24-48h, scheduler ogni 2h
-- **Locandina Classica**: fallback Pillow con gradiente tematico + testo overlay
-- **FilmDetail error handling**: try/catch in loadFilm, pagina "Film non trovato" invece di crash ErrorBoundary
-- **UI Fixes**: titolo mobile pt-16, hamburger menu, pallino notifica, errori Pydantic
-- Release Notes v0.110
+- Sceneggiature Emergenti con pausa/autosave, locandina classica, UI fixes
+- **Critical Fix**: `BACKEND_URL` non definito in FilmDetail.jsx causava crash su tutti i film con trailer
+- **Critical Fix**: Error handling robusto in loadFilm + optional chaining su director/screenwriter/composer/cast
+- **Fix**: route catch-all /api/, MessageCircle import, errori Pydantic
 
 ### Previous (v0.101-v0.109)
 - Wizard 12 step, 88+ location, sponsor dinamici, locandine AI
 - Mobile nav, password change, poster polling, sfide manche automatiche
-- Animazioni battaglia, economia, colonna sonora, sfide 1v1
 
 ## Backlog
-- (P0) Sito produzione DOWN (errori 520) - bloccato su supporto Emergent
+- (P0) Sito produzione DOWN - bloccato su supporto Emergent
 - (P1) Riattivazione Infrastrutture
 - (P2) Sistema acquisto CineCoins (Stripe)
 - (P2) Attivita delle Major
 - (P3) Script migrazione dati permanente
-- Refactor: FilmWizard.jsx, server.py

@@ -1,6 +1,8 @@
 // CineWorld Studio's - FilmDetail
 // Extracted from App.js for modularity
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
@@ -389,16 +391,16 @@ const FilmDetail = () => {
               <h2 className="text-gray-400 text-sm mb-2">{film.subtitle}</h2>
             )}
             {/* Sequel bonus info */}
-            {film.sequel_bonus_applied && (
-              <div className={`text-xs p-2 rounded mb-2 ${film.sequel_bonus_applied.multiplier >= 1 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+            {film.sequel_bonus_applied && typeof film.sequel_bonus_applied === 'object' && (
+              <div className={`text-xs p-2 rounded mb-2 ${(film.sequel_bonus_applied?.multiplier || 0) >= 1 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
                 <div className="flex items-center gap-1">
-                  <TrendingUp className={`w-3 h-3 ${film.sequel_bonus_applied.multiplier >= 1 ? 'text-green-400' : 'text-red-400'}`} />
-                  <span className={film.sequel_bonus_applied.multiplier >= 1 ? 'text-green-400' : 'text-red-400'}>
-                    {film.sequel_bonus_applied.reason}
+                  <TrendingUp className={`w-3 h-3 ${(film.sequel_bonus_applied?.multiplier || 0) >= 1 ? 'text-green-400' : 'text-red-400'}`} />
+                  <span className={(film.sequel_bonus_applied?.multiplier || 0) >= 1 ? 'text-green-400' : 'text-red-400'}>
+                    {film.sequel_bonus_applied?.reason}
                   </span>
                 </div>
                 <p className="text-gray-400 text-[10px] mt-1">
-                  Sequel di "{film.sequel_bonus_applied.parent_title}" • Bonus: {film.sequel_bonus_applied.multiplier >= 1 ? '+' : ''}{((film.sequel_bonus_applied.multiplier - 1) * 100).toFixed(0)}%
+                  Sequel di "{film.sequel_bonus_applied?.parent_title}" • Bonus: {(film.sequel_bonus_applied?.multiplier || 0) >= 1 ? '+' : ''}{(((film.sequel_bonus_applied?.multiplier || 1) - 1) * 100).toFixed(0)}%
                 </p>
               </div>
             )}
@@ -806,68 +808,68 @@ const FilmDetail = () => {
             <CardContent className="space-y-3">
               {/* Director & Screenwriter */}
               <div className="grid grid-cols-2 gap-2">
-                {film.director && (
+                {film.director && typeof film.director === 'object' && (
                   <div className="p-2 rounded bg-white/5">
                     <p className="text-[10px] text-gray-500 uppercase mb-1">Director</p>
                     <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarImage src={film.director.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.director.name?.[0]}</AvatarFallback></Avatar>
+                      <Avatar className="w-8 h-8"><AvatarImage src={film.director?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.director?.name?.[0]}</AvatarFallback></Avatar>
                       <div>
-                        <p className="text-sm font-semibold">{film.director.name} <span className={`${film.director.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.director.gender === 'female' ? '♀' : '♂'}</span></p>
-                        <p className="text-[10px] text-gray-400">{film.director.nationality}</p>
+                        <p className="text-sm font-semibold">{film.director?.name} <span className={`${film.director?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.director?.gender === 'female' ? '♀' : '♂'}</span></p>
+                        <p className="text-[10px] text-gray-400">{film.director?.nationality}</p>
                       </div>
                     </div>
                   </div>
                 )}
-                {film.screenwriter && (
+                {film.screenwriter && typeof film.screenwriter === 'object' && (
                   <div className="p-2 rounded bg-white/5">
                     <p className="text-[10px] text-gray-500 uppercase mb-1">Screenwriter</p>
                     <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarImage src={film.screenwriter.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.screenwriter.name?.[0]}</AvatarFallback></Avatar>
+                      <Avatar className="w-8 h-8"><AvatarImage src={film.screenwriter?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.screenwriter?.name?.[0]}</AvatarFallback></Avatar>
                       <div>
-                        <p className="text-sm font-semibold">{film.screenwriter.name} <span className={`${film.screenwriter.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.screenwriter.gender === 'female' ? '♀' : '♂'}</span></p>
-                        <p className="text-[10px] text-gray-400">{film.screenwriter.nationality}</p>
+                        <p className="text-sm font-semibold">{film.screenwriter?.name} <span className={`${film.screenwriter?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.screenwriter?.gender === 'female' ? '♀' : '♂'}</span></p>
+                        <p className="text-[10px] text-gray-400">{film.screenwriter?.nationality}</p>
                       </div>
                     </div>
                   </div>
                 )}
-                {film.composer && (
+                {film.composer && typeof film.composer === 'object' && (
                   <div className="p-2 rounded bg-white/5">
                     <p className="text-[10px] text-gray-500 uppercase mb-1">Colonna Sonora</p>
                     <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarFallback className="text-[10px] bg-emerald-500/20 text-emerald-400">{film.composer.name?.[0]}</AvatarFallback></Avatar>
+                      <Avatar className="w-8 h-8"><AvatarFallback className="text-[10px] bg-emerald-500/20 text-emerald-400">{film.composer?.name?.[0]}</AvatarFallback></Avatar>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold">{film.composer.name}</p>
-                        {film.composer.imdb_rating > 0 && (
+                        <p className="text-sm font-semibold">{film.composer?.name}</p>
+                        {film.composer?.imdb_rating > 0 && (
                           <div className="flex items-center gap-1 mt-0.5">
                             <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs text-yellow-400 font-bold">{film.composer.imdb_rating}/100</span>
+                            <span className="text-xs text-yellow-400 font-bold">{film.composer?.imdb_rating}/100</span>
                             <span className="text-[10px] text-gray-500 ml-1">Rating Colonna Sonora</span>
                           </div>
                         )}
                       </div>
                     </div>
-                    {film.soundtrack_boost && (
+                    {film.soundtrack_boost && typeof film.soundtrack_boost === 'object' && (
                       <div className="mt-1.5 flex gap-1">
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G1: +{Math.round((film.soundtrack_boost.day_1_multiplier - 1) * 100)}%</span>
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G2: +{Math.round((film.soundtrack_boost.day_2_multiplier - 1) * 100)}%</span>
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G3: +{Math.round((film.soundtrack_boost.day_3_multiplier - 1) * 100)}%</span>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G1: +{Math.round(((film.soundtrack_boost?.day_1_multiplier || 1) - 1) * 100)}%</span>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G2: +{Math.round(((film.soundtrack_boost?.day_2_multiplier || 1) - 1) * 100)}%</span>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G3: +{Math.round(((film.soundtrack_boost?.day_3_multiplier || 1) - 1) * 100)}%</span>
                       </div>
                     )}
                   </div>
                 )}
               </div>
               {/* Actors */}
-              {film.cast?.length > 0 && (
+              {Array.isArray(film.cast) && film.cast.length > 0 && (
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase mb-2">Cast ({film.cast.length} actors)</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {film.cast.map(actor => (
-                      <div key={actor.id || actor.actor_id} className="flex items-center gap-2 p-2 rounded bg-white/5">
-                        <Avatar className="w-8 h-8"><AvatarImage src={actor.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{actor.name?.[0]}</AvatarFallback></Avatar>
+                      <div key={actor?.id || actor?.actor_id || Math.random()} className="flex items-center gap-2 p-2 rounded bg-white/5">
+                        <Avatar className="w-8 h-8"><AvatarImage src={actor?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{actor?.name?.[0]}</AvatarFallback></Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
-                            <p className="text-sm font-semibold truncate">{actor.name}</p>
-                            <span className={`text-xs ${actor.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{actor.gender === 'female' ? '♀' : '♂'}</span>
+                            <p className="text-sm font-semibold truncate">{actor?.name}</p>
+                            <span className={`text-xs ${actor?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{actor?.gender === 'female' ? '♀' : '♂'}</span>
                           </div>
                           <p className="text-[10px] text-gray-400">{actor.nationality}</p>
                         </div>

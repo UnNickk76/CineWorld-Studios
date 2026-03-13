@@ -10,6 +10,11 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## What's Been Implemented
 
+### v0.109 - Fix Regressione Preview (2026-03-13)
+- Fix route catch-all `/{full_path:path}` in server.py: aggiunto filtro per escludere path `/api/` e `/health`
+- Fix import mancante `MessageCircle` in FilmDetail.jsx che causava crash della pagina dettaglio film
+- API routes ora funzionano correttamente (GET /api/films/{id}, /api/films/my, etc.)
+
 ### v0.108 - Locandine AI con Testo (2026-03-13)
 - Text overlay via Pillow: titolo film (bianco, grande) e nomi attori (oro, separati da bullet) sovrapposti all'immagine AI
 - Gradiente scuro in basso per leggibilità garantita su qualsiasi sfondo
@@ -63,8 +68,10 @@ CineWorld Studio's is a cinematic simulation game. Players manage a film product
 
 ## Note
 - Preview usa database separato dal gioco live (progressi non sincronizzati)
+- Sito produzione DOWN (errori 520) - in attesa supporto Emergent
 
 ## Backlog
+- (P0) Sito produzione inaccessibile - bloccato su supporto Emergent
 - (P1) Riattivazione Infrastrutture
 - (P2) Sistema acquisto CineCoins (Stripe)
 - (P2) Attivita delle Major

@@ -1,0 +1,103 @@
+{
+  "summary": "Iteration 48 testing complete. Verified new features: 1) /health endpoint returns {status: ok} (internal backend endpoint), 2) startup_event logs 'Copied React build' and 'Copied nginx config' on startup, 3) All core APIs working (login, locations, sponsors, equipment, genres, AI poster). 4) UI working: login flow, dashboard, Film Wizard 12-step indicator, location category filters (Tutte/Studi & Set/Metropoli/Natura/Storici), mobile bottom navbar with 6 icons. All 13 backend tests passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/health",
+        "issue": "External access via Kubernetes ingress routes to SPA fallback (returns HTML). /health is internal endpoint for pod health checks only. Works correctly via localhost:8001.",
+        "priority": "INFO - NOT A BUG"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter48_health_startup.py",
+    "/app/test_reports/pytest/pytest_iter48.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py line 13310-13312: /health endpoint returns {status: ok} ✓",
+    "server.py line 7978-8016: startup_event() copies React build to /var/www/html and nginx config to /etc/nginx/sites-available/default ✓",
+    "server.py line 7989-7999: yarn build fallback if build directory doesn't exist ✓",
+    "nginx.conf line 24-28: /health proxy to localhost:8001 configured ✓",
+    "FilmWizard.jsx: 12-step wizard with sticky header, location category filters working ✓",
+    "App.js line 562-588: Mobile bottom navbar with 6 icons (Home, Film, Social, Sfide, Chat, Notifiche) ✓"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter48_health_startup.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "fandrex1@gmail.com / Ciaociao1",
+  "seed_data_creation": "No seed data created",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 48 verified new features since iteration 47: 1) /health endpoint at root level (no /api prefix) returns {status: ok} - designed for Kubernetes internal pod health checks. External access goes through K8s ingress which only routes /api/ paths, so /health returns SPA HTML externally (expected behavior). 2) startup_event deploys React build to /var/www/html and nginx config on backend startup - logs confirm 'Copied React build' and 'Copied nginx config'. 3) AI poster /api/ai/poster/start returns task_id for async generation. 4) Mobile bottom navbar has 6 icons visible at 375px width. 5) Film Wizard 12-step indicator and location category filters (Tutte, Studi & Set, Metropoli, Natura, Storici) all working.",
+  "features_tested": {
+    "health_endpoint": {
+      "internal_access": "PASS - http://localhost:8001/health returns {status: ok}",
+      "external_note": "External access via K8s ingress returns SPA HTML (expected - /health not proxied through ingress)"
+    },
+    "startup_event": {
+      "build_copy": "PASS - Logs show 'Copied React build from /app/frontend/build to /var/www/html'",
+      "nginx_config_copy": "PASS - Logs show 'Copied nginx config to /etc/nginx/sites-available/default'",
+      "yarn_build_fallback": "PASS - Logs show 'React build not found, running yarn build...' followed by 'React build completed successfully'"
+    },
+    "login_api": {
+      "endpoint": "/api/auth/login",
+      "credentials": "fandrex1@gmail.com / Ciaociao1",
+      "result": "PASS - Returns access_token and user data"
+    },
+    "locations_api": {
+      "endpoint": "/api/locations",
+      "total_locations": "PASS - Returns 88 locations",
+      "category_field": "PASS - All locations have category (studios/cities/nature/historical)"
+    },
+    "dynamic_sponsors_api": {
+      "endpoint": "/api/sponsors/dynamic",
+      "low_prerating": "PASS - pre_rating 20 returns 0 sponsors",
+      "medium_prerating": "PASS - pre_rating 50 returns 1-2 sponsors",
+      "high_prerating": "PASS - pre_rating 90 returns 3-4 sponsors"
+    },
+    "ai_poster_api": {
+      "endpoint": "/api/ai/poster/start",
+      "result": "PASS - Returns task_id for async generation"
+    },
+    "film_wizard": {
+      "step_indicator": "PASS - 12 circles visible in sticky header",
+      "step1_fields": "PASS - Title, Subtitle, Genre, Sub-genres, Release Date, Weeks",
+      "step2_equipment": "PASS - Basic, Standard, Professional, Premium, Hollywood Elite",
+      "location_filters": "PASS - Tutte, Studi & Set, Metropoli, Natura, Storici"
+    },
+    "mobile_navbar": {
+      "data_testid": "mobile-bottom-nav",
+      "visible_at_375px": "PASS",
+      "icons_count": 6,
+      "icons": ["Home", "Film", "Social", "Sfide", "Chat", "Notifiche"],
+      "fixed_position": "PASS - Stays visible after scroll"
+    }
+  },
+  "api_endpoints_tested": [
+    "GET http://localhost:8001/health - 200 OK, {status: ok}",
+    "POST /api/auth/login - 200 OK, returns access_token",
+    "GET /api/locations - 200 OK, 88 locations with category",
+    "GET /api/sponsors - 200 OK, sponsor list",
+    "POST /api/sponsors/dynamic - 200 OK, dynamic sponsors based on pre_rating",
+    "GET /api/equipment - 200 OK, 5 equipment packages",
+    "GET /api/genres - 200 OK, 16+ genres with subgenres",
+    "POST /api/ai/poster/start - 200 OK, returns task_id"
+  ],
+  "startup_logs_verified": [
+    "React build not found, running yarn build...",
+    "React build completed successfully",
+    "Copied React build from /app/frontend/build to /var/www/html",
+    "Copied nginx config to /etc/nginx/sites-available/default"
+  ]
+}

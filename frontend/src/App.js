@@ -576,7 +576,7 @@ const TopNavbar = () => {
           <Trophy className="w-5 h-5" />
           <span className="text-[9px]">CineBoard</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/film-drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/film-drafts')}>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/drafts')}>
           <Save className="w-5 h-5" />
           <span className="text-[9px]">Bozze</span>
         </button>

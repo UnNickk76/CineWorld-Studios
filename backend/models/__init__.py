@@ -45,6 +45,9 @@ class UserResponse(BaseModel):
     fame: float = 50.0
     total_lifetime_revenue: float = 0
     leaderboard_score: float = 0
+    accept_offline_challenges: bool = True
+    cinepass: int = 100
+    login_streak: int = 0
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -333,9 +333,15 @@ const CinemaJournal = () => {
                           </div>
                           {star.skills && (
                             <div className="flex gap-1 mt-1 flex-wrap">
-                              {Object.entries(star.skills || {}).slice(0, 3).map(([k, v]) => (
-                                <Badge key={k} className="bg-white/10 text-[9px] h-4">{k}: {v}</Badge>
-                              ))}
+                              {Object.entries(star.skills || {}).slice(0, 3).map(([k, v]) => {
+                                const change = star?.skill_changes?.[k] || 0;
+                                return (
+                                <Badge key={k} className="bg-white/10 text-[9px] h-4">
+                                  {k}: {v}
+                                  {change !== 0 && <span className={change > 0 ? 'text-green-400 ml-0.5' : 'text-red-400 ml-0.5'}>{change > 0 ? '▲' : '▼'}</span>}
+                                </Badge>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

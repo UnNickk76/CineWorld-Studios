@@ -710,11 +710,15 @@ def calculate_cinema_daily_revenue(cinema: dict, films_showing: List[dict], fame
     avg_film_quality = sum(f.get('quality_score', 50) for f in films_showing) / max(len(films_showing), 1)
     quality_mult = 0.5 + (avg_film_quality / 100)
     
+    # Owner bonus: +15% attendance for films owned by the cinema owner
+    owned_films = sum(1 for f in films_showing if f.get('is_owned', False))
+    owner_bonus = 1.0 + (0.15 * owned_films / max(len(films_showing), 1)) if owned_films > 0 else 1.0
+    
     # Unpredictability factor (±30%)
     unpredictability = random.uniform(0.7, 1.3)
     
-    # Calculate attendance per screen
-    daily_attendance = int(base_attendance * fame_mult * quality_mult * unpredictability * screens)
+    # Calculate attendance per screen (with owner bonus)
+    daily_attendance = int(base_attendance * fame_mult * quality_mult * owner_bonus * unpredictability * screens)
     daily_attendance = min(daily_attendance, screens * seats * 4)  # Max 4 showings per screen
     
     # Revenue calculation
@@ -731,7 +735,8 @@ def calculate_cinema_daily_revenue(cinema: dict, films_showing: List[dict], fame
         'food_revenue': food_revenue,
         'unpredictability_factor': round(unpredictability, 2),
         'fame_multiplier': fame_mult,
-        'quality_multiplier': round(quality_mult, 2)
+        'quality_multiplier': round(quality_mult, 2),
+        'owner_bonus': round(owner_bonus, 2)
     }
 
 # ==================== CINEMA SCHOOL / ACTOR TRAINING ====================

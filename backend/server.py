@@ -12557,7 +12557,7 @@ async def get_film_duration_status(film_id: str, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
-        return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 3}
+        return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 1}
     
     now = datetime.now(timezone.utc)
     release_date = parse_date_with_timezone(film.get('release_date'))
@@ -12567,9 +12567,9 @@ async def get_film_duration_status(film_id: str, user: dict = Depends(get_curren
     
     duration_data = calculate_film_duration_factors(film, current_days, planned_days)
     
-    # Extension tracking
+    # Extension tracking - max 1 extension per film
     extension_count = film.get('extension_count', 0)
-    can_extend = duration_data['status'] == 'extend' and extension_count < 3
+    can_extend = duration_data['status'] == 'extend' and extension_count < 1
     
     # Check cooldown
     days_until_next_extension = 0
@@ -12588,8 +12588,8 @@ async def get_film_duration_status(film_id: str, user: dict = Depends(get_curren
         'days_remaining': max(0, planned_days - current_days),
         # Extension info
         'extension_count': extension_count,
-        'max_extensions': 3,
-        'extensions_remaining': 3 - extension_count,
+        'max_extensions': 1,
+        'extensions_remaining': max(0, 1 - extension_count),
         'can_extend': can_extend,
         'days_until_next_extension': days_until_next_extension,
         'max_days_per_extension': 3,
@@ -12601,8 +12601,7 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     """Extend a film's theater run.
     
     Rules:
-    - Maximum 3 extensions per film
-    - Minimum 5 days between extensions
+    - Maximum 1 extension per film
     - Maximum 3 days per extension
     - Only eligible films can be extended
     """
@@ -12611,24 +12610,15 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
         raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Film not in theaters")
+        raise HTTPException(status_code=400, detail="Il film non è in sala")
     
-    # Check extension count (max 3)
+    # Check extension count (max 1)
     extension_count = film.get('extension_count', 0)
-    if extension_count >= 3:
-        raise HTTPException(status_code=400, detail="Maximum extensions reached (3/3)")
-    
-    # Check cooldown (min 5 days since last extension)
-    last_extension_date = film.get('last_extension_date')
-    now = datetime.now(timezone.utc)
-    if last_extension_date:
-        last_ext = parse_date_with_timezone(last_extension_date)
-        days_since_extension = (now - last_ext).days
-        if days_since_extension < 5:
-            days_remaining = 5 - days_since_extension
-            raise HTTPException(status_code=400, detail=f"Must wait {days_remaining} more days before extending")
+    if extension_count >= 1:
+        raise HTTPException(status_code=400, detail="Estensione già utilizzata (1/1)")
     
     # Check eligibility based on performance
+    now = datetime.now(timezone.utc)
     release_date = parse_date_with_timezone(film.get('release_date'))
     current_days = max(1, (now - release_date).days)
     planned_days = film.get('weeks_in_theater', 2) * 7
@@ -12675,7 +12665,7 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
         'extended': True,
         'extra_days': actual_extension,
         'new_total_days': int(new_total_days),
-        'extensions_remaining': 3 - (extension_count + 1),
+        'extensions_remaining': max(0, 1 - (extension_count + 1)),  # max_extensions is now 1
         'fame_bonus': fame_bonus,
         'xp_bonus': actual_extension * 10,
         'next_extension_available_in': 5  # days

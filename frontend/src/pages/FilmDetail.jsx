@@ -625,21 +625,21 @@ const FilmDetail = () => {
                     <p className="text-green-400 font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Film idoneo per estensione!</p>
                     <p className="text-xs text-gray-300">Puoi estendere fino a {durationStatus.max_days_per_extension || 3} giorni extra.</p>
                     <p className="text-xs text-green-300">Fame bonus: +{durationStatus.fame_change}</p>
-                    <p className="text-[10px] text-gray-400 mt-1">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 3}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 1}</p>
                     <Button onClick={extendFilm} size="sm" className="mt-2 bg-green-600">Estendi di 3 giorni</Button>
                   </div>
                 )}
-                {durationStatus.status === 'extend' && !durationStatus.can_extend && durationStatus.extension_count < 3 && (
+                {durationStatus.status === 'extend' && !durationStatus.can_extend && durationStatus.extension_count < 1 && (
                   <div className="p-3 rounded bg-yellow-500/20 border border-yellow-500/30 mb-3">
                     <p className="text-yellow-400 font-semibold flex items-center gap-2"><Clock className="w-4 h-4" /> Estensione in cooldown</p>
                     <p className="text-xs text-gray-300">Attendi {durationStatus.days_until_next_extension} giorni prima di estendere.</p>
-                    <p className="text-[10px] text-gray-400">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 3}</p>
+                    <p className="text-[10px] text-gray-400">Estensioni: {durationStatus.extension_count || 0}/{durationStatus.max_extensions || 1}</p>
                   </div>
                 )}
-                {durationStatus.extension_count >= 3 && (
+                {durationStatus.extension_count >= 1 && (
                   <div className="p-3 rounded bg-gray-500/20 border border-gray-500/30 mb-3">
-                    <p className="text-gray-400 font-semibold flex items-center gap-2"><Check className="w-4 h-4" /> Estensioni esaurite</p>
-                    <p className="text-xs text-gray-400">Hai usato tutte le 3 estensioni disponibili.</p>
+                    <p className="text-gray-400 font-semibold flex items-center gap-2"><Check className="w-4 h-4" /> Estensione esaurita</p>
+                    <p className="text-xs text-gray-400">Hai usato l'unica estensione disponibile.</p>
                     <p className="text-[10px] text-gray-500">Giorni totali aggiunti: +{durationStatus.total_extension_days || 0}</p>
                   </div>
                 )}

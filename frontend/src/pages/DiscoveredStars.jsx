@@ -244,12 +244,22 @@ const DiscoveredStars = () => {
               <div className="mb-4">
                 <h4 className="text-sm font-semibold mb-2 text-gray-400">{language === 'it' ? 'SKILLS' : 'SKILLS'}</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(selectedStar.skills || {}).map(([skill, value]) => (
+                  {Object.entries(selectedStar.skills || {}).map(([skill, value]) => {
+                    const change = selectedStar?.skill_changes?.[skill] || 0;
+                    return (
                     <div key={skill} className="flex items-center justify-between bg-white/5 rounded px-2 py-1">
                       <span className="text-xs capitalize">{skill.replace(/_/g, ' ')}</span>
-                      <span className={`text-sm font-bold ${getSkillColor(value)}`}>{value}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-sm font-bold ${getSkillColor(value)}`}>{value}</span>
+                        {change !== 0 && (
+                          <span className={`text-[10px] font-bold ${change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {change > 0 ? '▲' : '▼'}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

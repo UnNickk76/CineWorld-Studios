@@ -255,7 +255,9 @@ const NotificationsPage = () => {
             </div>
             {/* Skills */}
             <div className="space-y-1.5">
-              {actorPopup?.skills && Object.entries(actorPopup.skills).map(([key, val]) => (
+              {actorPopup?.skills && Object.entries(actorPopup.skills).map(([key, val]) => {
+                const change = actorPopup?.skill_changes?.[key] || 0;
+                return (
                 <div key={key} className="flex items-center gap-2">
                   <span className="text-[10px] text-gray-400 w-28 truncate">
                     {SKILL_TRANSLATIONS?.[key]?.[language] || key}
@@ -264,8 +266,14 @@ const NotificationsPage = () => {
                     <div className="h-full rounded-full" style={{ width: `${val}%`, background: val > 70 ? '#22c55e' : val > 40 ? '#eab308' : '#ef4444' }} />
                   </div>
                   <span className="text-[10px] font-mono text-gray-300 w-6 text-right">{val}</span>
+                  {change !== 0 && (
+                    <span className={`text-[10px] font-bold ${change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {change > 0 ? '▲' : '▼'}
+                    </span>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {/* Hire button for released actors */}
             {actorPopup?.action === 'released' && actorPopup?.cost_per_film && (

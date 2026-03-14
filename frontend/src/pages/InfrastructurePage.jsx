@@ -664,8 +664,7 @@ const InfrastructurePage = () => {
                     </h4>
                     <span className="text-[10px] text-gray-500">Nuove ogni giorno</span>
                   </div>
-                  <ScrollArea className="max-h-[250px]">
-                    <div className="space-y-2 pr-1">
+                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
                       {schoolRecruits.map(r => (
                         <div key={r.id} className="p-2.5 bg-white/5 rounded border border-white/10">
                           <div className="flex items-center justify-between mb-1.5">
@@ -697,7 +696,6 @@ const InfrastructurePage = () => {
                         <p className="text-center text-gray-500 text-xs py-4">Nessuna recluta disponibile oggi</p>
                       )}
                     </div>
-                  </ScrollArea>
                 </div>
               )}
 

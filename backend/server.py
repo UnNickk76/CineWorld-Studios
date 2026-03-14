@@ -49,6 +49,7 @@ from routes.auth import router as auth_router
 from routes.notifications import router as notifications_router
 from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
+from routes.acting_school import router as acting_school_router
 from routes.minigames import router as minigames_router
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -282,6 +283,7 @@ TRANSLATIONS = {
         'female': 'Female',
         'other': 'Other',
         'infrastructure': 'Infrastructure',
+        'acting_school': 'Acting School',
         'leaderboard': 'Leaderboard',
         'tour': 'Cinema Tour',
         'marketplace': 'Marketplace',
@@ -336,6 +338,7 @@ TRANSLATIONS = {
         'daily': 'Giornaliere',
         'weekly': 'Settimanali',
         'infrastructure': 'Infrastrutture',
+        'acting_school': 'Scuola Recitazione',
         'leaderboard': 'Classifica',
         'tour': 'Tour Cinema',
         'marketplace': 'Mercato',
@@ -7538,7 +7541,6 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
                     from io import BytesIO
                     from PIL import Image as PILImage, ImageDraw, ImageFont
                     img = PILImage.open(BytesIO(images[0])).convert('RGB')
-                    img = _overlay_poster_text(img, request.title, request.cast_names or [])
                     jpeg_buffer = BytesIO()
                     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                     jpeg_bytes = jpeg_buffer.getvalue()
@@ -7616,7 +7618,6 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
                 from io import BytesIO
                 from PIL import Image as PILImage
                 img = PILImage.open(BytesIO(images[0])).convert('RGB')
-                img = _overlay_poster_text(img, request.title, request.cast_names or [])
                 jpeg_buffer = BytesIO()
                 img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                 jpeg_bytes = jpeg_buffer.getvalue()
@@ -7823,9 +7824,7 @@ async def _generate_fallback_poster(request) -> dict:
         bar_y = rng.randint(height * 2 // 3, height * 3 // 4)
         draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
     
-    # Apply text overlay
-    img = _overlay_poster_text(img, title, request.cast_names or [])
-    
+    # Save poster (no text overlay - title is part of the AI image)
     jpeg_buffer = BytesIO()
     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
     jpeg_bytes = jpeg_buffer.getvalue()
@@ -14013,6 +14012,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(infrastructure_router, prefix="/api")
+app.include_router(acting_school_router, prefix="/api")
 app.include_router(minigames_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================

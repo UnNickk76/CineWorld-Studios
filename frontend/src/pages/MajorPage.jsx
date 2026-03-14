@@ -47,6 +47,13 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
+const MAJOR_ROLES = {
+  founder: { it: 'Fondatore', en: 'Founder' },
+  vice: { it: 'Vice', en: 'Vice' },
+  member: { it: 'Membro', en: 'Member' },
+  manager: { it: 'Manager', en: 'Manager' }
+};
+
 const MajorPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);

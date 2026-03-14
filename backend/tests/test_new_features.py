@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-creation.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://acting-school.preview.emergentagent.com').rstrip('/')
 
 class TestAvatars:
     """Test 20 new modern avatars with DiceBear v9 styles"""

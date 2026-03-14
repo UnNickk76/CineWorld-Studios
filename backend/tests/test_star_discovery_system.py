@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-creation.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://acting-school.preview.emergentagent.com').rstrip('/')
 API_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOTk1MzQ4ZTgtYjgxYi00OGM1LTk1MDItNDI2ZGNjZWZhYjhmIiwiZXhwIjoxNzc1NjQ1ODc1fQ.vx1GjDd0MbagvCRuOVDplmXeOg0GcyEETM3_iNiEnI4"
 
 

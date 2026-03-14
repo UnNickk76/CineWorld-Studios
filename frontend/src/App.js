@@ -66,6 +66,7 @@ const FilmDrafts = React.lazy(() => import('./pages/FilmDrafts'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
+const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'));
 const MajorPage = React.lazy(() => import('./pages/MajorPage'));
 const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
@@ -218,7 +219,8 @@ const TopNavbar = () => {
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
-    { path: '/infrastructure', icon: Building, label: 'infrastructure', disabled: true, pauseLabel: 'In pausa' },
+    { path: '/infrastructure', icon: Building, label: 'infrastructure' },
+    { path: '/acting-school', icon: GraduationCap, label: 'acting_school' },
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'In pausa' },
     { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
@@ -1214,6 +1216,7 @@ function App() {
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+                <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                 <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
                 <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />

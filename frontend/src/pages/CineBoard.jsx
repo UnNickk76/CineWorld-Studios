@@ -47,6 +47,8 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
 const CineBoard = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -223,7 +225,8 @@ const CineBoard = () => {
                 
                 {/* Poster */}
                 <div className="w-20 flex-shrink-0 cursor-pointer relative" onClick={() => navigate(`/films/${film.id}`)}>
-                  <FilmPoster film={film} />
+                  <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt={film.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                  <div style={{display:'none'}} className="w-full h-full items-center justify-center"><FilmPoster film={film} /></div>
                   {/* Virtual Likes Badge */}
                   {(film.virtual_likes > 0) && (
                     <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
@@ -370,7 +373,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      <FilmPoster film={film} />
+                      <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
@@ -417,7 +420,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      <FilmPoster film={film} />
+                      <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>

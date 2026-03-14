@@ -322,7 +322,7 @@ const TopNavbar = () => {
             data-testid="cineboard-btn"
             title="CineBoard"
           >
-            <Globe className="w-4 h-4" />
+            <Trophy className="w-4 h-4" />
           </Button>
           
           {/* Cinema Journal */}

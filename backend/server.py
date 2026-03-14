@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -3922,6 +3922,26 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     return [FilmResponse(**f) for f in films]
+
+@api_router.get("/films/{film_id}/poster")
+async def get_film_poster(film_id: str):
+    """Return film poster as binary image for efficient loading."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'poster_url': 1})
+    if not film or not film.get('poster_url'):
+        raise HTTPException(status_code=404, detail="Poster not found")
+    poster_url = film['poster_url']
+    if poster_url.startswith('data:image/'):
+        # Parse base64: data:image/png;base64,iVBOR...
+        header, b64data = poster_url.split(',', 1)
+        media_type = header.split(':')[1].split(';')[0]  # e.g. image/png
+        import base64
+        image_bytes = base64.b64decode(b64data)
+        return Response(content=image_bytes, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+    # If it's a URL, redirect
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(url=poster_url)
+
+
 
 @api_router.get("/films/my/featured")
 async def get_my_featured_films(user: dict = Depends(get_current_user), limit: int = 4):

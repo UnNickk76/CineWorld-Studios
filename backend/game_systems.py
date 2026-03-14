@@ -1159,85 +1159,85 @@ def calculate_film_duration_factors(film: dict, current_days: int, planned_days:
     # Quality impact (-30 to +30)
     if quality >= 90:
         score += 30
-        reasons.append('Exceptional quality (+30)')
+        reasons.append('Qualità eccezionale (+30)')
     elif quality >= 80:
         score += 20
-        reasons.append('High quality (+20)')
+        reasons.append('Alta qualità (+20)')
     elif quality >= 70:
         score += 10
-        reasons.append('Good quality (+10)')
+        reasons.append('Buona qualità (+10)')
     elif quality >= 50:
         score += 0
     elif quality >= 30:
         score -= 15
-        reasons.append('Poor quality (-15)')
+        reasons.append('Bassa qualità (-15)')
     else:
         score -= 30
-        reasons.append('Very poor quality (-30)')
+        reasons.append('Qualità pessima (-30)')
     
     # IMDb rating impact (-20 to +20)
     if imdb >= 8.0:
         score += 20
-        reasons.append(f'Excellent IMDb {imdb} (+20)')
+        reasons.append(f'IMDb eccellente {imdb} (+20)')
     elif imdb >= 7.0:
         score += 10
-        reasons.append(f'Good IMDb {imdb} (+10)')
+        reasons.append(f'IMDb buono {imdb} (+10)')
     elif imdb >= 5.0:
         score += 0
     elif imdb >= 3.0:
         score -= 10
-        reasons.append(f'Poor IMDb {imdb} (-10)')
+        reasons.append(f'IMDb scarso {imdb} (-10)')
     else:
         score -= 20
-        reasons.append(f'Terrible IMDb {imdb} (-20)')
+        reasons.append(f'IMDb terribile {imdb} (-20)')
     
     # Audience satisfaction impact (-20 to +20)
     if satisfaction >= 80:
         score += 20
-        reasons.append('Audience loves it (+20)')
+        reasons.append('Il pubblico lo ama (+20)')
     elif satisfaction >= 60:
         score += 10
-        reasons.append('Audience satisfied (+10)')
+        reasons.append('Pubblico soddisfatto (+10)')
     elif satisfaction >= 40:
         score += 0
     elif satisfaction >= 20:
         score -= 10
-        reasons.append('Audience disappointed (-10)')
+        reasons.append('Pubblico deluso (-10)')
     else:
         score -= 20
-        reasons.append('Audience hates it (-20)')
+        reasons.append('Il pubblico lo odia (-20)')
     
     # Likes/social buzz impact (-10 to +15)
     expected_likes = current_days * 5  # Expect ~5 likes per day
     like_ratio = likes / max(expected_likes, 1)
     if like_ratio >= 2.0:
         score += 15
-        reasons.append('Viral social buzz (+15)')
+        reasons.append('Buzz social virale (+15)')
     elif like_ratio >= 1.0:
         score += 5
-        reasons.append('Good social engagement (+5)')
+        reasons.append('Buon engagement social (+5)')
     elif like_ratio < 0.3:
         score -= 10
-        reasons.append('No social engagement (-10)')
+        reasons.append('Nessun engagement social (-10)')
     
     # Revenue performance
     expected_revenue = current_days * 24 * 10000  # ~$10k/hour expected
     revenue_ratio = total_revenue / max(expected_revenue, 1)
     if revenue_ratio >= 2.0:
         score += 15
-        reasons.append('Box office hit (+15)')
+        reasons.append('Successo al botteghino (+15)')
     elif revenue_ratio >= 1.0:
         score += 5
     elif revenue_ratio < 0.3:
         score -= 15
-        reasons.append('Box office flop (-15)')
+        reasons.append('Flop al botteghino (-15)')
     
     # Random factor (critic reviews, word of mouth, etc.)
     random_factor = random.randint(-10, 10)
     if random_factor > 5:
-        reasons.append('Positive word of mouth (+{})'.format(random_factor))
+        reasons.append("Passaparola positivo (+{})".format(random_factor))
     elif random_factor < -5:
-        reasons.append('Negative buzz ({})'.format(random_factor))
+        reasons.append("Buzz negativo ({})".format(random_factor))
     score += random_factor
     
     # Determine outcome

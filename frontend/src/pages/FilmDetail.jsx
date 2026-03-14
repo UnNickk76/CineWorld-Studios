@@ -613,7 +613,7 @@ const FilmDetail = () => {
                 </div>
                 <div className="p-2 rounded bg-black/20 mb-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm">Performance Score:</span>
+                    <span className="text-sm">{language === 'it' ? 'Punteggio Performance:' : 'Performance Score:'}</span>
                     <span className={`font-bold ${durationStatus.score > 0 ? 'text-green-400' : durationStatus.score < 0 ? 'text-red-400' : 'text-gray-400'}`}>{durationStatus.score > 0 ? '+' : ''}{durationStatus.score}</span>
                   </div>
                   <div className="text-[10px] text-gray-400">

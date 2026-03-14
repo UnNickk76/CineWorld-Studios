@@ -5184,6 +5184,24 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.115', 'date': '2026-03-14', 'title': 'Scuola di Recitazione Completa & Navigazione Mobile',
+     'changes': [
+         {'type': 'new', 'text': 'Scuola di Recitazione: forma i tuoi attori da zero! Acquista la scuola dalle Infrastrutture'},
+         {'type': 'new', 'text': '6 reclute disponibili ogni giorno con skill iniziali, età e talento nascosto'},
+         {'type': 'new', 'text': 'Sistema formazione 10-20 giorni con barre progresso e skill in tempo reale'},
+         {'type': 'new', 'text': 'Opzioni post-formazione: Tieni nel Cast (costo 0, stipendio mensile) o Libera nel pool pubblico'},
+         {'type': 'new', 'text': 'Cast Personale: i tuoi attori formati appaiono in cima alla lista nel Film Wizard'},
+         {'type': 'new', 'text': 'Notifiche interattive: clicca sul nome dell\'attore per vedere tutte le skill con popup'},
+         {'type': 'new', 'text': 'Attori rilasciati: bottone "Ingaggia" direttamente dalla notifica'},
+         {'type': 'new', 'text': 'Notifiche broadcast: tutti i giocatori vedono le star formate dagli altri'},
+         {'type': 'new', 'text': 'Upgrade Scuola: migliora il livello per sbloccare più slot di formazione'},
+         {'type': 'new', 'text': 'Icona Infrastrutture nella barra di navigazione mobile'},
+         {'type': 'improvement', 'text': 'Icone e testo ridimensionati nella bottom nav per ospitare 8 voci su mobile'},
+         {'type': 'improvement', 'text': 'Tutte le 13 skill attore tradotte in italiano (Recitazione Fisica, Carisma, Metodo, etc.)'},
+         {'type': 'fix', 'text': 'Fix acquisto infrastrutture: corretto import mancante che bloccava gli acquisti'},
+         {'type': 'fix', 'text': 'Fix conteggi formazione: training e ready ora aggiornati correttamente'},
+         {'type': 'fix', 'text': 'Fix sistema notifiche Scuola: notifiche ora create e salvate correttamente'},
+     ]},
     {'version': '0.110', 'date': '2026-03-13', 'title': 'Sceneggiature Emergenti & Locandine Classiche',
      'changes': [
          {'type': 'new', 'text': 'Nuova sezione "Sceneggiature Emergenti": sceneggiature pronte da produrre con cast, rating e prezzo'},

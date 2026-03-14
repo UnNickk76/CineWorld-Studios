@@ -7581,13 +7581,12 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
             try:
                 from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
                 user_desc = request.description or request.title
-                # Prompt WITHOUT text overlay request - Pillow handles text
                 prompt = (
-                    f"Professional cinematic movie poster artwork for a {request.genre} film. "
+                    f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
                     f"Description: {user_desc}. "
-                    f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
-                    f"Leave the bottom 20% of the image darker or with a gradient to black for text placement. "
-                    f"Do NOT include any text, titles, or written words on the poster."
+                    f"The poster MUST include the film title \"{request.title.upper()}\" as large, stylized text integrated into the design. "
+                    f"Include a genre subtitle like \"A {request.genre.upper()} FILM\" in smaller text at the bottom. "
+                    f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, professional movie poster layout with typography."
                 )
                 image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
                 images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1, quality="low")
@@ -7653,11 +7652,11 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
             
             user_desc = request.description or request.title
             prompt = (
-                f"Professional cinematic movie poster artwork for a {request.genre} film. "
+                f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
                 f"Description: {user_desc}. "
-                f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality. "
-                f"Leave the bottom 20% of the image darker or with a gradient to black for text placement. "
-                f"Do NOT include any text, titles, or written words on the poster."
+                f"The poster MUST include the film title \"{request.title.upper()}\" as large, stylized text integrated into the design. "
+                f"Include a genre subtitle like \"A {request.genre.upper()} FILM\" in smaller text at the bottom. "
+                f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, professional movie poster layout with typography."
             )
             
             image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)

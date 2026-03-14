@@ -733,6 +733,12 @@ const InfrastructurePage = () => {
                         <span className="text-gray-400">Costo: <span className={`font-bold ${(upgradeInfo.user_funds || 0) >= upgradeInfo.upgrade_cost ? 'text-green-400' : 'text-red-400'}`}>${upgradeInfo.upgrade_cost?.toLocaleString()}</span></span>
                         <span className="text-gray-400">Lv. giocatore: <span className={`font-bold ${upgradeInfo.player_level >= upgradeInfo.player_level_required ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.player_level}/{upgradeInfo.player_level_required}</span></span>
                       </div>
+                      {upgradeInfo.cinepass_cost > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">CinePass: <span className={`font-bold ${(upgradeInfo.user_cinepass || 0) >= upgradeInfo.cinepass_cost ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.cinepass_cost}</span></span>
+                          <span className="text-gray-500 text-[10px]">Hai: {upgradeInfo.user_cinepass || 0}</span>
+                        </div>
+                      )}
                       <Button onClick={handleUpgrade} disabled={!upgradeInfo.can_upgrade || upgrading} className={`w-full h-9 font-bold ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} data-testid="upgrade-school-btn">
                         {upgrading ? 'Miglioramento...' : upgradeInfo.can_upgrade ? `Migliora a Lv.${upgradeInfo.next_level} (+slot formazione)` : upgradeInfo.reason}
                       </Button>
@@ -895,6 +901,12 @@ const InfrastructurePage = () => {
                           </span>
                         </span>
                       </div>
+                      {upgradeInfo.cinepass_cost > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">CinePass: <span className={`font-bold ${(upgradeInfo.user_cinepass || 0) >= upgradeInfo.cinepass_cost ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.cinepass_cost}</span></span>
+                          <span className="text-gray-500 text-[10px]">Hai: {upgradeInfo.user_cinepass || 0}</span>
+                        </div>
+                      )}
                       
                       <Button
                         onClick={handleUpgrade}

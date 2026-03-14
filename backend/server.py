@@ -50,7 +50,7 @@ from routes.notifications import router as notifications_router
 from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
-from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, get_infra_cinepass_cost, spend_cinepass
+from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -11304,6 +11304,28 @@ async def get_challenge_leaderboard(user: dict = Depends(get_current_user)):
     
     return leaderboard
 
+@api_router.get("/challenges/limits")
+async def get_challenge_limits(user: dict = Depends(get_current_user)):
+    """Get current challenge usage and limits."""
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+    
+    hourly_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_hour_ago}
+    })
+    daily_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_day_ago}
+    })
+    
+    return {
+        'hourly': {'used': hourly_count, 'limit': CHALLENGE_LIMITS['per_hour']},
+        'daily': {'used': daily_count, 'limit': CHALLENGE_LIMITS['per_day']},
+        'cinepass_reward_per_win': CINEPASS_REWARDS.get('challenge_win', 2),
+    }
+
 @api_router.get("/challenges/{challenge_id}")
 async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
     """Get challenge details."""
@@ -11388,6 +11410,25 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
     
     if opponent_id == user['id']:
         raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+    
+    # Check challenge limits (5/hour, 20/day)
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+    
+    hourly_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_hour_ago}
+    })
+    if hourly_count >= CHALLENGE_LIMITS['per_hour']:
+        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_hour']} sfide all'ora")
+    
+    daily_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_day_ago}
+    })
+    if daily_count >= CHALLENGE_LIMITS['per_day']:
+        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_day']} sfide al giorno")
     
     # Check opponent exists and accepts offline challenges
     opponent = await db.users.find_one({'id': opponent_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'accept_offline_challenges': 1, 'production_house_name': 1})
@@ -11489,11 +11530,13 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
         winner_name = 'Pareggio'
         loser_name = None
     
-    # Apply rewards to winners
+    # Apply rewards to winners (including CinePass)
+    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
     for uid in winner_ids:
         await db.users.update_one({'id': uid}, {'$inc': {
             'xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
-            'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1
+            'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1,
+            'cinepass': cinepass_reward
         }})
     
     # Apply reduced penalties to losers
@@ -11517,7 +11560,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
         'user_id': user['id'],
         'type': 'offline_challenge_result',
         'title': 'Sfida Offline Completata!',
-        'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
+        'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP, +"+str(cinepass_reward)+" CinePass" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
         'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'path': '/challenges'},
         'read': False,
         'created_at': datetime.now(timezone.utc).isoformat()
@@ -11552,6 +11595,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
         'result': battle_result,
         'winner_name': winner_name,
         'rewards': winner_rewards if user['id'] in winner_ids else offline_loser_penalties,
+        'cinepass_reward': cinepass_reward if user['id'] in winner_ids else 0,
         'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'genre': f.get('genre')} for f in opponent_films],
     }
 

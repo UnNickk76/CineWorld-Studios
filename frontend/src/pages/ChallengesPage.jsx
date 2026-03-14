@@ -75,6 +75,7 @@ const ChallengesPage = () => {
   const [offlineOpponent, setOfflineOpponent] = useState(null);
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
   const [offlineLoading, setOfflineLoading] = useState(false);
+  const [challengeLimits, setChallengeLimits] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -82,18 +83,20 @@ const ChallengesPage = () => {
 
   const loadData = async () => {
     try {
-      const [filmsRes, leaderboardRes, myChallengesRes, waitingRes, statsRes] = await Promise.all([
+      const [filmsRes, leaderboardRes, myChallengesRes, waitingRes, statsRes, limitsRes] = await Promise.all([
         api.get('/challenges/my-films'),
         api.get('/challenges/leaderboard'),
         api.get('/challenges/my'),
         api.get('/challenges/waiting'),
-        api.get(`/challenges/stats/${user.id}`)
+        api.get(`/challenges/stats/${user.id}`),
+        api.get('/challenges/limits')
       ]);
       setMyFilms(filmsRes.data);
       setLeaderboard(leaderboardRes.data);
       setMyChallenges(myChallengesRes.data);
       setWaitingChallenges(waitingRes.data);
       setMyStats(statsRes.data);
+      setChallengeLimits(limitsRes.data);
     } catch (e) {
       console.error(e);
     }
@@ -276,7 +279,9 @@ const ChallengesPage = () => {
         opponent_id: offlineOpponent.id,
         film_ids: selectedFilms.map(f => f.id)
       });
-      toast.success(`Sfida completata! ${res.data.winner_name} vince!`);
+      const cinepassBonus = res.data.cinepass_reward || 0;
+      const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
+      toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
       setActiveBattle(res.data.result);
       setView('battle');
       runBattleAnimation(res.data.result);
@@ -835,6 +840,26 @@ const ChallengesPage = () => {
           </Card>
         )}
 
+        {/* Challenge Limits */}
+        {challengeLimits && (
+          <div className="flex items-center gap-3 mb-4 text-xs">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+              <Clock className="w-3 h-3 text-orange-400" />
+              <span className="text-gray-400">Ora:</span>
+              <span className={challengeLimits.hourly.used >= challengeLimits.hourly.limit ? 'text-red-400 font-bold' : 'text-white font-bold'}>
+                {challengeLimits.hourly.used}/{challengeLimits.hourly.limit}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+              <Calendar className="w-3 h-3 text-blue-400" />
+              <span className="text-gray-400">Giorno:</span>
+              <span className={challengeLimits.daily.used >= challengeLimits.daily.limit ? 'text-red-400 font-bold' : 'text-white font-bold'}>
+                {challengeLimits.daily.used}/{challengeLimits.daily.limit}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Challenge Type Grid - Only 1v1 */}
         <Card 
           className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer hover:scale-[1.02] transition-transform mb-4" 
@@ -854,6 +879,9 @@ const ChallengesPage = () => {
                 </Badge>
                 <Badge className="bg-green-500/20 text-green-400">
                   <Trophy className="w-3 h-3 mr-1" /> Premio: $100.000
+                </Badge>
+                <Badge className="bg-cyan-500/20 text-cyan-400">
+                  +{challengeLimits?.cinepass_reward_per_win || 2} CinePass
                 </Badge>
               </div>
             </div>

@@ -20,6 +20,7 @@ CINEPASS_COSTS = {
     'pre_engagement': 5,
     'emerging_screenplay': 10,
     'school_recruit': 3,
+    'infra_upgrade_base': 5,  # Base CinePass for upgrade, multiplied by level
     # Infrastructure costs by type
     'infra_cinema': 10,
     'infra_drive_in_cinema': 8,
@@ -33,8 +34,24 @@ CINEPASS_COSTS = {
     'infra_centro_commerciale_grande': 18,
 }
 
+# CinePass rewards
+CINEPASS_REWARDS = {
+    'challenge_win': 2,  # +2 CinePass per 1v1 win
+}
+
+# Challenge limits
+CHALLENGE_LIMITS = {
+    'per_hour': 5,
+    'per_day': 20,
+}
+
 def get_infra_cinepass_cost(infra_type: str) -> int:
     return CINEPASS_COSTS.get(f'infra_{infra_type}', 10)
+
+def get_upgrade_cinepass_cost(current_level: int) -> int:
+    """Exponential CinePass cost for upgrades: base * 1.5^(level-1)"""
+    base = CINEPASS_COSTS.get('infra_upgrade_base', 5)
+    return int(base * (1.5 ** (current_level - 1)))
 
 # ===== Login Streak Rewards =====
 STREAK_REWARDS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14, 6: 19, 7: 35}  # Day 7 = 25 + 10 bonus

@@ -17,6 +17,7 @@ from game_systems import (
 )
 from cast_system import calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL
 from social_system import create_notification
+from routes.cinepass import get_upgrade_cinepass_cost, spend_cinepass
 
 router = APIRouter()
 
@@ -361,6 +362,10 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
     user_funds = user.get('funds', 0)
     
+    # CinePass cost for upgrade
+    cinepass_cost = get_upgrade_cinepass_cost(current_level)
+    user_cinepass = user.get('cinepass', 0)
+    
     benefits = calculate_upgrade_benefits(infra_type, current_level, next_level)
     
     # All products for next level
@@ -368,12 +373,14 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     for lvl in range(1, next_level + 1):
         all_products.extend(INFRA_PRODUCTS.get(lvl, []))
     
-    can_upgrade = player_level >= player_level_required and user_funds >= upgrade_cost
+    can_upgrade = player_level >= player_level_required and user_funds >= upgrade_cost and user_cinepass >= cinepass_cost
     reason = ''
     if player_level < player_level_required:
         reason = f'Richiesto livello giocatore {player_level_required} (attuale: {player_level})'
     elif user_funds < upgrade_cost:
         reason = f'Fondi insufficienti: ${upgrade_cost:,} richiesti'
+    elif user_cinepass < cinepass_cost:
+        reason = f'CinePass insufficienti: {cinepass_cost} richiesti (hai {user_cinepass})'
     
     return {
         'can_upgrade': can_upgrade,
@@ -382,6 +389,8 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
         'next_level': next_level,
         'max_level': max_level,
         'upgrade_cost': upgrade_cost,
+        'cinepass_cost': cinepass_cost,
+        'user_cinepass': user_cinepass,
         'player_level_required': player_level_required,
         'player_level': player_level,
         'user_funds': user_funds,
@@ -421,6 +430,12 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     if user_funds < upgrade_cost:
         raise HTTPException(status_code=400, detail=f"Fondi insufficienti: ${upgrade_cost:,} richiesti")
     
+    # Check CinePass
+    cinepass_cost = get_upgrade_cinepass_cost(current_level)
+    user_cinepass = user.get('cinepass', 0)
+    if user_cinepass < cinepass_cost:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti: {cinepass_cost} richiesti")
+    
     next_level = current_level + 1
     benefits = calculate_upgrade_benefits(infra_type, current_level, next_level)
     
@@ -440,8 +455,8 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     
     await db.infrastructure.update_one({'id': infra_id}, {'$set': update_data})
     
-    # Deduct funds
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -upgrade_cost}})
+    # Deduct funds and CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -upgrade_cost, 'cinepass': -cinepass_cost}})
     
     # Send notification
     await db.notifications.insert_one({

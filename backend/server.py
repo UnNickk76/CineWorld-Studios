@@ -5193,6 +5193,11 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.122', 'date': '2026-03-14', 'title': 'Locandine AI Migliorate',
+     'changes': [
+         {'type': 'improvement', 'text': 'Le locandine AI ora includono automaticamente il titolo del film e il genere direttamente nell\'immagine generata'},
+         {'type': 'fix', 'text': 'Ripristinato il sistema originale di poster con testo integrato (titolo grande + sottotitolo genere)'},
+     ]},
     {'version': '0.121', 'date': '2026-03-14', 'title': 'Tutorial Aggiornato',
      'changes': [
          {'type': 'improvement', 'text': 'Tutorial completamente riscritto: 12 passi con CinePass, Login Giornaliero, Contest, Scuola di Recitazione e Sceneggiature Emergenti'},

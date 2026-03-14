@@ -4653,7 +4653,7 @@ async def get_cinema_journal(
     # Get films with recent trailers (for headline section)
     recent_trailers = await db.films.find(
         {'trailer_url': {'$exists': True, '$ne': None}},
-        {'_id': 0}
+        {'_id': 0, 'poster_url': 0}
     ).sort('trailer_generated_at', -1).limit(5).to_list(5)
     
     for trailer_film in recent_trailers:
@@ -4663,17 +4663,17 @@ async def get_cinema_journal(
     # Get all films ordered by quality_score descending
     films = await db.films.find(
         {},
-        {'_id': 0}
+        {'_id': 0, 'poster_url': 0, 'attendance_history': 0}
     ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
     
     for film in films:
-        # Get owner details
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+        # Get owner details (exclude large fields)
+        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0})
         film['owner'] = owner
         
         # Get director details
         director_id = (film.get('director') or {}).get('id')
-        director = await db.people.find_one({'id': director_id}, {'_id': 0}) if director_id else None
+        director = await db.people.find_one({'id': director_id}, {'_id': 0, 'avatar_url': 0}) if director_id else None
         if director:
             film['director_details'] = director
         else:
@@ -4686,7 +4686,7 @@ async def get_cinema_journal(
         
         # Get screenwriter details
         screenwriter_id = (film.get('screenwriter') or {}).get('id')
-        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0}) if screenwriter_id else None
+        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0, 'avatar_url': 0}) if screenwriter_id else None
         if screenwriter:
             film['screenwriter_details'] = screenwriter
         else:
@@ -4701,7 +4701,7 @@ async def get_cinema_journal(
         main_cast = []
         for actor_info in film.get('cast', [])[:5]:  # Top 5 actors
             actor_id = actor_info.get('actor_id')
-            actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
+            actor = await db.people.find_one({'id': actor_id}, {'_id': 0, 'avatar_url': 0})
             if actor:
                 actor['role'] = actor_info.get('role', 'supporting')
                 main_cast.append(actor)
@@ -4741,7 +4741,7 @@ async def get_cinema_journal(
             {'_id': 0}
         ).sort('created_at', -1).limit(3).to_list(3)
         for comment in comments:
-            commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+            commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0})
             comment['user'] = commenter
         film['recent_comments'] = comments
         
@@ -4751,11 +4751,11 @@ async def get_cinema_journal(
     
     total = await db.films.count_documents({})
     
-    # Get recent posters (films with poster_url created recently)
+    # Get recent posters (films with poster_url created recently - limit to 8 to keep response manageable)
     recent_posters = await db.films.find(
         {'poster_url': {'$exists': True, '$ne': None}},
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1, 'virtual_likes': 1, 'likes_count': 1}
-    ).sort('created_at', -1).limit(20).to_list(20)
+    ).sort('created_at', -1).limit(8).to_list(8)
     
     return {
         'films': films, 
@@ -4913,7 +4913,7 @@ async def get_cinema_news(
     
     news = await db.cinema_news.find(
         {},
-        {'_id': 0}
+        {'_id': 0, 'discoverer_avatar': 0}
     ).sort('created_at', -1).limit(limit).to_list(limit)
     
     # Localize titles and content
@@ -4958,29 +4958,28 @@ async def get_discovered_stars(user: dict = Depends(get_current_user), limit: in
 @api_router.get("/journal/virtual-reviews")
 async def get_journal_virtual_reviews(user: dict = Depends(get_current_user), limit: int = 50):
     """Get virtual audience reviews for display in the journal."""
-    # Get films with virtual reviews
-    films_with_reviews = await db.films.find(
-        {'virtual_reviews': {'$exists': True, '$ne': []}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'virtual_reviews': 1}
-    ).sort('updated_at', -1).limit(30).to_list(30)
+    import random
+    
+    # Get reviews from the virtual_reviews collection
+    all_reviews = await db.virtual_reviews.find(
+        {},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(100).to_list(100)
     
     reviews = []
-    for film in films_with_reviews:
-        for review in film.get('virtual_reviews', [])[:3]:  # Max 3 per film
-            reviews.append({
-                'film_id': film['id'],
-                'film_title': film.get('title', 'Unknown'),
-                'poster_url': film.get('poster_url'),
-                'reviewer_name': review.get('reviewer_name', 'Anonymous'),
-                'reviewer_info': review.get('reviewer_info', ''),
-                'rating': review.get('rating', 3),
-                'comment': review.get('comment', '')
-            })
+    for review in all_reviews:
+        # Get film info (exclude poster_url to keep response light)
+        film = await db.films.find_one({'id': review.get('film_id')}, {'_id': 0, 'id': 1, 'title': 1})
+        reviews.append({
+            'film_id': review.get('film_id'),
+            'film_title': film.get('title', 'Film sconosciuto') if film else 'Film sconosciuto',
+            'reviewer_name': review.get('reviewer_name', 'Anonimo'),
+            'reviewer_info': review.get('reviewer_info', ''),
+            'rating': review.get('rating', 3),
+            'comment': review.get('comment', review.get('text', ''))
+        })
     
-    # Sort by randomness to mix it up
-    import random
     random.shuffle(reviews)
-    
     return {'reviews': reviews[:limit]}
 
 # Journal - Other News (trending, records, new stars, etc.)
@@ -13139,6 +13138,8 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
         if release_date:
             if isinstance(release_date, str):
                 release_date = datetime.fromisoformat(release_date.replace('Z', '+00:00'))
+            if release_date.tzinfo is None:
+                release_date = release_date.replace(tzinfo=timezone.utc)
             days_in_theater = max(1, (now - release_date).days)
         else:
             days_in_theater = 1

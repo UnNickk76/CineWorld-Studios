@@ -367,7 +367,7 @@ const CinemaJournal = () => {
           <Newspaper className="w-4 h-4 text-yellow-500" />
           <div className="h-px w-16 bg-yellow-500/50" />
         </div>
-        <p className="text-gray-400 text-sm mt-2 italic">The finest productions, ranked by excellence</p>
+        <p className="text-gray-400 text-sm mt-2 italic">{language === 'it' ? 'Le migliori produzioni, classificate per eccellenza' : 'The finest productions, ranked by excellence'}</p>
       </div>
 
       {/* Sticky Category Bar - stays fixed when scrolling */}

@@ -194,7 +194,7 @@ const MajorPage = () => {
                   <h2 className="text-2xl font-bold">{majorData.major?.name}</h2>
                   <p className="text-sm text-gray-400">{majorData.major?.description}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge className="bg-purple-500/20 text-purple-400">Level {majorData.level}</Badge>
+                    <Badge className="bg-purple-500/20 text-purple-400">{language === 'it' ? 'Livello' : 'Level'} {majorData.level}</Badge>
                     <Badge className="bg-white/10 text-gray-300">{majorData.members?.length}/{majorData.major?.max_members} {t('members')}</Badge>
                   </div>
                 </div>

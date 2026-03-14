@@ -4352,17 +4352,24 @@ async def get_cineboard_now_playing(
     user: dict = Depends(get_current_user)
 ):
     """Get top 50 films currently in theaters, ranked by composite score."""
+    film_fields = {
+        '_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1,
+        'quality': 1, 'quality_score': 1, 'revenue': 1, 'likes_count': 1, 'status': 1,
+        'cast': 1, 'director': 1, 'screenwriter': 1, 'equipment_package': 1,
+        'release_date': 1, 'weeks_in_theater': 1, 'actual_weeks_in_theater': 1,
+        'total_revenue': 1, 'current_cinemas': 1, 'film_tier': 1
+    }
     films = await db.films.find(
         {'status': 'in_theaters'},
-        {'_id': 0}
-    ).to_list(500)
+        film_fields
+    ).to_list(100)
     
     if not films:
         return {'films': [], 'total': 0, 'category': 'now_playing'}
     
-    # Bulk fetch owners
+    # Bulk fetch owners (only essential fields for display)
     owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
-    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'password': 0, 'email': 0})
+    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'level': 1})
     owners_map = {o['id']: o async for o in owners_cursor}
     
     # Bulk fetch user likes
@@ -4393,17 +4400,24 @@ async def get_cineboard_hall_of_fame(
     user: dict = Depends(get_current_user)
 ):
     """Get top 50 films of all time (all statuses), ranked by composite score."""
+    film_fields = {
+        '_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1,
+        'quality': 1, 'quality_score': 1, 'revenue': 1, 'likes_count': 1, 'status': 1,
+        'cast': 1, 'director': 1, 'screenwriter': 1, 'equipment_package': 1,
+        'release_date': 1, 'weeks_in_theater': 1, 'actual_weeks_in_theater': 1,
+        'total_revenue': 1, 'current_cinemas': 1, 'film_tier': 1
+    }
     films = await db.films.find(
         {},
-        {'_id': 0}
-    ).sort('quality', -1).limit(200).to_list(200)
+        film_fields
+    ).sort('quality', -1).limit(100).to_list(100)
     
     if not films:
         return {'films': [], 'total': 0, 'category': 'hall_of_fame'}
     
-    # Bulk fetch owners
+    # Bulk fetch owners (only essential fields for display)
     owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
-    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'password': 0, 'email': 0})
+    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'level': 1})
     owners_map = {o['id']: o async for o in owners_cursor}
     
     # Bulk fetch user likes
@@ -4436,67 +4450,84 @@ async def get_cineboard_attendance(
 ):
     """Get films ranked by attendance and screenings."""
     # Get films in theaters with attendance data
+    attend_fields = {
+        '_id': 0, 'id': 1, 'title': 1, 'user_id': 1,
+        'current_cinemas': 1, 'current_attendance': 1, 'avg_attendance_per_cinema': 1,
+        'cinema_distribution': 1, 'quality_score': 1, 'popularity_score': 1,
+        'total_screenings': 1, 'cumulative_attendance': 1, 'status': 1, 'genre': 1
+    }
     now_playing = await db.films.find(
         {'status': {'$in': ['in_theaters', 'released']}, 'current_cinemas': {'$gt': 0}},
-        {'_id': 0}
+        attend_fields
     ).sort('current_cinemas', -1).to_list(100)
     
     # Get all-time most screened films
     all_time = await db.films.find(
         {'total_screenings': {'$gt': 0}},
-        {'_id': 0}
+        attend_fields
     ).sort('total_screenings', -1).to_list(100)
     
-    # Process now playing
+    # Process now playing - bulk fetch owners (only essential fields)
+    np_owner_ids = list(set(f['user_id'] for f in now_playing[:limit]))
+    at_owner_ids = list(set(f['user_id'] for f in all_time[:limit]))
+    all_owner_ids = list(set(np_owner_ids + at_owner_ids))
+    owners_cursor = db.users.find({'id': {'$in': all_owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
+    owners_map = {o['id']: o async for o in owners_cursor}
+    
     top_now_playing = []
     for i, film in enumerate(now_playing[:limit]):
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1})
         top_now_playing.append({
             'rank': i + 1,
             'id': film['id'],
             'title': film.get('title'),
-            'poster_url': film.get('poster_url'),
+            'genre': film.get('genre', ''),
             'current_cinemas': film.get('current_cinemas', 0),
             'current_attendance': film.get('current_attendance', 0),
             'avg_attendance_per_cinema': film.get('avg_attendance_per_cinema', 0),
-            'cinema_distribution': film.get('cinema_distribution', [])[:5],  # Top 5 countries
+            'cinema_distribution': film.get('cinema_distribution', [])[:5],
             'quality_score': film.get('quality_score', 0),
             'popularity_score': film.get('popularity_score', 0),
-            'owner': owner
+            'owner': owners_map.get(film.get('user_id'))
         })
     
     # Process all-time
     top_all_time = []
     for i, film in enumerate(all_time[:limit]):
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1})
         top_all_time.append({
             'rank': i + 1,
             'id': film['id'],
             'title': film.get('title'),
-            'poster_url': film.get('poster_url'),
+            'genre': film.get('genre', ''),
             'total_screenings': film.get('total_screenings', 0),
             'cumulative_attendance': film.get('cumulative_attendance', 0),
             'avg_attendance_per_screening': film.get('cumulative_attendance', 0) // max(1, film.get('total_screenings', 1)),
             'status': film.get('status'),
             'quality_score': film.get('quality_score', 0),
-            'owner': owner
+            'owner': owners_map.get(film.get('user_id'))
         })
     
-    # Calculate global stats
-    all_films_in_theaters = await db.films.find(
-        {'status': {'$in': ['in_theaters', 'released']}},
-        {'current_cinemas': 1, 'current_attendance': 1}
-    ).to_list(1000)
+    # Calculate global stats efficiently with aggregation
+    pipeline = [
+        {'$match': {'status': {'$in': ['in_theaters', 'released']}}},
+        {'$group': {
+            '_id': None,
+            'total_films': {'$sum': 1},
+            'total_cinemas': {'$sum': {'$ifNull': ['$current_cinemas', 0]}},
+            'total_attendance': {'$sum': {'$ifNull': ['$current_attendance', 0]}}
+        }}
+    ]
+    stats_result = await db.films.aggregate(pipeline).to_list(1)
+    stats = stats_result[0] if stats_result else {'total_films': 0, 'total_cinemas': 0, 'total_attendance': 0}
     
-    total_cinemas_showing = sum(f.get('current_cinemas', 0) for f in all_films_in_theaters)
-    total_current_attendance = sum(f.get('current_attendance', 0) for f in all_films_in_theaters)
+    total_cinemas_showing = stats.get('total_cinemas', 0)
+    total_current_attendance = stats.get('total_attendance', 0)
     avg_attendance = total_current_attendance // max(1, total_cinemas_showing)
     
     return {
         'top_now_playing': top_now_playing,
         'top_all_time': top_all_time,
         'global_stats': {
-            'total_films_in_theaters': len(all_films_in_theaters),
+            'total_films_in_theaters': stats.get('total_films', 0),
             'total_cinemas_showing': total_cinemas_showing,
             'total_current_attendance': total_current_attendance,
             'avg_attendance_per_cinema': avg_attendance

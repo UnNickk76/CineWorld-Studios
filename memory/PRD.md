@@ -16,16 +16,15 @@ A full-stack movie studio simulation game where players create films, hire cast,
 6. Emerging Screenwriters marketplace (pre-written screenplays with cast packages)
 7. Draft/save system for incomplete films
 8. Pre-engagement system for cast members
+9. Multiple screenwriters support (1-5 per film)
 
 ## Architecture
 ```
 /app/
 ├── backend/
-│   ├── server.py           # Main FastAPI server (13,940 lines)
+│   ├── server.py           # Main FastAPI server (14K+ lines)
 │   ├── game_systems.py     # Game mechanics
 │   ├── cast_system.py      # Cast generation/management
-│   ├── emerging_screenplays.py  # Screenplay generation helpers
-│   ├── social_system.py    # Social features
 │   └── routes/             # Auth, notifications, social, infrastructure, minigames
 ├── frontend/
 │   └── src/
@@ -33,40 +32,45 @@ A full-stack movie studio simulation game where players create films, hire cast,
 │       ├── contexts/       # Auth, Language, Player contexts
 │       └── pages/
 │           ├── Dashboard.jsx
-│           ├── FilmWizard.jsx       # Core film creation (1790 lines)
+│           ├── FilmWizard.jsx       # Core film creation (1840+ lines)
 │           ├── FilmDetail.jsx
-│           ├── EmergingScreenplays.jsx
-│           └── [other pages]
+│           ├── CineBoard.jsx        # Film rankings & social
+│           └── EmergingScreenplays.jsx
 ```
 
 ## 3rd Party Integrations
 - **OpenAI GPT-4o** (Text): Screenplay generation via Emergent LLM Key
 - **OpenAI GPT-Image-1** (Image): Poster generation via Emergent LLM Key
-- **Pillow (PIL)**: Fallback poster generation with dynamic genre-themed images
-- **APScheduler**: Background jobs (revenue updates, screenplay generation, etc.)
+- **Pillow (PIL)**: Fallback poster generation
+- **APScheduler**: Background jobs
 - **Resend**: Email service (requires user API key)
 
-## What's Been Implemented
+## What's Been Implemented (Complete)
 - Complete film creation wizard with 12 steps
-- Emerging Screenwriters feature (marketplace, purchase, locked wizard steps)
-- AI poster generation with automatic fallback to Pillow-generated posters
+- Emerging Screenwriters feature
+- AI poster generation with fallback
 - Cast rejection/negotiation system
 - Sequel/saga system
 - Draft save/resume functionality
 - Social features (chat, leaderboard, CineBoard)
 - Minigames and challenges
-- Infrastructure system (disabled)
+- Multiple screenwriters (1-5) per film
+- MongoDB indexes for performance
+- CineBoard performance optimization (45MB → 37KB responses)
+- Cast migration system (old skill system cleanup)
+- Bottom nav: CineBoard + Bozze icons
+
+## Bug Fixes (March 14, 2026)
+- FIXED: Step 12 wizard error for emerging screenplays (actors format {id,role,fee} → {actor_id,role})
+- FIXED: AI poster polling resilience (try/catch per poll, functional state updates)
+- FIXED: CineBoard N+1 query problem (bulk fetches, field projections)
+- FIXED: Owner avatar_url base64 bloating responses (2.6MB per owner → limited projection)
+- FIXED: Cast IMDb ratings migration (zero ratings recalculated)
+- FIXED: Cast skills normalization (all 8 skills, range 1-100)
 
 ## Known Issues
 - **Production environment down** (external infrastructure issue - BLOCKED)
 - Infrastructure Market feature disabled (P1)
-
-## Completed Bug Fixes (March 13, 2026)
-- **FIXED:** Error at step 12 for emerging screenplay films - actors were sent as {id, role, fee} instead of {actor_id, role}
-- **FIXED:** AI poster generation made more robust with try/catch on polling, functional state updates
-- **FIXED:** FilmDetail crash (ReferenceError: BACKEND_URL is not defined)
-- **FIXED:** Draft system for emerging screenplays
-- **FIXED:** Various UI/UX issues (locked step overlay, mobile layout, navigation)
 
 ## Backlog
 - P1: Re-enable Infrastructure Market

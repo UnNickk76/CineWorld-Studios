@@ -110,6 +110,34 @@ const CineBoard = () => {
   };
 
 
+  const genreColors = {
+    action: 'from-red-900 to-red-700', comedy: 'from-yellow-900 to-yellow-700',
+    drama: 'from-blue-900 to-blue-700', horror: 'from-gray-900 to-gray-700',
+    scifi: 'from-cyan-900 to-cyan-700', fantasy: 'from-purple-900 to-purple-700',
+    thriller: 'from-slate-900 to-slate-700', romance: 'from-pink-900 to-pink-700',
+    noir: 'from-zinc-900 to-zinc-700', western: 'from-amber-900 to-amber-700',
+    musical: 'from-fuchsia-900 to-fuchsia-700', war: 'from-stone-900 to-stone-700',
+    biographical: 'from-emerald-900 to-emerald-700', adventure: 'from-orange-900 to-orange-700',
+    animation: 'from-lime-900 to-lime-700', historical: 'from-teal-900 to-teal-700'
+  };
+  const genreIcons = {
+    action: Flame, comedy: Sparkles, drama: Heart, horror: AlertTriangle,
+    scifi: Zap, fantasy: Wand2, thriller: Target, romance: Heart,
+    noir: Eye, western: MapPin, musical: Music, war: Shield,
+    biographical: BookOpen, adventure: Globe, animation: Palette, historical: Crown
+  };
+
+  const FilmPoster = ({film}) => {
+    const gradient = genreColors[film.genre] || 'from-gray-900 to-gray-700';
+    const Icon = genreIcons[film.genre] || Film;
+    return (
+      <div className={`w-full h-full bg-gradient-to-b ${gradient} flex flex-col items-center justify-center p-1`}>
+        <Icon className="w-5 h-5 text-white/60 mb-1" />
+        <span className="text-[7px] text-white/80 text-center leading-tight line-clamp-2">{film.title}</span>
+      </div>
+    );
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -195,11 +223,7 @@ const CineBoard = () => {
                 
                 {/* Poster */}
                 <div className="w-20 flex-shrink-0 cursor-pointer relative" onClick={() => navigate(`/films/${film.id}`)}>
-                  <img 
-                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=300'} 
-                    alt={film.title} 
-                    className="w-full h-full object-cover"
-                  />
+                  <FilmPoster film={film} />
                   {/* Virtual Likes Badge */}
                   {(film.virtual_likes > 0) && (
                     <div className="absolute top-1 left-1 bg-black/70 rounded px-1 py-0.5 flex items-center gap-0.5">
@@ -346,7 +370,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      {film.poster_url && <img src={film.poster_url} alt="" className="w-full h-full object-cover" />}
+                      <FilmPoster film={film} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
@@ -393,7 +417,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      {film.poster_url && <img src={film.poster_url} alt="" className="w-full h-full object-cover" />}
+                      <FilmPoster film={film} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>

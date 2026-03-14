@@ -1,75 +1,59 @@
 # CineWorld Studio's - Product Requirements Document
 
 ## Original Problem Statement
-A full-stack movie studio simulation game where players create films, hire cast, manage budgets, and compete on leaderboards. Built with React frontend + FastAPI backend + MongoDB.
-
-## User Personas
-- **Primary:** Italian-speaking gamer who enjoys management/simulation games
-- **Use case:** Create and manage a virtual movie production house
-
-## Core Requirements
-1. Film creation wizard (12 steps: title, equipment, cast, screenplay, poster, review)
-2. Cast management with skills, fame, rejection/negotiation system
-3. AI-powered screenplay and poster generation (OpenAI GPT-4o + GPT-Image-1)
-4. Box office simulation with quality scoring and tier system
-5. Social features (chat, leaderboard, CineBoard)
-6. Emerging Screenwriters marketplace (pre-written screenplays with cast packages)
-7. Draft/save system for incomplete films
-8. Pre-engagement system for cast members
-9. Multiple screenwriters support (1-5 per film)
-10. Acting School (train actors from scratch with hidden talent system)
+Movie studio simulation game. React + FastAPI + MongoDB.
 
 ## Architecture
 ```
-/app/
-├── backend/
-│   ├── server.py           # Main FastAPI server (14K+ lines)
-│   ├── game_systems.py     # Game mechanics, infrastructure types
-│   ├── cast_system.py      # Cast generation/management (13 actor skills)
-│   ├── social_system.py    # Notifications, friendships (acting_school type)
-│   ├── routes/
-│   │   ├── acting_school.py  # Acting School endpoints
-│   │   ├── infrastructure.py # Infrastructure purchase/upgrade (level field)
-│   │   ├── notifications.py  # Supports broadcast user_id='all'
-│   │   ├── auth.py / social.py / minigames.py
-│   └── ...
-├── frontend/src/
-│   ├── App.js
-│   ├── constants/index.js     # SKILL_TRANSLATIONS (all roles)
-│   └── pages/
-│       ├── InfrastructurePage.jsx  # School-specific UI in detail dialog
-│       ├── ActingSchool.jsx        # Standalone school page
-│       ├── NotificationsPage.jsx   # Interactive actor popup
-│       └── ...
+/app/backend/
+├── server.py             # Main server (14K+ lines)
+├── game_systems.py       # Game mechanics, infrastructure types
+├── cast_system.py        # Cast generation (13 actor skills)
+├── social_system.py      # Notifications (acting_school type)
+├── routes/
+│   ├── cinepass.py       # CinePass system, contests, login rewards
+│   ├── acting_school.py  # Acting School feature
+│   ├── infrastructure.py # Infrastructure CRUD (CinePass enforced)
+│   ├── notifications.py  # Broadcast support (user_id='all')
+│   ├── auth.py / social.py / minigames.py
+/app/frontend/src/
+├── App.js                # Routes, header w/ CinePass badge, login popup
+├── components/
+│   ├── LoginRewardPopup.jsx    # 7-day login reward popup
+│   ├── CinePassConfirmDialog.jsx # Reusable CinePass confirmation
+├── pages/
+│   ├── ContestsPage.jsx        # Daily contests (replaces MiniGames)
+│   ├── InfrastructurePage.jsx  # School UI + CinePass costs
+│   ├── FilmWizard.jsx          # CinePass confirm on create
+│   ├── ActingSchool.jsx / Dashboard.jsx / CineBoard.jsx / ...
 ```
 
-## What's Been Implemented (Complete)
-- Complete film creation wizard with 12 steps
-- Emerging Screenwriters, AI poster generation, cast rejection/negotiation
-- Sequel/saga, draft save/resume, social features, minigames
-- Multiple screenwriters (1-5), CineBoard performance optimization
-- Infrastructure purchase/upgrade with level tracking
-- **Acting School** — COMPLETE:
-  - Infrastructure type cinema_school with slots based on level
-  - Daily recruit generation (6/day, age 16-60, 3-5 initial skills)
-  - Hidden talent system, training 10-20 days, Keep/Release
-  - Personal cast actors appear first in FilmWizard
-- **School UI in Infrastructure Detail** — COMPLETE (March 14, 2026):
-  - Custom dialog for cinema_school showing recruits, trainees, kept actors
-  - Training progress bars with all 13 skills translated
-  - Upgrade section with cost and player level requirements
-  - $200K train button, Keep/Release buttons for graduated actors
-- **Interactive Notification Popup** — COMPLETE:
-  - Clickable acting_school notifications with skill popup
-  - Released actors: "Ingaggia" button → film creation
-  - Broadcast notifications (user_id='all')
+## What's Been Implemented
+- Film creation wizard, AI screenplay/poster (GPT-4o, GPT-Image-1)
+- Cast management, rejection/negotiation, pre-engagement
+- Multiple screenwriters (1-5), sequel/saga, drafts
+- CineBoard with lazy poster loading
+- Infrastructure purchase/upgrade with levels
+- Acting School (recruits, training, keep/release, personal cast)
+- Interactive notification popup for acting school actors
+- **CinePass System** — COMPLETE (March 14, 2026):
+  - Secondary currency, 100 default per user
+  - Costs: create film (20), infrastructure (8-20), pre-engage (5), screenplay (10), school recruit (3)
+  - Daily login rewards: 3→5→7→10→14→19→35 CinePass (7-day streak)
+  - 15-day consecutive bonus (+15)
+  - Auto popup on first daily login
+  - Daily contests (3/day, random from 4 types, max 50/day)
+  - Contest types: Budget Guess, Cast Match, Box Office Prediction, Speed Producer
+  - Replaced minigames completely
+  - CinePass badge in header
+  - Italian timezone noon reset (12:00)
 
-## Known Issues / Pending
-- **"Voci del Pubblico" empty** (P1)
-- **"Major Studios" not working** (P1)
+## Known Issues
+- "Voci del Pubblico" empty (P1)
+- "Major Studios" not working (P1)
 
 ## Planned Features
-### P0 (discussed gameplay expansion):
+### P0: Gameplay expansion (discussed):
 1. Festival del Cinema & Premi
 2. Missioni Giornaliere/Settimanali
 3. Collaborazioni tra Giocatori
@@ -78,4 +62,4 @@ A full-stack movie studio simulation game where players create films, hire cast,
 6. Major Studio Attiva
 
 ### P1: Fix Major Studios / Voci del Pubblico
-### P2: CineCoins Purchase (Stripe)
+### P2: CineCoins Purchase (Stripe) — CinePass buyable with real money

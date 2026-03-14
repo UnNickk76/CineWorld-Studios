@@ -13024,6 +13024,8 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
     # Parse last activity
     if isinstance(last_activity, str):
         last_activity = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+    if last_activity.tzinfo is None:
+        last_activity = last_activity.replace(tzinfo=timezone.utc)
     
     # Calculate hours missed
     hours_missed = (now - last_activity).total_seconds() / 3600

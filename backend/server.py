@@ -5193,6 +5193,13 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.123', 'date': '2026-03-14', 'title': 'Nuovo Logo & Sfondo Cinematografico',
+     'changes': [
+         {'type': 'new', 'text': 'Sfondo cinematografico sfocato fisso su tutte le pagine del gioco'},
+         {'type': 'new', 'text': 'Logo CineWorld Studios nella pagina di login'},
+         {'type': 'new', 'text': 'Logo CineWorld Studios nella pagina crediti'},
+         {'type': 'improvement', 'text': 'Aggiornata sezione tecnologie nei crediti (GPT-4o, GPT-Image-1, Shadcn/UI, APScheduler)'},
+     ]},
     {'version': '0.122', 'date': '2026-03-14', 'title': 'Locandine AI Migliorate',
      'changes': [
          {'type': 'improvement', 'text': 'Le locandine AI ora includono automaticamente il titolo del film e il genere direttamente nell\'immagine generata'},
@@ -9051,13 +9058,13 @@ async def get_credits():
             }
         ],
         'technologies': [
-            'React + TailwindCSS',
+            'React + TailwindCSS + Shadcn/UI',
             'FastAPI + Python',
             'MongoDB',
-            'OpenAI GPT-5.2',
-            'Gemini Nano Banana (Image Generation)',
-            'Sora 2 (Video Generation)',
-            'Socket.IO (Real-time)'
+            'OpenAI GPT-4o (Sceneggiature AI)',
+            'OpenAI GPT-Image-1 (Locandine AI)',
+            'Framer Motion (Animazioni)',
+            'APScheduler (Task Automatici)'
         ],
         'special_thanks': [
             'Tutti i giocatori beta tester',

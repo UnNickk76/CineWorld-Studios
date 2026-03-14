@@ -1200,7 +1200,10 @@ const UrlManager = ({ children }) => {
 
 function App() {
   return (
-    <div className="min-h-screen bg-[#0F0F10]">
+    <div className="min-h-screen bg-[#0F0F10] relative">
+      {/* Fixed blurred background */}
+      <div className="fixed inset-0 z-0" style={{ backgroundImage: 'url(/cineworld-bg.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(8px) brightness(0.15)', transform: 'scale(1.05)' }} />
+      <div className="relative z-10">
       <BrowserRouter>
         <AuthProvider>
           <LanguageProvider>
@@ -1250,6 +1253,7 @@ function App() {
           </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
+      </div>
     </div>
   );
 }

@@ -102,7 +102,7 @@ const AuthPage = () => {
           
           <CardHeader className="text-center space-y-3 pb-4 pt-6">
             <div className="flex justify-center">
-              <Clapperboard className="w-12 h-12 text-yellow-500" />
+              <img src="/cineworld-logo.jpg" alt="CineWorld Studios" className="w-24 h-24 rounded-2xl shadow-lg shadow-yellow-500/20" />
             </div>
             <CardTitle className="font-['Bebas_Neue'] text-2xl tracking-wide">CineWorld Studio's</CardTitle>
             <CardDescription className="text-xs">

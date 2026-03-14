@@ -52,7 +52,7 @@ const CreditsPage = () => {
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="credits-page">
       <div className="text-center mb-8">
-        <Clapperboard className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+        <img src="/cineworld-logo.jpg" alt="CineWorld Studios" className="w-28 h-28 rounded-2xl shadow-lg shadow-yellow-500/20 mx-auto mb-4" />
         <h1 className="font-['Bebas_Neue'] text-4xl">{credits.game_title}</h1>
         <p className="text-gray-400">Versione {credits.version}</p>
       </div>

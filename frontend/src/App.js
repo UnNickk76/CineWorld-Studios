@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -573,8 +573,12 @@ const TopNavbar = () => {
           <span className="text-[9px]">Film</span>
         </button>
         <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/social' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/social')}>
-          <Globe className="w-5 h-5" />
-          <span className="text-[9px]">Social</span>
+          <Trophy className="w-5 h-5" />
+          <span className="text-[9px]">CineBoard</span>
+        </button>
+        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/film-drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/film-drafts')}>
+          <Save className="w-5 h-5" />
+          <span className="text-[9px]">Bozze</span>
         </button>
         <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')}>
           <Swords className="w-5 h-5" />

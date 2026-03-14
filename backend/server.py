@@ -1070,7 +1070,8 @@ class FilmCreate(BaseModel):
     equipment_package: str
     locations: List[str]
     location_days: Dict[str, int]
-    screenwriter_id: str
+    screenwriter_id: Optional[str] = ''
+    screenwriter_ids: List[str] = []  # Multiple screenwriters (1-5)
     director_id: str
     composer_id: Optional[str] = None  # Composer for soundtrack
     actors: List[Dict[str, Any]]  # Each actor has {actor_id, role}
@@ -1099,6 +1100,7 @@ class FilmDraft(BaseModel):
     locations: List[str] = []
     location_days: Dict[str, int] = {}
     screenwriter_id: Optional[str] = ""
+    screenwriter_ids: List[str] = []  # Multiple screenwriters (1-5)
     director_id: Optional[str] = ""
     actors: List[Dict[str, Any]] = []
     extras_count: Optional[int] = 0
@@ -2600,6 +2602,7 @@ async def save_film_draft(draft_data: FilmDraft, user: dict = Depends(get_curren
         'locations': draft_data.locations,
         'location_days': draft_data.location_days,
         'screenwriter_id': draft_data.screenwriter_id,
+        'screenwriter_ids': draft_data.screenwriter_ids,
         'director_id': draft_data.director_id,
         'actors': draft_data.actors,
         'extras_count': draft_data.extras_count,
@@ -3613,7 +3616,14 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     # Get director and screenwriter names to store with the film
     director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
-    screenwriter_doc = await db.people.find_one({'id': film_data.screenwriter_id}, {'_id': 0, 'name': 1})
+    
+    # Support multiple screenwriters
+    sw_ids = film_data.screenwriter_ids if film_data.screenwriter_ids else ([film_data.screenwriter_id] if film_data.screenwriter_id else [])
+    screenwriters_list = []
+    for sw_id in sw_ids[:5]:  # Max 5
+        sw_doc = await db.people.find_one({'id': sw_id}, {'_id': 0, 'name': 1})
+        if sw_doc:
+            screenwriters_list.append({'id': sw_id, 'name': sw_doc.get('name', 'Unknown')})
     
     # Get composer if provided
     composer_doc = None
@@ -3666,10 +3676,8 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'equipment_package': film_data.equipment_package,
         'locations': film_data.locations,
         'location_costs': location_costs,
-        'screenwriter': {
-            'id': film_data.screenwriter_id,
-            'name': screenwriter_doc.get('name', 'Unknown') if screenwriter_doc else 'Unknown'
-        },
+        'screenwriter': screenwriters_list[0] if screenwriters_list else {'id': '', 'name': 'Unknown'},
+        'screenwriters': screenwriters_list,
         'director': {
             'id': film_data.director_id,
             'name': director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
@@ -3851,7 +3859,8 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     
     # Check director and screenwriter too
     await check_star_discovery(user, film_data.director_id, quality_score)
-    await check_star_discovery(user, film_data.screenwriter_id, quality_score)
+    for sw_entry in screenwriters_list:
+        await check_star_discovery(user, sw_entry['id'], quality_score)
     
     # Update cast skills based on film quality
     await update_cast_after_film(film['id'], quality_score)
@@ -4348,23 +4357,27 @@ async def get_cineboard_now_playing(
         {'_id': 0}
     ).to_list(500)
     
-    # Calculate scores and ratings for each film
+    if not films:
+        return {'films': [], 'total': 0, 'category': 'now_playing'}
+    
+    # Bulk fetch owners
+    owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
+    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'password': 0, 'email': 0})
+    owners_map = {o['id']: o async for o in owners_cursor}
+    
+    # Bulk fetch user likes
+    film_ids = [f['id'] for f in films]
+    likes_cursor = db.likes.find({'film_id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0, 'film_id': 1})
+    liked_set = {l['film_id'] async for l in likes_cursor}
+    
     for film in films:
         film['cineboard_score'] = calculate_film_score(film)
         film['imdb_rating'] = calculate_imdb_rating(film)
-        
-        # Get owner
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        film['owner'] = owner
-        
-        # Check user like
-        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
-        film['user_liked'] = like is not None
+        film['owner'] = owners_map.get(film.get('user_id'))
+        film['user_liked'] = film['id'] in liked_set
     
-    # Sort by composite score
     films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
     
-    # Add rank
     for i, film in enumerate(films[:limit]):
         film['rank'] = i + 1
     
@@ -4383,28 +4396,31 @@ async def get_cineboard_hall_of_fame(
     films = await db.films.find(
         {},
         {'_id': 0}
-    ).to_list(1000)
+    ).sort('quality', -1).limit(200).to_list(200)
     
-    # Calculate scores and ratings for each film
+    if not films:
+        return {'films': [], 'total': 0, 'category': 'hall_of_fame'}
+    
+    # Bulk fetch owners
+    owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
+    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'password': 0, 'email': 0})
+    owners_map = {o['id']: o async for o in owners_cursor}
+    
+    # Bulk fetch user likes
+    film_ids = [f['id'] for f in films]
+    likes_cursor = db.likes.find({'film_id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0, 'film_id': 1})
+    liked_set = {l['film_id'] async for l in likes_cursor}
+    
     for film in films:
         film['cineboard_score'] = calculate_film_score(film)
         film['imdb_rating'] = calculate_imdb_rating(film)
-        
-        # Get owner
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        film['owner'] = owner
-        
-        # Check user like
-        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
-        film['user_liked'] = like is not None
+        film['owner'] = owners_map.get(film.get('user_id'))
+        film['user_liked'] = film['id'] in liked_set
     
-    # Sort by composite score
     films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
     
-    # Add rank
     for i, film in enumerate(films[:limit]):
         film['rank'] = i + 1
-        # Mark hall of fame eligible (completed films with high scores)
         film['hall_of_fame'] = film.get('status') in ['completed', 'withdrawn'] and film.get('cineboard_score', 0) > 50
     
     return {
@@ -8213,6 +8229,78 @@ async def view_premiere(invite_id: str, user: dict = Depends(get_current_user)):
         'message': 'Hai guadagnato 10 XP per aver visto la premiere!'
     }
 
+
+async def migrate_old_cast_system():
+    """Delete cast with old skill system (max value <= 10), regenerate replacements."""
+    try:
+        # Find cast with old system (all skill values <= 10)
+        old_cast = []
+        cursor = db.people.find({}, {'_id': 0, 'id': 1, 'skills': 1, 'role_type': 1})
+        async for person in cursor:
+            skills = person.get('skills', {})
+            if skills and max(skills.values()) <= 10:
+                old_cast.append(person)
+            elif skills and len(skills) < 8:
+                # Also fix cast with fewer than 8 skills - regenerate their skills
+                all_skill_defs = {
+                    'actor': ACTOR_SKILLS if 'ACTOR_SKILLS' in dir() else {},
+                    'director': DIRECTOR_SKILLS if 'DIRECTOR_SKILLS' in dir() else {},
+                    'composer': COMPOSER_SKILLS if 'COMPOSER_SKILLS' in dir() else {},
+                    'screenwriter': SCREENWRITER_SKILLS if 'SCREENWRITER_SKILLS' in dir() else {}
+                }
+                role = person.get('role_type', 'actor')
+                from cast_system import generate_variable_skills, calculate_imdb_rating as calc_imdb
+                skill_def = all_skill_defs.get(role, {})
+                if skill_def:
+                    new_skills = generate_variable_skills(skill_def)
+                    avg_skill = sum(new_skills.values()) / len(new_skills)
+                    fame = avg_skill * 0.8
+                    imdb = calc_imdb(new_skills, fame, 5)
+                    await db.people.update_one(
+                        {'id': person['id']},
+                        {'$set': {'skills': new_skills, 'imdb_rating': imdb}}
+                    )
+        
+        if not old_cast:
+            logging.info("No old cast system members found")
+            return
+        
+        logging.info(f"Found {len(old_cast)} cast with old skill system, replacing...")
+        
+        # Count by role type
+        role_counts = {}
+        old_ids = []
+        for person in old_cast:
+            role = person.get('role_type', 'actor')
+            role_counts[role] = role_counts.get(role, 0) + 1
+            old_ids.append(person['id'])
+        
+        # Delete old cast
+        await db.people.delete_many({'id': {'$in': old_ids}})
+        
+        # Generate replacements
+        for role_type, count in role_counts.items():
+            for _ in range(count):
+                member = generate_cast_member_v2(role_type, 'random')
+                await db.people.insert_one(member)
+        
+        # Also fix IMDb ratings that are 0
+        zero_imdb = db.people.find({'imdb_rating': 0}, {'_id': 0, 'id': 1, 'skills': 1, 'fame': 1, 'films_count': 1})
+        async for person in zero_imdb:
+            skills = person.get('skills', {})
+            if skills:
+                from cast_system import calculate_imdb_rating as calc_imdb_fn
+                fame = person.get('fame', 50.0)
+                films_count = person.get('films_count', 0)
+                new_rating = calc_imdb_fn(skills, fame, films_count)
+                if new_rating > 0:
+                    await db.people.update_one({'id': person['id']}, {'$set': {'imdb_rating': new_rating}})
+        
+        logging.info(f"Migration complete: deleted {len(old_ids)} old cast, generated replacements: {role_counts}")
+    except Exception as e:
+        logging.error(f"Cast migration error: {e}")
+
+
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
@@ -8298,6 +8386,27 @@ async def startup_event():
     
     # Fix existing cast members with decimal skills
     await fix_decimal_skills_in_db()
+    
+    # Create MongoDB indexes for performance
+    try:
+        await db.films.create_index('user_id')
+        await db.films.create_index('status')
+        await db.films.create_index([('status', 1), ('quality', -1)])
+        await db.people.create_index('role_type')
+        await db.people.create_index('id', unique=True)
+        await db.likes.create_index([('film_id', 1), ('user_id', 1)])
+        await db.users.create_index('id', unique=True)
+        await db.users.create_index('nickname')
+        await db.chat_messages.create_index([('room_id', 1), ('created_at', -1)])
+        await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
+        await db.film_drafts.create_index('user_id')
+        await db.emerging_screenplays.create_index('status')
+        logging.info("MongoDB indexes created/verified")
+    except Exception as e:
+        logging.warning(f"Index creation warning: {e}")
+    
+    # Migrate old cast (skills 1-10 system) to new system (1-100)
+    await migrate_old_cast_system()
     
     # Initialize release notes in database
     await initialize_release_notes()

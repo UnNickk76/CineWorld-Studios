@@ -113,7 +113,7 @@ const FilmWizard = () => {
   const [filmData, setFilmData] = useState({
     title: '', subtitle: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
-    screenwriter_id: '', director_id: '', composer_id: '', actors: [], extras_count: 50, extras_cost: 50000,
+    screenwriter_id: '', screenwriter_ids: [], director_id: '', composer_id: '', actors: [], extras_count: 50, extras_cost: 50000,
     screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', 
     soundtrack_prompt: '', soundtrack_description: '',
     poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0,
@@ -134,10 +134,11 @@ const FilmWizard = () => {
     score += eqMap[eqKey] || 5;
     // Locations count & quality
     if (filmData.locations.length > 0) { score += Math.min(filmData.locations.length * 4, 15); }
-    // Screenwriter IMDb
-    if (filmData.screenwriter_id && screenwriters.length > 0) {
-      const sw = screenwriters.find(p => p.id === filmData.screenwriter_id);
-      if (sw?.imdb_rating) { score += sw.imdb_rating * 2.5; }
+    // Screenwriters IMDb (average of all selected)
+    const swIds = filmData.screenwriter_ids.length > 0 ? filmData.screenwriter_ids : (filmData.screenwriter_id ? [filmData.screenwriter_id] : []);
+    if (swIds.length > 0 && screenwriters.length > 0) {
+      const swRatings = swIds.map(id => screenwriters.find(p => p.id === id)?.imdb_rating || 0).filter(r => r > 0);
+      if (swRatings.length > 0) { score += (swRatings.reduce((a,b) => a+b, 0) / swRatings.length) * 2.5; }
     }
     // Director IMDb
     if (filmData.director_id && directors.length > 0) {
@@ -220,6 +221,7 @@ const FilmWizard = () => {
         genre: sp.genre,
         subgenres: sp.subgenres || [],
         screenwriter_id: sp.screenwriter?.id || '',
+        screenwriter_ids: sp.screenwriter?.id ? [sp.screenwriter.id] : [],
         locations: sp.proposed_locations || [],
         location_days: sp.proposed_location_days || {},
         equipment_package: sp.proposed_equipment || 'Standard',
@@ -266,6 +268,7 @@ const FilmWizard = () => {
         locations: draft.locations || [],
         location_days: draft.location_days || {},
         screenwriter_id: draft.screenwriter_id || '',
+        screenwriter_ids: draft.screenwriter_ids || (draft.screenwriter_id ? [draft.screenwriter_id] : []),
         director_id: draft.director_id || '',
         composer_id: draft.composer_id || '',
         actors: (draft.actors || []).map(a => ({
@@ -301,7 +304,7 @@ const FilmWizard = () => {
         // Pre-fill cast IDs from pre-engaged cast
         const preCast = draft.pre_engaged_cast || {};
         if (preCast.screenwriter?.id) {
-          setFilmData(prev => ({...prev, screenwriter_id: preCast.screenwriter.id}));
+          setFilmData(prev => ({...prev, screenwriter_id: preCast.screenwriter.id, screenwriter_ids: [preCast.screenwriter.id]}));
         }
         if (preCast.director?.id) {
           setFilmData(prev => ({...prev, director_id: preCast.director.id}));
@@ -793,7 +796,7 @@ const FilmWizard = () => {
       
       // Update local state
       if (dismissModal.castType === 'screenwriter') {
-        setFilmData(prev => ({...prev, screenwriter_id: ''}));
+        setFilmData(prev => ({...prev, screenwriter_id: '', screenwriter_ids: prev.screenwriter_ids.filter(id => id !== dismissModal.castId)}));
       } else if (dismissModal.castType === 'director') {
         setFilmData(prev => ({...prev, director_id: ''}));
       } else if (dismissModal.castType === 'composer') {
@@ -1132,13 +1135,12 @@ const FilmWizard = () => {
           <div className="grid grid-cols-2 gap-1 max-h-[40vh] overflow-y-auto">{locations.filter(l=>locationFilter==='all'||l.category===locationFilter).map(l=>{const sel=filmData.locations.includes(l.name);return<Card key={l.name} className={`border-2 cursor-pointer ${sel?'border-yellow-500':'border-white/10'}`} onClick={()=>{if(sel)setFilmData({...filmData,locations:filmData.locations.filter(x=>x!==l.name)});else setFilmData({...filmData,locations:[...filmData.locations,l.name],location_days:{...filmData.location_days,[l.name]:7}});}}><CardContent className="p-1.5 text-xs"><span>{l.name}</span><span className="text-yellow-500 block">${l.cost_per_day.toLocaleString()}/day</span></CardContent></Card>;})}</div>
         </div>
       </div>);
-      case 3: case 4:
-        const people45 = step===3?screenwriters:directors;
-        const selId = step===3?filmData.screenwriter_id:filmData.director_id;
-        const roleType45 = step===3?'screenwriters':'directors';
-        const skills45 = step===3?availableSkills.screenwriters:availableSkills.directors;
+      case 3:
+        const swList = screenwriters;
+        const swIds = filmData.screenwriter_ids.length > 0 ? filmData.screenwriter_ids : (filmData.screenwriter_id ? [filmData.screenwriter_id] : []);
+        const roleTypeSw = 'screenwriters';
+        const skillsSw = availableSkills.screenwriters;
         return (<div className="space-y-2">
-          {/* Filters Row */}
           <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="h-7 w-[140px] text-xs bg-black/30 border-white/10">
@@ -1159,15 +1161,64 @@ const FilmWizard = () => {
               </SelectTrigger>
               <SelectContent className="bg-[#1A1A1A]">
                 <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte le skill' : 'All skills'}</SelectItem>
-                {skills45.map(sk => (
+                {skillsSw.map(sk => (
                   <SelectItem key={sk} value={sk} className="text-xs">{sk}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleType45, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleTypeSw, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
           </div>
-          <p className="text-xs text-gray-400">{people45.length} {step===3?(language==='it'?'sceneggiatori':'screenwriters'):(language==='it'?'registi':'directors')} {language==='it'?'trovati':'found'}</p>
-          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people45.map(p=>{const isSel=selId===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType={step===3?'screenwriter':'director'} onSelect={()=>{if(step===3)setFilmData({...filmData,screenwriter_id:p.id});else setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400">{swList.length} {language==='it'?'sceneggiatori trovati':'screenwriters found'}</p>
+            <Badge variant="outline" className="text-xs border-yellow-500/30 text-yellow-400">{swIds.length}/5 {language==='it'?'selezionati':'selected'}</Badge>
+          </div>
+          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{swList.map(p=>{const isSel=swIds.includes(p.id);return<PersonCard key={p.id} person={p} isSelected={isSel} roleType="screenwriter" onSelect={()=>{
+            if(isSel){
+              const newIds = swIds.filter(id => id !== p.id);
+              setFilmData(prev => ({...prev, screenwriter_ids: newIds, screenwriter_id: newIds[0] || ''}));
+            } else if(swIds.length < 5){
+              const newIds = [...swIds, p.id];
+              setFilmData(prev => ({...prev, screenwriter_ids: newIds, screenwriter_id: newIds[0] || ''}));
+            } else {
+              toast.error(language === 'it' ? 'Massimo 5 sceneggiatori!' : 'Max 5 screenwriters!');
+            }
+          }} />;})}</div></ScrollArea>
+        </div>);
+      case 4:
+        const people4 = directors;
+        const selId4 = filmData.director_id;
+        const roleType4 = 'directors';
+        const skills4 = availableSkills.directors;
+        return (<div className="space-y-2">
+          <div className="flex flex-wrap gap-2 p-2 bg-black/20 rounded border border-white/10">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-7 w-[140px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Categoria...' : 'Category...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte' : 'All'}</SelectItem>
+                <SelectItem value="recommended" className="text-xs">{language === 'it' ? 'Consigliati' : 'Recommended'}</SelectItem>
+                <SelectItem value="star" className="text-xs">Star</SelectItem>
+                <SelectItem value="known" className="text-xs">{language === 'it' ? 'Conosciuti' : 'Known'}</SelectItem>
+                <SelectItem value="emerging" className="text-xs">{language === 'it' ? 'Emergenti' : 'Emerging'}</SelectItem>
+                <SelectItem value="unknown" className="text-xs">{language === 'it' ? 'Sconosciuti' : 'Unknown'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedSkill} onValueChange={setSelectedSkill}>
+              <SelectTrigger className="h-7 w-[150px] text-xs bg-black/30 border-white/10">
+                <SelectValue placeholder={language === 'it' ? 'Filtra skill...' : 'Filter skill...'} />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A]">
+                <SelectItem value="all" className="text-xs">{language === 'it' ? 'Tutte le skill' : 'All skills'}</SelectItem>
+                {skills4.map(sk => (
+                  <SelectItem key={sk} value={sk} className="text-xs">{sk}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleType4, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+          </div>
+          <p className="text-xs text-gray-400">{people4.length} {language==='it'?'registi trovati':'directors found'}</p>
+          <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people4.map(p=>{const isSel=selId4===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType="director" onSelect={()=>{setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
         </div>);
       case 5:
         return (<div className="space-y-2">
@@ -1407,7 +1458,7 @@ const FilmWizard = () => {
     }
   };
 
-  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 2:return filmData.locations.length>0; case 3:return filmData.screenwriter_id; case 4:return filmData.director_id; case 5:return filmData.composer_id; case 6:return filmData.actors.length>0; case 7:return filmData.screenplay; default:return true; }};
+  const canProceed = () => { switch(step){ case 1:return filmData.title&&filmData.genre; case 2:return filmData.locations.length>0; case 3:return filmData.screenwriter_ids.length>0||filmData.screenwriter_id; case 4:return filmData.director_id; case 5:return filmData.composer_id; case 6:return filmData.actors.length>0; case 7:return filmData.screenplay; default:return true; }};
   
   // Check if current step is locked by emerging screenplay
   const isStepLocked = (s) => {

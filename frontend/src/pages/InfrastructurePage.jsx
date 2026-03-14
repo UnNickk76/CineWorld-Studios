@@ -85,6 +85,11 @@ const InfrastructurePage = () => {
   const [rentingFilm, setRentingFilm] = useState(false);
   const [removingFilm, setRemovingFilm] = useState(null);
 
+  // Acting School state (for cinema_school infra type)
+  const [schoolStatus, setSchoolStatus] = useState(null);
+  const [schoolRecruits, setSchoolRecruits] = useState([]);
+  const [schoolLoading, setSchoolLoading] = useState(false);
+
   useEffect(() => {
     Promise.all([
       api.get('/infrastructure/types'),
@@ -138,6 +143,8 @@ const InfrastructurePage = () => {
     setLoadingDetail(true);
     setShowDetailDialog(true);
     setUpgradeInfo(null);
+    setSchoolStatus(null);
+    setSchoolRecruits([]);
     try {
       const [detailRes, upgradeRes] = await Promise.all([
         api.get(`/infrastructure/${infra.id}`),
@@ -146,6 +153,17 @@ const InfrastructurePage = () => {
       setInfraDetail(detailRes.data);
       setPrices(detailRes.data.prices || { ticket: 12, popcorn: 8, drinks: 5, combo: 18 });
       setUpgradeInfo(upgradeRes.data);
+      // Load school data if cinema_school
+      if (infra.type === 'cinema_school') {
+        setSchoolLoading(true);
+        const [statusRes, recruitsRes] = await Promise.all([
+          api.get('/acting-school/status'),
+          api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } }))
+        ]);
+        setSchoolStatus(statusRes.data);
+        setSchoolRecruits(recruitsRes.data.recruits || []);
+        setSchoolLoading(false);
+      }
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nel caricamento');
       setShowDetailDialog(false);
@@ -153,6 +171,37 @@ const InfrastructurePage = () => {
       setLoadingDetail(false);
     }
   };
+
+  // School actions
+  const schoolStartTraining = async (recruitId) => {
+    try {
+      const res = await api.post('/acting-school/train', { recruit_id: recruitId });
+      toast.success(res.data.message);
+      refreshUser();
+      // Refresh school data
+      const [statusRes, recruitsRes] = await Promise.all([
+        api.get('/acting-school/status'),
+        api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } }))
+      ]);
+      setSchoolStatus(statusRes.data);
+      setSchoolRecruits(recruitsRes.data.recruits || []);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const schoolComplete = async (traineeId, action, months = 3) => {
+    try {
+      const res = await api.post(`/acting-school/complete/${traineeId}`, { action, engagement_months: months });
+      toast.success(res.data.message);
+      refreshUser();
+      const statusRes = await api.get('/acting-school/status');
+      setSchoolStatus(statusRes.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
 
   const handleUpgrade = async () => {
     if (!selectedInfra || upgrading) return;
@@ -498,6 +547,190 @@ const InfrastructurePage = () => {
           
           {loadingDetail ? (
             <div className="text-center py-8">Caricamento...</div>
+          ) : infraDetail && selectedInfra?.type === 'cinema_school' ? (
+            /* ===== CINEMA SCHOOL UI ===== */
+            <div className="space-y-4">
+              {/* School Info */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 bg-yellow-500/10 rounded border border-yellow-500/20 text-center">
+                  <p className="text-[10px] text-gray-400">Livello</p>
+                  <p className="text-lg font-bold text-yellow-400">{schoolStatus?.school_level || 1}</p>
+                </div>
+                <div className="p-2.5 bg-cyan-500/10 rounded border border-cyan-500/20 text-center">
+                  <p className="text-[10px] text-gray-400">Slot Formazione</p>
+                  <p className="text-lg font-bold text-cyan-400">{schoolStatus?.available_slots || 0}/{schoolStatus?.max_slots || 1}</p>
+                </div>
+                <div className="p-2.5 bg-green-500/10 rounded border border-green-500/20 text-center">
+                  <p className="text-[10px] text-gray-400">In Formazione</p>
+                  <p className="text-lg font-bold text-green-400">{schoolStatus?.training_count || 0}</p>
+                </div>
+              </div>
+
+              {/* Trainees in Training */}
+              {schoolStatus?.trainees?.filter(t => t.status === 'training').length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-400" /> Allievi in Formazione
+                  </h4>
+                  {schoolStatus.trainees.filter(t => t.status === 'training').map(t => (
+                    <div key={t.id} className="p-3 bg-blue-500/5 rounded border border-blue-500/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <img src={t.avatar_url} alt="" className="w-8 h-8 rounded-full bg-gray-700" />
+                          <div>
+                            <p className="text-sm font-medium">{t.name}</p>
+                            <p className="text-[10px] text-gray-500">{t.age} anni {t.is_promising ? <span className="text-green-400">• Promettente</span> : ''}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-blue-400">{t.progress}%</span>
+                      </div>
+                      <Progress value={t.progress} className="h-1.5 mb-2" />
+                      <div className="grid grid-cols-2 gap-1">
+                        {Object.entries(t.current_skills || {}).map(([k, v]) => (
+                          <div key={k} className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-500 w-24 truncate">{SKILL_TRANSLATIONS?.[k]?.[language] || k}</span>
+                            <div className="flex-1 h-1 bg-gray-800 rounded-full"><div className="h-full rounded-full" style={{ width: `${v}%`, background: v > 70 ? '#22c55e' : v > 40 ? '#eab308' : '#ef4444' }} /></div>
+                            <span className="text-[9px] text-gray-400 w-5 text-right">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ready Trainees */}
+              {schoolStatus?.trainees?.filter(t => t.status === 'ready').length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-green-400" /> Formazione Completata!
+                  </h4>
+                  {schoolStatus.trainees.filter(t => t.status === 'ready').map(t => (
+                    <div key={t.id} className="p-3 bg-green-500/5 rounded border border-green-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <img src={t.avatar_url} alt="" className="w-8 h-8 rounded-full bg-gray-700" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{t.name}</p>
+                          <p className="text-[10px] text-gray-500">{t.age} anni</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 mb-2">
+                        {Object.entries(t.current_skills || {}).map(([k, v]) => (
+                          <div key={k} className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-500 w-24 truncate">{SKILL_TRANSLATIONS?.[k]?.[language] || k}</span>
+                            <div className="flex-1 h-1 bg-gray-800 rounded-full"><div className="h-full rounded-full" style={{ width: `${v}%`, background: v > 70 ? '#22c55e' : v > 40 ? '#eab308' : '#ef4444' }} /></div>
+                            <span className="text-[9px] text-gray-400 w-5 text-right">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 bg-green-700 hover:bg-green-800 text-xs" onClick={() => schoolComplete(t.id, 'keep')} data-testid={`school-keep-${t.id}`}>
+                          <Lock className="w-3 h-3 mr-1" /> Tieni nel Cast
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 text-xs border-gray-600" onClick={() => schoolComplete(t.id, 'release')} data-testid={`school-release-${t.id}`}>
+                          <Unlock className="w-3 h-3 mr-1" /> Libera
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Kept Actors */}
+              {schoolStatus?.kept_actors?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Star className="w-4 h-4 text-yellow-400" /> Cast Personale ({schoolStatus.kept_actors.length})
+                  </h4>
+                  {schoolStatus.kept_actors.map(a => (
+                    <div key={a.id} className="flex items-center gap-2 p-2 bg-white/5 rounded border border-yellow-500/20">
+                      <img src={a.avatar_url} alt="" className="w-7 h-7 rounded-full bg-gray-700" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{a.name}</p>
+                        <p className="text-[10px] text-gray-500">${a.monthly_salary?.toLocaleString()}/mese</p>
+                      </div>
+                      <Badge className="bg-yellow-900/40 text-yellow-400 text-[9px]">Nel cast</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Available Recruits */}
+              {schoolStatus?.available_slots > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Users className="w-4 h-4 text-cyan-400" /> Reclute Disponibili
+                    </h4>
+                    <span className="text-[10px] text-gray-500">Nuove ogni giorno</span>
+                  </div>
+                  <ScrollArea className="max-h-[250px]">
+                    <div className="space-y-2 pr-1">
+                      {schoolRecruits.map(r => (
+                        <div key={r.id} className="p-2.5 bg-white/5 rounded border border-white/10">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <img src={r.avatar_url} alt="" className="w-7 h-7 rounded-full bg-gray-700" />
+                              <div>
+                                <p className="text-sm font-medium">{r.name}</p>
+                                <p className="text-[10px] text-gray-500">
+                                  {r.age} anni {r.is_promising ? <span className="text-green-400">• Promettente</span> : '• Standard'}
+                                </p>
+                              </div>
+                            </div>
+                            <Button size="sm" className="bg-cyan-700 hover:bg-cyan-800 text-xs h-7" onClick={() => schoolStartTraining(r.id)} data-testid={`school-train-${r.id}`}>
+                              <GraduationCap className="w-3 h-3 mr-1" />$200K
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-0.5">
+                            {Object.entries(r.initial_skills || {}).map(([k, v]) => (
+                              <div key={k} className="flex items-center gap-1">
+                                <span className="text-[9px] text-gray-500 w-24 truncate">{SKILL_TRANSLATIONS?.[k]?.[language] || k}</span>
+                                <div className="flex-1 h-1 bg-gray-800 rounded-full"><div className="h-full rounded-full" style={{ width: `${v}%`, background: v > 70 ? '#22c55e' : v > 40 ? '#eab308' : '#ef4444' }} /></div>
+                                <span className="text-[9px] text-gray-400 w-5 text-right">{v}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {schoolRecruits.length === 0 && (
+                        <p className="text-center text-gray-500 text-xs py-4">Nessuna recluta disponibile oggi</p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              {schoolStatus?.available_slots === 0 && schoolStatus?.training_count > 0 && schoolRecruits.length > 0 && (
+                <p className="text-center text-xs text-gray-500 py-2">Tutti gli slot sono occupati. Attendi il completamento della formazione o migliora la scuola.</p>
+              )}
+
+              {/* Upgrade Section */}
+              {upgradeInfo && (
+                <div className="space-y-2 p-3 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-lg border border-purple-500/20">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <ArrowUpCircle className="w-4 h-4 text-purple-400" />
+                      {upgradeInfo.current_level >= upgradeInfo.max_level 
+                        ? 'Livello Massimo!' 
+                        : `Upgrade Lv.${upgradeInfo.current_level} → Lv.${upgradeInfo.next_level}`}
+                    </h4>
+                    <Badge className="bg-purple-500/20 text-purple-400 text-xs">Lv.{upgradeInfo.current_level}/{upgradeInfo.max_level}</Badge>
+                  </div>
+                  {upgradeInfo.current_level < upgradeInfo.max_level && (
+                    <>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-gray-400">Costo: <span className={`font-bold ${(upgradeInfo.user_funds || 0) >= upgradeInfo.upgrade_cost ? 'text-green-400' : 'text-red-400'}`}>${upgradeInfo.upgrade_cost?.toLocaleString()}</span></span>
+                        <span className="text-gray-400">Lv. giocatore: <span className={`font-bold ${upgradeInfo.player_level >= upgradeInfo.player_level_required ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.player_level}/{upgradeInfo.player_level_required}</span></span>
+                      </div>
+                      <Button onClick={handleUpgrade} disabled={!upgradeInfo.can_upgrade || upgrading} className={`w-full h-9 font-bold ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} data-testid="upgrade-school-btn">
+                        {upgrading ? 'Miglioramento...' : upgradeInfo.can_upgrade ? `Migliora a Lv.${upgradeInfo.next_level} (+slot formazione)` : upgradeInfo.reason}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           ) : infraDetail && (
             <div className="space-y-4">
               {/* Stats */}

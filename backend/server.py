@@ -5193,6 +5193,11 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.121', 'date': '2026-03-14', 'title': 'Tutorial Aggiornato',
+     'changes': [
+         {'type': 'improvement', 'text': 'Tutorial completamente riscritto: 12 passi con CinePass, Login Giornaliero, Contest, Scuola di Recitazione e Sceneggiature Emergenti'},
+         {'type': 'fix', 'text': 'Fix saldo CinePass non visibile nel profilo e nella barra superiore'},
+     ]},
     {'version': '0.120', 'date': '2026-03-14', 'title': 'Sistema CinePass & Contest Giornalieri',
      'changes': [
          {'type': 'new', 'text': 'CinePass: nuova valuta premium! Ogni utente parte con 100 CinePass'},
@@ -8956,43 +8961,67 @@ async def get_tutorial():
             {
                 'id': 2,
                 'title': 'Crea il tuo Primo Film',
-                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte!',
+                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte! Ogni film costa 20 CinePass.',
                 'icon': 'clapperboard'
             },
             {
                 'id': 3,
                 'title': 'Scegli il Cast',
-                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità!',
+                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità! Puoi pre-ingaggiare attori per 5 CinePass.',
                 'icon': 'users'
             },
             {
                 'id': 4,
-                'title': 'Guadagna XP e Sali di Livello',
-                'description': 'Ogni azione ti fa guadagnare XP. Salendo di livello sblocchi nuove infrastrutture e funzionalità!',
-                'icon': 'trophy'
+                'title': 'CinePass - La Valuta del Produttore',
+                'description': 'I CinePass sono la tua risorsa chiave! Servono per creare film, comprare infrastrutture, ingaggiare attori e acquistare sceneggiature. Parti con 100 CinePass.',
+                'icon': 'ticket'
             },
             {
                 'id': 5,
-                'title': 'Acquista Infrastrutture',
-                'description': 'Al livello 5 puoi acquistare il tuo primo cinema! Proietta i tuoi film o affitta quelli di altri giocatori.',
-                'icon': 'building'
+                'title': 'Login Giornaliero',
+                'description': 'Accedi ogni giorno per guadagnare CinePass crescenti! Giorno 1: 3, fino a Giorno 7: 35 CinePass. Ogni 15 giorni consecutivi ricevi un bonus extra di 15!',
+                'icon': 'flame'
             },
             {
                 'id': 6,
+                'title': 'Contest Giornalieri',
+                'description': 'Nella sezione Contest trovi 3 sfide al giorno: Indovina il Budget, Cast Perfetto, Box Office Prediction e Speed Producer. Guadagna fino a 50 CinePass al giorno!',
+                'icon': 'trophy'
+            },
+            {
+                'id': 7,
+                'title': 'Guadagna XP e Sali di Livello',
+                'description': 'Ogni azione ti fa guadagnare XP. Salendo di livello sblocchi nuove infrastrutture e funzionalità!',
+                'icon': 'star'
+            },
+            {
+                'id': 8,
+                'title': 'Acquista Infrastrutture',
+                'description': 'Al livello 5 puoi acquistare il tuo primo cinema! Proietta i tuoi film o affitta quelli di altri giocatori. Ogni infrastruttura costa CinePass (8-20) + denaro.',
+                'icon': 'building'
+            },
+            {
+                'id': 9,
+                'title': 'Scuola di Recitazione',
+                'description': 'Acquista una Scuola di Recitazione dalle Infrastrutture! Ogni giorno avrai nuove reclute da formare (3 CinePass + $200K). Dopo 10-20 giorni, tienile nel tuo Cast Personale (gratis nei film!) o liberale.',
+                'icon': 'graduation-cap'
+            },
+            {
+                'id': 10,
+                'title': 'Sceneggiature Emergenti',
+                'description': 'Nella sezione "Sceneggiature Emergenti" trovi copioni già pronti con cast incluso. Acquistali con 10 CinePass + denaro per iniziare subito a produrre!',
+                'icon': 'scroll'
+            },
+            {
+                'id': 11,
                 'title': 'Riscuoti gli Incassi',
                 'description': 'Le tue infrastrutture generano ricavi ogni ora. Ricordati di riscuotere (max 4 ore accumulate)!',
                 'icon': 'dollar-sign'
             },
             {
-                'id': 7,
-                'title': 'Mini-Giochi',
-                'description': 'Gioca ai mini-giochi per guadagnare XP e soldi extra. Puoi sfidare altri giocatori nella chat privata!',
-                'icon': 'gamepad'
-            },
-            {
-                'id': 8,
+                'id': 12,
                 'title': 'Social & Classifiche',
-                'description': 'Interagisci con altri produttori, vota i loro film e scala la classifica globale!',
+                'description': 'Interagisci con altri produttori nella chat, vota i loro film sulla CineBoard e scala la classifica globale!',
                 'icon': 'users'
             }
         ]

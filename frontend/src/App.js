@@ -565,35 +565,39 @@ const TopNavbar = () => {
       </AnimatePresence>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-1" data-testid="mobile-bottom-nav">
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')}>
-          <Clapperboard className="w-5 h-5" />
-          <span className="text-[9px]">Home</span>
+      <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')}>
+          <Clapperboard className="w-4 h-4" />
+          <span className="text-[8px]">Home</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/films' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/films')}>
-          <Film className="w-5 h-5" />
-          <span className="text-[9px]">Film</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/films')}>
+          <Film className="w-4 h-4" />
+          <span className="text-[8px]">Film</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/social' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/social')}>
-          <Trophy className="w-5 h-5" />
-          <span className="text-[9px]">CineBoard</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/infrastructure')}>
+          <Building className="w-4 h-4" />
+          <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/drafts')}>
-          <Save className="w-5 h-5" />
-          <span className="text-[9px]">Bozze</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/social' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/social')}>
+          <Trophy className="w-4 h-4" />
+          <span className="text-[8px]">Board</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')}>
-          <Swords className="w-5 h-5" />
-          <span className="text-[9px]">Sfide</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/drafts')}>
+          <Save className="w-4 h-4" />
+          <span className="text-[8px]">Bozze</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/chat' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/chat')}>
-          <MessageSquare className="w-5 h-5" />
-          <span className="text-[9px]">Chat</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')}>
+          <Swords className="w-4 h-4" />
+          <span className="text-[8px]">Sfide</span>
         </button>
-        <button className={`relative flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')}>
-          <Bell className="w-5 h-5" />
-          {notificationCount > 0 && <span className="absolute top-0 right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
-          <span className="text-[9px]">Notifiche</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/chat' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/chat')}>
+          <MessageSquare className="w-4 h-4" />
+          <span className="text-[8px]">Chat</span>
+        </button>
+        <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')}>
+          <Bell className="w-4 h-4" />
+          {notificationCount > 0 && <span className="absolute top-0 right-0 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
+          <span className="text-[8px]">Notifiche</span>
         </button>
       </div>
 

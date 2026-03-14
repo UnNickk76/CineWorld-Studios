@@ -270,6 +270,9 @@ async def get_available_recruits(user: dict = Depends(get_current_user)):
 @router.post("/acting-school/train")
 async def start_training(request: StartTrainingRequest, user: dict = Depends(get_current_user)):
     """Start training a selected recruit."""
+    # CinePass check
+    from routes.cinepass import spend_cinepass, CINEPASS_COSTS
+    await spend_cinepass(user['id'], CINEPASS_COSTS['school_recruit'], user.get('cinepass', 100))
     # Check school
     school = await db.infrastructure.find_one(
         {'owner_id': user['id'], 'type': 'cinema_school'},

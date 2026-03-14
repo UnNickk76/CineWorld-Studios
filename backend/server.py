@@ -50,6 +50,7 @@ from routes.notifications import router as notifications_router
 from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
+from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -268,6 +269,7 @@ TRANSLATIONS = {
         'documentary': 'Documentary',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Games',
+        'contests': 'Daily Contests',
         'sagas_series': 'Sagas & Series',
         'cinema_journal': 'Cinema Journal',
         'discovered_stars': 'Discovered Stars',
@@ -329,6 +331,7 @@ TRANSLATIONS = {
         'documentary': 'Documentario',
         'fantasy': 'Fantasy',
         'mini_games': 'Mini Giochi',
+        'contests': 'Contest Giornalieri',
         'sagas_series': 'Saghe e Serie',
         'cinema_journal': 'Giornale del Cinema',
         'discovered_stars': 'Stelle Scoperte',
@@ -1056,6 +1059,8 @@ class UserResponse(BaseModel):
     total_lifetime_revenue: float = 0
     leaderboard_score: float = 0
     accept_offline_challenges: bool = True
+    cinepass: int = 100
+    login_streak: int = 0
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -2877,6 +2882,8 @@ async def get_pre_film(pre_film_id: str, user: dict = Depends(get_current_user))
 @api_router.post("/pre-films/{pre_film_id}/engage")
 async def pre_engage_cast(pre_film_id: str, request: PreEngagementRequest, user: dict = Depends(get_current_user)):
     """Pre-engage a cast member for a pre-film."""
+    # CinePass check
+    await spend_cinepass(user['id'], CINEPASS_COSTS['pre_engagement'], user.get('cinepass', 100))
     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
     
     if not pre_film:
@@ -3410,6 +3417,8 @@ async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, ca
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
+    # CinePass check
+    await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
     # Sequel validation: subtitle is required for sequels
     if film_data.is_sequel:
         if not film_data.subtitle:
@@ -5184,6 +5193,18 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 
 RELEASE_NOTES = [
     # Latest first - These will be migrated to database on startup
+    {'version': '0.120', 'date': '2026-03-14', 'title': 'Sistema CinePass & Contest Giornalieri',
+     'changes': [
+         {'type': 'new', 'text': 'CinePass: nuova valuta premium! Ogni utente parte con 100 CinePass'},
+         {'type': 'new', 'text': 'CinePass richiesti per: creare film (20), comprare infrastrutture (8-20), pre-ingaggiare attori (5), sceneggiature emergenti (10), reclutare alla scuola (3)'},
+         {'type': 'new', 'text': 'Login giornaliero consecutivo: guadagna 3-35 CinePass al giorno + bonus ogni 15 giorni consecutivi'},
+         {'type': 'new', 'text': 'Popup automatico bonus giornaliero al primo accesso con 7 giorni cliccabili'},
+         {'type': 'new', 'text': 'Contest giornalieri: 3 sfide al giorno, fino a 50 CinePass. Si azzerano alle 12:00 italiane'},
+         {'type': 'new', 'text': 'Indovina il Budget, Cast Perfetto, Box Office Prediction, Speed Producer - contest sempre diversi'},
+         {'type': 'new', 'text': 'Badge CinePass nella barra superiore accanto ai fondi'},
+         {'type': 'improvement', 'text': 'Sezione Contest sostituisce i Mini Giochi nella Dashboard'},
+         {'type': 'improvement', 'text': 'Popup conferma CinePass prima di ogni acquisto importante'},
+     ]},
     {'version': '0.115', 'date': '2026-03-14', 'title': 'Scuola di Recitazione Completa & Navigazione Mobile',
      'changes': [
          {'type': 'new', 'text': 'Scuola di Recitazione: forma i tuoi attori da zero! Acquista la scuola dalle Infrastrutture'},
@@ -8485,6 +8506,12 @@ async def startup_event():
     
     # Migrate old cast (skills 1-10 system) to new system (1-100)
     await migrate_old_cast_system()
+    
+    # Add cinepass to existing users who don't have it
+    await db.users.update_many(
+        {'cinepass': {'$exists': False}},
+        {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
+    )
     
     # Initialize release notes in database
     await initialize_release_notes()
@@ -13977,6 +14004,8 @@ async def accept_emerging_screenplay(
     user: dict = Depends(get_current_user)
 ):
     """Accept an emerging screenplay. Options: 'full_package' or 'screenplay_only'."""
+    # CinePass check
+    await spend_cinepass(user['id'], CINEPASS_COSTS['emerging_screenplay'], user.get('cinepass', 100))
     option = body.get('option', 'screenplay_only')
     if option not in ('full_package', 'screenplay_only'):
         raise HTTPException(status_code=400, detail="Opzione non valida")
@@ -14041,6 +14070,7 @@ app.include_router(notifications_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(infrastructure_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
+app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================

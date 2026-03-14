@@ -70,7 +70,8 @@ const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'));
 const MajorPage = React.lazy(() => import('./pages/MajorPage'));
 const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
-const MiniGamesPage = React.lazy(() => import('./pages/MiniGamesPage'));
+const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
+import LoginRewardPopup from './components/LoginRewardPopup';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const PreEngagementPage = React.lazy(() => import('./pages/PreEngagementPage'));
@@ -227,7 +228,7 @@ const TopNavbar = () => {
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Trophy, label: 'cineboard' },
-    { path: '/games', icon: Gamepad2, label: 'mini_games' },
+    { path: '/games', icon: Trophy, label: 'contests' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
     { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
@@ -384,6 +385,14 @@ const TopNavbar = () => {
             <DollarSign className="w-3 h-3 text-yellow-500" />
             <span className="text-yellow-500 font-bold text-[9px] sm:text-xs" data-testid="user-funds">
               ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
+            </span>
+          </div>
+
+          {/* CinePass */}
+          <div className="flex items-center gap-0.5 bg-cyan-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-cyan-500/20" data-testid="cinepass-badge">
+            <Ticket className="w-3 h-3 text-cyan-400" />
+            <span className="text-cyan-400 font-bold text-[9px] sm:text-xs" data-testid="cinepass-balance">
+              {user?.cinepass ?? 100}
             </span>
           </div>
           
@@ -1079,6 +1088,7 @@ const ProtectedRoute = ({ children }) => {
   return (
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
+      <LoginRewardPopup />
       <AnimatePresence mode="wait">
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
@@ -1213,7 +1223,7 @@ function App() {
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />
                 <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
                 <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
-                <Route path="/games" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
+                <Route path="/games" element={<ProtectedRoute><ContestsPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><ChallengesPage /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />

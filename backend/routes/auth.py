@@ -83,7 +83,10 @@ async def register(user_data: UserCreate):
         'level': 0,
         'fame': 50.0,
         'total_lifetime_revenue': 0,
-        'accept_offline_challenges': True
+        'accept_offline_challenges': True,
+        'cinepass': 100,
+        'login_streak': 0,
+        'last_streak_date': None,
     }
     
     await db.users.insert_one(user)

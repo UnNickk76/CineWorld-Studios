@@ -40,9 +40,15 @@ import {
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding,
-  Car, Building2, GraduationCap, ArrowUpCircle, ShoppingBag, Landmark
+  Car, Building2, GraduationCap, ArrowUpCircle, ShoppingBag, Landmark, Ticket
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+
+const INFRA_CINEPASS = {
+  cinema: 10, drive_in_cinema: 8, multiplex: 15, cinema_school: 12,
+  vip_cinema: 15, production_studio: 20, imax: 18,
+  centro_commerciale_piccolo: 10, centro_commerciale_medio: 14, centro_commerciale_grande: 18
+};
 import { LoadingSpinner } from '../components/ErrorBoundary';
 
 // useTranslations imported from contexts
@@ -521,6 +527,12 @@ const InfrastructurePage = () => {
                   <span>I tuoi fondi:</span>
                   <span className={user?.funds >= getCityPrice() ? 'text-green-400' : 'text-red-400'}>${user?.funds?.toLocaleString()}</span>
                 </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span className="flex items-center gap-1"><Ticket className="w-3 h-3 text-cyan-400" /> CinePass:</span>
+                  <span className={user?.cinepass >= (INFRA_CINEPASS[selectedType?.id] || 10) ? 'text-green-400' : 'text-red-400'}>
+                    {INFRA_CINEPASS[selectedType?.id] || 10} richiesti ({user?.cinepass ?? 100} disponibili)
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -678,7 +690,7 @@ const InfrastructurePage = () => {
                               </div>
                             </div>
                             <Button size="sm" className="bg-cyan-700 hover:bg-cyan-800 text-xs h-7" onClick={() => schoolStartTraining(r.id)} data-testid={`school-train-${r.id}`}>
-                              <GraduationCap className="w-3 h-3 mr-1" />$200K
+                              <GraduationCap className="w-3 h-3 mr-1" />$200K +3<Ticket className="w-2.5 h-2.5 ml-0.5" />
                             </Button>
                           </div>
                           <div className="grid grid-cols-2 gap-0.5">

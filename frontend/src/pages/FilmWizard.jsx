@@ -16,6 +16,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Slider } from '../components/ui/slider';
 import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog';
+import CinePassConfirmDialog from '../components/CinePassConfirmDialog';
 import { Label } from '../components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
@@ -84,6 +85,7 @@ const FilmWizard = () => {
   const [genres, setGenres] = useState({});
   const [actorRoles, setActorRoles] = useState([]);
   const [resumedDraftId, setResumedDraftId] = useState(null);
+  const [showCinePassConfirm, setShowCinePassConfirm] = useState(false);
   
   // New states for cast filtering
   const [castCategories, setCastCategories] = useState([]);
@@ -1486,7 +1488,7 @@ const FilmWizard = () => {
             <Button variant="outline" size="sm" className="h-7 text-xs px-2 text-orange-400 border-orange-400/50 hover:bg-orange-500/10" onClick={()=>saveDraft('paused')} disabled={savingDraft}>
               {savingDraft ? '...' : (language === 'it' ? 'Pausa' : 'Pause')}
             </Button>
-            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={handleSubmit} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
+            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setShowCinePassConfirm(true)} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
           </div>
         </div>
         {lastAutoSave && <p className="text-[10px] text-gray-500 flex items-center gap-1"><CheckCircle className="w-2.5 h-2.5 text-green-500" />{language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>}
@@ -1817,6 +1819,15 @@ const FilmWizard = () => {
           </motion.div>
         </div>
       )}
+      <CinePassConfirmDialog
+        open={showCinePassConfirm}
+        onClose={() => setShowCinePassConfirm(false)}
+        onConfirm={() => { setShowCinePassConfirm(false); handleSubmit(); }}
+        cost={20}
+        actionName={language === 'it' ? 'Creazione nuovo film' : 'Create new film'}
+        loading={loading}
+        userBalance={user?.cinepass}
+      />
     </div>
   );
 };

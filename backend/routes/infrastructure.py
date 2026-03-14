@@ -80,6 +80,11 @@ async def get_my_infrastructure(user: dict = Depends(get_current_user)):
 @router.post("/infrastructure/purchase")
 async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: dict = Depends(get_current_user)):
     """Purchase new infrastructure."""
+    # CinePass check
+    from routes.cinepass import spend_cinepass, get_infra_cinepass_cost
+    cp_cost = get_infra_cinepass_cost(request.type)
+    await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 100))
+    
     infra_type = INFRASTRUCTURE_TYPES.get(request.type)
     if not infra_type:
         raise HTTPException(status_code=400, detail="Invalid infrastructure type")

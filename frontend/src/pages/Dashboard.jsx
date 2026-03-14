@@ -386,10 +386,10 @@ const Dashboard = () => {
             {emergingCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{emergingCount}</span>}
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-blue-500/20 to-blue-600/5 border-blue-500/20 cursor-pointer" onClick={() => navigate('/games')}>
+        <Card className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border-cyan-500/20 cursor-pointer" onClick={() => navigate('/games')} data-testid="contests-box">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-blue-500 rounded-lg"><Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('mini_games')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Earn rewards</p></div>
+            <div className="p-1.5 sm:p-2 bg-cyan-500 rounded-lg"><Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Contest' : 'Contests'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Guadagna CinePass' : 'Earn CinePass'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-500/20 to-purple-600/5 border-purple-500/20 cursor-pointer" onClick={() => navigate('/social')}>

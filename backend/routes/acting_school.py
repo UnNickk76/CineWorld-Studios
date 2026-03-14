@@ -146,9 +146,6 @@ async def get_acting_school_status(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(50)
     
-    training_count = sum(1 for t in trainees if t['status'] == 'training')
-    ready_count = sum(1 for t in trainees if t['status'] == 'ready')
-    
     # Update skill progress for training trainees
     for trainee in trainees:
         if trainee['status'] == 'training':
@@ -176,6 +173,10 @@ async def get_acting_school_status(user: dict = Depends(get_current_user)):
         # Never reveal hidden talent
         trainee.pop('hidden_talent', None)
         trainee.pop('final_skills', None)
+    
+    # Recalculate counts after inline status updates
+    training_count = sum(1 for t in trainees if t['status'] == 'training')
+    ready_count = sum(1 for t in trainees if t['status'] == 'ready')
     
     # Get kept actors
     kept_actors = await db.acting_school_trainees.find(

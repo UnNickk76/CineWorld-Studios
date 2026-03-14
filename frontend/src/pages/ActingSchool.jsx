@@ -284,7 +284,11 @@ const ActingSchool = () => {
             </div>
             <div className="p-2 bg-black/30 rounded border border-gray-800">
               <p className="text-xs text-gray-400">{language === 'it' ? 'Stipendio mensile stimato' : 'Estimated monthly salary'}</p>
-              <p className="text-lg font-bold text-yellow-400">${((50000 + 30 * 500)).toLocaleString()}/mese</p>
+              <p className="text-lg font-bold text-yellow-400">
+                {completeDialog?.current_skills ? 
+                  `$${(50000 + Math.round(Object.values(completeDialog.current_skills).reduce((a,b)=>a+b,0) / Object.keys(completeDialog.current_skills).length) * 500).toLocaleString()}/mese`
+                  : '~$65,000/mese'}
+              </p>
             </div>
             <Button className="w-full bg-green-700 hover:bg-green-800" onClick={() => completeTraining(completeDialog.id, 'keep')} data-testid="confirm-keep">
               {language === 'it' ? 'Conferma Ingaggio' : 'Confirm Engagement'}

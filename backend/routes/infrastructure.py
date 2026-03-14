@@ -11,7 +11,9 @@ from database import db
 from auth_utils import get_current_user
 from pydantic import BaseModel
 from game_systems import (
-    INFRASTRUCTURE_TYPES, WORLD_CITIES, get_level_from_xp
+    INFRASTRUCTURE_TYPES, WORLD_CITIES, get_level_from_xp,
+    calculate_infrastructure_cost, DEFAULT_CINEMA_PRICES,
+    XP_REWARDS, LANGUAGE_TO_COUNTRY
 )
 from cast_system import calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL
 from social_system import create_notification
@@ -121,6 +123,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
         'logo_url': request.logo_url,
         'city': city,
         'country': request.country,
+        'level': 1,
         'purchase_cost': cost,
         'purchase_date': datetime.now(timezone.utc).isoformat(),
         'prices': DEFAULT_CINEMA_PRICES.copy() if infra_type.get('screens', 0) > 0 else {},

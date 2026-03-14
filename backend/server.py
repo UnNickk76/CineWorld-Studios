@@ -1529,10 +1529,20 @@ async def get_actors(
             age_q['$lte'] = max_age
         query['age'] = age_q
     
-    # Use random sampling for variety on each refresh
+    # First get personal cast (kept actors) - always show at top
+    personal_query = {**query, 'kept_by': user_id}
+    personal_actors = await db.people.find(personal_query, {'_id': 0}).to_list(50)
+    personal_ids = {a['id'] for a in personal_actors}
+    for a in personal_actors:
+        a['is_personal_cast'] = True
+    
+    # Use random sampling for variety on each refresh (exclude personal cast)
+    public_query = {**query, 'kept_by': {'$exists': False}}
     total = await db.people.count_documents(query)
-    pipeline = [{'$match': query}, {'$sample': {'size': limit}}, {'$project': {'_id': 0}}]
-    actors = await db.people.aggregate(pipeline).to_list(limit)
+    remaining = max(0, limit - len(personal_actors))
+    pipeline = [{'$match': public_query}, {'$sample': {'size': remaining}}, {'$project': {'_id': 0}}]
+    public_actors = await db.people.aggregate(pipeline).to_list(remaining)
+    actors = personal_actors + public_actors
     
     # Get user's films to check "has worked with us"
     user_films = await db.films.find({'user_id': user_id}, {'cast': 1}).to_list(1000)

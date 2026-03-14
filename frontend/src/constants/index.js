@@ -35,6 +35,22 @@ export const SKILL_TRANSLATIONS = {
   sci_fi: { en: 'Sci-Fi', it: 'Fantascienza' },
   voice_acting: { en: 'Voice Acting', it: 'Doppiaggio' },
   improvisation: { en: 'Improvisation', it: 'Improvvisazione' },
+  physical_acting: { en: 'Physical Acting', it: 'Recitazione Fisica' },
+  emotional_depth: { en: 'Emotional Depth', it: 'Profondità Emotiva' },
+  charisma: { en: 'Charisma', it: 'Carisma' },
+  method_acting: { en: 'Method Acting', it: 'Metodo Stanislavskij' },
+  timing: { en: 'Timing', it: 'Senso del Tempo' },
+  // Director extra skills
+  atmosphere: { en: 'Atmosphere', it: 'Atmosfera' },
+  casting_sense: { en: 'Casting Sense', it: 'Senso del Casting' },
+  editing_instinct: { en: 'Editing Instinct', it: 'Istinto Montaggio' },
+  budget_management: { en: 'Budget Mgmt', it: 'Gestione Budget' },
+  // Screenwriter extra skills
+  humor_writing: { en: 'Humor Writing', it: 'Scrittura Umoristica' },
+  suspense_craft: { en: 'Suspense Craft', it: 'Costruzione Suspense' },
+  subtext: { en: 'Subtext', it: 'Sottotesto' },
+  theme_depth: { en: 'Theme Depth', it: 'Profondità Tematica' },
+  research: { en: 'Research', it: 'Ricerca' },
 };
 
 export const GENRES_LIST = [

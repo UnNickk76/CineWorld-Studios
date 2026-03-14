@@ -14,26 +14,29 @@ async def get_notifications(
     limit: int = 50,
     user: dict = Depends(get_current_user)
 ):
-    query = {'user_id': user['id']}
+    query = {'$or': [{'user_id': user['id']}, {'user_id': 'all'}]}
     if unread_only:
         query['read'] = False
     
     notifications = await db.notifications.find(query, {'_id': 0}).sort('created_at', -1).limit(limit).to_list(limit)
-    unread_count = await db.notifications.count_documents({'user_id': user['id'], 'read': False})
+    unread_count = await db.notifications.count_documents({'$or': [{'user_id': user['id']}, {'user_id': 'all'}], 'read': False})
     
     return {'notifications': notifications, 'unread_count': unread_count}
 
 
 @router.get("/notifications/count")
 async def get_notification_count(user: dict = Depends(get_current_user)):
-    count = await db.notifications.count_documents({'user_id': user['id'], 'read': False})
+    count = await db.notifications.count_documents({
+        '$or': [{'user_id': user['id']}, {'user_id': 'all'}],
+        'read': False
+    })
     return {'unread_count': count}
 
 
 @router.post("/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str, user: dict = Depends(get_current_user)):
     result = await db.notifications.update_one(
-        {'id': notification_id, 'user_id': user['id']},
+        {'id': notification_id, '$or': [{'user_id': user['id']}, {'user_id': 'all'}]},
         {'$set': {'read': True}}
     )
     return {'success': result.modified_count > 0}
@@ -42,7 +45,7 @@ async def mark_notification_read(notification_id: str, user: dict = Depends(get_
 @router.post("/notifications/read-all")
 async def mark_all_notifications_read(user: dict = Depends(get_current_user)):
     result = await db.notifications.update_many(
-        {'user_id': user['id'], 'read': False},
+        {'$or': [{'user_id': user['id']}, {'user_id': 'all'}], 'read': False},
         {'$set': {'read': True}}
     )
     return {'success': True, 'marked': result.modified_count}

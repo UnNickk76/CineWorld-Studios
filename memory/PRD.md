@@ -26,24 +26,26 @@ A full-stack movie studio simulation game where players create films, hire cast,
 │   ├── server.py           # Main FastAPI server (14K+ lines)
 │   ├── game_systems.py     # Game mechanics, infrastructure types
 │   ├── cast_system.py      # Cast generation/management (13 actor skills)
+│   ├── social_system.py    # Notifications, friendships (acting_school type added)
 │   ├── routes/
 │   │   ├── acting_school.py  # Acting School feature
 │   │   ├── infrastructure.py # Infrastructure purchase/upgrade
+│   │   ├── notifications.py  # Notification CRUD (supports broadcast user_id='all')
 │   │   ├── auth.py
-│   │   ├── notifications.py
 │   │   ├── social.py
 │   │   └── minigames.py
 │   └── ...
 ├── frontend/
 │   └── src/
-│       ├── App.js          # Main app with routing
-│       ├── constants/index.js # SKILL_TRANSLATIONS (all 13 actor skills + director/screenwriter/composer)
-│       ├── contexts/       # Auth, Language, Player contexts
+│       ├── App.js
+│       ├── constants/index.js  # SKILL_TRANSLATIONS (all skills for actors/directors/screenwriters/composers)
+│       ├── contexts/
 │       └── pages/
 │           ├── Dashboard.jsx
-│           ├── FilmWizard.jsx       # Core film creation
-│           ├── CineBoard.jsx        # Film rankings
-│           ├── ActingSchool.jsx     # Acting School UI
+│           ├── FilmWizard.jsx
+│           ├── CineBoard.jsx
+│           ├── ActingSchool.jsx
+│           ├── NotificationsPage.jsx  # Interactive popup for acting_school notifications
 │           └── ...
 ```
 
@@ -66,25 +68,35 @@ A full-stack movie studio simulation game where players create films, hire cast,
 - Multiple screenwriters (1-5) per film
 - MongoDB indexes for performance
 - CineBoard performance optimization (lazy poster loading)
-- Cast migration system (old skill system cleanup)
 - Dedicated poster endpoint GET /api/films/{film_id}/poster
 - Infrastructure purchase/upgrade system with level tracking
-- **Acting School (Scuola di Recitazione)** - COMPLETE (March 14, 2026):
-  - Infrastructure type `cinema_school` with training slots based on level
-  - Daily recruit generation (6 recruits/day, age 16-60, 3-5 initial skills)
-  - Hidden talent system (determines growth speed and final skill ceiling)
-  - Training duration 10-20 days based on talent
-  - "Promising" / "Standard" assessment (partially correlated with talent)
-  - Completion options: Keep (personal cast, free to use, monthly salary) or Release (public pool)
-  - Personal cast actors appear first in FilmWizard actor list
-  - Social notifications on training completion
-  - All 13 actor skill translations in Italian
+- **Acting School (Scuola di Recitazione)** — COMPLETE:
+  - Infrastructure type cinema_school with training slots based on level
+  - Daily recruit generation (6/day, age 16-60, 3-5 initial skills)
+  - Hidden talent system (growth speed + final skill ceiling)
+  - Training duration 10-20 days, completion with Keep/Release
+  - Personal cast actors appear first in FilmWizard
+  - Social notifications on completion
+- **Interactive Notification Popup** — COMPLETE (March 14, 2026):
+  - Clicking acting_school notification opens popup with actor skills
+  - Released actors: "Ingaggia" button → navigate to film creation
+  - Kept actors: info message "nel cast privato del produttore"
+  - Broadcast notifications (user_id='all') visible to all players
+  - All 13 skill translations displayed in Italian
 
 ## Known Issues / Pending
 - **"Voci del Pubblico" section is empty** (P1)
 - **"Major Studios" not working correctly** (P1)
 
 ## Planned Features (NOT YET IMPLEMENTED)
+### P0: Gameplay expansion ideas (user-discussed, not yet committed):
+1. Festival del Cinema & Premi (weekly competitions, voting)
+2. Missioni Giornaliere/Settimanali (daily tasks with rewards)
+3. Collaborazioni tra Giocatori (co-productions, actor trading, 1v1 challenges)
+4. Carriera Attori Dinamica (skills improve/decline based on film outcomes)
+5. Eventi Stagionali a Tempo Limitato (themed events)
+6. Gestione Major Studio Attiva (guild objectives, rankings)
+
 ### P1: Fix Major Studios functionality
 ### P1: Fix Voci del Pubblico (empty section)
 ### P2: CineCoins Purchase System (Stripe)

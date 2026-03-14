@@ -230,6 +230,11 @@ NOTIFICATION_TYPES = {
         'icon': 'info',
         'color': 'gray',
         'priority': 'low'
+    },
+    'acting_school': {
+        'icon': 'graduation-cap',
+        'color': 'yellow',
+        'priority': 'high'
     }
 }
 

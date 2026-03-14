@@ -39,7 +39,8 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding,
+  GraduationCap
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
@@ -52,6 +53,7 @@ const NotificationsPage = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actorPopup, setActorPopup] = useState(null);
   
   const t = (key) => ({
     notifications: language === 'it' ? 'Notifiche' : 'Notifications',
@@ -112,6 +114,7 @@ const NotificationsPage = () => {
       challenge_won: <Trophy className="w-5 h-5 text-green-400" />,
       challenge_lost: <Swords className="w-5 h-5 text-red-400" />,
       creator_reply: <Mail className="w-5 h-5 text-purple-400" />,
+      acting_school: <GraduationCap className="w-5 h-5 text-yellow-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />
     };
     return icons[type] || icons.system;
@@ -151,6 +154,11 @@ const NotificationsPage = () => {
                   className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${notif.read ? 'bg-white/5' : 'bg-yellow-500/10 border border-yellow-500/20'}`}
                   onClick={() => { 
                     if (!notif.read) markAsRead(notif.id);
+                    // Acting school notifications open popup
+                    if (notif.type === 'acting_school' && notif.data?.actor_name) {
+                      setActorPopup(notif.data);
+                      return;
+                    }
                     // Smart navigation based on notification type
                     const navPath = notif.link || notif.data?.path;
                     if (navPath) {
@@ -213,6 +221,78 @@ const NotificationsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Acting School Actor Popup */}
+      <Dialog open={!!actorPopup} onOpenChange={() => setActorPopup(null)}>
+        <DialogContent className="bg-[#1A1A1B] border-gray-800 text-white max-w-md" data-testid="actor-popup">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-yellow-400" />
+              {actorPopup?.actor_name}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {actorPopup?.action === 'kept' 
+                ? `${actorPopup?.trainer || '?'} ${language === 'it' ? 'lo utilizzerà nei suoi film' : 'will use in their films'}`
+                : language === 'it' ? 'Disponibile per tutti i produttori!' : 'Available for all producers!'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Category & Rating */}
+            <div className="flex items-center gap-3">
+              <Badge className={`text-xs ${
+                actorPopup?.category === 'star' ? 'bg-yellow-900/60 text-yellow-300' :
+                actorPopup?.category === 'known' ? 'bg-blue-900/60 text-blue-300' :
+                actorPopup?.category === 'emerging' ? 'bg-green-900/60 text-green-300' :
+                'bg-gray-800 text-gray-400'
+              }`}>
+                {actorPopup?.category === 'star' ? 'Star' : actorPopup?.category === 'known' ? 'Conosciuto' : actorPopup?.category === 'emerging' ? 'Emergente' : 'Sconosciuto'}
+              </Badge>
+              {actorPopup?.imdb_rating && (
+                <span className="text-xs text-yellow-400 flex items-center gap-1">
+                  <Star className="w-3 h-3" /> {actorPopup.imdb_rating.toFixed(1)} IMDb
+                </span>
+              )}
+            </div>
+            {/* Skills */}
+            <div className="space-y-1.5">
+              {actorPopup?.skills && Object.entries(actorPopup.skills).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400 w-28 truncate">
+                    {SKILL_TRANSLATIONS?.[key]?.[language] || key}
+                  </span>
+                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${val}%`, background: val > 70 ? '#22c55e' : val > 40 ? '#eab308' : '#ef4444' }} />
+                  </div>
+                  <span className="text-[10px] font-mono text-gray-300 w-6 text-right">{val}</span>
+                </div>
+              ))}
+            </div>
+            {/* Hire button for released actors */}
+            {actorPopup?.action === 'released' && actorPopup?.cost_per_film && (
+              <div className="pt-2 border-t border-gray-800">
+                <p className="text-xs text-gray-400 mb-2">
+                  {language === 'it' ? 'Costo per film:' : 'Cost per film:'} <span className="text-white font-bold">${actorPopup.cost_per_film.toLocaleString()}</span>
+                </p>
+                <Button 
+                  className="w-full bg-cyan-700 hover:bg-cyan-800" 
+                  onClick={() => { setActorPopup(null); navigate('/create-film'); }}
+                  data-testid="hire-from-notification"
+                >
+                  <Film className="w-4 h-4 mr-2" />
+                  {language === 'it' ? 'Ingaggia — Crea un Film' : 'Hire — Create a Film'}
+                </Button>
+              </div>
+            )}
+            {actorPopup?.action === 'kept' && (
+              <div className="pt-2 border-t border-gray-800 text-center">
+                <p className="text-xs text-gray-500 italic">
+                  {language === 'it' ? 'Questo attore è nel cast privato del produttore' : 'This actor is in the producer\'s private cast'}
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

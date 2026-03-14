@@ -417,12 +417,13 @@ async def complete_training(trainee_id: str, request: CompleteTrainingRequest, u
         # Deduct first month salary
         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -monthly_salary}})
         
-        # Notification
-        await create_notification(
-            db, 'all',
-            f"🎭 {user.get('nickname', '?')} ha formato una possibile star: {trainee['name']}! Lo terrà nella sua scuderia.",
+        # Notification for all users
+        notif = create_notification(
+            'all',
             'acting_school',
-            extra_data={
+            'Nuova Star Formata!',
+            f"{user.get('nickname', '?')} ha formato una possibile star: {trainee['name']}! Lo terrà nella sua scuderia.",
+            {
                 'actor_id': actor_id,
                 'actor_name': trainee['name'],
                 'skills': final_skills,
@@ -432,6 +433,7 @@ async def complete_training(trainee_id: str, request: CompleteTrainingRequest, u
                 'trainer': user.get('nickname')
             }
         )
+        await db.notifications.insert_one(notif)
         
         return {
             'message': f"{trainee['name']} è ora nel tuo cast personale! Stipendio: ${monthly_salary:,}/mese",
@@ -474,11 +476,12 @@ async def complete_training(trainee_id: str, request: CompleteTrainingRequest, u
         )
         
         # Notification for everyone
-        await create_notification(
-            db, 'all',
-            f"🎭 {user.get('nickname', '?')} ha formato una possibile star: {trainee['name']}! Disponibile per tutti i produttori.",
+        notif = create_notification(
+            'all',
             'acting_school',
-            extra_data={
+            'Nuova Star Disponibile!',
+            f"{user.get('nickname', '?')} ha formato una possibile star: {trainee['name']}! Disponibile per tutti i produttori.",
+            {
                 'actor_id': actor_id,
                 'actor_name': trainee['name'],
                 'skills': final_skills,
@@ -489,6 +492,7 @@ async def complete_training(trainee_id: str, request: CompleteTrainingRequest, u
                 'trainer': user.get('nickname')
             }
         )
+        await db.notifications.insert_one(notif)
         
         return {
             'message': f"{trainee['name']} è ora disponibile per tutti i produttori!",

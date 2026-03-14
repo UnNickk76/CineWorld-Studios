@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from game_systems import (
     INFRASTRUCTURE_TYPES, WORLD_CITIES, get_level_from_xp,
     calculate_infrastructure_cost, DEFAULT_CINEMA_PRICES,
-    XP_REWARDS, LANGUAGE_TO_COUNTRY
+    XP_REWARDS, LANGUAGE_TO_COUNTRY, calculate_imdb_rating
 )
 from cast_system import calculate_infrastructure_value, check_can_trade_infrastructure, TRADE_REQUIRED_LEVEL
 from social_system import create_notification
@@ -178,7 +178,10 @@ async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_curr
     city = infra.get('city', {})
     population = city.get('population', 500000)
     wealth = city.get('wealth', 1.0)
-    screens = infra_type.get('screens', 2 + level * 2) if infra_type else 4
+    screens = infra_type.get('screens', 4) if infra_type else 4
+    # Level bonus: +2 screens per level above 1
+    if screens > 0:
+        screens = screens + (level - 1) * 2
     seats_per_screen = 100 + level * 25
     total_capacity = screens * seats_per_screen
     
@@ -228,9 +231,12 @@ async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_curr
         'films_count': len(films_showing),
     }
     
+    # Override type_info screens with level-adjusted value
+    type_info_with_level = {**infra_type, 'screens': screens} if infra_type else {'screens': screens}
+    
     return {
         **infra,
-        'type_info': infra_type,
+        'type_info': type_info_with_level,
         'stats': stats
     }
 
@@ -483,8 +489,12 @@ async def add_film_to_cinema(infra_id: str, request: AddFilmToCinemaRequest, use
         raise HTTPException(status_code=404, detail="Film non trovato o non di tua proprietà")
     
     films_showing = infra.get('films_showing', [])
-    if len(films_showing) >= infra_type.get('screens', 4):
-        raise HTTPException(status_code=400, detail="Tutti gli schermi sono occupati")
+    # Calculate screens based on level (base + (level-1)*2)
+    base_screens = infra_type.get('screens', 4)
+    level = infra.get('level', 1)
+    total_screens = base_screens + (level - 1) * 2 if base_screens > 0 else 0
+    if len(films_showing) >= total_screens:
+        raise HTTPException(status_code=400, detail=f"Tutti gli schermi sono occupati ({total_screens} schermi)")
     
     # Check if already showing this film
     if any(f['film_id'] == request.film_id for f in films_showing):
@@ -546,8 +556,11 @@ async def rent_film_for_cinema(infra_id: str, request: RentFilmRequest, user: di
     
     # Check screen availability
     films_showing = infra.get('films_showing', [])
-    if len(films_showing) >= infra_type.get('screens', 4):
-        raise HTTPException(status_code=400, detail="Tutti gli schermi sono occupati")
+    base_screens = infra_type.get('screens', 4)
+    level = infra.get('level', 1)
+    total_screens = base_screens + (level - 1) * 2 if base_screens > 0 else 0
+    if len(films_showing) >= total_screens:
+        raise HTTPException(status_code=400, detail=f"Tutti gli schermi sono occupati ({total_screens} schermi)")
     
     # Check if already showing this film
     if any(f['film_id'] == request.film_id for f in films_showing):

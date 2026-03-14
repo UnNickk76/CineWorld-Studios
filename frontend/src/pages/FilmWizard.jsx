@@ -918,7 +918,7 @@ const FilmWizard = () => {
               <div className="flex items-center gap-1 flex-wrap">
                 {person.is_star && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
                 <h4 className="font-semibold text-xs truncate max-w-[100px]">{person.name}</h4>
-                <span className="text-[10px] text-gray-400">{person.gender === 'female' ? '♀' : '♂'}</span>
+                <span className={`text-[10px] ${person.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{person.gender === 'female' ? '♀' : '♂'}</span>
                 {person.fame_badge && (
                   <Badge className={`text-[8px] h-3.5 px-1 ${
                     person.fame_badge.color === 'gold' ? 'bg-yellow-500/20 text-yellow-400' :

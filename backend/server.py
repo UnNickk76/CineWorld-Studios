@@ -3942,7 +3942,7 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 
 @api_router.get("/films/my", response_model=List[FilmResponse])
 async def get_my_films(user: dict = Depends(get_current_user)):
-    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
+    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).sort('created_at', -1).to_list(100)
     return [FilmResponse(**f) for f in films]
 
 @api_router.get("/films/{film_id}/poster")

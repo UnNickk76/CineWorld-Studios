@@ -326,7 +326,7 @@ const FilmWizard = () => {
         
         toast.info(language === 'it' 
           ? 'Cast pre-ingaggiato caricato. Puoi mantenerlo o congedarlo (con penale).'
-          : 'Pre-engaged cast loaded. You can keep or dismiss them (with penalty).');
+          : 'Cast pre-ingaggiato caricato. Puoi mantenerlo o congedarlo (con penale).');
       }
       
       toast.success(language === 'it' ? 'Bozza caricata!' : 'Draft loaded!');

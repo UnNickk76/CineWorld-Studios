@@ -135,7 +135,7 @@ const Dashboard = () => {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md" data-testid="stats-detail-modal">
-          <DialogHeader><DialogTitle>{titles[statType] || 'Details'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{titles[statType] || 'Dettagli'}</DialogTitle></DialogHeader>
           {loading ? <div className="flex items-center justify-center py-12"><div className="animate-spin h-8 w-8 border-2 border-yellow-500 border-t-transparent rounded-full"></div></div> : renderContent()}
         </DialogContent>
       </Dialog>
@@ -234,9 +234,9 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         {[
           { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow', statType: 'films' },
-          { label: 'Revenue', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
-          { label: 'Likes', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
-          { label: 'Quality', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
+          { label: 'Incassi', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
+          { label: 'Like', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
+          { label: 'Qualità', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
         ].map((stat, i) => (
           <Card 
             key={stat.label} 
@@ -370,7 +370,7 @@ const Dashboard = () => {
         <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create')}>
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Plus className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('create_film')}</h3><p className="text-[10px] sm:text-xs text-gray-400">New blockbuster</p></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('create_film')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Nuovo blockbuster</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer" onClick={() => navigate('/pre-engagement')}>
@@ -395,7 +395,7 @@ const Dashboard = () => {
         <Card className="bg-gradient-to-br from-purple-500/20 to-purple-600/5 border-purple-500/20 cursor-pointer" onClick={() => navigate('/social')}>
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-purple-500 rounded-lg"><Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('social')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Explore films</p></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('social')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Esplora film</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
@@ -410,7 +410,7 @@ const Dashboard = () => {
         <div>
           <div className="flex items-center justify-between mb-2 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-3 px-3" data-testid="my-films-sticky-header">
             <h2 className="font-['Bebas_Neue'] text-xl">{t('my_films')}</h2>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-7 text-xs">View All <ChevronRight className="w-3 h-3 ml-1" /></Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-7 text-xs">Vedi Tutti <ChevronRight className="w-3 h-3 ml-1" /></Button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
             {films.map(film => (

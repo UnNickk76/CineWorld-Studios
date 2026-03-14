@@ -363,7 +363,7 @@ const FeedbackBoard = () => {
                   <p className="text-xs text-gray-400">
                     {language === 'it' 
                       ? 'Il tuo nome non sarà visibile agli altri giocatori' 
-                      : 'Your name won\'t be visible to other players'}
+                      : 'Il tuo nome non sarà visibile agli altri giocatori'}
                   </p>
                 </label>
                 {isAnonymous && <EyeOff className="w-4 h-4 text-gray-400" />}

@@ -328,7 +328,7 @@ const PreEngagementPage = () => {
                             {engaged ? (
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <p className="text-sm font-semibold">{engaged.name || 'Loading...'}</p>
+                                  <p className="text-sm font-semibold">{engaged.name || 'Caricamento...'}</p>
                                   <p className="text-[10px] text-green-400">${engaged.offered_fee?.toLocaleString()}</p>
                                 </div>
                                 {!pf.is_expired && (
@@ -354,7 +354,7 @@ const PreEngagementPage = () => {
                           <div className="space-y-1 mb-2 max-h-20 overflow-y-auto">
                             {pf.pre_engaged_cast.actors.map(actor => (
                               <div key={actor.id} className="flex items-center justify-between text-xs bg-black/30 rounded px-2 py-1">
-                                <span>{actor.name || 'Loading...'}</span>
+                                <span>{actor.name || 'Caricamento...'}</span>
                                 {!pf.is_expired && (
                                   <button className="text-red-400 hover:text-red-300" onClick={() => releaseCast(pf.id, 'actor', actor.id, actor.name)}>
                                     <X className="w-3 h-3" />

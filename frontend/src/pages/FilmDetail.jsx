@@ -224,7 +224,7 @@ const FilmDetail = () => {
       toast.success(res.data.message);
       loadFilm(); // Reload to update actions state
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
     setPerformingAction(null);
   };
@@ -245,7 +245,7 @@ const FilmDetail = () => {
       });
       loadFilm();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
     setPerformingAction(null);
   };

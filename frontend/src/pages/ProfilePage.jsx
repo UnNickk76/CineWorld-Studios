@@ -307,7 +307,7 @@ const ProfilePage = () => {
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => { setShowResetDialog(false); setResetToken(null); }}>No, Annulla</Button>
                 <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={confirmReset} disabled={resetting}>
-                  {resetting ? 'Resetting...' : 'CONFERMA RESET'}
+                  {resetting ? 'Attendere...' : 'CONFERMA RESET'}
                 </Button>
               </div>
             </div>
@@ -329,13 +329,13 @@ const ProfilePage = () => {
               <Input 
                 value={aiPrompt} 
                 onChange={e => setAiPrompt(e.target.value)} 
-                placeholder="e.g., professional film director, elegant actress with glasses..."
+                placeholder="es. regista professionista, attrice elegante con occhiali..."
                 className="h-9 bg-black/20 border-white/10 text-sm"
               />
-              <p className="text-[10px] text-gray-500 mt-1">Be specific: gender, age, style, profession...</p>
+              <p className="text-[10px] text-gray-500 mt-1">Sii specifico: genere, età, stile, professione...</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {['Young male producer', 'Elegant female director', 'Veteran actor with beard', 'Glamorous actress'].map(preset => (
+              {['Giovane produttore', 'Elegante regista donna', 'Attore veterano con barba', 'Attrice glamour'].map(preset => (
                 <Button key={preset} variant="outline" size="sm" className="h-7 text-[10px] justify-start" onClick={() => setAiPrompt(preset)}>
                   {preset}
                 </Button>
@@ -346,7 +346,7 @@ const ProfilePage = () => {
               disabled={generatingAi || !aiPrompt.trim()} 
               className="w-full bg-yellow-500 text-black h-9"
             >
-              {generatingAi ? 'Generating...' : 'Generate Avatar'}
+              {generatingAi ? 'Generando...' : 'Genera Avatar'}
             </Button>
           </div>
         </DialogContent>

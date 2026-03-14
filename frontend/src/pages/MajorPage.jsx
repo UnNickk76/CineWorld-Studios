@@ -117,7 +117,7 @@ const MajorPage = () => {
       await api.post('/major/invite', { user_id: userId });
       toast.success(language === 'it' ? 'Invito inviato!' : 'Invite sent!');
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
   };
   

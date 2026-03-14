@@ -1288,12 +1288,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user = await db.users.find_one({'id': payload['user_id']}, {'_id': 0})
         if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+            raise HTTPException(status_code=401, detail="Utente non trovato")
         return user
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Token scaduto")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Token non valido")
 
 def generate_person_name():
     """Generate a person with coherent name, nationality and gender"""
@@ -1740,7 +1740,7 @@ async def get_available_cast(
     }
     
     if type not in type_map:
-        raise HTTPException(status_code=400, detail="Invalid cast type")
+        raise HTTPException(status_code=400, detail="Tipo di cast non valido")
     
     db_type = type_map[type]
     
@@ -2120,7 +2120,7 @@ async def preview_cast_bonus(
     """Preview the bonus/malus an actor would give for a specific film genre."""
     actor = await db.people.find_one({'id': actor_id, 'type': 'actor'}, {'_id': 0})
     if not actor:
-        raise HTTPException(status_code=404, detail="Actor not found")
+        raise HTTPException(status_code=404, detail="Attore non trovato")
     
     bonus_info = calculate_cast_film_bonus(actor.get('skills', {}), film_genre)
     
@@ -2376,7 +2376,7 @@ async def get_film_actions(film_id: str, user: dict = Depends(get_current_user))
     """Get the status of one-time actions for a film."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'trailer_error': 1, 'trailer_generating': 1, 'user_id': 1})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     is_owner = film.get('user_id') == user['id']
     actions_performed = film.get('actions_performed', {})
@@ -2436,7 +2436,7 @@ async def perform_create_star_action(film_id: str, actor_id: str = Query(...), u
     # Get actor from DB
     actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
     if not actor:
-        raise HTTPException(status_code=404, detail="Actor not found")
+        raise HTTPException(status_code=404, detail="Attore non trovato")
     
     # Promote to star
     await db.people.update_one(
@@ -2766,7 +2766,7 @@ async def create_pre_film(data: PreFilmCreate, user: dict = Depends(get_current_
     # Sequel validation: subtitle is required for sequels
     if data.is_sequel:
         if not data.subtitle:
-            raise HTTPException(status_code=400, detail="Subtitle is required for sequels")
+            raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
         if not data.sequel_parent_id:
             raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
         
@@ -3422,7 +3422,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     # Sequel validation: subtitle is required for sequels
     if film_data.is_sequel:
         if not film_data.subtitle:
-            raise HTTPException(status_code=400, detail="Subtitle is required for sequels")
+            raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
         if not film_data.sequel_parent_id:
             raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
     
@@ -3443,7 +3443,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         sequel_number = existing_sequels + 2  # Parent is #1, first sequel is #2
         
         if sequel_number > 6:  # Max 5 sequels (6 total films in saga)
-            raise HTTPException(status_code=400, detail="Maximum 5 sequels allowed per saga")
+            raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
     
     equipment = next((e for e in EQUIPMENT_PACKAGES if e['name'] == film_data.equipment_package), EQUIPMENT_PACKAGES[0])
     location_costs = {}
@@ -3467,7 +3467,7 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     
     available_funds = user['funds'] + sponsor_budget
     if total_budget > available_funds:
-        raise HTTPException(status_code=400, detail="Insufficient funds")
+        raise HTTPException(status_code=400, detail="Fondi insufficienti")
     
     # === REWORKED QUALITY SYSTEM v3 - Balanced distribution ===
     # Base quality starts at 42 - ensures average films for new players
@@ -3950,7 +3950,7 @@ async def get_film_poster(film_id: str):
     """Return film poster as binary image for efficient loading."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0, 'poster_url': 1})
     if not film or not film.get('poster_url'):
-        raise HTTPException(status_code=404, detail="Poster not found")
+        raise HTTPException(status_code=404, detail="Poster non trovato")
     poster_url = film['poster_url']
     if poster_url.startswith('data:image/'):
         # Parse base64: data:image/png;base64,iVBOR...
@@ -4580,11 +4580,11 @@ async def get_cineboard_attendance(
 async def submit_user_rating(film_id: str, rating: float, user: dict = Depends(get_current_user)):
     """Submit user rating for a film (1-10 scale)."""
     if rating < 1 or rating > 10:
-        raise HTTPException(status_code=400, detail="Rating must be between 1 and 10")
+        raise HTTPException(status_code=400, detail="Il voto deve essere tra 1 e 10")
     
     film = await db.films.find_one({'id': film_id})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Upsert user rating
     await db.film_ratings.update_one(
@@ -4624,7 +4624,7 @@ async def get_film_ratings(film_id: str, user: dict = Depends(get_current_user))
     """Get film ratings summary."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Get user's rating
     user_rating = await db.film_ratings.find_one(
@@ -4827,7 +4827,7 @@ async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Calculate and add cineboard_score
     film['cineboard_score'] = calculate_cineboard_score(film)
@@ -4839,7 +4839,7 @@ async def get_film_distribution(film_id: str, user: dict = Depends(get_current_u
     """Get cinema distribution data for a film - where it's showing."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Get current distribution data
     cinema_distribution = film.get('cinema_distribution', [])
@@ -6120,7 +6120,7 @@ async def advertise_film(film_id: str, campaign: AdvertisingCampaign, user: dict
         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
     if film['status'] != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Can only advertise films currently in theaters")
+        raise HTTPException(status_code=400, detail="Puoi pubblicizzare solo film attualmente in sala")
     
     # Calculate total cost
     total_cost = 0
@@ -6456,7 +6456,7 @@ async def comment_on_film(film_id: str, comment_data: FilmComment, user: dict = 
     """Add a comment/review to a film"""
     film = await db.films.find_one({'id': film_id})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     comment = {
         'id': str(uuid.uuid4()),
@@ -6493,7 +6493,7 @@ async def get_film_comments(film_id: str, user: dict = Depends(get_current_user)
 async def like_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Prevent liking own films
     if film['user_id'] == user['id']:
@@ -6556,7 +6556,7 @@ async def get_film_likes(film_id: str, user: dict = Depends(get_current_user)):
     """Get list of users who liked a film."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Get likes with user details
     likes = await db.likes.find({'film_id': film_id}, {'_id': 0}).sort('created_at', -1).to_list(100)
@@ -6597,7 +6597,7 @@ async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_curre
     """Get virtual audience data for a film: virtual likes, reviews, and bonuses."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Get or generate virtual likes
     virtual_likes = film.get('virtual_likes')
@@ -6715,7 +6715,7 @@ async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_curr
     """Check if a film met its tier expectations (for end of run popup)."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     result = check_film_expectations(film)
     result['film_id'] = film_id
@@ -6760,16 +6760,16 @@ async def claim_challenge(challenge_id: str, challenge_type: str = 'daily', user
     challenge = next((c for c in challenges if c['id'] == challenge_id), None)
     
     if not challenge:
-        raise HTTPException(status_code=404, detail="Challenge not found")
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
     
     field = 'daily_challenges' if challenge_type == 'daily' else 'weekly_challenges'
     user_progress = user.get(field, {}).get(challenge_id, {})
     
     if not user_progress.get('completed', False):
-        raise HTTPException(status_code=400, detail="Challenge not completed")
+        raise HTTPException(status_code=400, detail="Sfida non completata")
     
     if user_progress.get('claimed', False):
-        raise HTTPException(status_code=400, detail="Reward already claimed")
+        raise HTTPException(status_code=400, detail="Ricompensa già riscossa")
     
     await db.users.update_one(
         {'id': user['id']},
@@ -7236,7 +7236,7 @@ async def get_all_players(user: dict = Depends(get_current_user)):
 async def get_user_profile(user_id: str, user: dict = Depends(get_current_user)):
     profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
     if not profile:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Utente non trovato")
     
     films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(10)
     profile['recent_films'] = films
@@ -7249,7 +7249,7 @@ async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_u
     """Get full detailed profile of a user including all stats and films."""
     profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
     if not profile:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Utente non trovato")
     
     # Get all films
     all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(100)
@@ -7350,7 +7350,7 @@ async def start_direct_chat(target_user_id: str, user: dict = Depends(get_curren
     # Check if target user exists
     target_user = await db.users.find_one({'id': target_user_id}, {'_id': 0, 'password': 0, 'email': 0})
     if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Utente non trovato")
     
     # Check if private chat already exists
     existing_room = await db.chat_rooms.find_one({
@@ -12408,7 +12408,7 @@ async def calculate_film_hourly_revenue(film_id: str, user: dict = Depends(get_c
     """Calculate current hourly revenue for a film."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
         return {'revenue': 0, 'status': film.get('status'), 'message': 'Film not in theaters'}
@@ -12439,7 +12439,7 @@ async def process_film_hourly_revenue(film_id: str, user: dict = Depends(get_cur
     """Process hourly revenue for a film and update totals."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
         return {'processed': False, 'status': film.get('status')}
@@ -12511,7 +12511,7 @@ async def get_film_duration_status(film_id: str, user: dict = Depends(get_curren
     """Check if a film should be extended or withdrawn early."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
         return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 3}
@@ -12565,7 +12565,7 @@ async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, 
     """
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
         raise HTTPException(status_code=400, detail="Film not in theaters")
@@ -12643,7 +12643,7 @@ async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_use
     """Withdraw a film early from theaters."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     if film.get('status') != 'in_theaters':
         raise HTTPException(status_code=400, detail="Film not in theaters")
@@ -12819,7 +12819,7 @@ async def check_film_star_discoveries(film_id: str, user: dict = Depends(get_cur
     """Check for star discoveries among the cast of a film."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     quality = film.get('quality_score', 50)
     discoveries = []
@@ -12878,7 +12878,7 @@ async def evolve_film_cast_skills(film_id: str, user: dict = Depends(get_current
     """Evolve the skills of all cast members based on film performance."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     quality = film.get('quality_score', 50)
     evolutions = []
@@ -13223,7 +13223,7 @@ async def get_film_event_bonus(film_id: str, user: dict = Depends(get_current_us
     """Calculate event bonuses for a specific film."""
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        raise HTTPException(status_code=404, detail="Film not found")
+        raise HTTPException(status_code=404, detail="Film non trovato")
     
     bonus = calculate_event_bonus(film)
     return bonus

@@ -81,7 +81,7 @@ const AuthPage = () => {
       } else {
         await register({ ...formData, age: parseInt(formData.age), language });
       }
-      toast.success(isLogin ? 'Welcome back!' : 'Account created!');
+      toast.success(isLogin ? 'Bentornato!' : 'Account creato!');
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Authentication failed');
@@ -256,7 +256,7 @@ const AuthPage = () => {
                 disabled={loading || (!isLogin && !acceptedTerms)}
                 data-testid="auth-submit-btn"
               >
-                {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Account'}
+                {loading ? 'Caricamento...' : isLogin ? 'Accedi' : 'Crea Account'}
               </Button>
             </form>
 
@@ -289,7 +289,7 @@ const AuthPage = () => {
                 onClick={() => setIsLogin(!isLogin)}
                 data-testid="toggle-auth-mode"
               >
-                {isLogin ? "Don't have an account? Register" : 'Already have an account? Sign In'}
+                {isLogin ? "Non hai un account? Registrati" : 'Hai già un account? Accedi'}
               </button>
             </div>
           </CardContent>
@@ -444,7 +444,7 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
       setFriendStatus('pending');
       toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     } finally {
       setActionLoading(null);
     }
@@ -456,7 +456,7 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
       await api.post('/major/invite', { user_id: userId });
       toast.success(language === 'it' ? 'Invito alla Major inviato!' : 'Major invitation sent!');
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     } finally {
       setActionLoading(null);
     }
@@ -849,7 +849,7 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
       likes: language === 'it' ? 'Dettagli Like' : 'Likes Details',
       quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details'
     };
-    return titles[statType] || 'Details';
+    return titles[statType] || 'Dettagli';
   };
   
   return (

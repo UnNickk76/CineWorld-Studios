@@ -98,7 +98,7 @@ const ChatPage = () => {
         setFriendStatus('pending');
         toast.success(language === 'it' ? 'Richiesta di amicizia inviata!' : 'Friend request sent!');
       } catch (e) {
-        toast.error(e.response?.data?.detail || 'Error');
+        toast.error(e.response?.data?.detail || 'Errore');
       } finally { setActionLoading(null); }
     };
     
@@ -218,7 +218,7 @@ const ChatPage = () => {
       setActiveTab('private');
       setShowUsers(false);
     } catch(e) {
-      toast.error('Could not start chat');
+      toast.error('Impossibile avviare la chat');
     } finally {
       setLoadingDM(null);
     }

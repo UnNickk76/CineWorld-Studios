@@ -105,7 +105,7 @@ const FriendsPage = () => {
       toast.success(language === 'it' ? 'Richiesta inviata!' : 'Request sent!');
       loadData();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
   };
   
@@ -115,7 +115,7 @@ const FriendsPage = () => {
       toast.success(language === 'it' ? 'Amicizia accettata!' : 'Friendship accepted!');
       loadData();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
   };
   
@@ -132,7 +132,7 @@ const FriendsPage = () => {
       toast.success(language === 'it' ? 'Ora segui questo utente!' : 'Now following!');
       loadData();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error');
+      toast.error(e.response?.data?.detail || 'Errore');
     }
   };
   

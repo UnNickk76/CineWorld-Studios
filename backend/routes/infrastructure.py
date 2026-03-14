@@ -87,7 +87,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     
     infra_type = INFRASTRUCTURE_TYPES.get(request.type)
     if not infra_type:
-        raise HTTPException(status_code=400, detail="Invalid infrastructure type")
+        raise HTTPException(status_code=400, detail="Tipo di infrastruttura non valido")
     
     # Check level requirement
     level_info = get_level_from_xp(user.get('total_xp', 0))
@@ -103,7 +103,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     cities = WORLD_CITIES.get(request.country, [])
     city = next((c for c in cities if c['name'] == request.city_name), None)
     if not city:
-        raise HTTPException(status_code=400, detail="Invalid city")
+        raise HTTPException(status_code=400, detail="Città non valida")
     
     # Check if first infrastructure - must be in language country
     existing = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': request.type})
@@ -169,7 +169,7 @@ async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_curr
     )
     
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
     
@@ -245,7 +245,7 @@ async def update_infrastructure_prices(infra_id: str, request: CinemaPricesUpdat
     """Update cinema prices."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     await db.infrastructure.update_one(
         {'id': infra_id},
@@ -259,7 +259,7 @@ async def update_infrastructure_logo(infra_id: str, logo_url: str = Query(...), 
     """Update infrastructure logo."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     await db.infrastructure.update_one(
         {'id': infra_id},
@@ -335,11 +335,11 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     """Get upgrade info: cost, benefits, requirements."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
     if not infra_type:
-        raise HTTPException(status_code=400, detail="Unknown infrastructure type")
+        raise HTTPException(status_code=400, detail="Tipo di infrastruttura sconosciuto")
     
     current_level = infra.get('level', 1)
     next_level = current_level + 1
@@ -394,11 +394,11 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     """Upgrade an infrastructure to the next level."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
     if not infra_type:
-        raise HTTPException(status_code=400, detail="Unknown infrastructure type")
+        raise HTTPException(status_code=400, detail="Tipo di infrastruttura sconosciuto")
     
     current_level = infra.get('level', 1)
     max_level = 10
@@ -622,7 +622,7 @@ async def remove_film_from_cinema(infra_id: str, film_id: str, user: dict = Depe
     """Remove a film from cinema."""
     infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
     if not infra:
-        raise HTTPException(status_code=404, detail="Infrastructure not found")
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
     
     films_showing = [f for f in infra.get('films_showing', []) if f['film_id'] != film_id]
     

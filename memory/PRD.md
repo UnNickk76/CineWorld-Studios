@@ -56,24 +56,68 @@ A full-stack movie studio simulation game where players create films, hire cast,
 - Minigames and challenges
 - Multiple screenwriters (1-5) per film
 - MongoDB indexes for performance
-- CineBoard performance optimization (45MB → 37KB responses)
+- CineBoard performance optimization (39MB → 37KB responses + lazy poster loading)
 - Cast migration system (old skill system cleanup)
-- Bottom nav: CineBoard + Bozze icons
+- Bottom nav: CineBoard (coppa icon) + Bozze icons
+- Dedicated poster endpoint GET /api/films/{film_id}/poster with Cache-Control
 
 ## Bug Fixes (March 14, 2026)
-- FIXED: Step 12 wizard error for emerging screenplays (actors format {id,role,fee} → {actor_id,role})
-- FIXED: AI poster polling resilience (try/catch per poll, functional state updates)
-- FIXED: CineBoard N+1 query problem (bulk fetches, field projections)
-- FIXED: Owner avatar_url base64 bloating responses (2.6MB per owner → limited projection)
-- FIXED: Cast IMDb ratings migration (zero ratings recalculated)
+- FIXED: Step 12 wizard error for emerging screenplays (actors format)
+- FIXED: AI poster polling resilience
+- FIXED: CineBoard N+1 query problem (bulk fetches)
+- FIXED: Owner avatar_url base64 bloating responses (2.6MB per owner)
+- FIXED: Cast IMDb ratings migration
 - FIXED: Cast skills normalization (all 8 skills, range 1-100)
+- FIXED: Bozze button in bottom nav navigating to wrong route (/film-drafts → /drafts)
+- FIXED: CineBoard poster loading via dedicated endpoint (lazy loading)
+- FIXED: CineBoard navbar icon changed to Trophy
 
-## Known Issues
-- **Production environment down** (external infrastructure issue - BLOCKED)
-- Infrastructure Market feature disabled (P1)
+## Known Issues / Pending
+- 🔴 **Major crash** — clicking on majors shows "Something went wrong"
+- 🔴 **Infrastructure feature disabled** — needs reactivation
+- 🟡 **Voci del pubblico** — section shows nothing
+- 🟡 **Production environment down** (external infrastructure issue)
 
-## Backlog
-- P1: Re-enable Infrastructure Market
-- P2: CineCoins Purchase System (Stripe)
-- P2: Major Studio Activities
-- P3: Robust Data Migration Script
+## Planned Features (NOT YET IMPLEMENTED)
+
+### P0: Scuola di Recitazione (Acting School) — DETAILED SPEC
+A complete actor training system within the Infrastructure feature:
+
+**Infrastructure Levels & Training Slots (exponential):**
+- Level 1: 1 actor training slot
+- Level 5: 2 actors simultaneously
+- Scaling exponentially up to 20 max concurrent trainees
+
+**Trainee Generation:**
+- Age range: 16-60 years old
+- Initial skills: very low (3-5 visible skills out of 8)
+- Initial assessment: "promising" or "less promising" label
+- Even "less promising" actors can become great (hidden talent)
+
+**Hidden Talent System:**
+- Every actor has a hidden talent score (unknown to player)
+- Talent determines: growth speed, final skill ceiling, skill distribution
+- A "less promising" actor can have max talent → exponential growth
+- Training duration: 10-20 days based on talent (high talent = faster)
+
+**Growth Mechanics:**
+- Skills grow over 10-20 real days
+- Growth curve based on hidden talent (linear for low talent, exponential for high)
+- Final skills will be uniform with existing database actors (not all 100s)
+- Skills use the existing 1-100 system with 8 skills per actor
+
+**Completion Options:**
+1. **Keep Engaged:** Monthly salary (lower than normal hiring costs), actor appears first in film wizard cast list (optional selection), usable in own films at no additional cost, engagement for variable duration
+2. **Release:** Actor becomes available to all players for normal hiring
+
+**Notifications:**
+- When actor completes training, social notification:
+  - If kept: "[Player] has trained a potential star [Actor Name] (clickable popup with all skills) — will use in their films"
+  - If released: "[Player] has trained a potential star [Actor Name] (clickable popup with skills + Hire button)"
+- Hire button in popup: choose 1+ films, fixed cost engagement
+
+### P1: Fix Major Studios Crash
+### P1: Reactivate Infrastructure Market  
+### P2: CineCoins Purchase System (Stripe)
+### P2: Fix Voci del Pubblico (empty section)
+### P3: Robust Data Migration Script

@@ -232,6 +232,13 @@ async def get_daily_contests(user: dict = Depends(get_current_user)):
         {'user_id': user['id'], 'date': day_start_str}, {'_id': 0}
     )
     
+    # Migrate old 3-contest records to new 10-contest system
+    if progress and len(progress.get('contests', [])) < len(CONTEST_DEFINITIONS):
+        # Keep completed status of old contests, regenerate with new ones
+        old_completed = {c['contest_id']: c for c in progress.get('contests', []) if c.get('completed')}
+        await db.cinepass_contests.delete_one({'user_id': user['id'], 'date': day_start_str})
+        progress = None  # Force regeneration below
+    
     if not progress:
         # Generate all 10 contests with random unlock times across 24h from noon
         sorted_contests = sorted(CONTEST_DEFINITIONS, key=lambda c: c['order'])

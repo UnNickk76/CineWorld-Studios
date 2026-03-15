@@ -1762,16 +1762,24 @@ const ChallengesPage = () => {
                 </motion.div>
                 
                 {/* Prize info */}
-                {isWinner && (
+                {(isWinner || isDraw) && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 }}
-                    className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4"
+                    className="bg-yellow-500/10 border-2 border-yellow-500/40 rounded-lg p-4 mb-4"
                   >
-                    <p className="text-yellow-400 font-bold text-lg">+$100.000</p>
-                    {lastCinepassReward > 0 && (
-                      <p className="text-cyan-400 font-bold text-lg" data-testid="cinepass-reward-display">+{lastCinepassReward} CinePass</p>
-                    )}
-                    <p className="text-xs text-gray-400">Montepremi incassato!</p>
+                    <p className="text-yellow-400 font-bold text-xl">+$100.000</p>
+                    <p className="text-cyan-400 font-bold text-xl" data-testid="cinepass-reward-display">+2 CinePass</p>
+                    <p className="text-xs text-gray-400 mt-1">Montepremi incassato!</p>
+                  </motion.div>
+                )}
+                
+                {/* Loss - no reward */}
+                {!isWinner && !isDraw && (
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+                    className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 mb-4"
+                  >
+                    <p className="text-red-400/60 text-sm">Nessun premio. Riprova!</p>
                   </motion.div>
                 )}
 

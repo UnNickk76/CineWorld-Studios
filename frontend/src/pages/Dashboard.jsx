@@ -56,6 +56,7 @@ const Dashboard = () => {
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collecting, setCollecting] = useState(false);
   const [emergingCount, setEmergingCount] = useState(0);
+  const [availableContests, setAvailableContests] = useState(0);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -201,6 +202,12 @@ const Dashboard = () => {
         try {
           const emergingRes = await api.get('/emerging-screenplays/count');
           setEmergingCount(emergingRes.data.new || 0);
+        } catch {}
+        // Fetch available contests count for badge
+        try {
+          const contestsRes = await api.get('/cinepass/contests');
+          const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
+          setAvailableContests(available);
         } catch {}
       } catch (err) {
         console.error(err);
@@ -386,10 +393,11 @@ const Dashboard = () => {
             {emergingCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{emergingCount}</span>}
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border-cyan-500/20 cursor-pointer" onClick={() => navigate('/games')} data-testid="contests-box">
+        <Card className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border-cyan-500/20 cursor-pointer relative" onClick={() => navigate('/games')} data-testid="contests-box">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-cyan-500 rounded-lg"><Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Contest' : 'Contests'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Guadagna CinePass' : 'Earn CinePass'}</p></div>
+            {availableContests > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{availableContests}</span>}
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-500/20 to-purple-600/5 border-purple-500/20 cursor-pointer" onClick={() => navigate('/social')}>

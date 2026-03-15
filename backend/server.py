@@ -5192,72 +5192,58 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
-    {'version': '0.077', 'date': '2026-03-15', 'title': 'Admin, Tutorial & Bilanciamento',
+    {'version': '0.129', 'date': '2026-03-15', 'title': 'Velocità Mobile & Fix Vari',
+     'changes': [
+         {'type': 'improvement', 'text': 'Navigazione mobile molto più veloce: transizioni pagina dimezzate e cache dati intelligente'},
+         {'type': 'fix', 'text': 'Fix "autenticazione fallita" al refresh: il token scaduto viene ora gestito automaticamente senza dover ricaricare più volte'},
+         {'type': 'improvement', 'text': 'Retry automatico: se una chiamata fallisce per problemi di rete, il gioco riprova 1 volta da solo'},
+         {'type': 'improvement', 'text': 'Timeout API ridotto da 2 minuti a 30 secondi per maggiore reattività'},
+         {'type': 'fix', 'text': 'Corretto orario azzeramento giorno: 11:00 italiane (era scritto 12:00)'},
+         {'type': 'fix', 'text': 'Dashboard mobile: griglia film ora mostra 9 film (3x3 perfetto, non più 1 film orfano)'},
+     ]},
+    {'version': '0.128', 'date': '2026-03-15', 'title': 'Fix CinePass & Contest Migliorati',
+     'changes': [
+         {'type': 'fix', 'text': 'Fix costo doppio CinePass: acquistare una sceneggiatura emergente non addebita più 20 CinePass extra alla creazione del film'},
+         {'type': 'improvement', 'text': 'Contest: domande molto più varie e meno ripetitive (banca domande ampliata)'},
+         {'type': 'fix', 'text': 'Fix layout mobile pagina Contest: titolo ora visibile e pagina completamente scrollabile'},
+     ]},
+    {'version': '0.127', 'date': '2026-03-15', 'title': 'Admin, Tutorial & Bilanciamento',
      'changes': [
          {'type': 'new', 'text': 'Pannello Admin: toggle donazioni nel profilo (solo NeoMorpheus)'},
          {'type': 'new', 'text': 'Sistema ruoli utente: l\'admin può assegnare moderatore, VIP, tester'},
          {'type': 'improvement', 'text': 'Tutorial aggiornato: 14 sezioni con sfide 1v1, 10 contest, donazioni'},
          {'type': 'improvement', 'text': 'Entrate orarie ribilanciate: base +60%, bonus per cinema multipli, +50% presenze'},
      ]},
-    {'version': '0.076', 'date': '2026-03-15', 'title': 'Supporta CineWorld',
+    {'version': '0.126', 'date': '2026-03-15', 'title': 'Donazioni, UI & Bilanciamento Sfide',
      'changes': [
          {'type': 'new', 'text': 'Pulsante donazioni: supporta lo sviluppo con una donazione libera tramite PayPal'},
          {'type': 'new', 'text': 'Barra donazione fissa in basso (mobile) + icona nel menu'},
-     ]},
-    {'version': '0.075', 'date': '2026-03-15', 'title': 'Bilanciamento Sfide 1v1',
-     'changes': [
          {'type': 'fix', 'text': 'Premio +2 CinePass ora visibile nel riepilogo vittoria (era assegnato ma non mostrato)'},
          {'type': 'improvement', 'text': 'Bilanciamento sfide: skill uguali → ~80% pareggio, 1 punto differenza → ~55% pareggio'},
          {'type': 'improvement', 'text': 'Tradotto "UPSET" in "SORPRESA!" nel riepilogo round'},
-         {'type': 'fix', 'text': 'Rimossi pareggi ingiusti con punteggi diversi e vittorie con punteggi uguali'},
-     ]},
-    {'version': '0.074', 'date': '2026-03-15', 'title': 'UI Migliorata & Festival Accessibili',
-     'changes': [
          {'type': 'improvement', 'text': 'Cinema cliccabile nel dettaglio film: popup con distribuzione per paese'},
          {'type': 'improvement', 'text': 'Rimossa legenda punteggi dal CineBoard (calcolo invariato)'},
-         {'type': 'fix', 'text': 'Costo creazione festival ribilanciato: ~$3M a livello 67, ~$11M a livello 200'},
-         {'type': 'improvement', 'text': 'Festival ora creabile da qualsiasi livello (costo scala col livello)'},
+         {'type': 'fix', 'text': 'Costo creazione festival ribilanciato (costo scala col livello)'},
      ]},
-    {'version': '0.073', 'date': '2026-03-14', 'title': 'Economia Bilanciata & Sessione Persistente',
+    {'version': '0.125', 'date': '2026-03-14', 'title': 'Sessione Persistente, Skill & Ottimizzazione',
      'changes': [
          {'type': 'new', 'text': 'Checkbox "Ricordami" al login (sessione 90 giorni)'},
          {'type': 'new', 'text': '+1 CinePass automatico al rientro (cooldown 1 ora)'},
          {'type': 'new', 'text': 'Ultimo accesso visibile nella lista giocatori'},
          {'type': 'new', 'text': '10 contest giornalieri (50 CinePass totali) con sblocco progressivo'},
          {'type': 'improvement', 'text': '+20% guadagni su tutte le infrastrutture e incassi orari film'},
-         {'type': 'fix', 'text': 'Fix +2 CinePass per vittoria sfide 1v1 (aggiornamento saldo)'},
-     ]},
-    {'version': '0.072', 'date': '2026-03-14', 'title': 'Programmazione Cinema & Skill Attori',
-     'changes': [
          {'type': 'new', 'text': 'Indicatori ▲/▼ per variazioni skill degli attori'},
          {'type': 'new', 'text': '+15% presenze per film di proprietà programmati nei cinema'},
-         {'type': 'improvement', 'text': 'Durata programmazione film limitata a 1-4 settimane'},
-         {'type': 'improvement', 'text': 'Estensione film usabile solo 1 volta (era 3)'},
-         {'type': 'improvement', 'text': 'Fattori performance tradotti in italiano'},
-     ]},
-    {'version': '0.071', 'date': '2026-03-14', 'title': 'Voci dal Pubblico & Ottimizzazione',
-     'changes': [
          {'type': 'fix', 'text': 'Fix sezione "Voci dal Pubblico" nel Cinema Journal (era vuota)'},
-         {'type': 'fix', 'text': 'Fix Major Studios - tradotto badge "Livello"'},
          {'type': 'improvement', 'text': 'Ottimizzazione API: da 78MB a 770KB per il Cinema Journal'},
-         {'type': 'fix', 'text': 'Fix errore datetime nel sistema catchup'},
      ]},
-    {'version': '0.070', 'date': '2026-03-14', 'title': 'CinePass Sfide & Limiti',
+    {'version': '0.124', 'date': '2026-03-14', 'title': 'Traduzione, CinePass Sfide & Fix Cinema',
      'changes': [
+         {'type': 'improvement', 'text': 'Traduzione completa interfaccia e messaggi errore in italiano'},
+         {'type': 'improvement', 'text': 'Film ordinati dal più recente nella pagina "I Miei Film"'},
          {'type': 'new', 'text': 'Costo CinePass per upgrade infrastrutture (formula esponenziale)'},
          {'type': 'new', 'text': '+2 CinePass per vittoria sfide 1v1'},
          {'type': 'new', 'text': 'Limiti sfide: 5 all\'ora, 20 al giorno con contatore visivo'},
-     ]},
-    {'version': '0.069', 'date': '2026-03-14', 'title': 'Traduzione Italiana Completa',
-     'changes': [
-         {'type': 'improvement', 'text': 'Traduzione completa interfaccia in italiano'},
-         {'type': 'improvement', 'text': 'Traduzione messaggi errore backend (15+ messaggi)'},
-         {'type': 'improvement', 'text': 'Traduzione pagina login, dashboard, profilo, chat'},
-     ]},
-    {'version': '0.068', 'date': '2026-03-14', 'title': 'Ordinamento Film & Fix Cinema',
-     'changes': [
-         {'type': 'improvement', 'text': 'Film ordinati dal più recente nella pagina "I Miei Film"'},
-         {'type': 'new', 'text': 'Icone genere colorate (rosa ♀ / blu ♂)'},
          {'type': 'fix', 'text': 'Fix aggiunta film al cinema (calcolo schermi per livello)'},
      ]},
     # Latest first - These will be migrated to database on startup
@@ -5776,7 +5762,7 @@ def get_next_version():
 
 @api_router.get("/release-notes")
 async def get_release_notes():
-    """Get all release notes from database, sorted by version descending."""
+    """Get all release notes from database, sorted by newest first."""
     # Try to get from database first
     db_notes = await db.release_notes.find({}, {'_id': 0}).sort('version', -1).to_list(1000)
     

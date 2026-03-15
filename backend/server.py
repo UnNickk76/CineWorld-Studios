@@ -1094,6 +1094,10 @@ class FilmCreate(BaseModel):
     # Sequel system
     is_sequel: bool = False
     sequel_parent_id: Optional[str] = None  # ID of the original film
+    # Emerging screenplay system
+    emerging_screenplay_id: Optional[str] = None
+    emerging_screenplay: Optional[Dict[str, Any]] = None
+    emerging_option: Optional[str] = None  # 'full_package' or 'screenplay_only'
 
 class FilmDraft(BaseModel):
     """Model for saving incomplete film drafts."""

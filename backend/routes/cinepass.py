@@ -85,39 +85,18 @@ def get_italian_day_start():
 
 # ===== Daily Contests =====
 CONTEST_DEFINITIONS = [
-    {
-        'id': 'budget_guess',
-        'name': 'Indovina il Budget',
-        'description': 'Ti mostreremo un film con cast e genere. Indovina il budget!',
-        'icon': 'dollar-sign',
-        'reward': 12,
-        'type': 'budget_guess'
-    },
-    {
-        'id': 'cast_match',
-        'name': 'Cast Perfetto',
-        'description': 'Scegli l\'attore migliore per il ruolo proposto!',
-        'icon': 'users',
-        'reward': 15,
-        'type': 'cast_match'
-    },
-    {
-        'id': 'box_office',
-        'name': 'Box Office Prediction',
-        'description': 'Prevedi il risultato al botteghino del film!',
-        'icon': 'trending-up',
-        'reward': 12,
-        'type': 'box_office'
-    },
-    {
-        'id': 'trivia_speed',
-        'name': 'Speed Producer',
-        'description': 'Rispondi a 5 domande sul cinema in 30 secondi!',
-        'icon': 'zap',
-        'reward': 18,
-        'type': 'trivia_speed'
-    },
+    {'id': 'budget_guess', 'name': 'Indovina il Budget', 'description': 'Indovina il budget del film mostrato!', 'icon': 'dollar-sign', 'reward': 8, 'type': 'budget_guess', 'order': 1},
+    {'id': 'cast_match', 'name': 'Cast Perfetto', 'description': 'Scegli l\'attore migliore per il ruolo!', 'icon': 'users', 'reward': 7, 'type': 'cast_match', 'order': 2},
+    {'id': 'box_office', 'name': 'Box Office Prediction', 'description': 'Prevedi il risultato al botteghino!', 'icon': 'trending-up', 'reward': 6, 'type': 'box_office', 'order': 3},
+    {'id': 'trivia_speed', 'name': 'Speed Producer', 'description': 'Rispondi a 5 domande in 30 secondi!', 'icon': 'zap', 'reward': 5, 'type': 'trivia_speed', 'order': 4},
+    {'id': 'genre_expert', 'name': 'Esperto di Generi', 'description': 'Abbina il film al genere corretto!', 'icon': 'film', 'reward': 5, 'type': 'genre_expert', 'order': 5},
+    {'id': 'director_quiz', 'name': 'Quiz Registi', 'description': 'Indovina il regista del film!', 'icon': 'clapperboard', 'reward': 5, 'type': 'director_quiz', 'order': 6},
+    {'id': 'poster_rating', 'name': 'Giudica il Poster', 'description': 'Valuta la qualità del poster!', 'icon': 'image', 'reward': 4, 'type': 'poster_rating', 'order': 7},
+    {'id': 'audience_predict', 'name': 'Predici il Pubblico', 'description': 'Stima le presenze in sala!', 'icon': 'users', 'reward': 4, 'type': 'audience_predict', 'order': 8},
+    {'id': 'score_guess', 'name': 'Indovina il Punteggio', 'description': 'Indovina la valutazione IMDb!', 'icon': 'star', 'reward': 3, 'type': 'score_guess', 'order': 9},
+    {'id': 'daily_bonus', 'name': 'Bonus Finale', 'description': 'Completa tutti i contest per il bonus!', 'icon': 'gift', 'reward': 3, 'type': 'daily_bonus', 'order': 10},
 ]
+# Total: 8+7+6+5+5+5+4+4+3+3 = 50 CinePass
 
 
 # ===== API Endpoints =====
@@ -243,9 +222,10 @@ async def claim_login_reward(user: dict = Depends(get_current_user)):
 
 @router.get("/contests")
 async def get_daily_contests(user: dict = Depends(get_current_user)):
-    """Get today's available contests."""
+    """Get today's available contests with progressive unlock at random times."""
     day_start = get_italian_day_start()
     day_start_str = day_start.isoformat()
+    now = datetime.now(timezone.utc)
     
     # Get user's contest progress for today
     progress = await db.cinepass_contests.find_one(
@@ -253,24 +233,60 @@ async def get_daily_contests(user: dict = Depends(get_current_user)):
     )
     
     if not progress:
-        # Generate today's contests (random 3 out of 4)
-        shuffled = random.sample(CONTEST_DEFINITIONS, 3)
+        # Generate all 10 contests with random unlock times across 24h from noon
+        sorted_contests = sorted(CONTEST_DEFINITIONS, key=lambda c: c['order'])
+        
+        # Generate random unlock offsets (in minutes) across 24 hours
+        # First contest unlocks immediately, rest spread randomly
+        unlock_offsets = [0]  # First contest at 0 minutes
+        for i in range(1, len(sorted_contests)):
+            # Spread across 24h (1440 min), each contest has a random time after the previous slot
+            slot_start = int((i / len(sorted_contests)) * 1440)
+            slot_end = int(((i + 0.5) / len(sorted_contests)) * 1440)
+            offset = random.randint(slot_start, min(slot_end, 1439))
+            unlock_offsets.append(offset)
+        
+        contests_list = []
+        for i, c in enumerate(sorted_contests):
+            unlock_time = (day_start + timedelta(minutes=unlock_offsets[i])).isoformat()
+            contests_list.append({
+                'contest_id': c['id'], 'name': c['name'], 'description': c['description'],
+                'icon': c['icon'], 'reward': c['reward'], 'type': c['type'],
+                'order': c['order'], 'unlock_time': unlock_time,
+                'status': 'available' if i == 0 else 'locked',
+                'completed': False, 'earned': 0
+            })
+        
         progress = {
             'id': str(uuid.uuid4()),
             'user_id': user['id'],
             'date': day_start_str,
-            'contests': [
-                {'contest_id': c['id'], 'name': c['name'], 'description': c['description'],
-                 'icon': c['icon'], 'reward': c['reward'], 'type': c['type'],
-                 'status': 'locked' if i > 0 else 'available', 'completed': False, 'earned': 0}
-                for i, c in enumerate(shuffled)
-            ],
+            'contests': contests_list,
             'total_earned': 0,
             'all_completed': False
         }
         await db.cinepass_contests.insert_one(progress)
         progress.pop('_id', None)
     
+    # Update unlock status based on current time and completion
+    contests = progress['contests']
+    for i, c in enumerate(contests):
+        if c['completed']:
+            c['status'] = 'completed'
+        elif i == 0 and not c['completed']:
+            c['status'] = 'available'
+        elif i > 0:
+            prev_completed = contests[i-1].get('completed', False)
+            unlock_time = c.get('unlock_time', day_start_str)
+            unlock_dt = datetime.fromisoformat(unlock_time.replace('Z', '+00:00'))
+            if prev_completed and now >= unlock_dt:
+                c['status'] = 'available'
+            elif prev_completed:
+                c['status'] = 'timed_lock'  # Completed prev but time not reached
+            else:
+                c['status'] = 'locked'
+    
+    progress['contests'] = contests
     return progress
 
 
@@ -294,6 +310,10 @@ async def start_contest(contest_id: str, user: dict = Depends(get_current_user))
     
     if contest['status'] == 'locked':
         raise HTTPException(status_code=400, detail="Devi completare il contest precedente prima!")
+    
+    if contest['status'] == 'timed_lock':
+        unlock_time = contest.get('unlock_time', '')
+        raise HTTPException(status_code=400, detail=f"Questo contest si sbloccherà presto. Riprova più tardi!")
     
     # Generate challenge data based on type
     challenge_data = await generate_contest_challenge(contest['type'])
@@ -350,10 +370,10 @@ async def submit_contest(contest_id: str, body: dict, user: dict = Depends(get_c
     total_earned = progress['total_earned'] + earned
     all_completed = all(c['completed'] for c in contests)
     
-    # Bonus for completing all
-    bonus = 5 if all_completed else 0
-    total_earned_with_bonus = min(total_earned + bonus, MAX_DAILY_CONTEST_CREDITS)
-    earned_total = earned + bonus
+    # Bonus for completing all contests
+    bonus = 0  # All rewards already included in 50 total
+    total_earned_with_bonus = total_earned
+    earned_total = earned
     
     await db.cinepass_contests.update_one(
         {'id': progress['id']},
@@ -398,6 +418,12 @@ async def generate_contest_challenge(contest_type: str):
         return await _generate_box_office()
     elif contest_type == 'trivia_speed':
         return _generate_trivia()
+    elif contest_type == 'genre_expert':
+        return await _generate_genre_expert()
+    elif contest_type == 'director_quiz':
+        return await _generate_director_quiz()
+    elif contest_type in ('poster_rating', 'audience_predict', 'score_guess', 'daily_bonus'):
+        return _generate_trivia()  # Fallback to trivia for new types
     return {}
 
 
@@ -500,8 +526,47 @@ def _generate_trivia():
         {'q': 'Cosa fa il "gaffer" sul set?', 'options': ['Capo elettricista/luci', 'Dirige gli attori', 'Scrive il copione', 'Gestisce il budget'], 'correct': 'Capo elettricista/luci'},
         {'q': 'Cos\'è un "prequel"?', 'options': ['Film ambientato prima', 'Remake', 'Sequel', 'Spin-off'], 'correct': 'Film ambientato prima'},
         {'q': 'Cosa sono gli "outtakes"?', 'options': ['Scene tagliate/errori', 'Effetti speciali', 'Musiche originali', 'Scene eliminate'], 'correct': 'Scene tagliate/errori'},
-        {'q': 'Cos\'è il "foley" nel cinema?', 'options': ['Effetti sonori riprodotti', 'Tecnica di montaggio', 'Tipo di ripresa', 'Stile recitativo'], 'correct': 'Effetti sonori riprodotti'},
-        {'q': 'Chi sceglie le location del film?', 'options': ['Location scout', 'Regista', 'Produttore', 'Sceneggiatore'], 'correct': 'Location scout'},
     ]
     selected = random.sample(questions, min(5, len(questions)))
     return {'questions': selected}
+
+
+async def _generate_genre_expert():
+    """Match film to correct genre."""
+    film = await db.films.aggregate([
+        {'$match': {'genre': {'$exists': True}}},
+        {'$sample': {'size': 1}},
+        {'$project': {'_id': 0, 'title': 1, 'genre': 1}}
+    ]).to_list(1)
+    if not film:
+        return _generate_trivia()
+    f = film[0]
+    genres = ['Azione', 'Commedia', 'Dramma', 'Horror', 'Fantascienza', 'Thriller', 'Romantico', 'Avventura']
+    correct = f.get('genre', 'Dramma')
+    options = [correct]
+    for g in random.sample(genres, len(genres)):
+        if g != correct and len(options) < 4:
+            options.append(g)
+    random.shuffle(options)
+    return {'title': f.get('title', '?'), 'options': options, 'correct': correct}
+
+
+async def _generate_director_quiz():
+    """Guess which director made the film."""
+    film = await db.films.aggregate([
+        {'$match': {'director.name': {'$exists': True}}},
+        {'$sample': {'size': 1}},
+        {'$project': {'_id': 0, 'title': 1, 'genre': 1, 'director': 1}}
+    ]).to_list(1)
+    if not film:
+        return _generate_trivia()
+    f = film[0]
+    correct = f.get('director', {}).get('name', '?')
+    directors = await db.people.aggregate([
+        {'$match': {'type': 'director', 'name': {'$ne': correct}}},
+        {'$sample': {'size': 3}},
+        {'$project': {'_id': 0, 'name': 1}}
+    ]).to_list(3)
+    options = [correct] + [d['name'] for d in directors]
+    random.shuffle(options)
+    return {'title': f.get('title', '?'), 'genre': f.get('genre', '?'), 'options': options, 'correct': correct}

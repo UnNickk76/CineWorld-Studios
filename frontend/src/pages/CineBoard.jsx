@@ -176,31 +176,7 @@ const CineBoard = () => {
         </TabsList>
       </Tabs>
       
-      {/* Score Legend */}
-      <Card className="bg-[#1A1A1A] border-white/10 p-3 mb-4">
-        <div className="flex flex-wrap gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <span className="text-gray-400">{language === 'it' ? 'Qualità 30%' : 'Quality 30%'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-gray-400">{language === 'it' ? 'Incassi 25%' : 'Revenue 25%'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-pink-500"></div>
-            <span className="text-gray-400">{language === 'it' ? 'Popolarità 20%' : 'Popularity 20%'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-            <span className="text-gray-400">{language === 'it' ? 'Premi 15%' : 'Awards 15%'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-gray-400">{language === 'it' ? 'Longevità 10%' : 'Longevity 10%'}</span>
-          </div>
-        </div>
-      </Card>
+      {/* Score Legend removed - scoring still in backend calculation */}
       
       {/* Film List - Only for now_playing and hall_of_fame tabs */}
       {activeTab !== 'attendance' && (loading ? (

@@ -58,8 +58,8 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token, api]);
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = async (email, password, remember_me = true) => {
+    const res = await api.post('/auth/login', { email, password, remember_me });
     localStorage.setItem('cineworld_token', res.data.access_token);
     if (res.data.user?.language) {
       localStorage.setItem('cineworld_lang', res.data.user.language);

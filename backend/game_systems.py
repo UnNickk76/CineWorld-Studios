@@ -725,8 +725,9 @@ def calculate_cinema_daily_revenue(cinema: dict, films_showing: List[dict], fame
     ticket_revenue = daily_attendance * prices.get('ticket_adult', 12)
     food_revenue = daily_attendance * 0.6 * 8  # 60% buy food, avg $8
     
-    # Apply infrastructure multiplier
-    total_revenue = int((ticket_revenue + food_revenue) * infra.get('revenue_multiplier', 1.0))
+    # Apply infrastructure multiplier + global 20% boost
+    GLOBAL_REVENUE_BOOST = 1.20
+    total_revenue = int((ticket_revenue + food_revenue) * infra.get('revenue_multiplier', 1.0) * GLOBAL_REVENUE_BOOST)
     
     return {
         'total': total_revenue,
@@ -1099,6 +1100,9 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     elif days_in_theater == 3 and soundtrack_boost:
         soundtrack_mult = soundtrack_boost.get('day_3_multiplier', 1.0)
     final_revenue *= soundtrack_mult
+    
+    # Global 20% revenue boost
+    final_revenue *= 1.20
     
     final_revenue = max(100, int(final_revenue))  # Minimum $100
     

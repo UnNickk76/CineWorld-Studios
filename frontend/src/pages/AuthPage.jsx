@@ -48,6 +48,7 @@ import { SKILL_TRANSLATIONS } from '../constants';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -77,7 +78,7 @@ const AuthPage = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        await login(formData.email, formData.password);
+        await login(formData.email, formData.password, rememberMe);
       } else {
         await register({ ...formData, age: parseInt(formData.age), language });
       }
@@ -248,6 +249,22 @@ const AuthPage = () => {
                     </label>
                   </div>
                 </>
+              )}
+
+              {isLogin && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="remember-me"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-3.5 h-3.5 accent-yellow-500 cursor-pointer"
+                    data-testid="remember-me-checkbox"
+                  />
+                  <label htmlFor="remember-me" className="text-xs text-gray-400 cursor-pointer">
+                    {language === 'it' ? 'Ricordami' : 'Remember me'}
+                  </label>
+                </div>
               )}
 
               <Button 

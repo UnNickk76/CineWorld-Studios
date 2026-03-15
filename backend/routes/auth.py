@@ -115,8 +115,11 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user['password']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Update last_active timestamp
+    await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
+    
     user_response = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
-    token = create_token(user['id'])
+    token = create_token(user['id'], remember_me=credentials.remember_me)
     
     return TokenResponse(access_token=token, user=UserResponse(**user_response))
 
@@ -219,6 +222,30 @@ async def verify_recovery_token(token: str):
 
 @router.get("/auth/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    last_active = user.get('last_active')
+    
+    # +1 CinePass if more than 1 hour since last activity
+    cinepass_bonus = 0
+    if last_active:
+        if isinstance(last_active, str):
+            last_active_dt = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+        else:
+            last_active_dt = last_active if last_active.tzinfo else last_active.replace(tzinfo=timezone.utc)
+        hours_since = (now - last_active_dt).total_seconds() / 3600
+        if hours_since >= 1:
+            cinepass_bonus = 1
+    else:
+        cinepass_bonus = 1  # First time
+    
+    update = {'$set': {'last_active': now.isoformat()}}
+    if cinepass_bonus > 0:
+        update['$inc'] = {'cinepass': cinepass_bonus}
+    await db.users.update_one({'id': user['id']}, update)
+    
+    if cinepass_bonus > 0:
+        user['cinepass'] = user.get('cinepass', 0) + cinepass_bonus
+    
     return UserResponse(**{k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']})
 
 

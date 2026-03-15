@@ -21,11 +21,12 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_token(user_id: str) -> str:
+def create_token(user_id: str, remember_me: bool = False) -> str:
     from datetime import datetime, timezone, timedelta
+    expire_days = 90 if remember_me else 30
     payload = {
         "user_id": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(days=30)
+        "exp": datetime.now(timezone.utc) + timedelta(days=expire_days)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

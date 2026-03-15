@@ -736,10 +736,48 @@ const FilmDetail = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                  <div className="p-2 rounded bg-black/20 text-center">
-                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Cinema' : 'Cinemas'}</p>
-                    <p className="text-xl font-bold text-blue-400">{distribution.current_cinemas}</p>
-                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <div className="p-2 rounded bg-black/20 text-center cursor-pointer hover:bg-black/40 transition-colors ring-1 ring-blue-500/30" data-testid="cinema-distribution-trigger">
+                        <p className="text-[10px] text-gray-400">{language === 'it' ? 'Cinema' : 'Cinemas'}</p>
+                        <p className="text-xl font-bold text-blue-400">{distribution.current_cinemas}</p>
+                        <p className="text-[8px] text-blue-400/60 mt-0.5">{language === 'it' ? 'Dettagli' : 'Details'}</p>
+                      </div>
+                    </DialogTrigger>
+                    <DialogContent className="bg-[#1a1a2e] border-blue-500/30 max-w-md max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                          <MapPin className="w-5 h-5 text-blue-400" />
+                          {language === 'it' ? 'Distribuzione per Paese' : 'Distribution by Country'}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-1.5">
+                        {distribution.distribution?.map((country, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 rounded bg-black/20">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{
+                                country.country_code === 'US' ? '🇺🇸' :
+                                country.country_code === 'IT' ? '🇮🇹' :
+                                country.country_code === 'FR' ? '🇫🇷' :
+                                country.country_code === 'DE' ? '🇩🇪' :
+                                country.country_code === 'UK' ? '🇬🇧' :
+                                country.country_code === 'ES' ? '🇪🇸' :
+                                country.country_code === 'JP' ? '🇯🇵' :
+                                country.country_code === 'CN' ? '🇨🇳' :
+                                country.country_code === 'BR' ? '🇧🇷' :
+                                country.country_code === 'MX' ? '🇲🇽' : '🌍'
+                              }</span>
+                              <span className="font-medium">{country.country_name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="text-blue-400">{country.cinemas} {language === 'it' ? 'cinema' : 'cinemas'}</span>
+                              <span className="text-green-400">{country.total_attendance?.toLocaleString()} {language === 'it' ? 'spett.' : 'viewers'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <div className="p-2 rounded bg-black/20 text-center">
                     <p className="text-[10px] text-gray-400">{language === 'it' ? 'Spettatori' : 'Viewers'}</p>
                     <p className="text-xl font-bold text-green-400">{distribution.current_attendance?.toLocaleString()}</p>
@@ -752,36 +790,6 @@ const FilmDetail = () => {
                     <p className="text-[10px] text-gray-400">{language === 'it' ? 'Totale Storico' : 'Total All-Time'}</p>
                     <p className="text-xl font-bold text-purple-400">{(distribution.cumulative_attendance || 0).toLocaleString()}</p>
                   </div>
-                </div>
-                
-                {/* Country distribution */}
-                <div className="space-y-1.5">
-                  <p className="text-xs text-gray-400 uppercase font-semibold mb-2">
-                    {language === 'it' ? 'Distribuzione per Paese' : 'Distribution by Country'}
-                  </p>
-                  {distribution.distribution?.map((country, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded bg-black/20">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{
-                          country.country_code === 'US' ? '🇺🇸' :
-                          country.country_code === 'IT' ? '🇮🇹' :
-                          country.country_code === 'FR' ? '🇫🇷' :
-                          country.country_code === 'DE' ? '🇩🇪' :
-                          country.country_code === 'UK' ? '🇬🇧' :
-                          country.country_code === 'ES' ? '🇪🇸' :
-                          country.country_code === 'JP' ? '🇯🇵' :
-                          country.country_code === 'CN' ? '🇨🇳' :
-                          country.country_code === 'BR' ? '🇧🇷' :
-                          country.country_code === 'MX' ? '🇲🇽' : '🌍'
-                        }</span>
-                        <span className="font-medium">{country.country_name}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="text-blue-400">{country.cinemas} {language === 'it' ? 'cinema' : 'cinemas'}</span>
-                        <span className="text-green-400">{country.total_attendance?.toLocaleString()} {language === 'it' ? 'spett.' : 'viewers'}</span>
-                      </div>
-                    </div>
-                  ))}
                 </div>
                 
                 {/* Trend indicator */}

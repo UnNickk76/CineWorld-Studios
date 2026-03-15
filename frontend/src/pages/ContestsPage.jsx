@@ -5,10 +5,13 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Ticket, Lock, Check, Zap, TrendingUp, Users, DollarSign, Trophy } from 'lucide-react';
+import { Ticket, Lock, Check, Zap, TrendingUp, Users, DollarSign, Trophy, Film, Image, Star, Gift, Clock, Clapperboard } from 'lucide-react';
 import { toast } from 'sonner';
 
-const ICON_MAP = { 'dollar-sign': DollarSign, 'users': Users, 'trending-up': TrendingUp, 'zap': Zap };
+const ICON_MAP = { 
+  'dollar-sign': DollarSign, 'users': Users, 'trending-up': TrendingUp, 'zap': Zap,
+  'film': Film, 'clapperboard': Clapperboard, 'image': Image, 'star': Star, 'gift': Gift, 'clock': Clock
+};
 
 const ContestsPage = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -107,11 +110,11 @@ const ContestsPage = () => {
       {contests.map((c, i) => {
         const Icon = ICON_MAP[c.icon] || Zap;
         return (
-          <Card key={c.contest_id} className={`bg-[#1A1A1B] border-gray-800 ${c.status === 'locked' ? 'opacity-40' : ''}`} data-testid={`contest-card-${c.contest_id}`}>
+          <Card key={c.contest_id} className={`bg-[#1A1A1B] border-gray-800 ${c.status === 'locked' || c.status === 'timed_lock' ? 'opacity-40' : ''}`} data-testid={`contest-card-${c.contest_id}`}>
             <CardContent className="p-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${c.completed ? 'bg-green-500/20' : c.status === 'available' ? 'bg-cyan-500/20' : 'bg-gray-800'}`}>
-                  {c.completed ? <Check className="w-5 h-5 text-green-400" /> : c.status === 'locked' ? <Lock className="w-5 h-5 text-gray-600" /> : <Icon className="w-5 h-5 text-cyan-400" />}
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${c.completed ? 'bg-green-500/20' : c.status === 'available' ? 'bg-cyan-500/20' : c.status === 'timed_lock' ? 'bg-yellow-500/20' : 'bg-gray-800'}`}>
+                  {c.completed ? <Check className="w-5 h-5 text-green-400" /> : c.status === 'timed_lock' ? <Clock className="w-5 h-5 text-yellow-400" /> : c.status === 'locked' ? <Lock className="w-5 h-5 text-gray-600" /> : <Icon className="w-5 h-5 text-cyan-400" />}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">

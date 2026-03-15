@@ -49,9 +49,25 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 // useTranslations imported from contexts
 
 const ChallengesPage = () => {
-  const { user, api } = useContext(AuthContext);
+  const { user, api, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
   const navigate = useNavigate();
+  
+  // Helper for relative time display
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const now = new Date();
+    const date = new Date(dateStr);
+    const mins = Math.floor((now - date) / 60000);
+    if (mins < 1) return 'ora';
+    if (mins < 60) return `${mins} min fa`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h fa`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return 'ieri';
+    return `${days}g fa`;
+  };
+  
   const [view, setView] = useState('home'); // home, 1v1, 2v2, 3v3, 4v4, ffa, create, battle, leaderboard, pending, completed, history
   const [challengeType, setChallengeType] = useState(null);
   const [myFilms, setMyFilms] = useState([]);
@@ -282,6 +298,7 @@ const ChallengesPage = () => {
       const cinepassBonus = res.data.cinepass_reward || 0;
       const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
       toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
+      refreshUser();
       setActiveBattle(res.data.result);
       setView('battle');
       runBattleAnimation(res.data.result);
@@ -920,7 +937,7 @@ const ChallengesPage = () => {
                           <p className="text-[10px] text-gray-400">{p.production_house_name}</p>
                         </div>
                         <Badge className={`text-[10px] ${p.is_online ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                          {p.is_online ? 'Online' : 'Offline'}
+                          {p.is_online ? 'Online' : timeAgo(p.last_active) || 'Offline'}
                         </Badge>
                       </div>
                     ))}

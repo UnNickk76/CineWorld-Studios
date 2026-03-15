@@ -5191,6 +5191,55 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.074', 'date': '2026-03-15', 'title': 'UI Migliorata & Festival Accessibili',
+     'changes': [
+         {'type': 'improvement', 'text': 'Cinema cliccabile nel dettaglio film: popup con distribuzione per paese'},
+         {'type': 'improvement', 'text': 'Rimossa legenda punteggi dal CineBoard (calcolo invariato)'},
+         {'type': 'fix', 'text': 'Costo creazione festival ribilanciato: ~$3M a livello 67, ~$11M a livello 200'},
+         {'type': 'improvement', 'text': 'Festival ora creabile da qualsiasi livello (costo scala col livello)'},
+     ]},
+    {'version': '0.073', 'date': '2026-03-14', 'title': 'Economia Bilanciata & Sessione Persistente',
+     'changes': [
+         {'type': 'new', 'text': 'Checkbox "Ricordami" al login (sessione 90 giorni)'},
+         {'type': 'new', 'text': '+1 CinePass automatico al rientro (cooldown 1 ora)'},
+         {'type': 'new', 'text': 'Ultimo accesso visibile nella lista giocatori'},
+         {'type': 'new', 'text': '10 contest giornalieri (50 CinePass totali) con sblocco progressivo'},
+         {'type': 'improvement', 'text': '+20% guadagni su tutte le infrastrutture e incassi orari film'},
+         {'type': 'fix', 'text': 'Fix +2 CinePass per vittoria sfide 1v1 (aggiornamento saldo)'},
+     ]},
+    {'version': '0.072', 'date': '2026-03-14', 'title': 'Programmazione Cinema & Skill Attori',
+     'changes': [
+         {'type': 'new', 'text': 'Indicatori ▲/▼ per variazioni skill degli attori'},
+         {'type': 'new', 'text': '+15% presenze per film di proprietà programmati nei cinema'},
+         {'type': 'improvement', 'text': 'Durata programmazione film limitata a 1-4 settimane'},
+         {'type': 'improvement', 'text': 'Estensione film usabile solo 1 volta (era 3)'},
+         {'type': 'improvement', 'text': 'Fattori performance tradotti in italiano'},
+     ]},
+    {'version': '0.071', 'date': '2026-03-14', 'title': 'Voci dal Pubblico & Ottimizzazione',
+     'changes': [
+         {'type': 'fix', 'text': 'Fix sezione "Voci dal Pubblico" nel Cinema Journal (era vuota)'},
+         {'type': 'fix', 'text': 'Fix Major Studios - tradotto badge "Livello"'},
+         {'type': 'improvement', 'text': 'Ottimizzazione API: da 78MB a 770KB per il Cinema Journal'},
+         {'type': 'fix', 'text': 'Fix errore datetime nel sistema catchup'},
+     ]},
+    {'version': '0.070', 'date': '2026-03-14', 'title': 'CinePass Sfide & Limiti',
+     'changes': [
+         {'type': 'new', 'text': 'Costo CinePass per upgrade infrastrutture (formula esponenziale)'},
+         {'type': 'new', 'text': '+2 CinePass per vittoria sfide 1v1'},
+         {'type': 'new', 'text': 'Limiti sfide: 5 all\'ora, 20 al giorno con contatore visivo'},
+     ]},
+    {'version': '0.069', 'date': '2026-03-14', 'title': 'Traduzione Italiana Completa',
+     'changes': [
+         {'type': 'improvement', 'text': 'Traduzione completa interfaccia in italiano'},
+         {'type': 'improvement', 'text': 'Traduzione messaggi errore backend (15+ messaggi)'},
+         {'type': 'improvement', 'text': 'Traduzione pagina login, dashboard, profilo, chat'},
+     ]},
+    {'version': '0.068', 'date': '2026-03-14', 'title': 'Ordinamento Film & Fix Cinema',
+     'changes': [
+         {'type': 'improvement', 'text': 'Film ordinati dal più recente nella pagina "I Miei Film"'},
+         {'type': 'new', 'text': 'Icone genere colorate (rosa ♀ / blu ♂)'},
+         {'type': 'fix', 'text': 'Fix aggiunta film al cinema (calcolo schermi per livello)'},
+     ]},
     # Latest first - These will be migrated to database on startup
     {'version': '0.123', 'date': '2026-03-14', 'title': 'Nuovo Logo & Sfondo Cinematografico',
      'changes': [
@@ -7218,11 +7267,14 @@ async def get_all_players(user: dict = Depends(get_current_user)):
     """Get all players (for online/offline list) with online status."""
     all_users = await db.users.find(
         {'id': {'$ne': user['id']}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'accept_offline_challenges': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'accept_offline_challenges': 1, 'last_active': 1}
     ).limit(200).to_list(200)
     
     for u in all_users:
         u['is_online'] = u['id'] in online_users
+        # Ensure last_active is always present (None if not set)
+        if 'last_active' not in u:
+            u['last_active'] = None
     
     # Sort: online first, then alphabetically
     all_users.sort(key=lambda x: (not x['is_online'], x.get('nickname', '').lower()))
@@ -11797,13 +11849,14 @@ async def check_is_creator(user: dict = Depends(get_current_user)):
 
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 
-CUSTOM_FESTIVAL_MIN_LEVEL = 20  # Livello minimo per creare un festival
+CUSTOM_FESTIVAL_MIN_LEVEL = 1  # Nessun livello minimo - sempre possibile
 CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
-CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base
+CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base (legacy, unused now)
 
 def calculate_custom_festival_cost(creator_level: int) -> int:
-    """Costo esponenziale per creare un festival basato sul livello."""
-    return int(CUSTOM_FESTIVAL_BASE_COST * (1.15 ** (creator_level - CUSTOM_FESTIVAL_MIN_LEVEL)))
+    """Costo polinomiale per creare un festival basato sul livello.
+    ~$25K a livello 1, ~$3M a livello 67, ~$11M a livello 200."""
+    return int(25000 * (max(creator_level, 1) ** 1.15))
 
 def calculate_participation_cost(film_index: int, base_cost: int) -> int:
     """Costo esponenziale per ogni film aggiuntivo (1° film = base, 2° = base*1.5, etc.)."""

@@ -706,7 +706,19 @@ const FilmWizard = () => {
   const handleSubmit = async () => { 
     setLoading(true); 
     try { 
-      const res = await api.post('/films', {...filmData, release_date: releaseDate.toISOString()}); 
+      const payload = {
+        ...filmData, 
+        release_date: releaseDate.toISOString(),
+        // Pass emerging screenplay info so backend skips CinePass charge
+        emerging_screenplay_id: emergingScreenplay?.id || null,
+        emerging_option: emergingOption || null,
+      };
+      const res = await api.post('/films', payload); 
+      
+      // Delete draft if this was a resumed draft
+      if (resumedDraftId) {
+        api.delete(`/films/drafts/${resumedDraftId}`).catch(() => {});
+      }
       
       // Check if film got a special tier
       const tier = res.data.film_tier || 'normal';

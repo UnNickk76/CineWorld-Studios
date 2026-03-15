@@ -300,14 +300,16 @@ const ChallengesPage = () => {
       const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
       toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
       setLastCinepassReward(cinepassBonus);
-      refreshUser();
+      // Await refreshUser to ensure CinePass balance updates before UI
+      try { await refreshUser(); } catch {}
       setActiveBattle(res.data.result);
       setView('battle');
       runBattleAnimation(res.data.result);
       setShowOfflineDialog(false);
       setOfflineOpponent(null);
       setSelectedFilms([]);
-      loadData();
+      // loadData in background - errors won't affect the battle view
+      loadData().catch(() => {});
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore sfida offline');
     } finally {

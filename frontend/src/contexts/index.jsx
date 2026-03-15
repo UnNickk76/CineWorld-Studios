@@ -57,6 +57,8 @@ export const AuthProvider = ({ children }) => {
       timeout: 30000
     });
 
+    let consecutive401Count = 0;
+
     // Request interceptor - add token
     instance.interceptors.request.use(config => {
       const t = tokenRef.current;
@@ -66,7 +68,11 @@ export const AuthProvider = ({ children }) => {
 
     // Response interceptor - handle 401 + retry on network error
     instance.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Reset 401 counter on any successful response
+        consecutive401Count = 0;
+        return response;
+      },
       async (error) => {
         const config = error.config;
 
@@ -75,10 +81,14 @@ export const AuthProvider = ({ children }) => {
           const url = config?.url || '';
           const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/me');
           if (!isAuthEndpoint) {
-            localStorage.removeItem('cineworld_token');
-            tokenRef.current = null;
-            clearApiCache();
-            if (logoutRef.current) logoutRef.current();
+            consecutive401Count++;
+            // Only logout after 2+ consecutive 401s to avoid transient issues
+            if (consecutive401Count >= 2) {
+              localStorage.removeItem('cineworld_token');
+              tokenRef.current = null;
+              clearApiCache();
+              if (logoutRef.current) logoutRef.current();
+            }
             return Promise.reject(error);
           }
         }

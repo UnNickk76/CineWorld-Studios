@@ -95,7 +95,7 @@ const ContestsPage = () => {
             <Trophy className="w-5 h-5 text-yellow-400" />
             {language === 'it' ? 'Contest Giornalieri' : 'Daily Contests'}
           </h2>
-          <p className="text-xs text-gray-500">{language === 'it' ? 'Si azzerano alle 12:00' : 'Reset at 12:00 noon'}</p>
+          <p className="text-xs text-gray-500">{language === 'it' ? 'Si azzerano alle 11:00' : 'Reset at 11:00'}</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-500">{language === 'it' ? 'Guadagnati oggi' : 'Earned today'}</p>

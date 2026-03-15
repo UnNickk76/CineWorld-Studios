@@ -5284,7 +5284,7 @@ RELEASE_NOTES = [
          {'type': 'new', 'text': 'CinePass richiesti per: creare film (20), comprare infrastrutture (8-20), pre-ingaggiare attori (5), sceneggiature emergenti (10), reclutare alla scuola (3)'},
          {'type': 'new', 'text': 'Login giornaliero consecutivo: guadagna 3-35 CinePass al giorno + bonus ogni 15 giorni consecutivi'},
          {'type': 'new', 'text': 'Popup automatico bonus giornaliero al primo accesso con 7 giorni cliccabili'},
-         {'type': 'new', 'text': 'Contest giornalieri: 3 sfide al giorno, fino a 50 CinePass. Si azzerano alle 12:00 italiane'},
+         {'type': 'new', 'text': 'Contest giornalieri: 3 sfide al giorno, fino a 50 CinePass. Si azzerano alle 11:00 italiane'},
          {'type': 'new', 'text': 'Indovina il Budget, Cast Perfetto, Box Office Prediction, Speed Producer - contest sempre diversi'},
          {'type': 'new', 'text': 'Badge CinePass nella barra superiore accanto ai fondi'},
          {'type': 'improvement', 'text': 'Sezione Contest sostituisce i Mini Giochi nella Dashboard'},

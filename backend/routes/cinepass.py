@@ -521,18 +521,64 @@ async def _generate_box_office():
 
 
 def _generate_trivia():
-    """Cinema trivia questions."""
+    """Cinema trivia questions - Large pool for variety."""
     questions = [
-        {'q': 'Quale genere è nato con "Nosferatu" (1922)?', 'options': ['Horror', 'Azione', 'Dramma', 'Commedia'], 'correct': 'Horror'},
+        # Terminologia Cinema
         {'q': 'Cos\'è il "dolly" nel cinema?', 'options': ['Carrello per camera', 'Tipo di microfono', 'Effetto speciale', 'Tipo di lente'], 'correct': 'Carrello per camera'},
         {'q': 'Cosa significa "mise en scène"?', 'options': ['Tutto ciò che appare in scena', 'Il montaggio finale', 'La colonna sonora', 'I titoli di coda'], 'correct': 'Tutto ciò che appare in scena'},
-        {'q': 'Quale Oscar è il più prestigioso?', 'options': ['Miglior Film', 'Miglior Regia', 'Miglior Attore', 'Miglior Sceneggiatura'], 'correct': 'Miglior Film'},
         {'q': 'Cos\'è un "cliffhanger"?', 'options': ['Finale in sospeso', 'Scena d\'azione', 'Colpo di scena', 'Flashback'], 'correct': 'Finale in sospeso'},
         {'q': 'Cos\'è il "green screen"?', 'options': ['Sfondo per effetti speciali', 'Filtro colore', 'Tipo di telecamera', 'Illuminazione'], 'correct': 'Sfondo per effetti speciali'},
         {'q': 'Cos\'è un "biopic"?', 'options': ['Film biografico', 'Film d\'azione', 'Cortometraggio', 'Documentario'], 'correct': 'Film biografico'},
         {'q': 'Cosa fa il "gaffer" sul set?', 'options': ['Capo elettricista/luci', 'Dirige gli attori', 'Scrive il copione', 'Gestisce il budget'], 'correct': 'Capo elettricista/luci'},
         {'q': 'Cos\'è un "prequel"?', 'options': ['Film ambientato prima', 'Remake', 'Sequel', 'Spin-off'], 'correct': 'Film ambientato prima'},
-        {'q': 'Cosa sono gli "outtakes"?', 'options': ['Scene tagliate/errori', 'Effetti speciali', 'Musiche originali', 'Scene eliminate'], 'correct': 'Scene tagliate/errori'},
+        {'q': 'Cosa sono gli "outtakes"?', 'options': ['Scene tagliate/errori', 'Effetti speciali', 'Musiche originali', 'Titoli di coda'], 'correct': 'Scene tagliate/errori'},
+        {'q': 'Cos\'è lo "storyboard"?', 'options': ['Disegni delle scene', 'Lista attori', 'Piano di budget', 'Calendario riprese'], 'correct': 'Disegni delle scene'},
+        {'q': 'Cosa fa il "foley artist"?', 'options': ['Crea effetti sonori', 'Dipinge i fondali', 'Scrive dialoghi', 'Gestisce comparse'], 'correct': 'Crea effetti sonori'},
+        {'q': 'Cos\'è il "tracking shot"?', 'options': ['Ripresa in movimento', 'Primo piano', 'Panoramica fissa', 'Effetto rallentato'], 'correct': 'Ripresa in movimento'},
+        {'q': 'Cosa significa "wrap" sul set?', 'options': ['Fine delle riprese', 'Inizio della scena', 'Pausa pranzo', 'Cambio location'], 'correct': 'Fine delle riprese'},
+        {'q': 'Cos\'è il "continuity error"?', 'options': ['Errore di raccordo', 'Bug nel montaggio', 'Errore di casting', 'Problema audio'], 'correct': 'Errore di raccordo'},
+        {'q': 'Cosa fa il "best boy" sul set?', 'options': ['Assistente del gaffer/grip', 'Attore bambino', 'Regista junior', 'Cameraman sostituto'], 'correct': 'Assistente del gaffer/grip'},
+        {'q': 'Cos\'è il "boom mic"?', 'options': ['Microfono su asta', 'Cassa audio', 'Altoparlante', 'Registratore portatile'], 'correct': 'Microfono su asta'},
+        # Storia del Cinema
+        {'q': 'Quale genere è nato con "Nosferatu" (1922)?', 'options': ['Horror', 'Azione', 'Dramma', 'Commedia'], 'correct': 'Horror'},
+        {'q': 'Quale Oscar è il più prestigioso?', 'options': ['Miglior Film', 'Miglior Regia', 'Miglior Attore', 'Miglior Sceneggiatura'], 'correct': 'Miglior Film'},
+        {'q': 'Chi ha inventato il cinema?', 'options': ['Fratelli Lumière', 'Thomas Edison', 'Charlie Chaplin', 'Walt Disney'], 'correct': 'Fratelli Lumière'},
+        {'q': 'In che anno uscì il primo film sonoro?', 'options': ['1927', '1935', '1912', '1940'], 'correct': '1927'},
+        {'q': 'Qual è il primo film a colori?', 'options': ['Becky Sharp (1935)', 'Il mago di Oz (1939)', 'Via col vento (1939)', 'Biancaneve (1937)'], 'correct': 'Becky Sharp (1935)'},
+        {'q': 'Quando nasce Hollywood come centro del cinema?', 'options': ['Anni \'10', 'Anni \'30', 'Anni \'50', 'Anni \'70'], 'correct': 'Anni \'10'},
+        {'q': 'Chi ha diretto "Metropolis" (1927)?', 'options': ['Fritz Lang', 'F.W. Murnau', 'Alfred Hitchcock', 'Sergei Eisenstein'], 'correct': 'Fritz Lang'},
+        {'q': 'Quale film vinse il primo Oscar come Miglior Film?', 'options': ['Ali (Wings, 1927)', 'Il cantante di jazz', 'Sunrise', 'Ben-Hur'], 'correct': 'Ali (Wings, 1927)'},
+        # Generi e Tecniche
+        {'q': 'Cos\'è il "film noir"?', 'options': ['Genere con atmosfere cupe', 'Film in bianco e nero', 'Film muto', 'Documentario dark'], 'correct': 'Genere con atmosfere cupe'},
+        {'q': 'Cos\'è il "found footage"?', 'options': ['Film girato come filmato ritrovato', 'Documentario', 'Film con materiale d\'archivio', 'Cortometraggio amatoriale'], 'correct': 'Film girato come filmato ritrovato'},
+        {'q': 'Cos\'è il "CGI"?', 'options': ['Grafica generata al computer', 'Telecamera speciale', 'Codice del cinema', 'Tipo di pellicola'], 'correct': 'Grafica generata al computer'},
+        {'q': 'Cos\'è il "montaggio parallelo"?', 'options': ['Alternare due scene simultanee', 'Doppio schermo', 'Montare in due', 'Usare due telecamere'], 'correct': 'Alternare due scene simultanee'},
+        {'q': 'Cos\'è il "jump cut"?', 'options': ['Taglio brusco nella stessa inquadratura', 'Scena d\'azione', 'Salto temporale', 'Cambio di scena'], 'correct': 'Taglio brusco nella stessa inquadratura'},
+        {'q': 'Cos\'è l\'"aspect ratio"?', 'options': ['Rapporto larghezza/altezza dell\'immagine', 'Qualità dell\'audio', 'Luminosità dello schermo', 'Velocità della pellicola'], 'correct': 'Rapporto larghezza/altezza dell\'immagine'},
+        {'q': 'Cos\'è il "pan" nella cinematografia?', 'options': ['Rotazione orizzontale della camera', 'Zoom in avanti', 'Camera ferma', 'Ripresa dall\'alto'], 'correct': 'Rotazione orizzontale della camera'},
+        {'q': 'Cos\'è il "bokeh"?', 'options': ['Sfocatura artistica dello sfondo', 'Tipo di lente', 'Effetto vintage', 'Filtro colore'], 'correct': 'Sfocatura artistica dello sfondo'},
+        # Produzione e Business
+        {'q': 'Cos\'è il "box office"?', 'options': ['Incasso al botteghino', 'La sala proiezione', 'Il cinema stesso', 'Il trailer'], 'correct': 'Incasso al botteghino'},
+        {'q': 'Cos\'è il "pitch" nel cinema?', 'options': ['Presentazione di un\'idea', 'Tipo di audio', 'Scena finale', 'Prova attori'], 'correct': 'Presentazione di un\'idea'},
+        {'q': 'Cosa fa il produttore esecutivo?', 'options': ['Gestisce il finanziamento', 'Dirige il film', 'Scrive il copione', 'Monta il film'], 'correct': 'Gestisce il finanziamento'},
+        {'q': 'Cos\'è la "post-produzione"?', 'options': ['Montaggio, effetti e audio dopo le riprese', 'Promozione del film', 'Distribuzione', 'Casting'], 'correct': 'Montaggio, effetti e audio dopo le riprese'},
+        {'q': 'Cos\'è il "casting call"?', 'options': ['Audizione per attori', 'Chiamata del regista', 'Anteprima privata', 'Riunione di produzione'], 'correct': 'Audizione per attori'},
+        {'q': 'Cos\'è una "premiere"?', 'options': ['Prima proiezione pubblica', 'Prima ripresa', 'Primo giorno di set', 'Primo trailer'], 'correct': 'Prima proiezione pubblica'},
+        # Premi e Festival
+        {'q': 'Dove si tiene il Festival di Cannes?', 'options': ['Francia', 'Italia', 'Spagna', 'Germania'], 'correct': 'Francia'},
+        {'q': 'Come si chiama il premio del Festival di Venezia?', 'options': ['Leone d\'Oro', 'Orso d\'Oro', 'Palma d\'Oro', 'Oscar d\'Oro'], 'correct': 'Leone d\'Oro'},
+        {'q': 'Come si chiama il premio del Festival di Berlino?', 'options': ['Orso d\'Oro', 'Leone d\'Oro', 'Palma d\'Oro', 'Globo d\'Oro'], 'correct': 'Orso d\'Oro'},
+        {'q': 'Come si chiama il premio di Cannes?', 'options': ['Palma d\'Oro', 'Leone d\'Oro', 'Orso d\'Oro', 'Stella d\'Oro'], 'correct': 'Palma d\'Oro'},
+        {'q': 'Quante categorie principali hanno gli Oscar?', 'options': ['Più di 20', 'Esattamente 10', 'Meno di 8', 'Più di 30'], 'correct': 'Più di 20'},
+        # Curiosità
+        {'q': 'Quale film ha il budget più alto della storia?', 'options': ['Avengers: Endgame', 'Titanic', 'Avatar', 'Star Wars'], 'correct': 'Avengers: Endgame'},
+        {'q': 'Quanto dura in media un film?', 'options': ['90-120 minuti', '60-80 minuti', '150-180 minuti', '30-50 minuti'], 'correct': '90-120 minuti'},
+        {'q': 'Cos\'è un "easter egg" in un film?', 'options': ['Riferimento nascosto', 'Errore intenzionale', 'Scena bonus', 'Oggetto di scena'], 'correct': 'Riferimento nascosto'},
+        {'q': 'Cos\'è il "method acting"?', 'options': ['Vivere come il personaggio', 'Recitare a memoria', 'Improvvisare tutto', 'Recitare solo con la voce'], 'correct': 'Vivere come il personaggio'},
+        {'q': 'Cos\'è un "cameo"?', 'options': ['Apparizione breve di una celebrità', 'Tipo di ripresa', 'Scena tagliata', 'Doppiaggio'], 'correct': 'Apparizione breve di una celebrità'},
+        {'q': 'Quanti fotogrammi al secondo ha un film standard?', 'options': ['24 fps', '30 fps', '12 fps', '60 fps'], 'correct': '24 fps'},
+        {'q': 'Cos\'è IMAX?', 'options': ['Formato di proiezione gigante', 'Marca di telecamere', 'Software di montaggio', 'Tipo di pellicola'], 'correct': 'Formato di proiezione gigante'},
+        {'q': 'Cos\'è il "Dolby Atmos"?', 'options': ['Tecnologia audio immersiva', 'Tipo di telecamera', 'Formato video 8K', 'Software per effetti'], 'correct': 'Tecnologia audio immersiva'},
     ]
     selected = random.sample(questions, min(5, len(questions)))
     return {'questions': selected}

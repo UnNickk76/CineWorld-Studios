@@ -188,7 +188,7 @@ const Dashboard = () => {
         
         const [statsRes, filmsRes, challengesRes, pendingRes] = await Promise.all([
           api.get('/statistics/my'),
-          api.get('/films/my/featured?limit=10'),  // Use featured films sorted by attendance
+          api.get('/films/my/featured?limit=9'),
           api.get('/challenges'),
           api.get('/revenue/pending-all')
         ]);

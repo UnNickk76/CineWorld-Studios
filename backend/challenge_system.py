@@ -196,44 +196,53 @@ def simulate_skill_battle(skill_name: str, team_a_skill: int, team_b_skill: int)
     """
     Simulate a single skill battle between two teams.
     Skill values are 1-9. Higher skill has advantage but randomness can cause upsets.
+    Winner determined by probability based on skill difference, not raw power.
     """
-    # Base power from skill value (0-100 range)
-    a_base = team_a_skill * 10 + random.uniform(-8, 8)
-    b_base = team_b_skill * 10 + random.uniform(-8, 8)
+    # Power values for UI display (bars)
+    a_base = team_a_skill * 10 + random.uniform(-4, 4)
+    b_base = team_b_skill * 10 + random.uniform(-4, 4)
     
-    # Critical hit chance (rare event for weaker side)
+    # Winner determined by skill difference probability
     diff = abs(team_a_skill - team_b_skill)
-    upset_chance = max(0.03, 0.15 - diff * 0.02)  # 3-15% upset chance
+    # Draw chance: 80% when equal, decreasing with difference
+    draw_chance = max(0.05, 0.80 - diff * 0.25)
+    # Upset chance: weaker side wins
+    upset_chance = max(0.02, 0.08 - diff * 0.015)
     
     is_upset = False
-    if random.random() < upset_chance:
-        # The weaker side gets an upset bonus
-        if a_base < b_base:
-            a_base += random.uniform(15, 30)
-            is_upset = True
-        elif b_base < a_base:
-            b_base += random.uniform(15, 30)
-            is_upset = True
+    roll = random.random()
     
-    # Small draw zone
-    if abs(a_base - b_base) < 3:
+    if roll < draw_chance:
         winner = 'draw'
-        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
         comment = f"Pareggio su {CHALLENGE_SKILLS[skill_name]['name_it']}! Scontro equilibratissimo!"
-    elif a_base > b_base:
-        winner = 'team_a'
+        # Adjust display powers to be close for draws
+        avg = (a_base + b_base) / 2
+        a_base = avg + random.uniform(-1, 1)
+        b_base = avg + random.uniform(-1, 1)
+    elif team_a_skill == team_b_skill:
+        # Equal skills, non-draw: coin flip
+        winner = 'team_a' if random.random() < 0.5 else 'team_b'
         comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
-        if is_upset and team_a_skill < team_b_skill:
-            comment = random.choice(comments.get('upset', comments.get('win', ['Vittoria inaspettata!'])))
+        comment = random.choice(comments.get('win', ['Vittoria!']))
+    elif random.random() < upset_chance:
+        # Upset: weaker side wins
+        is_upset = True
+        if team_a_skill < team_b_skill:
+            winner = 'team_a'
+            a_base = b_base + random.uniform(2, 8)  # Show stronger power
         else:
-            comment = random.choice(comments.get('win', ['Vittoria!']))
+            winner = 'team_b'
+            b_base = a_base + random.uniform(2, 8)
+        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
+        comment = random.choice(comments.get('upset', comments.get('win', ['Vittoria inaspettata!'])))
     else:
-        winner = 'team_b'
-        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
-        if is_upset and team_b_skill < team_a_skill:
-            comment = random.choice(comments.get('upset', comments.get('win', ['Vittoria inaspettata!'])))
+        # Normal: stronger wins
+        if team_a_skill > team_b_skill:
+            winner = 'team_a'
         else:
-            comment = random.choice(comments.get('win', ['Vittoria!']))
+            winner = 'team_b'
+        comments = SKILL_BATTLE_COMMENTS_IT.get(skill_name, {})
+        comment = random.choice(comments.get('win', ['Vittoria!']))
     
     return {
         'skill': skill_name,

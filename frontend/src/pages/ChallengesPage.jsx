@@ -92,6 +92,7 @@ const ChallengesPage = () => {
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
   const [offlineLoading, setOfflineLoading] = useState(false);
   const [challengeLimits, setChallengeLimits] = useState(null);
+  const [lastCinepassReward, setLastCinepassReward] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -298,6 +299,7 @@ const ChallengesPage = () => {
       const cinepassBonus = res.data.cinepass_reward || 0;
       const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
       toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
+      setLastCinepassReward(cinepassBonus);
       refreshUser();
       setActiveBattle(res.data.result);
       setView('battle');
@@ -1595,7 +1597,7 @@ const ChallengesPage = () => {
                           >
                             {sb.team_b_value}
                           </motion.span>
-                          {sb.is_upset && <Badge className="bg-orange-500/80 text-[8px] px-1 ml-1">UPSET</Badge>}
+                          {sb.is_upset && <Badge className="bg-orange-500/80 text-[8px] px-1 ml-1">SORPRESA!</Badge>}
                         </div>
                         {/* Animated phrase for current skill */}
                         {isCurrent && (
@@ -1766,6 +1768,9 @@ const ChallengesPage = () => {
                     className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4"
                   >
                     <p className="text-yellow-400 font-bold text-lg">+$100.000</p>
+                    {lastCinepassReward > 0 && (
+                      <p className="text-cyan-400 font-bold text-lg" data-testid="cinepass-reward-display">+{lastCinepassReward} CinePass</p>
+                    )}
                     <p className="text-xs text-gray-400">Montepremi incassato!</p>
                   </motion.div>
                 )}

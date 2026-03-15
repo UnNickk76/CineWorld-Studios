@@ -5191,6 +5191,13 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.075', 'date': '2026-03-15', 'title': 'Bilanciamento Sfide 1v1',
+     'changes': [
+         {'type': 'fix', 'text': 'Premio +2 CinePass ora visibile nel riepilogo vittoria (era assegnato ma non mostrato)'},
+         {'type': 'improvement', 'text': 'Bilanciamento sfide: skill uguali → ~80% pareggio, 1 punto differenza → ~55% pareggio'},
+         {'type': 'improvement', 'text': 'Tradotto "UPSET" in "SORPRESA!" nel riepilogo round'},
+         {'type': 'fix', 'text': 'Rimossi pareggi ingiusti con punteggi diversi e vittorie con punteggi uguali'},
+     ]},
     {'version': '0.074', 'date': '2026-03-15', 'title': 'UI Migliorata & Festival Accessibili',
      'changes': [
          {'type': 'improvement', 'text': 'Cinema cliccabile nel dettaglio film: popup con distribuzione per paese'},

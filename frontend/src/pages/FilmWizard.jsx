@@ -1488,7 +1488,7 @@ const FilmWizard = () => {
             <Button variant="outline" size="sm" className="h-7 text-xs px-2 text-orange-400 border-orange-400/50 hover:bg-orange-500/10" onClick={()=>saveDraft('paused')} disabled={savingDraft}>
               {savingDraft ? '...' : (language === 'it' ? 'Pausa' : 'Pause')}
             </Button>
-            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setShowCinePassConfirm(true)} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
+            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>emergingScreenplay ? handleSubmit() : setShowCinePassConfirm(true)} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
           </div>
         </div>
         {lastAutoSave && <p className="text-[10px] text-gray-500 flex items-center gap-1"><CheckCircle className="w-2.5 h-2.5 text-green-500" />{language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>}

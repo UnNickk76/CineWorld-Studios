@@ -3417,8 +3417,9 @@ async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, ca
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
-    # CinePass check
-    await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
+    # CinePass check - skip if film comes from an already-purchased emerging screenplay
+    if not film_data.emerging_screenplay_id:
+        await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
     # Sequel validation: subtitle is required for sequels
     if film_data.is_sequel:
         if not film_data.subtitle:

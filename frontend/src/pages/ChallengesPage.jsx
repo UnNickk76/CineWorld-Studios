@@ -1160,7 +1160,7 @@ const ChallengesPage = () => {
                       <p className="text-sm font-semibold">{p.nickname}</p>
                       <p className="text-[10px] text-gray-400">{p.production_house_name} {p.level ? `• Lv.${p.level}` : ''}</p>
                     </div>
-                    <Badge className="bg-gray-500/20 text-gray-400 text-[10px]">Offline</Badge>
+                    <Badge className="bg-gray-500/20 text-gray-400 text-[10px]">{timeAgo(p.last_active) || 'Offline'}</Badge>
                     {opponentId === p.id && <CheckCircle className="w-5 h-5 text-cyan-400" />}
                   </div>
                 ))}

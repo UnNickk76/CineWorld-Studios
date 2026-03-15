@@ -5191,6 +5191,11 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.076', 'date': '2026-03-15', 'title': 'Supporta CineWorld',
+     'changes': [
+         {'type': 'new', 'text': 'Pulsante donazioni: supporta lo sviluppo con una donazione libera tramite PayPal'},
+         {'type': 'new', 'text': 'Barra donazione fissa in basso (mobile) + icona nel menu'},
+     ]},
     {'version': '0.075', 'date': '2026-03-15', 'title': 'Bilanciamento Sfide 1v1',
      'changes': [
          {'type': 'fix', 'text': 'Premio +2 CinePass ora visibile nel riepilogo vittoria (era assegnato ma non mostrato)'},

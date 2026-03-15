@@ -93,6 +93,7 @@ const TopNavbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showDonateDialog, setShowDonateDialog] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
@@ -567,6 +568,16 @@ const TopNavbar = () => {
               <Button 
                 variant="ghost" 
                 size="sm" 
+                className="flex flex-col items-center gap-1 h-14 px-4 text-pink-400 hover:text-pink-300 hover:bg-pink-500/10 rounded-xl"
+                onClick={() => { setShowDonateDialog(true); setMobileMenuOpen(false); }}
+                data-testid="menu-donate-btn"
+              >
+                <Heart className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Dona</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
                 className="flex flex-col items-center gap-1 h-14 px-4 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-xl"
                 onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
               >
@@ -586,6 +597,16 @@ const TopNavbar = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Donate Fixed Button - Above bottom nav */}
+      <button
+        className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all"
+        onClick={() => setShowDonateDialog(true)}
+        data-testid="fixed-donate-btn"
+      >
+        <Heart className="w-3 h-3" />
+        <span className="text-[10px] font-medium tracking-wide">Supporta lo sviluppo</span>
+      </button>
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">
@@ -1056,6 +1077,42 @@ const TopNavbar = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Donate Dialog */}
+      <Dialog open={showDonateDialog} onOpenChange={setShowDonateDialog}>
+        <DialogContent className="max-w-sm bg-[#111] border-pink-500/30 p-0 overflow-hidden">
+          <div className="bg-gradient-to-b from-pink-500/20 to-transparent p-6 text-center">
+            <Heart className="w-12 h-12 text-pink-400 mx-auto mb-3" />
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl text-pink-300 mb-1">Supporta CineWorld</DialogTitle>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Il tuo contributo ci aiuta a sviluppare nuove funzionalità e migliorare il gioco. Ogni donazione conta!
+            </p>
+          </div>
+          <div className="px-6 pb-6 space-y-3">
+            <a
+              href="https://www.paypal.me/UnNickk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-[#0070ba] hover:bg-[#005ea6] text-white font-semibold text-sm transition-colors"
+              data-testid="donate-paypal-btn"
+              onClick={() => setShowDonateDialog(false)}
+            >
+              <DollarSign className="w-4 h-4" />
+              Dona con PayPal
+            </a>
+            <p className="text-[10px] text-gray-500 text-center leading-relaxed">
+              Donazione libera - scegli tu l'importo. Verrai reindirizzato su PayPal per completare la donazione in sicurezza.
+            </p>
+            <button
+              className="w-full text-center text-[10px] text-gray-600 hover:text-gray-400 py-1 transition-colors"
+              onClick={() => setShowDonateDialog(false)}
+            >
+              Magari un'altra volta
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </nav>
   );
 };

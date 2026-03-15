@@ -8287,11 +8287,16 @@ async def get_trailer(film_id: str):
     from fastapi.responses import FileResponse
     import os
     
-    path = f'/app/trailers/{film_id}.mp4'
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Trailer non trovato")
+    # Check new FFmpeg trailers location first
+    new_path = f'/app/backend/static/trailers/{film_id}.mp4'
+    old_path = f'/app/trailers/{film_id}.mp4'
     
-    return FileResponse(path, media_type='video/mp4')
+    if os.path.exists(new_path):
+        return FileResponse(new_path, media_type='video/mp4')
+    elif os.path.exists(old_path):
+        return FileResponse(old_path, media_type='video/mp4')
+    
+    raise HTTPException(status_code=404, detail="Trailer non trovato")
 
 @api_router.get("/films/{film_id}/trailer-status")
 async def get_trailer_status(film_id: str, user: dict = Depends(get_current_user)):
@@ -14338,6 +14343,70 @@ async def redirect_to_current_game():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+# ============== TRAILER GENERATION ==============
+from fastapi.responses import FileResponse as TrailerFileResponse
+
+@app.post("/api/films/{film_id}/generate-trailer")
+async def generate_film_trailer(film_id: str, user: dict = Depends(get_current_user)):
+    """Generate a cinematic trailer for a film using FFmpeg (free, no API costs)."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    # Check if trailer already exists
+    if film.get('trailer_url'):
+        return {'trailer_url': film['trailer_url'], 'status': 'exists'}
+    
+    # Get director and cast names
+    director_name = ""
+    if film.get('director_id'):
+        director = await db.actors.find_one({'id': film['director_id']}, {'_id': 0, 'name': 1})
+        if director:
+            director_name = director['name']
+    
+    cast_names = []
+    for actor_data in (film.get('actors', []) or [])[:4]:
+        actor_id = actor_data.get('actor_id', '')
+        if actor_id:
+            actor = await db.actors.find_one({'id': actor_id}, {'_id': 0, 'name': 1})
+            if actor:
+                cast_names.append(actor['name'])
+    
+    film_data = {
+        'title': film.get('title', 'Untitled'),
+        'genre': film.get('genre', 'Drama'),
+        'director_name': director_name,
+        'cast_names': cast_names,
+        'quality_score': film.get('quality_score', 0),
+        'poster_url': film.get('poster_url', ''),
+        'studio_name': user.get('nickname', "CineWorld Studio's"),
+    }
+    
+    try:
+        from routes.trailer_generator import generate_trailer
+        trailer_id, output_path = generate_trailer(film_data)
+        
+        # Build the trailer URL
+        backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+        trailer_url = f"/api/trailers/{trailer_id}.mp4"
+        
+        # Save trailer URL to film
+        await db.films.update_one({'id': film_id}, {'$set': {'trailer_url': trailer_url}})
+        
+        return {'trailer_url': trailer_url, 'status': 'generated'}
+    except Exception as e:
+        logging.error(f"Trailer generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore generazione trailer: {str(e)}")
+
+@app.get("/api/trailers/{filename}")
+async def serve_trailer(filename: str):
+    """Serve generated trailer files."""
+    trailer_path = os.path.join("/app/backend/static/trailers", filename)
+    logging.info(f"Serving trailer: {trailer_path} exists={os.path.isfile(trailer_path)}")
+    if not os.path.isfile(trailer_path):
+        raise HTTPException(status_code=404, detail=f"Trailer non trovato: {filename}")
+    return TrailerFileResponse(trailer_path, media_type="video/mp4")
 
 # Serve React build as fallback (production: nginx may proxy all to backend)
 _build_dir = '/app/frontend/build'

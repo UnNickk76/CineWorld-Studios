@@ -57,9 +57,7 @@ const FilmDetail = () => {
   const [hourlyRevenue, setHourlyRevenue] = useState(null);
   const [durationStatus, setDurationStatus] = useState(null);
   const [processing, setProcessing] = useState(false);
-  const [trailerStatus, setTrailerStatus] = useState(null);
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
-  const [trailerCosts, setTrailerCosts] = useState({4: 10000, 8: 25000, 12: 50000});
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
   const [distribution, setDistribution] = useState(null);
@@ -82,10 +80,9 @@ const FilmDetail = () => {
   const loadFilm = async () => {
     const id = window.location.pathname.split('/').pop(); 
     try {
-      const [filmRes, rolesRes, trailerRes, actionsRes, distRes, virtualRes] = await Promise.all([
+      const [filmRes, rolesRes, actionsRes, distRes, virtualRes] = await Promise.all([
         api.get(`/films/${id}`),
         api.get('/actor-roles').catch(() => ({ data: [] })),
-        api.get(`/films/${id}/trailer-status`).catch(() => ({ data: null })),
         api.get(`/films/${id}/actions`).catch(() => ({ data: null })),
         api.get(`/films/${id}/distribution`).catch(() => ({ data: null })),
         api.get(`/films/${id}/virtual-audience`).catch(() => ({ data: null }))
@@ -99,21 +96,9 @@ const FilmDetail = () => {
       
       setFilm(filmRes.data);
     setActorRoles(rolesRes.data);
-    if (trailerRes.data) setTrailerStatus(trailerRes.data);
     if (filmRes.data) setFilmActions(actionsRes.data);
     if (distRes.data) setDistribution(distRes.data);
     if (virtualRes.data) setVirtualAudience(virtualRes.data);
-    
-    // Load trailer costs
-    if (!filmRes.data.trailer_url) {
-      Promise.all([
-        api.get(`/ai/trailer-cost?film_id=${id}&duration=4`).catch(() => ({data:{cost:10000}})),
-        api.get(`/ai/trailer-cost?film_id=${id}&duration=8`).catch(() => ({data:{cost:25000}})),
-        api.get(`/ai/trailer-cost?film_id=${id}&duration=12`).catch(() => ({data:{cost:50000}}))
-      ]).then(([c4, c8, c12]) => {
-        setTrailerCosts({4: c4.data.cost, 8: c8.data.cost, 12: c12.data.cost});
-      });
-    }
     
     // Load hourly revenue and duration status for in-theater films
     if (filmRes.data.status === 'in_theaters') {
@@ -305,53 +290,21 @@ const FilmDetail = () => {
     }
   };
 
-  const generateTrailer = async (duration = 8) => {
+  const generateTrailer = async () => {
     setGeneratingTrailer(true);
     try {
-      const res = await api.post('/ai/generate-trailer', { film_id: film.id, duration: duration, style: 'cinematic' });
+      const res = await api.post(`/films/${film.id}/generate-trailer`);
       if (res.data.status === 'exists') {
         toast.info('Il trailer esiste già!');
-        setTrailerStatus({ has_trailer: true, trailer_url: res.data.trailer_url });
       } else {
-        toast.success(res.data.message);
-        // Poll for trailer status
-        const pollInterval = setInterval(async () => {
-          try {
-            const statusRes = await api.get(`/films/${film.id}/trailer-status`);
-            setTrailerStatus(statusRes.data);
-            if (statusRes.data.has_trailer || statusRes.data.error) {
-              clearInterval(pollInterval);
-              setGeneratingTrailer(false);
-              if (statusRes.data.has_trailer) {
-                toast.success('Trailer AI generato con successo!');
-              } else if (statusRes.data.error) {
-                toast.error('Errore generazione trailer. Costo rimborsato.');
-              }
-              loadFilm();
-            }
-          } catch (e) {
-            clearInterval(pollInterval);
-            setGeneratingTrailer(false);
-          }
-        }, 15000); // Poll ogni 15 secondi (Sora 2 richiede più tempo)
+        toast.success('Trailer generato con successo!');
       }
+      setFilm(prev => ({ ...prev, trailer_url: res.data.trailer_url }));
+      setGeneratingTrailer(false);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella generazione del trailer');
       setGeneratingTrailer(false);
     }
-  };
-  
-  // Load trailer cost preview
-  const loadTrailerCosts = async () => {
-    if (!film?.id) return;
-    try {
-      const [c4, c8, c12] = await Promise.all([
-        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=4`),
-        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=8`),
-        api.get(`/ai/trailer-cost?film_id=${film.id}&duration=12`)
-      ]);
-      setTrailerCosts({4: c4.data.cost, 8: c8.data.cost, 12: c12.data.cost});
-    } catch(e) {}
   };
 
   const getRoleName = (roleId) => {
@@ -893,17 +846,17 @@ const FilmDetail = () => {
           <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30" data-testid="trailer-section">
             <CardHeader className="pb-2">
               <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-                <Film className="w-5 h-5 text-purple-400" /> Trailer Video
-                {trailerStatus?.has_trailer && <Badge className="bg-green-500/20 text-green-400 text-xs ml-2">Generato</Badge>}
+                <Film className="w-5 h-5 text-purple-400" /> Trailer
+                {film.trailer_url && <Badge className="bg-green-500/20 text-green-400 text-xs ml-2">Generato</Badge>}
               </CardTitle>
-              <CardDescription className="text-xs">Genera un trailer AI per il tuo film (+5 bonus qualità)</CardDescription>
+              <CardDescription className="text-xs">{language === 'it' ? 'Genera un trailer promozionale gratuito' : 'Generate a free promotional trailer'}</CardDescription>
             </CardHeader>
             <CardContent>
-              {trailerStatus?.has_trailer && trailerStatus.trailer_url ? (
+              {film.trailer_url ? (
                 <div className="space-y-3">
-                  <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                  <div className="aspect-[9/16] max-h-[400px] mx-auto bg-black rounded-lg overflow-hidden">
                     <video 
-                      src={`${BACKEND_URL}${trailerStatus.trailer_url}`} 
+                      src={`${BACKEND_URL}${film.trailer_url}`} 
                       controls 
                       className="w-full h-full"
                       poster={film.poster_url}
@@ -912,68 +865,47 @@ const FilmDetail = () => {
                     </video>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-green-400">Trailer generato! Il tuo film ha ricevuto +5 bonus qualità.</p>
+                    <p className="text-xs text-green-400">{language === 'it' ? 'Trailer pronto!' : 'Trailer ready!'}</p>
                     <Button
                       size="sm"
                       variant="outline"
                       className="border-purple-500/50 text-purple-400 hover:bg-purple-500/20"
                       onClick={() => {
                         const link = document.createElement('a');
-                        link.href = `${BACKEND_URL}/api/films/${film.id}/trailer/download`;
+                        link.href = `${BACKEND_URL}${film.trailer_url}`;
                         link.download = `trailer_${film.title || 'film'}.mp4`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        toast.success(language === 'it' ? 'Download trailer avviato!' : 'Trailer download started!');
+                        toast.success('Download trailer avviato!');
                       }}
                       data-testid="download-trailer-btn"
                     >
                       <Download className="w-4 h-4 mr-1" />
-                      {language === 'it' ? 'Scarica' : 'Download'}
+                      Scarica
                     </Button>
                   </div>
                 </div>
-              ) : trailerStatus?.generating || generatingTrailer ? (
+              ) : generatingTrailer ? (
                 <div className="text-center py-8 space-y-3">
                   <RefreshCw className="w-10 h-10 mx-auto text-purple-400 animate-spin" />
-                  <p className="text-purple-300">Sora 2 sta generando il trailer AI...</p>
-                  <p className="text-xs text-gray-400">Questo processo richiede 2-5 minuti. Puoi tornare più tardi.</p>
-                  <Progress value={33} className="h-1.5 max-w-xs mx-auto" />
-                </div>
-              ) : trailerStatus?.error ? (
-                <div className="text-center py-6 space-y-3">
-                  <AlertTriangle className="w-10 h-10 mx-auto text-red-400" />
-                  <p className="text-red-400">{language === 'it' ? 'Errore nella generazione del trailer' : 'Error generating trailer'}</p>
-                  <p className="text-xs text-gray-500">{trailerStatus.error}</p>
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-xs text-gray-400">{language === 'it' ? 'Riprova la generazione:' : 'Retry generation:'}</p>
-                    <div className="flex gap-2">
-                      <Button onClick={() => generateTrailer(4)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
-                        4s (${trailerCosts[4]?.toLocaleString() || '10,000'})
-                      </Button>
-                      <Button onClick={() => generateTrailer(8)} size="sm" className="bg-purple-600 hover:bg-purple-500">
-                        <RefreshCw className="w-3 h-3 mr-1" /> 8s (${trailerCosts[8]?.toLocaleString() || '25,000'})
-                      </Button>
-                      <Button onClick={() => generateTrailer(12)} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
-                        12s (${trailerCosts[12]?.toLocaleString() || '50,000'})
-                      </Button>
-                    </div>
-                  </div>
+                  <p className="text-purple-300">{language === 'it' ? 'Generazione trailer in corso...' : 'Generating trailer...'}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Attendere qualche secondo' : 'Please wait a few seconds'}</p>
                 </div>
               ) : (
                 <div className="text-center py-6 space-y-3">
                   <Film className="w-12 h-12 mx-auto text-purple-400/50" />
-                  <p className="text-gray-400 text-sm">
-                    {language === 'it' ? 'Nessun trailer generato per questo film' : 'No trailer generated for this film'}
-                  </p>
-                  {/* Trailer generation temporarily disabled */}
-                  {isOwner && (
-                    <div className="flex flex-col items-center gap-2 opacity-50">
-                      <p className="text-xs text-gray-500">{language === 'it' ? 'Generazione trailer temporaneamente in pausa' : 'Trailer generation temporarily paused'}</p>
-                      <Badge className="bg-yellow-500/10 text-yellow-500/70 border border-yellow-500/20">In pausa</Badge>
-                    </div>
-                  )}
-                  {!isOwner && (
+                  {isOwner ? (
+                    <Button 
+                      onClick={() => generateTrailer()} 
+                      size="sm" 
+                      className="bg-purple-600 hover:bg-purple-500"
+                      data-testid="generate-trailer-btn"
+                    >
+                      <Video className="w-4 h-4 mr-1" />
+                      {language === 'it' ? 'Genera Trailer Gratuito' : 'Generate Free Trailer'}
+                    </Button>
+                  ) : (
                     <p className="text-xs text-gray-500">
                       {language === 'it' ? 'Solo il proprietario può generare il trailer' : 'Only the owner can generate the trailer'}
                     </p>

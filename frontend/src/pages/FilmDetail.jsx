@@ -58,6 +58,7 @@ const FilmDetail = () => {
   const [durationStatus, setDurationStatus] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [generatingTrailer, setGeneratingTrailer] = useState(false);
+  const [showCastPopup, setShowCastPopup] = useState(false);
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
   const [distribution, setDistribution] = useState(null);
@@ -763,85 +764,98 @@ const FilmDetail = () => {
             </Card>
           )}
 
-          {/* Cast Section */}
-          <Card className="bg-[#1A1A1A] border-white/10">
-            <CardHeader className="pb-2"><CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Users className="w-4 h-4 text-yellow-500" /> Cast & Crew</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {/* Director & Screenwriter */}
-              <div className="grid grid-cols-2 gap-2">
-                {film.director && typeof film.director === 'object' && (
-                  <div className="p-2 rounded bg-white/5">
-                    <p className="text-[10px] text-gray-500 uppercase mb-1">Director</p>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarImage src={film.director?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.director?.name?.[0]}</AvatarFallback></Avatar>
-                      <div>
-                        <p className="text-sm font-semibold">{film.director?.name} <span className={`${film.director?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.director?.gender === 'female' ? '♀' : '♂'}</span></p>
-                        <p className="text-[10px] text-gray-400">{film.director?.nationality}</p>
+          {/* Cast Section - Clickable, opens popup */}
+          <Card className="bg-[#1A1A1A] border-white/10 cursor-pointer hover:border-yellow-500/30 transition-colors" onClick={() => setShowCastPopup(true)} data-testid="cast-crew-card">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-yellow-500" />
+                <div>
+                  <p className="font-['Bebas_Neue'] text-lg">Cast & Crew</p>
+                  <p className="text-[10px] text-gray-400">
+                    {film.director?.name && `${film.director.name} (Dir.)`}
+                    {film.cast?.length > 0 && ` + ${film.cast.length} attori`}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </CardContent>
+          </Card>
+
+          {/* Cast & Crew Popup */}
+          <Dialog open={showCastPopup} onOpenChange={setShowCastPopup}>
+            <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2"><Users className="w-5 h-5 text-yellow-500" /> Cast & Crew</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                {/* Director & Screenwriter & Composer */}
+                <div className="grid grid-cols-2 gap-2">
+                  {film.director && typeof film.director === 'object' && (
+                    <div className="p-2 rounded bg-white/5">
+                      <p className="text-[10px] text-gray-500 uppercase mb-1">Director</p>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-8 h-8"><AvatarImage src={film.director?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.director?.name?.[0]}</AvatarFallback></Avatar>
+                        <div>
+                          <p className="text-sm font-semibold">{film.director?.name} <span className={`${film.director?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.director?.gender === 'female' ? '♀' : '♂'}</span></p>
+                          <p className="text-[10px] text-gray-400">{film.director?.nationality}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                {film.screenwriter && typeof film.screenwriter === 'object' && (
-                  <div className="p-2 rounded bg-white/5">
-                    <p className="text-[10px] text-gray-500 uppercase mb-1">Screenwriter</p>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarImage src={film.screenwriter?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.screenwriter?.name?.[0]}</AvatarFallback></Avatar>
-                      <div>
-                        <p className="text-sm font-semibold">{film.screenwriter?.name} <span className={`${film.screenwriter?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.screenwriter?.gender === 'female' ? '♀' : '♂'}</span></p>
-                        <p className="text-[10px] text-gray-400">{film.screenwriter?.nationality}</p>
+                  )}
+                  {film.screenwriter && typeof film.screenwriter === 'object' && (
+                    <div className="p-2 rounded bg-white/5">
+                      <p className="text-[10px] text-gray-500 uppercase mb-1">Screenwriter</p>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-8 h-8"><AvatarImage src={film.screenwriter?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{film.screenwriter?.name?.[0]}</AvatarFallback></Avatar>
+                        <div>
+                          <p className="text-sm font-semibold">{film.screenwriter?.name} <span className={`${film.screenwriter?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{film.screenwriter?.gender === 'female' ? '♀' : '♂'}</span></p>
+                          <p className="text-[10px] text-gray-400">{film.screenwriter?.nationality}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                {film.composer && typeof film.composer === 'object' && (
-                  <div className="p-2 rounded bg-white/5">
-                    <p className="text-[10px] text-gray-500 uppercase mb-1">Colonna Sonora</p>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8"><AvatarFallback className="text-[10px] bg-emerald-500/20 text-emerald-400">{film.composer?.name?.[0]}</AvatarFallback></Avatar>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold">{film.composer?.name}</p>
-                        {film.composer?.imdb_rating > 0 && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs text-yellow-400 font-bold">{film.composer?.imdb_rating}/100</span>
-                            <span className="text-[10px] text-gray-500 ml-1">Rating Colonna Sonora</span>
+                  )}
+                  {film.composer && typeof film.composer === 'object' && (
+                    <div className="p-2 rounded bg-white/5 col-span-2">
+                      <p className="text-[10px] text-gray-500 uppercase mb-1">Colonna Sonora</p>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-8 h-8"><AvatarFallback className="text-[10px] bg-emerald-500/20 text-emerald-400">{film.composer?.name?.[0]}</AvatarFallback></Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{film.composer?.name}</p>
+                          {film.composer?.imdb_rating > 0 && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                              <span className="text-xs text-yellow-400 font-bold">{film.composer?.imdb_rating}/100</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Actors */}
+                {Array.isArray(film.cast) && film.cast.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase mb-2">Cast ({film.cast.length} attori)</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {film.cast.map(actor => (
+                        <div key={actor?.id || actor?.actor_id || Math.random()} className="flex items-center gap-2 p-2 rounded bg-white/5">
+                          <Avatar className="w-8 h-8"><AvatarImage src={actor?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{actor?.name?.[0]}</AvatarFallback></Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <p className="text-sm font-semibold truncate">{actor?.name}</p>
+                              <span className={`text-xs ${actor?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{actor?.gender === 'female' ? '♀' : '♂'}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400">{actor.nationality}</p>
                           </div>
-                        )}
-                      </div>
+                          {actor.role && getRoleBadge(actor.role)}
+                        </div>
+                      ))}
                     </div>
-                    {film.soundtrack_boost && typeof film.soundtrack_boost === 'object' && (
-                      <div className="mt-1.5 flex gap-1">
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G1: +{Math.round(((film.soundtrack_boost?.day_1_multiplier || 1) - 1) * 100)}%</span>
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G2: +{Math.round(((film.soundtrack_boost?.day_2_multiplier || 1) - 1) * 100)}%</span>
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">G3: +{Math.round(((film.soundtrack_boost?.day_3_multiplier || 1) - 1) * 100)}%</span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
-              {/* Actors */}
-              {Array.isArray(film.cast) && film.cast.length > 0 && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase mb-2">Cast ({film.cast.length} actors)</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {film.cast.map(actor => (
-                      <div key={actor?.id || actor?.actor_id || Math.random()} className="flex items-center gap-2 p-2 rounded bg-white/5">
-                        <Avatar className="w-8 h-8"><AvatarImage src={actor?.avatar_url} /><AvatarFallback className="text-[10px] bg-yellow-500/20">{actor?.name?.[0]}</AvatarFallback></Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <p className="text-sm font-semibold truncate">{actor?.name}</p>
-                            <span className={`text-xs ${actor?.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}`}>{actor?.gender === 'female' ? '♀' : '♂'}</span>
-                          </div>
-                          <p className="text-[10px] text-gray-400">{actor.nationality}</p>
-                        </div>
-                        {actor.role && getRoleBadge(actor.role)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </DialogContent>
+          </Dialog>
           {/* Trailer Section */}
           <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30" data-testid="trailer-section">
             <CardHeader className="pb-2">

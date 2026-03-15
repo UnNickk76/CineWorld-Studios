@@ -1,7 +1,7 @@
 // CineWorld Studio's - Context Providers
 // Extracted from App.js for better maintainability
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -18,12 +18,33 @@ export const useTranslations = () => {
   return { t: (key) => translations[key] || key, language };
 };
 
+// Simple in-memory cache with TTL
+const apiCache = new Map();
+const CACHE_TTL = 60000; // 60 seconds
+
+const getCached = (key) => {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data;
+};
+
+const setCache = (key, data) => {
+  apiCache.set(key, { data, ts: Date.now() });
+};
+
+export const clearApiCache = () => apiCache.clear();
+
 // Auth Provider with auto-login
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const tokenRef = React.useRef(localStorage.getItem('cineworld_token'));
+  const tokenRef = useRef(localStorage.getItem('cineworld_token'));
   const [token, setTokenState] = useState(tokenRef.current);
+  const logoutRef = useRef(null);
 
   const setToken = (t) => {
     tokenRef.current = t;
@@ -33,13 +54,46 @@ export const AuthProvider = ({ children }) => {
   const api = React.useMemo(() => {
     const instance = axios.create({
       baseURL: API,
-      timeout: 120000
+      timeout: 30000
     });
+
+    // Request interceptor - add token
     instance.interceptors.request.use(config => {
       const t = tokenRef.current;
       if (t) config.headers.Authorization = `Bearer ${t}`;
       return config;
     });
+
+    // Response interceptor - handle 401 + retry on network error
+    instance.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const config = error.config;
+
+        // 401 = token expired/invalid → auto-logout (skip for login/register/me endpoints)
+        if (error.response?.status === 401) {
+          const url = config?.url || '';
+          const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/me');
+          if (!isAuthEndpoint) {
+            localStorage.removeItem('cineworld_token');
+            tokenRef.current = null;
+            clearApiCache();
+            if (logoutRef.current) logoutRef.current();
+            return Promise.reject(error);
+          }
+        }
+
+        // Retry once on network error or 5xx (not on 4xx)
+        if (!config._retried && (!error.response || error.response.status >= 500)) {
+          config._retried = true;
+          await new Promise(r => setTimeout(r, 1000));
+          return instance(config);
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
     return instance;
   }, []);
 
@@ -66,6 +120,7 @@ export const AuthProvider = ({ children }) => {
     }
     setToken(res.data.access_token);
     setUser(res.data.user);
+    clearApiCache();
     return res.data;
   };
 
@@ -77,14 +132,19 @@ export const AuthProvider = ({ children }) => {
     }
     setToken(res.data.access_token);
     setUser(res.data.user);
+    clearApiCache();
     return res.data;
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('cineworld_token');
     setToken(null);
     setUser(null);
-  };
+    clearApiCache();
+  }, []);
+
+  // Keep logoutRef in sync for interceptor
+  logoutRef.current = logout;
 
   const updateFunds = (newFunds) => {
     setUser(prev => ({ ...prev, funds: newFunds }));
@@ -95,8 +155,17 @@ export const AuthProvider = ({ children }) => {
     setUser(res.data);
   };
 
+  // Cached GET - for read-only endpoints
+  const cachedGet = useCallback(async (url) => {
+    const cached = getCached(url);
+    if (cached) return { data: cached };
+    const res = await api.get(url);
+    setCache(url, res.data);
+    return res;
+  }, [api]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, refreshUser, cachedGet }}>
       {children}
     </AuthContext.Provider>
   );

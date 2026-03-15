@@ -48,7 +48,7 @@ import { SKILL_TRANSLATIONS } from '../constants';
 // useTranslations imported from contexts
 
 const FilmWizard = () => {
-  const { api, user, updateFunds } = useContext(AuthContext);
+  const { api, user, updateFunds, cachedGet } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const navigate = useNavigate();
 
@@ -391,13 +391,13 @@ const FilmWizard = () => {
   }, [filmData, step, api, emergingScreenplay, emergingOption]);
 
   useEffect(() => { 
-    api.get('/sponsors').then(r=>setSponsors(r.data)); 
-    api.get('/locations').then(r=>setLocations(r.data)); 
-    api.get('/equipment').then(r=>setEquipment(r.data));
-    api.get('/genres').then(r=>setGenres(r.data));
-    api.get('/actor-roles').then(r=>setActorRoles(r.data));
+    cachedGet('/sponsors').then(r=>setSponsors(r.data)); 
+    cachedGet('/locations').then(r=>setLocations(r.data)); 
+    cachedGet('/equipment').then(r=>setEquipment(r.data));
+    cachedGet('/genres').then(r=>setGenres(r.data));
+    cachedGet('/actor-roles').then(r=>setActorRoles(r.data));
     api.get('/films/my/for-sequel').then(r=>setMyFilmsForSequel(r.data.films || [])).catch(()=>{});
-  }, [api]);
+  }, [api, cachedGet]);
   
   const fetchPeople = async (type, category = '', skill = '', ageRange = '') => {
     try {

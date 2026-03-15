@@ -15,16 +15,21 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 - v0.074: Cinema cliccabile → popup distribuzione, legenda CineBoard rimossa, costo festival ribilanciato
 - v0.075: Bilanciamento sfide 1v1 (probabilità esplicite), +2 CinePass visibile nel risultato, "UPSET"→"SORPRESA!"
 - v0.076: Sistema donazioni PayPal (pulsante fisso, menu, popup ad ogni accesso)
-- v0.077: Pannello Admin (toggle donazioni, ruoli utente), tutorial 14 sezioni, ribilanciamento entrate (base +60%, bonus cinema multipli, +50% presenze)
-- v0.078: Fix costo doppio CinePass per sceneggiature emergenti (acquisto sceneggiatura non addebita più 20 CinePass alla creazione film)
+- v0.077: Pannello Admin (toggle donazioni, ruoli utente), tutorial 14 sezioni, ribilanciamento entrate
+- v0.078: Fix costo doppio CinePass per sceneggiature emergenti
+- v0.079: Ottimizzazione mobile (interceptor 401, transizioni veloci, cache dati 60s, timeout 30s, retry automatico)
 
 ## Sistema Admin
 - Solo NeoMorpheus ha accesso al pannello admin
 - Toggle donazioni: attiva/disattiva da profilo
 - Assegnazione ruoli: POST /api/admin/set-user-role (moderatore, VIP, tester)
 
-## Bug Fix Recenti
-- **Costo doppio CinePass:** L'acquisto di una sceneggiatura emergente (10 CP) + creazione film (20 CP) ora addebita solo i 10 CP dell'acquisto. Il create_film salta il costo se `emerging_screenplay_id` è presente.
+## Ottimizzazioni Performance Mobile (v0.079)
+- **Interceptor 401:** Auto-logout su token scaduto, elimina "autenticazione fallita" ripetuta
+- **Transizioni pagina:** 100ms (da 200ms), rimosso mode="wait" bloccante
+- **Cache in-memory 60s:** Dati statici (generi, location, sponsor) serviti da cache
+- **Timeout API:** 30s (da 120s)
+- **Retry automatico:** 1 retry su errori di rete/5xx
 
 ## Task Prossimi (P0-P1)
 - Verificare layout mobile pagina Contest (/games)
@@ -35,4 +40,3 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 - Tutorial popup per nuovi utenti (primo accesso)
 - CineCoins Purchase System (Stripe)
 - Conversione PWA
-- Espansione ruoli admin (moderatore con poteri di chat, VIP con badge)

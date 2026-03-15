@@ -1222,7 +1222,7 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
           <React.Suspense fallback={<LoadingSpinner />}>

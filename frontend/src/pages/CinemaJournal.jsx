@@ -456,54 +456,6 @@ const CinemaJournal = () => {
         </Card>
       )}
 
-      {/* Recent Trailers Section - 4 per row */}
-      {recentTrailers.length > 0 && (
-        <Card className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border-purple-500/30 mb-6 overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Clapperboard className="w-5 h-5 text-purple-400" />
-              <h2 className="font-['Bebas_Neue'] text-xl tracking-wide">{language === 'it' ? 'NUOVI TRAILER' : 'NEW TRAILERS'}</h2>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {recentTrailers.slice(0, 20).map(film => (
-                <div 
-                  key={film.id} 
-                  onClick={() => navigate(`/film/${film.id}`)}
-                  className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:ring-2 hover:ring-purple-500 transition-all"
-                >
-                  <div className="aspect-video relative">
-                    {film.poster_url ? (
-                      <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                        <Film className="w-6 h-6 text-purple-400" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-purple-500 rounded-full p-2">
-                        <Clapperboard className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                    <Badge className="absolute top-1 right-1 bg-purple-500/80 text-white text-[8px] px-1">
-                      TRAILER
-                    </Badge>
-                    {/* Virtual Likes Badge */}
-                    {(film.virtual_likes > 0 || film.likes_count > 0) && (
-                      <div className="absolute bottom-1 left-1 bg-black/70 rounded px-1.5 py-0.5 flex items-center gap-1">
-                        <Heart className="w-2.5 h-2.5 text-red-400 fill-red-400" />
-                        <span className="text-[9px] text-white">{((film.virtual_likes || 0) + (film.likes_count || 0)).toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-1.5">
-                    <h3 className="font-semibold text-[10px] truncate">{film.title}</h3>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
 
       {loading ? (

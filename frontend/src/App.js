@@ -510,7 +510,7 @@ const TopNavbar = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto"
+            className="absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto pb-32"
           >
             {/* Mobile User Info Header */}
             <div className="flex items-center justify-between px-3 py-3 bg-[#111111] border-b border-white/10">

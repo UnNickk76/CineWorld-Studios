@@ -699,7 +699,7 @@ def calculate_cinema_daily_revenue(cinema: dict, films_showing: List[dict], fame
     prices = cinema.get('prices', DEFAULT_CINEMA_PRICES)
     
     # Base attendance based on city population and wealth
-    base_attendance = (city.get('population', 1000000) / 1000000) * 100
+    base_attendance = (city.get('population', 1000000) / 1000000) * 150
     base_attendance *= city.get('wealth', 1.0)
     
     # Fame multiplier
@@ -977,7 +977,11 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     genre = film.get('genre', 'drama')
     
     # Base revenue from quality (scales with quality)
-    base_revenue = 5000 + (quality * 200)  # $5k-$25k base per hour
+    base_revenue = 8000 + (quality * 350)  # $8k-$43k base per hour
+    
+    # Number of cinemas showing this film (more cinemas = more total revenue)
+    cinemas_count = film.get('current_cinemas', 1)
+    cinema_scale = 1.0 + (max(0, cinemas_count - 1) * 0.15)  # +15% per extra cinema
     
     # Quality multiplier (exponential for high quality)
     if quality >= 90:
@@ -1085,6 +1089,7 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     final_revenue = base_revenue * quality_mult * imdb_mult * cast_mult * director_mult
     final_revenue *= genre_mult * hour_mult * day_mult * decay_mult
     final_revenue *= competition_mult * unpredictability * weather_mult * event_mult
+    final_revenue *= cinema_scale  # More cinemas = more revenue
     
     # BOOST: +10% for all days after opening (opening day has +30% applied at creation)
     if days_in_theater > 1:

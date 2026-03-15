@@ -95,6 +95,7 @@ const TopNavbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showDonateDialog, setShowDonateDialog] = useState(false);
   const [showDonatePopup, setShowDonatePopup] = useState(false);
+  const [donationsEnabled, setDonationsEnabled] = useState(true);
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
@@ -169,11 +170,16 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup on each access (with delay)
+  // Show donate popup on each access (with delay) - only if donations enabled
   useEffect(() => {
-    const timer = setTimeout(() => setShowDonatePopup(true), 2500);
-    return () => clearTimeout(timer);
-  }, []);
+    api.get('/game/donations-status').then(r => {
+      const enabled = r.data.donations_enabled;
+      setDonationsEnabled(enabled);
+      if (enabled) {
+        setTimeout(() => setShowDonatePopup(true), 2500);
+      }
+    }).catch(() => {});
+  }, [api]);
 
   // Lightweight refresh on navigation - only notification counts
   useEffect(() => {
@@ -572,6 +578,7 @@ const TopNavbar = () => {
                 <UserPlus className="w-5 h-5" />
                 <span className="text-[10px] font-medium">{language === 'it' ? 'Amici' : 'Friends'}</span>
               </Button>
+              {donationsEnabled && (
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -582,6 +589,7 @@ const TopNavbar = () => {
                 <Heart className="w-5 h-5" />
                 <span className="text-[10px] font-medium">Dona</span>
               </Button>
+              )}
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -606,6 +614,7 @@ const TopNavbar = () => {
       </AnimatePresence>
 
       {/* Donate Fixed Button - Above bottom nav */}
+      {donationsEnabled && (
       <button
         className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all"
         onClick={() => setShowDonateDialog(true)}
@@ -614,6 +623,7 @@ const TopNavbar = () => {
         <Heart className="w-3 h-3" />
         <span className="text-[10px] font-medium tracking-wide">Supporta lo sviluppo</span>
       </button>
+      )}
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">

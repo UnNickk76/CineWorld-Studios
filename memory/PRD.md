@@ -11,25 +11,19 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 ## Funzionalità Completate
 - Acting School, CinePass, Notifiche, UI/UX, Poster AI, Tutorial, Release notes
 - Step 1-6: Ordinamento film, fix cinema, traduzioni, costi CinePass, fix performance, indicatori skill
-- Step 7 (v0.073): Rimani connesso, +1 CinePass rientro, ultimo accesso, 10 contest, +20% ricavi, +2 CinePass 1v1
-- Step 8 (v0.074): Cinema cliccabile → popup distribuzione, legenda CineBoard rimossa, costo festival ribilanciato
-- Step 9 (v0.075): Bilanciamento sfide 1v1 (probabilità esplicite), +2 CinePass visibile nel risultato, "UPSET"→"SORPRESA!", fix pareggi/vittorie ingiuste, ultimo accesso nella lista giocatori globale
+- v0.073: Rimani connesso, +1 CinePass rientro, ultimo accesso, 10 contest, +20% ricavi, +2 CinePass 1v1
+- v0.074: Cinema cliccabile → popup distribuzione, legenda CineBoard rimossa, costo festival ribilanciato
+- v0.075: Bilanciamento sfide 1v1 (probabilità esplicite), +2 CinePass visibile nel risultato, "UPSET"→"SORPRESA!"
+- v0.076: Sistema donazioni PayPal (pulsante fisso, menu, popup ad ogni accesso)
+- v0.077: Pannello Admin (toggle donazioni, ruoli utente), tutorial 14 sezioni, ribilanciamento entrate (base +60%, bonus cinema multipli, +50% presenze)
 
-## Bilanciamento Sfide (v0.075)
-- Skill uguali (es. 1v1): ~80% pareggio
-- 1 punto differenza (es. 6v5): ~55% pareggio, ~42% più forte vince
-- 2 punti (es. 8v6): ~30% pareggio, ~65% più forte vince
-- 3+ punti (es. 8v3): ~5% pareggio, ~92% più forte vince
-- Upset (sorpresa): 2-8% chance
+## Sistema Admin
+- Solo NeoMorpheus ha accesso al pannello admin
+- Toggle donazioni: attiva/disattiva da profilo
+- Assegnazione ruoli: POST /api/admin/set-user-role (moderatore, VIP, tester)
 
 ## Task Prossimi (P2-P3)
-- Tutorial popup per nuovi utenti
+- Tutorial popup per nuovi utenti (primo accesso)
 - CineCoins Purchase System (Stripe)
 - Conversione PWA
-
-## Bug Noti Risolti
-- CinePass +2 era assegnato nel DB ma non mostrato nel UI (fix: aggiunto display nel riepilogo vittoria)
-- Pareggi con punteggi diversi (6v5 → pareggio) - fix: logica probabilistica
-- Vittorie con punteggi uguali (1v1 → vittoria) - fix: 80% pareggio per skill uguali
-- "UPSET" non tradotto → ora "SORPRESA!"
-- Festival costava $356M a livello 67 → ora ~$3M
+- Espansione ruoli admin (moderatore con poteri di chat, VIP con badge)

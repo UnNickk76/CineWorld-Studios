@@ -45,6 +45,29 @@ import { SKILL_TRANSLATIONS } from '../constants';
 
 // useTranslations imported from contexts
 
+const AdminDonationToggle = ({ api }) => {
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/admin/settings').then(r => { setEnabled(r.data.donations_enabled); setLoading(false); }).catch(() => setLoading(false));
+  }, [api]);
+  const toggle = async () => {
+    const newVal = !enabled;
+    await api.post('/admin/toggle-donations', { enabled: newVal });
+    setEnabled(newVal);
+    toast.success(newVal ? 'Donazioni abilitate' : 'Donazioni disabilitate');
+  };
+  if (loading) return null;
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-gray-300">Donazioni {enabled ? 'attive' : 'disattivate'}</span>
+      <Button size="sm" variant={enabled ? "default" : "outline"} className={`h-7 text-[10px] ${enabled ? 'bg-green-600 hover:bg-green-700' : 'border-red-500 text-red-400'}`} onClick={toggle}>
+        {enabled ? 'Disattiva' : 'Attiva'}
+      </Button>
+    </div>
+  );
+};
+
 const ChangePasswordInline = ({ api, language }) => {
   const [open, setOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
@@ -219,6 +242,16 @@ const ProfilePage = () => {
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.interaction_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Social</p></div>
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
           </div>
+          
+          {/* Admin Panel - Only for NeoMorpheus */}
+          {user?.nickname === 'NeoMorpheus' && (
+            <Card className="bg-purple-500/10 border-purple-500/30 mb-4">
+              <CardContent className="p-3">
+                <p className="text-xs font-bold text-purple-400 mb-2 flex items-center gap-1"><Shield className="w-3 h-3" /> Pannello Admin</p>
+                <AdminDonationToggle api={api} />
+              </CardContent>
+            </Card>
+          )}
           
           {/* Avatar Section - Only AI or Custom URL */}
           <div className="space-y-3 mb-4">

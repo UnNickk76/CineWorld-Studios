@@ -5191,6 +5191,13 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.077', 'date': '2026-03-15', 'title': 'Admin, Tutorial & Bilanciamento',
+     'changes': [
+         {'type': 'new', 'text': 'Pannello Admin: toggle donazioni nel profilo (solo NeoMorpheus)'},
+         {'type': 'new', 'text': 'Sistema ruoli utente: l\'admin può assegnare moderatore, VIP, tester'},
+         {'type': 'improvement', 'text': 'Tutorial aggiornato: 14 sezioni con sfide 1v1, 10 contest, donazioni'},
+         {'type': 'improvement', 'text': 'Entrate orarie ribilanciate: base +60%, bonus per cinema multipli, +50% presenze'},
+     ]},
     {'version': '0.076', 'date': '2026-03-15', 'title': 'Supporta CineWorld',
      'changes': [
          {'type': 'new', 'text': 'Pulsante donazioni: supporta lo sviluppo con una donazione libera tramite PayPal'},
@@ -5883,6 +5890,57 @@ class NewReleaseNote(BaseModel):
     title: str
     changes: List[str]
     version: Optional[str] = None  # Auto-increment if not provided
+
+# ==================== ADMIN: DONATION TOGGLE & USER ROLES ====================
+
+ADMIN_NICKNAME = "NeoMorpheus"
+
+@api_router.get("/admin/settings")
+async def get_admin_settings(user: dict = Depends(get_current_user)):
+    """Get global game settings (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può accedere")
+    settings = await db.game_settings.find_one({'key': 'global'}, {'_id': 0}) or {}
+    return {
+        'donations_enabled': settings.get('donations_enabled', True),
+        'donations_note': settings.get('donations_note', '')
+    }
+
+@api_router.post("/admin/toggle-donations")
+async def toggle_donations(data: dict, user: dict = Depends(get_current_user)):
+    """Enable/disable donations (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può modificare")
+    enabled = data.get('enabled', True)
+    await db.game_settings.update_one(
+        {'key': 'global'},
+        {'$set': {'donations_enabled': enabled}},
+        upsert=True
+    )
+    return {'success': True, 'donations_enabled': enabled}
+
+@api_router.get("/game/donations-status")
+async def get_donations_status():
+    """Public endpoint: check if donations are enabled."""
+    settings = await db.game_settings.find_one({'key': 'global'}, {'_id': 0}) or {}
+    return {'donations_enabled': settings.get('donations_enabled', True)}
+
+@api_router.post("/admin/set-user-role")
+async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
+    """Assign a role to a user (admin only). Roles: moderator, vip, tester, etc."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può assegnare ruoli")
+    target_id = data.get('user_id')
+    role = data.get('role', '')
+    if not target_id:
+        raise HTTPException(status_code=400, detail="user_id richiesto")
+    result = await db.users.update_one(
+        {'id': target_id},
+        {'$set': {'role': role}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    return {'success': True, 'user_id': target_id, 'role': role}
 
 @api_router.post("/admin/release-notes")
 async def create_release_note(note: NewReleaseNote):
@@ -9059,44 +9117,56 @@ async def get_tutorial():
             {
                 'id': 6,
                 'title': 'Contest Giornalieri',
-                'description': 'Nella sezione Contest trovi 3 sfide al giorno: Indovina il Budget, Cast Perfetto, Box Office Prediction e Speed Producer. Guadagna fino a 50 CinePass al giorno!',
+                'description': 'Nella sezione Contest trovi 10 sfide al giorno che si sbloccano progressivamente! Completale in ordine per guadagnare fino a 50 CinePass al giorno.',
                 'icon': 'trophy'
             },
             {
                 'id': 7,
+                'title': 'Sfide 1 vs 1',
+                'description': 'Sfida altri giocatori in battaglie con i tuoi film! Ogni vittoria ti regala +2 CinePass, fondi e XP. Max 5 sfide/ora, 20 al giorno.',
+                'icon': 'flame'
+            },
+            {
+                'id': 8,
                 'title': 'Guadagna XP e Sali di Livello',
                 'description': 'Ogni azione ti fa guadagnare XP. Salendo di livello sblocchi nuove infrastrutture e funzionalità!',
                 'icon': 'star'
             },
             {
-                'id': 8,
+                'id': 9,
                 'title': 'Acquista Infrastrutture',
                 'description': 'Al livello 5 puoi acquistare il tuo primo cinema! Proietta i tuoi film o affitta quelli di altri giocatori. Ogni infrastruttura costa CinePass (8-20) + denaro.',
                 'icon': 'building'
             },
             {
-                'id': 9,
+                'id': 10,
                 'title': 'Scuola di Recitazione',
                 'description': 'Acquista una Scuola di Recitazione dalle Infrastrutture! Ogni giorno avrai nuove reclute da formare (3 CinePass + $200K). Dopo 10-20 giorni, tienile nel tuo Cast Personale (gratis nei film!) o liberale.',
                 'icon': 'graduation-cap'
             },
             {
-                'id': 10,
+                'id': 11,
                 'title': 'Sceneggiature Emergenti',
                 'description': 'Nella sezione "Sceneggiature Emergenti" trovi copioni già pronti con cast incluso. Acquistali con 10 CinePass + denaro per iniziare subito a produrre!',
                 'icon': 'scroll'
             },
             {
-                'id': 11,
+                'id': 12,
                 'title': 'Riscuoti gli Incassi',
-                'description': 'Le tue infrastrutture generano ricavi ogni ora. Ricordati di riscuotere (max 4 ore accumulate)!',
+                'description': 'Le tue infrastrutture e i film al cinema generano ricavi ogni ora. Più cinema e infrastrutture possiedi, più guadagni! Ricordati di riscuotere (max 4 ore accumulate).',
                 'icon': 'dollar-sign'
             },
             {
-                'id': 12,
+                'id': 13,
                 'title': 'Social & Classifiche',
                 'description': 'Interagisci con altri produttori nella chat, vota i loro film sulla CineBoard e scala la classifica globale!',
                 'icon': 'users'
+            },
+            {
+                'id': 14,
+                'title': 'Supporta il Nostro Gioco!',
+                'description': 'CineWorld esiste grazie alla community! Se ti piace il gioco, puoi aiutarci con una donazione libera tramite il pulsante in basso o nel menu. Ogni contributo ci aiuta a sviluppare nuove funzionalità!',
+                'icon': 'ticket'
             }
         ]
     }

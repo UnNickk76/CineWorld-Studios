@@ -94,6 +94,7 @@ const TopNavbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showDonateDialog, setShowDonateDialog] = useState(false);
+  const [showDonatePopup, setShowDonatePopup] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
@@ -167,6 +168,12 @@ const TopNavbar = () => {
     
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
+
+  // Show donate popup on each access (with delay)
+  useEffect(() => {
+    const timer = setTimeout(() => setShowDonatePopup(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Lightweight refresh on navigation - only notification counts
   useEffect(() => {
@@ -1112,6 +1119,50 @@ const TopNavbar = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Donate Popup - Shown on every access */}
+      {showDonatePopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
+          <div 
+            className="relative bg-[#111] border border-yellow-500/30 rounded-2xl max-w-sm w-[90%] mx-4 overflow-hidden shadow-2xl shadow-yellow-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close X */}
+            <button
+              className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
+              onClick={() => setShowDonatePopup(false)}
+              data-testid="donate-popup-close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            
+            {/* Content */}
+            <div className="p-6 pt-8 text-center">
+              <Heart className="w-14 h-14 text-pink-400 mx-auto mb-4" />
+              <h2 className="font-['Bebas_Neue'] text-2xl text-white mb-3 leading-tight">
+                Aiutaci a far crescere<br/>
+                <span className="text-yellow-400">il NOSTRO gioco</span>
+              </h2>
+              <p className="text-sm text-gray-400 leading-relaxed mb-6">
+                CineWorld esiste grazie a voi. Con il tuo supporto possiamo continuare a sviluppare nuove funzionalità e rendere il gioco sempre migliore per tutti.
+              </p>
+              
+              {/* Donate button */}
+              <a
+                href="https://www.paypal.me/UnNickk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-base transition-colors"
+                data-testid="donate-popup-btn"
+                onClick={() => setShowDonatePopup(false)}
+              >
+                <Heart className="w-5 h-5" />
+                Dona Ora
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
     </nav>
   );

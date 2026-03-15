@@ -104,6 +104,20 @@ const TopNavbar = () => {
   const [onlineUsersList, setOnlineUsersList] = useState([]);
   const [allPlayersList, setAllPlayersList] = useState([]);
   const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
+
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const now = new Date();
+    const date = new Date(dateStr);
+    const mins = Math.floor((now - date) / 60000);
+    if (mins < 1) return 'ora';
+    if (mins < 60) return `${mins} min fa`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h fa`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return 'ieri';
+    return `${days}g fa`;
+  };
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [sendingFriendReq, setSendingFriendReq] = useState(null);
@@ -804,6 +818,7 @@ const TopNavbar = () => {
                         <p className="font-semibold text-sm truncate text-gray-400">{p.nickname}</p>
                         <p className="text-[10px] text-gray-600 truncate">{p.production_house_name || ''}</p>
                       </div>
+                      <span className="text-[9px] text-gray-500 whitespace-nowrap">{timeAgo(p.last_active) || 'Offline'}</span>
                       {p.level && <Badge className="bg-gray-700/50 text-gray-500 text-[9px]">Lv.{p.level}</Badge>}
                       <ChevronRight className="w-4 h-4 text-gray-700" />
                     </div>

@@ -698,11 +698,14 @@ async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get
         infra_type_id = infra.get('type', '')
         base_income = passive_rates.get(infra_type_id, infra_type.get('passive_income', 500))
         level = infra.get('level', 1)
-        hourly_revenue = base_income * max(1, level)
+        # Logarithmic scaling: level^0.5 instead of linear
+        import math
+        level_mult = max(1, math.sqrt(level))
+        hourly_revenue = base_income * level_mult
         
         # Even screen-based infra with no films gets minimum passive income
         if infra_type.get('screens', 0) > 0:
-            hourly_revenue = max(hourly_revenue, 500 * max(1, level))
+            hourly_revenue = max(hourly_revenue, 500 * level_mult)
     
     # Apply city multiplier
     city = infra.get('city', {})

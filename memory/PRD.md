@@ -10,33 +10,43 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 
 ## Funzionalità Completate
 - Acting School, CinePass, Notifiche, UI/UX, Poster AI, Tutorial, Release notes
-- Step 1-6: Ordinamento film, fix cinema, traduzioni, costi CinePass, fix performance, indicatori skill
-- v0.073: Rimani connesso, +1 CinePass rientro, ultimo accesso, 10 contest, +20% ricavi, +2 CinePass 1v1
-- v0.074: Cinema cliccabile → popup distribuzione, legenda CineBoard rimossa, costo festival ribilanciato
-- v0.075: Bilanciamento sfide 1v1 (probabilità esplicite), +2 CinePass visibile nel risultato, "UPSET"→"SORPRESA!"
-- v0.076: Sistema donazioni PayPal (pulsante fisso, menu, popup ad ogni accesso)
-- v0.077: Pannello Admin (toggle donazioni, ruoli utente), tutorial 14 sezioni, ribilanciamento entrate
-- v0.078: Fix costo doppio CinePass per sceneggiature emergenti
-- v0.079: Ottimizzazione mobile (interceptor 401, transizioni veloci, cache dati 60s, timeout 30s, retry automatico)
+- v0.124: Traduzione, CinePass Sfide & Fix Cinema
+- v0.125: Sessione Persistente, Skill & Ottimizzazione
+- v0.126: Donazioni, UI & Bilanciamento Sfide
+- v0.127: Admin, Tutorial & Bilanciamento
+- v0.128: Fix CinePass doppio & Contest Migliorati
+- v0.129: Velocità Mobile & Fix Vari
 
-## Sistema Admin
-- Solo NeoMorpheus ha accesso al pannello admin
-- Toggle donazioni: attiva/disattiva da profilo
-- Assegnazione ruoli: POST /api/admin/set-user-role (moderatore, VIP, tester)
+## Sessione Corrente (15 Mar 2026)
+- Fix costo doppio CinePass per sceneggiature emergenti
+- Ottimizzazione mobile (interceptor 401, transizioni veloci, cache 60s, timeout 30s, retry)
+- Dashboard film grid 9 (3x3) invece di 10
+- Orario reset contest corretto: 11:00
+- Note di sistema aggiornate (v0.124-v0.129)
+- Pallino rosso contest disponibili in Dashboard
+- Fix 1v1: refreshUser await + interceptor 401 meno aggressivo (2+ errori per logout)
+- Rimossa sezione "Nuovi Trailer" dal Cinema Journal
+- **Ribilanciamento economia**: base revenue -50%, rendite decrescenti offline, cap catchup per livello, rimosso boost +20%, infra logaritmiche
 
-## Ottimizzazioni Performance Mobile (v0.079)
-- **Interceptor 401:** Auto-logout su token scaduto, elimina "autenticazione fallita" ripetuta
-- **Transizioni pagina:** 100ms (da 200ms), rimosso mode="wait" bloccante
-- **Cache in-memory 60s:** Dati statici (generi, location, sponsor) serviti da cache
-- **Timeout API:** 30s (da 120s)
-- **Retry automatico:** 1 retry su errori di rete/5xx
+## Economia Ribilanciata
+- **Film base revenue**: `4000 + Q*175` (era `8000 + Q*350`)
+- **Catchup diminishing**: 0-3h=100%, 3-6h=50%, 6h+=25%
+- **Cap catchup**: `livello × $50,000`
+- **Boost +20% rimosso** dal calcolo orario
+- **Infrastrutture**: scaling `level^0.5` (logaritmico)
 
-## Task Prossimi (P0-P1)
-- Verificare layout mobile pagina Contest (/games)
-- Verifica utente premio +2 CinePass sfide 1v1 offline
+## Bug da verificare
+- Layout Android Chrome (in attesa screenshot utente)
+- Premio +2 CinePass sfide 1v1 offline (verifica utente)
 
-## Task Futuri (P2-P3)
-- Sistema ruoli Admin avanzato (moderatore, VIP, tester con poteri specifici)
-- Tutorial popup per nuovi utenti (primo accesso)
+## Task Prossimi (P1-P2)
+- Sistema ruoli Admin avanzato
+- Tutorial popup per nuovi utenti
+
+## Task Futuri (P3)
 - CineCoins Purchase System (Stripe)
 - Conversione PWA
+
+## Dominio
+- cineworld-studios.it → Cloudflare DNS → Emergent Host
+- NS: nero.ns.cloudflare.com, olivia.ns.cloudflare.com

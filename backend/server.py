@@ -13234,6 +13234,19 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
     hours_missed = min(hours_missed, 168)
     full_hours = int(hours_missed)
     
+    # Diminishing returns: first 3h = 100%, 3-6h = 50%, 6h+ = 25%
+    def diminishing_factor(hour_offset):
+        if hour_offset < 3:
+            return 1.0
+        elif hour_offset < 6:
+            return 0.5
+        else:
+            return 0.25
+    
+    # Cap based on player level
+    user_level = user.get('level', 1)
+    max_catchup_revenue = user_level * 50000
+    
     total_catchup_revenue = 0
     film_details = []
     infra_details = []
@@ -13262,7 +13275,7 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
             'id': {'$ne': film['id']}
         })
         
-        # Calculate revenue for each missed hour (simplified - use average)
+        # Calculate revenue for each missed hour with diminishing returns
         film_catchup = 0
         for hour_offset in range(full_hours):
             past_time = last_activity + timedelta(hours=hour_offset)
@@ -13272,7 +13285,7 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
             revenue_data = calculate_hourly_film_revenue(
                 film, hour, day_of_week, days_in_theater + (hour_offset // 24), competing_films
             )
-            film_catchup += revenue_data['revenue']
+            film_catchup += int(revenue_data['revenue'] * diminishing_factor(hour_offset))
         
         if film_catchup > 0:
             # Update film total revenue
@@ -13301,7 +13314,7 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
             if not infra_config:
                 continue
             
-            # Calculate passive income for missed hours
+            # Calculate passive income for missed hours with diminishing returns
             base_income = infra_config.get('passive_income', 0)
             if base_income > 0:
                 # Check if it's a cinema with films
@@ -13311,7 +13324,9 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
                 else:
                     hourly_rate = base_income
                 
-                infra_catchup = int(hourly_rate * full_hours)
+                infra_catchup = 0
+                for h in range(full_hours):
+                    infra_catchup += int(hourly_rate * diminishing_factor(h))
                 if infra_catchup > 0:
                     total_catchup_revenue += infra_catchup
                     infra_details.append({
@@ -13326,7 +13341,11 @@ async def process_offline_catchup(user: dict = Depends(get_current_user)):
             {'$set': {'last_revenue_update': now.isoformat()}}
         )
     
-    # 3. Update user funds and last activity
+    # 3. Apply max catchup cap based on player level
+    if total_catchup_revenue > max_catchup_revenue:
+        total_catchup_revenue = max_catchup_revenue
+    
+    # 4. Update user funds and last activity
     if total_catchup_revenue > 0:
         await db.users.update_one(
             {'id': user_id},

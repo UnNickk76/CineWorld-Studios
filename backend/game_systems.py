@@ -976,8 +976,8 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     imdb_rating = film.get('imdb_rating', 5.0)
     genre = film.get('genre', 'drama')
     
-    # Base revenue from quality (scales with quality)
-    base_revenue = 8000 + (quality * 350)  # $8k-$43k base per hour
+    # Base revenue from quality (scales with quality) - REBALANCED
+    base_revenue = 4000 + (quality * 175)  # $4k-$22k base per hour
     
     # Number of cinemas showing this film (more cinemas = more total revenue)
     cinemas_count = film.get('current_cinemas', 1)
@@ -1106,8 +1106,8 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
         soundtrack_mult = soundtrack_boost.get('day_3_multiplier', 1.0)
     final_revenue *= soundtrack_mult
     
-    # Global 20% revenue boost
-    final_revenue *= 1.20
+    # Revenue boost removed (rebalanced)
+    # final_revenue *= 1.20
     
     final_revenue = max(100, int(final_revenue))  # Minimum $100
     

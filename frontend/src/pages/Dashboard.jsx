@@ -71,6 +71,7 @@ const Dashboard = () => {
   const [shootingConfig, setShootingConfig] = useState(null);
   const [startingShooting, setStartingShooting] = useState(false);
   const [endingShootingEarly, setEndingShootingEarly] = useState(false);
+  const [showShootingDialog, setShowShootingDialog] = useState(false);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -472,22 +473,23 @@ const Dashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Shooting Films Section */}
-      <div id="shooting-section">
-      {shootingFilms.length > 0 && (
-        <Card className="mb-4 bg-gradient-to-r from-red-500/10 to-orange-500/5 border-red-500/20" data-testid="shooting-films-section">
-          <CardContent className="p-3">
-            <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2 mb-2">
-              <Clapperboard className="w-4 h-4 text-red-400" />
+      {/* Shooting Dialog - opens from CIAK! button */}
+      <Dialog open={showShootingDialog} onOpenChange={setShowShootingDialog}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Clapperboard className="w-5 h-5 text-red-400" />
               CIAK, SI GIRA!
-              <Badge className="bg-red-500 text-white text-xs animate-pulse">{shootingFilms.length}</Badge>
-            </h3>
+              {shootingFilms.length > 0 && <Badge className="bg-red-500 text-white text-xs">{shootingFilms.length}</Badge>}
+            </DialogTitle>
+          </DialogHeader>
+          {shootingFilms.length > 0 ? (
             <div className="space-y-2">
               {shootingFilms.map(sf => {
                 const progress = sf.shooting_days > 0 ? (sf.shooting_days_completed / sf.shooting_days) * 100 : 0;
                 const lastEvent = sf.shooting_events?.[sf.shooting_events.length - 1];
                 return (
-                  <div key={sf.id} className="bg-black/30 rounded-lg p-2 border border-white/5" data-testid={`shooting-film-${sf.id}`}>
+                  <div key={sf.id} className="bg-black/30 rounded-lg p-2 border border-white/5" data-testid={`shooting-dialog-film-${sf.id}`}>
                     <div className="flex items-center gap-2 mb-1.5">
                       {sf.poster_url && <img src={sf.poster_url} alt="" className="w-8 h-12 rounded object-cover" />}
                       <div className="flex-1 min-w-0">
@@ -500,12 +502,11 @@ const Dashboard = () => {
                         className="h-6 text-[10px] px-2 border-red-500/30 text-red-300 hover:bg-red-500/10"
                         onClick={() => handleEndShootingEarly(sf.id)}
                         disabled={endingShootingEarly}
-                        data-testid={`end-shooting-early-${sf.id}`}
+                        data-testid={`end-early-dialog-${sf.id}`}
                       >
                         {endingShootingEarly ? '...' : `Chiudi (${sf.early_end_cinepass_cost} CP)`}
                       </Button>
                     </div>
-                    {/* Progress bar */}
                     <div className="w-full bg-gray-800 rounded-full h-1.5 mb-1">
                       <div className="bg-gradient-to-r from-red-500 to-amber-500 h-1.5 rounded-full transition-all" style={{width: `${progress}%`}} />
                     </div>
@@ -520,10 +521,15 @@ const Dashboard = () => {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
-      </div>
+          ) : (
+            <div className="text-center py-6">
+              <Clapperboard className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-500 text-sm">Nessun film in riprese.</p>
+              <p className="text-gray-600 text-xs mt-1">Inizia le riprese dal popup di distribuzione!</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Release Film Popup */}
       <Dialog open={!!releasePopup} onOpenChange={() => setReleasePopup(null)}>
@@ -867,7 +873,7 @@ const Dashboard = () => {
             {pendingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{pendingFilms.length}</span>}
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer relative" onClick={() => { const el = document.getElementById('shooting-section'); if (el) el.scrollIntoView({behavior:'smooth'}); }} data-testid="shooting-shortcut">
+        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer relative" onClick={() => setShowShootingDialog(true)} data-testid="shooting-shortcut">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Ciak!' : 'Action!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Si gira!' : 'Shooting!'}</p></div>

@@ -63,6 +63,7 @@ const Dashboard = () => {
   const [selectedZone, setSelectedZone] = useState('national');
   const [selectedContinent, setSelectedContinent] = useState('europe');
   const [releasing, setReleasing] = useState(false);
+  const [hasStudio, setHasStudio] = useState(false);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -216,6 +217,11 @@ const Dashboard = () => {
           const contestsRes = await api.get('/cinepass/contests');
           const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
           setAvailableContests(available);
+        } catch {}
+        // Check if user owns a production studio
+        try {
+          const studioRes = await api.get('/production-studio/status');
+          if (studioRes.data?.level) setHasStudio(true);
         } catch {}
       } catch (err) {
         console.error(err);
@@ -505,6 +511,20 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Studio button - only if user owns production studio */}
+          {hasStudio && releasePopup && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200"
+              onClick={() => { setReleasePopup(null); navigate('/infrastructure'); }}
+              data-testid="go-to-studio-btn"
+            >
+              <Building className="w-4 h-4 mr-2" />
+              {language === 'it' ? 'Porta in Studio di Produzione' : 'Take to Production Studio'}
+            </Button>
           )}
 
           <DialogFooter className="gap-2">

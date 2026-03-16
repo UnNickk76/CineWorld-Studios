@@ -9559,18 +9559,24 @@ async def get_tutorial():
             },
             {
                 'id': 3,
-                'title': 'Distribuzione Film',
-                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio" nella Dashboard. Da lì scegli dove distribuirlo:\n\n'
-                    '- Nazionale: $500K + 3 CinePass - Ricavi base\n'
-                    '- Continentale: $1.5M + 5 CinePass - Ricavi x3\n'
-                    '- Mondiale: $4M + 8 CinePass - Ricavi x7\n\n'
-                    'I ricavi di apertura dipendono dalla qualità del film e dalla zona scelta. Distribuire un film non costa CinePass di creazione: paghi solo alla distribuzione!',
+                'title': 'Distribuzione e Riprese',
+                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio". Hai due scelte:\n\n'
+                    'RILASCIO DIRETTO: Costo ridotto del 30%, ma qualità limitata a 5.8 IMDb e incassi ridotti.\n\n'
+                    'INIZIA LE RIPRESE: Scegli da 1 a 10 giorni. Bonus qualità dal +10% (1g) al +40% (10g)! '
+                    'Ogni giorno accadono eventi casuali: Giornata Perfetta (+2%), Improvvisazione Geniale (+3%), Ritardo Meteo (-1%)...\n\n'
+                    'Puoi chiudere anticipatamente le riprese pagando CinePass (2 × giorni mancanti). '
+                    'Poi scegli la zona di distribuzione:\n'
+                    '- Nazionale: $500K + 3 CP\n'
+                    '- Continentale: $1.5M + 5 CP\n'
+                    '- Mondiale: $4M + 8 CP',
                 'icon': 'globe'
             },
             {
                 'id': 4,
                 'title': 'Scegli il Cast',
-                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità! Puoi pre-ingaggiare attori per 5 CinePass. Se possiedi la Scuola di Recitazione, i tuoi attori personali sono gratuiti!',
+                'description': 'Il cast disponibile dipende dal tuo livello e dalla tua fama! Attori, registi e sceneggiatori hanno abilità e fama diverse. '
+                    'Livello basso = solo 1-2 stelle. Salendo di livello sblocchi talenti migliori fino a 5 stelle. '
+                    'Puoi pre-ingaggiare attori per 5 CinePass. Se possiedi la Scuola di Recitazione, i tuoi attori personali sono gratuiti!',
                 'icon': 'users'
             },
             {

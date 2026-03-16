@@ -1,51 +1,58 @@
 # CineWorld Studio's - PRD
 
 ## Problema Originale
-Gioco di simulazione di studio cinematografico con economia virtuale (CinePass), scuola di recitazione, sfide 1v1 e gestione infrastrutture.
+Gioco di simulazione di studio cinematografico con economia virtuale (CinePass), sfide 1v1, gestione infrastrutture e distribuzione film.
 
 ## Architettura
 - **Frontend:** React + Tailwind + Shadcn/UI
 - **Backend:** FastAPI + MongoDB
 - **Integrazioni:** OpenAI GPT-4o (testo), GPT-Image-1 (poster), Emergent LLM Key
 
-## Sessione 16 Mar 2026
+## FASE 1 COMPLETATA: Sistema Distribuzione Film (16 Mar 2026)
 
-### Batch 1 - Fix bug critici
-- FIX: Premio CinePass sfide 1v1 (root cause: `xp` → `total_xp`)
-- FIX: Nome Studio nella UI (production_house_name)
-- FIX: Film duplicati Dashboard + poster mancanti
-- FIX: Crash trailer rotti (onError handler)
+### Nuovo Flusso Film
+1. **Crea Film** → Paghi solo costi produzione (attori, location, ecc.) in CineCoins
+2. **Film va in "Attesa di Rilascio"** → Sezione dedicata in Dashboard con badge contatore
+3. **Rilascio Film** → Popup distribuzione con 3 zone:
+   - Nazionale (solo paese studio): ~$500K + 3 CinePass, 0.4x ricavi
+   - Continentale (selezione continente): ~$1.5M + 5 CinePass, 1.0x ricavi
+   - Mondiale: ~$4M + 8 CinePass, 2.5x ricavi
+4. **CinePass detratti solo al rilascio**, non alla creazione
 
-### Batch 2 - Fix da screenshot utente
-- FIX: Route CinemaJournal `/film/` → `/films/` (5 navigate calls)
+### Nuovi Endpoint Backend
+- `GET /api/films/pending` — Film in attesa di rilascio
+- `GET /api/distribution/config` — Zone, paesi, continenti
+- `POST /api/films/{id}/release` — Rilascio con zona distribuzione
+
+### Campo Profilo
+- `studio_country` (default: IT) — Paese dello studio di produzione (50 paesi)
+- Aggiornabile via `PUT /api/auth/profile`
+
+## FASE 2 DA IMPLEMENTARE: Studio di Produzione
+
+### 3 Pannelli nell'Infrastruttura:
+1. **Pre-Produzione** — Storyboard, Casting Interno, Scouting Location
+2. **Post-Produzione** — Remaster, Director's Cut, Re-editing
+3. **Agenzia Casting** — Audizioni settimanali, talenti esclusivi, contratti
+
+## Bug Fix (16 Mar 2026)
+- FIX CRITICO: Premio CinePass sfide 1v1 (xp → total_xp)
 - FIX: Pareggi falsi skill battle (draw_chance ridotta)
-- FIX: CinePass update ottimistico dopo vittoria
-- FIX: Locandine duplicate Giornale Cinema (dedup per titolo)
+- FIX: Route CinemaJournal /film/ → /films/
+- FIX: CinePass update ottimistico
+- FIX: Locandine duplicate + nome studio UI
+- Trailer generation: "Coming Soon" (FFmpeg non disponibile in prod)
 
-### Batch 3 - Trailer in pausa
-- **Trailer generation disabilitata** - FFmpeg non disponibile in produzione. Sezione sostituita con "Funzionalità in Sviluppo / Coming Soon". I film con trailer esistenti continuano a funzionare.
+## Task Prossimi
+- **FASE 2:** Studio di Produzione (3 pannelli infrastruttura)
+- **FASE 3:** Profilo - selezione città studio con dropdown
+- Sistema ruoli Admin (RBAC)
+- Tutorial popup nuovi utenti
 
-## Bug Risolti (Storico)
-- Premio +2 CinePass sfide 1v1: RISOLTO
-- Pareggi falsi skill battle: RISOLTO
-- Route `/film/` vs `/films/`: RISOLTO
-- Locandine duplicate: RISOLTO
-- CinePass non aggiornato dopo vittoria: RISOLTO
-- Crash app su trailer rotto: RISOLTO
-
-## Feature in Pausa
-- **Trailer Generation** - In attesa di soluzione produzione-compatibile (FFmpeg non disponibile)
-
-## Task Prossimi (P1-P2)
-- Sistema ruoli Admin avanzato (RBAC)
-- Tutorial popup per nuovi utenti
-- Layout mobile Contest Page
-
-## Task Futuri (P3)
-- Runware Integration (trailer premium a pagamento)
+## Backlog
+- Runware Integration (trailer premium)
 - CineCoins Purchase System (Stripe)
 - Conversione PWA
-- Layout Android Chrome
 
 ## Dominio
 - cineworld-studios.it → Cloudflare DNS → Emergent Host

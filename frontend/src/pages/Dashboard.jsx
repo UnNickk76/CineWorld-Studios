@@ -64,6 +64,13 @@ const Dashboard = () => {
   const [selectedContinent, setSelectedContinent] = useState('europe');
   const [releasing, setReleasing] = useState(false);
   const [hasStudio, setHasStudio] = useState(false);
+  // Shooting system
+  const [shootingFilms, setShootingFilms] = useState([]);
+  const [shootingPopup, setShootingPopup] = useState(null);
+  const [shootingDays, setShootingDays] = useState(5);
+  const [shootingConfig, setShootingConfig] = useState(null);
+  const [startingShooting, setStartingShooting] = useState(false);
+  const [endingShootingEarly, setEndingShootingEarly] = useState(false);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -223,6 +230,16 @@ const Dashboard = () => {
           const studioRes = await api.get('/production-studio/status');
           if (studioRes.data?.level) setHasStudio(true);
         } catch {}
+        // Fetch shooting films
+        try {
+          const shootRes = await api.get('/films/shooting');
+          setShootingFilms(shootRes.data?.films || []);
+        } catch {}
+        // Fetch shooting config
+        try {
+          const configRes = await api.get('/films/shooting/config');
+          setShootingConfig(configRes.data);
+        } catch {}
       } catch (err) {
         console.error(err);
       }
@@ -287,7 +304,51 @@ const Dashboard = () => {
     const zone = distConfig.zones[selectedZone];
     if (!zone) return { funds: 0, cinepass: 0 };
     const qf = 1.0 + ((releasePopup?.quality_score || 50) - 50) / 200;
-    return { funds: Math.round(zone.base_cost * qf), cinepass: zone.cinepass_cost };
+    const isDirectRelease = releasePopup?.status === 'pending_release';
+    const fundsCost = isDirectRelease ? Math.round(zone.base_cost * qf * 0.7) : Math.round(zone.base_cost * qf);
+    const cpCost = isDirectRelease ? Math.max(1, zone.cinepass_cost - 1) : zone.cinepass_cost;
+    return { funds: fundsCost, cinepass: cpCost };
+  };
+
+  const getShootingCost = (film, days) => {
+    const budget = film?.total_budget || film?.production_cost || 500000;
+    return Math.round(budget * 0.15 * days);
+  };
+
+  const handleStartShooting = async () => {
+    if (!shootingPopup) return;
+    setStartingShooting(true);
+    try {
+      const res = await api.post(`/films/${shootingPopup.id}/start-shooting`, { shooting_days: shootingDays });
+      if (res.data.success) {
+        toast.success(res.data.message);
+        setPendingFilms(prev => prev.filter(f => f.id !== shootingPopup.id));
+        setShootingPopup(null);
+        // Refresh shooting films
+        const shootRes = await api.get('/films/shooting');
+        setShootingFilms(shootRes.data?.films || []);
+        refreshUser().catch(() => {});
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally { setStartingShooting(false); }
+  };
+
+  const handleEndShootingEarly = async (filmId) => {
+    setEndingShootingEarly(true);
+    try {
+      const res = await api.post(`/films/${filmId}/end-shooting-early`);
+      if (res.data.success) {
+        toast.success(res.data.message);
+        setShootingFilms(prev => prev.filter(f => f.id !== filmId));
+        // Refresh pending
+        const pendRes = await api.get('/films/pending');
+        setPendingFilms(pendRes.data || []);
+        refreshUser().catch(() => {});
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally { setEndingShootingEarly(false); }
   };
 
   return (
@@ -411,6 +472,59 @@ const Dashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Shooting Films Section */}
+      <div id="shooting-section">
+      {shootingFilms.length > 0 && (
+        <Card className="mb-4 bg-gradient-to-r from-red-500/10 to-orange-500/5 border-red-500/20" data-testid="shooting-films-section">
+          <CardContent className="p-3">
+            <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2 mb-2">
+              <Clapperboard className="w-4 h-4 text-red-400" />
+              CIAK, SI GIRA!
+              <Badge className="bg-red-500 text-white text-xs animate-pulse">{shootingFilms.length}</Badge>
+            </h3>
+            <div className="space-y-2">
+              {shootingFilms.map(sf => {
+                const progress = sf.shooting_days > 0 ? (sf.shooting_days_completed / sf.shooting_days) * 100 : 0;
+                const lastEvent = sf.shooting_events?.[sf.shooting_events.length - 1];
+                return (
+                  <div key={sf.id} className="bg-black/30 rounded-lg p-2 border border-white/5" data-testid={`shooting-film-${sf.id}`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {sf.poster_url && <img src={sf.poster_url} alt="" className="w-8 h-12 rounded object-cover" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{sf.title}</p>
+                        <p className="text-[10px] text-gray-500">Giorno {sf.shooting_days_completed}/{sf.shooting_days} | Bonus: +{sf.shooting_bonus}%</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px] px-2 border-red-500/30 text-red-300 hover:bg-red-500/10"
+                        onClick={() => handleEndShootingEarly(sf.id)}
+                        disabled={endingShootingEarly}
+                        data-testid={`end-shooting-early-${sf.id}`}
+                      >
+                        {endingShootingEarly ? '...' : `Chiudi (${sf.early_end_cinepass_cost} CP)`}
+                      </Button>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="w-full bg-gray-800 rounded-full h-1.5 mb-1">
+                      <div className="bg-gradient-to-r from-red-500 to-amber-500 h-1.5 rounded-full transition-all" style={{width: `${progress}%`}} />
+                    </div>
+                    {lastEvent && (
+                      <p className="text-[9px] text-gray-400">
+                        Ultimo evento: <span className={lastEvent.bonus > 0 ? 'text-green-400' : lastEvent.bonus < 0 ? 'text-red-400' : 'text-gray-400'}>
+                          {lastEvent.name} ({lastEvent.bonus > 0 ? '+' : ''}{lastEvent.bonus}%)
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      </div>
+
       {/* Release Film Popup */}
       <Dialog open={!!releasePopup} onOpenChange={() => setReleasePopup(null)}>
         <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
@@ -492,6 +606,16 @@ const Dashboard = () => {
               )}
 
               {/* Revenue preview */}
+              {releasePopup?.status === 'pending_release' && (
+                <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20">
+                  <p className="text-[10px] text-orange-400 font-medium mb-1">Rilascio diretto: costo -30% ma qualità capped a 5.8 IMDb e incassi ridotti</p>
+                </div>
+              )}
+              {releasePopup?.status === 'ready_to_release' && (
+                <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
+                  <p className="text-[10px] text-green-400 font-medium mb-1">Film pronto dopo le riprese! Bonus qualità applicato: +{releasePopup.shooting_bonus || 0}%</p>
+                </div>
+              )}
               <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="w-3 h-3 text-green-400" />
@@ -514,7 +638,7 @@ const Dashboard = () => {
           )}
 
           {/* Studio button - only if user owns production studio */}
-          {hasStudio && releasePopup && (
+          {hasStudio && releasePopup && releasePopup.status === 'pending_release' && (
             <Button
               variant="outline"
               size="sm"
@@ -525,6 +649,49 @@ const Dashboard = () => {
               <Building className="w-4 h-4 mr-2" />
               {language === 'it' ? 'Porta in Studio di Produzione' : 'Take to Production Studio'}
             </Button>
+          )}
+
+          {/* Start Shooting option - only for pending_release films */}
+          {releasePopup && releasePopup.status === 'pending_release' && (
+            <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 space-y-2" data-testid="shooting-option">
+              <div className="flex items-center gap-2">
+                <Clapperboard className="w-4 h-4 text-red-400" />
+                <span className="text-sm font-semibold text-red-300">Inizia le Riprese</span>
+              </div>
+              <p className="text-[10px] text-gray-400">Gira il film per migliorarne la qualità. Più giorni = più bonus!</p>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-400 shrink-0">Giorni:</label>
+                <input
+                  type="range" min="1" max="10" value={shootingDays}
+                  onChange={(e) => setShootingDays(parseInt(e.target.value))}
+                  className="flex-1 h-1.5 accent-red-500"
+                  data-testid="shooting-days-slider"
+                />
+                <span className="text-sm font-bold text-white w-6 text-center">{shootingDays}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-center text-[10px]">
+                <div className="bg-black/30 rounded p-1">
+                  <p className="text-gray-500">Bonus</p>
+                  <p className="text-green-400 font-bold">+{shootingConfig?.bonus_curve?.[shootingDays] || (shootingDays * 4)}%</p>
+                </div>
+                <div className="bg-black/30 rounded p-1">
+                  <p className="text-gray-500">Costo</p>
+                  <p className="text-yellow-400 font-bold">${getShootingCost(releasePopup, shootingDays).toLocaleString()}</p>
+                </div>
+                <div className="bg-black/30 rounded p-1">
+                  <p className="text-gray-500">Durata</p>
+                  <p className="text-white font-bold">{shootingDays}g</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="w-full bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                onClick={() => { setShootingPopup(releasePopup); setReleasePopup(null); }}
+                data-testid="start-shooting-from-release"
+              >
+                <Clapperboard className="w-4 h-4 mr-2" /> Inizia le Riprese ({shootingDays} giorni)
+              </Button>
+            </div>
           )}
 
           <DialogFooter className="gap-2">
@@ -539,6 +706,53 @@ const Dashboard = () => {
               data-testid="confirm-release-btn"
             >
               {releasing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Rilascia nelle Sale' : 'Release to Theaters')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shooting Confirmation Dialog */}
+      <Dialog open={!!shootingPopup} onOpenChange={(open) => { if (!open) setShootingPopup(null); }}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Clapperboard className="w-5 h-5 text-red-400" />
+              CIAK, SI GIRA!
+            </DialogTitle>
+          </DialogHeader>
+          {shootingPopup && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 bg-black/30 rounded-lg p-3 border border-white/5">
+                <img src={shootingPopup.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'} alt="" className="w-10 h-14 rounded object-cover" />
+                <div>
+                  <p className="font-semibold text-sm">{shootingPopup.title}</p>
+                  <p className="text-xs text-gray-400">Qualità: {(shootingPopup.quality_score || 0).toFixed(0)}%</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-400 shrink-0">Giorni di riprese:</label>
+                <input type="range" min="1" max="10" value={shootingDays} onChange={(e) => setShootingDays(parseInt(e.target.value))} className="flex-1 h-1.5 accent-red-500" data-testid="shooting-confirm-slider" />
+                <span className="text-lg font-bold text-white w-6 text-center">{shootingDays}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
+                  <p className="text-[10px] text-gray-400">Bonus qualità</p>
+                  <p className="text-lg font-bold text-green-400">+{shootingConfig?.bonus_curve?.[shootingDays] || (shootingDays * 4)}%</p>
+                </div>
+                <div className="bg-yellow-500/10 rounded-lg p-2 border border-yellow-500/20">
+                  <p className="text-[10px] text-gray-400">Costo riprese</p>
+                  <p className="text-lg font-bold text-yellow-400">${getShootingCost(shootingPopup, shootingDays).toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-500 text-center">
+                Ogni giorno ci saranno eventi casuali che influenzano il bonus: giornate perfette, ritardi meteo, improvvisazioni geniali...
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShootingPopup(null)} className="border-white/10">Annulla</Button>
+            <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white font-bold" onClick={handleStartShooting} disabled={startingShooting} data-testid="confirm-shooting-btn">
+              {startingShooting ? <Loader2 className="w-4 h-4 animate-spin" /> : `Inizia Riprese (${shootingDays}g)`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -652,11 +866,18 @@ const Dashboard = () => {
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-600/5 border-amber-500/20 cursor-pointer relative" onClick={() => { if (pendingFilms.length > 0) { setReleasePopup(pendingFilms[0]); } else { navigate('/create'); } }} data-testid="pending-films-shortcut">
+        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-600/5 border-amber-500/20 cursor-pointer relative" onClick={() => { if (pendingFilms.length > 0) { openReleasePopup(pendingFilms[0]); } else { navigate('/create'); } }} data-testid="pending-films-shortcut">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-amber-500 rounded-lg"><Clock className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'In Attesa' : 'Pending'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Rilascia film' : 'Release films'}</p></div>
             {pendingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{pendingFilms.length}</span>}
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer relative" onClick={() => { const el = document.getElementById('shooting-section'); if (el) el.scrollIntoView({behavior:'smooth'}); }} data-testid="shooting-shortcut">
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Ciak!' : 'Action!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Si gira!' : 'Shooting!'}</p></div>
+            {shootingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">{shootingFilms.length}</span>}
           </CardContent>
         </Card>
       </div>

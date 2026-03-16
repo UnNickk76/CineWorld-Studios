@@ -3991,10 +3991,215 @@ async def get_my_films(user: dict = Depends(get_current_user)):
 async def get_pending_films(user: dict = Depends(get_current_user)):
     """Get films waiting to be released."""
     films = await db.films.find(
-        {'user_id': user['id'], 'status': 'pending_release'},
+        {'user_id': user['id'], 'status': {'$in': ['pending_release', 'ready_to_release']}},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
     return [FilmResponse(**f) for f in films]
+
+# ==================== SHOOTING SYSTEM ====================
+
+SHOOTING_BONUS_CURVE = {
+    1: 10, 2: 14, 3: 18, 4: 21, 5: 25, 6: 28, 7: 32, 8: 35, 9: 38, 10: 40
+}
+
+SHOOTING_EVENTS = [
+    {'type': 'perfect_day', 'name': 'Giornata Perfetta', 'bonus': 2, 'chance': 20},
+    {'type': 'weather_delay', 'name': 'Ritardo Meteo', 'bonus': -1, 'chance': 15},
+    {'type': 'actor_improv', 'name': 'Improvvisazione Geniale', 'bonus': 3, 'chance': 10},
+    {'type': 'technical_issue', 'name': 'Problema Tecnico', 'bonus': -1, 'chance': 12},
+    {'type': 'creative_spark', 'name': 'Ispirazione Creativa', 'bonus': 2, 'chance': 15},
+    {'type': 'crowd_scene', 'name': 'Scena di Massa Riuscita', 'bonus': 2, 'chance': 10},
+    {'type': 'normal_day', 'name': 'Giornata Regolare', 'bonus': 0, 'chance': 18},
+]
+
+class StartShootingRequest(BaseModel):
+    shooting_days: int  # 1-10
+
+@api_router.post("/films/{film_id}/start-shooting")
+async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dict = Depends(get_current_user)):
+    """Start shooting a pending film for 1-10 days to improve quality."""
+    if req.shooting_days < 1 or req.shooting_days > 10:
+        raise HTTPException(status_code=400, detail="Giorni di riprese: da 1 a 10")
+    
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if film.get('status') != 'pending_release':
+        raise HTTPException(status_code=400, detail="Solo i film in attesa possono iniziare le riprese")
+    
+    # Calculate cost: 15% of film budget * days
+    budget = film.get('total_budget', 0) or film.get('production_cost', 500000)
+    shooting_cost = int(budget * 0.15 * req.shooting_days)
+    
+    if user.get('funds', 0) < shooting_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${shooting_cost:,}")
+    
+    max_bonus = SHOOTING_BONUS_CURVE.get(req.shooting_days, 10)
+    
+    now = datetime.now(timezone.utc).isoformat()
+    await db.films.update_one({'id': film_id}, {'$set': {
+        'status': 'shooting',
+        'shooting_days': req.shooting_days,
+        'shooting_days_completed': 0,
+        'shooting_started_at': now,
+        'shooting_events': [],
+        'shooting_bonus': 0,
+        'shooting_max_bonus': max_bonus,
+        'shooting_cost': shooting_cost
+    }})
+    
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -shooting_cost}})
+    
+    return {
+        'success': True,
+        'message': f'Riprese iniziate! {req.shooting_days} giorni di lavoro per +{max_bonus}% qualità max.',
+        'shooting_days': req.shooting_days,
+        'max_bonus': max_bonus,
+        'cost': shooting_cost
+    }
+
+@api_router.get("/films/shooting")
+async def get_shooting_films(user: dict = Depends(get_current_user)):
+    """Get films currently in shooting phase."""
+    films = await db.films.find(
+        {'user_id': user['id'], 'status': 'shooting'},
+        {'_id': 0}
+    ).sort('shooting_started_at', -1).to_list(20)
+    
+    now = datetime.now(timezone.utc)
+    results = []
+    for f in films:
+        days_total = f.get('shooting_days', 1)
+        days_done = f.get('shooting_days_completed', 0)
+        days_remaining = days_total - days_done
+        
+        # Calculate early end cost
+        early_end_cost = max(1, days_remaining * 2) if days_remaining > 0 else 0
+        
+        results.append({
+            'id': f['id'],
+            'title': f.get('title', ''),
+            'poster_url': f.get('poster_url', ''),
+            'genre': f.get('genre', ''),
+            'quality_score': f.get('quality_score', 0),
+            'shooting_days': days_total,
+            'shooting_days_completed': days_done,
+            'shooting_bonus': f.get('shooting_bonus', 0),
+            'shooting_max_bonus': f.get('shooting_max_bonus', 0),
+            'shooting_events': f.get('shooting_events', [])[-5:],
+            'early_end_cinepass_cost': early_end_cost,
+            'shooting_started_at': f.get('shooting_started_at', '')
+        })
+    
+    return {'films': results, 'count': len(results)}
+
+@api_router.post("/films/{film_id}/end-shooting-early")
+async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user)):
+    """End shooting early by paying CinePass. Film moves to ready_to_release."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if film.get('status') != 'shooting':
+        raise HTTPException(status_code=400, detail="Il film non è in fase di riprese")
+    
+    days_remaining = film.get('shooting_days', 0) - film.get('shooting_days_completed', 0)
+    cinepass_cost = max(1, days_remaining * 2)
+    
+    if user.get('cinepass', 0) < cinepass_cost:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
+    
+    # Apply accumulated bonus to quality
+    shooting_bonus = film.get('shooting_bonus', 0)
+    current_quality = film.get('quality_score', 50)
+    bonus_quality = current_quality * (1 + shooting_bonus / 100)
+    new_quality = min(100, round(bonus_quality, 1))
+    
+    # Calculate IMDb from quality
+    new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
+    
+    await db.films.update_one({'id': film_id}, {'$set': {
+        'status': 'ready_to_release',
+        'quality_score': new_quality,
+        'imdb_rating': new_imdb,
+        'shooting_completed_at': datetime.now(timezone.utc).isoformat(),
+        'shooting_ended_early': True
+    }})
+    
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cinepass_cost}})
+    
+    return {
+        'success': True,
+        'message': f'Riprese concluse! Qualità: {new_quality:.0f}% (bonus +{shooting_bonus}%). Costo: {cinepass_cost} CinePass',
+        'new_quality': new_quality,
+        'new_imdb': new_imdb,
+        'shooting_bonus': shooting_bonus,
+        'cinepass_cost': cinepass_cost
+    }
+
+# Scheduler task: process daily shooting progress
+async def process_shooting_progress():
+    """Daily task to advance all films in shooting by 1 day."""
+    try:
+        shooting_films = await db.films.find({'status': 'shooting'}, {'_id': 0}).to_list(500)
+        for film in shooting_films:
+            days_completed = film.get('shooting_days_completed', 0) + 1
+            days_total = film.get('shooting_days', 1)
+            
+            # Generate random event
+            roll = random.randint(1, 100)
+            cumulative = 0
+            event = {'type': 'normal_day', 'name': 'Giornata Regolare', 'bonus': 0}
+            for evt in SHOOTING_EVENTS:
+                cumulative += evt['chance']
+                if roll <= cumulative:
+                    event = {'type': evt['type'], 'name': evt['name'], 'bonus': evt['bonus']}
+                    break
+            
+            event['day'] = days_completed
+            events = film.get('shooting_events', [])
+            events.append(event)
+            
+            # Calculate daily bonus (base curve portion + event)
+            max_bonus = SHOOTING_BONUS_CURVE.get(days_total, 10)
+            base_daily = max_bonus / days_total
+            accumulated = film.get('shooting_bonus', 0) + base_daily + event['bonus']
+            accumulated = max(0, round(accumulated, 1))
+            
+            update_data = {
+                'shooting_days_completed': days_completed,
+                'shooting_events': events,
+                'shooting_bonus': accumulated
+            }
+            
+            # Check if shooting is complete
+            if days_completed >= days_total:
+                current_quality = film.get('quality_score', 50)
+                bonus_quality = current_quality * (1 + accumulated / 100)
+                new_quality = min(100, round(bonus_quality, 1))
+                new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
+                
+                update_data['status'] = 'ready_to_release'
+                update_data['quality_score'] = new_quality
+                update_data['imdb_rating'] = new_imdb
+                update_data['shooting_completed_at'] = datetime.now(timezone.utc).isoformat()
+                update_data['shooting_ended_early'] = False
+                logging.info(f"Film '{film.get('title')}' shooting complete: {new_quality:.0f}% quality (+{accumulated}% bonus)")
+            
+            await db.films.update_one({'id': film['id']}, {'$set': update_data})
+        
+        logging.info(f"Shooting progress: processed {len(shooting_films)} films")
+    except Exception as e:
+        logging.error(f"Shooting progress error: {e}")
+
+@api_router.get("/films/shooting/config")
+async def get_shooting_config():
+    """Return shooting configuration for the UI."""
+    return {
+        'bonus_curve': SHOOTING_BONUS_CURVE,
+        'cost_multiplier': 0.15,
+        'early_end_cinepass_per_day': 2,
+        'events': [{'type': e['type'], 'name': e['name'], 'bonus': e['bonus']} for e in SHOOTING_EVENTS]
+    }
 
 @api_router.get("/distribution/config")
 async def get_distribution_config(user: dict = Depends(get_current_user)):
@@ -4017,8 +4222,10 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
-    if film.get('status') != 'pending_release':
-        raise HTTPException(status_code=400, detail="Questo film è già stato rilasciato")
+    if film.get('status') not in ('pending_release', 'ready_to_release'):
+        raise HTTPException(status_code=400, detail="Questo film non può essere rilasciato")
+    
+    is_direct_release = film.get('status') == 'pending_release'
     
     zone = release_data.distribution_zone
     if zone not in DISTRIBUTION_ZONES:
@@ -4031,13 +4238,18 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     if zone == 'continental' and release_data.distribution_continent not in CONTINENTS:
         raise HTTPException(status_code=400, detail="Continente non valido")
     
-    # Calculate costs
+    # Calculate costs - direct release is 30% cheaper but lower quality
     distribution_cost = zone_config['base_cost']
     cinepass_cost = zone_config['cinepass_cost']
     
     # Scale cost based on film quality (better films cost more to distribute)
     quality_factor = 1.0 + (film.get('quality_score', 50) - 50) / 200  # 0.75x to 1.25x
     distribution_cost = int(distribution_cost * quality_factor)
+    
+    if is_direct_release:
+        # Direct release: 30% cheaper but cap quality to ~5.8 IMDb equivalent
+        distribution_cost = int(distribution_cost * 0.7)
+        cinepass_cost = max(1, cinepass_cost - 1)
     
     # Check user can afford
     if user.get('funds', 0) < distribution_cost:
@@ -4050,12 +4262,18 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     revenue_multiplier = zone_config['revenue_multiplier']
     audience_multiplier = zone_config['audience_multiplier']
     
+    # For direct release: cap quality to ~58 (5.8 IMDb equivalent) and reduce revenue
+    effective_quality = film.get('quality_score', 50)
+    if is_direct_release:
+        effective_quality = min(effective_quality, 58)
+        base_opening = int(base_opening * 0.6)  # 40% less opening revenue
+    
     final_opening_revenue = int(base_opening * revenue_multiplier)
     final_attendance = int(film.get('cumulative_attendance', 0) * audience_multiplier)
     
     # Update film status to in_theaters
     now = datetime.now(timezone.utc).isoformat()
-    await db.films.update_one({'id': film_id}, {'$set': {
+    release_update = {
         'status': 'in_theaters',
         'distribution_zone': zone,
         'distribution_continent': release_data.distribution_continent,
@@ -4065,7 +4283,12 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
         'cumulative_attendance': final_attendance,
         'released_at': now,
         'release_date': now[:10]
-    }})
+    }
+    if is_direct_release:
+        release_update['quality_score'] = effective_quality
+        release_update['imdb_rating'] = round(max(1.0, min(10.0, effective_quality / 10)), 1)
+        release_update['direct_release'] = True
+    await db.films.update_one({'id': film_id}, {'$set': release_update})
     
     # Calculate XP based on film quality
     quality_score = film.get('quality_score', 50)
@@ -8974,6 +9197,14 @@ async def startup_event():
         emerging_screenplays_task,
         IntervalTrigger(hours=2),
         id='emerging_screenplays',
+        replace_existing=True
+    )
+    
+    # Every hour: Process film shooting progress (simulates 1 day per hour for faster gameplay)
+    scheduler.add_job(
+        process_shooting_progress,
+        IntervalTrigger(hours=1),
+        id='process_shooting',
         replace_existing=True
     )
     

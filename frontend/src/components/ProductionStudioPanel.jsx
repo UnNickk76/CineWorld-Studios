@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clapperboard, Wand2, Users, Sparkles, Star, ArrowUpCircle, Loader2, Check, Crown, Pen, Trash2, Plus } from 'lucide-react';
+import { Clapperboard, Wand2, Users, Sparkles, Star, ArrowUpCircle, Loader2, Check, Crown, Pen, Trash2, Plus, GraduationCap, UserPlus } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
 const GENRE_OPTIONS = [
@@ -32,6 +33,8 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
   const [draftGenre, setDraftGenre] = useState('action');
   const [draftTitle, setDraftTitle] = useState('');
   const [generatingDraft, setGeneratingDraft] = useState(false);
+  const [selectedRecruit, setSelectedRecruit] = useState(null);
+  const [hiringAction, setHiringAction] = useState(null);
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -94,6 +97,20 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore');
     }
+  };
+
+  const hireRecruit = async (recruit, action) => {
+    setHiringAction(action);
+    try {
+      const res = await api.post('/production-studio/casting/hire', { recruit_id: recruit.id, action });
+      toast.success(res.data.message);
+      setSelectedRecruit(null);
+      // Reload casting data to update UI
+      loadCasting();
+      refreshUser().catch(() => {});
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally { setHiringAction(null); }
   };
 
   const tabs = [
@@ -310,7 +327,12 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
           ) : (
             <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
               {castingData?.recruits?.map(r => (
-                <div key={r.id} className={`flex items-center gap-2 p-2 rounded border ${r.is_legendary ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-black/30 border-white/5'}`}>
+                <div 
+                  key={r.id} 
+                  className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-all hover:ring-1 hover:ring-amber-400/30 ${r.is_legendary ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-black/30 border-white/5'}`}
+                  onClick={() => setSelectedRecruit(r)}
+                  data-testid={`recruit-${r.id}`}
+                >
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.is_legendary ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700 text-gray-300'}`}>
                     {r.is_legendary ? <Crown className="w-4 h-4" /> : r.name?.[0]}
                   </div>
@@ -331,6 +353,60 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
           )}
         </div>
       )}
+
+      {/* Recruit Hire Popup */}
+      <Dialog open={!!selectedRecruit} onOpenChange={(open) => { if (!open) setSelectedRecruit(null); }}>
+        <DialogContent className="bg-[#1a1a1a] border-white/10 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              {selectedRecruit?.is_legendary && <Crown className="w-5 h-5 text-yellow-400" />}
+              {selectedRecruit?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedRecruit && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="bg-black/30 rounded p-2">
+                  <p className="text-[10px] text-gray-400">Abilità</p>
+                  <p className="text-lg font-bold">{selectedRecruit.skill}</p>
+                </div>
+                <div className="bg-black/30 rounded p-2">
+                  <p className="text-[10px] text-gray-400">Nazionalità</p>
+                  <p className="text-sm font-medium">{selectedRecruit.nationality}</p>
+                </div>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 rounded p-2 text-center">
+                <p className="text-[10px] text-gray-400">Costo scontato</p>
+                <p className="text-lg font-bold text-green-400">${selectedRecruit.discounted_cost?.toLocaleString()}</p>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                  onClick={() => hireRecruit(selectedRecruit, 'hire')}
+                  disabled={!!hiringAction}
+                  data-testid="hire-recruit-btn"
+                >
+                  {hiringAction === 'hire' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                  Usa Subito (Cast Personale)
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                  onClick={() => hireRecruit(selectedRecruit, 'send_to_school')}
+                  disabled={!!hiringAction}
+                  data-testid="send-to-school-btn"
+                >
+                  {hiringAction === 'send_to_school' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
+                  Invia alla Scuola di Recitazione
+                </Button>
+                <p className="text-[9px] text-gray-500 text-center">
+                  La scuola migliora le skill nel tempo. L'ingaggio diretto è immediato.
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       </div>
       {/* Upgrade Section */}

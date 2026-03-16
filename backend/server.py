@@ -1824,7 +1824,13 @@ async def get_available_cast(
     
     db_type = type_map[type]
     
-    query = {'type': db_type}
+    # Level/fame-based filtering
+    player_level = user.get('level', 1)
+    player_fame = user.get('fame', 0)
+    max_stars = min(5, 1 + player_level // 10)
+    max_fame = min(100, player_fame + 30)
+    
+    query = {'type': db_type, 'stars': {'$lte': max_stars}, 'fame': {'$lte': max_fame}}
     skip = (page - 1) * limit
     
     cast = await db.people.find(query, {'_id': 0}).sort('fame', -1).skip(skip).limit(limit).to_list(limit)
@@ -1846,6 +1852,16 @@ async def search_cast_advanced(request: dict = Body(...), user: dict = Depends(g
     limit = min(request.get('limit', 50), 100)
     
     query = {'type': cast_type}
+    
+    # Level/fame-based filtering: only show cast the player can afford/access
+    player_level = user.get('level', 1)
+    player_fame = user.get('fame', 0)
+    # Max stars accessible based on player level
+    max_stars = min(5, 1 + player_level // 10)  # Lv1→1, Lv10→2, Lv20→3, Lv30→4, Lv40→5
+    # Max fame accessible based on player fame
+    max_fame = min(100, player_fame + 30)
+    query['stars'] = {'$lte': max_stars}
+    query['fame'] = {'$lte': max_fame}
     
     for sf in skill_filters:
         skill_name = sf.get('skill', '')
@@ -9653,8 +9669,10 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
     for i in range(num_recruits):
         gender = rng.choice(genders)
         nationality = rng.choice(NATIONALITIES)
-        names = NAMES_BY_NATIONALITY.get(nationality, {}).get(gender, ['Unknown'])
-        name = rng.choice(names)
+        nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
+        first_names = nat_names.get(f'first_{gender}', ['Alex'])
+        last_names = nat_names.get('last', ['Smith'])
+        name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
         
         is_legendary = rng.randint(1, 100) <= legendary_chance
         base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
@@ -9680,6 +9698,142 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
         'legendary_chance': legendary_chance,
         'studio_level': level
     }
+
+class CastingHireRequest(BaseModel):
+    recruit_id: str
+    action: str  # 'hire' or 'send_to_school'
+
+@api_router.post("/production-studio/casting/hire")
+async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_current_user)):
+    """Hire a recruit from the casting agency: use immediately or send to school."""
+    studio = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    # Regenerate the same weekly pool to validate the recruit
+    level = studio.get('level', 1)
+    discount = 20 + level * 5
+    legendary_chance = min(5 + level * 3, 40)
+    import hashlib
+    week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
+    seed_str = f"{user['id']}-{week_key}"
+    seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    
+    num_recruits = 3 + level
+    genders = ['male', 'female']
+    target = None
+    for i in range(num_recruits):
+        gender = rng.choice(genders)
+        nationality = rng.choice(NATIONALITIES)
+        nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
+        first_names = nat_names.get(f'first_{gender}', ['Alex'])
+        last_names = nat_names.get('last', ['Smith'])
+        name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
+        is_legendary = rng.randint(1, 100) <= legendary_chance
+        base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
+        base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
+        discounted_cost = int(base_cost * (1 - discount / 100))
+        rid = f'casting_{seed}_{i}'
+        if rid == req.recruit_id:
+            target = {'name': name, 'gender': gender, 'nationality': nationality, 'is_legendary': is_legendary, 'skill': base_skill, 'cost': discounted_cost}
+            break
+    
+    if not target:
+        raise HTTPException(status_code=404, detail="Talento non trovato nel pool settimanale")
+    
+    # Check already hired this week
+    already = await db.casting_hires.find_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key})
+    if already:
+        raise HTTPException(status_code=400, detail="Hai già ingaggiato questo talento questa settimana")
+    
+    if user.get('funds', 0) < target['cost']:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${target['cost']:,}")
+    
+    if req.action == 'hire':
+        # Add directly to the cast pool as a personal cast member
+        cast_id = str(uuid.uuid4())
+        person_type = 'actor'
+        stars = 3 if target['skill'] >= 70 else (4 if target['skill'] >= 80 else (5 if target['skill'] >= 90 else 2))
+        skill_value = target['skill']
+        
+        cast_doc = {
+            'id': cast_id,
+            'name': target['name'],
+            'type': person_type,
+            'gender': target['gender'],
+            'nationality': target['nationality'],
+            'stars': stars,
+            'skill': skill_value,
+            'fame': skill_value - 10 + random.randint(0, 20),
+            'cost_per_film': target['cost'],
+            'is_legendary': target['is_legendary'],
+            'owner_id': user['id'],
+            'is_personal_cast': True,
+            'source': 'casting_agency',
+            'hired_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.cast_pool.insert_one(cast_doc)
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
+        await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'hire'})
+        
+        cast_doc.pop('_id', None)
+        return {'success': True, 'message': f'{target["name"]} ingaggiato! Disponibile nel tuo cast personale.', 'cast_member': cast_doc, 'cost': target['cost']}
+    
+    elif req.action == 'send_to_school':
+        # Check if user has a cinema school
+        school = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'cinema_school'})
+        if not school:
+            raise HTTPException(status_code=400, detail="Non possiedi una Scuola di Recitazione")
+        
+        students = school.get('students', [])
+        max_students = 5  # default max
+        training_count = len([s for s in students if s.get('status') == 'training'])
+        if training_count >= max_students:
+            raise HTTPException(status_code=400, detail=f"Scuola piena ({max_students} studenti max)")
+        
+        # Create student with pre-existing skills (better starting point than random)
+        base_skill_level = max(1, target['skill'] // 20)  # 50→2, 75→3, 90→4
+        student = {
+            'id': str(uuid.uuid4()),
+            'name': target['name'],
+            'gender': target['gender'],
+            'nationality': target['nationality'],
+            'is_legendary': target['is_legendary'],
+            'skills': {
+                'Acting': base_skill_level + random.randint(0, 1),
+                'Emotional Range': base_skill_level + random.randint(0, 1),
+                'Action Sequences': base_skill_level + random.randint(-1, 1),
+                'Comedy Timing': base_skill_level + random.randint(-1, 1),
+                'Drama': base_skill_level + random.randint(0, 1),
+                'Voice Acting': base_skill_level + random.randint(-1, 0),
+                'Physical Acting': base_skill_level + random.randint(-1, 1),
+                'Improvisation': base_skill_level + random.randint(-1, 0),
+                'Chemistry': base_skill_level + random.randint(0, 1),
+                'Star Power': max(1, base_skill_level - 1),
+            },
+            'potential': round(0.6 + (target['skill'] / 100) * 0.4, 2),
+            'motivation': round(random.uniform(0.7, 1.0), 2),
+            'training_days': 0,
+            'enrolled_at': datetime.now(timezone.utc).isoformat(),
+            'status': 'training',
+            'last_training': datetime.now(timezone.utc).isoformat(),
+            'source': 'casting_agency'
+        }
+        # Clamp skill values to 1-10
+        for k in student['skills']:
+            student['skills'][k] = max(1, min(10, student['skills'][k]))
+        
+        students.append(student)
+        await db.infrastructure.update_one({'id': school['id']}, {'$set': {'students': students}})
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
+        await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'school'})
+        
+        return {'success': True, 'message': f'{target["name"]} inviato alla Scuola di Recitazione! Inizierà con skill più alte.', 'student': student, 'cost': target['cost']}
+    
+    raise HTTPException(status_code=400, detail="Azione non valida. Usa 'hire' o 'send_to_school'")
 
 
 class StudioDraftRequest(BaseModel):

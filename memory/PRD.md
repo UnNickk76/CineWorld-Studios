@@ -9,46 +9,41 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 - **Integrazioni:** OpenAI GPT-4o (testo), GPT-Image-1 (poster), MoviePy/FFmpeg (trailer), Emergent LLM Key
 
 ## Sessione 16 Mar 2026 - Bug Fix Critici
-- **FIX CRITICO: Premio CinePass sfide 1v1** - Root cause: `$inc` usava campo `xp` invece di `total_xp` nel backend. Corretto in offline e online battle. Aggiunto `cinepass` increment anche alle sfide online.
-- **FIX: Nome Studio nella UI** - Dashboard, profilo dropdown e menu mobile ora mostrano `production_house_name` al posto di `nickname`
+
+### Batch 1 - Fix iniziali
+- **FIX CRITICO: Premio CinePass sfide 1v1** - Root cause: `$inc` usava campo `xp` invece di `total_xp`. Corretto in offline e online battle. Aggiunto `cinepass` increment anche alle sfide online.
+- **FIX: Nome Studio nella UI** - Dashboard, profilo dropdown e menu mobile mostrano `production_house_name`
 - **FIX: Film duplicati Dashboard** - Deduplicazione lato frontend per ID + pulizia DB test film duplicati
 - **FIX: Poster mancanti** - Aggiunto fallback `onError` per immagini poster rotte
-- **FIX: Crash trailer rotti** - Aggiunto `onError` handler sul video element per gestire trailer URL corrotti
+- **FIX: Crash trailer rotti** - Aggiunto `onError` handler sul video element
+
+### Batch 2 - Fix da screenshot utente
+- **FIX: Route commenti/poster CinemaJournal** - Tutte le route `/film/` corrette a `/films/` (5 navigate calls)
+- **FIX: Pareggi falsi nelle skill battle** - Ridotta draw_chance: diff=0→50%, diff=1→15%, diff=2+→5% (era 80%/55%/30%)
+- **FIX: CinePass update ottimistico** - Aggiunto `updateUser()` nel context per update immediato dopo vittoria, + `refreshUser()` asincrono in background
+- **FIX: Locandine duplicate Giornale Cinema** - Backend deduplica `recent_posters` per titolo prima di restituire
 
 ## Sessione 15 Mar 2026
 - Fix costo doppio CinePass per sceneggiature emergenti
-- Ottimizzazione mobile (interceptor 401, transizioni veloci, cache 60s, timeout 30s, retry)
+- Ottimizzazione mobile (interceptor 401, transizioni veloci, cache 60s)
 - Dashboard film grid 9 (3x3)
-- Orario reset contest: 12:00 → 11:00
-- Pallino rosso contest disponibili in Dashboard
-- Fix 1v1: refreshUser await + interceptor 401 meno aggressivo
-- Rimossa sezione "Nuovi Trailer" dal Cinema Journal
-- Ribilanciamento economia (base -50%, diminishing returns, cap livello, infra logaritmiche)
+- Pallino rosso contest disponibili
+- Fix 1v1 refreshUser await
+- Ribilanciamento economia (base -50%, diminishing returns, cap livello)
 - Fix creazione film da sceneggiatura emergente
-- Fix padding bottom menu hamburger (donazioni)
-- **Sistema trailer gratuito FFmpeg** (MoviePy, nessun costo API, ~300KB per video)
+- Fix padding bottom menu hamburger
+- Sistema trailer gratuito FFmpeg
 
-## Economia Ribilanciata
-- Film base revenue: `4000 + Q*175` (era `8000 + Q*350`)
-- Catchup diminishing: 0-3h=100%, 3-6h=50%, 6h+=25%
-- Cap catchup: `livello × $50,000`
-- Boost +20% rimosso
-- Infrastrutture: scaling `level^0.5` (logaritmico)
-
-## Sistema Trailer (FFmpeg)
-- Endpoint: POST /api/films/{film_id}/generate-trailer
-- Serve: GET /api/trailers/{trailer_id}.mp4
-- Storage: /app/backend/static/trailers/
-- 6 scene cinematografiche, ~12s, 720x1280 verticale
-- Gratuito e illimitato
-
-## Bug Risolti (Storico Ricorrenti)
-- Premio +2 CinePass sfide 1v1: RISOLTO (root cause: campo $inc sbagliato)
+## Bug Risolti (Storico)
+- Premio +2 CinePass sfide 1v1: RISOLTO (root cause: campo $inc sbagliato `xp` → `total_xp`)
+- Pareggi falsi skill battle: RISOLTO (draw_chance ridotta drasticamente)
+- Route `/film/` vs `/films/`: RISOLTO (tutte corrette a `/films/`)
+- Locandine duplicate: RISOLTO (deduplicazione per titolo nel backend)
+- CinePass non aggiornato dopo vittoria: RISOLTO (update ottimistico + refresh background)
 - Crash app su film con trailer rotto: RISOLTO (onError handler)
-- Film duplicati dashboard: RISOLTO (deduplicazione)
 
-## Bug da Verificare
-- Layout Android Chrome (in attesa screenshot utente)
+## Verifica Utente Pendente
+- Bug premio sfide 1v1 offline - fix implementato, utente deve verificare
 
 ## Task Prossimi (P1-P2)
 - Sistema ruoli Admin avanzato (RBAC)
@@ -59,7 +54,7 @@ Gioco di simulazione di studio cinematografico con economia virtuale (CinePass),
 - Runware Integration (trailer premium)
 - CineCoins Purchase System (Stripe)
 - Conversione PWA
+- Layout Android Chrome (attesa screenshot utente)
 
 ## Dominio
 - cineworld-studios.it → Cloudflare DNS → Emergent Host
-- NS: nero.ns.cloudflare.com, olivia.ns.cloudflare.com

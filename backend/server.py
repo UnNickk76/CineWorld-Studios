@@ -3930,29 +3930,9 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     # Store likes as array of user IDs for tracking who liked
     film['liked_by'] = []
     
-    # Generate critic reviews with bonus/malus
-    user_lang = user.get('language', 'it')
-    critic_data = generate_critic_reviews(film, user_lang)
-    film['critic_reviews'] = critic_data['reviews']
-    film['critic_effects'] = critic_data['total_effects']
-    
-    # Apply critic effects to film
-    critic_attendance = critic_data['total_effects']['attendance_bonus']
-    critic_revenue_pct = critic_data['total_effects']['revenue_bonus_pct'] / 100
-    critic_rating = critic_data['total_effects']['rating_bonus']
-    
-    # Apply attendance bonus
-    film['cumulative_attendance'] = max(0, film.get('cumulative_attendance', 0) + critic_attendance)
-    
-    # Apply revenue bonus/malus to opening day
-    if critic_revenue_pct != 0:
-        revenue_adjustment = int(film['opening_day_revenue'] * critic_revenue_pct)
-        film['opening_day_revenue'] = max(0, film['opening_day_revenue'] + revenue_adjustment)
-        film['total_revenue'] = film['opening_day_revenue']
-    
-    # Apply rating bonus/malus
-    current_satisfaction = film.get('audience_satisfaction', quality_score)
-    film['audience_satisfaction'] = max(0, min(100, current_satisfaction + critic_rating * 10))
+    # Critic reviews will be generated when the film is released to theaters, not at creation
+    film['critic_reviews'] = []
+    film['critic_effects'] = None
     
     # Set total_revenue to 0 for pending release (will be calculated on release)
     film['total_revenue'] = 0
@@ -4273,6 +4253,24 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     
     # Update film status to in_theaters
     now = datetime.now(timezone.utc).isoformat()
+    
+    # Generate critic reviews NOW at release (not at creation)
+    user_lang = user.get('language', 'it')
+    # Use effective quality for the review generation
+    film_for_review = {**film, 'quality_score': effective_quality}
+    critic_data = generate_critic_reviews(film_for_review, user_lang)
+    
+    # Apply critic effects to revenue/attendance
+    critic_attendance = critic_data['total_effects']['attendance_bonus']
+    critic_revenue_pct = critic_data['total_effects']['revenue_bonus_pct'] / 100
+    critic_rating = critic_data['total_effects']['rating_bonus']
+    
+    final_attendance = max(0, final_attendance + critic_attendance)
+    if critic_revenue_pct != 0:
+        final_opening_revenue = max(0, int(final_opening_revenue * (1 + critic_revenue_pct)))
+    current_satisfaction = film.get('audience_satisfaction', effective_quality)
+    final_satisfaction = max(0, min(100, current_satisfaction + critic_rating * 10))
+    
     release_update = {
         'status': 'in_theaters',
         'distribution_zone': zone,
@@ -4281,6 +4279,9 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
         'opening_day_revenue': final_opening_revenue,
         'total_revenue': final_opening_revenue,
         'cumulative_attendance': final_attendance,
+        'audience_satisfaction': final_satisfaction,
+        'critic_reviews': critic_data['reviews'],
+        'critic_effects': critic_data['total_effects'],
         'released_at': now,
         'release_date': now[:10]
     }

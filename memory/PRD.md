@@ -45,6 +45,19 @@
 - Due foto regista (maschio/femmina) mostrate random nel dialog di conferma riprese
 - Immagini in /app/frontend/public/images/shooting/
 
+### Popup Donazione (NUOVO - 16 Mar 2026)
+- Mostrato solo al primo login nelle 24h (localStorage 'donatePopupLastShown')
+
+### Badge Generi Cliccabili (NUOVO - 16 Mar 2026)
+- Nei profili giocatori, cliccando un genere filtra i film di quella categoria
+- Formato "Film recenti": locandina, titolo, genere, qualità, incassi
+
+### Refactoring Backend (16 Mar 2026)
+- `server.py`: ridotto da 15,557 a 11,608 righe (-25%)
+- `server_utils.py` (NUOVO): costanti condivise + helper functions (1,195 righe)
+- `routes/challenges.py` (NUOVO): sistema sfide (991 righe)
+- `routes/festivals.py` (NUOVO): festival ufficiali + personalizzati (2,039 righe)
+
 ### Tutorial (16 step) + Note di Sistema (3 note)
 
 ## Key DB Schema
@@ -55,10 +68,9 @@
 - studio_drafts: bozze sceneggiatura
 
 ## Task Prossimi
-- Verifica utente locandine classiche con genere
 - Sistema ruoli Admin (RBAC)
 - Layout mobile pagina Contest
 
 ## Backlog
-- Runware, Stripe, PWA, Tutorial popup, Refactoring server.py
-- Sfondi fotografici per altri generi (horror, sci-fi, fantasy, ecc.)
+- Ulteriore refactoring server.py (ancora 11,608 righe - estrarre film routes, admin, AI, users)
+- Runware, Stripe, PWA, Tutorial popup

@@ -131,6 +131,8 @@ const TopNavbar = () => {
   const { openPlayerPopup: _ctxOpen, popupData, setPopupData } = usePlayerPopup();
   const [userTimezone, setUserTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome');
   const [popupView, setPopupView] = useState('stats'); // 'stats' or 'studio' - for global player popup
+  const [profileGenreFilter, setProfileGenreFilter] = useState(null); // Genre filter for online user profile
+  const [popupGenreFilter, setPopupGenreFilter] = useState(null); // Genre filter for player popup
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -173,13 +175,21 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup on each access (with delay) - only if donations enabled
+  // Show donate popup on each access (with delay) - only if donations enabled AND first login in 24h
   useEffect(() => {
     api.get('/game/donations-status').then(r => {
       const enabled = r.data.donations_enabled;
       setDonationsEnabled(enabled);
       if (enabled) {
-        setTimeout(() => setShowDonatePopup(true), 2500);
+        const lastShown = localStorage.getItem('donatePopupLastShown');
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        if (!lastShown || (now - parseInt(lastShown)) > twentyFourHours) {
+          setTimeout(() => {
+            setShowDonatePopup(true);
+            localStorage.setItem('donatePopupLastShown', now.toString());
+          }, 2500);
+        }
       }
     }).catch(() => {});
   }, [api]);
@@ -667,14 +677,14 @@ const TopNavbar = () => {
       </div>
 
       {/* Online Users Panel */}
-      <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); } }}>
+      <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); setProfileGenreFilter(null); } }}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-hidden bg-[#111] border-green-500/30 p-0">
           {/* If viewing a user's profile */}
           {selectedUserProfile ? (
             <div className="flex flex-col h-[80vh]">
               {/* Sticky header with back + friend request + challenge */}
               <div className="sticky top-0 z-10 bg-[#111] border-b border-white/10 p-3 flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => { setSelectedUserProfile(null); setSelectedOnlineUser(null); }} className="h-7 w-7 p-0 text-gray-400">
+                <Button size="sm" variant="ghost" onClick={() => { setSelectedUserProfile(null); setSelectedOnlineUser(null); setProfileGenreFilter(null); }} className="h-7 w-7 p-0 text-gray-400">
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1">
@@ -762,14 +772,58 @@ const TopNavbar = () => {
                       <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi preferiti' : 'Favorite Genres'}</p>
                       <div className="flex flex-wrap gap-1">
                         {Object.entries(selectedUserProfile.genre_breakdown).sort((a,b) => b[1]-a[1]).slice(0,5).map(([genre, count]) => (
-                          <Badge key={genre} className="bg-white/10 text-gray-300 text-[10px]">{genre}: {count}</Badge>
+                          <Badge 
+                            key={genre} 
+                            className={`text-[10px] cursor-pointer transition-colors ${profileGenreFilter === genre ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                            onClick={() => setProfileGenreFilter(profileGenreFilter === genre ? null : genre)}
+                            data-testid={`profile-genre-${genre}`}
+                          >
+                            {genre}: {count}
+                          </Badge>
                         ))}
                       </div>
                     </div>
                   )}
                   
-                  {/* Recent films */}
-                  {selectedUserProfile.recent_films?.length > 0 && (
+                  {/* Filtered films by genre */}
+                  {profileGenreFilter && selectedUserProfile.recent_films?.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-gray-400 font-semibold">{language === 'it' ? `Film ${profileGenreFilter}` : `${profileGenreFilter} Films`}</p>
+                        <button className="text-[10px] text-yellow-400 hover:underline" onClick={() => setProfileGenreFilter(null)}>
+                          {language === 'it' ? 'Mostra tutti' : 'Show all'}
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedUserProfile.recent_films.filter(f => f.genre?.toLowerCase() === profileGenreFilter.toLowerCase()).map(film => (
+                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setShowOnlineUsersPanel(false); navigate(`/films/${film.id}`); }}>
+                            {film.poster_url ? (
+                              <img src={film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
+                            ) : (
+                              <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Film className="w-4 h-4 text-gray-500" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">{film.title}</p>
+                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                <span>{film.genre}</span>
+                                <span>Q: {film.quality_score?.toFixed(0)}</span>
+                                {film.film_tier && film.film_tier !== 'normal' && (
+                                  <Badge className="bg-yellow-500/20 text-yellow-400 text-[8px] h-3">{film.film_tier}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-green-400 text-[10px] font-bold">${((film.total_revenue || film.revenue || 0)/1000000).toFixed(1)}M</span>
+                          </div>
+                        ))}
+                        {selectedUserProfile.recent_films.filter(f => f.genre?.toLowerCase() === profileGenreFilter.toLowerCase()).length === 0 && (
+                          <p className="text-[10px] text-gray-500 text-center py-2">{language === 'it' ? 'Nessun film in questa categoria' : 'No films in this category'}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Recent films - only show when no genre filter */}
+                  {!profileGenreFilter && selectedUserProfile.recent_films?.length > 0 && (
                     <div>
                       <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
                       <div className="space-y-2">
@@ -886,7 +940,7 @@ const TopNavbar = () => {
       </Dialog>
 
       {/* Global Player Popup - Opens from any nickname click */}
-      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) { setPopupData(null); setPopupView('stats'); } }}>
+      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) { setPopupData(null); setPopupView('stats'); setPopupGenreFilter(null); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden bg-[#111] border-cyan-500/30 p-0">
           {popupData?.profile ? (
             <div className="flex flex-col max-h-[80vh]">
@@ -1024,8 +1078,46 @@ const TopNavbar = () => {
                       <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi Prodotti' : 'Genres'}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {Object.entries(popupData.profile.genre_breakdown).map(([genre, count]) => (
-                          <Badge key={genre} className="bg-purple-500/20 text-purple-300 text-[10px]">{genre}: {count}</Badge>
+                          <Badge 
+                            key={genre} 
+                            className={`text-[10px] cursor-pointer transition-colors ${popupGenreFilter === genre ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'}`}
+                            onClick={() => setPopupGenreFilter(popupGenreFilter === genre ? null : genre)}
+                            data-testid={`popup-genre-${genre}`}
+                          >
+                            {genre}: {count}
+                          </Badge>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Filtered films by genre */}
+                  {popupGenreFilter && popupData.profile.all_films?.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-gray-400 font-semibold">{language === 'it' ? `Film ${popupGenreFilter}` : `${popupGenreFilter} Films`}</p>
+                        <button className="text-[10px] text-yellow-400 hover:underline" onClick={() => setPopupGenreFilter(null)}>
+                          {language === 'it' ? 'Mostra tutti' : 'Show all'}
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        {popupData.profile.all_films.filter(f => f.genre?.toLowerCase() === popupGenreFilter.toLowerCase()).map(film => (
+                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
+                            {film.poster_url ? (
+                              <img src={film.poster_url} alt="" className="w-8 h-12 rounded object-cover" />
+                            ) : (
+                              <div className="w-8 h-12 rounded bg-gray-700 flex items-center justify-center"><Film className="w-3 h-3 text-gray-500" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{film.title}</p>
+                              <p className="text-[10px] text-gray-500">{film.genre} - Q:{film.quality_score?.toFixed(0)}</p>
+                            </div>
+                            <span className="text-green-400 text-[10px]">${((film.total_revenue||0)/1000000).toFixed(1)}M</span>
+                          </div>
+                        ))}
+                        {popupData.profile.all_films.filter(f => f.genre?.toLowerCase() === popupGenreFilter.toLowerCase()).length === 0 && (
+                          <p className="text-[10px] text-gray-500 text-center py-2">{language === 'it' ? 'Nessun film in questa categoria' : 'No films in this category'}</p>
+                        )}
                       </div>
                     </div>
                   )}

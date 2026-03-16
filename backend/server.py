@@ -4756,11 +4756,20 @@ async def get_cinema_journal(
     
     total = await db.films.count_documents({})
     
-    # Get recent posters (films with poster_url created recently - limit to 8 to keep response manageable)
-    recent_posters = await db.films.find(
+    # Get recent posters (films with poster_url created recently - deduplicate by title, limit to 8)
+    recent_posters_raw = await db.films.find(
         {'poster_url': {'$exists': True, '$ne': None}},
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1, 'virtual_likes': 1, 'likes_count': 1}
-    ).sort('created_at', -1).limit(8).to_list(8)
+    ).sort('created_at', -1).limit(20).to_list(20)
+    # Deduplicate by title (keep first occurrence = most recent)
+    seen_titles = set()
+    recent_posters = []
+    for p in recent_posters_raw:
+        if p['title'] not in seen_titles:
+            seen_titles.add(p['title'])
+            recent_posters.append(p)
+            if len(recent_posters) >= 8:
+                break
     
     return {
         'films': films, 

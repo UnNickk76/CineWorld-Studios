@@ -1,0 +1,70 @@
+{
+  "summary": "Completed testing of 4 bug fixes: (1) Route fix for CinemaJournal navigation - fixed 2 additional places using old /film/ route, (2) Skill battle draw rates reduced per tiered formula, (3) CinePass optimistic update via updateUser in frontend, (4) Poster deduplication by title in backend. All 11 pytest tests PASSED.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "bug1_route_fix": {
+      "status": "PASS (with fix applied)",
+      "details": "Found 2 additional places using old /film/ route in CinemaJournal.jsx (lines 186, 222 for News and Virtual Reviews dialogs). Applied fix to use /films/ consistently. Main poster clicks on lines 435, 480, 496 already correctly using /films/."
+    },
+    "bug2_skill_battle_draw_rates": {
+      "status": "PASS",
+      "details": "Tested simulate_skill_battle with 100 simulations each: diff=0 has ~50% draws (expected), diff=1 has <25% draws (was 55%, now 15%), diff=2 has <15% draws (now 5%), diff=3+ has <15% draws (now 5%). Tiered formula working correctly."
+    },
+    "bug3_cinepass_optimistic_update": {
+      "status": "PASS",
+      "details": "Verified ChallengesPage.jsx lines 303-310 call updateUser immediately with cinepass bonus after offline battle win. Backend returns cinepass_reward field. Backend uses 'total_xp' (not 'xp') for $inc operations."
+    },
+    "bug4_duplicate_posters": {
+      "status": "PASS",
+      "details": "Backend /api/films/cinema-journal endpoint deduplicates recent_posters by title. Tested API returns no duplicate titles in recent_posters array. Deduplication logic in server.py lines 4764-4772."
+    },
+    "cinepass_api": {
+      "status": "PASS",
+      "details": "GET /api/challenges/limits returns cinepass_reward_per_win: 2. User cinepass balance visible in navbar (146 CinePass shown)."
+    },
+    "skill_battle_stronger_team_wins": {
+      "status": "PASS",
+      "details": "When skill diff is large (8 vs 4), stronger team wins significantly more battles."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter61_bug_fixes.py",
+    "/app/test_reports/pytest/pytest_iter61.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/frontend/src/pages/CinemaJournal.jsx"
+  ],
+  "fixes_applied_by_tester": {
+    "CinemaJournal.jsx": "Fixed 2 additional places using old /film/{id} route to use /films/{id} - lines 186 (News dialog) and 222 (Virtual Reviews dialog)"
+  },
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "Code review passed, donation modal blocked UI testing"
+  },
+  "test_credentials": {
+    "email": "fandrex1@gmail.com",
+    "password": "Ciaociao1",
+    "cinepass_balance": 146,
+    "opponent_id": "7e1bb9ec-91f7-4f8e-9ff2-5f400896ba44"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 bug fixes verified. Skill battle draw rates now use tiered approach: 50%/15%/5% for diff 0/1/2+. CinePass rewards working (backend uses 'total_xp' and 'cinepass' in $inc). Poster deduplication by title implemented. Route fix applied to ALL 5 navigate calls in CinemaJournal.jsx to use /films/ instead of /film/. Donation modal appears after login and blocks some UI testing.",
+  "verified_fixes": {
+    "bug1_route_fix": "FIXED - All 5 navigate calls in CinemaJournal.jsx now use /films/{id}",
+    "bug2_draw_rate_reduction": "FIXED - simulate_skill_battle uses tiered draw_chance: 50% (diff=0), 15% (diff=1), 5% (diff>=2)",
+    "bug3_cinepass_optimistic_update": "VERIFIED - ChallengesPage.jsx line 303-310 calls updateUser with cinepass bonus immediately",
+    "bug4_duplicate_posters": "VERIFIED - server.py line 4764-4772 deduplicates recent_posters by title"
+  }
+}

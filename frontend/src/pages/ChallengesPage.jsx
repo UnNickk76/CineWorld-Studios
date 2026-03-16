@@ -49,7 +49,7 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 // useTranslations imported from contexts
 
 const ChallengesPage = () => {
-  const { user, api, refreshUser } = useContext(AuthContext);
+  const { user, api, refreshUser, updateUser } = useContext(AuthContext);
   const { language } = useTranslations();
   const navigate = useNavigate();
   
@@ -301,18 +301,15 @@ const ChallengesPage = () => {
       const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
       toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
       setLastCinepassReward(cinepassBonus);
-      // Refresh user from DB to get updated cinepass/funds
-      try { 
-        await refreshUser();
-      } catch {
-        // Fallback: optimistically update cinepass if refreshUser fails
-        if (cinepassBonus > 0 || fundsReward > 0) {
-          const updatedUser = { ...user };
-          if (cinepassBonus > 0) updatedUser.cinepass = (updatedUser.cinepass || 0) + cinepassBonus;
-          if (fundsReward > 0) updatedUser.funds = (updatedUser.funds || 0) + fundsReward;
-          // Note: setUser not directly accessible here, refreshUser handles it
-        }
+      // Optimistically update user state immediately so UI reflects rewards
+      if (cinepassBonus > 0 || fundsReward > 0) {
+        const updates = {};
+        if (cinepassBonus > 0) updates.cinepass = (user?.cinepass || 0) + cinepassBonus;
+        if (fundsReward > 0) updates.funds = (user?.funds || 0) + fundsReward;
+        updateUser(updates);
       }
+      // Also refresh from DB in background (async, no await)
+      refreshUser().catch(() => {});
       setActiveBattle(res.data.result);
       setView('battle');
       runBattleAnimation(res.data.result);

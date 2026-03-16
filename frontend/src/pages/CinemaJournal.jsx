@@ -183,7 +183,7 @@ const CinemaJournal = () => {
                   <Card 
                     key={item.id} 
                     className="bg-white/5 border-white/10 cursor-pointer hover:bg-white/10"
-                    onClick={() => { if (item.film_id) { setShowAllNews(false); navigate(`/film/${item.film_id}`); }}}
+                    onClick={() => { if (item.film_id) { setShowAllNews(false); navigate(`/films/${item.film_id}`); }}}
                   >
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2 mb-1">
@@ -219,7 +219,7 @@ const CinemaJournal = () => {
                   <Card 
                     key={idx} 
                     className="bg-pink-500/5 border-pink-500/20 cursor-pointer hover:bg-pink-500/10"
-                    onClick={() => { if (review.film_id) { setShowVirtualReviews(false); navigate(`/film/${review.film_id}`); }}}
+                    onClick={() => { if (review.film_id) { setShowVirtualReviews(false); navigate(`/films/${review.film_id}`); }}}
                   >
                     <CardContent className="p-3">
                       <div className="flex items-start gap-3">
@@ -432,7 +432,7 @@ const CinemaJournal = () => {
               {recentPosters.slice(0, 20).map(film => (
                 <div 
                   key={film.id} 
-                  onClick={() => navigate(`/film/${film.id}`)}
+                  onClick={() => navigate(`/films/${film.id}`)}
                   className="relative group cursor-pointer rounded-lg overflow-hidden bg-black/30 hover:ring-2 hover:ring-yellow-500 transition-all"
                 >
                   <div className="aspect-[2/3] relative">

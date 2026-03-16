@@ -204,8 +204,14 @@ def simulate_skill_battle(skill_name: str, team_a_skill: int, team_b_skill: int)
     
     # Winner determined by skill difference probability
     diff = abs(team_a_skill - team_b_skill)
-    # Draw chance: 80% when equal, decreasing with difference
-    draw_chance = max(0.05, 0.80 - diff * 0.25)
+    # Draw chance: 50% when equal, drops fast with difference
+    # diff=0: 50%, diff=1: 15%, diff=2: 5%, diff=3+: 5%
+    if diff == 0:
+        draw_chance = 0.50
+    elif diff == 1:
+        draw_chance = 0.15
+    else:
+        draw_chance = 0.05
     # Upset chance: weaker side wins
     upset_chance = max(0.02, 0.08 - diff * 0.015)
     

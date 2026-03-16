@@ -160,6 +160,10 @@ export const AuthProvider = ({ children }) => {
     setUser(prev => ({ ...prev, funds: newFunds }));
   };
 
+  const updateUser = (updates) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
+  };
+
   const refreshUser = async () => {
     const res = await api.get('/auth/me');
     setUser(res.data);
@@ -175,7 +179,7 @@ export const AuthProvider = ({ children }) => {
   }, [api]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, refreshUser, cachedGet }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>
       {children}
     </AuthContext.Provider>
   );

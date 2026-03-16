@@ -9295,19 +9295,35 @@ async def get_tutorial():
             {
                 'id': 2,
                 'title': 'Crea il tuo Primo Film',
-                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte!',
+                'description': 'Vai su "Crea Film" dal menu. Il processo si divide in 12 step:\n\n'
+                    '1. Titolo & Genere - Scegli titolo, genere e sottogeneri. Se hai bozze dallo Studio di Produzione, selezionale qui per CinePass gratis e bonus qualità!\n'
+                    '2. Cast Principale - Scegli regista, sceneggiatore e composore. Ogni professionista ha abilità e fama diverse.\n'
+                    '3. Attori - Seleziona gli attori e assegna i ruoli (Protagonista, Antagonista, Supporto, ecc.).\n'
+                    '4. Comparse - Scegli il numero di comparse. Più comparse = più realismo ma più costi.\n'
+                    '5. Location - Seleziona le location e i giorni di ripresa per ciascuna.\n'
+                    '6. Equipaggiamento - Scegli il pacchetto tecnico (Standard, Premium, IMAX, ecc.).\n'
+                    '7. Sceneggiatura - Scrivi manualmente, genera con AI o usa una bozza dallo Studio.\n'
+                    '8. Colonna Sonora - Descrivi la musica che vuoi per il tuo film.\n'
+                    '9. Locandina - Genera la locandina con AI dal prompt.\n'
+                    '10. Sponsor - Scegli uno sponsor per finanziare parte dei costi.\n'
+                    '11. Pubblicità - Aggiungi pubblicità pre-film per guadagni extra.\n'
+                    '12. Riepilogo & Conferma - Rivedi tutto e conferma la produzione!',
                 'icon': 'clapperboard'
             },
             {
                 'id': 3,
                 'title': 'Distribuzione Film',
-                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio" nella Dashboard. Scegli la distribuzione: Nazionale ($500K + 3 CP), Continentale ($1.5M + 5 CP) o Mondiale ($4M + 8 CP). I ricavi crescono in base alla zona scelta!',
+                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio" nella Dashboard. Da lì scegli dove distribuirlo:\n\n'
+                    '- Nazionale: $500K + 3 CinePass - Ricavi base\n'
+                    '- Continentale: $1.5M + 5 CinePass - Ricavi x3\n'
+                    '- Mondiale: $4M + 8 CinePass - Ricavi x7\n\n'
+                    'I ricavi di apertura dipendono dalla qualità del film e dalla zona scelta. Distribuire un film non costa CinePass di creazione: paghi solo alla distribuzione!',
                 'icon': 'globe'
             },
             {
                 'id': 4,
                 'title': 'Scegli il Cast',
-                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità! Puoi pre-ingaggiare attori per 5 CinePass.',
+                'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità! Puoi pre-ingaggiare attori per 5 CinePass. Se possiedi la Scuola di Recitazione, i tuoi attori personali sono gratuiti!',
                 'icon': 'users'
             },
             {
@@ -9354,24 +9370,34 @@ async def get_tutorial():
             },
             {
                 'id': 12,
+                'title': 'Studio di Produzione',
+                'description': 'Lo Studio di Produzione (livello 15) offre 3 potenti funzionalità:\n\n'
+                    '- Pre-Produzione: Applica bonus ai film in attesa (storyboard +qualità, casting -costi, scouting -costi location). Genera Bozze Sceneggiatura con AI da usare nel Film Wizard per CinePass gratis + bonus qualità!\n'
+                    '- Post-Produzione: Rimasterizza i film già rilasciati per migliorare qualità e rating IMDb.\n'
+                    '- Agenzia Casting: Ogni settimana un pool esclusivo di talenti scontati, con possibilità di trovare attori leggendari!\n\n'
+                    'Più sali di livello, maggiori sono i bonus e il numero di bozze che puoi tenere attive.',
+                'icon': 'building'
+            },
+            {
+                'id': 13,
                 'title': 'Sceneggiature Emergenti',
                 'description': 'Nella sezione "Sceneggiature Emergenti" trovi copioni già pronti con cast incluso. Acquistali con 10 CinePass + denaro per iniziare subito a produrre!',
                 'icon': 'scroll'
             },
             {
-                'id': 13,
+                'id': 14,
                 'title': 'Riscuoti gli Incassi',
                 'description': 'Le tue infrastrutture e i film al cinema generano ricavi ogni ora. Più cinema e infrastrutture possiedi, più guadagni! Ricordati di riscuotere (max 4 ore accumulate).',
                 'icon': 'dollar-sign'
             },
             {
-                'id': 14,
+                'id': 15,
                 'title': 'Social & Classifiche',
                 'description': 'Interagisci con altri produttori nella chat, vota i loro film sulla CineBoard e scala la classifica globale!',
                 'icon': 'users'
             },
             {
-                'id': 15,
+                'id': 16,
                 'title': 'Supporta il Nostro Gioco!',
                 'description': 'CineWorld esiste grazie alla community! Se ti piace il gioco, puoi aiutarci con una donazione libera tramite il pulsante in basso o nel menu. Ogni contributo ci aiuta a sviluppare nuove funzionalità!',
                 'icon': 'ticket'

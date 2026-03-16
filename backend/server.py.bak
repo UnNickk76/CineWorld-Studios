@@ -52,8 +52,6 @@ from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
-from routes.challenges import router as challenges_router
-from routes.festivals import router as festivals_router
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
     generate_cast_pool, get_all_locations_flat,
@@ -107,20 +105,985 @@ scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 socket_app = socketio.ASGIApp(sio, app)
 
+# Names by Nationality (coherent name + nationality)
+NAMES_BY_NATIONALITY = {
+    'USA': {
+        'first_male': ['James', 'Michael', 'Robert', 'David', 'William', 'Richard', 'Joseph', 'Thomas', 'Christopher', 'Daniel'],
+        'first_female': ['Emma', 'Olivia', 'Sophia', 'Isabella', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn', 'Abigail'],
+        'last': ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Wilson', 'Anderson']
+    },
+    'Italy': {
+        'first_male': ['Alessandro', 'Marco', 'Luca', 'Giovanni', 'Francesco', 'Andrea', 'Matteo', 'Lorenzo', 'Davide', 'Simone'],
+        'first_female': ['Giulia', 'Chiara', 'Francesca', 'Valentina', 'Alessia', 'Sofia', 'Aurora', 'Martina', 'Sara', 'Giorgia'],
+        'last': ['Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo', 'Ricci', 'Marino', 'Greco']
+    },
+    'Spain': {
+        'first_male': ['Carlos', 'Miguel', 'Antonio', 'Pablo', 'Diego', 'Fernando', 'Rafael', 'Alejandro', 'Javier', 'Manuel'],
+        'first_female': ['María', 'Carmen', 'Ana', 'Lucia', 'Elena', 'Isabel', 'Paula', 'Laura', 'Marta', 'Sara'],
+        'last': ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez', 'Ramírez', 'Torres']
+    },
+    'France': {
+        'first_male': ['Pierre', 'Jean', 'Louis', 'François', 'Antoine', 'Nicolas', 'Philippe', 'Michel', 'Jacques', 'Christophe'],
+        'first_female': ['Marie', 'Camille', 'Léa', 'Chloé', 'Juliette', 'Margot', 'Claire', 'Manon', 'Inès', 'Emma'],
+        'last': ['Martin', 'Bernard', 'Dubois', 'Thomas', 'Robert', 'Richard', 'Petit', 'Durand', 'Leroy', 'Moreau']
+    },
+    'Germany': {
+        'first_male': ['Hans', 'Klaus', 'Stefan', 'Wolfgang', 'Maximilian', 'Friedrich', 'Heinrich', 'Karl', 'Peter', 'Thomas'],
+        'first_female': ['Anna', 'Lena', 'Hannah', 'Lea', 'Sophie', 'Marie', 'Lina', 'Emilia', 'Mia', 'Emma'],
+        'last': ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann']
+    },
+    'Japan': {
+        'first_male': ['Hiroshi', 'Takeshi', 'Kenji', 'Akira', 'Ryu', 'Koji', 'Yuki', 'Daiki', 'Haruto', 'Ren'],
+        'first_female': ['Yuki', 'Sakura', 'Hana', 'Aiko', 'Mei', 'Rin', 'Kaori', 'Yui', 'Haruka', 'Mio'],
+        'last': ['Tanaka', 'Yamamoto', 'Watanabe', 'Suzuki', 'Takahashi', 'Kobayashi', 'Sato', 'Ito', 'Nakamura', 'Kato']
+    },
+    'China': {
+        'first_male': ['Wei', 'Chen', 'Ming', 'Jun', 'Feng', 'Lei', 'Hao', 'Jian', 'Qiang', 'Bo'],
+        'first_female': ['Xia', 'Lin', 'Mei', 'Yan', 'Hua', 'Jing', 'Fang', 'Li', 'Ying', 'Xue'],
+        'last': ['Wang', 'Li', 'Zhang', 'Liu', 'Chen', 'Yang', 'Huang', 'Zhao', 'Wu', 'Zhou']
+    },
+    'UK': {
+        'first_male': ['Oliver', 'George', 'Harry', 'Jack', 'Charlie', 'Thomas', 'Henry', 'William', 'James', 'Edward'],
+        'first_female': ['Olivia', 'Emily', 'Sophie', 'Lily', 'Amelia', 'Grace', 'Charlotte', 'Ella', 'Mia', 'Lucy'],
+        'last': ['Wilson', 'Taylor', 'Davies', 'Evans', 'Thomas', 'Roberts', 'Walker', 'Wright', 'Robinson', 'Thompson']
+    },
+    'Brazil': {
+        'first_male': ['João', 'Pedro', 'Lucas', 'Gabriel', 'Rafael', 'Matheus', 'Bruno', 'Gustavo', 'Felipe', 'Thiago'],
+        'first_female': ['Ana', 'Maria', 'Julia', 'Beatriz', 'Larissa', 'Fernanda', 'Camila', 'Amanda', 'Bruna', 'Carolina'],
+        'last': ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Pereira', 'Costa', 'Ferreira', 'Rodrigues', 'Almeida']
+    },
+    'India': {
+        'first_male': ['Raj', 'Arjun', 'Vikram', 'Aditya', 'Rohan', 'Amit', 'Rahul', 'Prashant', 'Suresh', 'Deepak'],
+        'first_female': ['Priya', 'Ananya', 'Pooja', 'Shreya', 'Kavitha', 'Divya', 'Neha', 'Anjali', 'Meera', 'Lakshmi'],
+        'last': ['Singh', 'Kumar', 'Sharma', 'Patel', 'Gupta', 'Shah', 'Verma', 'Joshi', 'Reddy', 'Rao']
+    }
+}
 
-# Import shared constants and helpers from server_utils
-from server_utils import (
-    NAMES_BY_NATIONALITY, NATIONALITIES, STUDIO_COUNTRIES, COUNTRY_NAMES,
-    COUNTRY_TO_CONTINENT, DISTRIBUTION_ZONES, FAME_CATEGORIES,
-    get_fame_category, calculate_cost_by_fame, generate_default_avatar,
-    TRANSLATIONS, GENRES, GENRE_LIST, REJECTION_REASONS, calculate_rejection_chance,
-    SPONSORS, EQUIPMENT_PACKAGES,
-    generate_person_name, initialize_cast_pool_if_needed, get_or_create_person,
-    update_person_skills, calculate_box_office
-)
+NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
-# Import minigame data for challenge system
-from game_data_minigames import DAILY_CHALLENGES, WEEKLY_CHALLENGES
+# ==================== DISTRIBUTION SYSTEM ====================
+STUDIO_COUNTRIES = [
+    'IT', 'US', 'GB', 'FR', 'DE', 'ES', 'JP', 'CN', 'IN', 'BR',
+    'KR', 'AU', 'CA', 'MX', 'AR', 'RU', 'TR', 'SE', 'NL', 'PL',
+    'CH', 'AT', 'BE', 'PT', 'NO', 'DK', 'FI', 'IE', 'GR', 'CZ',
+    'HU', 'RO', 'IL', 'ZA', 'NG', 'EG', 'AE', 'SA', 'TH', 'ID',
+    'MY', 'PH', 'VN', 'SG', 'NZ', 'CL', 'CO', 'PE', 'UA', 'HR'
+]
+
+COUNTRY_NAMES = {
+    'IT': 'Italia', 'US': 'Stati Uniti', 'GB': 'Regno Unito', 'FR': 'Francia',
+    'DE': 'Germania', 'ES': 'Spagna', 'JP': 'Giappone', 'CN': 'Cina',
+    'IN': 'India', 'BR': 'Brasile', 'KR': 'Corea del Sud', 'AU': 'Australia',
+    'CA': 'Canada', 'MX': 'Messico', 'AR': 'Argentina', 'RU': 'Russia',
+    'TR': 'Turchia', 'SE': 'Svezia', 'NL': 'Paesi Bassi', 'PL': 'Polonia',
+    'CH': 'Svizzera', 'AT': 'Austria', 'BE': 'Belgio', 'PT': 'Portogallo',
+    'NO': 'Norvegia', 'DK': 'Danimarca', 'FI': 'Finlandia', 'IE': 'Irlanda',
+    'GR': 'Grecia', 'CZ': 'Rep. Ceca', 'HU': 'Ungheria', 'RO': 'Romania',
+    'IL': 'Israele', 'ZA': 'Sudafrica', 'NG': 'Nigeria', 'EG': 'Egitto',
+    'AE': 'Emirati Arabi', 'SA': 'Arabia Saudita', 'TH': 'Thailandia',
+    'ID': 'Indonesia', 'MY': 'Malesia', 'PH': 'Filippine', 'VN': 'Vietnam',
+    'SG': 'Singapore', 'NZ': 'Nuova Zelanda', 'CL': 'Cile', 'CO': 'Colombia',
+    'PE': 'Peru', 'UA': 'Ucraina', 'HR': 'Croazia'
+}
+
+COUNTRY_TO_CONTINENT = {
+    'IT': 'europe', 'FR': 'europe', 'DE': 'europe', 'ES': 'europe', 'GB': 'europe',
+    'NL': 'europe', 'BE': 'europe', 'PT': 'europe', 'SE': 'europe', 'NO': 'europe',
+    'DK': 'europe', 'FI': 'europe', 'PL': 'europe', 'CZ': 'europe', 'HU': 'europe',
+    'RO': 'europe', 'GR': 'europe', 'AT': 'europe', 'CH': 'europe', 'IE': 'europe',
+    'UA': 'europe', 'HR': 'europe', 'TR': 'europe', 'RU': 'europe',
+    'US': 'north_america', 'CA': 'north_america', 'MX': 'north_america',
+    'BR': 'south_america', 'AR': 'south_america', 'CL': 'south_america',
+    'CO': 'south_america', 'PE': 'south_america',
+    'JP': 'asia', 'CN': 'asia', 'IN': 'asia', 'KR': 'asia', 'TH': 'asia',
+    'ID': 'asia', 'MY': 'asia', 'PH': 'asia', 'VN': 'asia', 'SG': 'asia',
+    'AE': 'asia', 'SA': 'asia', 'IL': 'asia',
+    'AU': 'oceania', 'NZ': 'oceania',
+    'ZA': 'africa', 'NG': 'africa', 'EG': 'africa'
+}
+
+DISTRIBUTION_ZONES = {
+    'national': {
+        'name': 'Nazionale', 'name_en': 'National',
+        'description': 'Solo nel tuo paese',
+        'base_cost': 500000, 'cinepass_cost': 3,
+        'revenue_multiplier': 0.4, 'audience_multiplier': 0.3
+    },
+    'continental': {
+        'name': 'Continentale', 'name_en': 'Continental',
+        'description': 'Distribuzione continentale',
+        'base_cost': 1500000, 'cinepass_cost': 5,
+        'revenue_multiplier': 1.0, 'audience_multiplier': 1.0
+    },
+    'world': {
+        'name': 'Mondiale', 'name_en': 'Worldwide',
+        'description': 'Uscita mondiale',
+        'base_cost': 4000000, 'cinepass_cost': 8,
+        'revenue_multiplier': 2.5, 'audience_multiplier': 2.0
+    }
+}
+
+CONTINENTS = {
+    'europe': 'Europa', 'north_america': 'Nord America', 'south_america': 'Sud America',
+    'asia': 'Asia', 'africa': 'Africa', 'oceania': 'Oceania'
+}
+
+
+# Fame Categories with costs (+20% adjusted)
+FAME_CATEGORIES = {
+    'unknown': {'name': 'Unknown', 'name_it': 'Sconosciuto', 'min_cost': 12000, 'max_cost': 60000, 'quality_bonus': 0},
+    'rising': {'name': 'Rising Star', 'name_it': 'Emergente', 'min_cost': 60000, 'max_cost': 240000, 'quality_bonus': 5},
+    'famous': {'name': 'Famous', 'name_it': 'Famoso', 'min_cost': 240000, 'max_cost': 1200000, 'quality_bonus': 15},
+    'superstar': {'name': 'Superstar', 'name_it': 'Superstar', 'min_cost': 1200000, 'max_cost': 12000000, 'quality_bonus': 30}
+}
+
+# Advertising platforms (+20% costs)
+AD_PLATFORMS = [
+    {'id': 'social_media', 'name': 'Social Media', 'name_it': 'Social Media', 'reach_multiplier': 1.2, 'cost_per_day': 6000},
+    {'id': 'tv_spots', 'name': 'TV Commercials', 'name_it': 'Spot TV', 'reach_multiplier': 2.0, 'cost_per_day': 60000},
+    {'id': 'billboards', 'name': 'Billboards', 'name_it': 'Cartelloni', 'reach_multiplier': 1.5, 'cost_per_day': 24000},
+    {'id': 'streaming_ads', 'name': 'Streaming Ads', 'name_it': 'Pubblicità Streaming', 'reach_multiplier': 1.8, 'cost_per_day': 36000},
+    {'id': 'influencers', 'name': 'Influencer Campaign', 'name_it': 'Campagna Influencer', 'reach_multiplier': 1.6, 'cost_per_day': 30000},
+    {'id': 'premiere_event', 'name': 'Red Carpet Premiere', 'name_it': 'Premiere Red Carpet', 'reach_multiplier': 2.5, 'cost_per_day': 120000}
+]
+
+def get_fame_category(skill_avg: float, films_count: int, is_discovered_star: bool = False) -> str:
+    """Determine fame category based on performance"""
+    if is_discovered_star:
+        return 'superstar'
+    
+    # Fame is based on films count and average skill
+    fame_score = (films_count * 2) + (skill_avg * 3)
+    
+    if fame_score < 30:
+        return 'unknown'
+    elif fame_score < 60:
+        return 'rising'
+    elif fame_score < 100:
+        return 'famous'
+    else:
+        return 'superstar'
+
+def calculate_cost_by_fame(fame_category: str, skill_avg: float) -> int:
+    """Calculate cost based on fame category and skills"""
+    category = FAME_CATEGORIES.get(fame_category, FAME_CATEGORIES['unknown'])
+    base_cost = random.randint(category['min_cost'], category['max_cost'])
+    
+    # Skill bonus (high skill unknowns are still cheap but talented)
+    skill_bonus = 1 + (skill_avg / 20)  # Max 1.5x for skill 10
+    
+    return int(base_cost * skill_bonus)
+
+# Preset Avatars (20 total) - Stylized but gender-recognizable
+# Avatar generation - No presets, only AI or custom URL
+def generate_default_avatar(nickname: str, gender: str = 'other') -> str:
+    """Generate a unique avatar URL based on nickname and gender."""
+    seed = nickname.replace(' ', '') + str(random.randint(1000, 9999))
+    
+    if gender == 'female':
+        features = '&top=longHairStraight&accessories=prescription02'
+    elif gender == 'male':
+        features = '&top=shortHairShortFlat&facialHair=beardLight'
+    else:
+        features = '&top=hat'
+    
+    colors = ['b6e3f4', 'c0aede', 'ffd5dc', 'ffdfbf', 'd1d4f9', 'c4e7d4', 'fbe8d3']
+    bg_color = random.choice(colors)
+    
+    return f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor={bg_color}{features}"
+
+# CHAT_BOTS moved to game_state.py
+
+from game_data_minigames import MINI_GAMES, TRIVIA_QUESTIONS, DAILY_CHALLENGES, WEEKLY_CHALLENGES, get_questions_for_language
+
+
+# Translations
+TRANSLATIONS = {
+    'en': {
+        'welcome': 'Welcome to CineWorld Studio\'s',
+        'login': 'Login',
+        'register': 'Register',
+        'dashboard': 'Dashboard',
+        'my_films': 'My Films',
+        'create_film': 'Create Film',
+        'drafts': 'Drafts',
+        'drafts_preengagement': 'Drafts & Pre-Engagements',
+        'pre_engagement': 'Pre-Engagement',
+        'screenplays': 'Screenplays',
+        'social': 'Social',
+        'cineboard': 'CineBoard',
+        'chat': 'Chat',
+        'statistics': 'Statistics',
+        'profile': 'Profile',
+        'logout': 'Logout',
+        'funds': 'Funds',
+        'game_date': 'Game Date',
+        'box_office': 'Box Office',
+        'title': 'Title',
+        'genre': 'Genre',
+        'budget': 'Budget',
+        'release_date': 'Release Date',
+        'status': 'Status',
+        'revenue': 'Revenue',
+        'likes': 'Likes',
+        'action': 'Action',
+        'comedy': 'Comedy',
+        'drama': 'Drama',
+        'horror': 'Horror',
+        'sci_fi': 'Sci-Fi',
+        'romance': 'Romance',
+        'thriller': 'Thriller',
+        'animation': 'Animation',
+        'documentary': 'Documentary',
+        'fantasy': 'Fantasy',
+        'mini_games': 'Mini Games',
+        'contests': 'Daily Contests',
+        'sagas_series': 'Sagas & Series',
+        'cinema_journal': 'Cinema Journal',
+        'discovered_stars': 'Discovered Stars',
+        'release_notes': 'Release Notes',
+        'feedback': 'Feedback & Bugs',
+        'challenges': 'Contest',
+        'daily': 'Daily',
+        'weekly': 'Weekly',
+        'adult_warning': 'This is an adult community (18+). Sharing images of minors is strictly prohibited and will result in immediate ban.',
+        'age': 'Age',
+        'gender': 'Gender',
+        'male': 'Male',
+        'female': 'Female',
+        'other': 'Other',
+        'infrastructure': 'Infrastructure',
+        'acting_school': 'Acting School',
+        'leaderboard': 'Leaderboard',
+        'tour': 'Cinema Tour',
+        'marketplace': 'Marketplace',
+        'tutorial': 'Tutorial',
+        'credits': 'Credits',
+        'festivals': 'Festivals'
+    },
+    'it': {
+        'welcome': 'Benvenuto in CineWorld Studio\'s',
+        'login': 'Accedi',
+        'register': 'Registrati',
+        'dashboard': 'Dashboard',
+        'my_films': 'I Miei Film',
+        'create_film': 'Crea Film',
+        'drafts': 'Bozze',
+        'drafts_preengagement': 'Bozze & Pre-Ingaggi',
+        'pre_engagement': 'Pre-Ingaggio',
+        'screenplays': 'Sceneggiature',
+        'social': 'Social',
+        'cineboard': 'CineBoard',
+        'chat': 'Chat',
+        'statistics': 'Statistiche',
+        'profile': 'Profilo',
+        'logout': 'Esci',
+        'funds': 'Fondi',
+        'game_date': 'Data di Gioco',
+        'box_office': 'Botteghino',
+        'title': 'Titolo',
+        'genre': 'Genere',
+        'budget': 'Budget',
+        'release_date': 'Data Uscita',
+        'status': 'Stato',
+        'revenue': 'Incasso',
+        'likes': 'Mi Piace',
+        'action': 'Azione',
+        'comedy': 'Commedia',
+        'drama': 'Drammatico',
+        'horror': 'Horror',
+        'sci_fi': 'Fantascienza',
+        'romance': 'Romantico',
+        'thriller': 'Thriller',
+        'animation': 'Animazione',
+        'documentary': 'Documentario',
+        'fantasy': 'Fantasy',
+        'mini_games': 'Mini Giochi',
+        'contests': 'Contest Giornalieri',
+        'sagas_series': 'Saghe e Serie',
+        'cinema_journal': 'Giornale del Cinema',
+        'discovered_stars': 'Stelle Scoperte',
+        'release_notes': 'Note di Rilascio',
+        'feedback': 'Suggerimenti & Bug',
+        'challenges': 'Contest',
+        'daily': 'Giornaliere',
+        'weekly': 'Settimanali',
+        'infrastructure': 'Infrastrutture',
+        'acting_school': 'Scuola Recitazione',
+        'leaderboard': 'Classifica',
+        'tour': 'Tour Cinema',
+        'marketplace': 'Mercato',
+        'tutorial': 'Tutorial',
+        'credits': 'Crediti',
+        'festivals': 'Festival',
+        'adult_warning': 'Questa è una comunità per adulti (18+). La condivisione di immagini di minori è severamente vietata e comporterà il ban immediato.',
+        'age': 'Età',
+        'gender': 'Genere',
+        'male': 'Maschio',
+        'female': 'Femmina',
+        'other': 'Altro'
+    },
+    'es': {
+        'welcome': 'Bienvenido a CineWorld Studio\'s',
+        'login': 'Iniciar Sesión',
+        'register': 'Registrarse',
+        'dashboard': 'Panel',
+        'my_films': 'Mis Películas',
+        'create_film': 'Crear Película',
+        'drafts': 'Borradores',
+        'social': 'Social',
+        'chat': 'Chat',
+        'statistics': 'Estadísticas',
+        'profile': 'Perfil',
+        'logout': 'Salir',
+        'funds': 'Fondos',
+        'game_date': 'Fecha del Juego',
+        'box_office': 'Taquilla',
+        'title': 'Título',
+        'genre': 'Género',
+        'budget': 'Presupuesto',
+        'release_date': 'Fecha de Estreno',
+        'status': 'Estado',
+        'revenue': 'Ingresos',
+        'likes': 'Me Gusta',
+        'action': 'Acción',
+        'comedy': 'Comedia',
+        'drama': 'Drama',
+        'horror': 'Terror',
+        'sci_fi': 'Ciencia Ficción',
+        'romance': 'Romance',
+        'thriller': 'Suspenso',
+        'animation': 'Animación',
+        'documentary': 'Documental',
+        'fantasy': 'Fantasía',
+        'mini_games': 'Mini Juegos',
+        'sagas_series': 'Sagas y Series',
+        'cinema_journal': 'Diario del Cine',
+        'discovered_stars': 'Estrellas Descubiertas',
+        'release_notes': 'Notas de Versión',
+        'challenges': 'Contest',
+        'daily': 'Diarios',
+        'weekly': 'Semanales',
+        'adult_warning': 'Esta es una comunidad para adultos (18+). Compartir imágenes de menores está estrictamente prohibido.',
+        'age': 'Edad',
+        'gender': 'Género',
+        'male': 'Masculino',
+        'female': 'Femenino',
+        'other': 'Otro'
+    },
+    'fr': {
+        'welcome': 'Bienvenue à CineWorld Studio\'s',
+        'login': 'Connexion',
+        'register': 'S\'inscrire',
+        'dashboard': 'Tableau de Bord',
+        'my_films': 'Mes Films',
+        'create_film': 'Créer un Film',
+        'drafts': 'Brouillons',
+        'social': 'Social',
+        'chat': 'Chat',
+        'statistics': 'Statistiques',
+        'profile': 'Profil',
+        'logout': 'Déconnexion',
+        'funds': 'Fonds',
+        'game_date': 'Date du Jeu',
+        'box_office': 'Box Office',
+        'title': 'Titre',
+        'genre': 'Genre',
+        'budget': 'Budget',
+        'release_date': 'Date de Sortie',
+        'status': 'Statut',
+        'revenue': 'Revenus',
+        'likes': 'J\'aime',
+        'action': 'Action',
+        'comedy': 'Comédie',
+        'drama': 'Drame',
+        'horror': 'Horreur',
+        'sci_fi': 'Science-Fiction',
+        'romance': 'Romance',
+        'thriller': 'Thriller',
+        'animation': 'Animation',
+        'documentary': 'Documentaire',
+        'fantasy': 'Fantaisie',
+        'mini_games': 'Mini Jeux',
+        'sagas_series': 'Sagas et Séries',
+        'cinema_journal': 'Journal du Cinéma',
+        'discovered_stars': 'Étoiles Découvertes',
+        'release_notes': 'Notes de Version',
+        'challenges': 'Contest',
+        'daily': 'Quotidiens',
+        'weekly': 'Hebdomadaires',
+        'adult_warning': 'Ceci est une communauté adulte (18+). Le partage d\'images de mineurs est strictement interdit.',
+        'age': 'Âge',
+        'gender': 'Genre',
+        'male': 'Masculin',
+        'female': 'Féminin',
+        'other': 'Autre'
+    },
+    'de': {
+        'welcome': 'Willkommen bei CineWorld Studio\'s',
+        'login': 'Anmelden',
+        'register': 'Registrieren',
+        'dashboard': 'Dashboard',
+        'my_films': 'Meine Filme',
+        'create_film': 'Film Erstellen',
+        'drafts': 'Entwürfe',
+        'social': 'Sozial',
+        'chat': 'Chat',
+        'statistics': 'Statistiken',
+        'profile': 'Profil',
+        'logout': 'Abmelden',
+        'funds': 'Guthaben',
+        'game_date': 'Spieldatum',
+        'box_office': 'Kinokasse',
+        'title': 'Titel',
+        'genre': 'Genre',
+        'budget': 'Budget',
+        'release_date': 'Erscheinungsdatum',
+        'status': 'Status',
+        'revenue': 'Einnahmen',
+        'likes': 'Gefällt mir',
+        'action': 'Action',
+        'comedy': 'Komödie',
+        'drama': 'Drama',
+        'horror': 'Horror',
+        'sci_fi': 'Science-Fiction',
+        'romance': 'Romanze',
+        'thriller': 'Thriller',
+        'animation': 'Animation',
+        'documentary': 'Dokumentation',
+        'fantasy': 'Fantasy',
+        'mini_games': 'Mini Spiele',
+        'sagas_series': 'Sagen & Serien',
+        'cinema_journal': 'Kino Zeitung',
+        'discovered_stars': 'Entdeckte Stars',
+        'release_notes': 'Versionshinweise',
+        'challenges': 'Contest',
+        'daily': 'Täglich',
+        'weekly': 'Wöchentlich',
+        'adult_warning': 'Dies ist eine Erwachsenen-Community (18+). Das Teilen von Bildern von Minderjährigen ist strengstens verboten.',
+        'age': 'Alter',
+        'gender': 'Geschlecht',
+        'male': 'Männlich',
+        'female': 'Weiblich',
+        'other': 'Andere'
+    }
+}
+
+# Film Genres with Sub-genres
+GENRES = {
+    'action': {
+        'name': 'Action',
+        'subgenres': ['Martial Arts', 'Spy', 'Superhero', 'Military', 'Disaster', 'Heist']
+    },
+    'comedy': {
+        'name': 'Comedy', 
+        'subgenres': ['Romantic Comedy', 'Dark Comedy', 'Parody', 'Slapstick', 'Satire', 'Buddy Comedy', 'Film Comico', 'Commedia Italiana']
+    },
+    'drama': {
+        'name': 'Drama',
+        'subgenres': ['Legal Drama', 'Medical Drama', 'Political', 'Family', 'Sports Drama', 'Tragedy']
+    },
+    'horror': {
+        'name': 'Horror',
+        'subgenres': ['Supernatural', 'Slasher', 'Psychological', 'Zombie', 'Found Footage', 'Gothic']
+    },
+    'sci_fi': {
+        'name': 'Sci-Fi',
+        'subgenres': ['Space Opera', 'Cyberpunk', 'Time Travel', 'Dystopian', 'Alien Invasion', 'Post-Apocalyptic']
+    },
+    'romance': {
+        'name': 'Romance',
+        'subgenres': ['Period Romance', 'Teen Romance', 'Tragic Romance', 'LGBTQ+', 'Second Chance', 'Forbidden Love']
+    },
+    'thriller': {
+        'name': 'Thriller',
+        'subgenres': ['Psychological Thriller', 'Crime Thriller', 'Conspiracy', 'Techno-Thriller', 'Mystery', 'Survival']
+    },
+    'animation': {
+        'name': 'Animation',
+        'subgenres': ['3D Animation', 'Anime', 'Stop Motion', 'Musical Animation', 'Family Animation', 'Adult Animation']
+    },
+    'documentary': {
+        'name': 'Documentary',
+        'subgenres': ['Nature', 'True Crime', 'Historical', 'Music Documentary', 'Sports Documentary', 'Social Issues']
+    },
+    'fantasy': {
+        'name': 'Fantasy',
+        'subgenres': ['Epic Fantasy', 'Urban Fantasy', 'Dark Fantasy', 'Fairy Tale', 'Mythological', 'Sword & Sorcery']
+    },
+    'musical': {
+        'name': 'Musical',
+        'subgenres': ['Broadway Adaptation', 'Jukebox Musical', 'Rock Musical', 'Dance Film', 'Opera', 'Concert Film']
+    },
+    'western': {
+        'name': 'Western',
+        'subgenres': ['Spaghetti Western', 'Neo-Western', 'Revisionist Western', 'Comedy Western', 'Epic Western', 'Outlaw']
+    },
+    'war': {
+        'name': 'War',
+        'subgenres': ['World War II', 'Vietnam War', 'Civil War', 'Modern Warfare', 'Anti-War', 'War Drama']
+    },
+    'noir': {
+        'name': 'Noir',
+        'subgenres': ['Classic Noir', 'Neo-Noir', 'Tech-Noir', 'Femme Fatale', 'Hardboiled', 'Crime Noir']
+    },
+    'adventure': {
+        'name': 'Adventure',
+        'subgenres': ['Treasure Hunt', 'Survival Adventure', 'Jungle Adventure', 'Sea Adventure', 'Expedition', 'Swashbuckler']
+    },
+    'biographical': {
+        'name': 'Biographical',
+        'subgenres': ['Music Biopic', 'Sports Biopic', 'Historical Figure', 'Political Biopic', 'Artist Biopic', 'Criminal Biopic']
+    }
+}
+
+GENRE_LIST = list(GENRES.keys())
+
+# ==================== REJECTION SYSTEM ====================
+# Reasons why cast members might refuse an offer
+
+REJECTION_REASONS = {
+    'it': [
+        # Impegni professionali
+        "Sono già impegnato in un altro progetto per i prossimi mesi.",
+        "Ho un contratto di esclusiva con un'altra produzione.",
+        "Sto lavorando a un progetto personale che richiede tutta la mia attenzione.",
+        "Ho già accettato un ruolo in un film che inizia le riprese lo stesso periodo.",
+        # Motivazioni artistiche
+        "Non mi sento adatto per questo tipo di ruolo.",
+        "Questo genere non si sposa con la mia carriera artistica.",
+        "Sto cercando di esplorare ruoli diversi in questo momento.",
+        "Ho promesso al mio agente di essere più selettivo con i progetti.",
+        "Dopo il mio ultimo film, voglio prendermi una pausa creativa.",
+        # Motivazioni personali
+        "Ho bisogno di passare più tempo con la mia famiglia.",
+        "Sto per partire per un lungo viaggio.",
+        "Motivi di salute mi impediscono di accettare nuovi impegni.",
+        "Ho deciso di prendermi un anno sabbatico.",
+        # Budget/Reputazione
+        "L'offerta economica non riflette il mio valore di mercato.",
+        "Preferisco lavorare con produzioni più affermate.",
+        "Il budget del film mi sembra troppo limitato per le mie aspettative.",
+        "Non lavoro con case di produzione emergenti.",
+        # Conflitti creativi
+        "Ho avuto esperienze negative con membri del cast proposto.",
+        "La sceneggiatura non mi convince pienamente.",
+        "Ho delle riserve sulla direzione artistica del progetto.",
+        "Il ruolo richiederebbe compromessi che non sono disposto a fare.",
+        # Superstizione/Casualità
+        "Il mio astrologo mi ha sconsigliato nuovi progetti questo mese.",
+        "Non giro mai film che iniziano di venerdì.",
+        "Ho un brutto presentimento su questo progetto.",
+    ],
+    'en': [
+        # Professional commitments
+        "I'm already committed to another project for the next few months.",
+        "I have an exclusivity contract with another production.",
+        "I'm working on a personal project that requires all my attention.",
+        "I've already accepted a role in a film shooting the same period.",
+        # Artistic reasons
+        "I don't feel suited for this type of role.",
+        "This genre doesn't align with my artistic career.",
+        "I'm looking to explore different roles right now.",
+        "I promised my agent to be more selective with projects.",
+        "After my last film, I want to take a creative break.",
+        # Personal reasons
+        "I need to spend more time with my family.",
+        "I'm about to leave for a long trip.",
+        "Health reasons prevent me from accepting new commitments.",
+        "I've decided to take a sabbatical year.",
+        # Budget/Reputation
+        "The financial offer doesn't reflect my market value.",
+        "I prefer to work with more established productions.",
+        "The film's budget seems too limited for my expectations.",
+        "I don't work with emerging production companies.",
+        # Creative conflicts
+        "I've had negative experiences with proposed cast members.",
+        "The screenplay doesn't fully convince me.",
+        "I have reservations about the artistic direction.",
+        "The role would require compromises I'm not willing to make.",
+        # Superstition/Random
+        "My astrologer advised against new projects this month.",
+        "I never shoot films that start on Friday.",
+        "I have a bad feeling about this project.",
+    ]
+}
+
+def calculate_rejection_chance(person: dict, user: dict, film_genre: str = None) -> tuple:
+    """
+    Calculate the chance that a cast member will refuse the offer.
+    Returns (will_refuse: bool, reason: str or None)
+    
+    Factors:
+    - Star rating vs player level mismatch
+    - Fame score vs player reputation
+    - Genre compatibility
+    - Random factor
+    - Previous collaborations (reduces rejection)
+    """
+    import random
+    
+    base_rejection_chance = 0.0
+    
+    # Factor 1: Star rating vs player level (major factor)
+    person_stars = person.get('stars', 3)
+    player_level = user.get('level', 1)
+    
+    # 5-star talent needs level 15+, 4-star needs 10+, 3-star needs 5+
+    required_levels = {5: 15, 4: 10, 3: 5, 2: 2, 1: 0}
+    required_level = required_levels.get(person_stars, 5)
+    
+    if player_level < required_level:
+        level_gap = required_level - player_level
+        base_rejection_chance += min(0.5, level_gap * 0.05)  # Up to 50% from level gap
+    
+    # Factor 2: Fame score (famous people are pickier)
+    fame_score = person.get('fame_score', 50)
+    if fame_score > 80:
+        base_rejection_chance += 0.25
+    elif fame_score > 60:
+        base_rejection_chance += 0.10
+    
+    # Factor 3: Player's reputation (total revenue earned)
+    player_revenue = user.get('total_lifetime_revenue', 0)
+    if player_revenue < 100000 and person_stars >= 4:
+        base_rejection_chance += 0.15
+    elif player_revenue > 10000000:
+        base_rejection_chance -= 0.10  # Famous player bonus
+    
+    # Factor 4: Random celebrity mood
+    base_rejection_chance += random.uniform(-0.05, 0.15)
+    
+    # Factor 5: Genre mismatch (if they have no skills in that genre)
+    if film_genre and person.get('skills'):
+        genre_skill = person['skills'].get(film_genre, 0)
+        if genre_skill < 30:
+            base_rejection_chance += 0.10
+    
+    # Factor 6: Star cast (+15% if never worked with player)
+    if person.get('is_star', False):
+        player_films_worked = person.get('films_worked', [])
+        player_id = user.get('id', '')
+        has_worked_together = any(f.get('user_id') == player_id for f in player_films_worked) if isinstance(player_films_worked, list) and player_films_worked and isinstance(player_films_worked[0], dict) else False
+        if not has_worked_together:
+            base_rejection_chance += 0.15
+    
+    # Minimum rejection chance so negotiation mechanic is always relevant
+    min_rejection = 0.12  # 12% minimum for all interactions
+    
+    # Cap at 60% max rejection chance
+    final_chance = max(min_rejection, min(0.60, base_rejection_chance))
+    
+    # Roll the dice
+    will_refuse = random.random() < final_chance
+    
+    reason = None
+    if will_refuse:
+        language = user.get('language', 'en')
+        reasons = REJECTION_REASONS.get(language, REJECTION_REASONS['en'])
+        reason = random.choice(reasons)
+    
+    return will_refuse, reason
+
+COUNTRIES = {
+    'USA': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami', 'San Francisco'],
+    'Italy': ['Rome', 'Milan', 'Naples', 'Turin', 'Florence', 'Venice'],
+    'Spain': ['Madrid', 'Barcelona', 'Valencia', 'Seville', 'Bilbao', 'Malaga'],
+    'France': ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Bordeaux'],
+    'Germany': ['Berlin', 'Munich', 'Hamburg', 'Frankfurt', 'Cologne', 'Stuttgart'],
+    'UK': ['London', 'Manchester', 'Birmingham', 'Liverpool', 'Leeds', 'Glasgow'],
+    'Japan': ['Tokyo', 'Osaka', 'Yokohama', 'Nagoya', 'Kyoto', 'Fukuoka'],
+    'China': ['Beijing', 'Shanghai', 'Guangzhou', 'Shenzhen', 'Chengdu', 'Hangzhou'],
+    'Brazil': ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Salvador', 'Fortaleza', 'Curitiba'],
+    'India': ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad']
+}
+
+# Fictional Sponsors
+SPONSORS = [
+    # Tier 5 - Premium (Budget 800K-1.2M, Revenue Share 8-12%)
+    {'name': 'StarBurst Energy', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 5},
+    {'name': 'NovaTech Industries', 'budget_offer': 1120000, 'revenue_share': 11, 'rating': 5},
+    {'name': 'Luxor Motors', 'budget_offer': 980000, 'revenue_share': 10, 'rating': 5},
+    {'name': 'Chronos Timepieces', 'budget_offer': 1260000, 'revenue_share': 14, 'rating': 5},
+    {'name': 'Quantum Aerospace', 'budget_offer': 1400000, 'revenue_share': 15, 'rating': 5},
+    {'name': 'Titan Global Holdings', 'budget_offer': 1540000, 'revenue_share': 16, 'rating': 5},
+    {'name': 'Apex Financial Group', 'budget_offer': 1120000, 'revenue_share': 11, 'rating': 5},
+    {'name': 'Stellar Dynamics', 'budget_offer': 980000, 'revenue_share': 10, 'rating': 5},
+    {'name': 'Infinity Pharma', 'budget_offer': 1260000, 'revenue_share': 13, 'rating': 5},
+    {'name': 'Royal Crown Jewels', 'budget_offer': 1680000, 'revenue_share': 17, 'rating': 5},
+    {'name': 'Prestige Aviation', 'budget_offer': 1400000, 'revenue_share': 14, 'rating': 5},
+    {'name': 'Monarch Estates', 'budget_offer': 1540000, 'revenue_share': 15, 'rating': 5},
+    {'name': 'Imperial Hotels', 'budget_offer': 1120000, 'revenue_share': 11, 'rating': 5},
+    {'name': 'Sovereign Yachts', 'budget_offer': 1820000, 'revenue_share': 18, 'rating': 5},
+    {'name': 'Elite Couture', 'budget_offer': 1260000, 'revenue_share': 13, 'rating': 5},
+    {'name': 'Platinum Motors', 'budget_offer': 1400000, 'revenue_share': 14, 'rating': 5},
+    {'name': 'Diamond Tech', 'budget_offer': 980000, 'revenue_share': 10, 'rating': 5},
+    {'name': 'Golden Gate Ventures', 'budget_offer': 1540000, 'revenue_share': 15, 'rating': 5},
+    {'name': 'Majestic Resorts', 'budget_offer': 1680000, 'revenue_share': 17, 'rating': 5},
+    {'name': 'Crown Automotive', 'budget_offer': 1120000, 'revenue_share': 11, 'rating': 5},
+    # Tier 4 - High (Budget 500K-800K, Revenue Share 5-8%)
+    {'name': 'VeloSpeed Sports', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'GalaxyWare Electronics', 'budget_offer': 840000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'FreshWave Beverages', 'budget_offer': 630000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'VoltDrive Automotive', 'budget_offer': 910000, 'revenue_share': 10, 'rating': 4},
+    {'name': 'QuantumPlay Gaming', 'budget_offer': 770000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'SkyLine Airlines', 'budget_offer': 840000, 'revenue_share': 9, 'rating': 4},
+    {'name': 'MetroBank Financial', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'TechnoVision Media', 'budget_offer': 630000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'UrbanStyle Fashion', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'PrimeCare Health', 'budget_offer': 770000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'NextGen Software', 'budget_offer': 910000, 'revenue_share': 9, 'rating': 4},
+    {'name': 'GlobalConnect Telecom', 'budget_offer': 840000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Summit Insurance', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'Horizon Travel', 'budget_offer': 630000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Fusion Restaurants', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Alpha Sports Gear', 'budget_offer': 770000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Zenith Electronics', 'budget_offer': 910000, 'revenue_share': 9, 'rating': 4},
+    {'name': 'Pacific Trading', 'budget_offer': 840000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Northern Lights Energy', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'Crystal Clear Water', 'budget_offer': 630000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Thunder Motors', 'budget_offer': 910000, 'revenue_share': 9, 'rating': 4},
+    {'name': 'Eclipse Gaming', 'budget_offer': 770000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Sunrise Media', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'Bluebird Airlines', 'budget_offer': 840000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Evergreen Hotels', 'budget_offer': 630000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Silver Stream Tech', 'budget_offer': 770000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Velocity Sports', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 4},
+    {'name': 'Radiant Beauty', 'budget_offer': 700000, 'revenue_share': 7, 'rating': 4},
+    {'name': 'Atlas Logistics', 'budget_offer': 840000, 'revenue_share': 8, 'rating': 4},
+    {'name': 'Pioneer Electronics', 'budget_offer': 910000, 'revenue_share': 9, 'rating': 4},
+    # Tier 3 - Medium (Budget 300K-500K, Revenue Share 3-5%)
+    {'name': 'AeroFit Apparel', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'CityLife Magazine', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'GreenLeaf Organics', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'BlueOcean Seafood', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'SunnyDays Tourism', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'QuickBite Foods', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'HomeStyle Furniture', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'TechStart Solutions', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'FitLife Gyms', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'PetPals Supplies', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'BookWorld Publishing', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'SoundWave Audio', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'SpeedyPost Delivery', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'MegaMart Retail', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'CleanSweep Services', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'BrightStar Education', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'ComfortZone Hotels', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'SafeGuard Security', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'FreshFarm Produce', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'UrbanBikes Cycling', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'CloudNine Airways', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Pixel Perfect Photos', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Cozy Corner Cafe', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'EcoGreen Solutions', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'FastTrack Couriers', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'SmartHome Tech', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Nature Trail Outdoors', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Golden Harvest Foods', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Rapid Response Medical', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Urban Jungle Decor', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Swift Solutions IT', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Breeze Air Conditioning', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Harmony Music Store', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'Spark Electric', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Mountain View Realty', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Oceanic Cruises', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Starlight Cinema', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Riverdale Bank', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Sunset Vineyards', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Arctic Ice Cream', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 3},
+    {'name': 'Phoenix Auto Parts', 'budget_offer': 420000, 'revenue_share': 5, 'rating': 3},
+    {'name': 'Liberty Insurance', 'budget_offer': 490000, 'revenue_share': 6, 'rating': 3},
+    {'name': 'Oasis Spa', 'budget_offer': 350000, 'revenue_share': 4, 'rating': 3},
+    {'name': 'Granite Construction', 'budget_offer': 560000, 'revenue_share': 6, 'rating': 3},
+    # Tier 2 - Low-Medium (Budget 150K-300K, Revenue Share 2-3%)
+    {'name': 'LocalBrew Coffee', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'CraftWorks Bakery', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'GreenThumb Gardens', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'QuickFix Repairs', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'PureWater Springs', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'SweetTreat Candy', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'BuddyPet Food', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'TinyTots Toys', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'CleanAir Filters', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'BrightLight Bulbs', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'ComfyPillow Bedding', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'FreshScent Candles', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'SafeStep Shoes', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'ClearView Glasses', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'QuietTime Books', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'HappyMeal Catering', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'SoftTouch Towels', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'WarmHeart Charity', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'FastFeet Running', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'CoolBreeze Fans', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'SunShine Solar', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'MoonGlow Cosmetics', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'StarGaze Telescopes', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'RainDrop Umbrellas', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'SnowFlake Ice', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'ThunderBolt Energy', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'LightningFast Internet', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'WhisperQuiet AC', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'RoaringFire BBQ', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'GentleWave Spa', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'SteadyHand Tools', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'QuickMind Games', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'BoldStep Boots', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'SweetDreams Mattress', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'FreshAir Purifiers', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'HappyTails Pets', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'WildWest Denim', 'budget_offer': 245000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'EasternSpice Foods', 'budget_offer': 175000, 'revenue_share': 2, 'rating': 2},
+    {'name': 'NorthernLights Decor', 'budget_offer': 210000, 'revenue_share': 3, 'rating': 2},
+    {'name': 'SouthernComfort Furniture', 'budget_offer': 280000, 'revenue_share': 3, 'rating': 2},
+    # Tier 1 - Entry Level (Budget 50K-150K, Revenue Share 1-2%)
+    {'name': 'TinyShop Boutique', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'LocalPizza Place', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'CornerStore Mart', 'budget_offer': 126000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'FamilyDiner Restaurant', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'NeighborGym Fitness', 'budget_offer': 112000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'PocketMoney Savings', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'SmallTown Gazette', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'BackyardBBQ Grills', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'KidZone Playground', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'GarageBand Music', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'HomeMade Crafts', 'budget_offer': 56000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'LocalHero Comics', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'StreetFood Tacos', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'VillageBakery Bread', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'CountryFarm Eggs', 'budget_offer': 56000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'OldTown Antiques', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'BeachSide Rentals', 'budget_offer': 126000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'MountainCabin Getaways', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'RiverBend Fishing', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'ForestTrail Hiking', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'SunsetView Realty', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'MorningDew Gardens', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'NightOwl Cafe', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'EarlyBird Breakfast', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'MidnightSnack Deli', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'WeekendWarrior Sports', 'budget_offer': 112000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'DailyGrind Coffee', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'SeasonalTreats Sweets', 'budget_offer': 70000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'HolidayMagic Gifts', 'budget_offer': 126000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'BirthdayBash Party', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'WeddingBells Events', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'GraduationDay Photos', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'NewYear Fireworks', 'budget_offer': 112000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'ValentineRose Flowers', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'HalloweenSpook Costumes', 'budget_offer': 84000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'ThanksgivingFeast Catering', 'budget_offer': 126000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'ChristmasJoy Decorations', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+    {'name': 'EasterBunny Chocolate', 'budget_offer': 98000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'SummerCamp Activities', 'budget_offer': 112000, 'revenue_share': 1, 'rating': 1},
+    {'name': 'WinterWonder Ski', 'budget_offer': 140000, 'revenue_share': 2, 'rating': 1},
+]
+
+LOCATIONS = [
+    # STUDI & SET (Film Studios & Backlots)
+    {'name': 'Hollywood Studio', 'cost_per_day': 60000, 'category': 'studios'},
+    {'name': 'Cinecittà Roma', 'cost_per_day': 55000, 'category': 'studios'},
+    {'name': 'Pinewood Studios', 'cost_per_day': 65000, 'category': 'studios'},
+    {'name': 'Babelsberg Studio', 'cost_per_day': 50000, 'category': 'studios'},
+    {'name': 'Warner Bros Lot', 'cost_per_day': 75000, 'category': 'studios'},
+    {'name': 'Paramount Backlot', 'cost_per_day': 70000, 'category': 'studios'},
+    {'name': 'Shepperton Studios', 'cost_per_day': 58000, 'category': 'studios'},
+    {'name': 'Fox Studio Australia', 'cost_per_day': 52000, 'category': 'studios'},
+    {'name': 'Barrandov Studios Praga', 'cost_per_day': 40000, 'category': 'studios'},
+    {'name': 'Toho Studios Tokyo', 'cost_per_day': 62000, 'category': 'studios'},
+    {'name': 'Leavesden Studios', 'cost_per_day': 68000, 'category': 'studios'},
+    {'name': 'Nu Boyana Sofia', 'cost_per_day': 35000, 'category': 'studios'},
+    {'name': 'Churubusco Studios Mexico', 'cost_per_day': 38000, 'category': 'studios'},
+    {'name': 'Bollywood Film City', 'cost_per_day': 30000, 'category': 'studios'},
+    {'name': 'Mosfilm Studios Mosca', 'cost_per_day': 42000, 'category': 'studios'},
+    {'name': 'Atlas Studios Marocco', 'cost_per_day': 28000, 'category': 'studios'},
+    {'name': 'Dino De Laurentiis Studio', 'cost_per_day': 55000, 'category': 'studios'},
+    {'name': 'Tyler Perry Studios', 'cost_per_day': 60000, 'category': 'studios'},
+    {'name': 'Orion Sound Stage', 'cost_per_day': 45000, 'category': 'studios'},
+    {'name': 'Seoul Drama Center', 'cost_per_day': 48000, 'category': 'studios'},
+    # METROPOLI & CITTÀ (Cities & Urban)
+    {'name': 'New York City', 'cost_per_day': 96000, 'category': 'cities'},
+    {'name': 'Paris Streets', 'cost_per_day': 84000, 'category': 'cities'},
+    {'name': 'Tokyo District', 'cost_per_day': 90000, 'category': 'cities'},
+    {'name': 'London Set', 'cost_per_day': 78000, 'category': 'cities'},
+    {'name': 'Los Angeles', 'cost_per_day': 85000, 'category': 'cities'},
+    {'name': 'Shanghai Bund', 'cost_per_day': 72000, 'category': 'cities'},
+    {'name': 'Dubai Marina', 'cost_per_day': 88000, 'category': 'cities'},
+    {'name': 'Roma Centro', 'cost_per_day': 80000, 'category': 'cities'},
+    {'name': 'Berlino', 'cost_per_day': 65000, 'category': 'cities'},
+    {'name': 'Hong Kong Neon', 'cost_per_day': 82000, 'category': 'cities'},
+    {'name': 'Mumbai Streets', 'cost_per_day': 45000, 'category': 'cities'},
+    {'name': 'Istanbul Bazaar', 'cost_per_day': 50000, 'category': 'cities'},
+    {'name': 'Bangkok Night Market', 'cost_per_day': 42000, 'category': 'cities'},
+    {'name': 'Sydney Harbour', 'cost_per_day': 75000, 'category': 'cities'},
+    {'name': 'Barcellona Gothic', 'cost_per_day': 68000, 'category': 'cities'},
+    {'name': 'San Francisco Bay', 'cost_per_day': 80000, 'category': 'cities'},
+    {'name': 'Seoul Gangnam', 'cost_per_day': 70000, 'category': 'cities'},
+    {'name': 'Buenos Aires Tango', 'cost_per_day': 40000, 'category': 'cities'},
+    {'name': 'Napoli Quartieri', 'cost_per_day': 55000, 'category': 'cities'},
+    {'name': 'Chicago Downtown', 'cost_per_day': 78000, 'category': 'cities'},
+    {'name': 'Havana Vieja', 'cost_per_day': 35000, 'category': 'cities'},
+    {'name': 'Amsterdam Canali', 'cost_per_day': 62000, 'category': 'cities'},
+    # NATURA & PAESAGGI (Nature & Landscapes)
+    {'name': 'Sahara Desert', 'cost_per_day': 48000, 'category': 'nature'},
+    {'name': 'Alps Mountains', 'cost_per_day': 72000, 'category': 'nature'},
+    {'name': 'Caribbean Beach', 'cost_per_day': 66000, 'category': 'nature'},
+    {'name': 'Amazon Jungle', 'cost_per_day': 54000, 'category': 'nature'},
+    {'name': 'Islanda Ghiacciai', 'cost_per_day': 78000, 'category': 'nature'},
+    {'name': 'Norvegia Fiordi', 'cost_per_day': 70000, 'category': 'nature'},
+    {'name': 'Grand Canyon', 'cost_per_day': 58000, 'category': 'nature'},
+    {'name': 'Maldive Atollo', 'cost_per_day': 85000, 'category': 'nature'},
+    {'name': 'Serengeti Safari', 'cost_per_day': 52000, 'category': 'nature'},
+    {'name': 'Foresta Nera Germania', 'cost_per_day': 45000, 'category': 'nature'},
+    {'name': 'Patagonia', 'cost_per_day': 60000, 'category': 'nature'},
+    {'name': 'Hawaii Vulcano', 'cost_per_day': 75000, 'category': 'nature'},
+    {'name': 'Cascate Niagara', 'cost_per_day': 55000, 'category': 'nature'},
+    {'name': 'Monument Valley', 'cost_per_day': 50000, 'category': 'nature'},
+    {'name': 'Dolomiti', 'cost_per_day': 65000, 'category': 'nature'},
+    {'name': 'Costa Amalfitana', 'cost_per_day': 80000, 'category': 'nature'},
+    {'name': 'Nuova Zelanda Hobbiton', 'cost_per_day': 90000, 'category': 'nature'},
+    {'name': 'Outback Australiano', 'cost_per_day': 42000, 'category': 'nature'},
+    {'name': 'Bali Risaie', 'cost_per_day': 38000, 'category': 'nature'},
+    {'name': 'Toscana Campagna', 'cost_per_day': 55000, 'category': 'nature'},
+    {'name': 'Cascate Victoria', 'cost_per_day': 48000, 'category': 'nature'},
+    # STORICI & CULTURALI (Historical & Cultural)
+    {'name': 'Rome Colosseum', 'cost_per_day': 90000, 'category': 'historical'},
+    {'name': 'Egitto Piramidi', 'cost_per_day': 75000, 'category': 'historical'},
+    {'name': 'Grecia Partenone', 'cost_per_day': 70000, 'category': 'historical'},
+    {'name': 'Machu Picchu', 'cost_per_day': 65000, 'category': 'historical'},
+    {'name': 'Angkor Wat', 'cost_per_day': 55000, 'category': 'historical'},
+    {'name': 'Petra Giordania', 'cost_per_day': 60000, 'category': 'historical'},
+    {'name': 'Versailles', 'cost_per_day': 85000, 'category': 'historical'},
+    {'name': 'Castello di Neuschwanstein', 'cost_per_day': 72000, 'category': 'historical'},
+    {'name': 'Taj Mahal', 'cost_per_day': 68000, 'category': 'historical'},
+    {'name': 'Grande Muraglia Cinese', 'cost_per_day': 78000, 'category': 'historical'},
+    {'name': 'Pompei', 'cost_per_day': 62000, 'category': 'historical'},
+    {'name': 'Alhambra Granada', 'cost_per_day': 58000, 'category': 'historical'},
+    {'name': 'Stonehenge', 'cost_per_day': 55000, 'category': 'historical'},
+    {'name': 'Vaticano', 'cost_per_day': 95000, 'category': 'historical'},
+    {'name': 'Kyoto Templi', 'cost_per_day': 80000, 'category': 'historical'},
+    {'name': 'Dubrovnik Mura', 'cost_per_day': 52000, 'category': 'historical'},
+    {'name': 'San Pietroburgo Hermitage', 'cost_per_day': 65000, 'category': 'historical'},
+    {'name': 'Gerusalemme Vecchia', 'cost_per_day': 70000, 'category': 'historical'},
+    {'name': 'Praga Castello', 'cost_per_day': 48000, 'category': 'historical'},
+    {'name': 'Edinburgh Castle', 'cost_per_day': 56000, 'category': 'historical'},
+]
+
+EQUIPMENT_PACKAGES = [
+    {'name': 'Basic', 'cost': 120000, 'quality_bonus': 0},
+    {'name': 'Standard', 'cost': 300000, 'quality_bonus': 5},
+    {'name': 'Professional', 'cost': 600000, 'quality_bonus': 10},
+    {'name': 'Premium', 'cost': 960000, 'quality_bonus': 15},
+    {'name': 'Hollywood Elite', 'cost': 1800000, 'quality_bonus': 25}
+]
+
+SKILL_TYPES = {
+    'actor': ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing', 'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation', 'Chemistry', 'Star Power'],
+    'director': ['Vision', 'Leadership', 'Technical', 'Storytelling', 'Actor Direction', 'Visual Style', 'Pacing', 'Innovation', 'Budget Management', 'Award Potential'],
+    'screenwriter': ['Dialogue', 'Plot Structure', 'Character Development', 'Originality', 'Genre Mastery', 'Pacing', 'Emotional Impact', 'Commercial Appeal', 'Adaptation', 'World Building']
+}
 
 # Pydantic Models
 class UserCreate(BaseModel):
@@ -9356,6 +10319,2560 @@ async def get_credits():
         'copyright': f"© {current_year} CineWorld Studio's - Andreola Fabio. Tutti i diritti riservati."
     }
 
+# ==================== FILM FESTIVALS ====================
+
+# Ceremony time: 21:30 local time for each timezone
+CEREMONY_TIME_HOUR = 21
+CEREMONY_TIME_MINUTE = 30
+
+# Major timezone mappings for countries
+COUNTRY_TIMEZONES = {
+    'IT': 'Europe/Rome',
+    'US': 'America/New_York',
+    'GB': 'Europe/London',
+    'FR': 'Europe/Paris',
+    'DE': 'Europe/Berlin',
+    'ES': 'Europe/Madrid',
+    'JP': 'Asia/Tokyo',
+    'CN': 'Asia/Shanghai',
+    'AU': 'Australia/Sydney',
+    'BR': 'America/Sao_Paulo',
+    'IN': 'Asia/Kolkata',
+    'RU': 'Europe/Moscow',
+    'KR': 'Asia/Seoul',
+    'MX': 'America/Mexico_City',
+    'CA': 'America/Toronto',
+    'AR': 'America/Argentina/Buenos_Aires',
+    'NL': 'Europe/Amsterdam',
+    'BE': 'Europe/Brussels',
+    'CH': 'Europe/Zurich',
+    'AT': 'Europe/Vienna',
+    'PL': 'Europe/Warsaw',
+    'SE': 'Europe/Stockholm',
+    'NO': 'Europe/Oslo',
+    'DK': 'Europe/Copenhagen',
+    'FI': 'Europe/Helsinki',
+    'PT': 'Europe/Lisbon',
+    'GR': 'Europe/Athens',
+    'TR': 'Europe/Istanbul',
+    'IL': 'Asia/Jerusalem',
+    'AE': 'Asia/Dubai',
+    'SG': 'Asia/Singapore',
+    'HK': 'Asia/Hong_Kong',
+    'TW': 'Asia/Taipei',
+    'TH': 'Asia/Bangkok',
+    'VN': 'Asia/Ho_Chi_Minh',
+    'PH': 'Asia/Manila',
+    'ID': 'Asia/Jakarta',
+    'MY': 'Asia/Kuala_Lumpur',
+    'NZ': 'Pacific/Auckland',
+    'ZA': 'Africa/Johannesburg',
+    'EG': 'Africa/Cairo',
+    'NG': 'Africa/Lagos',
+    'KE': 'Africa/Nairobi',
+    'CL': 'America/Santiago',
+    'CO': 'America/Bogota',
+    'PE': 'America/Lima',
+    'VE': 'America/Caracas'
+}
+
+# Festival definitions with translations
+FESTIVALS = {
+    'golden_stars': {
+        'id': 'golden_stars',
+        'voting_type': 'player',  # Main festival - player votes
+        'prestige': 3,  # Highest prestige
+        'day_of_month': [10],  # Day 10 of each month
+        'ceremony_time': {'hour': 21, 'minute': 30},
+        'rewards': {'xp': 500, 'fame': 50, 'money': 100000},
+        'names': {
+            'en': 'Golden Stars Awards',
+            'it': 'Premio Stelle d\'Oro',
+            'es': 'Premios Estrellas Doradas',
+            'fr': 'Prix des Étoiles d\'Or',
+            'de': 'Goldene Sterne Preis'
+        },
+        'descriptions': {
+            'en': 'The most prestigious award ceremony, voted by the players themselves.',
+            'it': 'La cerimonia di premiazione più prestigiosa, votata dai giocatori stessi.',
+            'es': 'La ceremonia de premios más prestigiosa, votada por los propios jugadores.',
+            'fr': 'La cérémonie de remise des prix la plus prestigieuse, votée par les joueurs.',
+            'de': 'Die prestigeträchtigste Preisverleihung, von den Spielern selbst gewählt.'
+        }
+    },
+    'spotlight_awards': {
+        'id': 'spotlight_awards',
+        'voting_type': 'ai',  # AI managed
+        'prestige': 2,
+        'day_of_month': [20],  # Day 20 of each month
+        'ceremony_time': {'hour': 21, 'minute': 30},
+        'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
+        'names': {
+            'en': 'Spotlight Awards',
+            'it': 'Premio Luci della Ribalta',
+            'es': 'Premios Foco de Atención',
+            'fr': 'Prix des Projecteurs',
+            'de': 'Rampenlicht Preis'
+        },
+        'descriptions': {
+            'en': 'Celebrating artistic excellence in cinema, judged by industry experts.',
+            'it': 'Celebra l\'eccellenza artistica nel cinema, giudicato da esperti del settore.',
+            'es': 'Celebrando la excelencia artística en el cine, juzgado por expertos.',
+            'fr': 'Célébrant l\'excellence artistique au cinéma, jugé par des experts.',
+            'de': 'Feiert künstlerische Exzellenz im Kino, bewertet von Branchenexperten.'
+        }
+    },
+    'cinema_excellence': {
+        'id': 'cinema_excellence',
+        'voting_type': 'ai',  # AI managed
+        'prestige': 2,
+        'day_of_month': [30, 28],  # Day 30 (28 for February)
+        'ceremony_time': {'hour': 21, 'minute': 30},
+        'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
+        'names': {
+            'en': 'Cinema Excellence Awards',
+            'it': 'Premio Cinema d\'Eccellenza',
+            'es': 'Premios Excelencia Cinematográfica',
+            'fr': 'Prix d\'Excellence du Cinéma',
+            'de': 'Kino-Exzellenz Preis'
+        },
+        'descriptions': {
+            'en': 'Honoring technical and creative achievements in filmmaking.',
+            'it': 'Onora i risultati tecnici e creativi nella produzione cinematografica.',
+            'es': 'Honrando logros técnicos y creativos en la cinematografía.',
+            'fr': 'Honorant les réalisations techniques et créatives du cinéma.',
+            'de': 'Ehrung technischer und kreativer Leistungen im Filmemachen.'
+        }
+    }
+}
+
+# Award categories with translations
+AWARD_CATEGORIES = {
+    'best_film': {
+        'id': 'best_film',
+        'type': 'film',
+        'names': {'en': 'Best Film', 'it': 'Miglior Film', 'es': 'Mejor Película', 'fr': 'Meilleur Film', 'de': 'Bester Film'}
+    },
+    'best_director': {
+        'id': 'best_director',
+        'type': 'person',
+        'role': 'director',
+        'names': {'en': 'Best Director', 'it': 'Miglior Regia', 'es': 'Mejor Director', 'fr': 'Meilleur Réalisateur', 'de': 'Beste Regie'}
+    },
+    'best_actor': {
+        'id': 'best_actor',
+        'type': 'person',
+        'role': 'actor',
+        'gender': 'male',
+        'names': {'en': 'Best Actor', 'it': 'Miglior Attore', 'es': 'Mejor Actor', 'fr': 'Meilleur Acteur', 'de': 'Bester Schauspieler'}
+    },
+    'best_actress': {
+        'id': 'best_actress',
+        'type': 'person',
+        'role': 'actor',
+        'gender': 'female',
+        'names': {'en': 'Best Actress', 'it': 'Miglior Attrice', 'es': 'Mejor Actriz', 'fr': 'Meilleure Actrice', 'de': 'Beste Schauspielerin'}
+    },
+    'best_supporting_actor': {
+        'id': 'best_supporting_actor',
+        'type': 'person',
+        'role': 'supporting',
+        'gender': 'male',
+        'names': {'en': 'Best Supporting Actor', 'it': 'Miglior Attore Non Protagonista', 'es': 'Mejor Actor de Reparto', 'fr': 'Meilleur Second Rôle Masculin', 'de': 'Bester Nebendarsteller'}
+    },
+    'best_supporting_actress': {
+        'id': 'best_supporting_actress',
+        'type': 'person',
+        'role': 'supporting',
+        'gender': 'female',
+        'names': {'en': 'Best Supporting Actress', 'it': 'Miglior Attrice Non Protagonista', 'es': 'Mejor Actriz de Reparto', 'fr': 'Meilleur Second Rôle Féminin', 'de': 'Beste Nebendarstellerin'}
+    },
+    'best_screenplay': {
+        'id': 'best_screenplay',
+        'type': 'person',
+        'role': 'screenwriter',
+        'names': {'en': 'Best Screenplay', 'it': 'Miglior Sceneggiatura', 'es': 'Mejor Guión', 'fr': 'Meilleur Scénario', 'de': 'Bestes Drehbuch'}
+    },
+    'best_soundtrack': {
+        'id': 'best_soundtrack',
+        'type': 'person',
+        'role': 'composer',
+        'names': {'en': 'Best Original Score', 'it': 'Miglior Colonna Sonora', 'es': 'Mejor Banda Sonora', 'fr': 'Meilleure Musique', 'de': 'Beste Filmmusik'}
+    },
+    'best_cinematography': {
+        'id': 'best_cinematography',
+        'type': 'film',
+        'names': {'en': 'Best Cinematography', 'it': 'Miglior Fotografia', 'es': 'Mejor Fotografía', 'fr': 'Meilleure Photographie', 'de': 'Beste Kamera'}
+    },
+    'audience_choice': {
+        'id': 'audience_choice',
+        'type': 'film',
+        'names': {'en': 'Audience Choice Award', 'it': 'Premio del Pubblico', 'es': 'Premio del Público', 'fr': 'Prix du Public', 'de': 'Publikumspreis'}
+    }
+}
+
+class FestivalVoteRequest(BaseModel):
+    festival_id: str
+    edition_id: str
+    category: str
+    nominee_id: str  # film_id or person_id
+
+@api_router.get("/festivals")
+async def get_festivals(language: str = 'en'):
+    """Get all festival information with current/upcoming editions."""
+    today = datetime.now(timezone.utc)
+    current_day = today.day
+    current_month = today.month
+    current_year = today.year
+    
+    # Helper to get correct day for month (28 for February)
+    def get_festival_day_for_month(days_list, month, year):
+        import calendar
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]  # Fallback
+    
+    festivals_data = []
+    for fest_id, fest in FESTIVALS.items():
+        # Get the actual day for this month
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        # Find next occurrence
+        if festival_day >= current_day:
+            next_day = festival_day
+            next_month = current_month
+            next_year = current_year
+        else:
+            next_month = current_month + 1 if current_month < 12 else 1
+            next_year = current_year if next_month > current_month else current_year + 1
+            next_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+        
+        next_date = f"{next_year}-{next_month:02d}-{next_day:02d}"
+        
+        # Check if today is a festival day
+        is_active = current_day == festival_day
+        
+        # Get ceremony time
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        
+        festivals_data.append({
+            'id': fest_id,
+            'name': fest['names'].get(language, fest['names']['en']),
+            'description': fest['descriptions'].get(language, fest['descriptions']['en']),
+            'voting_type': fest['voting_type'],
+            'prestige': fest['prestige'],
+            'rewards': fest['rewards'],
+            'next_date': next_date,
+            'is_active': is_active,
+            'ceremony_day': festival_day,
+            'ceremony_time': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+            'categories': [
+                {'id': cat_id, 'name': cat['names'].get(language, cat['names']['en'])}
+                for cat_id, cat in AWARD_CATEGORIES.items()
+            ]
+        })
+    
+    return {'festivals': festivals_data}
+
+@api_router.get("/festivals/{festival_id}/current")
+async def get_current_festival_edition(festival_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get current festival edition with nominees."""
+    if festival_id not in FESTIVALS:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    festival = FESTIVALS[festival_id]
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    # Get or create edition
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    
+    if not edition:
+        # Create new edition with nominees
+        edition = await create_festival_edition(festival_id, edition_id, today)
+    
+    # Get user's votes for this edition
+    user_votes = await db.festival_votes.find(
+        {'edition_id': edition_id, 'user_id': user['id']},
+        {'_id': 0}
+    ).to_list(20)
+    voted_categories = {v['category']: v['nominee_id'] for v in user_votes}
+    
+    # Translate category names
+    for cat in edition.get('categories', []):
+        cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+        cat['name'] = cat_def.get('names', {}).get(language, cat['category_id'])
+        cat['user_voted'] = voted_categories.get(cat['category_id'])
+    
+    edition['festival_name'] = festival['names'].get(language, festival['names']['en'])
+    edition['voting_type'] = festival['voting_type']
+    edition['can_vote'] = festival['voting_type'] == 'player'
+    
+    return edition
+
+async def create_festival_edition(festival_id: str, edition_id: str, date: datetime):
+    """Create a new festival edition with nominees."""
+    # Get recent films using aggregation - EXCLUDE poster_url as it may contain base64 data
+    
+    pipeline = [
+        {'$match': {'status': {'$in': ['in_theaters', 'released', 'withdrawn']}}},
+        {'$sort': {'quality_score': -1}},
+        {'$limit': 10},
+        {'$project': {
+            '_id': 0,
+            'id': 1,
+            'title': 1,
+            'user_id': 1,
+            'quality_score': 1,
+            'director': {'id': 1, 'name': 1, 'gender': 1},
+            'screenwriter': {'id': 1, 'name': 1},
+            'composer': {'id': 1, 'name': 1},
+            'cast': {'$slice': ['$cast', 3]}
+        }}
+    ]
+    
+    films = await db.films.aggregate(pipeline).to_list(10)
+    
+    if not films:
+        # Fallback - any films
+        pipeline[0] = {'$match': {}}
+        pipeline[2] = {'$limit': 5}
+        films = await db.films.aggregate(pipeline).to_list(5)
+    
+    categories = []
+    
+    for cat_id, cat_def in AWARD_CATEGORIES.items():
+        nominees = []
+        
+        if cat_def['type'] == 'film':
+            # Nominate top films
+            for film in films[:5]:
+                nominees.append({
+                    'id': film.get('id'),
+                    'name': film.get('title'),
+                    'film_id': film.get('id'),
+                    'owner_id': film.get('user_id'),
+                    'quality_score': film.get('quality_score', 0),
+                    'votes': 0
+                })
+        else:
+            # Nominate people from films
+            people_seen = set()
+            for film in films:
+                # Director
+                if cat_def.get('role') == 'director' and film.get('director'):
+                    person = film['director']
+                    if person.get('id') and person['id'] not in people_seen:
+                        people_seen.add(person['id'])
+                        nominees.append({
+                            'id': person['id'],
+                            'name': person.get('name'),
+                            'film_title': film.get('title'),
+                            'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'),
+                            'gender': person.get('gender'),
+                            'votes': 0
+                        })
+                
+                # Screenwriter
+                if cat_def.get('role') == 'screenwriter' and film.get('screenwriter'):
+                    person = film['screenwriter']
+                    if person.get('id') and person['id'] not in people_seen:
+                        people_seen.add(person['id'])
+                        nominees.append({
+                            'id': person['id'],
+                            'name': person.get('name'),
+                            'film_title': film.get('title'),
+                            'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'),
+                            'votes': 0
+                        })
+                
+                # Composer
+                if cat_def.get('role') == 'composer' and film.get('composer'):
+                    person = film['composer']
+                    if person.get('id') and person['id'] not in people_seen:
+                        people_seen.add(person['id'])
+                        nominees.append({
+                            'id': person['id'],
+                            'name': person.get('name'),
+                            'film_title': film.get('title'),
+                            'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'),
+                            'votes': 0
+                        })
+                
+                # Actors
+                if cat_def.get('role') in ['actor', 'supporting'] and film.get('cast'):
+                    gender_filter = cat_def.get('gender')
+                    for actor in film.get('cast', [])[:3]:
+                        if actor.get('actor_id') and actor['actor_id'] not in people_seen:
+                            if gender_filter and actor.get('gender') != gender_filter:
+                                continue
+                            people_seen.add(actor['actor_id'])
+                            nominees.append({
+                                'id': actor['actor_id'],
+                                'name': actor.get('name'),
+                                'film_title': film.get('title'),
+                                'film_id': film.get('id'),
+                                'owner_id': film.get('user_id'),
+                                'gender': actor.get('gender'),
+                                'role': actor.get('role'),
+                                'votes': 0
+                            })
+                
+                if len(nominees) >= 5:
+                    break
+        
+        categories.append({
+            'category_id': cat_id,
+            'nominees': nominees[:5]
+        })
+    
+    edition = {
+        'id': edition_id,
+        'festival_id': festival_id,
+        'year': date.year,
+        'month': date.month,
+        'categories': categories,
+        'status': 'voting',  # voting, closed, awarded
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'voting_ends': (date + timedelta(days=3)).isoformat()
+    }
+    
+    await db.festival_editions.insert_one(edition)
+    edition.pop('_id', None)
+    return edition
+
+@api_router.post("/festivals/vote")
+async def vote_in_festival(request: FestivalVoteRequest, user: dict = Depends(get_current_user)):
+    """Vote for a nominee in a festival category."""
+    if request.festival_id not in FESTIVALS:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    festival = FESTIVALS[request.festival_id]
+    if festival['voting_type'] != 'player':
+        raise HTTPException(status_code=400, detail="Questo festival non prevede il voto dei giocatori")
+    
+    # Check edition exists
+    edition = await db.festival_editions.find_one({'id': request.edition_id})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Edizione non trovata")
+    
+    if edition.get('status') != 'voting':
+        raise HTTPException(status_code=400, detail="Le votazioni sono chiuse")
+    
+    # Check if already voted
+    existing_vote = await db.festival_votes.find_one({
+        'edition_id': request.edition_id,
+        'user_id': user['id'],
+        'category': request.category
+    })
+    
+    if existing_vote:
+        raise HTTPException(status_code=400, detail="Hai già votato in questa categoria")
+    
+    # Record vote
+    vote = {
+        'id': str(uuid.uuid4()),
+        'edition_id': request.edition_id,
+        'festival_id': request.festival_id,
+        'user_id': user['id'],
+        'category': request.category,
+        'nominee_id': request.nominee_id,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.festival_votes.insert_one(vote)
+    
+    # Update nominee vote count
+    await db.festival_editions.update_one(
+        {'id': request.edition_id, 'categories.category_id': request.category, 'categories.nominees.id': request.nominee_id},
+        {'$inc': {'categories.$[cat].nominees.$[nom].votes': 1}},
+        array_filters=[{'cat.category_id': request.category}, {'nom.id': request.nominee_id}]
+    )
+    
+    # Award XP for voting
+    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 5}})
+    
+    return {'success': True, 'message': 'Voto registrato! +5 XP', 'xp_earned': 5}
+
+@api_router.post("/festivals/{edition_id}/finalize")
+async def finalize_festival(edition_id: str, user: dict = Depends(get_current_user)):
+    """Finalize a festival edition and award winners (admin or system)."""
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Edizione non trovata")
+    
+    if edition.get('status') == 'awarded':
+        return {'message': 'Festival già concluso', 'winners': edition.get('winners', [])}
+    
+    festival = FESTIVALS.get(edition.get('festival_id'))
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    winners = []
+    
+    for category in edition.get('categories', []):
+        nominees = category.get('nominees', [])
+        if not nominees:
+            continue
+        
+        if festival['voting_type'] == 'player':
+            # Winner is the one with most votes
+            winner = max(nominees, key=lambda x: x.get('votes', 0))
+        else:
+            # AI decides based on quality score
+            winner = max(nominees, key=lambda x: x.get('quality_score', random.randint(50, 100)))
+        
+        winner_entry = {
+            'category_id': category['category_id'],
+            'winner_id': winner['id'],
+            'winner_name': winner.get('name'),
+            'film_id': winner.get('film_id'),
+            'film_title': winner.get('film_title'),
+            'owner_id': winner.get('owner_id'),
+            'votes': winner.get('votes', 0)
+        }
+        winners.append(winner_entry)
+        
+        # Award the film owner
+        if winner.get('owner_id'):
+            rewards = festival['rewards']
+            await db.users.update_one(
+                {'id': winner['owner_id']},
+                {'$inc': {
+                    'total_xp': rewards['xp'],
+                    'fame': rewards['fame'],
+                    'funds': rewards['money']
+                }}
+            )
+            
+            # Record award
+            award_record = {
+                'id': str(uuid.uuid4()),
+                'edition_id': edition_id,
+                'festival_id': edition.get('festival_id'),
+                'category_id': category['category_id'],
+                'winner_id': winner['id'],
+                'winner_name': winner.get('name'),
+                'film_id': winner.get('film_id'),
+                'film_title': winner.get('film_title'),
+                'owner_id': winner.get('owner_id'),
+                'year': edition.get('year'),
+                'month': edition.get('month'),
+                'prestige': festival['prestige'],
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.festival_awards.insert_one(award_record)
+            
+            # Notify winner
+            cat_name = AWARD_CATEGORIES.get(category['category_id'], {}).get('names', {}).get('it', category['category_id'])
+            await db.notifications.insert_one({
+                'id': str(uuid.uuid4()),
+                'user_id': winner['owner_id'],
+                'type': 'festival_win',
+                'message': f"Congratulazioni! Hai vinto il premio '{cat_name}' al {festival['names']['it']}! +{rewards['xp']} XP, +{rewards['fame']} Fama, +${rewards['money']:,}",
+                'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            })
+    
+    # Update edition status
+    await db.festival_editions.update_one(
+        {'id': edition_id},
+        {'$set': {'status': 'awarded', 'winners': winners, 'awarded_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {'success': True, 'winners': winners}
+
+@api_router.get("/festivals/awards/leaderboard")
+async def get_awards_leaderboard(period: str = 'all_time', language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get awards leaderboard by period: monthly, yearly, all_time."""
+    today = datetime.now(timezone.utc)
+    
+    match_filter = {}
+    if period == 'monthly':
+        match_filter = {'year': today.year, 'month': today.month}
+    elif period == 'yearly':
+        match_filter = {'year': today.year}
+    # all_time = no filter
+    
+    # Aggregate awards by owner
+    pipeline = [
+        {'$match': match_filter} if match_filter else {'$match': {}},
+        {'$group': {
+            '_id': '$owner_id',
+            'total_awards': {'$sum': 1},
+            'total_prestige': {'$sum': '$prestige'},
+            'awards_list': {'$push': {
+                'category_id': '$category_id',
+                'festival_id': '$festival_id',
+                'film_title': '$film_title',
+                'winner_name': '$winner_name'
+            }}
+        }},
+        {'$sort': {'total_awards': -1, 'total_prestige': -1}},
+        {'$limit': 50}
+    ]
+    
+    results = await db.festival_awards.aggregate(pipeline).to_list(50)
+    
+    # Enrich with user data
+    leaderboard = []
+    for i, result in enumerate(results):
+        owner = await db.users.find_one({'id': result['_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'level': 1, 'fame': 1})
+        if owner:
+            leaderboard.append({
+                'rank': i + 1,
+                'user_id': result['_id'],
+                'nickname': owner.get('nickname'),
+                'avatar_url': owner.get('avatar_url'),
+                'level': owner.get('level', 0),
+                'fame': owner.get('fame', 50),
+                'total_awards': result['total_awards'],
+                'total_prestige': result['total_prestige'],
+                'recent_awards': result['awards_list'][:5]
+            })
+    
+    # Period names
+    period_names = {
+        'monthly': {'en': 'This Month', 'it': 'Questo Mese', 'es': 'Este Mes', 'fr': 'Ce Mois', 'de': 'Diesen Monat'},
+        'yearly': {'en': 'This Year', 'it': 'Quest\'Anno', 'es': 'Este Año', 'fr': 'Cette Année', 'de': 'Dieses Jahr'},
+        'all_time': {'en': 'All Time', 'it': 'Di Sempre', 'es': 'De Todos Los Tiempos', 'fr': 'De Tous Les Temps', 'de': 'Aller Zeiten'}
+    }
+    
+    return {
+        'period': period,
+        'period_name': period_names.get(period, {}).get(language, period),
+        'leaderboard': leaderboard
+    }
+
+@api_router.get("/festivals/my-awards")
+async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get all awards won by the current user."""
+    awards = await db.festival_awards.find(
+        {'owner_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(100)
+    
+    # Translate and enrich
+    for award in awards:
+        fest = FESTIVALS.get(award.get('festival_id'), {})
+        cat = AWARD_CATEGORIES.get(award.get('category_id'), {})
+        award['festival_name'] = fest.get('names', {}).get(language, award.get('festival_id'))
+        award['category_name'] = cat.get('names', {}).get(language, award.get('category_id'))
+    
+    # Stats
+    stats = {
+        'total_awards': len(awards),
+        'by_festival': {},
+        'by_category': {}
+    }
+    for award in awards:
+        fid = award.get('festival_id')
+        cid = award.get('category_id')
+        stats['by_festival'][fid] = stats['by_festival'].get(fid, 0) + 1
+        stats['by_category'][cid] = stats['by_category'].get(cid, 0) + 1
+    
+    return {'awards': awards, 'stats': stats}
+
+# ==================== TIMEZONE & CEREMONY NOTIFICATIONS ====================
+
+import pytz
+
+@api_router.get("/festivals/ceremony-times")
+async def get_ceremony_times(timezone: str = 'Europe/Rome', language: str = 'en'):
+    """Get ceremony times for all festivals in the user's timezone."""
+    try:
+        user_tz = pytz.timezone(timezone)
+    except:
+        user_tz = pytz.timezone('Europe/Rome')
+    
+    now_utc = datetime.now(pytz.UTC)
+    now_local = now_utc.astimezone(user_tz)
+    current_day = now_local.day
+    current_month = now_local.month
+    current_year = now_local.year
+    
+    import calendar
+    
+    def get_festival_day_for_month(days_list, month, year):
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]
+    
+    ceremonies = []
+    for fest_id, fest in FESTIVALS.items():
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        
+        # Get the day for this month
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        # Create ceremony datetime in user's timezone
+        ceremony_dt_local = user_tz.localize(datetime(
+            current_year, current_month, festival_day,
+            ceremony_time['hour'], ceremony_time['minute'], 0
+        ))
+        
+        # If ceremony already passed this month, get next month
+        if ceremony_dt_local < now_local:
+            next_month = current_month + 1 if current_month < 12 else 1
+            next_year = current_year if next_month > current_month else current_year + 1
+            festival_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+            ceremony_dt_local = user_tz.localize(datetime(
+                next_year, next_month, festival_day,
+                ceremony_time['hour'], ceremony_time['minute'], 0
+            ))
+        
+        # Calculate time until ceremony
+        time_until = ceremony_dt_local - now_local
+        hours_until = time_until.total_seconds() / 3600
+        
+        ceremonies.append({
+            'festival_id': fest_id,
+            'festival_name': fest['names'].get(language, fest['names']['en']),
+            'ceremony_datetime_local': ceremony_dt_local.strftime('%Y-%m-%d %H:%M'),
+            'ceremony_datetime_utc': ceremony_dt_local.astimezone(pytz.UTC).isoformat(),
+            'time_display': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+            'hours_until': round(hours_until, 1),
+            'is_today': festival_day == current_day and ceremony_dt_local.month == now_local.month,
+            'is_starting_soon': 0 < hours_until <= 1,
+            'is_live': -2 < hours_until <= 0,
+            'notification_status': 'starting' if 0 < hours_until <= 1 else '1_hour' if 1 < hours_until <= 1.5 else '3_hours' if 3 < hours_until <= 3.5 else '6_hours' if 6 < hours_until <= 6.5 else None
+        })
+    
+    return {
+        'timezone': timezone,
+        'current_time_local': now_local.strftime('%Y-%m-%d %H:%M'),
+        'ceremonies': sorted(ceremonies, key=lambda x: x['hours_until'])
+    }
+
+@api_router.get("/festivals/notifications")
+async def get_festival_notifications(timezone: str = 'Europe/Rome', language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get pending ceremony notifications for the user."""
+    try:
+        user_tz = pytz.timezone(timezone)
+    except:
+        user_tz = pytz.timezone('Europe/Rome')
+    
+    now_utc = datetime.now(pytz.UTC)
+    now_local = now_utc.astimezone(user_tz)
+    current_day = now_local.day
+    current_month = now_local.month
+    current_year = now_local.year
+    
+    import calendar
+    
+    def get_festival_day_for_month(days_list, month, year):
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]
+    
+    notifications = []
+    
+    for fest_id, fest in FESTIVALS.items():
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        ceremony_dt_local = user_tz.localize(datetime(
+            current_year, current_month, festival_day,
+            ceremony_time['hour'], ceremony_time['minute'], 0
+        ))
+        
+        if ceremony_dt_local < now_local:
+            continue  # Already passed
+        
+        time_until = ceremony_dt_local - now_local
+        hours_until = time_until.total_seconds() / 3600
+        
+        # Generate notifications based on time with motivational tips
+        bonus_tip = {
+            'en': "💰 Watch live to earn up to +10% revenue bonus!",
+            'it': "💰 Guarda in diretta per ottenere fino a +10% di bonus sulle entrate!",
+            'es': "💰 ¡Mira en vivo para ganar hasta +10% de bonificación en ingresos!"
+        }
+        
+        notification_messages = {
+            'en': {
+                '6_hours': f"📢 {fest['names']['en']} ceremony in 6 hours! {bonus_tip['en']}",
+                '3_hours': f"⏰ {fest['names']['en']} ceremony in 3 hours! Don't miss the live show! {bonus_tip['en']}",
+                '1_hour': f"🔔 {fest['names']['en']} ceremony in 1 hour! Get ready! {bonus_tip['en']}",
+                'starting': f"🎬 {fest['names']['en']} is starting NOW! Join now for revenue bonuses!"
+            },
+            'it': {
+                '6_hours': f"📢 Cerimonia {fest['names']['it']} tra 6 ore! {bonus_tip['it']}",
+                '3_hours': f"⏰ Cerimonia {fest['names']['it']} tra 3 ore! Non perderti lo show! {bonus_tip['it']}",
+                '1_hour': f"🔔 Cerimonia {fest['names']['it']} tra 1 ora! Preparati! {bonus_tip['it']}",
+                'starting': f"🎬 {fest['names']['it']} sta iniziando ORA! Unisciti per i bonus sulle entrate!"
+            },
+            'es': {
+                '6_hours': f"📢 ¡Ceremonia {fest['names']['es']} en 6 horas! {bonus_tip['es']}",
+                '3_hours': f"⏰ ¡Ceremonia {fest['names']['es']} en 3 horas! ¡No te pierdas el show! {bonus_tip['es']}",
+                '1_hour': f"🔔 ¡Ceremonia {fest['names']['es']} en 1 hora! ¡Prepárate! {bonus_tip['es']}",
+                'starting': f"🎬 ¡{fest['names']['es']} está comenzando AHORA! ¡Únete para bonificaciones!"
+            }
+        }
+        
+        notif_type = None
+        if 5.5 <= hours_until <= 6.5:
+            notif_type = '6_hours'
+        elif 2.5 <= hours_until <= 3.5:
+            notif_type = '3_hours'
+        elif 0.5 <= hours_until <= 1.5:
+            notif_type = '1_hour'
+        elif 0 <= hours_until <= 0.5:
+            notif_type = 'starting'
+        
+        if notif_type:
+            lang_msgs = notification_messages.get(language, notification_messages['en'])
+            notifications.append({
+                'festival_id': fest_id,
+                'type': notif_type,
+                'message': lang_msgs.get(notif_type),
+                'ceremony_time': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+                'hours_until': round(hours_until, 1),
+                'priority': {'starting': 4, '1_hour': 3, '3_hours': 2, '6_hours': 1}.get(notif_type, 0)
+            })
+    
+    return {'notifications': sorted(notifications, key=lambda x: -x['priority'])}
+
+@api_router.post("/users/set-timezone")
+async def set_user_timezone(timezone: str, user: dict = Depends(get_current_user)):
+    """Save user's preferred timezone."""
+    try:
+        pytz.timezone(timezone)  # Validate
+    except:
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'timezone': timezone}}
+    )
+    return {'success': True, 'timezone': timezone}
+
+@api_router.get("/timezones")
+async def get_available_timezones():
+    """Get list of available timezones grouped by region."""
+    common_timezones = [
+        {'id': 'Europe/Rome', 'name': '🇮🇹 Italia (Roma)', 'offset': '+01:00'},
+        {'id': 'Europe/London', 'name': '🇬🇧 UK (Londra)', 'offset': '+00:00'},
+        {'id': 'America/New_York', 'name': '🇺🇸 USA (New York)', 'offset': '-05:00'},
+        {'id': 'America/Los_Angeles', 'name': '🇺🇸 USA (Los Angeles)', 'offset': '-08:00'},
+        {'id': 'America/Chicago', 'name': '🇺🇸 USA (Chicago)', 'offset': '-06:00'},
+        {'id': 'Europe/Paris', 'name': '🇫🇷 Francia (Parigi)', 'offset': '+01:00'},
+        {'id': 'Europe/Berlin', 'name': '🇩🇪 Germania (Berlino)', 'offset': '+01:00'},
+        {'id': 'Europe/Madrid', 'name': '🇪🇸 Spagna (Madrid)', 'offset': '+01:00'},
+        {'id': 'Asia/Tokyo', 'name': '🇯🇵 Giappone (Tokyo)', 'offset': '+09:00'},
+        {'id': 'Asia/Shanghai', 'name': '🇨🇳 Cina (Shanghai)', 'offset': '+08:00'},
+        {'id': 'Asia/Dubai', 'name': '🇦🇪 UAE (Dubai)', 'offset': '+04:00'},
+        {'id': 'Australia/Sydney', 'name': '🇦🇺 Australia (Sydney)', 'offset': '+11:00'},
+        {'id': 'America/Sao_Paulo', 'name': '🇧🇷 Brasile (São Paulo)', 'offset': '-03:00'},
+        {'id': 'Asia/Singapore', 'name': '🇸🇬 Singapore', 'offset': '+08:00'},
+        {'id': 'Asia/Hong_Kong', 'name': '🇭🇰 Hong Kong', 'offset': '+08:00'},
+        {'id': 'Europe/Moscow', 'name': '🇷🇺 Russia (Mosca)', 'offset': '+03:00'},
+        {'id': 'Asia/Seoul', 'name': '🇰🇷 Corea del Sud (Seul)', 'offset': '+09:00'},
+        {'id': 'Asia/Kolkata', 'name': '🇮🇳 India (Mumbai)', 'offset': '+05:30'},
+        {'id': 'America/Mexico_City', 'name': '🇲🇽 Messico', 'offset': '-06:00'},
+        {'id': 'America/Toronto', 'name': '🇨🇦 Canada (Toronto)', 'offset': '-05:00'},
+    ]
+    return {'timezones': common_timezones}
+
+# ==================== LIVE CEREMONY & CHAT ====================
+
+class CeremonyChatMessage(BaseModel):
+    festival_id: str
+    edition_id: str
+    message: str
+
+@api_router.get("/festivals/{festival_id}/live-ceremony")
+async def get_live_ceremony(festival_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Get live ceremony data with nominees, favorites, and real-time status."""
+    if festival_id not in FESTIVALS:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    festival = FESTIVALS[festival_id]
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Calculate "papabili" (favorites) for each category
+    categories_with_odds = []
+    for cat in edition.get('categories', []):
+        cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+        nominees_with_odds = []
+        
+        total_score = 0
+        for nom in cat.get('nominees', []):
+            # Calculate score based on votes, quality, and fame
+            score = (nom.get('votes', 0) * 2) + (nom.get('quality_score', 50) / 10)
+            nom['_score'] = score
+            total_score += score
+        
+        # Calculate win probability
+        for nom in cat.get('nominees', []):
+            win_prob = (nom['_score'] / total_score * 100) if total_score > 0 else 20
+            nom['win_probability'] = round(win_prob, 1)
+            del nom['_score']
+            nominees_with_odds.append(nom)
+        
+        # Sort by probability
+        nominees_with_odds.sort(key=lambda x: x['win_probability'], reverse=True)
+        
+        categories_with_odds.append({
+            'category_id': cat['category_id'],
+            'category_name': cat_def.get('names', {}).get(language, cat['category_id']),
+            'nominees': nominees_with_odds,
+            'favorite': nominees_with_odds[0] if nominees_with_odds else None,
+            'is_announced': cat.get('is_announced', False),
+            'winner': cat.get('winner')
+        })
+    
+    # Get recent chat messages
+    chat_messages = await db.ceremony_chat.find(
+        {'edition_id': edition_id},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(50).to_list(50)
+    chat_messages.reverse()  # Show oldest first
+    
+    return {
+        'festival_id': festival_id,
+        'festival_name': festival['names'].get(language, festival['names']['en']),
+        'edition_id': edition_id,
+        'status': edition.get('status', 'voting'),
+        'ceremony_started': edition.get('ceremony_started', False),
+        'current_category_index': edition.get('current_category_index', 0),
+        'categories': categories_with_odds,
+        'chat_messages': chat_messages,
+        'viewers_count': await db.ceremony_viewers.count_documents({'edition_id': edition_id}),
+        'rewards': festival['rewards']
+    }
+
+@api_router.post("/festivals/ceremony/chat")
+async def post_ceremony_chat(data: CeremonyChatMessage, user: dict = Depends(get_current_user)):
+    """Post a message to the live ceremony chat."""
+    if len(data.message) > 200:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 200 caratteri)")
+    
+    # Rate limit: max 1 message every 5 seconds per user
+    recent = await db.ceremony_chat.find_one({
+        'user_id': user['id'],
+        'edition_id': data.edition_id,
+        'created_at': {'$gt': (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()}
+    })
+    if recent:
+        raise HTTPException(status_code=429, detail="Attendi qualche secondo prima di inviare un altro messaggio")
+    
+    message = {
+        'id': str(uuid.uuid4()),
+        'edition_id': data.edition_id,
+        'festival_id': data.festival_id,
+        'user_id': user['id'],
+        'nickname': user.get('nickname', 'Anonimo'),
+        'avatar': user.get('avatar'),
+        'message': data.message,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.ceremony_chat.insert_one(message)
+    message.pop('_id', None)
+    
+    return {'success': True, 'message': message}
+
+@api_router.post("/festivals/{festival_id}/start-ceremony")
+async def start_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Start the live ceremony (admin only or automated)."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    if edition.get('ceremony_started'):
+        raise HTTPException(status_code=400, detail="La cerimonia è già iniziata")
+    
+    await db.festival_editions.update_one(
+        {'id': edition_id},
+        {
+            '$set': {
+                'ceremony_started': True,
+                'ceremony_start_time': datetime.now(timezone.utc).isoformat(),
+                'current_category_index': 0,
+                'status': 'ceremony'
+            }
+        }
+    )
+    
+    return {'success': True, 'message': 'Cerimonia iniziata!'}
+
+@api_router.post("/festivals/{festival_id}/announce-winner/{category_id}")
+async def announce_winner(festival_id: str, category_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Announce the winner for a category."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Find category
+    categories = edition.get('categories', [])
+    cat_index = next((i for i, c in enumerate(categories) if c['category_id'] == category_id), None)
+    if cat_index is None:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    category = categories[cat_index]
+    if category.get('is_announced'):
+        return {'success': True, 'already_announced': True, 'winner': category.get('winner')}
+    
+    # Determine winner based on votes
+    nominees = category.get('nominees', [])
+    if not nominees:
+        raise HTTPException(status_code=400, detail="Nessun nominato in questa categoria")
+    
+    festival = FESTIVALS.get(festival_id, {})
+    
+    if festival.get('voting_type') == 'player':
+        # Player festival: 50% player votes, 50% virtual audience
+        for nom in nominees:
+            player_votes = nom.get('votes', 0)
+            # Get virtual audience votes for this film
+            if nom.get('film_id'):
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1})
+                virtual_votes = (film.get('virtual_likes', 0) // 10) if film else 0
+            else:
+                virtual_votes = nom.get('quality_score', 50) * 2  # For non-film nominees (people)
+            
+            # Combined score: 50% player + 50% virtual
+            nom['combined_score'] = (player_votes * 0.5) + (virtual_votes * 0.5)
+        
+        winner = max(nominees, key=lambda n: n.get('combined_score', n.get('votes', 0)))
+    else:
+        # Other festivals: 100% virtual audience determines winners
+        for nom in nominees:
+            if nom.get('film_id'):
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1, 'quality_score': 1, 'audience_satisfaction': 1})
+                if film:
+                    virtual_likes = film.get('virtual_likes', 0)
+                    quality = film.get('quality_score', 50)
+                    satisfaction = film.get('audience_satisfaction', 50)
+                    # Virtual audience score based on likes + quality metrics
+                    nom['audience_score'] = virtual_likes + (quality * 50) + (satisfaction * 30)
+                else:
+                    nom['audience_score'] = nom.get('quality_score', 50) * 100
+            else:
+                # For people nominees (director, actor, etc.)
+                nom['audience_score'] = nom.get('quality_score', 50) * 100 + random.randint(0, 500)
+        
+        # Winner determined by virtual audience with some randomness
+        weights = [max(1, n.get('audience_score', 100)) for n in nominees]
+        winner = random.choices(nominees, weights=weights, k=1)[0]
+    
+    # Update edition
+    update_path = f"categories.{cat_index}"
+    await db.festival_editions.update_one(
+        {'id': edition_id},
+        {
+            '$set': {
+                f'{update_path}.is_announced': True,
+                f'{update_path}.winner': winner,
+                f'{update_path}.announced_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Award the winner
+    cat_def = AWARD_CATEGORIES.get(category_id, {})
+    award = {
+        'id': str(uuid.uuid4()),
+        'festival_id': festival_id,
+        'edition_id': edition_id,
+        'category_id': category_id,
+        'category_name': cat_def.get('names', {}).get(language, category_id),
+        'winner_id': winner.get('id'),
+        'winner_name': winner.get('name'),
+        'film_id': winner.get('film_id'),
+        'film_title': winner.get('film_title'),
+        'owner_id': winner.get('owner_id'),
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.festival_awards.insert_one(award)
+    
+    # Give rewards to winner
+    rewards = festival.get('rewards', {})
+    if winner.get('owner_id'):
+        await db.users.update_one(
+            {'id': winner['owner_id']},
+            {
+                '$inc': {
+                    'xp': rewards.get('xp', 0),
+                    'fame': rewards.get('fame', 0),
+                    'funds': rewards.get('money', 0)
+                }
+            }
+        )
+    
+    # Generate TTS announcement text
+    announcement_text = {
+        'en': f"And the winner is... {winner.get('name')}! For {winner.get('film_title', 'their outstanding work')}!",
+        'it': f"E il vincitore è... {winner.get('name')}! Per {winner.get('film_title', 'il loro eccezionale lavoro')}!",
+        'es': f"¡Y el ganador es... {winner.get('name')}! ¡Por {winner.get('film_title', 'su excelente trabajo')}!",
+        'fr': f"Et le gagnant est... {winner.get('name')}! Pour {winner.get('film_title', 'leur travail exceptionnel')}!",
+        'de': f"Und der Gewinner ist... {winner.get('name')}! Für {winner.get('film_title', 'ihre hervorragende Arbeit')}!"
+    }
+    
+    return {
+        'success': True,
+        'winner': winner,
+        'announcement_text': announcement_text,
+        'rewards': rewards
+    }
+
+@api_router.post("/festivals/{festival_id}/join-ceremony")
+async def join_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Join as a viewer in the live ceremony. Track viewing time for revenue bonus."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    # Check if viewer exists
+    existing = await db.ceremony_viewers.find_one({
+        'edition_id': edition_id, 
+        'user_id': user['id']
+    })
+    
+    now = datetime.now(timezone.utc)
+    
+    if existing:
+        # Calculate time since last ping (max 2 minutes count)
+        last_seen = datetime.fromisoformat(existing.get('last_seen', now.isoformat()).replace('Z', '+00:00'))
+        time_diff = (now - last_seen).total_seconds()
+        
+        # Only add time if ping is within 2 minutes (active viewing)
+        if time_diff <= 120:
+            added_minutes = min(time_diff / 60, 2)  # Max 2 minutes per ping
+        else:
+            added_minutes = 0
+        
+        await db.ceremony_viewers.update_one(
+            {'edition_id': edition_id, 'user_id': user['id']},
+            {
+                '$set': {
+                    'nickname': user.get('nickname'),
+                    'last_seen': now.isoformat()
+                },
+                '$inc': {
+                    'total_viewing_minutes': added_minutes
+                }
+            }
+        )
+    else:
+        # New viewer
+        await db.ceremony_viewers.insert_one({
+            'edition_id': edition_id,
+            'user_id': user['id'],
+            'nickname': user.get('nickname'),
+            'joined_at': now.isoformat(),
+            'last_seen': now.isoformat(),
+            'total_viewing_minutes': 0
+        })
+    
+    # Get updated viewer data
+    viewer = await db.ceremony_viewers.find_one({
+        'edition_id': edition_id, 
+        'user_id': user['id']
+    }, {'_id': 0})
+    
+    # Calculate current bonus (max 10%)
+    # 30 minutes = 5%, 60 minutes = 10%
+    viewing_minutes = viewer.get('total_viewing_minutes', 0) if viewer else 0
+    bonus_percent = min(viewing_minutes / 6, 10)  # 6 minutes = 1%, max 10%
+    
+    return {
+        'success': True,
+        'viewing_minutes': round(viewing_minutes, 1),
+        'bonus_percent': round(bonus_percent, 2),
+        'max_bonus': 10
+    }
+
+@api_router.get("/festivals/viewing-bonus")
+async def get_viewing_bonus(user: dict = Depends(get_current_user)):
+    """Get total viewing bonus accumulated from all ceremonies this month."""
+    today = datetime.now(timezone.utc)
+    month_pattern = f"_{today.year}_{today.month}"
+    
+    # Sum all viewing time this month
+    viewers = await db.ceremony_viewers.find({
+        'user_id': user['id'],
+        'edition_id': {'$regex': month_pattern}
+    }).to_list(100)
+    
+    total_minutes = sum(v.get('total_viewing_minutes', 0) for v in viewers)
+    bonus_percent = min(total_minutes / 6, 10)  # Max 10%
+    
+    return {
+        'total_viewing_minutes': round(total_minutes, 1),
+        'bonus_percent': round(bonus_percent, 2),
+        'max_bonus': 10,
+        'ceremonies_watched': len(viewers)
+    }
+
+@api_router.post("/festivals/apply-viewing-bonus")
+async def apply_viewing_bonus(user: dict = Depends(get_current_user)):
+    """Apply viewing bonus to user's revenue (called during revenue calculation)."""
+    today = datetime.now(timezone.utc)
+    month_pattern = f"_{today.year}_{today.month}"
+    
+    viewers = await db.ceremony_viewers.find({
+        'user_id': user['id'],
+        'edition_id': {'$regex': month_pattern}
+    }).to_list(100)
+    
+    total_minutes = sum(v.get('total_viewing_minutes', 0) for v in viewers)
+    bonus_percent = min(total_minutes / 6, 10) / 100  # Convert to multiplier (0.0 - 0.1)
+    
+    # Store bonus in user profile for revenue calculations
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'ceremony_viewing_bonus': bonus_percent}}
+    )
+    
+    return {
+        'bonus_applied': bonus_percent,
+        'bonus_percent_display': round(bonus_percent * 100, 2)
+    }
+
+class TTSAnnouncementRequest(BaseModel):
+    text: str
+    language: str = 'en'
+    voice: str = 'onyx'  # Deep, authoritative voice for awards
+
+@api_router.post("/festivals/tts-announcement")
+async def generate_tts_announcement(request: TTSAnnouncementRequest, user: dict = Depends(get_current_user)):
+    """Generate TTS audio for ceremony announcements."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=503, detail="TTS service unavailable")
+    
+    if len(request.text) > 500:
+        raise HTTPException(status_code=400, detail="Text too long (max 500 chars)")
+    
+    # Select voice based on language for better pronunciation
+    voice_map = {
+        'it': 'nova',      # Energetic, good for Italian
+        'en': 'onyx',      # Deep, authoritative
+        'es': 'coral',     # Warm, friendly
+        'fr': 'shimmer',   # Bright, cheerful
+        'de': 'echo'       # Smooth, calm
+    }
+    voice = voice_map.get(request.language, request.voice)
+    
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+        
+        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+        
+        # Generate speech as base64 for easy frontend integration
+        audio_base64 = await tts.generate_speech_base64(
+            text=request.text,
+            model="tts-1",  # Fast model for real-time announcements
+            voice=voice,
+            speed=0.9  # Slightly slower for dramatic effect
+        )
+        
+        return {
+            'success': True,
+            'audio_base64': audio_base64,
+            'audio_url': f"data:audio/mp3;base64,{audio_base64}",
+            'voice': voice
+        }
+    except Exception as e:
+        logging.error(f"TTS generation error: {e}")
+        raise HTTPException(status_code=500, detail="Audio generation failed")
+
+@api_router.post("/festivals/{festival_id}/announce-with-audio/{category_id}")
+async def announce_winner_with_audio(festival_id: str, category_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
+    """Announce the winner and generate TTS audio automatically."""
+    # First, announce the winner using existing logic
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Find category
+    categories = edition.get('categories', [])
+    cat_index = next((i for i, c in enumerate(categories) if c['category_id'] == category_id), None)
+    if cat_index is None:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    category = categories[cat_index]
+    cat_def = AWARD_CATEGORIES.get(category_id, {})
+    category_name = cat_def.get('names', {}).get(language, category_id)
+    
+    if category.get('is_announced'):
+        winner = category.get('winner')
+        # Generate audio for already announced winner
+        announcement_texts = {
+            'en': f"The {category_name} goes to... {winner.get('name')}! For the film {winner.get('film_title', 'their outstanding work')}!",
+            'it': f"Il premio {category_name} va a... {winner.get('name')}! Per il film {winner.get('film_title', 'il loro eccezionale lavoro')}!",
+            'es': f"El premio {category_name} es para... ¡{winner.get('name')}! ¡Por la película {winner.get('film_title', 'su excelente trabajo')}!",
+            'fr': f"Le prix {category_name} revient à... {winner.get('name')}! Pour le film {winner.get('film_title', 'leur travail exceptionnel')}!",
+            'de': f"Der Preis {category_name} geht an... {winner.get('name')}! Für den Film {winner.get('film_title', 'ihre hervorragende Arbeit')}!"
+        }
+    else:
+        # Determine winner
+        nominees = category.get('nominees', [])
+        if not nominees:
+            raise HTTPException(status_code=400, detail="Nessun nominato")
+        
+        festival = FESTIVALS.get(festival_id, {})
+        
+        if festival.get('voting_type') == 'player':
+            winner = max(nominees, key=lambda n: n.get('votes', 0))
+        else:
+            weights = [n.get('quality_score', 50) + n.get('votes', 0) * 10 for n in nominees]
+            winner = random.choices(nominees, weights=weights, k=1)[0]
+        
+        # Update edition
+        update_path = f"categories.{cat_index}"
+        await db.festival_editions.update_one(
+            {'id': edition_id},
+            {
+                '$set': {
+                    f'{update_path}.is_announced': True,
+                    f'{update_path}.winner': winner,
+                    f'{update_path}.announced_at': datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Award the winner
+        award = {
+            'id': str(uuid.uuid4()),
+            'festival_id': festival_id,
+            'edition_id': edition_id,
+            'category_id': category_id,
+            'category_name': category_name,
+            'winner_id': winner.get('id'),
+            'winner_name': winner.get('name'),
+            'film_id': winner.get('film_id'),
+            'film_title': winner.get('film_title'),
+            'owner_id': winner.get('owner_id'),
+            'created_at': datetime.now(timezone.utc).isoformat()
+        }
+        await db.festival_awards.insert_one(award)
+        
+        # Give rewards
+        rewards = festival.get('rewards', {})
+        if winner.get('owner_id'):
+            await db.users.update_one(
+                {'id': winner['owner_id']},
+                {'$inc': {'total_xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}}
+            )
+        
+        # Generate announcement text
+        announcement_texts = {
+            'en': f"And the {category_name} goes to... {winner.get('name')}! For the film {winner.get('film_title', 'their outstanding work')}! Congratulations!",
+            'it': f"E il premio {category_name} va a... {winner.get('name')}! Per il film {winner.get('film_title', 'il loro eccezionale lavoro')}! Congratulazioni!",
+            'es': f"¡Y el premio {category_name} es para... {winner.get('name')}! ¡Por la película {winner.get('film_title', 'su excelente trabajo')}! ¡Felicidades!",
+            'fr': f"Et le prix {category_name} revient à... {winner.get('name')}! Pour le film {winner.get('film_title', 'leur travail exceptionnel')}! Félicitations!",
+            'de': f"Und der Preis {category_name} geht an... {winner.get('name')}! Für den Film {winner.get('film_title', 'ihre hervorragende Arbeit')}! Herzlichen Glückwunsch!"
+        }
+    
+    # Generate TTS audio
+    audio_data = None
+    if EMERGENT_LLM_KEY:
+        try:
+            from emergentintegrations.llm.openai import OpenAITextToSpeech
+            
+            voice_map = {'it': 'nova', 'en': 'onyx', 'es': 'coral', 'fr': 'shimmer', 'de': 'echo'}
+            voice = voice_map.get(language, 'onyx')
+            
+            tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+            audio_base64 = await tts.generate_speech_base64(
+                text=announcement_texts.get(language, announcement_texts['en']),
+                model="tts-1",
+                voice=voice,
+                speed=0.85  # Dramatic, slower pace
+            )
+            
+            audio_data = {
+                'audio_base64': audio_base64,
+                'audio_url': f"data:audio/mp3;base64,{audio_base64}",
+                'voice': voice
+            }
+        except Exception as e:
+            logging.error(f"TTS error in announcement: {e}")
+    
+    return {
+        'success': True,
+        'winner': winner,
+        'category_name': category_name,
+        'announcement_text': announcement_texts,
+        'audio': audio_data
+    }
+
+# ==================== CEREMONY VIDEO GENERATION & DOWNLOAD ====================
+from video_generator import generate_ceremony_video, cleanup_old_videos
+from fastapi.responses import FileResponse
+import aiofiles
+
+# Video storage directory
+VIDEO_STORAGE_DIR = '/app/backend/videos'
+os.makedirs(VIDEO_STORAGE_DIR, exist_ok=True)
+
+@api_router.post("/festivals/{festival_id}/generate-ceremony-video")
+async def generate_festival_ceremony_video(festival_id: str, language: str = 'it', user: dict = Depends(get_current_user)):
+    """Generate a video recap of the ceremony after all winners are announced."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
+    if not edition:
+        raise HTTPException(status_code=404, detail="Nessuna edizione attiva")
+    
+    # Check if all categories have been announced
+    categories = edition.get('categories', [])
+    all_announced = all(cat.get('is_announced', False) for cat in categories)
+    
+    if not all_announced:
+        raise HTTPException(status_code=400, detail="Non tutti i vincitori sono stati annunciati")
+    
+    # Check if video already exists
+    existing_video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if existing_video:
+        return {
+            'success': True,
+            'video': existing_video,
+            'message': 'Video già generato'
+        }
+    
+    # Generate audio clips for each winner
+    audio_clips = []
+    festival = FESTIVALS.get(festival_id, {})
+    festival_name = festival.get('names', {}).get(language, festival_id)
+    
+    for cat in categories:
+        winner = cat.get('winner', {})
+        cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+        category_name = cat_def.get('names', {}).get(language, cat['category_id'])
+        
+        announcement_text = {
+            'it': f"Il premio {category_name} va a {winner.get('name', 'sconosciuto')}! Per il film {winner.get('film_title', '')}.",
+            'en': f"The {category_name} goes to {winner.get('name', 'unknown')}! For the film {winner.get('film_title', '')}."
+        }.get(language, f"The {category_name} goes to {winner.get('name', 'unknown')}!")
+        
+        # Generate TTS
+        if EMERGENT_LLM_KEY:
+            try:
+                from emergentintegrations.llm.openai import OpenAITextToSpeech
+                voice_map = {'it': 'nova', 'en': 'onyx', 'es': 'coral', 'fr': 'shimmer', 'de': 'echo'}
+                tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+                audio_base64 = await tts.generate_speech_base64(
+                    text=announcement_text,
+                    model="tts-1",
+                    voice=voice_map.get(language, 'onyx'),
+                    speed=0.85
+                )
+                audio_clips.append({
+                    'audio_base64': audio_base64,
+                    'text': announcement_text,
+                    'winner_name': winner.get('name'),
+                    'category_name': category_name
+                })
+            except Exception as e:
+                logging.error(f"TTS error for video: {e}")
+    
+    if not audio_clips:
+        raise HTTPException(status_code=500, detail="Impossibile generare audio per il video")
+    
+    # Generate video
+    video_id = str(uuid.uuid4())
+    video_filename = f"ceremony_{edition_id}_{video_id}.mp4"
+    video_path = os.path.join(VIDEO_STORAGE_DIR, video_filename)
+    
+    ceremony_data = {
+        'festival_id': festival_id,
+        'festival_name': festival_name,
+        'edition_id': edition_id,
+        'categories': [{'name': c.get('category_name'), 'winner': c.get('winner', {}).get('name')} for c in categories]
+    }
+    
+    result = await generate_ceremony_video(ceremony_data, audio_clips, video_path, language)
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Generazione video fallita")
+    
+    # Save video info to database
+    video_info = {
+        'id': video_id,
+        'edition_id': edition_id,
+        'festival_id': festival_id,
+        'festival_name': festival_name,
+        'video_path': video_path,
+        'video_filename': video_filename,
+        'duration_seconds': len(audio_clips) * 8,  # Estimate
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        'download_count': 0
+    }
+    await db.ceremony_videos.insert_one(video_info)
+    
+    return {
+        'success': True,
+        'video': {k: v for k, v in video_info.items() if k != '_id'},
+        'message': 'Video generato con successo'
+    }
+
+@api_router.get("/festivals/{festival_id}/ceremony-video")
+async def get_ceremony_video_info(festival_id: str, user: dict = Depends(get_current_user)):
+    """Get ceremony video info if available."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if not video:
+        return {'available': False}
+    
+    # Check if expired
+    expires_at = datetime.fromisoformat(video.get('expires_at', '2000-01-01').replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        return {'available': False, 'expired': True}
+    
+    return {
+        'available': True,
+        'video': video
+    }
+
+@api_router.get("/festivals/{festival_id}/ceremony-video/download")
+async def download_ceremony_video(festival_id: str, user: dict = Depends(get_current_user)):
+    """Download the ceremony video file."""
+    today = datetime.now(timezone.utc)
+    edition_id = f"{festival_id}_{today.year}_{today.month}"
+    
+    video = await db.ceremony_videos.find_one({'edition_id': edition_id}, {'_id': 0})
+    if not video:
+        raise HTTPException(status_code=404, detail="Video non disponibile")
+    
+    video_path = video.get('video_path')
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="File video non trovato")
+    
+    # Increment download count
+    await db.ceremony_videos.update_one(
+        {'id': video['id']},
+        {'$inc': {'download_count': 1}}
+    )
+    
+    return FileResponse(
+        video_path,
+        media_type='video/mp4',
+        filename=f"ceremony_{festival_id}.mp4"
+    )
+
+@api_router.get("/films/{film_id}/trailer/download")
+async def download_film_trailer(film_id: str, user: dict = Depends(get_current_user)):
+    """Download film trailer if available."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    trailer_url = film.get('trailer_url')
+    trailer_path = film.get('trailer_path')
+    
+    # If trailer is stored locally
+    if trailer_path and os.path.exists(trailer_path):
+        return FileResponse(
+            trailer_path,
+            media_type='video/mp4',
+            filename=f"trailer_{film.get('title', 'film')}.mp4"
+        )
+    
+    # If trailer is a URL, redirect to it
+    if trailer_url:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=trailer_url)
+    
+    raise HTTPException(status_code=404, detail="Trailer non disponibile")
+
+# ==================== CHALLENGE SYSTEM (Sfide) ====================
+
+from challenge_system import (
+    CHALLENGE_SKILLS, CHALLENGE_TYPES, TEAM_NAMES_A, TEAM_NAMES_B,
+    calculate_film_challenge_skills, calculate_film_scores, calculate_team_scores,
+    simulate_challenge, calculate_challenge_rewards, get_random_team_name
+)
+
+class ChallengeCreate(BaseModel):
+    challenge_type: str  # '1v1'
+    film_ids: List[str]  # 3 film IDs selected by creator
+    opponent_id: Optional[str] = None  # Specific opponent
+    team_type: Optional[str] = None
+    teammate_ids: Optional[List[str]] = None
+    is_live: bool = False  # Online challenge
+    is_offline_challenge: bool = False  # Offline auto-accept
+    ffa_player_count: Optional[int] = None
+    booster_film_id: Optional[str] = None  # Film to boost
+
+@api_router.get("/challenges/types")
+async def get_challenge_types(user: dict = Depends(get_current_user)):
+    """Get available challenge types with details."""
+    language = user.get('language', 'it')
+    
+    types = []
+    for key, config in CHALLENGE_TYPES.items():
+        types.append({
+            'id': key,
+            'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
+            'players_per_team': config.get('players_per_team'),
+            'min_players': config.get('min_players'),
+            'max_players': config.get('max_players'),
+            'films_per_player': config['films_per_player'],
+            'duration_seconds': config['duration_seconds'],
+            'xp_base': config['xp_base']
+        })
+    
+    return types
+
+@api_router.get("/challenges/skills")
+async def get_challenge_skills(user: dict = Depends(get_current_user)):
+    """Get available challenge skills info."""
+    language = user.get('language', 'it')
+    
+    skills = []
+    for key, config in CHALLENGE_SKILLS.items():
+        skills.append({
+            'id': key,
+            'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
+            'attack_weight': config['attack_weight'],
+            'defense_weight': config['defense_weight']
+        })
+    
+    return skills
+
+@api_router.get("/films/{film_id}/challenge-skills")
+async def get_film_challenge_skills(film_id: str, user: dict = Depends(get_current_user)):
+    """Get challenge skills for a specific film."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    skills = calculate_film_challenge_skills(film)
+    scores = calculate_film_scores(skills)
+    
+    return {
+        'film_id': film_id,
+        'title': film.get('title', 'Unknown'),
+        'skills': skills,
+        'scores': scores
+    }
+
+@api_router.get("/challenges/my-films")
+async def get_my_challenge_films(user: dict = Depends(get_current_user)):
+    """Get user's films with their challenge skills."""
+    user_id = user['id']
+    
+    # Get all user films that are in theaters or completed
+    films = await db.films.find(
+        {'user_id': user_id, 'status': {'$in': ['in_theaters', 'completed', 'home_video']}},
+        {'_id': 0}
+    ).to_list(100)
+    
+    result = []
+    for film in films:
+        skills = calculate_film_challenge_skills(film)
+        scores = calculate_film_scores(skills)
+        result.append({
+            'id': film['id'],
+            'title': film.get('title', 'Unknown'),
+            'poster_url': film.get('poster_url'),
+            'genre': film.get('genre', ''),
+            'quality_score': film.get('quality_score', 0),
+            'tier': film.get('tier', 'average'),
+            'skills': skills,
+            'scores': scores
+        })
+    
+    # Sort by global score descending
+    result.sort(key=lambda x: x['scores']['global'], reverse=True)
+    
+    return result
+
+@api_router.post("/challenges/create")
+async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_current_user)):
+    """Create a new challenge."""
+    user_id = user['id']
+    language = user.get('language', 'it')
+    
+    # Validate challenge type - only 1v1 allowed now
+    if data.challenge_type != '1v1':
+        raise HTTPException(status_code=400, detail="Solo sfide 1v1 disponibili")
+    
+    if data.challenge_type not in CHALLENGE_TYPES:
+        raise HTTPException(status_code=400, detail="Tipo di sfida non valido")
+    
+    challenge_config = CHALLENGE_TYPES[data.challenge_type]
+    
+    # Participation cost
+    PARTICIPATION_COST = 50000
+    
+    # Check if user has enough funds
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
+    
+    # Validate film count
+    if len(data.film_ids) != 3:
+        raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
+    
+    # Verify films belong to user
+    user_films = await db.films.find(
+        {'id': {'$in': data.film_ids}, 'user_id': user_id},
+        {'_id': 0}
+    ).to_list(3)
+    
+    if len(user_films) != 3:
+        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+    
+    # Deduct participation cost
+    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
+    
+    # Calculate skills for user's films
+    for film in user_films:
+        film['challenge_skills'] = calculate_film_challenge_skills(film)
+    
+    # Booster system: boost one film's skills by 20% (costs extra)
+    booster_info = None
+    if data.booster_film_id and data.booster_film_id in data.film_ids:
+        boosted_film = next((f for f in user_films if f['id'] == data.booster_film_id), None)
+        if boosted_film:
+            quality = boosted_film.get('quality_score', 50)
+            import math
+            booster_cost = max(5000, min(100000, round(100000 * math.exp(-quality / 40))))
+            
+            user_remaining = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+            if (user_remaining.get('funds', 0) or 0) < booster_cost:
+                pass  # Not enough funds, skip booster silently
+            else:
+                await db.users.update_one({'id': user_id}, {'$inc': {'funds': -booster_cost}})
+                for skill_key in boosted_film.get('challenge_skills', {}):
+                    boosted_film['challenge_skills'][skill_key] = int(boosted_film['challenge_skills'][skill_key] * 1.2)
+                booster_info = {'film_id': data.booster_film_id, 'cost': booster_cost, 'boost_percent': 20}
+    
+    # Create challenge document
+    challenge_id = str(uuid.uuid4())
+    challenge = {
+        'id': challenge_id,
+        'type': data.challenge_type,
+        'status': 'pending',
+        'is_live': data.is_live,
+        'creator_id': user_id,
+        'creator_nickname': user.get('nickname', 'Player'),
+        'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
+        'opponent_id': data.opponent_id,
+        'team_type': data.team_type,
+        'teammate_ids': data.teammate_ids or [],
+        'ffa_player_count': data.ffa_player_count,
+        'participation_cost': PARTICIPATION_COST,
+        'prize_pool': PARTICIPATION_COST * 2,
+        'participants': [{
+            'user_id': user_id,
+            'nickname': user.get('nickname', 'Player'),
+            'film_ids': data.film_ids,
+            'team': 'a',
+            'ready': True
+        }],
+        'booster': booster_info,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    }
+    
+    # For random matchmaking, add to queue
+    if data.challenge_type == '1v1' and not data.opponent_id:
+        challenge['matchmaking'] = 'random'
+        challenge['status'] = 'waiting'
+    elif data.challenge_type == 'ffa':
+        challenge['status'] = 'waiting'
+        challenge['required_players'] = data.ffa_player_count or 4
+    elif data.team_type == 'random':
+        challenge['status'] = 'waiting'
+        players_needed = challenge_config['players_per_team'] * 2
+        challenge['required_players'] = players_needed
+    
+    await db.challenges.insert_one(challenge)
+    
+    # OFFLINE CHALLENGE: auto-accept and simulate immediately
+    if data.is_offline_challenge and data.opponent_id:
+        # Get opponent's best 3 films (AI picks them)
+        opponent_films = await db.films.find(
+            {'user_id': data.opponent_id, 'status': {'$in': ['in_theaters', 'completed', 'classic']}},
+            {'_id': 0}
+        ).sort('scores.global', -1).to_list(3)
+        
+        if len(opponent_films) < 3:
+            # Not enough films - refund and cancel
+            await db.users.update_one({'id': user_id}, {'$inc': {'funds': PARTICIPATION_COST}})
+            await db.challenges.delete_one({'id': challenge_id})
+            raise HTTPException(status_code=400, detail="L'avversario non ha abbastanza film (servono almeno 3)")
+        
+        # Calculate skills for opponent films
+        for film in opponent_films:
+            film['challenge_skills'] = calculate_film_challenge_skills(film)
+        
+        opponent_doc = await db.users.find_one({'id': data.opponent_id}, {'_id': 0, 'nickname': 1})
+        opponent_nick = opponent_doc.get('nickname', 'Avversario') if opponent_doc else 'Avversario'
+        
+        # Add opponent as participant
+        opponent_participant = {
+            'user_id': data.opponent_id,
+            'nickname': opponent_nick,
+            'film_ids': [f['id'] for f in opponent_films],
+            'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
+            'team': 'b',
+            'ready': True
+        }
+        
+        await db.challenges.update_one(
+            {'id': challenge_id},
+            {'$push': {'participants': opponent_participant}, '$set': {'status': 'ready'}}
+        )
+        
+        # Run simulation immediately
+        result = await run_challenge_simulation(challenge_id)
+        return {
+            'success': True,
+            'challenge_id': challenge_id,
+            'status': 'completed',
+            'participation_cost': PARTICIPATION_COST,
+            'prize_pool': PARTICIPATION_COST * 2,
+            'result': result,
+            'message': f'Sfida offline completata! Costo: ${PARTICIPATION_COST:,}.'
+        }
+    
+    # ONLINE CHALLENGE: send notification with popup flag
+    if data.opponent_id and not data.is_offline_challenge:
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': data.opponent_id,
+            'type': 'challenge_invite',
+            'title': 'Sfida 1v1 Ricevuta!',
+            'message': f'{user.get("nickname", "Un giocatore")} ti ha sfidato a un 1v1! Costo partecipazione: ${PARTICIPATION_COST:,}. Premio vittoria: ${PARTICIPATION_COST * 2:,}. Accetta o rifiuta entro 24 ore.',
+            'data': {
+                'challenge_id': challenge_id, 
+                'challenger': user.get('nickname'),
+                'participation_cost': PARTICIPATION_COST,
+                'prize_pool': PARTICIPATION_COST * 2,
+                'is_popup': True
+            },
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {
+        'success': True,
+        'challenge_id': challenge_id,
+        'status': challenge['status'],
+        'participation_cost': PARTICIPATION_COST,
+        'prize_pool': PARTICIPATION_COST * 2,
+        'message': f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}. In attesa che l\'avversario accetti.'
+    }
+
+@api_router.post("/challenges/{challenge_id}/join")
+async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = Depends(get_current_user)):
+    """Join an existing challenge."""
+    user_id = user['id']
+    
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    if challenge['status'] not in ['pending', 'waiting']:
+        raise HTTPException(status_code=400, detail="Questa sfida non accetta più partecipanti")
+    
+    # Check if already participating
+    if any(p['user_id'] == user_id for p in challenge.get('participants', [])):
+        raise HTTPException(status_code=400, detail="Stai già partecipando a questa sfida")
+    
+    # Participation cost
+    PARTICIPATION_COST = challenge.get('participation_cost', 50000)
+    
+    # Check if user has enough funds
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
+    
+    # Deduct participation cost
+    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
+    
+    # Validate films
+    if len(film_ids) != 3:
+        raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
+    
+    user_films = await db.films.find(
+        {'id': {'$in': film_ids}, 'user_id': user_id},
+        {'_id': 0}
+    ).to_list(3)
+    
+    if len(user_films) != 3:
+        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+    
+    # Calculate skills
+    for film in user_films:
+        film['challenge_skills'] = calculate_film_challenge_skills(film)
+    
+    # Determine team assignment
+    participants = challenge.get('participants', [])
+    challenge_type = challenge['type']
+    
+    if challenge_type == 'ffa':
+        team = None
+    else:
+        team_a_count = sum(1 for p in participants if p.get('team') == 'a')
+        team_b_count = sum(1 for p in participants if p.get('team') == 'b')
+        team = 'b' if team_a_count > team_b_count else 'a'
+    
+    # Add participant
+    new_participant = {
+        'user_id': user_id,
+        'nickname': user.get('nickname', 'Player'),
+        'film_ids': film_ids,
+        'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
+        'team': team,
+        'ready': True
+    }
+    
+    participants.append(new_participant)
+    
+    # Check if challenge is ready to start
+    required_players = challenge.get('required_players', 2)
+    ready_to_start = len(participants) >= required_players
+    
+    new_status = 'ready' if ready_to_start else 'waiting'
+    
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {'participants': participants, 'status': new_status}}
+    )
+    
+    # If ready, start the challenge
+    if ready_to_start:
+        result = await run_challenge_simulation(challenge_id)
+        return {'success': True, 'message': 'Sfida iniziata!', 'result': result}
+    
+    return {
+        'success': True,
+        'message': f'Ti sei unito alla sfida! In attesa di altri {required_players - len(participants)} giocatori.',
+        'participants_count': len(participants),
+        'required': required_players
+    }
+
+async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
+    """Run the challenge simulation and apply rewards."""
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        return {'error': 'Challenge not found'}
+    
+    participants = challenge.get('participants', [])
+    challenge_type = challenge['type']
+    is_live = challenge.get('is_live', False)
+    
+    # Build teams
+    if challenge_type == 'ffa':
+        # FFA: each participant is their own "team"
+        teams = []
+        for p in participants:
+            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+            for f in films:
+                f['challenge_skills'] = calculate_film_challenge_skills(f)
+            teams.append({
+                'name': p['nickname'],
+                'players': [p['user_id']],
+                'films': films
+            })
+        
+        # FFA tournament simulation (simplified: round-robin)
+        scores = {t['name']: 0 for t in teams}
+        rounds = []
+        
+        for i, team_a in enumerate(teams):
+            for team_b in teams[i+1:]:
+                result = simulate_challenge(team_a, team_b, 'ffa')
+                if result['winner'] == 'team_a':
+                    scores[team_a['name']] += 3
+                elif result['winner'] == 'team_b':
+                    scores[team_b['name']] += 3
+                else:
+                    scores[team_a['name']] += 1
+                    scores[team_b['name']] += 1
+                rounds.append({
+                    'matchup': f"{team_a['name']} vs {team_b['name']}",
+                    'winner': result['winner']
+                })
+        
+        # Determine overall winner
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        winner_name = sorted_scores[0][0]
+        
+        battle_result = {
+            'type': 'ffa',
+            'participants': [t['name'] for t in teams],
+            'rounds': rounds,
+            'final_scores': dict(sorted_scores),
+            'winner': winner_name,
+            'winner_comment': f"🏆 {winner_name} domina il torneo Tutti contro Tutti!"
+        }
+        
+    else:
+        # Team vs Team
+        team_a_participants = [p for p in participants if p.get('team') == 'a']
+        team_b_participants = [p for p in participants if p.get('team') == 'b']
+        
+        # Get films for each team
+        team_a_films = []
+        team_b_films = []
+        
+        for p in team_a_participants:
+            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+            for f in films:
+                f['challenge_skills'] = calculate_film_challenge_skills(f)
+            team_a_films.extend(films)
+        
+        for p in team_b_participants:
+            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+            for f in films:
+                f['challenge_skills'] = calculate_film_challenge_skills(f)
+            team_b_films.extend(films)
+        
+        # Team names
+        team_a_name = get_random_team_name()
+        team_b_name = get_random_team_name([team_a_name])
+        
+        # Check if it's a Major challenge
+        if challenge.get('team_type') == 'major':
+            creator = await db.users.find_one({'id': challenge['creator_id']}, {'_id': 0, 'major_id': 1})
+            if creator and creator.get('major_id'):
+                major = await db.majors.find_one({'id': creator['major_id']}, {'_id': 0, 'name': 1})
+                if major:
+                    team_a_name = major['name']
+        
+        team_a = {
+            'name': team_a_name,
+            'players': [p['user_id'] for p in team_a_participants],
+            'films': team_a_films
+        }
+        
+        team_b = {
+            'name': team_b_name,
+            'players': [p['user_id'] for p in team_b_participants],
+            'films': team_b_films
+        }
+        
+        battle_result = simulate_challenge(team_a, team_b, challenge_type)
+    
+    # Save result
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {
+            'status': 'completed',
+            'result': battle_result,
+            'completed_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Apply rewards
+    winner_rewards, loser_penalties = calculate_challenge_rewards(
+        battle_result['winner'], challenge_type, is_live
+    )
+    
+    # Prize pool from participation costs
+    prize_pool = challenge.get('prize_pool', 100000)
+    
+    # Determine winners and losers
+    if challenge_type == 'ffa':
+        winner_user_ids = [p['user_id'] for p in participants if p['nickname'] == battle_result['winner']]
+        loser_user_ids = [p['user_id'] for p in participants if p['nickname'] != battle_result['winner']]
+    else:
+        if battle_result['winner'] == 'team_a':
+            winner_user_ids = battle_result['team_a']['players']
+            loser_user_ids = battle_result['team_b']['players']
+        elif battle_result['winner'] == 'team_b':
+            winner_user_ids = battle_result['team_b']['players']
+            loser_user_ids = battle_result['team_a']['players']
+        else:
+            # Draw - refund both
+            for p in participants:
+                refund = challenge.get('participation_cost', 50000)
+                await db.users.update_one({'id': p['user_id']}, {'$inc': {'funds': refund}})
+            winner_user_ids = battle_result['team_a']['players'] + battle_result['team_b']['players']
+            loser_user_ids = []
+            prize_pool = 0
+    
+    # Apply rewards to winners (including prize pool + CinePass)
+    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
+    prize_per_winner = prize_pool // max(len(winner_user_ids), 1) if prize_pool > 0 else 0
+    for uid in winner_user_ids:
+        await db.users.update_one(
+            {'id': uid},
+            {'$inc': {
+                'total_xp': winner_rewards['xp'],
+                'fame': winner_rewards['fame'],
+                'funds': winner_rewards['funds'] + prize_per_winner,
+                'challenge_wins': 1,
+                'challenge_total': 1,
+                'cinepass': cinepass_reward
+            }}
+        )
+        
+        # Apply film bonuses
+        participant = next((p for p in participants if p['user_id'] == uid), None)
+        if participant:
+            await db.films.update_many(
+                {'id': {'$in': participant['film_ids']}},
+                {'$inc': {
+                    'quality_score': winner_rewards['quality_bonus'],
+                    'cumulative_attendance': winner_rewards['attendance_bonus']
+                }}
+            )
+        
+        # Notification
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': uid,
+            'type': 'challenge_won',
+            'title': 'Sfida Vinta!',
+            'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP, +{cinepass_reward} CinePass',
+            'data': {'challenge_id': challenge_id, 'prize': prize_per_winner},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Apply penalties to losers
+    for uid in loser_user_ids:
+        await db.users.update_one(
+            {'id': uid},
+            {'$inc': {
+                'total_xp': loser_penalties['xp'],
+                'fame': loser_penalties['fame'],
+                'challenge_losses': 1,
+                'challenge_total': 1
+            }}
+        )
+        
+        # Apply film penalties
+        participant = next((p for p in participants if p['user_id'] == uid), None)
+        if participant and loser_penalties['attendance_bonus'] < 0:
+            await db.films.update_many(
+                {'id': {'$in': participant['film_ids']}},
+                {'$inc': {'cumulative_attendance': loser_penalties['attendance_bonus']}}
+            )
+        
+        # Notification
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': uid,
+            'type': 'challenge_lost',
+            'title': 'Sfida Persa',
+            'message': f'Hai perso la sfida. +{loser_penalties["xp"]} XP consolazione.',
+            'data': {'challenge_id': challenge_id},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return battle_result
+
+@api_router.get("/challenges/waiting")
+async def get_waiting_challenges(user: dict = Depends(get_current_user)):
+    """Get challenges waiting for players (for random matchmaking)."""
+    user_id = user['id']
+    
+    challenges = await db.challenges.find({
+        'status': 'waiting',
+        'creator_id': {'$ne': user_id},
+        'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+    }, {'_id': 0}).to_list(50)
+    
+    return challenges
+
+@api_router.get("/challenges/my")
+async def get_my_challenges(user: dict = Depends(get_current_user)):
+    """Get user's challenges (created and participated)."""
+    user_id = user['id']
+    
+    challenges = await db.challenges.find({
+        '$or': [
+            {'creator_id': user_id},
+            {'participants.user_id': user_id}
+        ]
+    }, {'_id': 0}).sort('created_at', -1).to_list(50)
+    
+    return challenges
+
+@api_router.get("/challenges/leaderboard")
+async def get_challenge_leaderboard(user: dict = Depends(get_current_user)):
+    """Get challenge leaderboard."""
+    users = await db.users.find(
+        {'challenge_total': {'$gt': 0}},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'challenge_wins': 1, 'challenge_losses': 1, 'challenge_total': 1}
+    ).sort('challenge_wins', -1).to_list(100)
+    
+    leaderboard = []
+    for i, u in enumerate(users):
+        wins = u.get('challenge_wins', 0)
+        total = u.get('challenge_total', 1)
+        win_rate = round((wins / total) * 100, 1) if total > 0 else 0
+        
+        leaderboard.append({
+            'rank': i + 1,
+            'user_id': u['id'],
+            'nickname': u.get('nickname', 'Player'),
+            'wins': wins,
+            'losses': u.get('challenge_losses', 0),
+            'total': total,
+            'win_rate': win_rate
+        })
+    
+    return leaderboard
+
+@api_router.get("/challenges/limits")
+async def get_challenge_limits(user: dict = Depends(get_current_user)):
+    """Get current challenge usage and limits."""
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+    
+    hourly_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_hour_ago}
+    })
+    daily_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_day_ago}
+    })
+    
+    return {
+        'hourly': {'used': hourly_count, 'limit': CHALLENGE_LIMITS['per_hour']},
+        'daily': {'used': daily_count, 'limit': CHALLENGE_LIMITS['per_day']},
+        'cinepass_reward_per_win': CINEPASS_REWARDS.get('challenge_win', 2),
+    }
+
+@api_router.get("/challenges/{challenge_id}")
+async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Get challenge details."""
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    return challenge
+
+@api_router.get("/challenges/stats/{user_id}")
+async def get_user_challenge_stats(user_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed challenge stats for a user."""
+    target_user = await db.users.find_one({'id': user_id}, {'_id': 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    
+    wins = target_user.get('challenge_wins', 0)
+    losses = target_user.get('challenge_losses', 0)
+    total = target_user.get('challenge_total', 0)
+    
+    # Get recent challenges
+    recent = await db.challenges.find({
+        'participants.user_id': user_id,
+        'status': 'completed'
+    }, {'_id': 0}).sort('completed_at', -1).to_list(10)
+    
+    # Calculate streak
+    streak = 0
+    for c in recent:
+        result = c.get('result', {})
+        winner = result.get('winner')
+        
+        if c['type'] == 'ffa':
+            user_won = result.get('winner') == next((p['nickname'] for p in c['participants'] if p['user_id'] == user_id), None)
+        else:
+            user_team = next((p['team'] for p in c['participants'] if p['user_id'] == user_id), None)
+            user_won = (winner == 'team_a' and user_team == 'a') or (winner == 'team_b' and user_team == 'b')
+        
+        if user_won:
+            streak += 1
+        else:
+            break
+    
+    return {
+        'user_id': user_id,
+        'nickname': target_user.get('nickname', 'Player'),
+        'wins': wins,
+        'losses': losses,
+        'total': total,
+        'win_rate': round((wins / total) * 100, 1) if total > 0 else 0,
+        'current_streak': streak,
+        'recent_challenges': len(recent)
+    }
+
+@api_router.post("/challenges/{challenge_id}/cancel")
+async def cancel_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Cancel a challenge created by the user."""
+    challenge = await db.challenges.find_one({'id': challenge_id, 'creator_id': user['id'], 'status': 'waiting'})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata o non cancellabile")
+    await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'cancelled'}})
+    return {'success': True, 'message': 'Sfida annullata'}
+
+# ==================== OFFLINE CHALLENGE SYSTEM ====================
+
+@api_router.post("/challenges/toggle-offline")
+async def toggle_offline_challenges(user: dict = Depends(get_current_user)):
+    """Toggle availability for offline VS challenges."""
+    current = user.get('accept_offline_challenges', False)
+    new_value = not current
+    await db.users.update_one({'id': user['id']}, {'$set': {'accept_offline_challenges': new_value}})
+    return {'accept_offline_challenges': new_value, 'message': 'Sfide offline attivate!' if new_value else 'Sfide offline disattivate.'}
+
+@api_router.post("/challenges/offline-battle")
+async def start_offline_battle(data: dict, user: dict = Depends(get_current_user)):
+    """Start an offline 1v1 challenge. AI picks films for the offline opponent."""
+    opponent_id = data.get('opponent_id')
+    film_ids = data.get('film_ids', [])
+    
+    if not opponent_id or not film_ids or len(film_ids) != 3:
+        raise HTTPException(status_code=400, detail="Devi specificare un avversario e 3 film")
+    
+    if opponent_id == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+    
+    # Check challenge limits (5/hour, 20/day)
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+    
+    hourly_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_hour_ago}
+    })
+    if hourly_count >= CHALLENGE_LIMITS['per_hour']:
+        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_hour']} sfide all'ora")
+    
+    daily_count = await db.challenges.count_documents({
+        'creator_id': user['id'],
+        'created_at': {'$gte': one_day_ago}
+    })
+    if daily_count >= CHALLENGE_LIMITS['per_day']:
+        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_day']} sfide al giorno")
+    
+    # Check opponent exists and accepts offline challenges
+    opponent = await db.users.find_one({'id': opponent_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'accept_offline_challenges': 1, 'production_house_name': 1})
+    if not opponent:
+        raise HTTPException(status_code=404, detail="Avversario non trovato")
+    
+    if not opponent.get('accept_offline_challenges', False):
+        raise HTTPException(status_code=400, detail="Questo giocatore non accetta sfide offline")
+    
+    # Verify challenger's films
+    challenger_films = await db.films.find({'id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0}).to_list(3)
+    if len(challenger_films) != 3:
+        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+    
+    for f in challenger_films:
+        f['challenge_skills'] = calculate_film_challenge_skills(f)
+    
+    # AI picks best 3 films for opponent (sorted by quality)
+    opponent_all_films = await db.films.find(
+        {'user_id': opponent_id}, {'_id': 0}
+    ).sort('quality_score', -1).to_list(20)
+    
+    if len(opponent_all_films) < 3:
+        raise HTTPException(status_code=400, detail=f"{opponent['nickname']} non ha abbastanza film (minimo 3)")
+    
+    # AI strategy: pick top 3 by combined score (quality + revenue + popularity)
+    for f in opponent_all_films:
+        f['ai_score'] = f.get('quality_score', 0) * 0.4 + f.get('imdb_rating', 5) * 10 + f.get('popularity_score', 50) * 0.2
+        f['challenge_skills'] = calculate_film_challenge_skills(f)
+    
+    opponent_all_films.sort(key=lambda x: x['ai_score'], reverse=True)
+    opponent_films = opponent_all_films[:3]
+    
+    # Create and run the challenge immediately
+    challenge_id = str(uuid.uuid4())
+    
+    team_a = {
+        'name': user.get('nickname', 'Sfidante'),
+        'players': [user['id']],
+        'films': challenger_films
+    }
+    
+    team_b = {
+        'name': opponent.get('nickname', 'Difensore'),
+        'players': [opponent_id],
+        'films': opponent_films
+    }
+    
+    battle_result = simulate_challenge(team_a, team_b, '1v1')
+    
+    # Save the challenge
+    challenge = {
+        'id': challenge_id,
+        'type': '1v1',
+        'status': 'completed',
+        'is_live': False,
+        'is_offline': True,
+        'creator_id': user['id'],
+        'creator_nickname': user.get('nickname', 'Player'),
+        'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in challenger_films],
+        'opponent_id': opponent_id,
+        'opponent_nickname': opponent.get('nickname', 'Player'),
+        'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
+        'participants': [
+            {'user_id': user['id'], 'nickname': user.get('nickname'), 'film_ids': film_ids, 'team': 'a', 'ready': True},
+            {'user_id': opponent_id, 'nickname': opponent.get('nickname'), 'film_ids': [f['id'] for f in opponent_films], 'team': 'b', 'ready': True}
+        ],
+        'result': battle_result,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'completed_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.challenges.insert_one(challenge)
+    
+    # Calculate rewards — loser penalties reduced by 80% in offline mode
+    winner_rewards, loser_penalties = calculate_challenge_rewards(battle_result['winner'], '1v1', False, is_online=False)
+    
+    # Apply 80% reduction to loser penalties
+    offline_loser_penalties = {
+        'xp': loser_penalties['xp'],  # Keep consolation XP
+        'fame': max(-1, int(loser_penalties['fame'] * 0.2)),  # 80% reduced
+        'funds': 0,
+        'quality_bonus': 0,
+        'attendance_bonus': int(loser_penalties.get('attendance_bonus', 0) * 0.2),  # 80% reduced
+    }
+    
+    # Determine winner/loser
+    if battle_result['winner'] == 'team_a':
+        winner_ids, loser_ids = [user['id']], [opponent_id]
+        winner_name = user.get('nickname')
+        loser_name = opponent.get('nickname')
+    elif battle_result['winner'] == 'team_b':
+        winner_ids, loser_ids = [opponent_id], [user['id']]
+        winner_name = opponent.get('nickname')
+        loser_name = user.get('nickname')
+    else:
+        winner_ids = [user['id'], opponent_id]
+        loser_ids = []
+        winner_name = 'Pareggio'
+        loser_name = None
+    
+    # Apply rewards to winners (including CinePass)
+    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
+    for uid in winner_ids:
+        await db.users.update_one({'id': uid}, {'$inc': {
+            'total_xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
+            'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1,
+            'cinepass': cinepass_reward
+        }})
+    
+    # Apply reduced penalties to losers
+    for uid in loser_ids:
+        await db.users.update_one({'id': uid}, {'$inc': {
+            'total_xp': offline_loser_penalties['xp'], 'fame': offline_loser_penalties['fame'],
+            'challenge_losses': 1, 'challenge_total': 1
+        }})
+    
+    # Build detailed battle report for notifications
+    rounds_summary = ''
+    for i, r in enumerate(battle_result.get('rounds', [])[:3]):
+        skill_name = r.get('skill', f'Round {i+1}')
+        rounds_summary += f"Round {i+1} ({skill_name}): {'Sfidante' if r.get('winner') == 'team_a' else 'Difensore'} vince | "
+    
+    winner_text = f"Vincitore: {winner_name}" if winner_name != 'Pareggio' else 'Risultato: Pareggio!'
+    
+    # Notification to challenger (the active player)
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'type': 'offline_challenge_result',
+        'title': 'Sfida Offline Completata!',
+        'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP, +"+str(cinepass_reward)+" CinePass" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
+        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'path': '/challenges'},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Notification to OFFLINE opponent with full battle report
+    report_films_a = ', '.join([f['title'] for f in challenger_films[:3]])
+    report_films_b = ', '.join([f['title'] for f in opponent_films[:3]])
+    
+    report_msg = (
+        f"{user.get('nickname')} ti ha sfidato offline!\n"
+        f"I tuoi film (scelti dall'AI): {report_films_b}\n"
+        f"Film avversario: {report_films_a}\n"
+        f"{rounds_summary}\n"
+        f"{winner_text}."
+    )
+    
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': opponent_id,
+        'type': 'offline_challenge_report',
+        'title': 'Report Sfida Offline!',
+        'message': report_msg,
+        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'battle_result': battle_result, 'path': '/challenges'},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        'success': True,
+        'challenge_id': challenge_id,
+        'result': battle_result,
+        'winner_name': winner_name,
+        'rewards': winner_rewards if user['id'] in winner_ids else offline_loser_penalties,
+        'cinepass_reward': cinepass_reward if user['id'] in winner_ids else 0,
+        'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'genre': f.get('genre')} for f in opponent_films],
+    }
+
+@api_router.post("/challenges/{challenge_id}/resend")
+async def resend_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Resend notifications for a pending challenge (creator only)."""
+    user_id = user['id']
+    
+    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Sfida non trovata")
+    
+    if challenge['creator_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Solo il creatore può riproporre la sfida")
+    
+    if challenge['status'] not in ['pending', 'waiting']:
+        raise HTTPException(status_code=400, detail="Questa sfida non può essere riproposta")
+    
+    # Update expiration
+    new_expiration = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    await db.challenges.update_one(
+        {'id': challenge_id},
+        {'$set': {'expires_at': new_expiration, 'resent_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # If specific opponent, resend notification
+    if challenge.get('opponent_id'):
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': challenge['opponent_id'],
+            'type': 'challenge_invite',
+            'title': '⚔️ Sfida Riproposta!',
+            'message': f'{user.get("nickname", "Un giocatore")} ti ha nuovamente sfidato! Accetta entro 24 ore.',
+            'data': {'challenge_id': challenge_id, 'challenger': user.get('nickname')},
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {'success': True, 'message': 'Sfida riproposta! Scadenza estesa di 24 ore.'}
+
 # ==================== CREATOR CONTACT SYSTEM ====================
 
 CREATOR_NICKNAME = "NeoMorpheus"  # The Creator's nickname
@@ -9514,6 +13031,436 @@ async def check_is_creator(user: dict = Depends(get_current_user)):
     return {
         'is_creator': user.get('nickname') == CREATOR_NICKNAME,
         'creator_nickname': CREATOR_NICKNAME
+    }
+
+# ==================== CUSTOM FESTIVALS (Player-Created) ====================
+
+CUSTOM_FESTIVAL_MIN_LEVEL = 1  # Nessun livello minimo - sempre possibile
+CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
+CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base (legacy, unused now)
+
+def calculate_custom_festival_cost(creator_level: int) -> int:
+    """Costo polinomiale per creare un festival basato sul livello.
+    ~$25K a livello 1, ~$3M a livello 67, ~$11M a livello 200."""
+    return int(25000 * (max(creator_level, 1) ** 1.15))
+
+def calculate_participation_cost(film_index: int, base_cost: int) -> int:
+    """Costo esponenziale per ogni film aggiuntivo (1° film = base, 2° = base*1.5, etc.)."""
+    return int(base_cost * (1.5 ** film_index))
+
+class CustomFestivalCreate(BaseModel):
+    name: str
+    description: str
+    poster_prompt: Optional[str] = None
+    categories: List[str]  # Lista di category_id da AWARD_CATEGORIES
+    base_participation_cost: int = 10000  # Costo base per partecipare con 1 film
+    max_films_per_participant: int = 10
+    duration_days: int = 7  # Durata del festival
+    prize_pool_percentage: int = 70  # % del montepremi che va ai vincitori (resto al creatore)
+
+class CustomFestivalParticipate(BaseModel):
+    festival_id: str
+    film_ids: List[str]
+
+@api_router.get("/custom-festivals")
+async def get_custom_festivals(status: str = 'active', user: dict = Depends(get_current_user)):
+    """Lista festival personalizzati."""
+    query = {}
+    if status == 'active':
+        query['status'] = {'$in': ['open', 'voting', 'live']}
+    elif status == 'mine':
+        query['creator_id'] = user['id']
+    
+    festivals = await db.custom_festivals.find(query, {'_id': 0}).sort('created_at', -1).to_list(50)
+    return {'festivals': festivals}
+
+@api_router.get("/custom-festivals/creation-cost")
+async def get_festival_creation_cost(user: dict = Depends(get_current_user)):
+    """Calcola il costo per creare un festival."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    user_level = level_info['level']
+    
+    can_create = user_level >= CUSTOM_FESTIVAL_MIN_LEVEL
+    cost = calculate_custom_festival_cost(user_level) if can_create else calculate_custom_festival_cost(CUSTOM_FESTIVAL_MIN_LEVEL)
+    
+    return {
+        'can_create': can_create,
+        'user_level': user_level,
+        'required_level': CUSTOM_FESTIVAL_MIN_LEVEL,
+        'creation_cost': cost,
+        'participation_min_level': CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL
+    }
+
+@api_router.get("/custom-festivals/{festival_id}")
+async def get_custom_festival(festival_id: str, user: dict = Depends(get_current_user)):
+    """Dettagli di un festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id}, {'_id': 0})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    # Get participants count
+    participants = await db.custom_festival_entries.count_documents({'festival_id': festival_id})
+    festival['participants_count'] = participants
+    
+    # Check if user already participating
+    user_entry = await db.custom_festival_entries.find_one({'festival_id': festival_id, 'user_id': user['id']})
+    festival['user_participating'] = user_entry is not None
+    festival['user_films'] = user_entry.get('film_ids', []) if user_entry else []
+    
+    # Get all entries for voting
+    if festival.get('status') in ['voting', 'live', 'completed']:
+        entries = await db.custom_festival_entries.find({'festival_id': festival_id}, {'_id': 0}).to_list(500)
+        festival['entries'] = entries
+    
+    return festival
+
+@api_router.post("/custom-festivals/create")
+async def create_custom_festival(request: CustomFestivalCreate, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Crea un nuovo festival personalizzato."""
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    user_level = level_info['level']
+    
+    if user_level < CUSTOM_FESTIVAL_MIN_LEVEL:
+        raise HTTPException(status_code=400, detail=f"Devi essere almeno livello {CUSTOM_FESTIVAL_MIN_LEVEL} per creare un festival. Sei livello {user_level}.")
+    
+    # Calcola costo
+    creation_cost = calculate_custom_festival_cost(user_level)
+    
+    if user.get('funds', 0) < creation_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo: ${creation_cost:,}")
+    
+    # Valida categorie
+    valid_categories = [c for c in request.categories if c in AWARD_CATEGORIES]
+    if not valid_categories:
+        raise HTTPException(status_code=400, detail="Seleziona almeno una categoria valida")
+    
+    # Genera poster AI se richiesto
+    poster_url = None
+    if request.poster_prompt:
+        try:
+            from emergentintegrations.llm.gemini import GeminiImageGeneration
+            img_gen = GeminiImageGeneration(os.environ.get('EMERGENT_API_KEY'))
+            prompt = f"Film festival poster: {request.poster_prompt}. Elegant, prestigious, cinematic style with golden accents."
+            poster_url = await img_gen.generate_image(prompt, width=1024, height=1536)
+        except Exception as e:
+            logging.error(f"Poster generation error: {e}")
+    
+    festival_id = str(uuid.uuid4())
+    end_date = (datetime.now(timezone.utc) + timedelta(days=request.duration_days)).isoformat()
+    
+    festival = {
+        'id': festival_id,
+        'name': request.name,
+        'description': request.description,
+        'poster_url': poster_url,
+        'creator_id': user['id'],
+        'creator_name': user.get('nickname'),
+        'creator_level': user_level,
+        'categories': [{'id': c, 'name': AWARD_CATEGORIES[c]['names'].get('it', c)} for c in valid_categories],
+        'base_participation_cost': request.base_participation_cost,
+        'max_films_per_participant': min(request.max_films_per_participant, 10),
+        'prize_pool_percentage': min(max(request.prize_pool_percentage, 50), 90),
+        'creation_cost': creation_cost,
+        'prize_pool': 0,
+        'creator_earnings': 0,
+        'status': 'open',  # open, voting, live, completed
+        'end_date': end_date,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Deduce costo
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -creation_cost}})
+    
+    # Salva festival
+    await db.custom_festivals.insert_one(festival)
+    
+    # Pubblica nel giornale
+    await db.cinema_news.insert_one({
+        'id': str(uuid.uuid4()),
+        'type': 'custom_festival',
+        'title': f"Nuovo Festival: {request.name}",
+        'message': f"{user.get('nickname')} ha creato il festival '{request.name}'! Partecipa con i tuoi film e vinci premi!",
+        'festival_id': festival_id,
+        'creator_id': user['id'],
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Notifica a tutti i giocatori
+    all_users = await db.users.find({'id': {'$ne': user['id']}}, {'_id': 0, 'id': 1}).to_list(1000)
+    notifications = [{
+        'id': str(uuid.uuid4()),
+        'user_id': u['id'],
+        'type': 'new_custom_festival',
+        'message': f"Nuovo Festival! '{request.name}' creato da {user.get('nickname')}. Partecipa ora!",
+        'data': {'festival_id': festival_id},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    } for u in all_users]
+    
+    if notifications:
+        await db.notifications.insert_many(notifications)
+    
+    festival.pop('_id', None)
+    return {
+        'success': True,
+        'festival': festival,
+        'cost_paid': creation_cost,
+        'message': f"Festival '{request.name}' creato! Tutti i giocatori sono stati notificati."
+    }
+
+@api_router.post("/custom-festivals/participate")
+async def participate_in_custom_festival(request: CustomFestivalParticipate, user: dict = Depends(get_current_user)):
+    """Partecipa a un festival con i tuoi film."""
+    festival = await db.custom_festivals.find_one({'id': request.festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('status') != 'open':
+        raise HTTPException(status_code=400, detail="Il festival non accetta più iscrizioni")
+    
+    # Verifica livello
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    if level_info['level'] < CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL:
+        raise HTTPException(status_code=400, detail=f"Devi essere almeno livello {CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL} per partecipare")
+    
+    # Verifica numero film
+    is_creator = user['id'] == festival.get('creator_id')
+    max_films = 1 if is_creator else festival.get('max_films_per_participant', 10)
+    
+    if len(request.film_ids) > max_films:
+        raise HTTPException(status_code=400, detail=f"Puoi iscrivere massimo {max_films} film")
+    
+    if not request.film_ids:
+        raise HTTPException(status_code=400, detail="Seleziona almeno un film")
+    
+    # Verifica film appartengano all'utente
+    films = await db.films.find({'id': {'$in': request.film_ids}, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1}).to_list(max_films)
+    if len(films) != len(request.film_ids):
+        raise HTTPException(status_code=400, detail="Alcuni film non sono tuoi")
+    
+    # Calcola costo totale
+    base_cost = festival.get('base_participation_cost', 10000)
+    total_cost = sum(calculate_participation_cost(i, base_cost) for i in range(len(request.film_ids)))
+    
+    if user.get('funds', 0) < total_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo: ${total_cost:,}")
+    
+    # Verifica se già iscritto
+    existing = await db.custom_festival_entries.find_one({'festival_id': request.festival_id, 'user_id': user['id']})
+    if existing:
+        raise HTTPException(status_code=400, detail="Sei già iscritto a questo festival")
+    
+    # Deduce costo
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    
+    # 30% al creatore immediatamente
+    creator_share = int(total_cost * 0.30)
+    prize_pool_share = total_cost - creator_share
+    
+    await db.users.update_one({'id': festival['creator_id']}, {'$inc': {'funds': creator_share}})
+    await db.custom_festivals.update_one(
+        {'id': request.festival_id},
+        {'$inc': {'prize_pool': prize_pool_share, 'creator_earnings': creator_share}}
+    )
+    
+    # Registra partecipazione
+    entry = {
+        'id': str(uuid.uuid4()),
+        'festival_id': request.festival_id,
+        'user_id': user['id'],
+        'user_name': user.get('nickname'),
+        'film_ids': request.film_ids,
+        'films': [{'id': f['id'], 'title': f['title']} for f in films],
+        'cost_paid': total_cost,
+        'votes': 0,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.custom_festival_entries.insert_one(entry)
+    
+    # Notifica creatore
+    if not is_creator:
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': festival['creator_id'],
+            'type': 'festival_participant',
+            'message': f"{user.get('nickname')} si è iscritto al tuo festival '{festival.get('name')}'! +${creator_share:,}",
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {
+        'success': True,
+        'cost_paid': total_cost,
+        'creator_received': creator_share,
+        'added_to_prize_pool': prize_pool_share,
+        'message': f"Iscrizione completata! {len(films)} film iscritti."
+    }
+
+@api_router.post("/custom-festivals/{festival_id}/vote")
+async def vote_custom_festival(festival_id: str, entry_id: str, user: dict = Depends(get_current_user)):
+    """Vota per un'entry in un festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('status') not in ['voting', 'live']:
+        raise HTTPException(status_code=400, detail="Le votazioni non sono aperte")
+    
+    # Verifica che l'entry esista
+    entry = await db.custom_festival_entries.find_one({'id': entry_id, 'festival_id': festival_id})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry non trovata")
+    
+    # Non puoi votare te stesso
+    if entry.get('user_id') == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi votare i tuoi film")
+    
+    # Verifica se già votato
+    existing_vote = await db.custom_festival_votes.find_one({
+        'festival_id': festival_id,
+        'user_id': user['id'],
+        'entry_id': entry_id
+    })
+    if existing_vote:
+        raise HTTPException(status_code=400, detail="Hai già votato questa entry")
+    
+    # Registra voto
+    await db.custom_festival_votes.insert_one({
+        'id': str(uuid.uuid4()),
+        'festival_id': festival_id,
+        'entry_id': entry_id,
+        'user_id': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Aggiorna conteggio voti
+    await db.custom_festival_entries.update_one({'id': entry_id}, {'$inc': {'votes': 1}})
+    
+    return {'success': True, 'message': 'Voto registrato!'}
+
+@api_router.post("/custom-festivals/{festival_id}/start-ceremony")
+async def start_live_ceremony(festival_id: str, user: dict = Depends(get_current_user)):
+    """Inizia la cerimonia live di premiazione (solo creatore)."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('creator_id') != user['id']:
+        raise HTTPException(status_code=403, detail="Solo il creatore può avviare la cerimonia")
+    
+    if festival.get('status') != 'voting':
+        raise HTTPException(status_code=400, detail="Il festival deve essere in fase di votazione")
+    
+    # Cambia stato a 'live'
+    await db.custom_festivals.update_one(
+        {'id': festival_id},
+        {'$set': {'status': 'live', 'ceremony_started_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Notifica tutti i partecipanti
+    entries = await db.custom_festival_entries.find({'festival_id': festival_id}, {'_id': 0, 'user_id': 1}).to_list(500)
+    participant_ids = [e['user_id'] for e in entries]
+    
+    notifications = [{
+        'id': str(uuid.uuid4()),
+        'user_id': pid,
+        'type': 'ceremony_live',
+        'message': f"La cerimonia di premiazione del festival '{festival.get('name')}' è iniziata! Guarda i vincitori in diretta!",
+        'data': {'festival_id': festival_id},
+        'read': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    } for pid in participant_ids if pid != user['id']]
+    
+    if notifications:
+        await db.notifications.insert_many(notifications)
+    
+    return {'success': True, 'message': 'Cerimonia live avviata!', 'status': 'live'}
+
+@api_router.post("/custom-festivals/{festival_id}/award-winners")
+async def award_custom_festival_winners(festival_id: str, user: dict = Depends(get_current_user)):
+    """Assegna i premi ai vincitori del festival personalizzato."""
+    festival = await db.custom_festivals.find_one({'id': festival_id})
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival non trovato")
+    
+    if festival.get('creator_id') != user['id']:
+        raise HTTPException(status_code=403, detail="Solo il creatore può assegnare i premi")
+    
+    if festival.get('status') not in ['voting', 'live']:
+        raise HTTPException(status_code=400, detail="I premi sono già stati assegnati o il festival non è pronto")
+    
+    # Ottieni tutte le entries ordinate per voti
+    entries = await db.custom_festival_entries.find(
+        {'festival_id': festival_id},
+        {'_id': 0}
+    ).sort('votes', -1).to_list(500)
+    
+    if not entries:
+        raise HTTPException(status_code=400, detail="Nessun partecipante")
+    
+    # Calcola premi
+    prize_pool = festival.get('prize_pool', 0)
+    prize_percentage = festival.get('prize_pool_percentage', 70) / 100
+    total_prizes = int(prize_pool * prize_percentage)
+    
+    # Distribuzione premi: 50% primo, 30% secondo, 20% terzo
+    winners = []
+    prize_distribution = [0.50, 0.30, 0.20]
+    
+    for i, entry in enumerate(entries[:3]):
+        if i >= len(prize_distribution):
+            break
+        
+        prize = int(total_prizes * prize_distribution[i])
+        
+        # Assegna premio
+        await db.users.update_one(
+            {'id': entry['user_id']},
+            {'$inc': {'funds': prize, 'total_xp': 100 * (3 - i), 'fame': 20 * (3 - i)}}
+        )
+        
+        winners.append({
+            'rank': i + 1,
+            'user_id': entry['user_id'],
+            'user_name': entry.get('user_name'),
+            'films': entry.get('films'),
+            'votes': entry.get('votes', 0),
+            'prize': prize,
+            'xp': 100 * (3 - i),
+            'fame': 20 * (3 - i)
+        })
+        
+        # Notifica vincitore
+        await db.notifications.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': entry['user_id'],
+            'type': 'festival_prize',
+            'message': f"Hai vinto il {i+1}° posto al festival '{festival.get('name')}'! Premio: ${prize:,} + {100*(3-i)} XP + {20*(3-i)} Fama",
+            'read': False,
+            'created_at': datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Il resto del prize pool va al creatore
+    creator_bonus = prize_pool - total_prizes
+    if creator_bonus > 0:
+        await db.users.update_one({'id': festival['creator_id']}, {'$inc': {'funds': creator_bonus}})
+    
+    # Aggiorna stato festival
+    await db.custom_festivals.update_one(
+        {'id': festival_id},
+        {'$set': {
+            'status': 'completed',
+            'winners': winners,
+            'total_prizes_distributed': total_prizes,
+            'completed_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        'success': True,
+        'winners': winners,
+        'total_prizes': total_prizes,
+        'message': 'Premi assegnati!'
     }
 
 # ==================== LIVE CEREMONY SYSTEM ====================
@@ -11460,8 +15407,6 @@ app.include_router(infrastructure_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
-app.include_router(challenges_router, prefix="/api")
-app.include_router(festivals_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

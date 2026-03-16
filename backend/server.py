@@ -8333,6 +8333,11 @@ GENRE_POSTER_IMAGES = {
     'thriller': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'thriller.jpeg'),
     'romance': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'romance.jpeg'),
     'comedy': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'comedy.jpeg'),
+    'fantasy': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'fantasy.jpeg'),
+    'adventure': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'adventure.jpeg'),
+    'noir': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'noir.jpeg'),
+    'horror': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'horror.jpeg'),
+    'drama': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'drama.jpeg'),
 }
 
 

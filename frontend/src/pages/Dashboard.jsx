@@ -533,7 +533,7 @@ const Dashboard = () => {
 
       {/* Release Film Popup */}
       <Dialog open={!!releasePopup} onOpenChange={() => setReleasePopup(null)}>
-        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
               <Globe className="w-5 h-5 text-amber-400" />

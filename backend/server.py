@@ -1343,6 +1343,7 @@ class PosterRequest(BaseModel):
     style: str = 'cinematic'
     cast_names: Optional[List[str]] = None
     force_fallback: Optional[bool] = False
+    production_house_name: Optional[str] = None
 
 class TranslationRequest(BaseModel):
     text: str
@@ -8140,6 +8141,10 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
     poster_tasks[task_id] = {'status': 'pending', 'poster_url': '', 'error': ''}
     logging.info(f"Poster task {task_id} started for: {request.title} ({request.genre})")
     
+    # Inject production house name from user if not provided
+    if not request.production_house_name:
+        request.production_house_name = user.get('production_house_name', '')
+    
     if not EMERGENT_LLM_KEY:
         poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'AI key not configured'}
         return {'task_id': task_id}
@@ -8205,6 +8210,10 @@ async def get_poster_status(task_id: str, user: dict = Depends(get_current_user)
 async def generate_poster(request: PosterRequest, user: dict = Depends(get_current_user)):
     """Generate a movie poster using GPT Image 1 (OpenAI) via Emergent LLM Key."""
     logging.info(f"Poster generation request for: {request.title} ({request.genre})")
+    
+    # Inject production house name from user if not provided
+    if not request.production_house_name:
+        request.production_house_name = user.get('production_house_name', '')
     
     if request.force_fallback:
         return await _generate_fallback_poster(request)
@@ -8319,142 +8328,223 @@ POSTER_DEFAULT_THEMES = [
 POSTER_PATTERNS = ['circles', 'lines', 'diamonds', 'rays', 'grid', 'nebula', 'vignette']
 
 
+# Genre-specific poster background images
+GENRE_POSTER_IMAGES = {
+    'thriller': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'thriller.jpeg'),
+    'romance': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'romance.jpeg'),
+    'comedy': os.path.join(os.path.dirname(__file__), 'assets', 'posters', 'comedy.jpeg'),
+}
+
+
 async def _generate_fallback_poster(request) -> dict:
     """Generate a diverse fallback poster using Pillow with genre-themed visuals."""
     from io import BytesIO
-    from PIL import Image as PILImage, ImageDraw
+    from PIL import Image as PILImage, ImageDraw, ImageFont
     import math
     
     width, height = 600, 900
-    img = PILImage.new('RGB', (width, height))
-    draw = ImageDraw.Draw(img)
-    
     genre = (request.genre or 'drama').lower()
     title = request.title or 'Film'
+    production_house = getattr(request, 'production_house_name', '') or ''
     
-    # Use title hash for consistent but varied results per film
-    seed = hash(title + genre) % 2**32
-    import random as rng
-    rng.seed(seed)
+    # Check if we have a genre-specific image
+    genre_image_path = GENRE_POSTER_IMAGES.get(genre)
+    has_genre_image = genre_image_path and os.path.exists(genre_image_path)
     
-    # Pick a random theme variant for this genre
-    themes = POSTER_GENRE_THEMES.get(genre, POSTER_DEFAULT_THEMES)
-    theme = rng.choice(themes)
-    top_color, bottom_color, accent = theme
+    if has_genre_image:
+        # Use the genre-specific image as background
+        try:
+            img = PILImage.open(genre_image_path).convert('RGB')
+            img = img.resize((width, height), PILImage.LANCZOS)
+        except Exception as e:
+            logging.warning(f"Failed to load genre image for {genre}: {e}")
+            has_genre_image = False
     
-    # Randomize colors slightly for more variety
-    def jitter(color, amount=25):
-        return tuple(max(0, min(255, c + rng.randint(-amount, amount))) for c in color)
+    if not has_genre_image:
+        # Fall back to gradient-based poster for other genres
+        img = PILImage.new('RGB', (width, height))
+        draw = ImageDraw.Draw(img)
+        
+        seed = hash(title + genre) % 2**32
+        import random as rng
+        rng.seed(seed)
+        
+        themes = POSTER_GENRE_THEMES.get(genre, POSTER_DEFAULT_THEMES)
+        theme = rng.choice(themes)
+        top_color, bottom_color, accent = theme
+        
+        def jitter(color, amount=25):
+            return tuple(max(0, min(255, c + rng.randint(-amount, amount))) for c in color)
+        
+        top_color = jitter(top_color, 20)
+        bottom_color = jitter(bottom_color, 10)
+        accent = jitter(accent, 15)
+        
+        diagonal = rng.random() < 0.4
+        for y in range(height):
+            for x in range(width) if diagonal else [0]:
+                if diagonal:
+                    ratio = (y / height * 0.7 + x / width * 0.3)
+                else:
+                    ratio = y / height
+                r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+                g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+                b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+                if diagonal:
+                    draw.point((x, y), fill=(r, g, b))
+                else:
+                    draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        pattern = rng.choice(POSTER_PATTERNS)
+        
+        if pattern == 'circles':
+            for _ in range(rng.randint(5, 15)):
+                cx, cy = rng.randint(-50, width + 50), rng.randint(-50, height)
+                r = rng.randint(30, 200)
+                opacity = rng.randint(10, 40)
+                col = accent + (opacity,)
+                draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], outline=col, width=rng.randint(1, 3))
+        elif pattern == 'lines':
+            for _ in range(rng.randint(5, 20)):
+                y_pos = rng.randint(0, height)
+                opacity = rng.randint(15, 50)
+                col = accent + (opacity,)
+                draw.line([(0, y_pos), (width, y_pos + rng.randint(-100, 100))], fill=col, width=rng.randint(1, 4))
+        elif pattern == 'diamonds':
+            for _ in range(rng.randint(3, 10)):
+                cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
+                s = rng.randint(20, 80)
+                opacity = rng.randint(15, 45)
+                col = accent + (opacity,)
+                draw.polygon([(cx, cy - s), (cx + s, cy), (cx, cy + s), (cx - s, cy)], outline=col, fill=None)
+        elif pattern == 'rays':
+            cx, cy = width // 2, height // 3
+            for i in range(rng.randint(8, 24)):
+                angle = (i / 24) * 2 * math.pi + rng.uniform(-0.1, 0.1)
+                ex = cx + int(math.cos(angle) * 800)
+                ey = cy + int(math.sin(angle) * 800)
+                opacity = rng.randint(8, 30)
+                col = accent + (opacity,)
+                draw.line([(cx, cy), (ex, ey)], fill=col, width=rng.randint(1, 3))
+        elif pattern == 'grid':
+            spacing = rng.randint(40, 80)
+            for x in range(0, width, spacing):
+                opacity = rng.randint(8, 25)
+                draw.line([(x, 0), (x, height)], fill=accent + (opacity,), width=1)
+            for y in range(0, height, spacing):
+                opacity = rng.randint(8, 25)
+                draw.line([(0, y), (width, y)], fill=accent + (opacity,), width=1)
+        elif pattern == 'nebula':
+            for _ in range(rng.randint(30, 80)):
+                cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
+                r = rng.randint(2, 40)
+                opacity = rng.randint(5, 30)
+                c = jitter(accent, 40) + (opacity,)
+                draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=c)
+        elif pattern == 'vignette':
+            for r in range(max(width, height), 0, -3):
+                opacity = max(0, min(60, int((1 - r / max(width, height)) * 60)))
+                draw.ellipse(
+                    [(width // 2 - r, height // 2 - r), (width // 2 + r, height // 2 + r)],
+                    outline=(0, 0, 0, opacity)
+                )
+        
+        for _ in range(rng.randint(10, 40)):
+            x = rng.randint(0, width)
+            y = rng.randint(0, height // 2)
+            size = rng.randint(1, 3)
+            brightness = rng.randint(100, 255)
+            draw.ellipse([(x, y), (x + size, y + size)], fill=(brightness, brightness, brightness))
+        
+        bar_style = rng.choice(['top', 'bottom', 'both', 'none'])
+        if bar_style in ('top', 'both'):
+            bar_h = rng.randint(2, 6)
+            bar_y = rng.randint(height // 5, height // 3)
+            draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
+        if bar_style in ('bottom', 'both'):
+            bar_h = rng.randint(2, 6)
+            bar_y = rng.randint(height * 2 // 3, height * 3 // 4)
+            draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
     
-    top_color = jitter(top_color, 20)
-    bottom_color = jitter(bottom_color, 10)
-    accent = jitter(accent, 15)
+    # --- Text overlay: Title + "un film [production house]" ---
+    draw = ImageDraw.Draw(img)
     
-    # Draw gradient background (with optional diagonal)
-    diagonal = rng.random() < 0.4
-    for y in range(height):
-        for x in range(width) if diagonal else [0]:
-            if diagonal:
-                ratio = (y / height * 0.7 + x / width * 0.3)
-            else:
-                ratio = y / height
-            r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-            g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-            b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-            if diagonal:
-                draw.point((x, y), fill=(r, g, b))
-            else:
-                draw.line([(0, y), (width, y)], fill=(r, g, b))
+    # Draw dark gradient at bottom for text readability
+    overlay = PILImage.new('RGBA', (width, height), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    gradient_start = int(height * 0.55)
+    for y in range(gradient_start, height):
+        alpha = int(220 * ((y - gradient_start) / (height - gradient_start)))
+        alpha = min(alpha, 220)
+        overlay_draw.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
+    img = img.convert('RGBA')
+    img = PILImage.alpha_composite(img, overlay)
+    img = img.convert('RGB')
+    draw = ImageDraw.Draw(img)
     
-    # Choose decorative pattern
-    pattern = rng.choice(POSTER_PATTERNS)
+    # Load fonts
+    try:
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 42)
+        font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 22)
+    except Exception:
+        font_title = ImageFont.load_default()
+        font_subtitle = ImageFont.load_default()
     
-    if pattern == 'circles':
-        for _ in range(rng.randint(5, 15)):
-            cx, cy = rng.randint(-50, width + 50), rng.randint(-50, height)
-            r = rng.randint(30, 200)
-            opacity = rng.randint(10, 40)
-            col = accent + (opacity,)
-            draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], outline=col, width=rng.randint(1, 3))
+    # Draw film title (large, centered, with shadow)
+    title_upper = title.upper()
+    # Word-wrap title if too long
+    title_lines = []
+    words = title_upper.split()
+    current_line = ""
+    for word in words:
+        test_line = f"{current_line} {word}".strip() if current_line else word
+        bbox = draw.textbbox((0, 0), test_line, font=font_title)
+        if bbox[2] - bbox[0] > width - 40:
+            if current_line:
+                title_lines.append(current_line)
+            current_line = word
+        else:
+            current_line = test_line
+    if current_line:
+        title_lines.append(current_line)
+    if not title_lines:
+        title_lines = [title_upper]
     
-    elif pattern == 'lines':
-        for _ in range(rng.randint(5, 20)):
-            y_pos = rng.randint(0, height)
-            opacity = rng.randint(15, 50)
-            col = accent + (opacity,)
-            draw.line([(0, y_pos), (width, y_pos + rng.randint(-100, 100))], fill=col, width=rng.randint(1, 4))
+    # Calculate title Y position
+    line_height = 50
+    total_title_height = len(title_lines) * line_height
+    title_start_y = int(height * 0.72) - total_title_height // 2
     
-    elif pattern == 'diamonds':
-        for _ in range(rng.randint(3, 10)):
-            cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
-            s = rng.randint(20, 80)
-            opacity = rng.randint(15, 45)
-            col = accent + (opacity,)
-            draw.polygon([(cx, cy - s), (cx + s, cy), (cx, cy + s), (cx - s, cy)], outline=col, fill=None)
+    for i, line in enumerate(title_lines):
+        bbox = draw.textbbox((0, 0), line, font=font_title)
+        tw = bbox[2] - bbox[0]
+        tx = (width - tw) // 2
+        ty = title_start_y + i * line_height
+        # Shadow
+        for dx, dy in [(2, 2), (-1, -1), (2, 0), (0, 2)]:
+            draw.text((tx + dx, ty + dy), line, font=font_title, fill=(0, 0, 0))
+        draw.text((tx, ty), line, font=font_title, fill=(255, 255, 255))
     
-    elif pattern == 'rays':
-        cx, cy = width // 2, height // 3
-        for i in range(rng.randint(8, 24)):
-            angle = (i / 24) * 2 * math.pi + rng.uniform(-0.1, 0.1)
-            ex = cx + int(math.cos(angle) * 800)
-            ey = cy + int(math.sin(angle) * 800)
-            opacity = rng.randint(8, 30)
-            col = accent + (opacity,)
-            draw.line([(cx, cy), (ex, ey)], fill=col, width=rng.randint(1, 3))
+    # Draw "un film [production house]" below title
+    if production_house:
+        subtitle = f"un film {production_house}"
+        bbox2 = draw.textbbox((0, 0), subtitle, font=font_subtitle)
+        stw = bbox2[2] - bbox2[0]
+        stx = (width - stw) // 2
+        sty = title_start_y + total_title_height + 10
+        # Shadow
+        for dx, dy in [(1, 1), (-1, -1)]:
+            draw.text((stx + dx, sty + dy), subtitle, font=font_subtitle, fill=(0, 0, 0))
+        draw.text((stx, sty), subtitle, font=font_subtitle, fill=(220, 180, 50))
     
-    elif pattern == 'grid':
-        spacing = rng.randint(40, 80)
-        for x in range(0, width, spacing):
-            opacity = rng.randint(8, 25)
-            draw.line([(x, 0), (x, height)], fill=accent + (opacity,), width=1)
-        for y in range(0, height, spacing):
-            opacity = rng.randint(8, 25)
-            draw.line([(0, y), (width, y)], fill=accent + (opacity,), width=1)
-    
-    elif pattern == 'nebula':
-        for _ in range(rng.randint(30, 80)):
-            cx, cy = rng.randint(0, width), rng.randint(0, height * 2 // 3)
-            r = rng.randint(2, 40)
-            opacity = rng.randint(5, 30)
-            c = jitter(accent, 40) + (opacity,)
-            draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=c)
-    
-    elif pattern == 'vignette':
-        # Dark corners
-        for r in range(max(width, height), 0, -3):
-            opacity = max(0, min(60, int((1 - r / max(width, height)) * 60)))
-            draw.ellipse(
-                [(width // 2 - r, height // 2 - r), (width // 2 + r, height // 2 + r)],
-                outline=(0, 0, 0, opacity)
-            )
-    
-    # Always add some subtle stars/particles in upper half
-    for _ in range(rng.randint(10, 40)):
-        x = rng.randint(0, width)
-        y = rng.randint(0, height // 2)
-        size = rng.randint(1, 3)
-        brightness = rng.randint(100, 255)
-        draw.ellipse([(x, y), (x + size, y + size)], fill=(brightness, brightness, brightness))
-    
-    # Add accent bars (genre-specific feel)
-    bar_style = rng.choice(['top', 'bottom', 'both', 'none'])
-    if bar_style in ('top', 'both'):
-        bar_h = rng.randint(2, 6)
-        bar_y = rng.randint(height // 5, height // 3)
-        draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
-    if bar_style in ('bottom', 'both'):
-        bar_h = rng.randint(2, 6)
-        bar_y = rng.randint(height * 2 // 3, height * 3 // 4)
-        draw.rectangle([(0, bar_y), (width, bar_y + bar_h)], fill=accent)
-    
-    # Save poster (no text overlay - title is part of the AI image)
+    # Save poster
     jpeg_buffer = BytesIO()
     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
     jpeg_bytes = jpeg_buffer.getvalue()
     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
     poster_data_url = f"data:image/jpeg;base64,{image_base64}"
     
-    logging.info(f"Fallback poster generated for '{title}' ({genre}, pattern={pattern}): {len(jpeg_bytes)} bytes")
+    logging.info(f"Fallback poster generated for '{title}' ({genre}, genre_image={has_genre_image}): {len(jpeg_bytes)} bytes")
     return {'poster_base64': image_base64, 'poster_url': poster_data_url, 'is_fallback': True}
 
 @api_router.post("/ai/translate")

@@ -64,6 +64,7 @@ const Dashboard = () => {
   const [selectedContinent, setSelectedContinent] = useState('europe');
   const [releasing, setReleasing] = useState(false);
   const [hasStudio, setHasStudio] = useState(false);
+  const [releaseSuccess, setReleaseSuccess] = useState(null);
   // Shooting system
   const [shootingFilms, setShootingFilms] = useState([]);
   const [shootingPopup, setShootingPopup] = useState(null);
@@ -280,13 +281,12 @@ const Dashboard = () => {
         distribution_continent: selectedZone === 'continental' ? selectedContinent : null
       });
       if (res.data.success) {
-        toast.success(
-          language === 'it'
-            ? `"${releasePopup.title}" è nelle sale! Incasso giorno 1: $${res.data.opening_day_revenue?.toLocaleString()}`
-            : `"${releasePopup.title}" is in theaters! Day 1: $${res.data.opening_day_revenue?.toLocaleString()}`
-        );
+        const filmTitle = releasePopup.title;
+        const openingRevenue = res.data.opening_day_revenue;
+        const zoneName = selectedZone === 'national' ? 'Nazionale' : selectedZone === 'continental' ? 'Continentale' : 'Mondiale';
         setPendingFilms(prev => prev.filter(f => f.id !== releasePopup.id));
         setReleasePopup(null);
+        setReleaseSuccess({ title: filmTitle, revenue: openingRevenue, zone: zoneName, poster: releasePopup.poster_url });
         refreshUser().catch(() => {});
         try {
           const filmsRes = await api.get('/films/my/featured?limit=9');
@@ -692,7 +692,11 @@ const Dashboard = () => {
               <Button
                 size="sm"
                 className="w-full bg-red-500/20 text-red-300 hover:bg-red-500/30"
-                onClick={() => { setShootingPopup(releasePopup); setReleasePopup(null); }}
+                onClick={() => { 
+                  const dirImg = Math.random() < 0.5 ? '/images/shooting/director_female.jpeg' : '/images/shooting/director_male.jpeg';
+                  setShootingPopup({...releasePopup, _directorImg: dirImg}); 
+                  setReleasePopup(null); 
+                }}
                 data-testid="start-shooting-from-release"
               >
                 <Clapperboard className="w-4 h-4 mr-2" /> Inizia le Riprese ({shootingDays} giorni)
@@ -717,6 +721,37 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Release Success Celebration Dialog */}
+      <Dialog open={!!releaseSuccess} onOpenChange={(open) => { if (!open) setReleaseSuccess(null); }}>
+        <DialogContent className="bg-[#0a0a0a] border-amber-500/30 max-w-sm p-0 overflow-hidden">
+          <div className="relative">
+            <img src="https://customer-assets.emergentagent.com/job_0f5ad56a-c26f-4f77-9bc6-853ae85e3ca2/artifacts/69t544vn_IMG_0554.jpeg" alt="CineWorld Cinema" className="w-full h-44 object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-3 right-3">
+              <p className="text-amber-400 font-['Bebas_Neue'] text-2xl leading-tight">IN SALA ORA!</p>
+            </div>
+          </div>
+          {releaseSuccess && (
+            <div className="px-4 pb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                {releaseSuccess.poster && <img src={releaseSuccess.poster} alt="" className="w-12 h-16 rounded object-cover border border-white/10" />}
+                <div>
+                  <p className="font-bold text-base">{releaseSuccess.title}</p>
+                  <p className="text-xs text-amber-400">Distribuzione {releaseSuccess.zone}</p>
+                </div>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
+                <p className="text-[10px] text-gray-400 mb-0.5">Incasso Giorno 1</p>
+                <p className="text-2xl font-bold text-green-400">${releaseSuccess.revenue?.toLocaleString()}</p>
+              </div>
+              <Button className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" onClick={() => setReleaseSuccess(null)} data-testid="close-release-success">
+                Fantastico!
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Shooting Confirmation Dialog */}
       <Dialog open={!!shootingPopup} onOpenChange={(open) => { if (!open) setShootingPopup(null); }}>
         <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-sm">
@@ -728,11 +763,17 @@ const Dashboard = () => {
           </DialogHeader>
           {shootingPopup && (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 bg-black/30 rounded-lg p-3 border border-white/5">
-                <img src={shootingPopup.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'} alt="" className="w-10 h-14 rounded object-cover" />
-                <div>
-                  <p className="font-semibold text-sm">{shootingPopup.title}</p>
-                  <p className="text-xs text-gray-400">Qualità: {(shootingPopup.quality_score || 0).toFixed(0)}%</p>
+              {/* Random director image */}
+              <div className="relative rounded-lg overflow-hidden">
+                <img 
+                  src={shootingPopup._directorImg || '/images/shooting/director_female.jpeg'} 
+                  alt="Director on set" 
+                  className="w-full h-40 object-cover rounded-lg"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <div className="absolute bottom-2 left-3 right-3">
+                  <p className="font-['Bebas_Neue'] text-lg text-white drop-shadow-lg">{shootingPopup.title}</p>
+                  <p className="text-xs text-gray-300">Qualità: {(shootingPopup.quality_score || 0).toFixed(0)}%</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

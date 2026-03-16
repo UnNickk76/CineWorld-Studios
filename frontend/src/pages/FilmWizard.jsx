@@ -502,7 +502,8 @@ const FilmWizard = () => {
         genre: filmData.genre, 
         description: filmData.poster_prompt || filmData.title, 
         style: 'cinematic',
-        cast_names: castNames.slice(0, 5)
+        cast_names: castNames.slice(0, 5),
+        production_house_name: user?.production_house_name || ''
       });
       
       const taskId = startRes.data.task_id;
@@ -572,7 +573,8 @@ const FilmWizard = () => {
       description: filmData.poster_prompt || filmData.title,
       style: 'classic',
       cast_names: castNames.slice(0, 5),
-      force_fallback: true
+      force_fallback: true,
+      production_house_name: user?.production_house_name || ''
     });
     if (res.data.poster_url) {
       setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));
@@ -598,7 +600,8 @@ const FilmWizard = () => {
         description: filmData.title,
         style: 'classic',
         cast_names: castNames.slice(0, 5),
-        force_fallback: true
+        force_fallback: true,
+        production_house_name: user?.production_house_name || ''
       });
       if (res.data.poster_url) {
         setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));

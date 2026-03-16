@@ -874,6 +874,10 @@ const FilmDetail = () => {
                       controls 
                       className="w-full h-full"
                       poster={film.poster_url}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<p class="text-red-400 text-center py-8 text-sm">Trailer non disponibile. Puoi rigenerarlo.</p>';
+                      }}
                     >
                       Il tuo browser non supporta i video.
                     </video>

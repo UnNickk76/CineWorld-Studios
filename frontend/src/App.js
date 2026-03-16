@@ -466,8 +466,8 @@ const TopNavbar = () => {
             <PopoverContent className="w-48 bg-[#1A1A1A] border-white/10 p-2">
               <div className="space-y-1">
                 <div className="border-b border-white/10 pb-2 mb-2">
-                  <p className="font-semibold text-sm">{user?.nickname}</p>
-                  <p className="text-xs text-gray-400">{user?.production_house_name}</p>
+                  <p className="font-semibold text-sm">{user?.production_house_name || user?.nickname}</p>
+                  <p className="text-xs text-gray-400">{user?.nickname}</p>
                   {levelInfo && (
                     <div className="flex items-center gap-1 mt-1">
                       <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>
@@ -522,7 +522,7 @@ const TopNavbar = () => {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold text-sm text-white">{user?.nickname}</p>
+                  <p className="font-semibold text-sm text-white">{user?.production_house_name || user?.nickname}</p>
                   <div className="flex items-center gap-2">
                     {levelInfo && (
                       <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>

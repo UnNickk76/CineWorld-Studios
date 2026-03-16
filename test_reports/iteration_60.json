@@ -1,0 +1,80 @@
+{
+  "summary": "Completed testing of 1v1 CinePass battle reward fix and UI improvements. All key fixes verified working - offline battles now correctly give +2 CinePass, UI shows production_house_name, film grid deduplication works, and poster/trailer fallbacks are in place.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "1v1_offline_battle_cinepass_reward": {
+      "status": "PASS",
+      "details": "Battle API correctly returns cinepass_reward field. Winner receives +2 CinePass. Backend uses 'total_xp' instead of 'xp' (root cause fix). Verified via pytest and API testing."
+    },
+    "cinepass_display_navbar": {
+      "status": "PASS",
+      "details": "CinePass balance (144) displayed correctly in navbar with cyan badge and ticket icon"
+    },
+    "production_house_name_welcome": {
+      "status": "PASS",
+      "details": "Welcome message shows 'Anacapito Studio's' (production_house_name) instead of nickname"
+    },
+    "production_house_name_dropdown": {
+      "status": "PASS",
+      "details": "Profile dropdown shows 'Anacapito Studio's' as primary name with 'NeoMorpheus' as secondary nickname"
+    },
+    "film_deduplication": {
+      "status": "PASS",
+      "details": "Dashboard film grid shows unique films without duplicates. Backend test confirmed no duplicate IDs."
+    },
+    "poster_fallback": {
+      "status": "PASS",
+      "details": "Dashboard.jsx line 432 has onError handler that sets fallback image to Unsplash cinema photo"
+    },
+    "trailer_error_handling": {
+      "status": "PASS",
+      "details": "FilmDetail.jsx line 877 has onError handler that displays error message and allows regeneration"
+    },
+    "login_flow": {
+      "status": "PASS",
+      "details": "Login with ACCEDI button works correctly, redirects to dashboard with welcome message"
+    },
+    "challenge_limits_api": {
+      "status": "PASS",
+      "details": "GET /api/challenges/limits returns cinepass_reward_per_win: 2"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter60_battle_cinepass.py",
+    "/app/test_reports/pytest/pytest_iter60.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iter60_battle_cinepass.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (all UI tests passed)"
+  },
+  "test_credentials": {
+    "email": "fandrex1@gmail.com",
+    "password": "Ciaociao1",
+    "production_house_name": "Anacapito Studio's",
+    "cinepass_balance": 144
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All reported bugs have been fixed and verified. 1v1 battle CinePass reward now works (root cause was using 'xp' instead of 'total_xp' in $inc). UI correctly shows production_house_name in welcome message and profile dropdown. Film deduplication, poster fallback, and trailer error handling all implemented correctly.",
+  "verified_fixes": {
+    "1v1_cinepass_reward_bug": "FIXED - Changed $inc field from 'xp' to 'total_xp' in server.py line 11664-11669 for offline battle and line 11314-11325 for online battle. Also added cinepass increment.",
+    "production_house_name_display": "FIXED - Dashboard.jsx line 236 uses production_house_name, App.js line 469 shows production_house_name in profile dropdown",
+    "film_deduplication": "FIXED - Dashboard.jsx line 197 deduplicates films by ID using Map",
+    "poster_fallback": "FIXED - Dashboard.jsx line 432 has onError fallback",
+    "trailer_error_handling": "FIXED - FilmDetail.jsx line 873-879 has video onError handler"
+  }
+}

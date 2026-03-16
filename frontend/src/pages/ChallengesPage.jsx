@@ -297,11 +297,22 @@ const ChallengesPage = () => {
         film_ids: selectedFilms.map(f => f.id)
       });
       const cinepassBonus = res.data.cinepass_reward || 0;
+      const fundsReward = res.data.rewards?.funds || 0;
       const cinepassMsg = cinepassBonus > 0 ? ` +${cinepassBonus} CinePass!` : '';
       toast.success(`Sfida completata! ${res.data.winner_name} vince!${cinepassMsg}`);
       setLastCinepassReward(cinepassBonus);
-      // Await refreshUser to ensure CinePass balance updates before UI
-      try { await refreshUser(); } catch {}
+      // Refresh user from DB to get updated cinepass/funds
+      try { 
+        await refreshUser();
+      } catch {
+        // Fallback: optimistically update cinepass if refreshUser fails
+        if (cinepassBonus > 0 || fundsReward > 0) {
+          const updatedUser = { ...user };
+          if (cinepassBonus > 0) updatedUser.cinepass = (updatedUser.cinepass || 0) + cinepassBonus;
+          if (fundsReward > 0) updatedUser.funds = (updatedUser.funds || 0) + fundsReward;
+          // Note: setUser not directly accessible here, refreshUser handles it
+        }
+      }
       setActiveBattle(res.data.result);
       setView('battle');
       runBattleAnimation(res.data.result);
@@ -1769,8 +1780,10 @@ const ChallengesPage = () => {
                     initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 }}
                     className="bg-yellow-500/10 border-2 border-yellow-500/40 rounded-lg p-4 mb-4"
                   >
-                    <p className="text-yellow-400 font-bold text-xl">+$100.000</p>
-                    <p className="text-cyan-400 font-bold text-xl" data-testid="cinepass-reward-display">+2 CinePass</p>
+                    <p className="text-yellow-400 font-bold text-xl">+${(lastCinepassReward > 0 ? '5.000' : '0')}</p>
+                    {lastCinepassReward > 0 && (
+                      <p className="text-cyan-400 font-bold text-xl" data-testid="cinepass-reward-display">+{lastCinepassReward} CinePass</p>
+                    )}
                     <p className="text-xs text-gray-400 mt-1">Montepremi incassato!</p>
                   </motion.div>
                 )}

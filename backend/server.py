@@ -2470,7 +2470,7 @@ async def perform_create_star_action(film_id: str, actor_id: str = Query(...), u
     )
     
     # Award XP to user
-    await db.users.update_one({'id': user['id']}, {'$inc': {'xp': 500, 'fame': 10}})
+    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 500, 'fame': 10}})
     
     return {
         'success': True,
@@ -10569,7 +10569,7 @@ async def announce_winner_with_audio(festival_id: str, category_id: str, languag
         if winner.get('owner_id'):
             await db.users.update_one(
                 {'id': winner['owner_id']},
-                {'$inc': {'xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}}
+                {'$inc': {'total_xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}}
             )
         
         # Generate announcement text
@@ -11309,17 +11309,19 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
             loser_user_ids = []
             prize_pool = 0
     
-    # Apply rewards to winners (including prize pool)
+    # Apply rewards to winners (including prize pool + CinePass)
+    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
     prize_per_winner = prize_pool // max(len(winner_user_ids), 1) if prize_pool > 0 else 0
     for uid in winner_user_ids:
         await db.users.update_one(
             {'id': uid},
             {'$inc': {
-                'xp': winner_rewards['xp'],
+                'total_xp': winner_rewards['xp'],
                 'fame': winner_rewards['fame'],
                 'funds': winner_rewards['funds'] + prize_per_winner,
                 'challenge_wins': 1,
-                'challenge_total': 1
+                'challenge_total': 1,
+                'cinepass': cinepass_reward
             }}
         )
         
@@ -11340,7 +11342,7 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
             'user_id': uid,
             'type': 'challenge_won',
             'title': 'Sfida Vinta!',
-            'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP',
+            'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP, +{cinepass_reward} CinePass',
             'data': {'challenge_id': challenge_id, 'prize': prize_per_winner},
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
@@ -11351,7 +11353,7 @@ async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
         await db.users.update_one(
             {'id': uid},
             {'$inc': {
-                'xp': loser_penalties['xp'],
+                'total_xp': loser_penalties['xp'],
                 'fame': loser_penalties['fame'],
                 'challenge_losses': 1,
                 'challenge_total': 1
@@ -11663,7 +11665,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
     cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
     for uid in winner_ids:
         await db.users.update_one({'id': uid}, {'$inc': {
-            'xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
+            'total_xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
             'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1,
             'cinepass': cinepass_reward
         }})
@@ -11671,7 +11673,7 @@ async def start_offline_battle(data: dict, user: dict = Depends(get_current_user
     # Apply reduced penalties to losers
     for uid in loser_ids:
         await db.users.update_one({'id': uid}, {'$inc': {
-            'xp': offline_loser_penalties['xp'], 'fame': offline_loser_penalties['fame'],
+            'total_xp': offline_loser_penalties['xp'], 'fame': offline_loser_penalties['fame'],
             'challenge_losses': 1, 'challenge_total': 1
         }})
     

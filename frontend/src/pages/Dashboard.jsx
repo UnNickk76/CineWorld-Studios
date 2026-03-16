@@ -194,7 +194,7 @@ const Dashboard = () => {
           api.get('/revenue/pending-all')
         ]);
         setStats(statsRes.data);
-        setFilms(filmsRes.data);  // Already limited and sorted by backend
+        setFilms(Array.from(new Map(filmsRes.data.map(f => [f.id, f])).values()));  // Deduplicate by ID
         setChallenges(challengesRes.data);
         setPendingRevenue(pendingRes.data);
         
@@ -233,7 +233,7 @@ const Dashboard = () => {
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
         <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
-          {t('welcome')}, <span className="text-yellow-500">{user?.nickname}</span>
+          {t('welcome')}, <span className="text-yellow-500">{user?.production_house_name || user?.nickname}</span>
         </h1>
         <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
       </motion.div>
@@ -424,7 +424,13 @@ const Dashboard = () => {
             {films.map(film => (
               <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer hover:border-white/15 transition-colors" onClick={() => navigate(`/films/${film.id}`)}>
                 <div className="aspect-[2/3] relative">
-                  <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
+                  <img 
+                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} 
+                    alt={film.title} 
+                    className="w-full h-full object-cover" 
+                    loading="lazy"
+                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'; }}
+                  />
                   {film.is_sequel && (
                     <div className="absolute top-0.5 right-0.5 bg-purple-600/90 text-white text-[6px] px-1 py-0.5 rounded font-bold">
                       #{film.sequel_number || 2}

@@ -359,17 +359,17 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* Pending Films Section */}
-      {pendingFilms.length > 0 && (
-        <Card className="mb-4 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/20" data-testid="pending-films-section">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" />
-                {language === 'it' ? 'FILM IN ATTESA DI RILASCIO' : 'FILMS PENDING RELEASE'}
-                <Badge className="bg-amber-500 text-black text-xs">{pendingFilms.length}</Badge>
-              </h3>
-            </div>
+      {/* Pending Films Section - always visible */}
+      <Card className={`mb-4 border ${pendingFilms.length > 0 ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/20' : 'bg-[#1A1A1A] border-white/5'}`} data-testid="pending-films-section">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-400" />
+              {language === 'it' ? 'FILM IN ATTESA DI RILASCIO' : 'FILMS PENDING RELEASE'}
+              {pendingFilms.length > 0 && <Badge className="bg-amber-500 text-black text-xs">{pendingFilms.length}</Badge>}
+            </h3>
+          </div>
+          {pendingFilms.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {pendingFilms.map(film => (
                 <div
@@ -394,9 +394,16 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center py-4" data-testid="no-pending-films">
+              <p className="text-gray-500 text-xs mb-2">{language === 'it' ? 'Nessun film in attesa di rilascio.' : 'No films pending release.'}</p>
+              <Button size="sm" className="h-7 text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30" onClick={() => navigate('/create-film')} data-testid="create-film-from-pending">
+                {language === 'it' ? 'Crea un Film' : 'Create a Film'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Release Film Popup */}
       <Dialog open={!!releasePopup} onOpenChange={() => setReleasePopup(null)}>

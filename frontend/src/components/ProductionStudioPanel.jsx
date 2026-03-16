@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clapperboard, Wand2, Users, Sparkles, Star, ArrowUpCircle, Loader2, Check, Crown, Pen, Trash2, Plus } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -32,6 +32,7 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
   const [draftGenre, setDraftGenre] = useState('action');
   const [draftTitle, setDraftTitle] = useState('');
   const [generatingDraft, setGeneratingDraft] = useState(false);
+  const panelRef = useRef(null);
 
   useEffect(() => {
     api.get('/production-studio/status').then(r => setStudioData(r.data)).catch(() => {});
@@ -128,7 +129,12 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
             <div
               key={tab.id}
               className={`p-3 rounded-lg border cursor-pointer transition-all bg-gradient-to-br ${tab.color} ${isActive ? 'ring-2 ring-white/20 scale-[1.02]' : 'opacity-80 hover:opacity-100'}`}
-              onClick={() => { setActiveTab(isActive ? null : tab.id); if (tab.id === 'casting' && !castingData) loadCasting(); }}
+              onClick={() => { 
+                const newTab = isActive ? null : tab.id;
+                setActiveTab(newTab); 
+                if (tab.id === 'casting' && !castingData) loadCasting(); 
+                if (newTab) setTimeout(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+              }}
               data-testid={`studio-tab-${tab.id}`}
             >
               <Icon className={`w-5 h-5 mb-1 ${tab.accent}`} />
@@ -138,6 +144,8 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
         })}
       </div>
 
+      {/* Panel Content Area */}
+      <div ref={panelRef}>
       {/* Pre-Production Panel */}
       {activeTab === 'pre' && studioData && (
         <div className="space-y-2" data-testid="pre-production-panel">
@@ -324,6 +332,7 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
         </div>
       )}
 
+      </div>
       {/* Upgrade Section */}
       {upgradeInfo && (
         <div className="space-y-2 p-3 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-lg border border-purple-500/20">

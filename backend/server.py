@@ -9473,7 +9473,7 @@ async def delete_system_note(note_id: str, user: dict = Depends(get_current_user
 async def get_production_studio_status(user: dict = Depends(get_current_user)):
     """Get production studio status and capabilities."""
     studio = await db.infrastructure.find_one(
-        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
     )
     if not studio:
         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
@@ -9520,7 +9520,7 @@ class PreProductionRequest(BaseModel):
 async def apply_pre_production(film_id: str, req: PreProductionRequest, user: dict = Depends(get_current_user)):
     """Apply pre-production bonuses to a pending film."""
     studio = await db.infrastructure.find_one(
-        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
     )
     if not studio:
         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
@@ -9573,7 +9573,7 @@ async def apply_pre_production(film_id: str, req: PreProductionRequest, user: di
 async def remaster_film(film_id: str, user: dict = Depends(get_current_user)):
     """Remaster a released film to improve its quality."""
     studio = await db.infrastructure.find_one(
-        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
     )
     if not studio:
         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
@@ -9631,7 +9631,7 @@ async def remaster_film(film_id: str, user: dict = Depends(get_current_user)):
 async def get_casting_agency(user: dict = Depends(get_current_user)):
     """Get available actors from the casting agency (weekly refresh)."""
     studio = await db.infrastructure.find_one(
-        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
     )
     if not studio:
         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
@@ -9690,7 +9690,7 @@ class StudioDraftRequest(BaseModel):
 async def generate_studio_draft(req: StudioDraftRequest, user: dict = Depends(get_current_user)):
     """Generate a screenplay draft from the production studio."""
     studio = await db.infrastructure.find_one(
-        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
     )
     if not studio:
         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")

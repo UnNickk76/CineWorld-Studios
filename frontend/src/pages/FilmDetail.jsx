@@ -863,7 +863,7 @@ const FilmDetail = () => {
                 <Film className="w-5 h-5 text-purple-400" /> Trailer
                 {film.trailer_url && <Badge className="bg-green-500/20 text-green-400 text-xs ml-2">Generato</Badge>}
               </CardTitle>
-              <CardDescription className="text-xs">{language === 'it' ? 'Genera un trailer promozionale gratuito' : 'Generate a free promotional trailer'}</CardDescription>
+              <CardDescription className="text-xs">{language === 'it' ? 'Trailer promozionale del film' : 'Film promotional trailer'}</CardDescription>
             </CardHeader>
             <CardContent>
               {film.trailer_url ? (
@@ -904,30 +904,21 @@ const FilmDetail = () => {
                     </Button>
                   </div>
                 </div>
-              ) : generatingTrailer ? (
-                <div className="text-center py-8 space-y-3">
-                  <RefreshCw className="w-10 h-10 mx-auto text-purple-400 animate-spin" />
-                  <p className="text-purple-300">{language === 'it' ? 'Generazione trailer in corso...' : 'Generating trailer...'}</p>
-                  <p className="text-xs text-gray-400">{language === 'it' ? 'Attendere qualche secondo' : 'Please wait a few seconds'}</p>
-                </div>
               ) : (
                 <div className="text-center py-6 space-y-3">
-                  <Film className="w-12 h-12 mx-auto text-purple-400/50" />
-                  {isOwner ? (
-                    <Button 
-                      onClick={() => generateTrailer()} 
-                      size="sm" 
-                      className="bg-purple-600 hover:bg-purple-500"
-                      data-testid="generate-trailer-btn"
-                    >
-                      <Video className="w-4 h-4 mr-1" />
-                      {language === 'it' ? 'Genera Trailer Gratuito' : 'Generate Free Trailer'}
-                    </Button>
-                  ) : (
-                    <p className="text-xs text-gray-500">
-                      {language === 'it' ? 'Solo il proprietario può generare il trailer' : 'Only the owner can generate the trailer'}
+                  <Film className="w-12 h-12 mx-auto text-purple-400/30" />
+                  <div className="space-y-1">
+                    <p className="text-purple-300 font-semibold text-sm">
+                      {language === 'it' ? 'Funzionalità in Sviluppo' : 'Feature In Development'}
                     </p>
-                  )}
+                    <p className="text-xs text-gray-500">
+                      {language === 'it' ? 'La generazione dei trailer sarà disponibile a breve. Stiamo lavorando per offrirti la migliore esperienza possibile!' : 'Trailer generation will be available soon. We are working to offer you the best experience!'}
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-1">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-purple-300 font-medium">Coming Soon</span>
+                  </div>
                 </div>
               )}
             </CardContent>

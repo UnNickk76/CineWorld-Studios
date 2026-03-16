@@ -254,6 +254,7 @@ async def update_profile(
     nickname: Optional[str] = None,
     language: Optional[str] = None,
     avatar_id: Optional[str] = None,
+    studio_country: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
     updates = {}
@@ -261,6 +262,8 @@ async def update_profile(
         updates['nickname'] = nickname
     if language:
         updates['language'] = language
+    if studio_country:
+        updates['studio_country'] = studio_country
     
     if updates:
         await db.users.update_one({'id': user['id']}, {'$set': updates})

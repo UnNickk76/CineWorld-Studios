@@ -47,16 +47,22 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 // useTranslations imported from contexts
 
 const Dashboard = () => {
-  const { user, api, refreshUser } = useContext(AuthContext);
+  const { user, api, refreshUser, updateUser } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const [stats, setStats] = useState(null);
   const [films, setFilms] = useState([]);
+  const [pendingFilms, setPendingFilms] = useState([]);
   const [challenges, setChallenges] = useState({ daily: [], weekly: [] });
   const [catchupData, setCatchupData] = useState(null);
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collecting, setCollecting] = useState(false);
   const [emergingCount, setEmergingCount] = useState(0);
   const [availableContests, setAvailableContests] = useState(0);
+  const [releasePopup, setReleasePopup] = useState(null); // film to release
+  const [distConfig, setDistConfig] = useState(null);
+  const [selectedZone, setSelectedZone] = useState('national');
+  const [selectedContinent, setSelectedContinent] = useState('europe');
+  const [releasing, setReleasing] = useState(false);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -187,16 +193,18 @@ const Dashboard = () => {
           refreshUser();
         }
         
-        const [statsRes, filmsRes, challengesRes, pendingRes] = await Promise.all([
+        const [statsRes, filmsRes, challengesRes, pendingRes, pendingFilmsRes] = await Promise.all([
           api.get('/statistics/my'),
           api.get('/films/my/featured?limit=9'),
           api.get('/challenges'),
-          api.get('/revenue/pending-all')
+          api.get('/revenue/pending-all'),
+          api.get('/films/pending')
         ]);
         setStats(statsRes.data);
         setFilms(Array.from(new Map(filmsRes.data.map(f => [f.id, f])).values()));  // Deduplicate by ID
         setChallenges(challengesRes.data);
         setPendingRevenue(pendingRes.data);
+        setPendingFilms(pendingFilmsRes.data || []);
         
         // Fetch emerging screenplays count for badge
         try {
@@ -228,6 +236,53 @@ const Dashboard = () => {
       clearInterval(revenueInterval);
     };
   }, [api]);
+
+  const openReleasePopup = async (film) => {
+    setReleasePopup(film);
+    setSelectedZone('national');
+    setSelectedContinent('europe');
+    try {
+      const res = await api.get('/distribution/config');
+      setDistConfig(res.data);
+    } catch {}
+  };
+
+  const handleRelease = async () => {
+    if (!releasePopup || !distConfig) return;
+    setReleasing(true);
+    try {
+      const res = await api.post(`/films/${releasePopup.id}/release`, {
+        distribution_zone: selectedZone,
+        distribution_continent: selectedZone === 'continental' ? selectedContinent : null
+      });
+      if (res.data.success) {
+        toast.success(
+          language === 'it'
+            ? `"${releasePopup.title}" è nelle sale! Incasso giorno 1: $${res.data.opening_day_revenue?.toLocaleString()}`
+            : `"${releasePopup.title}" is in theaters! Day 1: $${res.data.opening_day_revenue?.toLocaleString()}`
+        );
+        setPendingFilms(prev => prev.filter(f => f.id !== releasePopup.id));
+        setReleasePopup(null);
+        refreshUser().catch(() => {});
+        try {
+          const filmsRes = await api.get('/films/my/featured?limit=9');
+          setFilms(Array.from(new Map(filmsRes.data.map(f => [f.id, f])).values()));
+        } catch {}
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore nel rilascio');
+    } finally {
+      setReleasing(false);
+    }
+  };
+
+  const getZoneCost = () => {
+    if (!distConfig) return { funds: 0, cinepass: 0 };
+    const zone = distConfig.zones[selectedZone];
+    if (!zone) return { funds: 0, cinepass: 0 };
+    const qf = 1.0 + ((releasePopup?.quality_score || 50) - 50) / 200;
+    return { funds: Math.round(zone.base_cost * qf), cinepass: zone.cinepass_cost };
+  };
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">
@@ -303,6 +358,164 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Pending Films Section */}
+      {pendingFilms.length > 0 && (
+        <Card className="mb-4 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/20" data-testid="pending-films-section">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                {language === 'it' ? 'FILM IN ATTESA DI RILASCIO' : 'FILMS PENDING RELEASE'}
+                <Badge className="bg-amber-500 text-black text-xs">{pendingFilms.length}</Badge>
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {pendingFilms.map(film => (
+                <div
+                  key={film.id}
+                  className="flex items-center gap-2 bg-black/30 rounded-lg p-2 cursor-pointer hover:bg-black/50 transition-colors border border-white/5 hover:border-amber-500/30"
+                  onClick={() => openReleasePopup(film)}
+                  data-testid={`pending-film-${film.id}`}
+                >
+                  <img
+                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'}
+                    alt={film.title}
+                    className="w-10 h-14 object-cover rounded"
+                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{film.title}</p>
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Qualità' : 'Quality'}: {(film.quality_score || 0).toFixed(0)}%</p>
+                    <Button size="sm" className="mt-1 h-5 text-[10px] bg-amber-500 hover:bg-amber-600 text-black px-2" data-testid={`release-btn-${film.id}`}>
+                      {language === 'it' ? 'Rilascia' : 'Release'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Release Film Popup */}
+      <Dialog open={!!releasePopup} onOpenChange={() => setReleasePopup(null)}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+              <Globe className="w-5 h-5 text-amber-400" />
+              {language === 'it' ? 'DISTRIBUZIONE FILM' : 'FILM DISTRIBUTION'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400 text-xs">
+              {language === 'it' ? 'Scegli dove far uscire il tuo film' : 'Choose where to release your film'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {releasePopup && (
+            <div className="space-y-4">
+              {/* Film mini card */}
+              <div className="flex items-center gap-3 bg-black/30 rounded-lg p-3 border border-white/5">
+                <img
+                  src={releasePopup.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'}
+                  alt={releasePopup.title}
+                  className="w-12 h-16 object-cover rounded"
+                />
+                <div>
+                  <p className="font-semibold text-sm">{releasePopup.title}</p>
+                  <p className="text-xs text-gray-400">{language === 'it' ? 'Qualità' : 'Quality'}: {(releasePopup.quality_score || 0).toFixed(0)}%</p>
+                  <p className="text-[10px] text-gray-500">{releasePopup.genre}</p>
+                </div>
+              </div>
+
+              {/* Distribution zone selection */}
+              <div>
+                <Label className="text-xs mb-2 block">{language === 'it' ? 'Zona di distribuzione' : 'Distribution Zone'}</Label>
+                <RadioGroup value={selectedZone} onValueChange={setSelectedZone} className="space-y-2">
+                  {distConfig && Object.entries(distConfig.zones).map(([key, zone]) => {
+                    const cost = key === selectedZone ? getZoneCost() : { funds: Math.round(zone.base_cost * (1.0 + ((releasePopup?.quality_score || 50) - 50) / 200)), cinepass: zone.cinepass_cost };
+                    return (
+                      <div key={key} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors cursor-pointer ${selectedZone === key ? 'border-amber-500/50 bg-amber-500/10' : 'border-white/5 bg-black/20 hover:border-white/15'}`}
+                        onClick={() => setSelectedZone(key)}
+                      >
+                        <RadioGroupItem value={key} id={key} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            {key === 'national' && <MapPin className="w-3 h-3 text-green-400" />}
+                            {key === 'continental' && <Globe className="w-3 h-3 text-blue-400" />}
+                            {key === 'world' && <Globe className="w-3 h-3 text-purple-400" />}
+                            <span className="text-sm font-medium">{zone.name}</span>
+                          </div>
+                          <p className="text-[10px] text-gray-500">
+                            {key === 'national' && distConfig?.countries?.[distConfig.studio_country]}
+                            {key === 'continental' && zone.description}
+                            {key === 'world' && zone.description}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-yellow-400">${cost.funds.toLocaleString()}</p>
+                          <p className="text-[10px] text-cyan-400">{cost.cinepass} CinePass</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
+
+              {/* Continent selector (only if continental) */}
+              {selectedZone === 'continental' && distConfig && (
+                <div>
+                  <Label className="text-xs mb-1 block">{language === 'it' ? 'Continente' : 'Continent'}</Label>
+                  <Select value={selectedContinent} onValueChange={setSelectedContinent}>
+                    <SelectTrigger className="bg-black/30 border-white/10 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A1A1A] border-white/10">
+                      {Object.entries(distConfig.continents).map(([key, name]) => (
+                        <SelectItem key={key} value={key} className="text-xs">{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Revenue preview */}
+              <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-3 h-3 text-green-400" />
+                  <span className="text-xs font-medium text-green-400">{language === 'it' ? 'Stima incasso giorno 1' : 'Est. Day 1 revenue'}</span>
+                </div>
+                <p className="text-lg font-bold text-green-400">
+                  ${((releasePopup.opening_day_revenue || 0) * (distConfig?.zones?.[selectedZone]?.revenue_multiplier || 1)).toLocaleString(undefined, {maximumFractionDigits: 0})}
+                </p>
+              </div>
+
+              {/* Cost summary */}
+              <div className="flex items-center justify-between bg-black/30 rounded-lg p-2 border border-white/5">
+                <span className="text-xs text-gray-400">{language === 'it' ? 'Costo totale' : 'Total cost'}</span>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-yellow-400">${getZoneCost().funds.toLocaleString()}</span>
+                  <span className="text-xs text-cyan-400 ml-2">+ {getZoneCost().cinepass} CP</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setReleasePopup(null)} className="border-white/10">
+              {language === 'it' ? 'Annulla' : 'Cancel'}
+            </Button>
+            <Button
+              size="sm"
+              className="bg-amber-500 hover:bg-amber-600 text-black font-bold"
+              onClick={handleRelease}
+              disabled={releasing}
+              data-testid="confirm-release-btn"
+            >
+              {releasing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'it' ? 'Rilascia nelle Sale' : 'Release to Theaters')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Financial Overview Card */}
       {stats && (

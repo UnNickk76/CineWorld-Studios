@@ -161,6 +161,74 @@ NAMES_BY_NATIONALITY = {
 
 NATIONALITIES = list(NAMES_BY_NATIONALITY.keys())
 
+# ==================== DISTRIBUTION SYSTEM ====================
+STUDIO_COUNTRIES = [
+    'IT', 'US', 'GB', 'FR', 'DE', 'ES', 'JP', 'CN', 'IN', 'BR',
+    'KR', 'AU', 'CA', 'MX', 'AR', 'RU', 'TR', 'SE', 'NL', 'PL',
+    'CH', 'AT', 'BE', 'PT', 'NO', 'DK', 'FI', 'IE', 'GR', 'CZ',
+    'HU', 'RO', 'IL', 'ZA', 'NG', 'EG', 'AE', 'SA', 'TH', 'ID',
+    'MY', 'PH', 'VN', 'SG', 'NZ', 'CL', 'CO', 'PE', 'UA', 'HR'
+]
+
+COUNTRY_NAMES = {
+    'IT': 'Italia', 'US': 'Stati Uniti', 'GB': 'Regno Unito', 'FR': 'Francia',
+    'DE': 'Germania', 'ES': 'Spagna', 'JP': 'Giappone', 'CN': 'Cina',
+    'IN': 'India', 'BR': 'Brasile', 'KR': 'Corea del Sud', 'AU': 'Australia',
+    'CA': 'Canada', 'MX': 'Messico', 'AR': 'Argentina', 'RU': 'Russia',
+    'TR': 'Turchia', 'SE': 'Svezia', 'NL': 'Paesi Bassi', 'PL': 'Polonia',
+    'CH': 'Svizzera', 'AT': 'Austria', 'BE': 'Belgio', 'PT': 'Portogallo',
+    'NO': 'Norvegia', 'DK': 'Danimarca', 'FI': 'Finlandia', 'IE': 'Irlanda',
+    'GR': 'Grecia', 'CZ': 'Rep. Ceca', 'HU': 'Ungheria', 'RO': 'Romania',
+    'IL': 'Israele', 'ZA': 'Sudafrica', 'NG': 'Nigeria', 'EG': 'Egitto',
+    'AE': 'Emirati Arabi', 'SA': 'Arabia Saudita', 'TH': 'Thailandia',
+    'ID': 'Indonesia', 'MY': 'Malesia', 'PH': 'Filippine', 'VN': 'Vietnam',
+    'SG': 'Singapore', 'NZ': 'Nuova Zelanda', 'CL': 'Cile', 'CO': 'Colombia',
+    'PE': 'Peru', 'UA': 'Ucraina', 'HR': 'Croazia'
+}
+
+COUNTRY_TO_CONTINENT = {
+    'IT': 'europe', 'FR': 'europe', 'DE': 'europe', 'ES': 'europe', 'GB': 'europe',
+    'NL': 'europe', 'BE': 'europe', 'PT': 'europe', 'SE': 'europe', 'NO': 'europe',
+    'DK': 'europe', 'FI': 'europe', 'PL': 'europe', 'CZ': 'europe', 'HU': 'europe',
+    'RO': 'europe', 'GR': 'europe', 'AT': 'europe', 'CH': 'europe', 'IE': 'europe',
+    'UA': 'europe', 'HR': 'europe', 'TR': 'europe', 'RU': 'europe',
+    'US': 'north_america', 'CA': 'north_america', 'MX': 'north_america',
+    'BR': 'south_america', 'AR': 'south_america', 'CL': 'south_america',
+    'CO': 'south_america', 'PE': 'south_america',
+    'JP': 'asia', 'CN': 'asia', 'IN': 'asia', 'KR': 'asia', 'TH': 'asia',
+    'ID': 'asia', 'MY': 'asia', 'PH': 'asia', 'VN': 'asia', 'SG': 'asia',
+    'AE': 'asia', 'SA': 'asia', 'IL': 'asia',
+    'AU': 'oceania', 'NZ': 'oceania',
+    'ZA': 'africa', 'NG': 'africa', 'EG': 'africa'
+}
+
+DISTRIBUTION_ZONES = {
+    'national': {
+        'name': 'Nazionale', 'name_en': 'National',
+        'description': 'Solo nel tuo paese',
+        'base_cost': 500000, 'cinepass_cost': 3,
+        'revenue_multiplier': 0.4, 'audience_multiplier': 0.3
+    },
+    'continental': {
+        'name': 'Continentale', 'name_en': 'Continental',
+        'description': 'Distribuzione continentale',
+        'base_cost': 1500000, 'cinepass_cost': 5,
+        'revenue_multiplier': 1.0, 'audience_multiplier': 1.0
+    },
+    'world': {
+        'name': 'Mondiale', 'name_en': 'Worldwide',
+        'description': 'Uscita mondiale',
+        'base_cost': 4000000, 'cinepass_cost': 8,
+        'revenue_multiplier': 2.5, 'audience_multiplier': 2.0
+    }
+}
+
+CONTINENTS = {
+    'europe': 'Europa', 'north_america': 'Nord America', 'south_america': 'Sud America',
+    'asia': 'Asia', 'africa': 'Africa', 'oceania': 'Oceania'
+}
+
+
 # Fame Categories with costs (+20% adjusted)
 FAME_CATEGORIES = {
     'unknown': {'name': 'Unknown', 'name_it': 'Sconosciuto', 'min_cost': 12000, 'max_cost': 60000, 'quality_bonus': 0},
@@ -1061,6 +1129,7 @@ class UserResponse(BaseModel):
     accept_offline_challenges: bool = True
     cinepass: int = 100
     login_streak: int = 0
+    studio_country: Optional[str] = 'IT'
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -1231,6 +1300,11 @@ class FilmResponse(BaseModel):
     # Critic reviews
     critic_reviews: Optional[List[Dict[str, Any]]] = None
     critic_effects: Optional[Dict[str, Any]] = None
+    # Distribution system
+    distribution_zone: Optional[str] = None  # national, continental, world
+    distribution_continent: Optional[str] = None
+    distribution_cost: Optional[float] = 0
+    released_at: Optional[str] = None
 
 class ChatMessageCreate(BaseModel):
     room_id: str
@@ -3719,14 +3793,14 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'ad_duration_seconds': film_data.ad_duration_seconds,
         'ad_revenue': film_data.ad_revenue,
         'total_budget': total_budget,
-        'status': 'in_theaters',
+        'status': 'pending_release',
         'quality_score': quality_score,
         'audience_satisfaction': 50 + random.randint(-10, 20),
         'likes_count': 0,
         'box_office': {},
         'daily_revenues': [],
         'opening_day_revenue': opening_day_revenue,
-        'total_revenue': opening_day_revenue,
+        'total_revenue': 0,
         'created_at': datetime.now(timezone.utc).isoformat(),
         # Sequel fields
         'is_sequel': film_data.is_sequel,
@@ -3840,105 +3914,28 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     current_satisfaction = film.get('audience_satisfaction', quality_score)
     film['audience_satisfaction'] = max(0, min(100, current_satisfaction + critic_rating * 10))
     
+    # Set total_revenue to 0 for pending release (will be calculated on release)
+    film['total_revenue'] = 0
+    
     await db.films.insert_one(film)
     
-    # Update user funds
-    new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue + opening_day_revenue
-    
-    # Calculate XP based on film quality
-    xp_gained = XP_REWARDS['film_release']
-    if quality_score >= 90:
-        xp_gained += XP_REWARDS['film_blockbuster']
-    elif quality_score >= 80:
-        xp_gained += XP_REWARDS['film_hit']
-    elif quality_score < 40:
-        xp_gained = XP_REWARDS['film_flop']
-    
-    # Calculate fame change
-    current_fame = user.get('fame', 50)
-    fame_change = calculate_fame_change(quality_score, opening_day_revenue, current_fame)
-    new_fame = max(0, min(100, current_fame + fame_change))
-    
-    # Update total lifetime revenue
-    new_lifetime_revenue = user.get('total_lifetime_revenue', 0) + opening_day_revenue
-    
-    # Update user stats
-    new_xp = user.get('total_xp', 0) + xp_gained
-    new_level_info = get_level_from_xp(new_xp)
+    # Update user funds (only production costs, NO opening revenue yet)
+    new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue
     
     await db.users.update_one(
         {'id': user['id']}, 
-        {'$set': {
-            'funds': new_funds,
-            'total_xp': new_xp,
-            'level': new_level_info['level'],
-            'fame': new_fame,
-            'total_lifetime_revenue': new_lifetime_revenue
-        }}
+        {'$set': {'funds': new_funds}}
     )
     
-    # Check for star discoveries among the cast
-    discovered_stars = []
-    for actor_info in film_data.actors:
-        star_name = await check_star_discovery(user, actor_info.get('actor_id'), quality_score)
-        if star_name:
-            discovered_stars.append(star_name)
-    
-    # Check director and screenwriter too
-    await check_star_discovery(user, film_data.director_id, quality_score)
-    for sw_entry in screenwriters_list:
-        await check_star_discovery(user, sw_entry['id'], quality_score)
-    
-    # Update cast skills based on film quality
-    await update_cast_after_film(film['id'], quality_score)
-    
-    # CineNews bot announces the new film in public chat
-    news_bot = CHAT_BOTS[2]  # CineNews
-    user_lang = user.get('language', 'en')
-    
-    announcements = {
-        'en': f"🎬 NEW RELEASE! '{film_data.title}' by {user.get('production_house_name', 'Unknown Studio')} is now in theaters! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
-        'it': f"🎬 NUOVO FILM! '{film_data.title}' di {user.get('production_house_name', 'Studio Sconosciuto')} è ora nelle sale! Genere: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
-        'es': f"🎬 ¡NUEVO ESTRENO! '{film_data.title}' de {user.get('production_house_name', 'Estudio Desconocido')} ya está en cines! Género: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
-        'fr': f"🎬 NOUVELLE SORTIE! '{film_data.title}' de {user.get('production_house_name', 'Studio Inconnu')} est maintenant en salles! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}",
-        'de': f"🎬 NEUER FILM! '{film_data.title}' von {user.get('production_house_name', 'Unbekanntes Studio')} ist jetzt im Kino! Genre: {GENRES.get(film_data.genre, {}).get('name', film_data.genre)}"
-    }
-    
-    announcement = announcements.get(user_lang, announcements['en'])
-    
-    bot_message = {
-        'id': str(uuid.uuid4()),
-        'room_id': 'general',
-        'sender_id': news_bot['id'],
-        'content': announcement,
-        'message_type': 'text',
-        'image_url': None,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.chat_messages.insert_one(bot_message)
-    await sio.emit('new_message', {
-        **{k: v for k, v in bot_message.items() if k != '_id'},
-        'sender': {
-            'id': news_bot['id'],
-            'nickname': news_bot['nickname'],
-            'avatar_url': news_bot['avatar_url'],
-            'is_bot': True,
-            'is_moderator': False
-        }
-    }, room='general')
-    
-    # Create "Film Released" notification for the user
-    tier_label = film.get('film_tier', 'average')
-    tier_labels_it = {'blockbuster': 'Blockbuster', 'hit': 'Hit', 'good': 'Buono', 'average': 'Nella Media', 'mediocre': 'Mediocre', 'flop': 'Flop'}
-    tier_text = tier_labels_it.get(tier_label, tier_label)
-    
+    # Create notification for pending film
+    user_lang = user.get('language', 'it')
     await db.notifications.insert_one({
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
-        'type': 'film_released',
-        'title': f'Il tuo film "{film_data.title}" è uscito!' if user_lang == 'it' else f'Your film "{film_data.title}" is out!',
-        'message': f'Qualità: {quality_score:.0f}% ({tier_text}) | Incasso giorno 1: ${opening_day_revenue:,.0f}',
-        'data': {'film_id': film['id'], 'path': f'/film/{film["id"]}'},
+        'type': 'film_produced',
+        'title': f'Film "{film_data.title}" prodotto!' if user_lang == 'it' else f'Film "{film_data.title}" produced!',
+        'message': f'Qualità: {quality_score:.0f}% - In attesa di rilascio. Scegli la distribuzione!' if user_lang == 'it' else f'Quality: {quality_score:.0f}% - Pending release. Choose distribution!',
+        'data': {'film_id': film['id']},
         'read': False,
         'created_at': datetime.now(timezone.utc).isoformat()
     })
@@ -3949,6 +3946,182 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 async def get_my_films(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).sort('created_at', -1).to_list(100)
     return [FilmResponse(**f) for f in films]
+
+@api_router.get("/films/pending")
+async def get_pending_films(user: dict = Depends(get_current_user)):
+    """Get films waiting to be released."""
+    films = await db.films.find(
+        {'user_id': user['id'], 'status': 'pending_release'},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(50)
+    return [FilmResponse(**f) for f in films]
+
+@api_router.get("/distribution/config")
+async def get_distribution_config(user: dict = Depends(get_current_user)):
+    """Return distribution zones, countries and continents for the release popup."""
+    return {
+        'zones': DISTRIBUTION_ZONES,
+        'countries': COUNTRY_NAMES,
+        'continents': CONTINENTS,
+        'country_to_continent': COUNTRY_TO_CONTINENT,
+        'studio_country': user.get('studio_country', 'IT')
+    }
+
+class FilmReleaseRequest(BaseModel):
+    distribution_zone: str  # national, continental, world
+    distribution_continent: Optional[str] = None  # required if continental
+
+@api_router.post("/films/{film_id}/release")
+async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dict = Depends(get_current_user)):
+    """Release a pending film to theaters with chosen distribution."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if film.get('status') != 'pending_release':
+        raise HTTPException(status_code=400, detail="Questo film è già stato rilasciato")
+    
+    zone = release_data.distribution_zone
+    if zone not in DISTRIBUTION_ZONES:
+        raise HTTPException(status_code=400, detail="Zona di distribuzione non valida")
+    
+    zone_config = DISTRIBUTION_ZONES[zone]
+    
+    if zone == 'continental' and not release_data.distribution_continent:
+        raise HTTPException(status_code=400, detail="Seleziona un continente")
+    if zone == 'continental' and release_data.distribution_continent not in CONTINENTS:
+        raise HTTPException(status_code=400, detail="Continente non valido")
+    
+    # Calculate costs
+    distribution_cost = zone_config['base_cost']
+    cinepass_cost = zone_config['cinepass_cost']
+    
+    # Scale cost based on film quality (better films cost more to distribute)
+    quality_factor = 1.0 + (film.get('quality_score', 50) - 50) / 200  # 0.75x to 1.25x
+    distribution_cost = int(distribution_cost * quality_factor)
+    
+    # Check user can afford
+    if user.get('funds', 0) < distribution_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${distribution_cost:,.0f}")
+    if user.get('cinepass', 0) < cinepass_cost:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
+    
+    # Calculate final opening revenue with distribution multiplier
+    base_opening = film.get('opening_day_revenue', 0)
+    revenue_multiplier = zone_config['revenue_multiplier']
+    audience_multiplier = zone_config['audience_multiplier']
+    
+    final_opening_revenue = int(base_opening * revenue_multiplier)
+    final_attendance = int(film.get('cumulative_attendance', 0) * audience_multiplier)
+    
+    # Update film status to in_theaters
+    now = datetime.now(timezone.utc).isoformat()
+    await db.films.update_one({'id': film_id}, {'$set': {
+        'status': 'in_theaters',
+        'distribution_zone': zone,
+        'distribution_continent': release_data.distribution_continent,
+        'distribution_cost': distribution_cost,
+        'opening_day_revenue': final_opening_revenue,
+        'total_revenue': final_opening_revenue,
+        'cumulative_attendance': final_attendance,
+        'released_at': now,
+        'release_date': now[:10]
+    }})
+    
+    # Calculate XP based on film quality
+    quality_score = film.get('quality_score', 50)
+    xp_gained = XP_REWARDS.get('film_release', 100)
+    if quality_score >= 90:
+        xp_gained += XP_REWARDS.get('film_blockbuster', 500)
+    elif quality_score >= 80:
+        xp_gained += XP_REWARDS.get('film_hit', 250)
+    elif quality_score < 40:
+        xp_gained = XP_REWARDS.get('film_flop', 10)
+    
+    # Calculate fame change
+    current_fame = user.get('fame', 50)
+    fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
+    new_fame = max(0, min(100, current_fame + fame_change))
+    
+    # Update user: deduct costs, add revenue, update stats
+    new_funds = user['funds'] - distribution_cost + final_opening_revenue
+    new_xp = user.get('total_xp', 0) + xp_gained
+    new_level_info = get_level_from_xp(new_xp)
+    new_lifetime_revenue = user.get('total_lifetime_revenue', 0) + final_opening_revenue
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {
+            '$set': {
+                'funds': new_funds,
+                'total_xp': new_xp,
+                'level': new_level_info['level'],
+                'fame': new_fame,
+                'total_lifetime_revenue': new_lifetime_revenue
+            },
+            '$inc': {'cinepass': -cinepass_cost}
+        }
+    )
+    
+    # Check for star discoveries
+    for actor in film.get('cast', []):
+        await check_star_discovery(user, actor.get('actor_id') or actor.get('id'), quality_score)
+    if film.get('director', {}).get('id'):
+        await check_star_discovery(user, film['director']['id'], quality_score)
+    
+    # Update cast skills
+    await update_cast_after_film(film_id, quality_score)
+    
+    # CineNews announcement
+    user_lang = user.get('language', 'it')
+    zone_label = zone_config['name'] if user_lang == 'it' else zone_config['name_en']
+    title = film.get('title', 'Unknown')
+    studio = user.get('production_house_name', 'Studio')
+    genre_name = GENRES.get(film.get('genre', ''), {}).get('name', film.get('genre', ''))
+    
+    try:
+        news_bot = CHAT_BOTS[2]
+        announcement = f"🎬 NUOVO FILM! '{title}' di {studio} esce in distribuzione {zone_label}! Genere: {genre_name}"
+        bot_message = {
+            'id': str(uuid.uuid4()), 'room_id': 'general', 'sender_id': news_bot['id'],
+            'content': announcement, 'message_type': 'text', 'image_url': None,
+            'created_at': now
+        }
+        await db.chat_messages.insert_one(bot_message)
+        await sio.emit('new_message', {
+            **{k: v for k, v in bot_message.items() if k != '_id'},
+            'sender': {'id': news_bot['id'], 'nickname': news_bot['nickname'],
+                       'avatar_url': news_bot['avatar_url'], 'is_bot': True, 'is_moderator': False}
+        }, room='general')
+    except Exception:
+        pass
+    
+    # Create release notification
+    tier_labels = {'blockbuster': 'Blockbuster', 'hit': 'Hit', 'good': 'Buono', 'average': 'Nella Media', 'mediocre': 'Mediocre', 'flop': 'Flop'}
+    tier_text = tier_labels.get(film.get('film_tier', 'average'), 'N/A')
+    
+    await db.notifications.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'type': 'film_released',
+        'title': f'"{title}" è nelle sale!' if user_lang == 'it' else f'"{title}" is in theaters!',
+        'message': f'Distribuzione: {zone_label} | Qualità: {quality_score:.0f}% ({tier_text}) | Incasso giorno 1: ${final_opening_revenue:,.0f}',
+        'data': {'film_id': film_id},
+        'read': False,
+        'created_at': now
+    })
+    
+    # Return updated film
+    updated_film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    return {
+        'success': True,
+        'film': FilmResponse(**updated_film),
+        'distribution_cost': distribution_cost,
+        'cinepass_cost': cinepass_cost,
+        'opening_day_revenue': final_opening_revenue,
+        'zone': zone_label
+    }
+
+
 
 @api_router.get("/films/{film_id}/poster")
 async def get_film_poster(film_id: str):

@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -46,6 +46,7 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
 const TutorialPage = React.lazy(() => import('./pages/TutorialPage'));
+const SystemNotesPage = React.lazy(() => import('./pages/SystemNotesPage'));
 const CreditsPage = React.lazy(() => import('./pages/CreditsPage'));
 
 // Extracted pages (lazy-loaded)
@@ -99,6 +100,7 @@ const TopNavbar = () => {
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
+  const [systemNotesCount, setSystemNotesCount] = useState(0);
   const [emergingScreenplaysCount, setEmergingScreenplaysCount] = useState(0);
   const [majorInfo, setMajorInfo] = useState(null);
   const [festivalNotifications, setFestivalNotifications] = useState([]);
@@ -135,6 +137,7 @@ const TopNavbar = () => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
+    api.get('/system-notes/unread').then(r => setSystemNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/emerging-screenplays/count').then(r => setEmergingScreenplaysCount(r.data.new || 0)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
     
@@ -262,6 +265,7 @@ const TopNavbar = () => {
     { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
+    { path: '/system-notes', icon: Megaphone, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
     { path: '/credits', icon: Info, label: 'credits' },
   ];
 
@@ -1371,6 +1375,7 @@ function App() {
                 <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
                 <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
                 <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
+                <Route path="/system-notes" element={<ProtectedRoute><SystemNotesPage /></ProtectedRoute>} />
                 <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
                 <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />

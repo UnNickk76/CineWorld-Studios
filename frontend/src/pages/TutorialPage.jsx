@@ -3,7 +3,7 @@
 
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Film, Clapperboard, Users, Trophy, Building, DollarSign, Star, HelpCircle, Ticket, Flame, GraduationCap, ScrollText } from 'lucide-react';
+import { Film, Clapperboard, Users, Trophy, Building, DollarSign, Star, HelpCircle, Ticket, Flame, GraduationCap, ScrollText, Globe } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { AuthContext } from '../contexts';
@@ -21,7 +21,8 @@ const TutorialPage = () => {
   const iconMap = {
     film: Film, clapperboard: Clapperboard, users: Users, trophy: Trophy,
     building: Building, 'dollar-sign': DollarSign, star: Star,
-    ticket: Ticket, flame: Flame, 'graduation-cap': GraduationCap, scroll: ScrollText
+    ticket: Ticket, flame: Flame, 'graduation-cap': GraduationCap, scroll: ScrollText,
+    globe: Globe
   };
 
   return (

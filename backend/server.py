@@ -9271,83 +9271,151 @@ async def get_tutorial():
             {
                 'id': 2,
                 'title': 'Crea il tuo Primo Film',
-                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte! Ogni film costa 20 CinePass.',
+                'description': 'Vai su "Crea Film" per iniziare. Scegli genere, cast, location e molto altro. La qualità del film dipende dalle tue scelte!',
                 'icon': 'clapperboard'
             },
             {
                 'id': 3,
+                'title': 'Distribuzione Film',
+                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio" nella Dashboard. Scegli la distribuzione: Nazionale ($500K + 3 CP), Continentale ($1.5M + 5 CP) o Mondiale ($4M + 8 CP). I ricavi crescono in base alla zona scelta!',
+                'icon': 'globe'
+            },
+            {
+                'id': 4,
                 'title': 'Scegli il Cast',
                 'description': 'Attori, registi e sceneggiatori hanno diverse abilità e fama. Più stelle = più costo, ma maggiore qualità! Puoi pre-ingaggiare attori per 5 CinePass.',
                 'icon': 'users'
             },
             {
-                'id': 4,
+                'id': 5,
                 'title': 'CinePass - La Valuta del Produttore',
-                'description': 'I CinePass sono la tua risorsa chiave! Servono per creare film, comprare infrastrutture, ingaggiare attori e acquistare sceneggiature. Parti con 100 CinePass.',
+                'description': 'I CinePass sono la tua risorsa chiave! Servono per rilasciare film, comprare infrastrutture, ingaggiare attori e acquistare sceneggiature. Parti con 100 CinePass.',
                 'icon': 'ticket'
             },
             {
-                'id': 5,
+                'id': 6,
                 'title': 'Login Giornaliero',
                 'description': 'Accedi ogni giorno per guadagnare CinePass crescenti! Giorno 1: 3, fino a Giorno 7: 35 CinePass. Ogni 15 giorni consecutivi ricevi un bonus extra di 15!',
                 'icon': 'flame'
             },
             {
-                'id': 6,
+                'id': 7,
                 'title': 'Contest Giornalieri',
                 'description': 'Nella sezione Contest trovi 10 sfide al giorno che si sbloccano progressivamente! Completale in ordine per guadagnare fino a 50 CinePass al giorno.',
                 'icon': 'trophy'
             },
             {
-                'id': 7,
+                'id': 8,
                 'title': 'Sfide 1 vs 1',
                 'description': 'Sfida altri giocatori in battaglie con i tuoi film! Ogni vittoria ti regala +2 CinePass, fondi e XP. Max 5 sfide/ora, 20 al giorno.',
                 'icon': 'flame'
             },
             {
-                'id': 8,
+                'id': 9,
                 'title': 'Guadagna XP e Sali di Livello',
                 'description': 'Ogni azione ti fa guadagnare XP. Salendo di livello sblocchi nuove infrastrutture e funzionalità!',
                 'icon': 'star'
             },
             {
-                'id': 9,
+                'id': 10,
                 'title': 'Acquista Infrastrutture',
                 'description': 'Al livello 5 puoi acquistare il tuo primo cinema! Proietta i tuoi film o affitta quelli di altri giocatori. Ogni infrastruttura costa CinePass (8-20) + denaro.',
                 'icon': 'building'
             },
             {
-                'id': 10,
+                'id': 11,
                 'title': 'Scuola di Recitazione',
                 'description': 'Acquista una Scuola di Recitazione dalle Infrastrutture! Ogni giorno avrai nuove reclute da formare (3 CinePass + $200K). Dopo 10-20 giorni, tienile nel tuo Cast Personale (gratis nei film!) o liberale.',
                 'icon': 'graduation-cap'
             },
             {
-                'id': 11,
+                'id': 12,
                 'title': 'Sceneggiature Emergenti',
                 'description': 'Nella sezione "Sceneggiature Emergenti" trovi copioni già pronti con cast incluso. Acquistali con 10 CinePass + denaro per iniziare subito a produrre!',
                 'icon': 'scroll'
             },
             {
-                'id': 12,
+                'id': 13,
                 'title': 'Riscuoti gli Incassi',
                 'description': 'Le tue infrastrutture e i film al cinema generano ricavi ogni ora. Più cinema e infrastrutture possiedi, più guadagni! Ricordati di riscuotere (max 4 ore accumulate).',
                 'icon': 'dollar-sign'
             },
             {
-                'id': 13,
+                'id': 14,
                 'title': 'Social & Classifiche',
                 'description': 'Interagisci con altri produttori nella chat, vota i loro film sulla CineBoard e scala la classifica globale!',
                 'icon': 'users'
             },
             {
-                'id': 14,
+                'id': 15,
                 'title': 'Supporta il Nostro Gioco!',
                 'description': 'CineWorld esiste grazie alla community! Se ti piace il gioco, puoi aiutarci con una donazione libera tramite il pulsante in basso o nel menu. Ogni contributo ci aiuta a sviluppare nuove funzionalità!',
                 'icon': 'ticket'
             }
         ]
     }
+
+
+# ==================== SYSTEM NOTES / PATCH NOTES ====================
+
+class SystemNoteCreate(BaseModel):
+    title: str
+    content: str
+    category: str = 'update'  # update, feature, bugfix, event, maintenance
+    priority: str = 'normal'  # low, normal, high
+
+@api_router.get("/system-notes")
+async def get_system_notes(limit: int = 20):
+    """Get system notes/patch notes visible to all users."""
+    notes = await db.system_notes.find(
+        {}, {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    return notes
+
+@api_router.get("/system-notes/unread")
+async def get_unread_system_notes(user: dict = Depends(get_current_user)):
+    """Get count of system notes the user hasn't seen yet."""
+    last_seen = user.get('system_notes_last_seen', '2000-01-01')
+    count = await db.system_notes.count_documents({'created_at': {'$gt': last_seen}})
+    return {'unread_count': count}
+
+@api_router.post("/system-notes/mark-read")
+async def mark_system_notes_read(user: dict = Depends(get_current_user)):
+    """Mark all system notes as read for this user."""
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'system_notes_last_seen': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {'success': True}
+
+@api_router.post("/admin/system-notes")
+async def create_system_note(note: SystemNoteCreate, user: dict = Depends(get_current_user)):
+    """Create a system note (admin only)."""
+    if user.get('nickname') != 'NeoMorpheus':
+        raise HTTPException(status_code=403, detail="Solo admin")
+    
+    system_note = {
+        'id': str(uuid.uuid4()),
+        'title': note.title,
+        'content': note.content,
+        'category': note.category,
+        'priority': note.priority,
+        'author': user.get('production_house_name', user.get('nickname', 'Admin')),
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.system_notes.insert_one(system_note)
+    return {k: v for k, v in system_note.items() if k != '_id'}
+
+@api_router.delete("/admin/system-notes/{note_id}")
+async def delete_system_note(note_id: str, user: dict = Depends(get_current_user)):
+    """Delete a system note (admin only)."""
+    if user.get('nickname') != 'NeoMorpheus':
+        raise HTTPException(status_code=403, detail="Solo admin")
+    result = await db.system_notes.delete_one({'id': note_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Nota non trovata")
+    return {'success': True}
+
 
 @api_router.get("/game/credits")
 async def get_credits():

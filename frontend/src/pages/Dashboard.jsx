@@ -854,12 +854,6 @@ const Dashboard = () => {
             {availableContests > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{availableContests}</span>}
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-purple-500/20 to-purple-600/5 border-purple-500/20 cursor-pointer" onClick={() => navigate('/social')}>
-          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-purple-500 rounded-lg"><Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('social')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Esplora film</p></div>
-          </CardContent>
-        </Card>
         <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-pink-500 rounded-lg"><Swords className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>

@@ -371,7 +371,7 @@ const Dashboard = () => {
           </div>
           {pendingFilms.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {pendingFilms.map(film => (
+              {pendingFilms.slice(0, 6).map(film => (
                 <div
                   key={film.id}
                   className="flex items-center gap-2 bg-black/30 rounded-lg p-2 cursor-pointer hover:bg-black/50 transition-colors border border-white/5 hover:border-amber-500/30"
@@ -630,6 +630,13 @@ const Dashboard = () => {
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-pink-500 rounded-lg"><Swords className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-600/5 border-amber-500/20 cursor-pointer relative" onClick={() => { if (pendingFilms.length > 0) { setReleasePopup(pendingFilms[0]); } else { navigate('/create'); } }} data-testid="pending-films-shortcut">
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-amber-500 rounded-lg"><Clock className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'In Attesa' : 'Pending'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Rilascia film' : 'Release films'}</p></div>
+            {pendingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{pendingFilms.length}</span>}
           </CardContent>
         </Card>
       </div>

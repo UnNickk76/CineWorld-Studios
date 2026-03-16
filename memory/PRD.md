@@ -35,6 +35,16 @@
 - Dashboard: pulsante "Ciak, si Gira!" con badge + sezione progresso con mini locandine, barre, eventi
 - Scheduler: processo ogni ora (1 giorno simulato per ora)
 
+### Locandine Classiche con Sfondi per Genere (NUOVO - 16 Mar 2026)
+- Thriller, Romance, Comedy: sfondi fotografici dedicati (stored in /app/backend/assets/posters/)
+- Testo in sovraimpressione: titolo film (grande) + "un film [casa di produzione]" (piccolo, dorato)
+- Altri generi: sistema gradient esistente con testo overlay
+- production_house_name auto-iniettato dall'utente autenticato
+
+### Immagini Regista per Ciak, si Gira! (NUOVO - 16 Mar 2026)
+- Due foto regista (maschio/femmina) mostrate random nel dialog di conferma riprese
+- Immagini in /app/frontend/public/images/shooting/
+
 ### Tutorial (16 step) + Note di Sistema (3 note)
 
 ## Key DB Schema
@@ -45,8 +55,10 @@
 - studio_drafts: bozze sceneggiatura
 
 ## Task Prossimi
+- Verifica utente locandine classiche con genere
 - Sistema ruoli Admin (RBAC)
 - Layout mobile pagina Contest
 
 ## Backlog
 - Runware, Stripe, PWA, Tutorial popup, Refactoring server.py
+- Sfondi fotografici per altri generi (horror, sci-fi, fantasy, ecc.)

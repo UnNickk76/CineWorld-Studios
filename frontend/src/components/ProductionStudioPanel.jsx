@@ -1,19 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Clapperboard, Wand2, Users, Sparkles, Star, ArrowUpCircle, Loader2, Check, Crown } from 'lucide-react';
+import { Clapperboard, Wand2, Users, Sparkles, Star, ArrowUpCircle, Loader2, Check, Crown, Pen, Trash2, Plus } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 
+const GENRE_OPTIONS = [
+  { value: 'action', label: 'Action' },
+  { value: 'comedy', label: 'Comedy' },
+  { value: 'drama', label: 'Drama' },
+  { value: 'horror', label: 'Horror' },
+  { value: 'sci_fi', label: 'Sci-Fi' },
+  { value: 'romance', label: 'Romance' },
+  { value: 'thriller', label: 'Thriller' },
+  { value: 'animation', label: 'Animation' },
+  { value: 'documentary', label: 'Documentary' },
+  { value: 'fantasy', label: 'Fantasy' },
+  { value: 'musical', label: 'Musical' },
+  { value: 'western', label: 'Western' },
+];
+
 const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading, handleUpgrade, refreshUser, language }) => {
-  const [activeTab, setActiveTab] = useState(null); // 'pre', 'post', 'casting'
+  const [activeTab, setActiveTab] = useState(null);
   const [studioData, setStudioData] = useState(null);
   const [castingData, setCastingData] = useState(null);
+  const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [draftGenre, setDraftGenre] = useState('action');
+  const [draftTitle, setDraftTitle] = useState('');
+  const [generatingDraft, setGeneratingDraft] = useState(false);
 
   useEffect(() => {
     api.get('/production-studio/status').then(r => setStudioData(r.data)).catch(() => {});
+    api.get('/production-studio/drafts').then(r => setDrafts(r.data.drafts || [])).catch(() => {});
   }, [api]);
 
   const loadCasting = async () => {
@@ -48,6 +70,29 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore');
     } finally { setActionLoading(null); }
+  };
+
+  const generateDraft = async () => {
+    setGeneratingDraft(true);
+    try {
+      const res = await api.post('/production-studio/generate-draft', { genre: draftGenre, title_hint: draftTitle });
+      toast.success(res.data.message);
+      setDrafts(prev => [res.data.draft, ...prev]);
+      setDraftTitle('');
+      refreshUser().catch(() => {});
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore generazione bozza');
+    } finally { setGeneratingDraft(false); }
+  };
+
+  const deleteDraft = async (draftId) => {
+    try {
+      await api.delete(`/production-studio/drafts/${draftId}`);
+      setDrafts(prev => prev.filter(d => d.id !== draftId));
+      toast.success('Bozza eliminata');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    }
   };
 
   const tabs = [
@@ -139,10 +184,70 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
               })}
             </div>
           )}
+
+          {/* Draft Generation Section */}
+          <div className="mt-3 pt-3 border-t border-white/10">
+            <h5 className="text-xs font-semibold text-cyan-400 flex items-center gap-1 mb-2">
+              <Pen className="w-3.5 h-3.5" /> Genera Bozza Sceneggiatura
+            </h5>
+            <p className="text-[10px] text-gray-500 mb-2">
+              Crea una bozza AI da usare nel Film Wizard. CinePass gratis + qualità bonus +{studioData.pre_production.storyboard_bonus}%
+            </p>
+            <div className="flex gap-1.5 mb-2">
+              <Select value={draftGenre} onValueChange={setDraftGenre}>
+                <SelectTrigger className="h-7 text-xs bg-black/30 border-white/10 flex-1" data-testid="draft-genre-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENRE_OPTIONS.map(g => (
+                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={draftTitle}
+                onChange={e => setDraftTitle(e.target.value)}
+                placeholder="Titolo (opzionale)"
+                className="h-7 text-xs bg-black/30 border-white/10 flex-1"
+                data-testid="draft-title-input"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={generateDraft}
+              disabled={generatingDraft}
+              className="w-full h-7 text-xs bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+              data-testid="generate-draft-btn"
+            >
+              {generatingDraft ? <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Generando...</> : <><Plus className="w-3 h-3 mr-1" /> Genera Bozza (${studioData.pre_production.cost?.toLocaleString()})</>}
+            </Button>
+
+            {/* Existing Drafts */}
+            {drafts.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <p className="text-[10px] text-gray-400 font-medium">Bozze disponibili ({drafts.length}):</p>
+                {drafts.map(d => (
+                  <div key={d.id} className="flex items-center gap-2 p-1.5 bg-cyan-500/5 rounded border border-cyan-500/15" data-testid={`draft-${d.id}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold truncate">{d.title}</p>
+                      <p className="text-[9px] text-gray-500">{d.genre_name} | +{d.quality_bonus}% qualità</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteDraft(d.id)}
+                      className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      data-testid={`delete-draft-${d.id}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Post-Production Panel */}
       {activeTab === 'post' && studioData && (
         <div className="space-y-2" data-testid="post-production-panel">
           <h4 className="text-sm font-semibold text-purple-400 flex items-center gap-1">

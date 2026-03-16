@@ -112,6 +112,10 @@ const FilmWizard = () => {
   const [preFilmId, setPreFilmId] = useState(null);
   const [dismissModal, setDismissModal] = useState(null);
 
+  // Studio draft states
+  const [studioDrafts, setStudioDrafts] = useState([]);
+  const [selectedDraft, setSelectedDraft] = useState(null);
+
   const [filmData, setFilmData] = useState({
     title: '', subtitle: '', genre: 'action', subgenres: [], release_date: new Date().toISOString().split('T')[0],
     weeks_in_theater: 4, sponsor_id: null, equipment_package: 'Standard', locations: [], location_days: {},
@@ -119,7 +123,7 @@ const FilmWizard = () => {
     screenplay: '', screenplay_source: 'manual', screenplay_prompt: '', 
     soundtrack_prompt: '', soundtrack_description: '',
     poster_url: '', poster_prompt: '', ad_duration_seconds: 0, ad_revenue: 0,
-    is_sequel: false, sequel_parent_id: null
+    is_sequel: false, sequel_parent_id: null, studio_draft_id: null
   });
   const [myFilmsForSequel, setMyFilmsForSequel] = useState([]);
   const [releaseDate, setReleaseDate] = useState(new Date());
@@ -397,6 +401,7 @@ const FilmWizard = () => {
     cachedGet('/genres').then(r=>setGenres(r.data));
     cachedGet('/actor-roles').then(r=>setActorRoles(r.data));
     api.get('/films/my/for-sequel').then(r=>setMyFilmsForSequel(r.data.films || [])).catch(()=>{});
+    api.get('/production-studio/drafts').then(r=>setStudioDrafts(r.data.drafts || [])).catch(()=>{});
   }, [api, cachedGet]);
   
   const fetchPeople = async (type, category = '', skill = '', ageRange = '') => {
@@ -1038,6 +1043,67 @@ const FilmWizard = () => {
         </div>
         
         {/* Sequel checkbox and parent selection */}
+        
+        {/* Studio Draft Selection */}
+        {studioDrafts.length > 0 && !emergingScreenplay && (
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 space-y-2" data-testid="studio-drafts-section">
+            <div className="flex items-center gap-2">
+              <Clapperboard className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-semibold text-cyan-300">Bozze Studio di Produzione</span>
+            </div>
+            <p className="text-[10px] text-gray-400">Usa una bozza del tuo studio: CinePass gratis + bonus qualità!</p>
+            <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+              {studioDrafts.map(d => {
+                const isSelected = selectedDraft?.id === d.id;
+                return (
+                  <div 
+                    key={d.id} 
+                    className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-all ${isSelected ? 'bg-cyan-500/20 border-cyan-400/50 ring-1 ring-cyan-400/30' : 'bg-black/20 border-white/5 hover:border-cyan-500/20'}`}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedDraft(null);
+                        setFilmData(prev => ({...prev, studio_draft_id: null, title: '', genre: 'action', subgenres: [], screenplay: '', screenplay_source: 'manual'}));
+                      } else {
+                        setSelectedDraft(d);
+                        setFilmData(prev => ({...prev, studio_draft_id: d.id, title: d.title, genre: d.genre, subgenres: d.suggested_subgenres || [], screenplay: d.synopsis || '', screenplay_source: 'studio_draft'}));
+                      }
+                    }}
+                    data-testid={`select-draft-${d.id}`}
+                  >
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isSelected ? 'bg-cyan-500 text-black' : 'bg-gray-700'}`}>
+                      {isSelected ? <Check className="w-3 h-3" /> : <Pen className="w-3 h-3 text-gray-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{d.title}</p>
+                      <p className="text-[9px] text-gray-500">{d.genre_name}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <Badge className="bg-cyan-500/20 text-cyan-300 text-[9px]">+{d.quality_bonus}%</Badge>
+                      <p className="text-[9px] text-green-400 mt-0.5">CinePass gratis</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Selected studio draft banner */}
+        {selectedDraft && (
+          <div className="bg-cyan-500/10 border border-cyan-400/30 rounded-lg px-3 py-2 flex items-center gap-2 -mt-1 mb-1" data-testid="selected-draft-banner">
+            <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div className="flex-1 text-xs">
+              <span className="text-cyan-300 font-medium">Bozza Studio attiva:</span> <span className="text-white">{selectedDraft.title}</span>
+              <span className="text-green-400 ml-2">+{selectedDraft.quality_bonus}% qualità | CinePass gratis</span>
+            </div>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-red-400 hover:bg-red-500/10" onClick={() => {
+              setSelectedDraft(null);
+              setFilmData(prev => ({...prev, studio_draft_id: null}));
+            }} data-testid="deselect-draft-btn">Rimuovi</Button>
+          </div>
+        )}
+
+        {/* Sequel section */}
         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 space-y-2">
           <div className="flex items-center gap-2">
             <Checkbox 
@@ -1500,7 +1566,7 @@ const FilmWizard = () => {
             <Button variant="outline" size="sm" className="h-7 text-xs px-2 text-orange-400 border-orange-400/50 hover:bg-orange-500/10" onClick={()=>saveDraft('paused')} disabled={savingDraft}>
               {savingDraft ? '...' : (language === 'it' ? 'Pausa' : 'Pause')}
             </Button>
-            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>emergingScreenplay ? handleSubmit() : setShowCinePassConfirm(true)} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
+            {step<12?<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>setStep(step+1)} disabled={!canProceed()}>Next <ChevronRight className="w-3 h-3 ml-0.5" /></Button>:<Button size="sm" className="h-7 text-xs px-2 bg-yellow-500 text-black" onClick={()=>(emergingScreenplay || selectedDraft) ? handleSubmit() : setShowCinePassConfirm(true)} disabled={loading||calculateBudget()-getSponsorBudget()-filmData.ad_revenue>user.funds}>{loading?'...':'Create Film'}</Button>}
           </div>
         </div>
         {lastAutoSave && <p className="text-[10px] text-gray-500 flex items-center gap-1"><CheckCircle className="w-2.5 h-2.5 text-green-500" />{language === 'it' ? 'Salvato' : 'Saved'} {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>}
@@ -1527,6 +1593,17 @@ const FilmWizard = () => {
               {emergingOption === 'full_package' 
                 ? 'Pacchetto completo - solo la locandina è modificabile'
                 : 'Sceneggiatura acquistata - sceneggiatore bloccato'}
+            </span>
+          </div>
+        </div>
+      )}
+      {/* Studio draft info banner */}
+      {selectedDraft && step > 1 && (
+        <div className="mt-2 mb-1 px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg" data-testid="studio-draft-banner">
+          <div className="flex items-center gap-2 text-xs">
+            <Clapperboard className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span className="text-cyan-300 font-medium">
+              Bozza Studio attiva - CinePass gratis + {selectedDraft.quality_bonus}% qualità
             </span>
           </div>
         </div>

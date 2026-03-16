@@ -1167,6 +1167,8 @@ class FilmCreate(BaseModel):
     emerging_screenplay_id: Optional[str] = None
     emerging_screenplay: Optional[Dict[str, Any]] = None
     emerging_option: Optional[str] = None  # 'full_package' or 'screenplay_only'
+    # Studio draft system
+    studio_draft_id: Optional[str] = None
 
 class FilmDraft(BaseModel):
     """Model for saving incomplete film drafts."""
@@ -3495,8 +3497,23 @@ async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, ca
 # Film Management
 @api_router.post("/films", response_model=FilmResponse)
 async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
-    # CinePass check - skip if film comes from an already-purchased emerging screenplay
-    if not film_data.emerging_screenplay_id:
+    # Studio draft bonus tracking
+    studio_draft_bonus = 0
+    studio_draft_doc = None
+    if film_data.studio_draft_id:
+        studio_draft_doc = await db.studio_drafts.find_one(
+            {'id': film_data.studio_draft_id, 'user_id': user['id'], 'used': False}, {'_id': 0}
+        )
+        if studio_draft_doc:
+            studio_draft_bonus = studio_draft_doc.get('quality_bonus', 5)
+            # Mark draft as used
+            await db.studio_drafts.update_one(
+                {'id': film_data.studio_draft_id},
+                {'$set': {'used': True, 'used_at': datetime.now(timezone.utc).isoformat()}}
+            )
+    
+    # CinePass check - skip if film comes from emerging screenplay or studio draft
+    if not film_data.emerging_screenplay_id and not studio_draft_doc:
         await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
     # Sequel validation: subtitle is required for sequels
     if film_data.is_sequel:
@@ -3610,6 +3627,10 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
     # Small bonus for creative long titles
     if len(film_data.title) > 12:
         quality_score += random.randint(0, 2)
+    
+    # Studio draft quality bonus
+    if studio_draft_bonus > 0:
+        quality_score += studio_draft_bonus
     
     quality_score = max(3, min(100, quality_score))
     
@@ -3807,6 +3828,9 @@ async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_us
         'sequel_parent_id': film_data.sequel_parent_id,
         'sequel_number': sequel_number,
         'sequel_bonus_applied': sequel_bonus_info,  # Info about sequel bonus/malus
+        # Studio draft
+        'studio_draft_id': film_data.studio_draft_id if studio_draft_doc else None,
+        'studio_draft_bonus': studio_draft_bonus,
     }
     
     # Set composer if provided
@@ -9631,6 +9655,109 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
         'studio_level': level
     }
 
+
+class StudioDraftRequest(BaseModel):
+    genre: str
+    title_hint: Optional[str] = ''
+
+@api_router.post("/production-studio/generate-draft")
+async def generate_studio_draft(req: StudioDraftRequest, user: dict = Depends(get_current_user)):
+    """Generate a screenplay draft from the production studio."""
+    studio = await db.infrastructure.find_one(
+        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    level = studio.get('level', 1)
+    cost = int(200000 + level * 80000)  # $280K to $1M
+    
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    
+    # Limit active drafts
+    active_drafts = await db.studio_drafts.count_documents({'user_id': user['id'], 'used': False})
+    if active_drafts >= 3 + level:
+        raise HTTPException(status_code=400, detail=f"Limite bozze raggiunto ({3 + level}). Usa o elimina le bozze esistenti.")
+    
+    genre_name = GENRES.get(req.genre, {}).get('name', req.genre)
+    quality_bonus = 3 + level  # +4 to +13 quality bonus
+    
+    # Generate draft using AI
+    title = req.title_hint or ''
+    synopsis = ''
+    suggested_subgenres = []
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"studio-draft-{user['id']}-{uuid.uuid4()}",
+            system_message="Sei uno sceneggiatore professionista italiano. Scrivi in italiano."
+        ).with_model("openai", "gpt-4o-mini")
+        
+        prompt = f"""Crea una bozza di sceneggiatura per un film di genere {genre_name}.
+{f'Titolo suggerito: {req.title_hint}' if req.title_hint else 'Inventa un titolo originale italiano.'}
+
+Rispondi SOLO con questo formato JSON:
+{{"title": "...", "synopsis": "... (200-300 parole, in italiano)", "subgenres": ["sottogenere1", "sottogenere2"]}}"""
+        
+        response = await chat.send_message_async(UserMessage(text=prompt))
+        import json as json_module
+        # Try to parse JSON from response
+        text = response.text.strip()
+        if text.startswith('```'): text = text.split('\n', 1)[1].rsplit('```', 1)[0]
+        parsed = json_module.loads(text)
+        title = parsed.get('title', title or f'Bozza {genre_name}')
+        synopsis = parsed.get('synopsis', '')
+        suggested_subgenres = parsed.get('subgenres', [])[:2]
+    except Exception as e:
+        logging.warning(f"AI draft generation failed: {e}")
+        title = req.title_hint or f'Bozza {genre_name}'
+        synopsis = f'Una storia avvincente di genere {genre_name} ambientata nel mondo contemporaneo.'
+    
+    draft_id = str(uuid.uuid4())
+    draft_doc = {
+        'id': draft_id,
+        'user_id': user['id'],
+        'title': title,
+        'genre': req.genre,
+        'genre_name': genre_name,
+        'synopsis': synopsis,
+        'suggested_subgenres': suggested_subgenres,
+        'quality_bonus': quality_bonus,
+        'studio_level': level,
+        'cost': cost,
+        'used': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.studio_drafts.insert_one(draft_doc)
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+    
+    # Remove _id before returning
+    draft_doc.pop('_id', None)
+    return {
+        'success': True,
+        'message': f'Bozza "{title}" creata! Qualità bonus: +{quality_bonus}%',
+        'draft': draft_doc,
+        'cost': cost
+    }
+
+@api_router.get("/production-studio/drafts")
+async def get_studio_drafts(user: dict = Depends(get_current_user)):
+    """Get available studio drafts for the user."""
+    drafts = await db.studio_drafts.find(
+        {'user_id': user['id'], 'used': False}, {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+    return {'drafts': drafts}
+
+@api_router.delete("/production-studio/drafts/{draft_id}")
+async def delete_studio_draft(draft_id: str, user: dict = Depends(get_current_user)):
+    """Delete an unused studio draft."""
+    result = await db.studio_drafts.delete_one({'id': draft_id, 'user_id': user['id'], 'used': False})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    return {'success': True, 'message': 'Bozza eliminata'}
 
 
 @api_router.get("/game/credits")

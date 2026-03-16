@@ -9417,6 +9417,222 @@ async def delete_system_note(note_id: str, user: dict = Depends(get_current_user
     return {'success': True}
 
 
+# ==================== PRODUCTION STUDIO ====================
+
+@api_router.get("/production-studio/status")
+async def get_production_studio_status(user: dict = Depends(get_current_user)):
+    """Get production studio status and capabilities."""
+    studio = await db.infrastructure.find_one(
+        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    level = studio.get('level', 1)
+    pending_films = await db.films.find(
+        {'user_id': user['id'], 'status': 'pending_release'}, {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+    
+    released_films = await db.films.find(
+        {'user_id': user['id'], 'status': 'in_theaters', 'remastered': {'$ne': True}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'quality_score': 1, 'genre': 1, 'total_revenue': 1}
+    ).sort('created_at', -1).limit(10).to_list(10)
+    
+    return {
+        'studio_id': studio.get('id'),
+        'level': level,
+        'name': studio.get('custom_name', 'Studio di Produzione'),
+        'pre_production': {
+            'storyboard_bonus': 5 + level * 2,  # +7% to +25% quality
+            'casting_discount': 15 + level * 3,  # 18% to 45% actor cost discount
+            'scouting_discount': 10 + level * 2,  # 12% to 30% location discount
+            'cost': int(300000 + level * 100000)   # $400K to $1.3M
+        },
+        'post_production': {
+            'remaster_quality_bonus': 3 + level,    # +4 to +13 quality_score
+            'remaster_cost': int(500000 + level * 200000),  # $700K to $2.5M
+            'remaster_cinepass': 2 + level // 3,     # 2 to 5 CinePass
+            'max_remasters': 1 if level < 5 else 2
+        },
+        'casting_agency': {
+            'weekly_recruits': 3 + level,   # 4 to 13 weekly recruits
+            'discount_percent': 20 + level * 5,   # 25% to 70% discount
+            'legendary_chance': min(5 + level * 3, 40)  # 8% to 40%
+        },
+        'pending_films': [{k: v for k, v in f.items() if k != '_id'} for f in pending_films],
+        'released_films': released_films
+    }
+
+class PreProductionRequest(BaseModel):
+    bonus_type: str  # storyboard, casting_interno, scouting
+
+@api_router.post("/production-studio/pre-production/{film_id}")
+async def apply_pre_production(film_id: str, req: PreProductionRequest, user: dict = Depends(get_current_user)):
+    """Apply pre-production bonuses to a pending film."""
+    studio = await db.infrastructure.find_one(
+        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if film.get('status') != 'pending_release':
+        raise HTTPException(status_code=400, detail="Il film deve essere in attesa di rilascio")
+    
+    # Check if bonus already applied
+    applied = film.get('pre_production_bonuses', [])
+    if req.bonus_type in applied:
+        raise HTTPException(status_code=400, detail="Questo bonus è già stato applicato a questo film")
+    
+    level = studio.get('level', 1)
+    cost = int(300000 + level * 100000)
+    
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    
+    updates = {}
+    message = ''
+    if req.bonus_type == 'storyboard':
+        bonus = 5 + level * 2
+        updates['quality_score'] = min(100, film.get('quality_score', 50) + bonus)
+        updates['opening_day_revenue'] = int(film.get('opening_day_revenue', 0) * (1 + bonus / 100))
+        message = f'Storyboard completato! Qualità +{bonus}%'
+    elif req.bonus_type == 'casting_interno':
+        discount = (15 + level * 3) / 100
+        saved = int(film.get('production_cost', 0) * discount)
+        message = f'Casting interno completato! Risparmio attori: ${saved:,}'
+        # Refund part of the production cost
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
+    elif req.bonus_type == 'scouting':
+        discount = (10 + level * 2) / 100
+        saved = int(film.get('location_costs', 0) * discount)
+        message = f'Location scouting completato! Risparmio location: ${saved:,}'
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
+    else:
+        raise HTTPException(status_code=400, detail="Tipo bonus non valido")
+    
+    updates['pre_production_bonuses'] = applied + [req.bonus_type]
+    await db.films.update_one({'id': film_id}, {'$set': updates})
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+    
+    return {'success': True, 'message': message, 'cost': cost, 'bonus_type': req.bonus_type}
+
+@api_router.post("/production-studio/remaster/{film_id}")
+async def remaster_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Remaster a released film to improve its quality."""
+    studio = await db.infrastructure.find_one(
+        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if film.get('status') != 'in_theaters':
+        raise HTTPException(status_code=400, detail="Il film deve essere nelle sale")
+    
+    remaster_count = film.get('remaster_count', 0)
+    level = studio.get('level', 1)
+    max_remasters = 1 if level < 5 else 2
+    if remaster_count >= max_remasters:
+        raise HTTPException(status_code=400, detail=f"Limite remaster raggiunto ({max_remasters})")
+    
+    cost = int(500000 + level * 200000)
+    cinepass_cost = 2 + level // 3
+    
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    if user.get('cinepass', 0) < cinepass_cost:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost}")
+    
+    quality_bonus = 3 + level
+    old_quality = film.get('quality_score', 50)
+    new_quality = min(100, old_quality + quality_bonus)
+    
+    # Improve film stats
+    old_imdb = film.get('imdb_rating', 5.0)
+    new_imdb = min(10.0, old_imdb + quality_bonus * 0.1)
+    
+    await db.films.update_one({'id': film_id}, {'$set': {
+        'quality_score': new_quality,
+        'imdb_rating': round(new_imdb, 1),
+        'remastered': True,
+        'remaster_count': remaster_count + 1
+    }})
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -cost, 'cinepass': -cinepass_cost}}
+    )
+    
+    return {
+        'success': True,
+        'message': f'Remaster completato! Qualità: {old_quality:.0f}% → {new_quality:.0f}%',
+        'quality_before': old_quality,
+        'quality_after': new_quality,
+        'cost': cost,
+        'cinepass_cost': cinepass_cost
+    }
+
+@api_router.get("/production-studio/casting")
+async def get_casting_agency(user: dict = Depends(get_current_user)):
+    """Get available actors from the casting agency (weekly refresh)."""
+    studio = await db.infrastructure.find_one(
+        {'user_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+    )
+    if not studio:
+        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+    
+    level = studio.get('level', 1)
+    num_recruits = 3 + level
+    discount = 20 + level * 5
+    legendary_chance = min(5 + level * 3, 40)
+    
+    # Generate weekly casting pool (seeded by week number for consistency)
+    import hashlib
+    week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
+    seed_str = f"{user['id']}-{week_key}"
+    seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    
+    recruits = []
+    genders = ['male', 'female']
+    for i in range(num_recruits):
+        gender = rng.choice(genders)
+        nationality = rng.choice(NATIONALITIES)
+        names = NAMES_BY_NATIONALITY.get(nationality, {}).get(gender, ['Unknown'])
+        name = rng.choice(names)
+        
+        is_legendary = rng.randint(1, 100) <= legendary_chance
+        base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
+        base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
+        discounted_cost = int(base_cost * (1 - discount / 100))
+        
+        recruits.append({
+            'id': f'casting_{seed}_{i}',
+            'name': name,
+            'gender': gender,
+            'nationality': nationality,
+            'is_legendary': is_legendary,
+            'skill': base_skill,
+            'original_cost': base_cost,
+            'discounted_cost': discounted_cost,
+            'discount_percent': discount
+        })
+    
+    return {
+        'recruits': recruits,
+        'week': week_key,
+        'discount_percent': discount,
+        'legendary_chance': legendary_chance,
+        'studio_level': level
+    }
+
+
+
 @api_router.get("/game/credits")
 async def get_credits():
     """Get game credits."""

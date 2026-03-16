@@ -115,6 +115,22 @@ const ChangePasswordInline = ({ api, language }) => {
   );
 };
 
+const STUDIO_COUNTRIES = [
+  ['IT', 'Italia'], ['US', 'Stati Uniti'], ['GB', 'Regno Unito'], ['FR', 'Francia'],
+  ['DE', 'Germania'], ['ES', 'Spagna'], ['JP', 'Giappone'], ['CN', 'Cina'],
+  ['IN', 'India'], ['BR', 'Brasile'], ['KR', 'Corea del Sud'], ['AU', 'Australia'],
+  ['CA', 'Canada'], ['MX', 'Messico'], ['AR', 'Argentina'], ['RU', 'Russia'],
+  ['TR', 'Turchia'], ['SE', 'Svezia'], ['NL', 'Paesi Bassi'], ['PL', 'Polonia'],
+  ['CH', 'Svizzera'], ['AT', 'Austria'], ['BE', 'Belgio'], ['PT', 'Portogallo'],
+  ['NO', 'Norvegia'], ['DK', 'Danimarca'], ['FI', 'Finlandia'], ['IE', 'Irlanda'],
+  ['GR', 'Grecia'], ['CZ', 'Rep. Ceca'], ['HU', 'Ungheria'], ['RO', 'Romania'],
+  ['IL', 'Israele'], ['ZA', 'Sudafrica'], ['NG', 'Nigeria'], ['EG', 'Egitto'],
+  ['AE', 'Emirati Arabi'], ['SA', 'Arabia Saudita'], ['TH', 'Thailandia'],
+  ['ID', 'Indonesia'], ['MY', 'Malesia'], ['PH', 'Filippine'], ['VN', 'Vietnam'],
+  ['SG', 'Singapore'], ['NZ', 'Nuova Zelanda'], ['CL', 'Cile'], ['CO', 'Colombia'],
+  ['PE', 'Peru'], ['UA', 'Ucraina'], ['HR', 'Croazia']
+];
+
 const ProfilePage = () => {
   const { api, user, refreshUser, logout } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
@@ -129,6 +145,7 @@ const ProfilePage = () => {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetToken, setResetToken] = useState(null);
   const [resetting, setResetting] = useState(false);
+  const [studioCountry, setStudioCountry] = useState(user?.studio_country || 'IT');
 
   useEffect(() => { 
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {}); 
@@ -243,6 +260,24 @@ const ProfilePage = () => {
             <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
           </div>
           
+          {/* Studio Country */}
+          <div className="mb-4">
+            <Label className="text-xs font-semibold mb-1 block flex items-center gap-1">
+              <Globe className="w-3 h-3 text-yellow-500" />
+              {language === 'it' ? 'Paese Studio di Produzione' : 'Studio Country'}
+            </Label>
+            <Select value={studioCountry} onValueChange={setStudioCountry}>
+              <SelectTrigger className="bg-black/20 border-white/10 h-8 text-xs" data-testid="studio-country-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1A1A1A] border-white/10 max-h-[200px]">
+                {STUDIO_COUNTRIES.map(([code, name]) => (
+                  <SelectItem key={code} value={code} className="text-xs">{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Admin Panel - Only for NeoMorpheus */}
           {user?.nickname === 'NeoMorpheus' && (
             <Card className="bg-purple-500/10 border-purple-500/30 mb-4">

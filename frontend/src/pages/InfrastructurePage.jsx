@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
+import ProductionStudioPanel from '../components/ProductionStudioPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
@@ -559,6 +560,18 @@ const InfrastructurePage = () => {
           
           {loadingDetail ? (
             <div className="text-center py-8">Caricamento...</div>
+          ) : infraDetail && selectedInfra?.type === 'production_studio' ? (
+            /* ===== PRODUCTION STUDIO UI ===== */
+            <ProductionStudioPanel
+              api={api}
+              user={user}
+              infraDetail={infraDetail}
+              upgradeInfo={upgradeInfo}
+              upgrading={upgrading}
+              handleUpgrade={handleUpgrade}
+              refreshUser={refreshUser}
+              language={language}
+            />
           ) : infraDetail && selectedInfra?.type === 'cinema_school' ? (
             /* ===== CINEMA SCHOOL UI ===== */
             <div className="space-y-4">

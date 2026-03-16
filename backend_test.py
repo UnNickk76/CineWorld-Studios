@@ -12,7 +12,7 @@ from datetime import datetime
 
 class CineWorldAPITester:
     def __init__(self):
-        self.base_url = "https://film-crash-repair.preview.emergentagent.com/api"
+        self.base_url = "https://cinema-studio-19.preview.emergentagent.com/api"
         self.token = None
         self.user_data = None
         self.tests_run = 0

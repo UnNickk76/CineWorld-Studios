@@ -1150,7 +1150,7 @@ const InfrastructurePage = () => {
             <div className="text-center py-6">
               <Film className="w-12 h-12 mx-auto mb-3 text-gray-600" />
               <p className="text-gray-400">Non hai ancora creato nessun film.</p>
-              <Button className="mt-3" onClick={() => { setShowAddFilmDialog(false); setShowDetailDialog(false); navigate('/create'); }}>
+              <Button className="mt-3" onClick={() => { setShowAddFilmDialog(false); setShowDetailDialog(false); navigate('/create-film'); }}>
                 Crea un Film
               </Button>
             </div>

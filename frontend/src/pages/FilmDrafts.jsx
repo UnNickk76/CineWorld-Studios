@@ -131,7 +131,7 @@ const FilmDrafts = () => {
             <p className="text-gray-500 text-sm mt-2">
               {language === 'it' ? 'I film messi in pausa o con errori appariranno qui' : 'Paused or errored films will appear here'}
             </p>
-            <Button onClick={() => navigate('/create')} className="mt-4 bg-yellow-500 text-black">
+            <Button onClick={() => navigate('/create-film')} className="mt-4 bg-yellow-500 text-black">
               <Plus className="w-4 h-4 mr-2" />
               {language === 'it' ? 'Crea Nuovo Film' : 'Create New Film'}
             </Button>

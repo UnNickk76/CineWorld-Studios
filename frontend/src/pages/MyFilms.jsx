@@ -89,10 +89,10 @@ const MyFilms = () => {
     <div className="pt-16 pb-20 px-2 sm:px-3 max-w-7xl mx-auto" data-testid="my-films-page">
       <div className="flex items-center justify-between mb-4 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-2 sm:-mx-3 px-2 sm:px-3" data-testid="my-films-sticky-header-main">
         <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl">{t('my_films')}</h1>
-        <Button size="sm" onClick={() => navigate('/create')} className="bg-yellow-500 text-black h-8 px-2 sm:px-3 text-xs sm:text-sm"><Plus className="w-3 h-3 mr-1" /> Crea</Button>
+        <Button size="sm" onClick={() => navigate('/create-film')} className="bg-yellow-500 text-black h-8 px-2 sm:px-3 text-xs sm:text-sm"><Plus className="w-3 h-3 mr-1" /> Crea</Button>
       </div>
       {films.length === 0 ? (
-        <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center"><Film className="w-10 h-10 mx-auto mb-3 text-gray-600" /><h3 className="text-base mb-2">Nessun film ancora</h3><Button onClick={() => navigate('/create')} className="bg-yellow-500 text-black text-sm">Crea il tuo primo Film</Button></Card>
+        <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center"><Film className="w-10 h-10 mx-auto mb-3 text-gray-600" /><h3 className="text-base mb-2">Nessun film ancora</h3><Button onClick={() => navigate('/create-film')} className="bg-yellow-500 text-black text-sm">Crea il tuo primo Film</Button></Card>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
           {films.map(film => (

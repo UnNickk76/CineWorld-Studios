@@ -265,7 +265,7 @@ const TopNavbar = () => {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
-    { path: '/create', icon: Plus, label: 'create_film' },
+    { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci!' : 'Produce!' },
     { path: '/drafts', icon: Clock, label: 'drafts' },
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
@@ -1455,7 +1455,7 @@ function App() {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
-                <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
+                <Route path="/create" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
                 <Route path="/pre-engagement" element={<ProtectedRoute><PreEngagementPage /></ProtectedRoute>} />

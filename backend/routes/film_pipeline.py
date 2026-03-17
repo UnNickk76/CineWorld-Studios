@@ -29,6 +29,19 @@ class SelectCastRequest(BaseModel):
     role_type: str
     proposal_id: str
 
+class ScreenplaySubmitRequest(BaseModel):
+    mode: str  # 'ai', 'pre_only', 'manual'
+    manual_text: Optional[str] = None
+
+class RemasterRequest(BaseModel):
+    pass
+
+class SpeedUpShootingRequest(BaseModel):
+    option: str  # 'fast' (50%), 'faster' (80%), 'instant'
+
+class BuzzVoteRequest(BaseModel):
+    vote: str  # 'high', 'medium', 'low'
+
 # ==================== CONSTANTS ====================
 
 # Max simultaneous films based on level
@@ -681,4 +694,615 @@ async def buy_discarded_film(project_id: str, user: dict = Depends(get_current_u
         'message': f'Hai acquistato "{project["title"]}" per ${price:,}!',
         'project_id': project_id,
         'new_status': buyer_status
+    }
+
+
+
+# ==================== PHASE 2: SCREENPLAY ====================
+
+@router.get("/film-pipeline/screenplay")
+async def get_screenplay_films(user: dict = Depends(get_current_user)):
+    """Get films in screenplay phase."""
+    projects = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'screenplay'},
+        {'_id': 0}
+    ).sort('updated_at', -1).to_list(50)
+    return {'films': projects}
+
+
+@router.post("/film-pipeline/{project_id}/write-screenplay")
+async def write_screenplay(project_id: str, req: ScreenplaySubmitRequest, user: dict = Depends(get_current_user)):
+    """Submit screenplay for a film: AI-generated, pre-only, or manual."""
+    import os, logging
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'screenplay'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato o non in fase Sceneggiatura")
+
+    screenplay_text = ""
+    quality_modifier = 0
+
+    if req.mode == 'ai':
+        # Generate AI screenplay based on pre-screenplay
+        EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+        if EMERGENT_LLM_KEY:
+            try:
+                from emergentintegrations.llm.chat import LlmChat, UserMessage
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"pipeline-screenplay-{uuid.uuid4()}",
+                    system_message="Sei uno sceneggiatore cinematografico professionista. Scrivi sceneggiature in italiano, concise ma d'impatto."
+                ).with_model("openai", "gpt-4o-mini")
+
+                prompt = f"""Scrivi una sceneggiatura breve (max 400 parole) per un film {project['genre']} ({project['subgenre']}) intitolato "{project['title']}".
+
+Basati su questa sinossi del produttore:
+"{project['pre_screenplay']}"
+
+Location: {project.get('location', {}).get('name', 'N/A')}
+
+Includi:
+- Logline (1-2 frasi)
+- Conflitto principale
+- 4-5 punti chiave della trama
+- Climax e risoluzione
+- Note su atmosfera e tono
+
+Scrivi TUTTO in italiano."""
+
+                response = await chat.send_message(UserMessage(text=prompt))
+                screenplay_text = response
+                quality_modifier = 10  # AI bonus
+            except Exception as e:
+                logging.error(f"AI screenplay error: {e}")
+                screenplay_text = f"[Sceneggiatura AI] Basata su: {project['pre_screenplay']}"
+                quality_modifier = 5
+        else:
+            screenplay_text = f"[Sceneggiatura AI non disponibile] Basata su: {project['pre_screenplay']}"
+            quality_modifier = 5
+
+        # AI screenplay costs more
+        cost = 80000
+        if user.get('funds', 0) < cost:
+            raise HTTPException(status_code=400, detail=f"Fondi insufficienti per la sceneggiatura AI. Servono ${cost:,}")
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+
+    elif req.mode == 'pre_only':
+        # Keep only pre-screenplay (quality malus)
+        screenplay_text = project['pre_screenplay']
+        quality_modifier = -15  # Malus for no full screenplay
+        cost = 0
+
+    elif req.mode == 'manual':
+        if not req.manual_text or len(req.manual_text.strip()) < 100:
+            raise HTTPException(status_code=400, detail="La sceneggiatura manuale deve essere di almeno 100 caratteri")
+        screenplay_text = req.manual_text.strip()
+        # Manual quality depends on length
+        if len(screenplay_text) >= 500:
+            quality_modifier = 8
+        elif len(screenplay_text) >= 300:
+            quality_modifier = 4
+        else:
+            quality_modifier = 0
+        cost = 20000
+        if user.get('funds', 0) < cost:
+            raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+    else:
+        raise HTTPException(status_code=400, detail="Modalita' non valida. Usa 'ai', 'pre_only' o 'manual'")
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'screenplay': screenplay_text,
+            'screenplay_mode': req.mode,
+            'screenplay_quality_modifier': quality_modifier,
+            f'costs_paid.screenplay': cost,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'Sceneggiatura {"AI" if req.mode == "ai" else "manuale" if req.mode == "manual" else "base"} completata!',
+        'screenplay': screenplay_text,
+        'quality_modifier': quality_modifier,
+        'cost': cost
+    }
+
+
+@router.post("/film-pipeline/{project_id}/advance-to-preproduction")
+async def advance_to_preproduction(project_id: str, user: dict = Depends(get_current_user)):
+    """Move from screenplay to pre-production phase."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'screenplay'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if not project.get('screenplay'):
+        raise HTTPException(status_code=400, detail="Devi prima completare la sceneggiatura")
+
+    from routes.cinepass import spend_cinepass
+    cp_cost = STEP_CINEPASS['pre_production']
+    await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'pre_production',
+            'cinepass_paid.pre_production': cp_cost,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    return {'success': True, 'message': f'"{project["title"]}" in Pre-Produzione!'}
+
+
+# ==================== PHASE 2: PRE-PRODUCTION ====================
+
+# Remaster duration based on pre-IMDb score (higher = faster)
+def get_remaster_duration_minutes(pre_imdb: float) -> int:
+    base = max(5, int((10 - pre_imdb) * 6))  # 5-50 minutes
+    return base + random.randint(0, 10)
+
+# Remaster quality boost
+def get_remaster_boost() -> int:
+    return random.randint(5, 15)
+
+
+@router.get("/film-pipeline/pre-production")
+async def get_preproduction_films(user: dict = Depends(get_current_user)):
+    """Get films in pre-production phase."""
+    projects = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'pre_production'},
+        {'_id': 0}
+    ).sort('updated_at', -1).to_list(50)
+
+    now = datetime.now(timezone.utc)
+    for p in projects:
+        if p.get('remaster_started_at') and not p.get('remaster_completed'):
+            started = datetime.fromisoformat(p['remaster_started_at'].replace('Z', '+00:00'))
+            duration = p.get('remaster_duration_minutes', 30)
+            end_time = started + __import__('datetime').timedelta(minutes=duration)
+            if now >= end_time:
+                # Auto-complete remaster
+                boost = p.get('remaster_boost', get_remaster_boost())
+                await db.film_projects.update_one(
+                    {'id': p['id']},
+                    {'$set': {
+                        'remaster_completed': True,
+                        'remaster_quality_boost': boost,
+                        'updated_at': now.isoformat()
+                    }}
+                )
+                p['remaster_completed'] = True
+                p['remaster_quality_boost'] = boost
+            else:
+                remaining = (end_time - now).total_seconds() / 60
+                p['remaster_remaining_minutes'] = round(remaining, 1)
+
+    return {'films': projects}
+
+
+@router.post("/film-pipeline/{project_id}/remaster")
+async def start_remaster(project_id: str, user: dict = Depends(get_current_user)):
+    """Start remastering a film in pre-production."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'pre_production'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project.get('remaster_started_at'):
+        raise HTTPException(status_code=400, detail="Rimasterizzazione già avviata")
+
+    # Check if user has production studio
+    studio = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0})
+    if not studio:
+        raise HTTPException(status_code=400, detail="Devi possedere uno Studio di Produzione per rimasterizzare")
+
+    cost = 50000 + random.randint(0, 30000)
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+
+    duration = get_remaster_duration_minutes(project.get('pre_imdb_score', 5))
+    boost = get_remaster_boost()
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'remaster_started_at': datetime.now(timezone.utc).isoformat(),
+            'remaster_duration_minutes': duration,
+            'remaster_boost': boost,
+            'remaster_completed': False,
+            f'costs_paid.remaster': cost,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'Rimasterizzazione avviata! Durata: ~{duration} minuti',
+        'duration_minutes': duration,
+        'cost': cost
+    }
+
+
+@router.post("/film-pipeline/{project_id}/speed-up-remaster")
+async def speed_up_remaster(project_id: str, user: dict = Depends(get_current_user)):
+    """Pay to instantly complete remastering."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'pre_production'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if not project.get('remaster_started_at') or project.get('remaster_completed'):
+        raise HTTPException(status_code=400, detail="Nessuna rimasterizzazione in corso")
+
+    cost = 40000
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+
+    boost = project.get('remaster_boost', get_remaster_boost())
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'remaster_completed': True,
+            'remaster_quality_boost': boost,
+            f'costs_paid.remaster_speedup': cost,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'Rimasterizzazione completata! Qualita +{boost}%',
+        'quality_boost': boost,
+        'cost': cost
+    }
+
+
+@router.post("/film-pipeline/{project_id}/start-shooting")
+async def start_shooting(project_id: str, user: dict = Depends(get_current_user)):
+    """Move from pre-production to shooting ('Ciak! Si Gira!')."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'pre_production'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project.get('remaster_started_at') and not project.get('remaster_completed'):
+        raise HTTPException(status_code=400, detail="Attendi il completamento della rimasterizzazione")
+
+    from routes.cinepass import spend_cinepass
+    cp_cost = STEP_CINEPASS['shooting']
+    await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
+
+    # Calculate shooting duration (days) based on pre-IMDb + quality modifiers
+    base_days = random.randint(3, 7)
+    now = datetime.now(timezone.utc)
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'shooting',
+            'shooting_started_at': now.isoformat(),
+            'shooting_days': base_days,
+            'shooting_day_current': 0,
+            'shooting_completed': False,
+            'cinepass_paid.shooting': cp_cost,
+            'updated_at': now.isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'Ciak! Si Gira! "{project["title"]}" in ripresa per {base_days} giorni!',
+        'shooting_days': base_days
+    }
+
+
+# ==================== PHASE 2: SHOOTING ====================
+
+@router.get("/film-pipeline/shooting")
+async def get_shooting_films(user: dict = Depends(get_current_user)):
+    """Get films in shooting phase."""
+    projects = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'shooting'},
+        {'_id': 0}
+    ).sort('shooting_started_at', -1).to_list(50)
+
+    now = datetime.now(timezone.utc)
+    for p in projects:
+        if p.get('shooting_started_at') and not p.get('shooting_completed'):
+            started = datetime.fromisoformat(p['shooting_started_at'].replace('Z', '+00:00'))
+            total_days = p.get('shooting_days', 5)
+            # 1 real hour = 1 shooting day (accelerated for gameplay)
+            hours_elapsed = (now - started).total_seconds() / 3600
+            current_day = min(int(hours_elapsed), total_days)
+            p['shooting_day_current'] = current_day
+            p['shooting_hours_remaining'] = max(0, total_days - hours_elapsed)
+
+            if current_day >= total_days:
+                p['shooting_completed'] = True
+
+    return {'films': projects}
+
+
+@router.post("/film-pipeline/{project_id}/speed-up-shooting")
+async def speed_up_shooting(project_id: str, req: SpeedUpShootingRequest, user: dict = Depends(get_current_user)):
+    """Speed up shooting with credits. Options: fast (50%), faster (80%), instant."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'shooting'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project.get('shooting_completed'):
+        raise HTTPException(status_code=400, detail="Riprese già completate")
+
+    costs = {'fast': 50000, 'faster': 90000, 'instant': 150000}
+    reductions = {'fast': 0.5, 'faster': 0.8, 'instant': 1.0}
+
+    if req.option not in costs:
+        raise HTTPException(status_code=400, detail="Opzione non valida")
+
+    cost = costs[req.option]
+    if user.get('funds', 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+
+    reduction = reductions[req.option]
+    started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
+    total_days = project.get('shooting_days', 5)
+    hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600
+    remaining_hours = max(0, total_days - hours_elapsed)
+    new_remaining = remaining_hours * (1 - reduction)
+
+    # Adjust the started time to simulate faster progress
+    new_started = datetime.now(timezone.utc) - __import__('datetime').timedelta(hours=(total_days - new_remaining))
+
+    updates = {
+        'shooting_started_at': new_started.isoformat(),
+        f'costs_paid.shooting_speedup': cost,
+        'updated_at': datetime.now(timezone.utc).isoformat()
+    }
+    if req.option == 'instant':
+        updates['shooting_completed'] = True
+
+    await db.film_projects.update_one({'id': project_id}, {'$set': updates})
+
+    labels = {'fast': 'Velocizzato 50%', 'faster': 'Velocizzato 80%', 'instant': 'Riprese completate!'}
+    return {
+        'success': True,
+        'message': f'{labels[req.option]} Costo: ${cost:,}',
+        'cost': cost
+    }
+
+
+@router.post("/film-pipeline/{project_id}/release")
+async def release_film(project_id: str, user: dict = Depends(get_current_user)):
+    """Release a completed film to theaters. Shows cost summary."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'shooting'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    # Check shooting is complete
+    if not project.get('shooting_completed'):
+        started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
+        total_days = project.get('shooting_days', 5)
+        hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600
+        if hours_elapsed < total_days:
+            raise HTTPException(status_code=400, detail="Le riprese non sono ancora completate")
+
+    # Calculate final quality score
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    hidden_factor = project.get('hidden_factor', 0)
+    screenplay_mod = project.get('screenplay_quality_modifier', 0)
+    remaster_boost = project.get('remaster_quality_boost', 0)
+
+    # Buzz influence
+    buzz_votes = project.get('buzz_votes', {})
+    total_votes = sum(buzz_votes.values()) if buzz_votes else 0
+    buzz_influence = 0
+    if total_votes > 0:
+        high_pct = buzz_votes.get('high', 0) / total_votes
+        low_pct = buzz_votes.get('low', 0) / total_votes
+        buzz_influence = (high_pct - low_pct) * 10  # ±10% influence
+
+    # Cast quality
+    cast = project.get('cast', {})
+    cast_skills = []
+    for role in ['director', 'screenwriter', 'composer']:
+        person = cast.get(role, {})
+        if person and person.get('skills'):
+            avg = sum(person['skills'].values()) / max(1, len(person['skills']))
+            cast_skills.append(avg)
+    for actor in cast.get('actors', []):
+        if actor.get('skills'):
+            avg = sum(actor['skills'].values()) / max(1, len(actor['skills']))
+            cast_skills.append(avg)
+    cast_quality = sum(cast_skills) / max(1, len(cast_skills)) if cast_skills else 30
+
+    # Final score calculation
+    base_quality = pre_imdb * 8  # 0-80 range
+    quality_score = base_quality + screenplay_mod + remaster_boost + buzz_influence + (cast_quality * 0.2)
+    quality_score = max(10, min(100, quality_score + random.uniform(-5, 5)))
+    quality_score = round(quality_score, 1)
+
+    # Determine tier
+    if quality_score >= 85:
+        tier = 'masterpiece'
+    elif quality_score >= 70:
+        tier = 'excellent'
+    elif quality_score >= 55:
+        tier = 'good'
+    elif quality_score >= 40:
+        tier = 'mediocre'
+    else:
+        tier = 'bad'
+
+    # Cost summary
+    costs_paid = project.get('costs_paid', {})
+    total_cost = sum(costs_paid.values())
+    cinepass_paid = project.get('cinepass_paid', {})
+    total_cinepass = sum(cinepass_paid.values())
+
+    # Create the actual film in the films collection (to integrate with existing system)
+    film_id = str(uuid.uuid4())
+    film_doc = {
+        'id': film_id,
+        'owner_id': user['id'],
+        'title': project['title'],
+        'genre': project['genre'],
+        'subgenre': project.get('subgenre', ''),
+        'status': 'in_theaters',
+        'quality_score': quality_score,
+        'tier': tier,
+        'budget': total_cost,
+        'total_revenue': 0,
+        'day_in_theaters': 0,
+        'max_days': random.randint(14, 30),
+        'cast': cast,
+        'location': project.get('location', {}),
+        'screenplay': project.get('screenplay', project.get('pre_screenplay', '')),
+        'pre_imdb_score': pre_imdb,
+        'buzz_votes': buzz_votes,
+        'buzz_influence': buzz_influence,
+        'remaster_boost': remaster_boost,
+        'pipeline_project_id': project_id,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'released_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.films.insert_one(film_doc)
+
+    # Update project status
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'completed',
+            'film_id': film_id,
+            'final_quality': quality_score,
+            'final_tier': tier,
+            'completed_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    # Award XP
+    xp_gain = int(quality_score * 2)
+    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': xp_gain, 'fame': quality_score * 0.1}})
+
+    # Notification
+    from server import create_notification
+    tier_labels = {'masterpiece': 'Capolavoro!', 'excellent': 'Eccellente!', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso'}
+    notif = create_notification(user['id'], 'film_release', 'Film Rilasciato!',
+        f'"{project["title"]}" e al cinema! Qualita: {quality_score} ({tier_labels.get(tier, tier)})',
+        {'film_id': film_id, 'quality': quality_score, 'tier': tier})
+    await db.notifications.insert_one(notif)
+
+    return {
+        'success': True,
+        'film_id': film_id,
+        'title': project['title'],
+        'quality_score': quality_score,
+        'tier': tier,
+        'tier_label': tier_labels.get(tier, tier),
+        'cost_summary': {
+            'total_money': total_cost,
+            'total_cinepass': total_cinepass,
+            'breakdown': costs_paid,
+            'cinepass_breakdown': cinepass_paid
+        },
+        'modifiers': {
+            'pre_imdb': pre_imdb,
+            'screenplay': screenplay_mod,
+            'remaster': remaster_boost,
+            'buzz': round(buzz_influence, 1),
+            'cast_quality': round(cast_quality, 1)
+        },
+        'xp_gained': xp_gain
+    }
+
+
+# ==================== BUZZ SYSTEM ====================
+
+@router.get("/film-pipeline/buzz")
+async def get_buzz_films(user: dict = Depends(get_current_user)):
+    """Get films in shooting that can be voted on (excluding user's own)."""
+    films = await db.film_projects.find(
+        {'status': 'shooting', 'user_id': {'$ne': user['id']}},
+        {'_id': 0, 'hidden_factor': 0, 'cast_proposals': 0}
+    ).to_list(20)
+
+    # Filter out films already voted by this user
+    result = []
+    for f in films:
+        voters = f.get('buzz_voters', [])
+        if user['id'] not in voters:
+            result.append({
+                'id': f['id'],
+                'title': f['title'],
+                'genre': f['genre'],
+                'subgenre': f.get('subgenre', ''),
+                'pre_imdb_score': f.get('pre_imdb_score', 5),
+                'pre_screenplay': f.get('pre_screenplay', '')[:150] + '...',
+                'owner_nickname': f.get('owner_nickname', ''),
+                'buzz_votes': f.get('buzz_votes', {}),
+                'total_votes': sum(f.get('buzz_votes', {}).values())
+            })
+
+    # Get owner nicknames
+    owner_ids = list(set(f.get('user_id', '') for f in films))
+    if owner_ids:
+        owners = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1}).to_list(50)
+        owner_map = {o['id']: o['nickname'] for o in owners}
+        for f_orig, f_result in zip(films, result):
+            f_result['owner_nickname'] = owner_map.get(f_orig.get('user_id', ''), 'Sconosciuto')
+
+    return {'films': result}
+
+
+@router.post("/film-pipeline/{project_id}/buzz-vote")
+async def buzz_vote(project_id: str, req: BuzzVoteRequest, user: dict = Depends(get_current_user)):
+    """Vote on a film's buzz (hype level)."""
+    if req.vote not in ('high', 'medium', 'low'):
+        raise HTTPException(status_code=400, detail="Voto non valido. Usa 'high', 'medium' o 'low'")
+
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'status': 'shooting'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if project.get('user_id') == user['id']:
+        raise HTTPException(status_code=400, detail="Non puoi votare il tuo film")
+    if user['id'] in project.get('buzz_voters', []):
+        raise HTTPException(status_code=400, detail="Hai già votato per questo film")
+
+    # Update votes
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {
+            '$inc': {f'buzz_votes.{req.vote}': 1},
+            '$push': {'buzz_voters': user['id']}
+        }
+    )
+
+    # Reward voter with 1-2 CinePass
+    cp_reward = random.choice([1, 1, 2])
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': cp_reward}})
+
+    vote_labels = {'high': 'Hype alto!', 'medium': 'Interessante', 'low': 'Meh...'}
+    return {
+        'success': True,
+        'message': f'Voto registrato: {vote_labels[req.vote]} +{cp_reward} CP',
+        'cp_reward': cp_reward
     }

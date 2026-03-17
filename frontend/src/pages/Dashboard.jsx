@@ -875,10 +875,10 @@ const Dashboard = () => {
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create')}>
+        <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create-film')}>
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Plus className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{t('create_film')}</h3><p className="text-[10px] sm:text-xs text-gray-400">Nuovo blockbuster</p></div>
+            <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer" onClick={() => navigate('/pre-engagement')}>
@@ -907,14 +907,7 @@ const Dashboard = () => {
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-600/5 border-amber-500/20 cursor-pointer relative" onClick={() => { if (pendingFilms.length > 0) { openReleasePopup(pendingFilms[0]); } else { navigate('/create'); } }} data-testid="pending-films-shortcut">
-          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-amber-500 rounded-lg"><Clock className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'In Attesa' : 'Pending'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Rilascia film' : 'Release films'}</p></div>
-            {pendingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{pendingFilms.length}</span>}
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer relative" onClick={() => setShowShootingDialog(true)} data-testid="shooting-shortcut">
+        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer relative" onClick={() => navigate('/create-film?tab=shooting')} data-testid="shooting-shortcut">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Ciak!' : 'Action!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Si gira!' : 'Shooting!'}</p></div>

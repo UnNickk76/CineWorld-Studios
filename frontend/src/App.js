@@ -175,18 +175,21 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup - only once per 24h
+  // Show donate popup - only once per 24h AND once per session
   useEffect(() => {
     api.get('/game/donations-status').then(r => {
       const enabled = r.data.donations_enabled;
       setDonationsEnabled(enabled);
-      if (enabled) {
+      if (enabled && !sessionStorage.getItem('donatePopupShownThisSession')) {
         const lastShown = localStorage.getItem('donatePopupLastShown');
         const now = Date.now();
         const twentyFourHours = 24 * 60 * 60 * 1000;
         if (!lastShown || (now - parseInt(lastShown)) > twentyFourHours) {
           localStorage.setItem('donatePopupLastShown', now.toString());
+          sessionStorage.setItem('donatePopupShownThisSession', 'true');
           setTimeout(() => setShowDonatePopup(true), 2500);
+        } else {
+          sessionStorage.setItem('donatePopupShownThisSession', 'true');
         }
       }
     }).catch(() => {});

@@ -9692,42 +9692,35 @@ async def get_tutorial():
             },
             {
                 'id': 2,
-                'title': 'Crea il tuo Primo Film',
-                'description': 'Vai su "Crea Film" dal menu. Il processo si divide in 12 step:\n\n'
-                    '1. Titolo & Genere - Scegli titolo, genere e sottogeneri. Se hai bozze dallo Studio di Produzione, selezionale qui per CinePass gratis e bonus qualità!\n'
-                    '2. Cast Principale - Scegli regista, sceneggiatore e composore. Ogni professionista ha abilità e fama diverse.\n'
-                    '3. Attori - Seleziona gli attori e assegna i ruoli (Protagonista, Antagonista, Supporto, ecc.).\n'
-                    '4. Comparse - Scegli il numero di comparse. Più comparse = più realismo ma più costi.\n'
-                    '5. Location - Seleziona le location e i giorni di ripresa per ciascuna.\n'
-                    '6. Equipaggiamento - Scegli il pacchetto tecnico (Standard, Premium, IMAX, ecc.).\n'
-                    '7. Sceneggiatura - Scrivi manualmente, genera con AI o usa una bozza dallo Studio.\n'
-                    '8. Colonna Sonora - Descrivi la musica che vuoi per il tuo film.\n'
-                    '9. Locandina - Genera la locandina con AI dal prompt.\n'
-                    '10. Sponsor - Scegli uno sponsor per finanziare parte dei costi.\n'
-                    '11. Pubblicità - Aggiungi pubblicità pre-film per guadagni extra.\n'
-                    '12. Riepilogo & Conferma - Rivedi tutto e conferma la produzione!',
+                'title': 'Produci! - La Nuova Pipeline',
+                'description': 'Clicca su "Produci!" dal menu per entrare nella pipeline di produzione. Il processo si divide in 6 fasi, ognuna con il suo tab dedicato:\n\n'
+                    '1. CREAZIONE - Scegli titolo, genere e sottogenere (menu a tendina), scrivi una sinossi (min 100 caratteri) e seleziona la location.\n'
+                    '2. PROPOSTE - Il sistema valuta la tua idea con un pre-punteggio IMDb. Se il punteggio e buono, prosegui al casting. Altrimenti scarta e riprova!\n'
+                    '3. CASTING - Gli agenti propongono candidati per ogni ruolo (regista, attori, ecc.) con un timer. Puoi velocizzare con i CinePass.\n'
+                    '4. SCENEGGIATURA - La sceneggiatura viene generata con AI basata sulla tua sinossi. Viene anche creata la locandina del film.\n'
+                    '5. PRE-PRODUZIONE - Qui puoi rimasterizzare il film per migliorare la qualita prima delle riprese.\n'
+                    '6. RIPRESE - "Ciak! Si Gira!" Il film entra in produzione. Attendi il completamento o velocizza con i crediti.\n\n'
+                    'Puoi avere piu film in pipeline contemporaneamente (limite basato sul tuo livello). Ogni tab mostra un badge con il numero di film in quella fase.',
                 'icon': 'clapperboard'
             },
             {
                 'id': 3,
-                'title': 'Distribuzione e Riprese',
-                'description': 'Dopo la creazione, il film va in "Attesa di Rilascio". Hai due scelte:\n\n'
-                    'RILASCIO DIRETTO: Costo ridotto del 30%, ma qualità limitata a 5.8 IMDb e incassi ridotti.\n\n'
-                    'INIZIA LE RIPRESE: Scegli da 1 a 10 giorni. Bonus qualità dal +10% (1g) al +40% (10g)! '
-                    'Ogni giorno accadono eventi casuali: Giornata Perfetta (+2%), Improvvisazione Geniale (+3%), Ritardo Meteo (-1%)...\n\n'
-                    'Puoi chiudere anticipatamente le riprese pagando CinePass (2 × giorni mancanti). '
-                    'Poi scegli la zona di distribuzione:\n'
-                    '- Nazionale: $500K + 3 CP\n'
-                    '- Continentale: $1.5M + 5 CP\n'
-                    '- Mondiale: $4M + 8 CP',
+                'title': 'Distribuzione del Film',
+                'description': 'Dopo le riprese, il film va in "Attesa di Rilascio". Scegli la zona di distribuzione:\n\n'
+                    '- Nazionale: $500K + 3 CinePass\n'
+                    '- Continentale: $1.5M + 5 CinePass\n'
+                    '- Mondiale: $4M + 8 CinePass\n\n'
+                    'Nella sezione "Buzz" puoi vedere i film in produzione degli altri giocatori!',
                 'icon': 'globe'
             },
             {
                 'id': 4,
                 'title': 'Scegli il Cast',
-                'description': 'Il cast disponibile dipende dal tuo livello e dalla tua fama! Attori, registi e sceneggiatori hanno abilità e fama diverse. '
-                    'Livello basso = solo 1-2 stelle. Salendo di livello sblocchi talenti migliori fino a 5 stelle. '
-                    'Puoi pre-ingaggiare attori per 5 CinePass. Se possiedi la Scuola di Recitazione, i tuoi attori personali sono gratuiti!',
+                'description': 'Nella fase Casting della pipeline, gli agenti ti propongono candidati per ogni ruolo. Il cast disponibile dipende dal tuo livello e dalla tua fama! '
+                    'Attori, registi e sceneggiatori hanno abilita e fama diverse. '
+                    'Livello basso = solo talenti 1-2 stelle. Salendo di livello sblocchi professionisti migliori fino a 5 stelle. '
+                    'Le proposte hanno un timer: puoi attendere o velocizzare con i CinePass. '
+                    'Puoi anche pre-ingaggiare attori dalla sezione Pre-Ingaggio (5 CinePass). Se possiedi la Scuola di Recitazione, i tuoi attori diplomati sono gratuiti!',
                 'icon': 'users'
             },
             {
@@ -9769,7 +9762,11 @@ async def get_tutorial():
             {
                 'id': 11,
                 'title': 'Scuola di Recitazione',
-                'description': 'Acquista una Scuola di Recitazione dalle Infrastrutture! Ogni giorno avrai nuove reclute da formare (3 CinePass + $200K). Dopo 10-20 giorni, tienile nel tuo Cast Personale (gratis nei film!) o liberale.',
+                'description': 'Acquista una Scuola di Recitazione dalle Infrastrutture! Ogni giorno avrai nuove reclute da formare (3 CinePass + $200K). '
+                    'Dopo 10-20 giorni, tienile nel tuo Cast Personale (gratis nei film!) o liberale. '
+                    'Puoi anche inviare attori dall\'Agenzia Casting alla scuola per potenziarli. '
+                    'La capacita della scuola aumenta col livello (formula: 2 + livello scuola). '
+                    'Quando un attore raggiunge il potenziale massimo, ricevi un avviso e puoi diplomarlo.',
                 'icon': 'graduation-cap'
             },
             {

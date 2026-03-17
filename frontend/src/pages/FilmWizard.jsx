@@ -98,6 +98,7 @@ const FilmWizard = () => {
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState([{skill: '', min_value: 50}]);
   const [advancedSkillList, setAdvancedSkillList] = useState([]);
+  const [refreshingCast, setRefreshingCast] = useState(false);
   const [selectedAgeRange, setSelectedAgeRange] = useState('all');
   
   // Rejection system states
@@ -405,6 +406,7 @@ const FilmWizard = () => {
   }, [api, cachedGet]);
   
   const fetchPeople = async (type, category = '', skill = '', ageRange = '') => {
+    setRefreshingCast(true);
     try {
       let url = `/${type}?limit=200`;
       if (category && category !== 'all') url += `&category=${category}`;
@@ -450,6 +452,8 @@ const FilmWizard = () => {
           if (retryRes.data.categories) setCastCategories(retryRes.data.categories);
         } catch(e) { console.error(`Retry failed for ${type}:`, e); }
       }, 1000);
+    } finally {
+      setRefreshingCast(false);
     }
   };
   
@@ -1249,7 +1253,7 @@ const FilmWizard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleTypeSw, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" disabled={refreshingCast} onClick={()=>fetchPeople(roleTypeSw, selectedCategory, selectedSkill)}><RefreshCw className={`w-3 h-3 mr-1 ${refreshingCast?'animate-spin':''}`} />{language==='it'?'Nuovi sceneggiatori':'New screenwriters'}</Button>
           </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-400">{swList.length} {language==='it'?'sceneggiatori trovati':'screenwriters found'}</p>
@@ -1298,9 +1302,9 @@ const FilmWizard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople(roleType4, selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" disabled={refreshingCast} onClick={()=>fetchPeople(roleType4, selectedCategory, selectedSkill)}><RefreshCw className={`w-3 h-3 mr-1 ${refreshingCast?'animate-spin':''}`} />{language==='it'?'Nuovi registi':'New directors'}</Button>
           </div>
-          <p className="text-xs text-gray-400">{people4.length} {language==='it'?'registi trovati':'directors found'}</p>
+          <p className="text-xs text-gray-400">{refreshingCast ? (language==='it'?'Caricamento...':'Loading...') : `${people4.length} ${language==='it'?'registi trovati':'directors found'}`}</p>
           <ScrollArea className="h-[380px] sm:h-[420px]"><div className="space-y-1.5 pr-2">{people4.map(p=>{const isSel=selId4===p.id;return<PersonCard key={p.id} person={p} isSelected={isSel} roleType="director" onSelect={()=>{setFilmData({...filmData,director_id:p.id});}} />;})}</div></ScrollArea>
         </div>);
       case 5:
@@ -1331,7 +1335,7 @@ const FilmWizard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('composers', selectedCategory, selectedSkill)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" disabled={refreshingCast} onClick={()=>fetchPeople('composers', selectedCategory, selectedSkill)}><RefreshCw className={`w-3 h-3 mr-1 ${refreshingCast?'animate-spin':''}`} />{language==='it'?'Nuovi compositori':'New composers'}</Button>
           </div>
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-400"><Music className="w-3 h-3 inline mr-1" />{composers.length} {language==='it'?'compositori trovati':'composers found'}</p>
@@ -1373,7 +1377,7 @@ const FilmWizard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7" onClick={()=>fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange)}><RefreshCw className="w-3 h-3 mr-1" />Refresh</Button>
+            <Button variant="outline" size="sm" className="h-7" disabled={refreshingCast} onClick={()=>fetchPeople('actors', selectedCategory, selectedSkill, selectedAgeRange)}><RefreshCw className={`w-3 h-3 mr-1 ${refreshingCast?'animate-spin':''}`} />{language==='it'?'Nuovi attori':'New actors'}</Button>
           </div>
           {/* Age Filter Buttons */}
           <div className="flex gap-1.5" data-testid="age-filter-row">

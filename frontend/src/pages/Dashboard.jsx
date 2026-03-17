@@ -883,11 +883,19 @@ const Dashboard = () => {
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer relative" onClick={() => navigate('/create-film')}>
+        {/* PRODUCI! - Double width */}
+        <Card className="col-span-2 md:col-span-2 bg-gradient-to-br from-yellow-500/30 to-yellow-600/10 border-yellow-500/30 cursor-pointer relative" onClick={() => navigate('/create-film')} data-testid="produci-card">
+          <CardContent className="p-2 sm:p-3 flex items-center gap-3">
+            <div className="p-2 sm:p-2.5 bg-yellow-500 rounded-lg"><Clapperboard className="w-5 h-5 sm:w-6 sm:h-6 text-black" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-lg sm:text-xl">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>
+            {pipelineCount > 0 && <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">{pipelineCount}</span>}
+          </CardContent>
+        </Card>
+        {/* MERCATO */}
+        <Card className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border-orange-500/20 cursor-pointer" onClick={() => navigate('/marketplace')} data-testid="mercato-card">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>
-            {pipelineCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">{pipelineCount}</span>}
+            <div className="p-1.5 sm:p-2 bg-orange-500 rounded-lg"><Store className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Mercato' : 'Market'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Film scartati' : 'Discarded films'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border-emerald-500/20 cursor-pointer relative" onClick={() => navigate('/emerging-screenplays')} data-testid="emerging-screenplays-card">

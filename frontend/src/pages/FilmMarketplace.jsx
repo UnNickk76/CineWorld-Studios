@@ -134,11 +134,15 @@ const FilmMarketplace = () => {
             {filtered.map(film => (
               <Card
                 key={film.id}
-                className="bg-[#1A1A1A] border-white/10 hover:border-amber-500/30 transition-all cursor-pointer"
+                className={`bg-[#1A1A1A] border-white/10 hover:border-amber-500/30 transition-all cursor-pointer ${film.is_own ? 'opacity-70 border-gray-700' : ''}`}
                 onClick={() => setSelectedFilm(film)}
                 data-testid={`market-film-${film.id}`}
               >
                 <CardContent className="p-3">
+                  {/* Own film indicator */}
+                  {film.is_own && (
+                    <Badge className="mb-1.5 bg-gray-600/30 text-gray-400 text-[9px]">Il tuo film scartato</Badge>
+                  )}
                   {/* Poster + Info */}
                   <div className="flex gap-3">
                     {film.poster_url ? (
@@ -203,6 +207,13 @@ const FilmMarketplace = () => {
                     <img src={selectedFilm.poster_url} alt={selectedFilm.title} className="w-full h-48 object-cover rounded-lg" />
                   )}
 
+                  {selectedFilm.is_own && (
+                    <div className="flex items-center gap-2 bg-gray-600/20 border border-gray-500/20 rounded-lg p-2 text-xs text-gray-400">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Questo film è stato scartato da te. Puoi solo visualizzarlo.
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="bg-black/30 rounded-lg p-2">
                       <span className="text-gray-400 text-xs">Genere</span>
@@ -210,11 +221,11 @@ const FilmMarketplace = () => {
                     </div>
                     <div className="bg-black/30 rounded-lg p-2">
                       <span className="text-gray-400 text-xs">Sottogenere</span>
-                      <p className="font-medium">{selectedFilm.subgenre || '-'}</p>
+                      <p className="font-medium">{Array.isArray(selectedFilm.subgenres) ? selectedFilm.subgenres.join(', ') : (selectedFilm.subgenre || '-')}</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2">
                       <span className="text-gray-400 text-xs">Location</span>
-                      <p className="font-medium">{selectedFilm.location_name || '-'}</p>
+                      <p className="font-medium">{Array.isArray(selectedFilm.locations) ? selectedFilm.locations.join(', ') : (selectedFilm.location_name || '-')}</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2">
                       <span className="text-gray-400 text-xs">Fase raggiunta</span>
@@ -224,7 +235,7 @@ const FilmMarketplace = () => {
 
                   {selectedFilm.pre_imdb_score && (
                     <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2">
-                      <Star className="w-4 h-4 text-yellow-400" />
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                       <span className="text-sm">Pre-IMDb: <strong className="text-yellow-400">{selectedFilm.pre_imdb_score.toFixed(1)}</strong></span>
                     </div>
                   )}
@@ -232,60 +243,106 @@ const FilmMarketplace = () => {
                   {selectedFilm.pre_screenplay && (
                     <div className="bg-black/30 rounded-lg p-2">
                       <span className="text-gray-400 text-xs">Sinossi</span>
-                      <p className="text-xs text-gray-300 mt-1 line-clamp-3">{selectedFilm.pre_screenplay}</p>
+                      <p className="text-xs text-gray-300 mt-1">{selectedFilm.pre_screenplay}</p>
+                    </div>
+                  )}
+
+                  {selectedFilm.screenplay && (
+                    <div className="bg-black/30 rounded-lg p-2">
+                      <span className="text-gray-400 text-xs">Sceneggiatura</span>
+                      <p className="text-xs text-gray-300 mt-1 line-clamp-4">{selectedFilm.screenplay}</p>
                     </div>
                   )}
 
                   {selectedFilm.cast && Object.keys(selectedFilm.cast).length > 0 && (
                     <div className="bg-black/30 rounded-lg p-2">
-                      <span className="text-gray-400 text-xs">Cast incluso</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      <span className="text-gray-400 text-xs mb-1 block">Cast</span>
+                      <div className="space-y-1">
                         {selectedFilm.cast.director && (
-                          <Badge className="text-[9px] bg-purple-500/20 text-purple-400">Regista: {selectedFilm.cast.director.name}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="text-[9px] bg-purple-500/20 text-purple-400">Regista</Badge>
+                            <span className="text-xs">{selectedFilm.cast.director.name}</span>
+                            {selectedFilm.cast.director.fame_label && <span className="text-[9px] text-gray-500">({selectedFilm.cast.director.fame_label})</span>}
+                          </div>
                         )}
                         {selectedFilm.cast.screenwriter && (
-                          <Badge className="text-[9px] bg-blue-500/20 text-blue-400">Sceneg: {selectedFilm.cast.screenwriter.name}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="text-[9px] bg-blue-500/20 text-blue-400">Sceneggiatore</Badge>
+                            <span className="text-xs">{selectedFilm.cast.screenwriter.name}</span>
+                          </div>
+                        )}
+                        {selectedFilm.cast.composer && (
+                          <div className="flex items-center gap-2">
+                            <Badge className="text-[9px] bg-teal-500/20 text-teal-400">Compositore</Badge>
+                            <span className="text-xs">{selectedFilm.cast.composer.name}</span>
+                          </div>
                         )}
                         {selectedFilm.cast.actors?.map((a, i) => (
-                          <Badge key={i} className="text-[9px] bg-green-500/20 text-green-400">{a.name}</Badge>
+                          <div key={i} className="flex items-center gap-2">
+                            <Badge className="text-[9px] bg-green-500/20 text-green-400">{a.role_in_film || 'Attore'}</Badge>
+                            <span className="text-xs">{a.name}</span>
+                            {a.fame_label && <span className="text-[9px] text-gray-500">({a.fame_label})</span>}
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                    <div>
-                      <span className="text-xs text-gray-400">{language === 'it' ? 'Prezzo di acquisto' : 'Purchase price'}</span>
-                      <p className="text-xl font-bold text-green-400">${selectedFilm.sale_price?.toLocaleString()}</p>
-                      <span className="text-[10px] text-gray-500">{language === 'it' ? 'Il 70% va al produttore originale' : '70% goes to original producer'}</span>
-                    </div>
-                    <Button
-                      className="bg-green-600 hover:bg-green-500 text-white"
-                      onClick={() => buyFilm(selectedFilm)}
-                      disabled={buying === selectedFilm.id || (user?.funds || 0) < selectedFilm.sale_price}
-                      data-testid="buy-film-btn"
-                    >
-                      {buying === selectedFilm.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                      ) : (
-                        <ShoppingCart className="w-4 h-4 mr-1" />
-                      )}
-                      {language === 'it' ? 'Acquista' : 'Buy'}
-                    </Button>
-                  </div>
-
-                  {(user?.funds || 0) < selectedFilm.sale_price && (
-                    <div className="flex items-center gap-2 text-red-400 text-xs">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>{language === 'it' ? 'Fondi insufficienti per questo acquisto' : 'Insufficient funds for this purchase'}</span>
+                  {/* Production Setup details */}
+                  {selectedFilm.production_setup && (
+                    <div className="bg-black/30 rounded-lg p-2">
+                      <span className="text-gray-400 text-xs mb-1 block">Setup Produzione</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedFilm.production_setup.extras > 0 && (
+                          <Badge className="text-[9px] bg-amber-500/20 text-amber-400">Comparse: {selectedFilm.production_setup.extras}</Badge>
+                        )}
+                        {selectedFilm.production_setup.cgi_package && (
+                          <Badge className="text-[9px] bg-cyan-500/20 text-cyan-400">CGI: {selectedFilm.production_setup.cgi_package.name}</Badge>
+                        )}
+                        {selectedFilm.production_setup.vfx_package && (
+                          <Badge className="text-[9px] bg-pink-500/20 text-pink-400">VFX: {selectedFilm.production_setup.vfx_package.name}</Badge>
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  <p className="text-[10px] text-gray-500 text-center">
-                    {language === 'it'
-                      ? 'Acquistando, il film entrera nella tua pipeline dalla fase in cui era stato lasciato.'
-                      : 'By purchasing, the film enters your pipeline from the phase it was left in.'}
-                  </p>
+                  {/* Purchase section - only for non-own films */}
+                  {!selectedFilm.is_own ? (
+                    <>
+                      <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                        <div>
+                          <span className="text-xs text-gray-400">{language === 'it' ? 'Prezzo di acquisto' : 'Purchase price'}</span>
+                          <p className="text-xl font-bold text-green-400">${selectedFilm.sale_price?.toLocaleString()}</p>
+                          <span className="text-[10px] text-gray-500">{language === 'it' ? 'Il film riprende dalla fase: ' : 'Film resumes from phase: '}<strong>{PHASE_LABELS[selectedFilm.status_before_discard] || 'Proposte'}</strong></span>
+                        </div>
+                        <Button
+                          className="bg-green-600 hover:bg-green-500 text-white"
+                          onClick={() => buyFilm(selectedFilm)}
+                          disabled={buying === selectedFilm.id || (user?.funds || 0) < selectedFilm.sale_price}
+                          data-testid="buy-film-btn"
+                        >
+                          {buying === selectedFilm.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                          ) : (
+                            <ShoppingCart className="w-4 h-4 mr-1" />
+                          )}
+                          {language === 'it' ? 'Acquista' : 'Buy'}
+                        </Button>
+                      </div>
+
+                      {(user?.funds || 0) < selectedFilm.sale_price && (
+                        <div className="flex items-center gap-2 text-red-400 text-xs">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>{language === 'it' ? 'Fondi insufficienti per questo acquisto' : 'Insufficient funds for this purchase'}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="bg-gray-600/10 border border-gray-500/20 rounded-lg p-3 text-center">
+                      <p className="text-sm text-gray-400">Questo film è stato scartato da te</p>
+                      <p className="text-xs text-gray-500 mt-1">In vendita a <strong className="text-green-400">${selectedFilm.sale_price?.toLocaleString()}</strong> per altri produttori</p>
+                    </div>
+                  )}
                 </div>
               </>
             )}

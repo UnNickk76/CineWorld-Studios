@@ -902,11 +902,14 @@ async def get_all_projects(user: dict = Depends(get_current_user)):
 
 @router.get("/film-pipeline/marketplace")
 async def get_marketplace(user: dict = Depends(get_current_user)):
-    """Get discarded films available for purchase by other users."""
+    """Get all discarded films. Own films are visible but not buyable."""
     films = await db.film_projects.find(
-        {'available_for_purchase': True, 'discarded_by': {'$ne': user['id']}},
+        {'available_for_purchase': True},
         {'_id': 0, 'hidden_factor': 0}
-    ).sort('discarded_at', -1).to_list(20)
+    ).sort('discarded_at', -1).to_list(50)
+    # Mark which films belong to the current user (can view but not buy)
+    for f in films:
+        f['is_own'] = f.get('discarded_by') == user['id']
     return {'films': films}
 
 

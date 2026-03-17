@@ -5644,6 +5644,36 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.132', 'date': '2026-03-17', 'title': 'Navigazione Rinnovata & Dropdown Generi',
+     'changes': [
+         {'type': 'new', 'text': 'Nuovo pulsante "Produci!" nella barra di navigazione con icona Ciak'},
+         {'type': 'improvement', 'text': 'Selezione genere e sottogenere ora con menu a tendina (dropdown) nella pipeline'},
+         {'type': 'improvement', 'text': 'Card "CIAK!" in dashboard ora apre direttamente il tab riprese nella pipeline'},
+         {'type': 'improvement', 'text': 'Rimossa card "In Attesa" dalla dashboard (già inclusa nella pipeline di produzione)'},
+         {'type': 'improvement', 'text': 'Tutti i link "Crea Film" ora portano alla nuova pipeline di produzione'},
+     ]},
+    {'version': '0.131', 'date': '2026-03-17', 'title': 'Scuola Recitazione Potenziata & Bug Fix',
+     'changes': [
+         {'type': 'new', 'text': 'Nuova sezione "Studenti dall\'Agenzia Casting" nella Scuola di Recitazione'},
+         {'type': 'new', 'text': 'Attributo età aggiunto a tutti gli attori'},
+         {'type': 'new', 'text': 'Diploma attori dopo 24 ore di formazione con costi giornalieri'},
+         {'type': 'fix', 'text': 'Fix infrastrutture uniche: Scuola e Studio non più acquistabili due volte'},
+         {'type': 'fix', 'text': 'Fix valore $NaN nel contest Box Office'},
+         {'type': 'fix', 'text': 'Risposte trivia ora mescolate (non più sempre la prima corretta)'},
+         {'type': 'fix', 'text': 'Contest "Cast Perfetto": aggiunte skill attori per scelta informata'},
+     ]},
+    {'version': '0.130', 'date': '2026-03-17', 'title': 'Pipeline di Produzione Cinematografica',
+     'changes': [
+         {'type': 'new', 'text': 'Nuovo sistema di produzione film in 6 fasi: Creazione, Proposte, Casting, Sceneggiatura, Pre-Produzione, Riprese'},
+         {'type': 'new', 'text': 'Barra navigazione con 6 icone + badge conteggio per ogni fase'},
+         {'type': 'new', 'text': 'Pre-valutazione IMDb automatica basata su genere, sinossi e location'},
+         {'type': 'new', 'text': 'Casting con proposte temporizzate degli agenti e speed-up a crediti'},
+         {'type': 'new', 'text': 'Sceneggiatura AI generata automaticamente con locandina del film'},
+         {'type': 'new', 'text': 'Fase di Remastering con timer e miglioramento qualità'},
+         {'type': 'new', 'text': 'Sezione "Buzz": vedi i film in produzione degli altri giocatori'},
+         {'type': 'new', 'text': 'Limite film simultanei basato sul livello del giocatore'},
+         {'type': 'fix', 'text': 'Fix stabilità sessione: niente più logout improvvisi durante la navigazione'},
+     ]},
     {'version': '0.129', 'date': '2026-03-15', 'title': 'Velocità Mobile & Fix Vari',
      'changes': [
          {'type': 'improvement', 'text': 'Navigazione mobile molto più veloce: transizioni pagina dimezzate e cache dati intelligente'},

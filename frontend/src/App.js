@@ -175,7 +175,7 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup on each access (with delay) - only if donations enabled AND first login in 24h
+  // Show donate popup - only once per 24h
   useEffect(() => {
     api.get('/game/donations-status').then(r => {
       const enabled = r.data.donations_enabled;
@@ -185,10 +185,8 @@ const TopNavbar = () => {
         const now = Date.now();
         const twentyFourHours = 24 * 60 * 60 * 1000;
         if (!lastShown || (now - parseInt(lastShown)) > twentyFourHours) {
-          setTimeout(() => {
-            setShowDonatePopup(true);
-            localStorage.setItem('donatePopupLastShown', now.toString());
-          }, 2500);
+          localStorage.setItem('donatePopupLastShown', now.toString());
+          setTimeout(() => setShowDonatePopup(true), 2500);
         }
       }
     }).catch(() => {});

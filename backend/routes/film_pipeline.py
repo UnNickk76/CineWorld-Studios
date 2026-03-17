@@ -686,12 +686,20 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
 
     for p in projects:
         # Update proposal availability
+        updated = False
         for role, proposals in p.get('cast_proposals', {}).items():
             for prop in proposals:
                 if prop.get('status') == 'pending' and prop.get('available_at'):
                     avail_at = datetime.fromisoformat(prop['available_at'].replace('Z', '+00:00'))
                     if now >= avail_at:
                         prop['status'] = 'available'
+                        updated = True
+        # Persist updated statuses to DB
+        if updated:
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {'cast_proposals': p['cast_proposals']}}
+            )
 
     return {'casting_films': projects}
 

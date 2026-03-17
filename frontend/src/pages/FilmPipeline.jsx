@@ -472,10 +472,28 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                 )}
               </div>
 
-              <Button variant="outline" size="sm" className="w-full text-xs border-gray-700 mb-2"
-                onClick={() => setSelectedFilm(selectedFilm === f.id ? null : f.id)}>
-                {selectedFilm === f.id ? 'Chiudi Casting' : 'Gestisci Casting'}
-              </Button>
+              <div className="flex gap-2 mb-2">
+                <Button variant="outline" size="sm" className="flex-1 text-xs border-gray-700"
+                  onClick={() => setSelectedFilm(selectedFilm === f.id ? null : f.id)}>
+                  {selectedFilm === f.id ? 'Chiudi Casting' : 'Gestisci Casting'}
+                </Button>
+                <Button variant="outline" size="sm" className="text-xs border-red-800/50 text-red-400 hover:bg-red-500/10"
+                  disabled={actionLoading === `discard-${f.id}`}
+                  onClick={async () => {
+                    if (!window.confirm(`Sei sicuro di voler scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                    setActionLoading(`discard-${f.id}`);
+                    try {
+                      const res = await api.post(`/film-pipeline/${f.id}/discard`);
+                      toast.success(res.data.message);
+                      refreshUser(); refreshCounts(); fetch();
+                    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                    finally { setActionLoading(null); }
+                  }}
+                  data-testid={`discard-casting-${f.id}`}>
+                  {actionLoading === `discard-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3 mr-0.5" />}
+                  Scarta
+                </Button>
+              </div>
 
               {selectedFilm === f.id && (
                 <div className="space-y-3 mt-2">

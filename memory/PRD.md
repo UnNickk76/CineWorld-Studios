@@ -67,7 +67,15 @@
 - casting_hires: traccia ingaggi settimanali
 - studio_drafts: bozze sceneggiatura
 
+### Fix Stabilità Sessione (17 Mar 2026)
+- Auto-login ora cancella il token SOLO su errore 401 (non su errori di rete/timeout/5xx)
+- Interceptor 401 usa logout debounced (3 secondi) con verifica `/auth/me` prima di sloggare
+- Gestione richieste parallele: qualsiasi risposta positiva cancella il logout in attesa
+- File modificato: `frontend/src/contexts/index.jsx`
+- Test: 11/11 passati (navigazione, reload, navigazione rapida)
+
 ## Task Prossimi
+- Acting School Potenziata (età attori, sezione dedicata, miglioramento skill, diploma)
 - Sistema ruoli Admin (RBAC)
 - Layout mobile pagina Contest
 

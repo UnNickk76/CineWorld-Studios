@@ -612,6 +612,18 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   );
 };
 
+// ============ CLASSIC POSTER STYLES ============
+const CLASSIC_STYLES = [
+  { id: 'noir', label: 'Film Noir', desc: 'Ombre drammatiche' },
+  { id: 'vintage', label: 'Vintage', desc: 'Stile anni 60' },
+  { id: 'action', label: 'Action', desc: 'Esplosioni e fuoco' },
+  { id: 'romance', label: 'Romance', desc: 'Colori pastello' },
+  { id: 'horror', label: 'Horror', desc: 'Dark e nebbia' },
+  { id: 'scifi', label: 'Sci-Fi', desc: 'Neon futuristico' },
+  { id: 'comedy', label: 'Commedia', desc: 'Colori vivaci' },
+  { id: 'drama', label: 'Dramma', desc: 'Toni artistici' }
+];
+
 // ============ SCREENPLAY TAB ============
 const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
   const [films, setFilms] = useState([]);
@@ -619,6 +631,11 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
   const [mode, setMode] = useState({});
   const [manualText, setManualText] = useState({});
   const [actionLoading, setActionLoading] = useState(null);
+  // Poster states
+  const [posterMode, setPosterMode] = useState({});
+  const [posterPrompt, setPosterPrompt] = useState({});
+  const [posterStyle, setPosterStyle] = useState({});
+  const [posterLoading, setPosterLoading] = useState(null);
 
   const fetch = useCallback(async () => {
     try { const res = await api.get('/film-pipeline/screenplay'); setFilms(res.data.films || []); }
@@ -648,6 +665,20 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
       refreshUser(); refreshCounts(); fetch();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setActionLoading(null); }
+  };
+
+  const generatePoster = async (filmId) => {
+    const pMode = posterMode[filmId] || 'ai_auto';
+    setPosterLoading(filmId);
+    try {
+      const body = { mode: pMode };
+      if (pMode === 'ai_custom') body.custom_prompt = posterPrompt[filmId] || '';
+      if (pMode === 'classic') body.classic_style = posterStyle[filmId] || 'drama';
+      const res = await api.post(`/film-pipeline/${filmId}/generate-poster`, body);
+      toast.success(res.data.message);
+      fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
+    finally { setPosterLoading(null); }
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Caricamento...</div>;
@@ -691,10 +722,73 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
             </div>
 
             {f.screenplay ? (
-              <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
-                <p className="text-[9px] text-green-400 font-medium mb-0.5">Sceneggiatura completata ({f.screenplay_mode === 'ai' ? 'AI' : f.screenplay_mode === 'manual' ? 'Manuale' : 'Solo Pre'})</p>
-                <p className="text-[10px] text-gray-300 line-clamp-4">{f.screenplay}</p>
-              </div>
+              <>
+                <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
+                  <p className="text-[9px] text-green-400 font-medium mb-0.5">Sceneggiatura completata ({f.screenplay_mode === 'ai' ? 'AI' : f.screenplay_mode === 'manual' ? 'Manuale' : 'Solo Pre'})</p>
+                  <p className="text-[10px] text-gray-300 line-clamp-4">{f.screenplay}</p>
+                </div>
+
+                {/* ====== POSTER SECTION ====== */}
+                <div className="p-2 rounded border border-purple-500/30 bg-purple-500/5">
+                  <p className="text-[10px] text-purple-400 font-semibold mb-1.5">Locandina del Film</p>
+                  {f.poster_url ? (
+                    <div className="flex items-start gap-2">
+                      <img src={f.poster_url} alt="Locandina" className="w-20 h-28 object-cover rounded" />
+                      <div className="flex-1">
+                        <p className="text-[9px] text-green-400 mb-1">Locandina creata!</p>
+                        <Button size="sm" variant="outline" className="text-[9px] border-purple-700 text-purple-400 h-6"
+                          onClick={() => { setPosterMode(p => ({...p, [f.id]: 'ai_auto'})); generatePoster(f.id); }}
+                          disabled={posterLoading === f.id}>
+                          {posterLoading === f.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin mr-0.5" /> : null}
+                          Rigenera
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-1 mb-1.5">
+                        {[
+                          { id: 'ai_auto', label: 'AI Automatica', desc: 'Dalla sceneggiatura' },
+                          { id: 'ai_custom', label: 'AI + Prompt', desc: 'Scrivi tu il prompt' },
+                          { id: 'classic', label: 'Stile Classico', desc: 'Scegli uno stile' }
+                        ].map(opt => (
+                          <button key={opt.id} onClick={() => setPosterMode(p => ({...p, [f.id]: opt.id}))}
+                            className={`flex-1 p-1.5 rounded text-center border transition-all ${(posterMode[f.id] || 'ai_auto') === opt.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700'}`}
+                            data-testid={`poster-mode-${opt.id}-${f.id}`}>
+                            <p className="text-[9px] font-medium text-gray-200">{opt.label}</p>
+                            <p className="text-[7px] text-gray-500">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+
+                      {(posterMode[f.id] || 'ai_auto') === 'ai_custom' && (
+                        <input type="text" placeholder="Descrivi la locandina che vuoi..."
+                          value={posterPrompt[f.id] || ''} onChange={e => setPosterPrompt(p => ({...p, [f.id]: e.target.value}))}
+                          className="w-full mb-1.5 text-[10px] bg-black/30 border border-gray-700 rounded p-1.5 text-white" />
+                      )}
+
+                      {(posterMode[f.id] || 'ai_auto') === 'classic' && (
+                        <div className="grid grid-cols-4 gap-1 mb-1.5">
+                          {CLASSIC_STYLES.map(s => (
+                            <button key={s.id} onClick={() => setPosterStyle(p => ({...p, [f.id]: s.id}))}
+                              className={`p-1 rounded text-center border transition-all ${(posterStyle[f.id] || 'drama') === s.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700'}`}>
+                              <p className="text-[8px] font-medium">{s.label}</p>
+                              <p className="text-[7px] text-gray-500">{s.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-800 text-[10px] h-7"
+                        onClick={() => generatePoster(f.id)} disabled={posterLoading === f.id}
+                        data-testid={`generate-poster-${f.id}`}>
+                        {posterLoading === f.id ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                        Crea Locandina
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </>
             ) : (
               <>
                 <div className="flex gap-1.5">
@@ -1113,43 +1207,64 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
       {/* Release Result Dialog */}
       {releaseResult && (
         <Card className="bg-[#1A1A1B] border-yellow-600 ring-1 ring-yellow-500/30" data-testid="release-result">
-          <CardContent className="p-4 text-center space-y-3">
-            {releaseResult.poster_url ? (
-              <img src={releaseResult.poster_url} alt={releaseResult.title} className="w-full max-w-xs mx-auto h-64 object-cover rounded-lg shadow-lg" />
-            ) : (
-              <Film className="w-10 h-10 mx-auto text-yellow-400" />
-            )}
-            <h2 className="text-lg font-bold">{releaseResult.title}</h2>
-            <div className="flex items-center justify-center gap-4">
-              <div className={`text-3xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {releaseResult.quality_score}
+          <CardContent className="p-0 overflow-hidden">
+            {/* Cinema header image */}
+            <div className="relative">
+              <img src="/images/cinema_release.png" alt="Cinema" className="w-full h-36 object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1B] via-transparent to-transparent" />
+              <div className="absolute bottom-2 left-3 right-3">
+                <h2 className="text-lg font-bold text-white drop-shadow-lg">{releaseResult.title}</h2>
+                <p className="text-[10px] text-gray-300 drop-shadow">Al cinema da oggi!</p>
               </div>
-              {releaseResult.imdb_rating && (
-                <div className="flex items-center gap-1">
-                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                  <span className="text-xl font-bold text-yellow-400">{releaseResult.imdb_rating.toFixed(1)}</span>
-                  <span className="text-xs text-gray-500">IMDb</span>
+            </div>
+            <div className="p-3 space-y-3">
+              {/* Poster + Scores */}
+              <div className="flex gap-3">
+                {releaseResult.poster_url && (
+                  <img src={releaseResult.poster_url} alt="Locandina" className="w-16 h-24 object-cover rounded shadow-lg flex-shrink-0" />
+                )}
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <div className={`text-2xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {releaseResult.quality_score}
+                    </div>
+                    {releaseResult.imdb_rating && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        <span className="text-lg font-bold text-yellow-400">{releaseResult.imdb_rating.toFixed(1)}</span>
+                      </div>
+                    )}
+                    <Badge className={`${releaseResult.tier === 'masterpiece' ? 'bg-yellow-500 text-black' : releaseResult.tier === 'excellent' ? 'bg-green-500/30 text-green-400' : 'bg-gray-600'} text-[9px]`}>
+                      {releaseResult.tier_label}
+                    </Badge>
+                  </div>
+                  <p className="text-green-400 text-xs font-medium">+{releaseResult.xp_gained} XP guadagnati!</p>
                 </div>
-              )}
-            </div>
-            <Badge className={`${releaseResult.tier === 'masterpiece' ? 'bg-yellow-500 text-black' : releaseResult.tier === 'excellent' ? 'bg-green-500/30 text-green-400' : 'bg-gray-600'}`}>
-              {releaseResult.tier_label}
-            </Badge>
-            <div className="text-left space-y-1 text-[10px] text-gray-400 p-2 bg-black/30 rounded">
-              <p className="text-xs font-medium text-gray-200 mb-1">Riepilogo Costi</p>
-              <p>Denaro totale: <span className="text-yellow-400">${releaseResult.cost_summary?.total_money?.toLocaleString()}</span></p>
-              <p>CinePass totali: <span className="text-cyan-400">{releaseResult.cost_summary?.total_cinepass} CP</span></p>
-              <p className="mt-1 text-xs font-medium text-gray-200">Modificatori</p>
-              <p>Pre-IMDb: {releaseResult.modifiers?.pre_imdb} | Sceneggiatura: {releaseResult.modifiers?.screenplay > 0 ? '+' : ''}{releaseResult.modifiers?.screenplay}</p>
-              <p>Remaster: +{releaseResult.modifiers?.remaster || 0} | Buzz: {releaseResult.modifiers?.buzz > 0 ? '+' : ''}{releaseResult.modifiers?.buzz}</p>
-              <p>Cast: {releaseResult.modifiers?.cast_quality}</p>
-              <p className="text-green-400 mt-1">+{releaseResult.xp_gained} XP guadagnati!</p>
-            </div>
-            <div className="flex gap-2 justify-center">
-              <Button onClick={() => { setReleaseResult(null); window.location.href = `/films/${releaseResult.film_id}`; }} className="bg-yellow-600 hover:bg-yellow-500 text-black text-xs">
-                <Film className="w-3 h-3 mr-1" /> Vai al Film
-              </Button>
-              <Button onClick={() => setReleaseResult(null)} variant="outline" className="border-gray-700 text-xs">Chiudi</Button>
+              </div>
+
+              {/* Modifiers summary */}
+              <div className="text-[9px] text-gray-400 p-2 bg-black/30 rounded space-y-0.5">
+                <p className="text-[10px] font-medium text-gray-200 mb-0.5">Modificatori</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span>Pre-IMDb: {releaseResult.modifiers?.pre_imdb}</span>
+                  <span>Cast: {releaseResult.modifiers?.cast_quality}</span>
+                  <span>Buzz: {releaseResult.modifiers?.buzz > 0 ? '+' : ''}{releaseResult.modifiers?.buzz}</span>
+                  <span>Remaster: +{releaseResult.modifiers?.remaster || 0}</span>
+                </div>
+              </div>
+
+              {/* Cost summary */}
+              <div className="text-[9px] text-gray-400 p-2 bg-black/30 rounded">
+                <p className="text-[10px] font-medium text-gray-200 mb-0.5">Costi</p>
+                <p>Denaro: <span className="text-yellow-400">${releaseResult.cost_summary?.total_money?.toLocaleString()}</span> | CinePass: <span className="text-cyan-400">{releaseResult.cost_summary?.total_cinepass} CP</span></p>
+              </div>
+
+              <div className="flex gap-2 justify-center">
+                <Button onClick={() => { setReleaseResult(null); window.location.href = `/films/${releaseResult.film_id}`; }} className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-black text-xs">
+                  <Film className="w-3 h-3 mr-1" /> Vai al Film
+                </Button>
+                <Button onClick={() => setReleaseResult(null)} variant="outline" className="border-gray-700 text-xs">Chiudi</Button>
+              </div>
             </div>
           </CardContent>
         </Card>

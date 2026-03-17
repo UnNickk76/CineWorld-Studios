@@ -1097,6 +1097,91 @@ Scrivi TUTTO in italiano."""
     }
 
 
+class PosterRequest(BaseModel):
+    mode: str  # 'ai_auto', 'ai_custom', 'classic'
+    custom_prompt: Optional[str] = None
+    classic_style: Optional[str] = None  # 'noir', 'vintage', 'action', 'romance', 'horror', 'scifi'
+
+CLASSIC_POSTER_STYLES = {
+    'noir': 'Classic film noir style poster with dramatic shadows, black and white with gold accents, fedora silhouette, venetian blinds light',
+    'vintage': 'Vintage 1960s Italian cinema poster, warm colors, hand-painted style, dramatic typography space',
+    'action': 'Explosive Hollywood action movie poster, fire and explosions, intense orange and blue color grading, hero silhouette',
+    'romance': 'Romantic drama poster, soft golden hour lighting, two silhouettes, dreamy bokeh, pastel colors',
+    'horror': 'Horror movie poster, dark atmospheric, single light source, eerie fog, dramatic red accents on black',
+    'scifi': 'Science fiction movie poster, neon lights, futuristic cityscape, cyberpunk aesthetic, blue and purple tones',
+    'comedy': 'Bright colorful comedy movie poster, fun playful style, bold saturated colors, cheerful lighting',
+    'drama': 'Dramatic cinema poster, contemplative mood, muted earth tones, artistic composition, award-winning film style'
+}
+
+@router.post("/film-pipeline/{project_id}/generate-poster")
+async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depends(get_current_user)):
+    """Generate or set a movie poster for the film project."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project['status'] != 'screenplay':
+        raise HTTPException(status_code=400, detail="La locandina si crea durante la fase sceneggiatura")
+
+    poster_url = None
+    genre_name = project.get('genre', 'drama').replace('_', ' ').title()
+
+    if req.mode == 'ai_auto':
+        # Generate from screenplay automatically
+        screenplay = project.get('screenplay', project.get('pre_screenplay', ''))
+        prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. {screenplay[:200]}. Dramatic lighting, high quality, no text. Style: modern Hollywood movie poster."
+    elif req.mode == 'ai_custom':
+        if not req.custom_prompt:
+            raise HTTPException(status_code=400, detail="Scrivi un prompt personalizzato")
+        prompt = f"Professional cinematic movie poster: {req.custom_prompt}. Title: '{project['title']}'. No text overlay. High quality."
+    elif req.mode == 'classic':
+        style = CLASSIC_POSTER_STYLES.get(req.classic_style, CLASSIC_POSTER_STYLES['drama'])
+        prompt = f"{style}. Movie title: '{project['title']}', genre: {genre_name}. No text overlay on image. High quality cinematic poster."
+    else:
+        raise HTTPException(status_code=400, detail="Modalita non valida: usa 'ai_auto', 'ai_custom' o 'classic'")
+
+    # Generate poster via AI
+    try:
+        if not EMERGENT_LLM_KEY:
+            raise HTTPException(status_code=500, detail="Chiave AI non configurata")
+
+        import base64
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        img_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        images = await img_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1
+        )
+        if images and len(images) > 0:
+            image_b64 = base64.b64encode(images[0]).decode('utf-8')
+            poster_url = f"data:image/png;base64,{image_b64}"
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Poster generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore generazione poster: {str(e)}")
+
+    if not poster_url:
+        raise HTTPException(status_code=500, detail="Impossibile generare la locandina")
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'poster_url': poster_url,
+            'poster_prompt': prompt,
+            'poster_mode': req.mode,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'poster_url': poster_url,
+        'message': 'Locandina generata con successo!'
+    }
+
+
+
 @router.post("/film-pipeline/{project_id}/advance-to-preproduction")
 async def advance_to_preproduction(project_id: str, user: dict = Depends(get_current_user)):
     """Move from screenplay to pre-production phase."""
@@ -1594,6 +1679,14 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'release_date': now_str[:10],
         'distribution_zone': 'national',
         'distribution_cost': 0,
+        'current_cinemas': random.randint(50, 200),
+        'current_attendance': 0,
+        'avg_attendance_per_cinema': 0,
+        'cinema_distribution': [
+            {'country_code': 'IT', 'country_name': 'Italia', 'cinemas': random.randint(30, 120), 'total_attendance': 0},
+        ],
+        'attendance_history': [],
+        'total_screenings': 0,
     }
 
     # Calculate IMDb rating
@@ -1660,24 +1753,28 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
     except Exception as e:
         logging.error(f"Synopsis generation error: {e}")
 
-    # Generate poster via AI
-    film_doc['poster_url'] = None
-    try:
-        if EMERGENT_LLM_KEY:
-            import base64
-            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-            img_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
-            poster_prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. Dramatic lighting, high quality, no text overlay. Style: modern Hollywood movie poster."
-            images = await img_gen.generate_images(
-                prompt=poster_prompt,
-                model="gpt-image-1",
-                number_of_images=1
-            )
-            if images and len(images) > 0:
-                image_b64 = base64.b64encode(images[0]).decode('utf-8')
-                film_doc['poster_url'] = f"data:image/png;base64,{image_b64}"
-    except Exception as e:
-        logging.error(f"Poster generation error: {e}")
+    # Generate poster via AI - use project poster if already created
+    existing_poster = project.get('poster_url')
+    if existing_poster:
+        film_doc['poster_url'] = existing_poster
+    else:
+        film_doc['poster_url'] = None
+        try:
+            if EMERGENT_LLM_KEY:
+                import base64
+                from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+                img_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+                poster_prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. Dramatic lighting, high quality, no text overlay. Style: modern Hollywood movie poster."
+                images = await img_gen.generate_images(
+                    prompt=poster_prompt,
+                    model="gpt-image-1",
+                    number_of_images=1
+                )
+                if images and len(images) > 0:
+                    image_b64 = base64.b64encode(images[0]).decode('utf-8')
+                    film_doc['poster_url'] = f"data:image/png;base64,{image_b64}"
+        except Exception as e:
+            logging.error(f"Poster generation error: {e}")
 
     # Soundtrack info from composer
     if cast.get('composer') and cast['composer'].get('skills'):

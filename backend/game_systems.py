@@ -846,7 +846,7 @@ def calculate_imdb_rating(film: dict) -> float:
     director = film.get('director', {})
     director_skills = director.get('skills', {})
     director_avg = sum(director_skills.values()) / max(len(director_skills), 1)
-    director_bonus = (director_avg - 5) * 0.1
+    director_bonus = (director_avg / 10 - 5) * 0.1
     
     # Random variance (±0.5)
     variance = random.uniform(-0.5, 0.5)

@@ -877,12 +877,6 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 mb-4">
-        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer" onClick={() => navigate('/festivals')}>
-          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Award className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
-          </CardContent>
-        </Card>
         {/* PRODUCI! - Double width */}
         <Card className="col-span-2 md:col-span-2 bg-gradient-to-br from-yellow-500/30 to-yellow-600/10 border-yellow-500/30 cursor-pointer relative" onClick={() => navigate('/create-film')} data-testid="produci-card">
           <CardContent className="p-2 sm:p-3 flex items-center gap-3">
@@ -923,6 +917,12 @@ const Dashboard = () => {
             <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Ciak!' : 'Action!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Si gira!' : 'Shooting!'}</p></div>
             {shootingFilms.length > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">{shootingFilms.length}</span>}
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/20 cursor-pointer" onClick={() => navigate('/festivals')}>
+          <CardContent className="p-2 sm:p-3 flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 bg-red-500 rounded-lg"><Award className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
           </CardContent>
         </Card>
       </div>

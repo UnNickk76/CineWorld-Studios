@@ -109,7 +109,13 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
-### Navigazione e UI Rinnovata (17 Mar 2026)
+### Mercato Film (17 Mar 2026)
+- Nuova pagina Marketplace sostituisce Bozze (obsolete con la pipeline)
+- Backend già implementato: scarta film → vendita al 70% → acquisto da altri giocatori
+- Fix bug: aggiunto `status_before_discard` nel discard endpoint
+- Frontend: griglia film con poster, genere, fase, prezzo, dialog dettagli + acquisto
+- Ricerca per titolo/genere, notifica al venditore
+- Nav aggiornata: "Bozze" → "Mercato" (icona Store)
 - **"Produci!"** sostituisce "Crea Film" in nav bar (top + card dashboard) con icona Clapperboard
 - Menu a tendina (Select dropdown) per genere e sottogenere nella pipeline (sostituiti bottoni griglia)
 - Card "IN ATTESA" rimossa dalla dashboard (funzionalità inclusa nella pipeline)

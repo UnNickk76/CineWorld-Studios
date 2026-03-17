@@ -358,8 +358,10 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
         {'id': project_id},
         {'$set': {
             'status': 'discarded',
+            'status_before_discard': project['status'],
             'discarded_at': datetime.now(timezone.utc).isoformat(),
             'discarded_by': user['id'],
+            'discarded_by_nickname': user.get('nickname', 'Unknown'),
             'sale_price': sale_price,
             'available_for_purchase': True
         }}

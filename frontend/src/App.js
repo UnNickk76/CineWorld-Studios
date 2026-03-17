@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -63,7 +63,7 @@ const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
 const FilmDetail = React.lazy(() => import('./pages/FilmDetail'));
-const FilmDrafts = React.lazy(() => import('./pages/FilmDrafts'));
+const FilmMarketplace = React.lazy(() => import('./pages/FilmMarketplace'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
@@ -266,7 +266,7 @@ const TopNavbar = () => {
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci!' : 'Produce!' },
-    { path: '/drafts', icon: Clock, label: 'drafts' },
+    { path: '/marketplace', icon: Store, label: language === 'it' ? 'Mercato' : 'Market' },
     { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
@@ -1469,7 +1469,8 @@ function App() {
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
-                <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
+                <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
+                <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/pre-engagement" element={<ProtectedRoute><PreEngagementPage /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />

@@ -1032,7 +1032,6 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                         <p className="text-[10px] font-medium">{pkg.name}</p>
                         <p className="text-[8px] text-gray-500">{pkg.desc}</p>
                         <div className="flex items-center justify-between mt-1">
-                          <span className="text-[9px] text-green-400">+{pkg.quality_bonus}</span>
                           <span className="text-[9px] text-yellow-400">${(pkg.cost / 1000).toFixed(0)}K</span>
                         </div>
                       </button>
@@ -1054,7 +1053,6 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                         <p className="text-[10px] font-medium">{pkg.name}</p>
                         <p className="text-[8px] text-gray-500">{pkg.desc}</p>
                         <div className="flex items-center justify-between mt-1">
-                          <span className="text-[9px] text-green-400">+{pkg.quality_bonus}</span>
                           <span className="text-[9px] text-yellow-400">${(pkg.cost / 1000).toFixed(0)}K</span>
                         </div>
                       </button>

@@ -1,27 +1,37 @@
 <analysis>**original_problem_statement:**
-The user has requested a complete overhaul of the film creation process to make it a multi-step, non-consecutive pipeline, transforming it from a quick task into a core long-term management feature. This new system involves several stages: Proposal, Casting, Scriptwriting, Pre-Production (Remastering), Shooting, and Release. Key mechanics include time-gated progression, costs for advancing steps, player-driven pre-sceneggiatura, AI-generated content, a marketplace for discarded film ideas, and a Buzz system for films in production.
+The user is continuing a major overhaul of their cinematic empire simulation game. In this session, the user requested a series of significant feature additions and UI/UX refinements to the newly implemented multi-step film production pipeline.
 
-Additionally, the user reported a batch of bugs via screenshots:
-1.  The new Casting Students section was not visible on the Infrastructure page.
-2.  Unique infrastructures (Acting School, Production Studio) could be purchased multiple times.
-3.  A contest game had a  display bug, and trivia answers were always in the first position.
-4.  Another contest game (Cast Perfetto) lacked the necessary skill information to make an informed choice.
+The core requests included:
+1.  **UI/Navigation Changes:** Restructure the main navigation, rename key features (e.g., Crea Film to Produci!), remove obsolete sections (Bozze, Pre-Ingaggio), and add a dedicated Mercato (Marketplace) page.
+2.  **Gameplay Deepening:**
+    *   Add new production variables: a slider for  (extras), genre-specific  packages, and  packs, all influencing the final film score.
+    *   Expand actor roles to include .
+    *   Add a  (soundtrack score) to the final evaluation.
+3.  **Casting Improvements:**
+    *   Make cast selection more informative by showing skill bars, gender, age, nationality, fame level, and work history.
+    *   Make agent proposals more dynamic, influenced by player fame, and increase the number of actor candidates.
+4.  **Bug Fixes & UX:** Address multiple issues identified by the user via screenshots, including incorrect counters, flawed logic in infrastructure pages, and unfair casting mechanics.
+5.  **Tutorial & Onboarding:** Update the in-game tutorial to reflect all the new systems and add prominent, easy-to-find buttons to access it.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-A full-stack cinematic empire simulation game. The agent has successfully implemented the first two of three planned phases for a major overhaul of the film creation process. The new system is live and features a 6-icon navigation bar guiding the user through the pipeline: Proposal -> Casting -> Scriptwriting -> Pre-Production -> Shooting -> Release. Phases 1 and 2 implemented the core logic, including pre-IMDb evaluation, timed cast proposals, AI script generation, a remastering feature with timers, and a Buzz feature.
+The application is a full-stack cinematic empire game with a complex, multi-step film production pipeline. During this session, the agent successfully implemented a vast number of user-requested features, significantly deepening the gameplay and refining the user experience.
 
-In this session, the agent also resolved several critical bugs:
--   Fixed the primary session stability issue, preventing users from being logged out during navigation.
--   Addressed a UI/UX issue where users couldn't find directors by adding a clearer refresh mechanism with visual feedback.
--   Fixed all four bugs reported by the user via screenshots, improving contest fairness and fixing infrastructure purchase logic.
+Key completed items include:
+*   A fully functional **Marketplace** for discarded films, replacing the obsolete Drafts system.
+*   A new **Production Setup** phase within the pipeline, allowing players to configure extras, CGI, and VFX for their films, with costs and scoring impact.
+*   A revamped **Casting** interface that shows detailed actor skills via progress bars and allows assigning specific roles, including the new Co-Protagonist role.
+*   Updated backend scoring logic to account for soundtrack, extras, CGI, and VFX.
+*   Numerous UI/UX improvements, including navigation changes, clearer button naming (Produci!), and a highly visible Tutorial button.
+*   Multiple bug fixes related to casting logic, infrastructure page data, and casting costs.
+*   The in-game tutorial and release notes have been updated to reflect all the new features.
 
 **Last working item**:
-- **Last item agent was working:** Implementing **Phase 2** of the new Cinematic Production Pipeline. This involved adding the Scriptwriting, Pre-Production (remastering), and Shooting tabs, along with a new Buzz feature that shows other players' films currently in production.
-- **Status:** USER VERIFICATION PENDING
-- **Agent Testing Done:** Y
-- **Which testing method agent to use?** NA
+- **Last item agent was working:** The agent was just about to start implementing a new set of user requests provided in message #507.
+- **Status:** NOT STARTED
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** both
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
@@ -30,7 +40,7 @@ In this session, the agent also resolved several critical bugs:
 
 **Issues Detail:**
 - **Issue 1: Donation Popup Appears Repeatedly**
-    - **Attempted fixes:** Multiple client-side and a backend fix have failed.
+    - **Attempted fixes:** Multiple failed attempts in previous sessions.
     - **Next debug checklist:** The user has requested to pause work on this. Do not attempt another fix unless requested.
     - **Why fix this issue and what will be achieved with the fix?** Resolves a major user annoyance.
     - **Status:** BLOCKED
@@ -52,27 +62,40 @@ None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P0) Implement Film Pipeline - Phase 3:** This is the immediate next step, continuing the work on the new film creation feature.
-    - **Marketplace for Discarded Films:** Allow users to buy the rights to films other players have discarded. The seller receives 70% of the cost spent so far.
-    - **Advanced Hidden Factors:** Introduce more randomness and unpredictability in the final film evaluation to prevent the process from becoming too formulaic.
-    - **Ciak! Si Gira! Speed-Up:** Implement the ability for players to use credits to accelerate the final shooting phase of the film.
+  - **(P0) Implement New UI and Casting Features (from message #507):**
+    - **UI Layout:** Make the Produci! button in the bottom nav take up two spaces. Add a Mercato button to the bottom nav, replacing the old board icon.
+    - **Actor Details:** Add icons/data for gender, age, and nationality to each actor.
+    - **Actor Info:** Display fame level (e.g., sconosciuto, emergente), growth trends, and an indicator if they've worked with the player before.
+    - **Dynamic Casting:** Adjust agent logic to propose more sconosciuti/emergenti actors to players with low fame.
+    - **More Actors:** Double the number of actor proposals from agents.
 - **Future Tasks:**
-  - **(P1) Refactor :** The monolithic backend file urgently needs to be broken into smaller, maintainable FastAPI routers.
+  - **(P1) New Infrastructure: Casting Agency:** User has requested a new infrastructure section for a Casting Agency that could be used by other players for a fee. This needs to be designed and implemented.
+  - **(P1) Refactor :** This monolithic backend file is still a top-priority technical debt item.
   - **(P1) Implement Admin RBAC System:** Replace the hardcoded admin check with a proper role-based access control system.
-  - **(P2) Refactor :** Decompose the large god component into smaller, specialized components.
+  - **(P2) Refactor :** Decompose the large component into smaller, specialized components.
 
 **Completed work in this session**
-- **Feature: Film Creation Pipeline (Phase 1 & 2):** Implemented the foundational backend and frontend for the new multi-step film creation process. This includes the new UI, a  collection with a  tracker, endpoints for each stage (proposal, casting, scriptwriting, pre-production, shooting), time-gated cast proposals, AI script generation, and a film remastering feature.
-- **Bug Fix: Critical Session Logout:** Stabilized user sessions by fixing an aggressive error interceptor in the frontend auth context that was logging users out on any API error during navigation.
-- **UI/UX: Director/Cast Refresh:** Improved the usability of the cast selection screen by adding a prominent refresh button with a loading animation, making it clear to the user that new options are being fetched.
-- **Bug Fix: Infrastructure Page Bugs:**
-  - Fixed the layout to correctly display the Casting Students section.
-  - Added backend and frontend logic to prevent the re-purchase of unique infrastructures (Acting School, Production Studio).
-- **Bug Fix: Contest Game Logic:**
-  - Fixed a  value display in the Box Office contest.
-  - Randomized the answer order in trivia games to ensure the correct answer is not always the first option.
-  - Added relevant actor skills to the Cast Perfetto contest to allow for informed decisions.
-- **Feature: Enhanced Acting School:** Added  to actors, created a new section in the Acting School for actors from the Casting Agency, and implemented the backend logic for graduating them.
+- **Feature: Production Setup:** Implemented a new UI in the Pre-Production tab for configuring  (extras) via a slider, and selecting genre-specific  and  packages. The backend was updated to handle costs and integrate these choices into the final film score.
+- **Feature: Marketplace for Discarded Films:** Replaced the obsolete Bozze (Drafts) system with a fully functional Mercato page, allowing players to buy and sell discarded film projects. This included fixing a backend bug in the  logic.
+- **Feature: Advanced Casting UI:**
+  - Implemented clickable, expandable sections for each cast role.
+  - Added visible skill bars (with color-coding) for all candidates.
+  - Added a dropdown menu next to each actor candidate to assign a specific role (, , , etc.).
+- **Feature: Scoring Logic Enhancement:** Added a  to the final film evaluation logic and updated the backend to save and display it.
+- **Feature: Multi-Select UI:** Implemented multi-select for subgenres (as clickable badges) and locations (in categorized groups) for the film proposal phase.
+- **Bug Fixes & UX (Batch 1):**
+  - Fixed student counters in the Acting School.
+  - Corrected the Post-Production Studio to only show films in the  status.
+  - Reduced casting speed-up costs and implemented variable agent proposals per role.
+  - Added the player's nickname to the dashboard header.
+- **UI/Navigation Overhaul:**
+  - Renamed Crea Film to Produci! and updated all relevant navigation links.
+  - Removed the Pre-Ingaggio feature entirely from the UI and backend routes.
+  - Simplified the Sceneggiature Studio to only offer the complete package purchase.
+- **Documentation & Onboarding:**
+  - Updated the multi-step  to reflect all the new gameplay mechanics.
+  - Added a prominent, colored tutorial icon/button to both the top and bottom navigation bars for easy access.
+- **System Updates:** Updated the  and added a new system note via API to inform players of the changes.
 
 **Earlier issues found/mentioned but not fixed**
 - **Issue 1: Contest Page Mobile Layout Is Broken**
@@ -83,71 +106,76 @@ None.
 
 **Known issue recurrence from previous fork**
 - **Issue recurrence in previous fork:** Donation popup bug, Contest Page Mobile Layout issue.
-- **Recurrence count:** High (Donation popup has failed >4 fix attempts).
+- **Recurrence count:** High (Donation popup), Low (Mobile Layout).
 - **Status:** BLOCKED (Donation Popup), NOT STARTED (Mobile Layout).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Phased Feature Rollout:** A large feature (film pipeline) was successfully broken down into smaller, independently deliverable and testable phases (Phase 1, 2, 3).
-- **Modular Backend Routing:** New complex features are being built in dedicated FastAPI routers () instead of being added to the monolithic , improving maintainability.
-- **Stateful Pipeline Management:** A  field in the  DB collection is used to manage a film's progression through a complex, multi-step workflow.
-- **Graceful Auth Error Handling:** The frontend auth interceptor was modified to be less aggressive, preventing logouts on transient network errors and only acting on persistent authentication failures.
-- **UI Feedback for Async Operations:** Implemented loading spinners and disabled buttons to provide clear visual feedback to the user during data fetching (e.g., refreshing the cast list).
+- **Dynamic UI Generation:** The frontend now dynamically fetches and displays CGI/VFX packages based on the selected film genre.
+- **Complex State Management:** The  component manages a complex state including multi-select arrays for subgenres/locations, slider values for extras, and selections for CGI/VFX.
+- **Backend-Driven UI:** The casting UI relies on detailed data from the backend, including skill levels, agent info, and costs, to render informative components.
+- **Modular Constants:** New game design elements (CGI/VFX packages, actor roles) were centralized in a  file for easier management.
+- **Feature Deprecation:** Successfully removed an obsolete feature (Pre-Ingaggio) by deleting its components, routes, and navigation links across the frontend.
 
 **key DB schema**
 - **films:**
-  - : (String) Tracks the film's current stage in the new pipeline (e.g., 'proposal', 'casting', 'scriptwriting', 'pre_production', 'shooting', 'released', 'discarded').
-  - : (Object) Stores data relevant to each stage, such as cast proposals, timers, and script choices.
-- **casting_school_students:** (New Collection)
-  - Stores actors sent from the Casting Agency to the Acting School, tracking their skill progression and graduation status.
+  - : Array of objects, now includes  for each actor.
+  - : (New Object) Stores  (Number),  (Object), and  (Object).
+  - : (String) Fixed a bug to correctly store the film's status before it was sent to the marketplace.
+- **users:**
+  - : Added to the user object returned on login to be displayed on the dashboard.
 
 **All files of reference**
-- : (New) Core backend logic for the new film creation feature.
-- : (New) Core frontend UI for the new film creation feature.
-- : Main backend file, updated to integrate new routers and fix various bugs.
-- : Location of the session logout bug fix.
-- : Location of the infrastructure purchase and layout fixes.
-- : Location of the contest logic fixes.
-- : Location of the frontend contest fixes.
+- : Core logic for all new production features.
+- : The main frontend component for the film creation process, heavily modified.
+- : Numerous endpoints were updated to support the new features and bug fixes.
+- : New page for the film marketplace.
+- : Routing table was updated.
+- : Tutorial content was updated.
+- : New file holding game design data.
+- : All UI text changes.
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** This remains a top-priority technical debt item. Its size (~11,000+ lines) makes maintenance and debugging difficult. New features should continue to be built in separate routers.
+- ** (CRITICAL):** This file remains extremely large and is a significant source of technical debt.
+- ** (HIGH):** This component has grown substantially to accommodate all the new features. It should be broken down into smaller, more manageable sub-components (e.g., , , , ).
 
 **key api endpoints**
-- : A new suite of endpoints to manage the film creation flow.
-  - : Creates a new film proposal.
-  - : Retrieves all films in a specific pipeline stage.
-  - : Advances a film to the next stage.
-  - : Generates a script using AI.
-  - : Begins the remastering process with a timer.
-  - : Fetches a list of films currently being shot by other players.
+- : (New) Saves the extras, CGI, and VFX configuration for a film.
+- : (New) Fetches available CGI and VFX packages for a given genre.
+- : (Updated) Now accepts arrays for  and .
+- : (Updated) Now accepts an  for each selected actor.
+- : (Updated) Scoring logic was expanded to include soundtrack, extras, CGI, and VFX bonuses/penalties.
+- : (New) Fetches all discarded films available for purchase.
+- : (New) Allows a player to purchase a film from the marketplace.
 
 **Critical Info for New Agent**
 - **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **TOP PRIORITY:** The next task is to begin **Phase 3** of the Film Creation Pipeline. The plan has been discussed and approved by the user.
+- **TOP PRIORITY:** The next task is to begin implementing the user's latest request from message #507, focusing on the UI changes and new actor details in the casting process.
 - **PAUSED TASK:** Do **NOT** work on the recurring donation popup bug unless the user explicitly asks you to.
-- **USER PREFERENCES:** The user prefers clean UIs that use icons for navigation with informational popups, as successfully implemented in the new film pipeline.
+- **Refactoring:** Be mindful of the large size of  and . While the user has not requested a refactor, new logic should be as modular as possible.
 
 **documents and test reports created in this job**
-- Multiple  files were generated.
--  has been updated with the latest progress.
+- Multiple  files were generated from successful test runs.
+-  was updated.
+-  was updated.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports 4 distinct bugs with screenshots.
-2.  **User:** Procedi con tutto (Proceed with everything).
-3.  **Agent:** Fixes all 4 bugs and confirms completion.
-4.  **User:** Proposes a large, multi-step overhaul of the film creation process.
-5.  **Agent:** Analyzes the proposal, praises it, and offers technical suggestions (scrollable bar, timers, phased rollout).
-6.  **User:** Agrees with all suggestions but specifies a preference for icons over text for the navigation menu.
-7.  **Agent:** Presents a detailed plan for Phase 1.
-8.  **User:** Procedi (Proceed).
-9.  **Agent:** Completes Phase 1.
-10. **User:** Procedi fase 2 compreso il tuo suggerimento (Proceed with phase 2 including your suggestion).
-11. **Agent:** Presents a detailed plan for Phase 2.
-12. **User:** Confermo (I confirm).
-13. **Agent:** Completes Phase 2.
+1.  **User (Msg #345/346):** Decides to remove the Pre-Ingaggio feature and simplify the Sceneggiature studio.
+2.  **Agent:** Implements the removal and simplification.
+3.  **User (Msg #330/333):** Asks for several features: clickable cast with visible skills, a role dropdown for actors, and asks about soundtrack score.
+4.  **Agent:** Implements all three features.
+5.  **User (Msg #444):** Requests a major new feature set: Co-protagonista role, a slider for extras (comparse), and genre-specific CGI/VFX packages.
+6.  **Agent:** Implements the entire feature set.
+7.  **User (Msg #507):** Requests another batch of features/UI changes:
+    *   Make the Produci! button larger in the bottom nav.
+    *   Add a Mercato button to the bottom nav.
+    *   Add more actor details: gender icon, age, nationality, fame, growth trends, work history.
+    *   Make agent proposals smarter based on player fame.
+    *   Double the number of actor proposals.
+    *   Proposes a future Casting Agency infrastructure.
+8.  **Agent:** Acknowledges the request and begins analyzing the codebase. This is the current pending task.
 
 **Project Health Check:**
 - **Broken:**
@@ -156,21 +184,21 @@ None.
   - None.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key via . Successfully used for AI script generation.
+- **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
 - **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
-- **Pillow:** Used as a fallback for image manipulation (e.g., generating movie posters).
+- **Pillow:** Used for image manipulation.
 - **APScheduler:** Used for backend scheduled tasks.
 - **PayPal.me:** External link for donations.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. The testing agent was used successfully to validate all major bug fixes and the completion of both Phase 1 and Phase 2 of the new feature.
+- **Testing agent used after significant changes:** YES. The agent used  successfully after every major feature implementation and bug fix batch, achieving 100% pass rates.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** []
-- **Known regressions:** None in this session. The critical session bug was resolved.
+- **Known regressions:** None in this session.
 
 **Credentials to test flow:**
 - **User:** 
 - **Password:** 
 
 **What agent forgot to execute**
-- The agent did not address the long-standing **Contest Page mobile layout** issue, which was noted as a recurring problem in the initial handoff summary.</analysis>
+- The long-standing **Contest Page mobile layout** issue remains unaddressed. All other user requests from this session were completed.</analysis>

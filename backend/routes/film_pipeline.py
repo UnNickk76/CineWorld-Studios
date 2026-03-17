@@ -302,26 +302,26 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     genre = film_project.get('genre', 'drama')
     user_id = film_project['user_id']
 
-    # Get user level for proposal quality
+    # Get user info for proposal quality and dynamic casting
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'fame': 1, 'total_xp': 1})
     fame = user.get('fame', 50) if user else 50
 
     # Number of agents varies per role (variable, not fixed!)
+    # DOUBLED base for actors to provide more choices
     base_agents = 1 + int(pre_imdb / 4) + int(fame / 150)
-    # Role-specific variation
-    role_bonus = {'directors': random.randint(0, 1), 'screenwriters': random.randint(0, 1),
-                  'actors': random.randint(1, 3), 'composers': random.randint(0, 1)}
+    role_bonus = {'directors': random.randint(0, 2), 'screenwriters': random.randint(0, 2),
+                  'actors': random.randint(2, 5), 'composers': random.randint(0, 2)}
     num_agents = base_agents + role_bonus.get(role_type, 0)
-    num_agents = max(1, min(num_agents, 5))
+    num_agents = max(2, min(num_agents, 7))
 
-    # Each agent brings 1-3 candidates
+    # Each agent brings 1-4 candidates (doubled for actors)
     total_candidates = 0
     agent_batches = []
     for _ in range(num_agents):
-        candidates_per_agent = random.randint(1, 3) if role_type == 'actors' else random.randint(1, 2)
+        candidates_per_agent = random.randint(2, 4) if role_type == 'actors' else random.randint(1, 3)
         agent_batches.append(candidates_per_agent)
         total_candidates += candidates_per_agent
-    total_candidates = min(total_candidates, 8)
+    total_candidates = min(total_candidates, 16)  # Doubled max from 8 to 16
 
     # Determine people type
     people_type = role_type
@@ -334,25 +334,112 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     elif role_type == 'composers':
         people_type = 'composer'
 
-    # Get random people from DB
-    people = await db.people.aggregate([
-        {'$match': {'type': people_type}},
-        {'$sample': {'size': total_candidates * 2}},
-        {'$project': {'_id': 0, 'id': 1, 'name': 1, 'skills': 1, 'fame': 1, 'category': 1,
-                       'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
-                       'imdb_rating': 1, 'films_count': 1}}
-    ]).to_list(total_candidates * 2)
+    # === DYNAMIC CASTING: Fame-based candidate selection ===
+    # Low-fame players get more unknown/rising talent
+    # High-fame players get better access to stars
+    fame_filters = []
+    if fame < 30:
+        # Mostly unknowns and rising stars
+        fame_filters = [
+            {'$match': {'type': people_type, 'fame_category': {'$in': ['unknown', 'rising']}}},
+        ]
+        sample_size = total_candidates * 3
+        # Also fetch a few famous for variety
+        famous_sample = 2
+    elif fame < 60:
+        fame_filters = [
+            {'$match': {'type': people_type, 'fame_category': {'$in': ['unknown', 'rising', 'famous']}}},
+        ]
+        sample_size = total_candidates * 3
+        famous_sample = 0
+    else:
+        # High fame: full access
+        fame_filters = [
+            {'$match': {'type': people_type}},
+        ]
+        sample_size = total_candidates * 3
+        famous_sample = 0
 
-    # Sort by quality and take the appropriate number
-    people.sort(key=lambda p: p.get('fame', 0), reverse=True)
+    # Get people with full details including gender, age, nationality, fame info
+    people = await db.people.aggregate([
+        *fame_filters,
+        {'$sample': {'size': sample_size}},
+        {'$project': {'_id': 0, 'id': 1, 'name': 1, 'skills': 1, 'fame_score': 1, 'fame': 1,
+                       'category': 1, 'fame_category': 1,
+                       'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
+                       'imdb_rating': 1, 'films_count': 1,
+                       'gender': 1, 'age': 1, 'nationality': 1,
+                       'films_worked': 1, 'skill_changes': 1}}
+    ]).to_list(sample_size)
+
+    # For low-fame players, also add a couple of famous people for aspiration
+    if famous_sample > 0 and fame < 30:
+        famous_people = await db.people.aggregate([
+            {'$match': {'type': people_type, 'fame_category': {'$in': ['famous', 'superstar']}}},
+            {'$sample': {'size': famous_sample}},
+            {'$project': {'_id': 0, 'id': 1, 'name': 1, 'skills': 1, 'fame_score': 1, 'fame': 1,
+                           'category': 1, 'fame_category': 1,
+                           'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
+                           'imdb_rating': 1, 'films_count': 1,
+                           'gender': 1, 'age': 1, 'nationality': 1,
+                           'films_worked': 1, 'skill_changes': 1}}
+        ]).to_list(famous_sample)
+        people.extend(famous_people)
+
+    # Enrich person data: determine fame label, growth trend, worked-with
+    user_films = await db.films.find(
+        {'owner_id': user_id}, {'_id': 0, 'cast': 1}
+    ).to_list(200)
+    worked_with_ids = set()
+    for film in user_films:
+        cast = film.get('cast', {})
+        for actor in cast.get('actors', []):
+            if actor.get('id'):
+                worked_with_ids.add(actor['id'])
+        for role_key in ['director', 'screenwriter', 'composer']:
+            p = cast.get(role_key, {})
+            if p and p.get('id'):
+                worked_with_ids.add(p['id'])
+
+    for person in people:
+        # Fame label
+        fc = person.get('fame_category', 'unknown')
+        fame_labels = {
+            'unknown': 'Sconosciuto', 'rising': 'Emergente',
+            'famous': 'Famoso', 'superstar': 'Superstar'
+        }
+        person['fame_label'] = fame_labels.get(fc, 'Sconosciuto')
+
+        # Growth trend from skill_changes
+        sc = person.get('skill_changes', {})
+        if sc:
+            total_change = sum(sc.values())
+            if total_change > 5:
+                person['growth_trend'] = 'rising'
+            elif total_change < -3:
+                person['growth_trend'] = 'declining'
+            else:
+                person['growth_trend'] = 'stable'
+        else:
+            person['growth_trend'] = 'stable'
+
+        # Has worked with player before
+        person['has_worked_with_player'] = person.get('id') in worked_with_ids
+
+        # Clean up fields not needed in frontend
+        person.pop('skill_changes', None)
+        person.pop('films_worked', None)
+
+    # Sort by fame score and take appropriate number
+    people.sort(key=lambda p: p.get('fame_score', p.get('fame', 0)), reverse=True)
 
     # Higher IMDb films attract better candidates
     if pre_imdb >= 8:
-        selected = people[:total_candidates]  # Best candidates
+        selected = people[:total_candidates]
     elif pre_imdb >= 6:
-        selected = people[1:total_candidates + 1]  # Good candidates
+        selected = people[1:total_candidates + 1]
     else:
-        selected = people[total_candidates:][:total_candidates]  # Worse candidates
+        selected = people[total_candidates:][:total_candidates]
 
     if not selected:
         selected = people[:total_candidates]
@@ -361,7 +448,7 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     agent_names = [
         "Agenzia Stella", "Management Rossa", "Talent Milano", "Star Agency",
         "Cinema Partners", "Golden Cast", "Elite Agents", "Silver Screen Mgmt",
-        "Agenzia del Cinema", "World Talent Group"
+        "Agenzia del Cinema", "World Talent Group", "Cinecittà Talent", "Roma Casting"
     ]
     proposals = []
     candidate_idx = 0
@@ -382,7 +469,7 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
                 'id': str(uuid.uuid4()),
                 'person': person,
                 'agent_name': agent_name,
-                'delay_minutes': agent_delay + j * random.randint(0, 3),  # Same agent, slight variation
+                'delay_minutes': agent_delay + j * random.randint(0, 3),
                 'available_at': None,
                 'status': 'pending',
                 'cost': person.get('cost_per_film', 50000),

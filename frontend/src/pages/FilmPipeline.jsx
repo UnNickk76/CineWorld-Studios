@@ -12,8 +12,8 @@ import { toast } from 'sonner';
 import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
-  Zap, ChevronRight, RefreshCw, ThumbsDown, ThumbsUp, ShoppingCart, Film, TrendingUp,
-  Settings, Sparkles, Wand2
+  Zap, ChevronRight, RefreshCw, ThumbsDown, ThumbsUp, ShoppingCart, Film, TrendingUp, TrendingDown,
+  Settings, Sparkles, Wand2, Globe, UserCheck, Minus
 } from 'lucide-react';
 
 const TABS = [
@@ -325,15 +325,57 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
     </div>
   );
 
+  const GenderIcon = ({ gender }) => {
+    if (gender === 'female') return <span className="text-[10px]" title="Donna">&#9792;</span>;
+    if (gender === 'male') return <span className="text-[10px]" title="Uomo">&#9794;</span>;
+    return null;
+  };
+
+  const FameLabel = ({ fameCategory, fameLabel }) => {
+    const colors = {
+      'unknown': 'bg-gray-600/30 text-gray-400',
+      'rising': 'bg-emerald-500/20 text-emerald-400',
+      'famous': 'bg-amber-500/20 text-amber-400',
+      'superstar': 'bg-purple-500/20 text-purple-400'
+    };
+    return <Badge className={`text-[8px] h-4 ${colors[fameCategory] || colors.unknown}`}>{fameLabel || 'Sconosciuto'}</Badge>;
+  };
+
+  const GrowthTrend = ({ trend }) => {
+    if (trend === 'rising') return <TrendingUp className="w-3 h-3 text-green-400" title="In crescita" />;
+    if (trend === 'declining') return <TrendingDown className="w-3 h-3 text-red-400" title="In calo" />;
+    return <Minus className="w-3 h-3 text-gray-600" title="Stabile" />;
+  };
+
+  const PersonMeta = ({ person }) => (
+    <div className="flex items-center gap-1 flex-wrap mt-0.5">
+      {person?.gender && <GenderIcon gender={person.gender} />}
+      {person?.age && <span className="text-[9px] text-gray-500">{person.age}a</span>}
+      {person?.nationality && (
+        <span className="text-[9px] text-gray-500 flex items-center gap-0.5">
+          <Globe className="w-2.5 h-2.5" />{person.nationality}
+        </span>
+      )}
+      {person?.fame_category && <FameLabel fameCategory={person.fame_category} fameLabel={person.fame_label} />}
+      {person?.growth_trend && <GrowthTrend trend={person.growth_trend} />}
+      {person?.has_worked_with_player && (
+        <Badge className="text-[8px] h-4 bg-cyan-500/20 text-cyan-400">
+          <UserCheck className="w-2.5 h-2.5 mr-0.5" />Collaboratore
+        </Badge>
+      )}
+    </div>
+  );
+
   const SelectedCastDetail = ({ person, roleName }) => (
     <div className="mt-2 p-2 bg-black/30 rounded border border-gray-700">
       <div className="flex items-center gap-2 mb-1.5">
         <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-yellow-400">
           {person?.name?.charAt(0)}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold">{person?.name}</p>
-          <p className="text-[9px] text-gray-500">{roleName} &bull; Fama: {person?.fame || 0} &bull; ${(person?.cost_per_film || person?.cost || 0).toLocaleString()}</p>
+          <p className="text-[9px] text-gray-500">{roleName} &bull; ${(person?.cost_per_film || person?.cost || 0).toLocaleString()}</p>
+          <PersonMeta person={person} />
         </div>
       </div>
       {person?.skills && Object.entries(person.skills).map(([skill, val]) => (
@@ -478,17 +520,23 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                               <SelectedCastDetail key={idx} person={actor} roleName={actor.role_in_film || 'Attore'} />
                             ))}
 
-                            {/* Show available proposals with skills */}
+                            {/* Show available proposals with enhanced details */}
                             {!selected && available.map(prop => (
-                              <div key={prop.id} className="p-2 mb-1.5 bg-black/20 rounded border border-gray-800">
+                              <div key={prop.id} className="p-2 mb-1.5 bg-black/20 rounded border border-gray-800" data-testid={`proposal-card-${prop.id}`}>
                                 <div className="flex items-center justify-between mb-1">
-                                  <div className="flex-1">
-                                    <p className="text-xs font-medium">{prop.person?.name}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-xs font-medium">{prop.person?.name}</p>
+                                      {prop.person?.has_worked_with_player && (
+                                        <UserCheck className="w-3 h-3 text-cyan-400 flex-shrink-0" title="Ha lavorato con te" />
+                                      )}
+                                    </div>
                                     <p className="text-[9px] text-gray-500">
-                                      da {prop.agent_name} &bull; ${prop.cost?.toLocaleString()} &bull; Fama: {prop.person?.fame || 0}
+                                      da {prop.agent_name} &bull; ${prop.cost?.toLocaleString()}
                                     </p>
+                                    <PersonMeta person={prop.person} />
                                   </div>
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1 flex-shrink-0">
                                     {role === 'actors' && (
                                       <select value={actorRoles[prop.id] || ''} onChange={e => setActorRoles(p => ({...p, [prop.id]: e.target.value}))}
                                         onClick={e => e.stopPropagation()}

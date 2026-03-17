@@ -326,8 +326,8 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   );
 
   const GenderIcon = ({ gender }) => {
-    if (gender === 'female') return <span className="text-[10px]" title="Donna">&#9792;</span>;
-    if (gender === 'male') return <span className="text-[10px]" title="Uomo">&#9794;</span>;
+    if (gender === 'female') return <span className="text-[10px] text-pink-400" title="Donna">&#9792;</span>;
+    if (gender === 'male') return <span className="text-[10px] text-sky-400" title="Uomo">&#9794;</span>;
     return null;
   };
 

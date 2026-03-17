@@ -54,10 +54,11 @@ export const AuthProvider = ({ children }) => {
   const api = React.useMemo(() => {
     const instance = axios.create({
       baseURL: API,
-      timeout: 30000
+      timeout: 45000
     });
 
-    let consecutive401Count = 0;
+    let logoutScheduled = false;
+    let logoutTimer = null;
 
     // Request interceptor - add token
     instance.interceptors.request.use(config => {
@@ -69,34 +70,55 @@ export const AuthProvider = ({ children }) => {
     // Response interceptor - handle 401 + retry on network error
     instance.interceptors.response.use(
       (response) => {
-        // Reset 401 counter on any successful response
-        consecutive401Count = 0;
+        // Any successful response cancels pending logout
+        if (logoutTimer) {
+          clearTimeout(logoutTimer);
+          logoutTimer = null;
+          logoutScheduled = false;
+        }
         return response;
       },
       async (error) => {
         const config = error.config;
 
-        // 401 = token expired/invalid → auto-logout (skip for login/register/me endpoints)
+        // 401 = token expired/invalid → schedule logout with debounce
+        // Skip auth endpoints to avoid logout loop during login
         if (error.response?.status === 401) {
           const url = config?.url || '';
           const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/me');
-          if (!isAuthEndpoint) {
-            consecutive401Count++;
-            // Only logout after 2+ consecutive 401s to avoid transient issues
-            if (consecutive401Count >= 2) {
-              localStorage.removeItem('cineworld_token');
-              tokenRef.current = null;
-              clearApiCache();
-              if (logoutRef.current) logoutRef.current();
-            }
-            return Promise.reject(error);
+          if (!isAuthEndpoint && !logoutScheduled) {
+            // Debounced logout: wait 3 seconds for a successful response to cancel it
+            // This handles parallel requests where some fail but others succeed
+            logoutScheduled = true;
+            logoutTimer = setTimeout(() => {
+              // Double-check that token is still present (user didn't already logout)
+              if (tokenRef.current) {
+                // Verify token is truly invalid with a dedicated check
+                instance.get('/auth/me').then(() => {
+                  // Token is actually valid - cancel logout
+                  logoutScheduled = false;
+                }).catch((verifyErr) => {
+                  if (verifyErr.response?.status === 401) {
+                    // Confirmed: token is invalid
+                    localStorage.removeItem('cineworld_token');
+                    tokenRef.current = null;
+                    clearApiCache();
+                    if (logoutRef.current) logoutRef.current();
+                  }
+                  logoutScheduled = false;
+                });
+              } else {
+                logoutScheduled = false;
+              }
+            }, 3000);
           }
+          return Promise.reject(error);
         }
 
         // Retry once on network error or 5xx (not on 4xx)
         if (!config._retried && (!error.response || error.response.status >= 500)) {
           config._retried = true;
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500));
           return instance(config);
         }
 
@@ -112,9 +134,14 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       api.get('/auth/me')
         .then(res => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem('cineworld_token');
-          setToken(null);
+        .catch((err) => {
+          // Only clear token on definitive auth failures (401)
+          // Network errors, timeouts, 5xx should NOT log the user out
+          if (err.response?.status === 401) {
+            localStorage.removeItem('cineworld_token');
+            setToken(null);
+          }
+          // For other errors, keep token and user null - they can retry
         })
         .finally(() => setLoading(false));
     } else {

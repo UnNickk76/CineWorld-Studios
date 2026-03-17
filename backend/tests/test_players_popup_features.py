@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-studio-sim.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://session-fix-cinema.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_1 = {"email": "testpopup@test.com", "password": "Test1234!"}

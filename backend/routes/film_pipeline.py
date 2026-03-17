@@ -931,10 +931,12 @@ async def buy_discarded_film(project_id: str, user: dict = Depends(get_current_u
     await db.users.update_one({'id': project['discarded_by']}, {'$inc': {'funds': price}})
 
     # Determine which phase to place the film in
-    # It goes to the phase it was in when discarded
-    original_status = project.get('status_before_discard', project.get('status', 'proposed'))
-    # For the buyer, it goes to casting phase (they keep existing cast if any)
-    buyer_status = 'casting' if project.get('cast', {}).get('director') else 'proposed'
+    # It goes to the phase it was in when discarded by the previous producer
+    buyer_status = project.get('status_before_discard', 'proposed')
+    # Fallback safety: ensure valid status
+    valid_statuses = ['proposed', 'casting', 'screenplay', 'pre_production', 'shooting']
+    if buyer_status not in valid_statuses:
+        buyer_status = 'proposed'
 
     await db.film_projects.update_one(
         {'id': project_id},

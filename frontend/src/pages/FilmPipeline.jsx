@@ -662,12 +662,25 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
                 <h3 className="font-semibold text-sm">{f.title}</h3>
                 <p className="text-[10px] text-gray-500">{f.genre} &bull; {f.subgenre} &bull; Pre-IMDb: <span className="text-yellow-400">{f.pre_imdb_score}</span></p>
               </div>
-              {f.screenplay && (
-                <Button size="sm" className="bg-green-700 hover:bg-green-800 text-xs" onClick={() => advance(f.id)}
-                  disabled={actionLoading === `adv-${f.id}`} data-testid={`advance-preprod-${f.id}`}>
-                  <ChevronRight className="w-3 h-3 mr-1" /> Pre-Produzione (3 CP)
+              <div className="flex items-center gap-1.5">
+                {f.screenplay && (
+                  <Button size="sm" className="bg-green-700 hover:bg-green-800 text-xs" onClick={() => advance(f.id)}
+                    disabled={actionLoading === `adv-${f.id}`} data-testid={`advance-preprod-${f.id}`}>
+                    <ChevronRight className="w-3 h-3 mr-1" /> Pre-Produzione (3 CP)
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-7 px-2"
+                  disabled={actionLoading === `discard-${f.id}`}
+                  onClick={async () => {
+                    if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                    setActionLoading(`discard-${f.id}`);
+                    try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
+                    catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
+                  }}
+                  data-testid={`discard-screenplay-${f.id}`}>
+                  {actionLoading === `discard-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3" />}
                 </Button>
-              )}
+              </div>
             </div>
 
             {/* Pre-screenplay (always visible, not editable) */}
@@ -857,6 +870,18 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                   onClick={() => startShooting(f.id)} data-testid={`ciak-${f.id}`}>
                   <Play className="w-3 h-3 mr-1" /> Ciak! (3 CP)
                 </Button>
+                <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-8 px-2"
+                  disabled={actionLoading === `discard-${f.id}`}
+                  onClick={async () => {
+                    if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                    setActionLoading(`discard-${f.id}`);
+                    try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
+                    catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
+                  }}
+                  data-testid={`discard-preprod-${f.id}`}>
+                  {actionLoading === `discard-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3 mr-0.5" />}
+                  Scarta
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -1031,24 +1056,51 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
               </div>
 
               {completed ? (
-                <Button className="w-full bg-green-700 hover:bg-green-800 text-xs" disabled={actionLoading === `rel-${f.id}`}
-                  onClick={() => release(f.id)} data-testid={`release-${f.id}`}>
-                  {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Film className="w-3 h-3 mr-1" />}
-                  Rilascia al Cinema!
-                </Button>
-              ) : (
                 <div className="flex gap-1.5">
-                  <Button size="sm" variant="outline" className="flex-1 text-[9px] border-gray-700" disabled={actionLoading === `speed-${f.id}`}
-                    onClick={() => speedUp(f.id, 'fast')}>
-                    <Zap className="w-2.5 h-2.5 mr-0.5" /> 50% ($50K)
+                  <Button className="flex-1 bg-green-700 hover:bg-green-800 text-xs" disabled={actionLoading === `rel-${f.id}`}
+                    onClick={() => release(f.id)} data-testid={`release-${f.id}`}>
+                    {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Film className="w-3 h-3 mr-1" />}
+                    Rilascia al Cinema!
                   </Button>
-                  <Button size="sm" variant="outline" className="flex-1 text-[9px] border-yellow-700 text-yellow-400" disabled={actionLoading === `speed-${f.id}`}
-                    onClick={() => speedUp(f.id, 'faster')}>
-                    <Zap className="w-2.5 h-2.5 mr-0.5" /> 80% ($90K)
+                  <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 px-2"
+                    disabled={actionLoading === `discard-${f.id}`}
+                    onClick={async () => {
+                      if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                      setActionLoading(`discard-${f.id}`);
+                      try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
+                      catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
+                    }}
+                    data-testid={`discard-shooting-${f.id}`}>
+                    <ThumbsDown className="w-3 h-3 mr-0.5" /> Scarta
                   </Button>
-                  <Button size="sm" className="flex-1 text-[9px] bg-red-700 hover:bg-red-800" disabled={actionLoading === `speed-${f.id}`}
-                    onClick={() => speedUp(f.id, 'instant')}>
-                    <Zap className="w-2.5 h-2.5 mr-0.5" /> Subito! ($150K)
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" className="flex-1 text-[9px] border-gray-700" disabled={actionLoading === `speed-${f.id}`}
+                      onClick={() => speedUp(f.id, 'fast')}>
+                      <Zap className="w-2.5 h-2.5 mr-0.5" /> 50% ($50K)
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 text-[9px] border-yellow-700 text-yellow-400" disabled={actionLoading === `speed-${f.id}`}
+                      onClick={() => speedUp(f.id, 'faster')}>
+                      <Zap className="w-2.5 h-2.5 mr-0.5" /> 80% ($90K)
+                    </Button>
+                    <Button size="sm" className="flex-1 text-[9px] bg-red-700 hover:bg-red-800" disabled={actionLoading === `speed-${f.id}`}
+                      onClick={() => speedUp(f.id, 'instant')}>
+                      <Zap className="w-2.5 h-2.5 mr-0.5" /> Subito! ($150K)
+                    </Button>
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10"
+                    disabled={actionLoading === `discard-${f.id}`}
+                    onClick={async () => {
+                      if (!window.confirm(`Scartare "${f.title}"? Le riprese verranno interrotte e il film sarà messo in vendita sul Mercato.`)) return;
+                      setActionLoading(`discard-${f.id}`);
+                      try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
+                      catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
+                    }}
+                    data-testid={`discard-shooting-${f.id}`}>
+                    {actionLoading === `discard-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3 mr-0.5" />}
+                    Scarta
                   </Button>
                 </div>
               )}

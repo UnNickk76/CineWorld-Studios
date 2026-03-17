@@ -87,6 +87,9 @@ const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile
 
 // ==================== COMPONENTS ====================
 
+// Module-level flag: prevents donate popup from re-triggering on component remounts
+let _donatePopupChecked = false;
+
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -175,21 +178,19 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup - only once per 24h AND once per session
+  // Show donate popup - only once per 24h, checked only once per app lifecycle
   useEffect(() => {
     api.get('/game/donations-status').then(r => {
       const enabled = r.data.donations_enabled;
       setDonationsEnabled(enabled);
-      if (enabled && !sessionStorage.getItem('donatePopupShownThisSession')) {
+      if (enabled && !_donatePopupChecked) {
+        _donatePopupChecked = true;
         const lastShown = localStorage.getItem('donatePopupLastShown');
         const now = Date.now();
         const twentyFourHours = 24 * 60 * 60 * 1000;
         if (!lastShown || (now - parseInt(lastShown)) > twentyFourHours) {
           localStorage.setItem('donatePopupLastShown', now.toString());
-          sessionStorage.setItem('donatePopupShownThisSession', 'true');
           setTimeout(() => setShowDonatePopup(true), 2500);
-        } else {
-          sessionStorage.setItem('donatePopupShownThisSession', 'true');
         }
       }
     }).catch(() => {});

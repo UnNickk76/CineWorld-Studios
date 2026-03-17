@@ -109,6 +109,15 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
+### Produzione Avanzata (17 Mar 2026)
+- Co-Protagonista aggiunto come 5o ruolo attore (peso qualita: 1.2, crescita: 1.0)
+- ROLE_VALUES: Protagonista(1.5), Co-Protagonista(1.2), Antagonista(1.3), Supporto(0.7), Cameo(0.3)
+- Comparse: slider 50-1000, sweet spot per genere, bonus/penalita automatico
+- CGI: 6-7 pacchetti per genere (horror, sci_fi, action, fantasy, adventure, war) + default
+- VFX: 4 pacchetti per genere + default, costi solo denaro
+- Calcolo qualita: ora include role_weighted, cgi_bonus, vfx_bonus, extras_bonus, soundtrack
+- Test: 100% (9/9 backend, 8/8 frontend - iteration 78)
+
 ### Feature Batch (17 Mar 2026)
 - Cast cliccabile/espandibile con skill bars colorate (verde/giallo/rosso)
 - Dropdown ruolo attore: Protagonista/Antagonista/Supporto/Cameo (obbligatorio)

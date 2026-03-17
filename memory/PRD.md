@@ -109,12 +109,15 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
-### Bug Fix Batch (17 Mar 2026)
-- Dashboard: nickname utente nella welcome (non production_house_name)
-- Post-Produzione Studio: mostra solo film pipeline in pre_production (non film rilasciati)
-- Casting: agenti variabili per ruolo (1-5 agenti, 1-3 candidati ciascuno)
-- Casting speed-up: costo ridotto da $15K a $5K per agente in arrivo
-- Scuola Recitazione: counter "X occupati / Y disponibili"
+### Feature Batch (17 Mar 2026)
+- Cast cliccabile/espandibile con skill bars colorate (verde/giallo/rosso)
+- Dropdown ruolo attore: Protagonista/Antagonista/Supporto/Cameo (obbligatorio)
+- Punteggio Colonna Sonora: skill compositore influenzano qualita finale (+0-8 punti)
+- Pre-Ingaggio RIMOSSO completamente (nav, route, dashboard card)
+- Sceneggiature: rimossa opzione "Solo Sceneggiatura", solo "Pacchetto Completo" con sconto 40-50%
+- Test: 100% (12/12 backend, 8/8 frontend - iteration 77)
+
+### Bug Fix Batch - Casting/Dashboard/Studio (17 Mar 2026)
 
 ### Fase 3 Pipeline Completata (17 Mar 2026)
 - **Sottogeneri**: da Select dropdown a badge cliccabili (max 3) con contatore

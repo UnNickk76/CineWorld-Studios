@@ -74,6 +74,19 @@
 - File modificato: `frontend/src/contexts/index.jsx`
 - Test: 11/11 passati (navigazione, reload, navigazione rapida)
 
+### Acting School Potenziata (17 Mar 2026)
+- Nuova sezione "Studenti dall'Agenzia Casting" nella Scuola di Recitazione
+- Capacità legata al livello scuola (formula: 2 + livello)
+- Attributo 'età' aggiunto a tutti gli attori (casting agency recruits + students)
+- Skill migliorano nel tempo in base al potenziale nascosto (0.6-1.0)
+- Costo giornaliero formazione: $30K + livello × $5K (primo giorno gratuito)
+- Pulsante "Diploma" dopo 24 ore di formazione
+- Messaggio "Potenziale massimo raggiunto" quando tutte le skill sono al cap
+- Pulsanti: Diploma, Paga formazione, Rimuovi
+- Collection: `casting_school_students`
+- Endpoint: GET /acting-school/casting-students, POST /graduate/{id}, POST /pay-training/{id}, POST /dismiss/{id}
+- Test: 8/8 backend + UI completo verificato
+
 ## Task Prossimi
 - Acting School Potenziata (età attori, sezione dedicata, miglioramento skill, diploma)
 - Sistema ruoli Admin (RBAC)

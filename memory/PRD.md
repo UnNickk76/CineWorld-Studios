@@ -87,6 +87,15 @@
 - Endpoint: GET /acting-school/casting-students, POST /graduate/{id}, POST /pay-training/{id}, POST /dismiss/{id}
 - Test: 8/8 backend + UI completo verificato
 
+### Bug Fix Batch (17 Mar 2026)
+1. **Casting Students nella Infrastruttura**: Sezione visibile sia in /acting-school che nel dettaglio infrastruttura
+2. **Blocco acquisto duplicato**: Scuola e Studio di Produzione ora mostrano "Già posseduto" se già acquistati, backend blocca con errore
+3. **Box Office $NaN fix**: Corretto rendering separando box_office da budget_guess tramite `challenge_type`, aggiunto `film_genre` al posto di `genre`
+4. **Trivia shuffle**: Risposte ora mescolate, la corretta non è più sempre la prima
+5. **Cast Match skill hints**: Aggiunte skill rilevanti al genere per ogni attore + attori shufflati
+6. **Box Office film query**: Aggiunto status `in_theaters` alla query
+- Test: 100% backend + frontend verificato
+
 ## Task Prossimi
 - Acting School Potenziata (età attori, sezione dedicata, miglioramento skill, diploma)
 - Sistema ruoli Admin (RBAC)

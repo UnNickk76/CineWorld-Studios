@@ -197,6 +197,26 @@ const ContestsPage = () => {
             </div>
           )}
 
+          {/* Director Quiz / Generic Title-Genre Quiz */}
+          {challenge?.title && challenge?.genre && challenge?.options && !challenge?.actors && !challenge?.questions && !challenge?.equipment && (
+            <div className="space-y-3">
+              <div className="p-3 bg-white/5 rounded text-center">
+                <p className="text-xs text-gray-500">{language === 'it' ? 'Film:' : 'Film:'}</p>
+                <p className="font-bold text-base">{challenge.title}</p>
+                <p className="text-xs text-gray-400">{challenge.genre}</p>
+              </div>
+              <p className="text-xs text-gray-400 text-center">{language === 'it' ? 'Chi è il regista di questo film?' : 'Who directed this film?'}</p>
+              <div className="grid grid-cols-1 gap-1.5">
+                {challenge.options.map(opt => (
+                  <Button key={opt} variant="outline" disabled={submitting} className={`w-full border-gray-700 text-xs h-9 ${selectedAnswer === opt ? 'ring-2 ring-cyan-400 bg-cyan-500/10' : ''}`}
+                    onClick={() => { setSelectedAnswer(opt); submitAnswer(opt, challenge.correct); }} data-testid={`director-option-${opt}`}>
+                    {opt}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Box Office Prediction */}
           {(challenge?.challenge_type === 'box_office' || (challenge?.title && challenge?.options && !challenge?.actors && !challenge?.genre && !challenge?.questions)) && (
             <div className="space-y-3">

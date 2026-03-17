@@ -28,9 +28,10 @@ const TABS = [
 const CreationTab = ({ api, refreshUser, refreshCounts }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
-  const [subgenre, setSubgenre] = useState('');
+  const [selectedSubgenres, setSelectedSubgenres] = useState([]);
   const [preScreenplay, setPreScreenplay] = useState('');
-  const [location, setLocation] = useState('');
+  const [selectedLocations, setSelectedLocations] = useState([]);
+  const [locFilter, setLocFilter] = useState('all');
   const [genres, setGenres] = useState({});
   const [locations, setLocations] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -41,18 +42,34 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
     api.get('/locations').then(r => setLocations(r.data || [])).catch(() => {});
   }, [api]);
 
+  const toggleSubgenre = (sg) => {
+    if (selectedSubgenres.includes(sg)) {
+      setSelectedSubgenres(selectedSubgenres.filter(s => s !== sg));
+    } else if (selectedSubgenres.length < 3) {
+      setSelectedSubgenres([...selectedSubgenres, sg]);
+    }
+  };
+
+  const toggleLocation = (name) => {
+    if (selectedLocations.includes(name)) {
+      setSelectedLocations(selectedLocations.filter(l => l !== name));
+    } else {
+      setSelectedLocations([...selectedLocations, name]);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!title.trim() || !genre || !subgenre || preScreenplay.length < 100 || !location) {
-      toast.error('Compila tutti i campi. La sinossi deve avere almeno 100 caratteri.');
+    if (!title.trim() || !genre || selectedSubgenres.length === 0 || preScreenplay.length < 100 || selectedLocations.length === 0) {
+      toast.error('Compila tutti i campi. Seleziona almeno 1 sottogenere e 1 location.');
       return;
     }
     setSubmitting(true);
     try {
       const res = await api.post('/film-pipeline/create', {
-        title, genre, subgenre, pre_screenplay: preScreenplay, location_name: location
+        title, genre, subgenres: selectedSubgenres, pre_screenplay: preScreenplay, locations: selectedLocations
       });
       toast.success(res.data.message);
-      setTitle(''); setGenre(''); setSubgenre(''); setPreScreenplay(''); setLocation(''); setStep(1);
+      setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay(''); setSelectedLocations([]); setStep(1);
       refreshUser(); refreshCounts();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella creazione');
@@ -61,7 +78,11 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
     }
   };
 
-  const subgenres = genres[genre]?.subgenres || [];
+  const subgenresList = genres[genre]?.subgenres || [];
+
+  const CATEGORY_LABELS = { studios: 'Studi', cities: 'Citta', nature: 'Natura', historical: 'Storici' };
+  const categories = ['all', ...new Set(locations.map(l => l.category))];
+  const filteredLocations = locFilter === 'all' ? locations : locations.filter(l => l.category === locFilter);
 
   return (
     <div className="space-y-4">
@@ -88,7 +109,7 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Genere</label>
-              <Select value={genre} onValueChange={v => { setGenre(v); setSubgenre(''); }}>
+              <Select value={genre} onValueChange={v => { setGenre(v); setSelectedSubgenres([]); }}>
                 <SelectTrigger className="bg-black/30 border-gray-700 text-white" data-testid="genre-select">
                   <SelectValue placeholder="Seleziona un genere..." />
                 </SelectTrigger>
@@ -99,22 +120,23 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
                 </SelectContent>
               </Select>
             </div>
-            {genre && subgenres.length > 0 && (
+            {genre && subgenresList.length > 0 && (
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Sottogenere</label>
-                <Select value={subgenre} onValueChange={setSubgenre}>
-                  <SelectTrigger className="bg-black/30 border-gray-700 text-white" data-testid="subgenre-select">
-                    <SelectValue placeholder="Seleziona un sottogenere..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subgenres.map(sg => (
-                      <SelectItem key={sg} value={sg} data-testid={`subgenre-${sg}`}>{sg}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="text-xs text-gray-400 mb-1 block">Sottogenere (max 3)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {subgenresList.map(sg => (
+                    <Badge key={sg} variant={selectedSubgenres.includes(sg) ? "default" : "outline"}
+                      className={`cursor-pointer text-[10px] px-2 py-1 transition-all ${selectedSubgenres.includes(sg) ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/30' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
+                      onClick={() => toggleSubgenre(sg)}
+                      data-testid={`subgenre-${sg}`}>{sg}</Badge>
+                  ))}
+                </div>
+                {selectedSubgenres.length > 0 && (
+                  <p className="text-[10px] text-cyan-400 mt-1">{selectedSubgenres.length}/3 selezionati</p>
+                )}
               </div>
             )}
-            <Button disabled={!title.trim() || !genre || !subgenre} onClick={() => setStep(2)}
+            <Button disabled={!title.trim() || !genre || selectedSubgenres.length === 0} onClick={() => setStep(2)}
               className="w-full bg-yellow-600 hover:bg-yellow-700" data-testid="step1-next">
               Avanti <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
@@ -129,7 +151,7 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="p-2 bg-black/30 rounded border border-gray-800 text-[10px] text-gray-500">
-              <span className="text-yellow-400">{title}</span> &bull; {genres[genre]?.name} &bull; {subgenre}
+              <span className="text-yellow-400">{title}</span> &bull; {genres[genre]?.name} &bull; {selectedSubgenres.join(', ')}
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Scrivi la sinossi del tuo film (100-500 caratteri)</label>
@@ -160,21 +182,34 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="p-2 bg-black/30 rounded border border-gray-800 text-[10px] text-gray-500">
-              <span className="text-yellow-400">{title}</span> &bull; {genres[genre]?.name} &bull; {subgenre}
+              <span className="text-yellow-400">{title}</span> &bull; {genres[genre]?.name} &bull; {selectedSubgenres.join(', ')}
             </div>
+            {/* Category filter */}
+            <div className="flex flex-wrap gap-1">
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setLocFilter(cat)}
+                  className={`px-2 py-1 rounded text-[10px] border transition-all ${locFilter === cat ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-gray-700 text-gray-500 hover:border-gray-600'}`}
+                  data-testid={`loc-filter-${cat}`}>
+                  {cat === 'all' ? 'Tutti' : CATEGORY_LABELS[cat] || cat}
+                </button>
+              ))}
+            </div>
+            {selectedLocations.length > 0 && (
+              <p className="text-[10px] text-green-400">{selectedLocations.length} location selezionate</p>
+            )}
             <div className="grid grid-cols-2 gap-1.5 max-h-[300px] overflow-y-auto pr-1">
-              {locations.map(loc => (
-                <button key={loc.name} onClick={() => setLocation(loc.name)}
-                  className={`p-2 rounded text-left border transition-all ${location === loc.name ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:border-gray-600'}`}
+              {filteredLocations.map(loc => (
+                <button key={loc.name} onClick={() => toggleLocation(loc.name)}
+                  className={`p-2 rounded text-left border transition-all ${selectedLocations.includes(loc.name) ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:border-gray-600'}`}
                   data-testid={`loc-${loc.name.replace(/\s/g, '-')}`}>
                   <p className="text-xs font-medium text-gray-200 truncate">{loc.name}</p>
-                  <p className="text-[9px] text-gray-500">${loc.cost_per_day?.toLocaleString()}/giorno &bull; {loc.category}</p>
+                  <p className="text-[9px] text-gray-500">${loc.cost_per_day?.toLocaleString()}/giorno &bull; {CATEGORY_LABELS[loc.category] || loc.category}</p>
                 </button>
               ))}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(2)} className="border-gray-700 text-gray-400">Indietro</Button>
-              <Button disabled={!location || submitting} onClick={handleSubmit}
+              <Button disabled={selectedLocations.length === 0 || submitting} onClick={handleSubmit}
                 className="flex-1 bg-green-600 hover:bg-green-700" data-testid="submit-proposal">
                 {submitting ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <Star className="w-4 h-4 mr-1" />}
                 Proponi Film (1 CP)

@@ -18,9 +18,9 @@ router = APIRouter()
 class FilmProposalRequest(BaseModel):
     title: str
     genre: str
-    subgenre: str
+    subgenres: List[str]  # Up to 3 subgenres
     pre_screenplay: str  # 100-500 chars
-    location_name: str
+    locations: List[str]  # Multiple locations
 
 class CastSpeedUpRequest(BaseModel):
     role_type: str  # director, screenwriter, actors, composer
@@ -86,7 +86,7 @@ RARE_COMBOS = {
 
 # ==================== PRE-IMDB CALCULATION ====================
 
-def calculate_pre_imdb(title: str, genre: str, subgenre: str, pre_screenplay: str, location_name: str) -> dict:
+def calculate_pre_imdb(title: str, genre: str, subgenres: list, pre_screenplay: str, locations: list) -> dict:
     """Calculate pre-IMDb score based on film proposal quality."""
     base = 4.0 + random.uniform(0, 1.5)
     factors = {}
@@ -99,11 +99,18 @@ def calculate_pre_imdb(title: str, genre: str, subgenre: str, pre_screenplay: st
         base += bonus
 
     # Rare genre+subgenre combo
+    subgenre_str = ' '.join(subgenres) if subgenres else ''
     for (g, sg), bonus in RARE_COMBOS.items():
-        if genre == g and sg.lower() in subgenre.lower():
+        if genre == g and sg.lower() in subgenre_str.lower():
             factors['combo_rara'] = f'+{bonus}'
             base += bonus
             break
+
+    # Multiple subgenres bonus
+    if len(subgenres) >= 2:
+        bonus = 0.3
+        factors['multi_sottogenere'] = f'+{bonus}'
+        base += bonus
 
     # Pre-screenplay quality (length factor)
     screenplay_len = len(pre_screenplay.strip())
@@ -119,12 +126,18 @@ def calculate_pre_imdb(title: str, genre: str, subgenre: str, pre_screenplay: st
         factors['qualita_sinossi'] = f'+{bonus}'
         base += bonus
 
-    # Location fit
+    # Location fit - check all locations
     location_genres = GENRE_LOCATION_BONUS.get(genre, [])
-    loc_match = any(loc.lower() in location_name.lower() for loc in location_genres)
+    loc_match = any(loc_g.lower() in loc_name.lower() for loc_name in locations for loc_g in location_genres)
     if loc_match:
         bonus = 0.5
         factors['location_perfetta'] = f'+{bonus}'
+        base += bonus
+
+    # Multiple locations bonus
+    if len(locations) >= 2:
+        bonus = 0.2 * min(len(locations) - 1, 3)
+        factors['location_multiple'] = f'+{bonus}'
         base += bonus
 
     # Title quality (longer/creative titles score slightly better)
@@ -293,11 +306,14 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -creation_cost}})
 
     # Calculate pre-IMDb
-    imdb_result = calculate_pre_imdb(req.title, req.genre, req.subgenre, req.pre_screenplay, req.location_name)
+    imdb_result = calculate_pre_imdb(req.title, req.genre, req.subgenres, req.pre_screenplay, req.locations)
 
-    # Find location data
+    # Find location data for all selected locations
     from server import LOCATIONS
-    location = next((l for l in LOCATIONS if l['name'] == req.location_name), {'name': req.location_name, 'cost_per_day': 50000, 'category': 'other'})
+    selected_locations = []
+    for loc_name in req.locations:
+        loc = next((l for l in LOCATIONS if l['name'] == loc_name), {'name': loc_name, 'cost_per_day': 50000, 'category': 'other'})
+        selected_locations.append(loc)
 
     project = {
         'id': str(uuid.uuid4()),
@@ -305,9 +321,12 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
         'status': 'proposed',
         'title': req.title.strip(),
         'genre': req.genre,
-        'subgenre': req.subgenre,
+        'subgenres': req.subgenres,
+        'subgenre': req.subgenres[0] if req.subgenres else '',
         'pre_screenplay': req.pre_screenplay.strip(),
-        'location': location,
+        'locations': selected_locations,
+        'location': selected_locations[0] if selected_locations else {},
+        'location_name': req.locations[0] if req.locations else '',
         'pre_imdb_score': imdb_result['score'],
         'pre_imdb_factors': imdb_result['factors'],
         'hidden_factor': imdb_result['hidden_factor'],
@@ -1137,7 +1156,53 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Final score calculation
     base_quality = pre_imdb * 8  # 0-80 range
     quality_score = base_quality + screenplay_mod + remaster_boost + buzz_influence + (cast_quality * 0.2)
-    quality_score = max(10, min(100, quality_score + random.uniform(-5, 5)))
+
+    # === ADVANCED HIDDEN FACTORS (Phase 3) ===
+    advanced_factors = {}
+
+    # 1. Cast Chemistry - random synergy between cast members
+    chemistry = random.choice([-3, -1, 0, 0, 1, 2, 3, 5])
+    if chemistry != 0:
+        advanced_factors['chimica_cast'] = f'{chemistry:+}'
+        quality_score += chemistry
+
+    # 2. Genre Trend - some genres randomly become hot/cold
+    trend_genres = {'action': 1, 'horror': -1, 'comedy': 1, 'drama': 0, 'sci_fi': 2, 'thriller': 0, 'romance': -1, 'animated': 1}
+    genre_trend = trend_genres.get(project.get('genre', ''), 0) + random.choice([-2, -1, 0, 0, 0, 1, 2])
+    if genre_trend != 0:
+        advanced_factors['trend_genere'] = f'{genre_trend:+}'
+        quality_score += genre_trend
+
+    # 3. Critical Reception - critics can be unpredictable
+    critic_roll = random.choice([-5, -3, -1, 0, 0, 0, 1, 2, 3, 5, 8])
+    if critic_roll != 0:
+        if critic_roll >= 5:
+            advanced_factors['critica'] = f'+{critic_roll} (Acclamato!)'
+        elif critic_roll <= -3:
+            advanced_factors['critica'] = f'{critic_roll} (Stroncato!)'
+        else:
+            advanced_factors['critica'] = f'{critic_roll:+}'
+        quality_score += critic_roll
+
+    # 4. Market Timing - lucky or unlucky release window
+    timing = random.choice([-3, -1, 0, 0, 0, 0, 1, 2, 4])
+    if timing != 0:
+        advanced_factors['tempismo_mercato'] = f'{timing:+}'
+        quality_score += timing
+
+    # 5. Unexpected Event - rare but impactful
+    event_roll = random.random()
+    if event_roll < 0.05:  # 5% chance viral hit
+        advanced_factors['evento_virale'] = '+10 (Il film diventa virale!)'
+        quality_score += 10
+    elif event_roll < 0.08:  # 3% chance controversy
+        advanced_factors['controversia'] = '-8 (Scandalo durante il lancio!)'
+        quality_score -= 8
+    elif event_roll < 0.12:  # 4% chance awards buzz
+        advanced_factors['buzz_premi'] = '+6 (Candidato ai premi!)'
+        quality_score += 6
+
+    quality_score = max(10, min(100, quality_score + random.uniform(-3, 3)))
     quality_score = round(quality_score, 1)
 
     # Determine tier
@@ -1166,6 +1231,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'title': project['title'],
         'genre': project['genre'],
         'subgenre': project.get('subgenre', ''),
+        'subgenres': project.get('subgenres', []),
         'status': 'in_theaters',
         'quality_score': quality_score,
         'tier': tier,
@@ -1174,12 +1240,14 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'day_in_theaters': 0,
         'max_days': random.randint(14, 30),
         'cast': cast,
+        'locations': project.get('locations', [project.get('location', {})]),
         'location': project.get('location', {}),
         'screenplay': project.get('screenplay', project.get('pre_screenplay', '')),
         'pre_imdb_score': pre_imdb,
         'buzz_votes': buzz_votes,
         'buzz_influence': buzz_influence,
         'remaster_boost': remaster_boost,
+        'advanced_factors': advanced_factors,
         'pipeline_project_id': project_id,
         'created_at': datetime.now(timezone.utc).isoformat(),
         'released_at': datetime.now(timezone.utc).isoformat()
@@ -1228,7 +1296,8 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
             'screenplay': screenplay_mod,
             'remaster': remaster_boost,
             'buzz': round(buzz_influence, 1),
-            'cast_quality': round(cast_quality, 1)
+            'cast_quality': round(cast_quality, 1),
+            'advanced_factors': advanced_factors
         },
         'xp_gained': xp_gain
     }

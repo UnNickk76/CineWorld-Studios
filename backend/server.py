@@ -10039,6 +10039,7 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
         recruits.append({
             'id': f'casting_{seed}_{i}',
             'name': name,
+            'age': rng.randint(18, 55),
             'gender': gender,
             'nationality': nationality,
             'is_legendary': is_legendary,
@@ -10089,13 +10090,14 @@ async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_cu
         first_names = nat_names.get(f'first_{gender}', ['Alex'])
         last_names = nat_names.get('last', ['Smith'])
         name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
+        age = rng.randint(18, 55)
         is_legendary = rng.randint(1, 100) <= legendary_chance
         base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
         base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
         discounted_cost = int(base_cost * (1 - discount / 100))
         rid = f'casting_{seed}_{i}'
         if rid == req.recruit_id:
-            target = {'name': name, 'gender': gender, 'nationality': nationality, 'is_legendary': is_legendary, 'skill': base_skill, 'cost': discounted_cost}
+            target = {'name': name, 'age': age, 'gender': gender, 'nationality': nationality, 'is_legendary': is_legendary, 'skill': base_skill, 'cost': discounted_cost}
             break
     
     if not target:
@@ -10141,54 +10143,64 @@ async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_cu
     
     elif req.action == 'send_to_school':
         # Check if user has a cinema school
-        school = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'cinema_school'})
+        school = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'cinema_school'}, {'_id': 0})
         if not school:
             raise HTTPException(status_code=400, detail="Non possiedi una Scuola di Recitazione")
         
-        students = school.get('students', [])
-        max_students = 5  # default max
-        training_count = len([s for s in students if s.get('status') == 'training'])
-        if training_count >= max_students:
-            raise HTTPException(status_code=400, detail=f"Scuola piena ({max_students} studenti max)")
+        school_level = school.get('level', 1)
+        # Capacity for casting students: 2 + school_level
+        casting_capacity = 2 + school_level
+        current_casting_students = await db.casting_school_students.count_documents(
+            {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}}
+        )
+        if current_casting_students >= casting_capacity:
+            raise HTTPException(status_code=400, detail=f"Sezione Agenzia Casting piena ({current_casting_students}/{casting_capacity})")
         
-        # Create student with pre-existing skills (better starting point than random)
-        base_skill_level = max(1, target['skill'] // 20)  # 50→2, 75→3, 90→4
+        # Create student with pre-existing skills on 0-100 scale
+        base_skill = target['skill']  # 50-95 range from casting agency
+        age = target.get('age', random.randint(18, 55))
+        
+        # Initial skills on 0-100 scale (starting from casting agency skill level with variance)
+        initial_skills = {}
+        skill_names = ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing',
+                       'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation',
+                       'Chemistry', 'Star Power']
+        for sk in skill_names:
+            variance = random.randint(-15, 10)
+            initial_skills[sk] = max(5, min(95, base_skill - 20 + variance))
+        
+        # Potential based on original skill + legendary status
+        potential = round(0.6 + (base_skill / 100) * 0.35, 2)
+        if target['is_legendary']:
+            potential = min(1.0, potential + 0.15)
+        
         student = {
             'id': str(uuid.uuid4()),
+            'user_id': user['id'],
             'name': target['name'],
+            'age': age,
             'gender': target['gender'],
             'nationality': target['nationality'],
             'is_legendary': target['is_legendary'],
-            'skills': {
-                'Acting': base_skill_level + random.randint(0, 1),
-                'Emotional Range': base_skill_level + random.randint(0, 1),
-                'Action Sequences': base_skill_level + random.randint(-1, 1),
-                'Comedy Timing': base_skill_level + random.randint(-1, 1),
-                'Drama': base_skill_level + random.randint(0, 1),
-                'Voice Acting': base_skill_level + random.randint(-1, 0),
-                'Physical Acting': base_skill_level + random.randint(-1, 1),
-                'Improvisation': base_skill_level + random.randint(-1, 0),
-                'Chemistry': base_skill_level + random.randint(0, 1),
-                'Star Power': max(1, base_skill_level - 1),
-            },
-            'potential': round(0.6 + (target['skill'] / 100) * 0.4, 2),
+            'skills': initial_skills,
+            'initial_skills': initial_skills.copy(),
+            'potential': potential,
             'motivation': round(random.uniform(0.7, 1.0), 2),
             'training_days': 0,
+            'paid_days': 1,  # First day is free
+            'free_day_used': True,
             'enrolled_at': datetime.now(timezone.utc).isoformat(),
             'status': 'training',
-            'last_training': datetime.now(timezone.utc).isoformat(),
-            'source': 'casting_agency'
+            'source': 'casting_agency',
+            'avatar_url': f"https://api.dicebear.com/7.x/avataaars/svg?seed={target['name'].replace(' ','')}{age}"
         }
-        # Clamp skill values to 1-10
-        for k in student['skills']:
-            student['skills'][k] = max(1, min(10, student['skills'][k]))
         
-        students.append(student)
-        await db.infrastructure.update_one({'id': school['id']}, {'$set': {'students': students}})
+        await db.casting_school_students.insert_one(student)
         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
         await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'school'})
         
-        return {'success': True, 'message': f'{target["name"]} inviato alla Scuola di Recitazione! Inizierà con skill più alte.', 'student': student, 'cost': target['cost']}
+        student.pop('_id', None)
+        return {'success': True, 'message': f'{target["name"]} inviato alla Scuola di Recitazione! Primo giorno gratuito.', 'student': student, 'cost': target['cost']}
     
     raise HTTPException(status_code=400, detail="Azione non valida. Usa 'hire' o 'send_to_school'")
 

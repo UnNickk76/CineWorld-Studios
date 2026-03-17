@@ -507,3 +507,308 @@ async def complete_training(trainee_id: str, request: CompleteTrainingRequest, u
         }
     
     raise HTTPException(status_code=400, detail="Azione non valida. Usa 'keep' o 'release'")
+
+
+# ==================== CASTING AGENCY STUDENTS SECTION ====================
+# Students sent from the Casting Agency to the Acting School
+# They have their own capacity, skill improvement, daily costs, and graduation system
+
+# Capacity for casting students: 2 + school_level
+def get_casting_student_capacity(school_level: int) -> int:
+    return 2 + school_level
+
+# Calculate current skills for a casting student based on time and potential
+def calculate_casting_student_skills(student: dict) -> dict:
+    enrolled_at = student.get('enrolled_at')
+    if not enrolled_at:
+        return student.get('skills', {})
+    
+    if isinstance(enrolled_at, str):
+        enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
+    
+    now = datetime.now(timezone.utc)
+    elapsed_hours = (now - enrolled_at).total_seconds() / 3600
+    elapsed_days = elapsed_hours / 24
+    
+    potential = student.get('potential', 0.7)
+    motivation = student.get('motivation', 0.8)
+    initial_skills = student.get('initial_skills', student.get('skills', {}))
+    
+    current = {}
+    all_maxed = True
+    for skill_name, init_val in initial_skills.items():
+        # Max skill value based on potential (potential 0.6 → max 60, potential 1.0 → max 100)
+        max_val = int(potential * 100)
+        # Improvement rate: +3-6 points per day, scaled by motivation
+        improvement_per_day = (3 + motivation * 3) * (0.8 + potential * 0.4)
+        new_val = int(init_val + improvement_per_day * elapsed_days)
+        new_val = min(new_val, max_val)
+        current[skill_name] = new_val
+        if new_val < max_val:
+            all_maxed = False
+    
+    return current, all_maxed
+
+# Daily training cost for casting students
+def get_daily_training_cost(school_level: int) -> int:
+    return 30000 + school_level * 5000  # 35K at level 1, 40K at level 2, etc.
+
+
+@router.get("/acting-school/casting-students")
+async def get_casting_students(user: dict = Depends(get_current_user)):
+    """Get students sent from the Casting Agency to the school."""
+    school = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'cinema_school'},
+        {'_id': 0}
+    )
+    if not school:
+        return {'has_school': False, 'students': [], 'capacity': 0, 'used': 0}
+    
+    school_level = school.get('level', 1)
+    capacity = get_casting_student_capacity(school_level)
+    
+    # Fetch casting students from dedicated collection
+    students = await db.casting_school_students.find(
+        {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
+        {'_id': 0}
+    ).to_list(50)
+    
+    now = datetime.now(timezone.utc)
+    result_students = []
+    
+    for s in students:
+        enrolled_at = s.get('enrolled_at')
+        if isinstance(enrolled_at, str):
+            enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
+        
+        elapsed_hours = (now - enrolled_at).total_seconds() / 3600 if enrolled_at else 0
+        elapsed_days = elapsed_hours / 24
+        
+        # Calculate current skills
+        skills_result = calculate_casting_student_skills(s)
+        current_skills, all_maxed = skills_result
+        
+        # Check if potential is maxed
+        if all_maxed and s.get('status') != 'max_potential':
+            await db.casting_school_students.update_one(
+                {'id': s['id']}, {'$set': {'status': 'max_potential'}}
+            )
+            s['status'] = 'max_potential'
+        
+        # Can graduate after 24 hours
+        can_graduate = elapsed_hours >= 24
+        
+        # Training cost info
+        daily_cost = get_daily_training_cost(school_level)
+        paid_days = s.get('paid_days', 0)
+        free_day_used = s.get('free_day_used', True)  # First day is free
+        days_in_school = int(elapsed_days)
+        needs_payment = days_in_school > paid_days and not (days_in_school == 0 and free_day_used)
+        unpaid_days = max(0, days_in_school - paid_days)
+        
+        result_students.append({
+            'id': s['id'],
+            'name': s['name'],
+            'age': s.get('age', random.randint(20, 40)),
+            'gender': s.get('gender', 'male'),
+            'nationality': s.get('nationality', ''),
+            'is_legendary': s.get('is_legendary', False),
+            'current_skills': current_skills,
+            'initial_skills': s.get('initial_skills', s.get('skills', {})),
+            'status': s.get('status', 'training'),
+            'all_maxed': all_maxed,
+            'can_graduate': can_graduate,
+            'enrolled_at': s.get('enrolled_at'),
+            'elapsed_hours': round(elapsed_hours, 1),
+            'elapsed_days': round(elapsed_days, 1),
+            'training_days': days_in_school,
+            'daily_cost': daily_cost,
+            'paid_days': paid_days,
+            'unpaid_days': unpaid_days,
+            'needs_payment': needs_payment and unpaid_days > 0,
+            'total_due': unpaid_days * daily_cost if unpaid_days > 0 else 0,
+            'avatar_url': s.get('avatar_url', ''),
+            'source': 'casting_agency'
+        })
+    
+    return {
+        'has_school': True,
+        'students': result_students,
+        'capacity': capacity,
+        'used': len(result_students),
+        'available': max(0, capacity - len(result_students)),
+        'school_level': school_level,
+        'daily_cost': get_daily_training_cost(school_level)
+    }
+
+
+@router.post("/acting-school/pay-training/{student_id}")
+async def pay_training(student_id: str, user: dict = Depends(get_current_user)):
+    """Pay for continued training of a casting student."""
+    student = await db.casting_school_students.find_one(
+        {'id': student_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not student:
+        raise HTTPException(status_code=404, detail="Studente non trovato")
+    
+    school = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'cinema_school'},
+        {'_id': 0}
+    )
+    school_level = school.get('level', 1) if school else 1
+    daily_cost = get_daily_training_cost(school_level)
+    
+    enrolled_at = student.get('enrolled_at')
+    if isinstance(enrolled_at, str):
+        enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
+    
+    elapsed_days = int((datetime.now(timezone.utc) - enrolled_at).total_seconds() / 86400)
+    paid_days = student.get('paid_days', 0)
+    unpaid_days = max(0, elapsed_days - paid_days)
+    
+    if unpaid_days <= 0:
+        return {'message': 'Nessun pagamento necessario', 'paid_days': paid_days}
+    
+    total_cost = unpaid_days * daily_cost
+    if user.get('funds', 0) < total_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_cost:,}")
+    
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    await db.casting_school_students.update_one(
+        {'id': student_id},
+        {'$set': {'paid_days': elapsed_days}}
+    )
+    
+    return {
+        'message': f'Pagamento di ${total_cost:,} completato per {unpaid_days} giorni di formazione',
+        'paid_days': elapsed_days,
+        'cost': total_cost
+    }
+
+
+@router.post("/acting-school/graduate/{student_id}")
+async def graduate_casting_student(student_id: str, user: dict = Depends(get_current_user)):
+    """Graduate a casting student, making them available for casting."""
+    student = await db.casting_school_students.find_one(
+        {'id': student_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not student:
+        raise HTTPException(status_code=404, detail="Studente non trovato")
+    
+    if student.get('status') not in ['training', 'max_potential']:
+        raise HTTPException(status_code=400, detail="Lo studente non è in formazione")
+    
+    # Must be at least 24h in school
+    enrolled_at = student.get('enrolled_at')
+    if isinstance(enrolled_at, str):
+        enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
+    
+    elapsed_hours = (datetime.now(timezone.utc) - enrolled_at).total_seconds() / 3600
+    if elapsed_hours < 24:
+        remaining = round(24 - elapsed_hours, 1)
+        raise HTTPException(status_code=400, detail=f"Lo studente deve completare almeno 24 ore di formazione. Mancano {remaining}h")
+    
+    # Check unpaid days
+    school = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'cinema_school'}, {'_id': 0}
+    )
+    school_level = school.get('level', 1) if school else 1
+    daily_cost = get_daily_training_cost(school_level)
+    elapsed_days = int(elapsed_hours / 24)
+    paid_days = student.get('paid_days', 0)
+    unpaid_days = max(0, elapsed_days - paid_days)
+    
+    if unpaid_days > 0:
+        total_due = unpaid_days * daily_cost
+        raise HTTPException(status_code=400, detail=f"Paga prima i giorni di formazione arretrati: ${total_due:,} ({unpaid_days} giorni)")
+    
+    # Calculate final skills
+    skills_result = calculate_casting_student_skills(student)
+    current_skills, _ = skills_result
+    
+    # Create actor in people collection
+    potential = student.get('potential', 0.7)
+    avg_skill = sum(current_skills.values()) / len(current_skills) if current_skills else 30
+    fame = avg_skill * 0.6 + potential * 20
+    
+    # Determine category
+    if avg_skill >= 75:
+        category = 'star'
+    elif avg_skill >= 55:
+        category = 'known'
+    elif avg_skill >= 35:
+        category = 'emerging'
+    else:
+        category = 'unknown'
+    
+    actor_id = str(uuid.uuid4())
+    actor_doc = {
+        'id': actor_id,
+        'name': student['name'],
+        'type': 'actor',
+        'role_type': 'actor',
+        'gender': student.get('gender', 'male'),
+        'age': student.get('age', 25),
+        'skills': current_skills,
+        'fame': fame,
+        'category': category,
+        'films_count': 0,
+        'cost_per_film': 0,
+        'rejection_rate': 0.0,
+        'avatar_url': student.get('avatar_url', ''),
+        'trained_by': user['id'],
+        'kept_by': user['id'],
+        'is_school_trained': True,
+        'source': 'casting_agency',
+        'graduated_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.people.insert_one(actor_doc)
+    
+    # Update student status
+    await db.casting_school_students.update_one(
+        {'id': student_id},
+        {'$set': {
+            'status': 'graduated',
+            'graduated_at': datetime.now(timezone.utc).isoformat(),
+            'final_skills': current_skills,
+            'actor_id': actor_id
+        }}
+    )
+    
+    # Send notification
+    notif = create_notification(
+        user['id'],
+        'acting_school',
+        'Studente Diplomato!',
+        f"{student['name']} si è diplomato dalla Scuola di Recitazione! Ora è disponibile nel tuo cast.",
+        {'actor_id': actor_id, 'actor_name': student['name'], 'skills': current_skills, 'category': category}
+    )
+    await db.notifications.insert_one(notif)
+    
+    return {
+        'message': f"{student['name']} si è diplomato! Ora è nel tuo cast personale.",
+        'actor_id': actor_id,
+        'skills': current_skills,
+        'category': category,
+        'fame': fame
+    }
+
+
+@router.post("/acting-school/dismiss/{student_id}")
+async def dismiss_casting_student(student_id: str, user: dict = Depends(get_current_user)):
+    """Dismiss a casting student from the school."""
+    student = await db.casting_school_students.find_one(
+        {'id': student_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not student:
+        raise HTTPException(status_code=404, detail="Studente non trovato")
+    
+    await db.casting_school_students.update_one(
+        {'id': student_id},
+        {'$set': {'status': 'dismissed', 'dismissed_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {'message': f"{student['name']} è stato rimosso dalla scuola."}

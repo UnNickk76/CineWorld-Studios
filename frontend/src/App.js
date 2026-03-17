@@ -65,6 +65,7 @@ const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
 const FilmDetail = React.lazy(() => import('./pages/FilmDetail'));
 const FilmDrafts = React.lazy(() => import('./pages/FilmDrafts'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
+const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
 const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
@@ -1455,6 +1456,7 @@ function App() {
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><FilmWizard /></ProtectedRoute>} />
+                <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmDrafts /></ProtectedRoute>} />
                 <Route path="/pre-engagement" element={<ProtectedRoute><PreEngagementPage /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />

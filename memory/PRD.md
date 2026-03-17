@@ -87,6 +87,19 @@
 - Endpoint: GET /acting-school/casting-students, POST /graduate/{id}, POST /pay-training/{id}, POST /dismiss/{id}
 - Test: 8/8 backend + UI completo verificato
 
+### Nuovo Sistema Film Pipeline - Fase 1 (17 Mar 2026)
+- **6 sottomenu a icone** fissi in alto con badge conteggio + popup info
+- **Step 1 (Creazione)**: Titolo + genere + sottogenere + pre-sceneggiatura (100-500 char) + location
+- **Step 2 (Proposte)**: Pre-valutazione IMDb basata su genere, sinossi, location, fattore nascosto + tasti Scarta/Prosegui
+- **Step 3 (Casting)**: Agenti propongono cast con timer (10-60min), speed-up a crediti, selezione per ruolo
+- **Backend**: `/app/backend/routes/film_pipeline.py` con 9 endpoint, collection `film_projects`
+- **Frontend**: `/app/frontend/src/pages/FilmPipeline.jsx` con 3 tab funzionali + 3 placeholder (Fase 2)
+- **Limiti**: Max film simultanei basato su livello (Lv1=2, Lv5=4, Lv10=6)
+- **Costi**: 1-3 CinePass per step + costi in denaro variabili
+- **Marketplace**: Film scartati disponibili per altri giocatori a -30%
+- Rotta: `/create-film`
+- Test: 12/13 backend + tutti UI verificati
+
 ### Bug Fix Batch (17 Mar 2026)
 1. **Casting Students nella Infrastruttura**: Sezione visibile sia in /acting-school che nel dettaglio infrastruttura
 2. **Blocco acquisto duplicato**: Scuola e Studio di Produzione ora mostrano "Già posseduto" se già acquistati, backend blocca con errore

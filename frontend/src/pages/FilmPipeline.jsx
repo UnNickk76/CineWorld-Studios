@@ -306,6 +306,43 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
+  const [expandedRoles, setExpandedRoles] = useState({});
+  const [actorRoles, setActorRoles] = useState({});
+
+  const ACTOR_ROLES = ['Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
+
+  const SkillBar = ({ label, value, max = 100 }) => (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[8px] text-gray-500 w-14 truncate">{label}</span>
+      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{
+          width: `${(value / max) * 100}%`,
+          backgroundColor: value >= 80 ? '#22c55e' : value >= 50 ? '#eab308' : '#ef4444'
+        }} />
+      </div>
+      <span className="text-[8px] text-gray-400 w-5 text-right">{value}</span>
+    </div>
+  );
+
+  const SelectedCastDetail = ({ person, roleName }) => (
+    <div className="mt-2 p-2 bg-black/30 rounded border border-gray-700">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-yellow-400">
+          {person?.name?.charAt(0)}
+        </div>
+        <div>
+          <p className="text-xs font-semibold">{person?.name}</p>
+          <p className="text-[9px] text-gray-500">{roleName} &bull; Fama: {person?.fame || 0} &bull; ${(person?.cost_per_film || person?.cost || 0).toLocaleString()}</p>
+        </div>
+      </div>
+      {person?.skills && Object.entries(person.skills).map(([skill, val]) => (
+        <SkillBar key={skill} label={skill} value={val} />
+      ))}
+      {person?.role_in_film && (
+        <Badge className="mt-1.5 bg-purple-500/20 text-purple-400 text-[9px]">{person.role_in_film}</Badge>
+      )}
+    </div>
+  );
 
   const fetch = useCallback(async () => {
     try {
@@ -328,9 +365,16 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   };
 
   const selectCast = async (filmId, roleType, proposalId) => {
+    if (roleType === 'actors' && !actorRoles[proposalId]) {
+      toast.error('Seleziona il ruolo per questo attore (Protagonista, Antagonista, etc.)');
+      return;
+    }
     setActionLoading(`select-${proposalId}`);
     try {
-      const res = await api.post(`/film-pipeline/${filmId}/select-cast`, { role_type: roleType, proposal_id: proposalId });
+      const res = await api.post(`/film-pipeline/${filmId}/select-cast`, {
+        role_type: roleType, proposal_id: proposalId,
+        actor_role: roleType === 'actors' ? (actorRoles[proposalId] || 'Supporto') : null
+      });
       if (res.data.accepted) {
         toast.success(res.data.message);
         if (res.data.casting_complete) toast.success('Casting completo! Puoi procedere alla sceneggiatura.');
@@ -389,58 +433,97 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                 <div className="space-y-3 mt-2">
                   {Object.entries(f.cast_proposals || {}).map(([role, proposals]) => {
                     const selected = role === 'actors' ? cast.actors?.length > 0 : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
+                    const selectedPerson = role === 'actors' ? null : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
                     const available = proposals.filter(p => p.status === 'available');
                     const pending = proposals.filter(p => p.status === 'pending');
+                    const roleKey = `${f.id}-${role}`;
+                    const isExpanded = expandedRoles[roleKey];
 
                     return (
-                      <div key={role} className={`p-2 rounded border ${selected ? 'border-green-800 bg-green-500/5' : 'border-gray-700'}`}>
-                        <div className="flex items-center justify-between mb-1.5">
+                      <div key={role} className={`rounded border transition-all ${selected ? 'border-green-800 bg-green-500/5' : 'border-gray-700'}`}>
+                        <div className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/5"
+                          onClick={() => setExpandedRoles(prev => ({ ...prev, [roleKey]: !prev[roleKey] }))}
+                          data-testid={`role-header-${role}`}>
                           <span className="text-xs font-medium">{roleIcons[role]} {roleLabels[role]}</span>
-                          {selected ? (
-                            <Badge className="bg-green-500/20 text-green-400 text-[9px]">
-                              <Check className="w-3 h-3 mr-0.5" />
-                              {role === 'actors' ? `${cast.actors.length} scelti` : 'Scelto'}
-                            </Badge>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Badge className="bg-cyan-500/20 text-cyan-400 text-[9px]">{available.length} disponibili</Badge>
-                              {pending.length > 0 && (
-                                <Button size="sm" className="h-5 px-1.5 text-[9px] bg-yellow-600 hover:bg-yellow-700"
-                                  disabled={actionLoading === `speed-${f.id}-${role}`}
-                                  onClick={() => speedUp(f.id, role)}>
-                                  <Zap className="w-2.5 h-2.5 mr-0.5" /> Sblocca (${(pending.length * 5000).toLocaleString()})
-                                </Button>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {selected ? (
+                              <Badge className="bg-green-500/20 text-green-400 text-[9px]">
+                                <Check className="w-3 h-3 mr-0.5" />
+                                {role === 'actors' ? `${cast.actors.length} scelti` : 'Scelto'}
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge className="bg-cyan-500/20 text-cyan-400 text-[9px]">{available.length} disponibili</Badge>
+                                {pending.length > 0 && (
+                                  <Button size="sm" className="h-5 px-1.5 text-[9px] bg-yellow-600 hover:bg-yellow-700"
+                                    disabled={actionLoading === `speed-${f.id}-${role}`}
+                                    onClick={(e) => { e.stopPropagation(); speedUp(f.id, role); }}>
+                                    <Zap className="w-2.5 h-2.5 mr-0.5" /> Sblocca (${(pending.length * 5000).toLocaleString()})
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            <ChevronRight className={`w-3.5 h-3.5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </div>
                         </div>
 
-                        {!selected && available.map(prop => (
-                          <div key={prop.id} className="flex items-center justify-between p-1.5 mb-1 bg-black/20 rounded border border-gray-800">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium">{prop.person?.name}</p>
-                              <p className="text-[9px] text-gray-500">
-                                da {prop.agent_name} &bull; ${prop.cost?.toLocaleString()}
-                                {prop.person?.skills && (
-                                  <span className="ml-1 text-gray-600">
-                                    &bull; Avg: {Math.round(Object.values(prop.person.skills).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(prop.person.skills).length))}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                            <Button size="sm" className="h-6 px-2 text-[10px] bg-cyan-700 hover:bg-cyan-800"
-                              disabled={actionLoading === `select-${prop.id}`}
-                              onClick={() => selectCast(f.id, role, prop.id)} data-testid={`select-${prop.id}`}>
-                              {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3 mr-0.5" />}
-                              Scegli
-                            </Button>
-                          </div>
-                        ))}
+                        {isExpanded && (
+                          <div className="px-2 pb-2">
+                            {/* Show selected cast details */}
+                            {selected && role !== 'actors' && selectedPerson && (
+                              <SelectedCastDetail person={selectedPerson} roleName={roleLabels[role]} />
+                            )}
+                            {selected && role === 'actors' && cast.actors?.map((actor, idx) => (
+                              <SelectedCastDetail key={idx} person={actor} roleName={actor.role_in_film || 'Attore'} />
+                            ))}
 
-                        {!selected && pending.length > 0 && available.length === 0 && (
-                          <div className="flex items-center gap-1.5 p-2 text-[10px] text-gray-500">
-                            <Clock className="w-3 h-3 animate-pulse text-yellow-500" />
-                            {pending.length} {pending.length === 1 ? 'agente in arrivo' : 'agenti in arrivo'}...
+                            {/* Show available proposals with skills */}
+                            {!selected && available.map(prop => (
+                              <div key={prop.id} className="p-2 mb-1.5 bg-black/20 rounded border border-gray-800">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex-1">
+                                    <p className="text-xs font-medium">{prop.person?.name}</p>
+                                    <p className="text-[9px] text-gray-500">
+                                      da {prop.agent_name} &bull; ${prop.cost?.toLocaleString()} &bull; Fama: {prop.person?.fame || 0}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {role === 'actors' && (
+                                      <select value={actorRoles[prop.id] || ''} onChange={e => setActorRoles(p => ({...p, [prop.id]: e.target.value}))}
+                                        onClick={e => e.stopPropagation()}
+                                        className="h-6 text-[9px] bg-gray-800 border border-gray-700 rounded px-1 text-white"
+                                        data-testid={`actor-role-${prop.id}`}>
+                                        <option value="">Ruolo...</option>
+                                        {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                                      </select>
+                                    )}
+                                    <Button size="sm" className="h-6 px-2 text-[10px] bg-cyan-700 hover:bg-cyan-800"
+                                      disabled={actionLoading === `select-${prop.id}`}
+                                      onClick={(e) => { e.stopPropagation(); selectCast(f.id, role, prop.id); }}
+                                      data-testid={`select-${prop.id}`}>
+                                      {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3 mr-0.5" />}
+                                      Scegli
+                                    </Button>
+                                  </div>
+                                </div>
+                                {/* Skill bars */}
+                                {prop.person?.skills && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {Object.entries(prop.person.skills).map(([skill, val]) => (
+                                      <SkillBar key={skill} label={skill} value={val} />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            {/* Pending agents */}
+                            {!selected && pending.length > 0 && available.length === 0 && (
+                              <div className="flex items-center gap-1.5 p-2 text-[10px] text-gray-500">
+                                <Clock className="w-3 h-3 animate-pulse text-yellow-500" />
+                                {pending.length} {pending.length === 1 ? 'agente in arrivo' : 'agenti in arrivo'}...
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

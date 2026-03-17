@@ -356,30 +356,7 @@ export default function EmergingScreenplays() {
                   <h4 className="font-['Bebas_Neue'] text-lg text-center">Scegli come produrre</h4>
 
                   {/* Option B: Screenplay only */}
-                  <button
-                    onClick={() => handleAccept('screenplay_only')}
-                    disabled={accepting || user?.funds < selectedScreenplay.screenplay_cost}
-                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/30 rounded-xl p-4 text-left transition-all disabled:opacity-40 group"
-                    data-testid="accept-screenplay-only"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                          <Scissors className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm group-hover:text-blue-400 transition-colors">Solo Sceneggiatura</div>
-                          <div className="text-xs text-white/40">Scegli il tuo cast - lo sceneggiatore resta bloccato</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-blue-400">${(selectedScreenplay.screenplay_cost / 1000).toFixed(0)}K</div>
-                        <ArrowRight className="w-4 h-4 text-white/20 ml-auto" />
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Option A: Full package */}
+                  {/* Option: Full package only */}
                   <button
                     onClick={() => handleAccept('full_package')}
                     disabled={accepting || user?.funds < selectedScreenplay.full_package_cost}
@@ -403,7 +380,7 @@ export default function EmergingScreenplays() {
                     </div>
                   </button>
 
-                  {user?.funds < selectedScreenplay.screenplay_cost && (
+                  {user?.funds < selectedScreenplay.full_package_cost && (
                     <p className="text-center text-xs text-red-400">
                       Fondi insufficienti (hai ${(user?.funds / 1000).toFixed(0)}K)
                     </p>

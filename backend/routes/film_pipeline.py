@@ -28,6 +28,7 @@ class CastSpeedUpRequest(BaseModel):
 class SelectCastRequest(BaseModel):
     role_type: str
     proposal_id: str
+    actor_role: Optional[str] = None  # Protagonista, Antagonista, Supporto, Cameo
 
 class ScreenplaySubmitRequest(BaseModel):
     mode: str  # 'ai', 'pre_only', 'manual'
@@ -579,8 +580,9 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
 
     # Update cast
     if cast_key == 'actors':
+        person_with_role = {**person, 'role_in_film': req.actor_role or 'Supporto'}
         actors = project.get('cast', {}).get('actors', [])
-        actors.append(person)
+        actors.append(person_with_role)
         await db.film_projects.update_one(
             {'id': project_id},
             {'$set': {
@@ -1162,7 +1164,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Cast quality
     cast = project.get('cast', {})
     cast_skills = []
-    for role in ['director', 'screenwriter', 'composer']:
+    for role in ['director', 'screenwriter']:
         person = cast.get(role, {})
         if person and person.get('skills'):
             avg = sum(person['skills'].values()) / max(1, len(person['skills']))
@@ -1173,9 +1175,16 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
             cast_skills.append(avg)
     cast_quality = sum(cast_skills) / max(1, len(cast_skills)) if cast_skills else 30
 
+    # Soundtrack quality (from composer skills)
+    composer = cast.get('composer', {})
+    soundtrack_score = 0
+    if composer and composer.get('skills'):
+        composer_avg = sum(composer['skills'].values()) / max(1, len(composer['skills']))
+        soundtrack_score = round(composer_avg * 0.08, 1)  # 0-8 points based on composer skill avg (0-100)
+
     # Final score calculation
     base_quality = pre_imdb * 8  # 0-80 range
-    quality_score = base_quality + screenplay_mod + remaster_boost + buzz_influence + (cast_quality * 0.2)
+    quality_score = base_quality + screenplay_mod + remaster_boost + buzz_influence + (cast_quality * 0.2) + soundtrack_score
 
     # === ADVANCED HIDDEN FACTORS (Phase 3) ===
     advanced_factors = {}
@@ -1267,6 +1276,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'buzz_votes': buzz_votes,
         'buzz_influence': buzz_influence,
         'remaster_boost': remaster_boost,
+        'soundtrack_score': soundtrack_score,
         'advanced_factors': advanced_factors,
         'pipeline_project_id': project_id,
         'created_at': datetime.now(timezone.utc).isoformat(),
@@ -1317,6 +1327,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
             'remaster': remaster_boost,
             'buzz': round(buzz_influence, 1),
             'cast_quality': round(cast_quality, 1),
+            'soundtrack': soundtrack_score,
             'advanced_factors': advanced_factors
         },
         'xp_gained': xp_gain

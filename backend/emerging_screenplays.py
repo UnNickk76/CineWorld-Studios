@@ -286,13 +286,13 @@ def calculate_screenplay_cost(story_rating: float, screenwriter_stars: int) -> i
 
 
 def calculate_full_package_cost(screenplay_cost: int, cast_members: list, director: dict) -> int:
-    """Calculate total cost including all cast."""
+    """Calculate total cost for full package - reduced cost for the new pipeline system."""
     total = screenplay_cost
     total += director.get('cost', 200000)
     for actor in cast_members:
         total += actor.get('cost', 100000)
-    # Small discount for buying the package (-5% to -15%)
-    discount = random.uniform(0.85, 0.95)
+    # Significant discount for buying the package (-40% to -50%)
+    discount = random.uniform(0.50, 0.60)
     return round(int(total * discount) / 10000) * 10000
 
 

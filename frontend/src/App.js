@@ -76,7 +76,6 @@ const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
-const PreEngagementPage = React.lazy(() => import('./pages/PreEngagementPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
@@ -267,7 +266,6 @@ const TopNavbar = () => {
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci!' : 'Produce!' },
     { path: '/marketplace', icon: Store, label: language === 'it' ? 'Mercato' : 'Market' },
-    { path: '/pre-engagement', icon: Users, label: 'pre_engagement' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure' },
@@ -1471,7 +1469,6 @@ function App() {
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
-                <Route path="/pre-engagement" element={<ProtectedRoute><PreEngagementPage /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />

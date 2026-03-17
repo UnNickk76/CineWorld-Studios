@@ -278,12 +278,6 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
               </div>
             </div>
             <p className="text-[10px] text-gray-400 mb-2 line-clamp-2 italic">"{p.pre_screenplay}"</p>
-            {/* Factors */}
-            <div className="flex flex-wrap gap-1 mb-2">
-              {Object.entries(p.pre_imdb_factors || {}).map(([k, v]) => (
-                <span key={k} className="text-[9px] px-1.5 py-0.5 bg-white/5 rounded text-gray-400">{k.replace(/_/g, ' ')}: {v}</span>
-              ))}
-            </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="text-xs border-red-800 text-red-400 hover:bg-red-500/10"
                 onClick={() => discard(p.id)} data-testid={`discard-${p.id}`}>
@@ -480,7 +474,6 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                 <Button variant="outline" size="sm" className="text-xs border-red-800/50 text-red-400 hover:bg-red-500/10"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
-                    if (!window.confirm(`Sei sicuro di voler scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
                     setActionLoading(`discard-${f.id}`);
                     try {
                       const res = await api.post(`/film-pipeline/${f.id}/discard`);
@@ -498,24 +491,31 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
               {selectedFilm === f.id && (
                 <div className="space-y-3 mt-2">
                   {Object.entries(f.cast_proposals || {}).map(([role, proposals]) => {
-                    const selected = role === 'actors' ? cast.actors?.length > 0 : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
+                    const hasSelection = role === 'actors' ? cast.actors?.length > 0 : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
+                    const selected = role === 'actors' ? false : hasSelection; // Actors: never block, always allow more
                     const selectedPerson = role === 'actors' ? null : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
                     const available = proposals.filter(p => p.status === 'available');
                     const pending = proposals.filter(p => p.status === 'pending');
                     const roleKey = `${f.id}-${role}`;
                     const isExpanded = expandedRoles[roleKey];
+                    const actorCount = role === 'actors' ? (cast.actors?.length || 0) : 0;
 
                     return (
-                      <div key={role} className={`rounded border transition-all ${selected ? 'border-green-800 bg-green-500/5' : 'border-gray-700'}`}>
+                      <div key={role} className={`rounded border transition-all ${selected ? 'border-green-800 bg-green-500/5' : hasSelection && role === 'actors' ? 'border-cyan-800 bg-cyan-500/5' : 'border-gray-700'}`}>
                         <div className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/5"
                           onClick={() => setExpandedRoles(prev => ({ ...prev, [roleKey]: !prev[roleKey] }))}
                           data-testid={`role-header-${role}`}>
                           <span className="text-xs font-medium">{roleIcons[role]} {roleLabels[role]}</span>
                           <div className="flex items-center gap-1">
+                            {role === 'actors' && actorCount > 0 && (
+                              <Badge className="bg-cyan-500/20 text-cyan-400 text-[9px]">
+                                {actorCount} scelti
+                              </Badge>
+                            )}
                             {selected ? (
                               <Badge className="bg-green-500/20 text-green-400 text-[9px]">
                                 <Check className="w-3 h-3 mr-0.5" />
-                                {role === 'actors' ? `${cast.actors.length} scelti` : 'Scelto'}
+                                Scelto
                               </Badge>
                             ) : (
                               <>
@@ -535,13 +535,14 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
 
                         {isExpanded && (
                           <div className="px-2 pb-2">
-                            {/* Show selected cast details */}
+                            {/* Show selected actors (always visible for actors) */}
+                            {role === 'actors' && cast.actors?.length > 0 && cast.actors.map((actor, idx) => (
+                              <SelectedCastDetail key={idx} person={actor} roleName={actor.role_in_film || 'Attore'} />
+                            ))}
+                            {/* Show selected person for non-actor roles */}
                             {selected && role !== 'actors' && selectedPerson && (
                               <SelectedCastDetail person={selectedPerson} roleName={roleLabels[role]} />
                             )}
-                            {selected && role === 'actors' && cast.actors?.map((actor, idx) => (
-                              <SelectedCastDetail key={idx} person={actor} roleName={actor.role_in_film || 'Attore'} />
-                            ))}
 
                             {/* Show available proposals with enhanced details */}
                             {!selected && available.map(prop => (
@@ -672,7 +673,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
                 <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-7 px-2"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
-                    if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                    if (!window.confirm(`Scartare "${f.title}"?`)) return;
                     setActionLoading(`discard-${f.id}`);
                     try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                     catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -873,7 +874,7 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                 <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-8 px-2"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
-                    if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                    if (!window.confirm(`Scartare "${f.title}"?`)) return;
                     setActionLoading(`discard-${f.id}`);
                     try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                     catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -1065,7 +1066,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                   <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 px-2"
                     disabled={actionLoading === `discard-${f.id}`}
                     onClick={async () => {
-                      if (!window.confirm(`Scartare "${f.title}"? Sarà messo in vendita sul Mercato.`)) return;
+                      if (!window.confirm(`Scartare "${f.title}"?`)) return;
                       setActionLoading(`discard-${f.id}`);
                       try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                       catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -1093,7 +1094,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                   <Button size="sm" variant="outline" className="w-full text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10"
                     disabled={actionLoading === `discard-${f.id}`}
                     onClick={async () => {
-                      if (!window.confirm(`Scartare "${f.title}"? Le riprese verranno interrotte e il film sarà messo in vendita sul Mercato.`)) return;
+                      if (!window.confirm(`Scartare "${f.title}"?`)) return;
                       setActionLoading(`discard-${f.id}`);
                       try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                       catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }

@@ -7,7 +7,6 @@ import math
 import logging
 from datetime import datetime, timezone
 from database import db
-from game_systems import get_level_from_xp, get_fame_tier
 
 NAMES_BY_NATIONALITY = {
     'USA': {
@@ -197,7 +196,7 @@ def generate_default_avatar(nickname: str, gender: str = 'other') -> str:
 
 # CHAT_BOTS moved to game_state.py
 
-from game_data_minigames import MINI_GAMES, TRIVIA_QUESTIONS, DAILY_CHALLENGES, WEEKLY_CHALLENGES, get_questions_for_language
+# Game data imports removed - used directly in server.py and route files
 
 
 # Translations

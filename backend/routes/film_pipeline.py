@@ -7,9 +7,18 @@ from typing import Optional, List
 from datetime import datetime, timezone
 import random
 import uuid
+import os
+import logging
 
 from database import db
 from auth_utils import get_current_user
+from game_systems import (
+    calculate_imdb_rating, generate_ai_interactions, calculate_film_tier,
+    generate_critic_reviews, calculate_fame_change, get_level_from_xp,
+    XP_REWARDS
+)
+
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 router = APIRouter()
 
@@ -1516,27 +1525,55 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     cinepass_paid = project.get('cinepass_paid', {})
     total_cinepass = sum(cinepass_paid.values())
 
-    # Create the actual film in the films collection (to integrate with existing system)
+    # Calculate opening day revenue based on quality, budget, cast fame
+    avg_cast_fame = 0
+    all_cast_fame = []
+    for role_key in ['director', 'screenwriter', 'composer']:
+        p = cast.get(role_key)
+        if p and p.get('fame'):
+            all_cast_fame.append(p['fame'])
+    for a in cast.get('actors', []):
+        if a.get('fame'):
+            all_cast_fame.append(a['fame'])
+    if all_cast_fame:
+        avg_cast_fame = sum(all_cast_fame) / len(all_cast_fame)
+    opening_day_revenue = int((quality_score * 2000) + (avg_cast_fame * 500) + (total_cost * 0.1) + random.randint(10000, 100000))
+
+    # Calculate audience satisfaction
+    audience_satisfaction = max(20, min(100, quality_score + random.randint(-10, 15)))
+
+    # Create the actual film in the films collection (fully featured)
     film_id = str(uuid.uuid4())
+    genre_val = project.get('genre', 'drama')
+    now_str = datetime.now(timezone.utc).isoformat()
+
     film_doc = {
         'id': film_id,
         'owner_id': user['id'],
+        'user_id': user['id'],
         'title': project['title'],
-        'genre': project['genre'],
+        'genre': genre_val,
         'subgenre': project.get('subgenre', ''),
         'subgenres': project.get('subgenres', []),
         'status': 'in_theaters',
         'quality_score': quality_score,
         'tier': tier,
         'budget': total_cost,
+        'total_budget': total_cost,
         'total_revenue': 0,
+        'opening_day_revenue': opening_day_revenue,
         'day_in_theaters': 0,
-        'max_days': random.randint(14, 30),
-        'cast': cast,
-        'locations': project.get('locations', [project.get('location', {})]),
-        'location': project.get('location', {}),
+        'max_days': max(14, int(quality_score / 3) + random.randint(7, 21)),
+        'cast': cast.get('actors', []),
+        'director': cast.get('director', {}),
+        'screenwriter': cast.get('screenwriter', {}),
+        'screenwriters': [cast.get('screenwriter', {})] if cast.get('screenwriter') else [],
+        'composer': cast.get('composer'),
+        'locations': [l if isinstance(l, str) else l.get('name', str(l)) for l in project.get('locations', [])],
+        'location': (project.get('locations', [''])[0] if isinstance(project.get('locations', [''])[0], str) else project.get('locations', [{}])[0].get('name', '')) if project.get('locations') else '',
         'screenplay': project.get('screenplay', project.get('pre_screenplay', '')),
         'pre_imdb_score': pre_imdb,
+        'audience_satisfaction': audience_satisfaction,
         'buzz_votes': buzz_votes,
         'buzz_influence': buzz_influence,
         'remaster_boost': remaster_boost,
@@ -1544,9 +1581,115 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'production_setup': prod_setup,
         'advanced_factors': advanced_factors,
         'pipeline_project_id': project_id,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'released_at': datetime.now(timezone.utc).isoformat()
+        'likes_count': 0,
+        'liked_by': [],
+        'virtual_likes': random.randint(100, 5000),
+        'cumulative_attendance': 0,
+        'daily_revenues': [],
+        'box_office': {},
+        'extras_count': prod_setup.get('extras_count', 100),
+        'extras_cost': prod_setup.get('extras_cost', 0),
+        'created_at': now_str,
+        'released_at': now_str,
+        'release_date': now_str[:10],
+        'distribution_zone': 'national',
+        'distribution_cost': 0,
     }
+
+    # Calculate IMDb rating
+    film_doc['imdb_rating'] = calculate_imdb_rating(film_doc)
+
+    # Generate AI interactions (reviews from public)
+    film_doc['ai_interactions'] = generate_ai_interactions(film_doc, 0)
+    film_doc['ratings'] = {'user_ratings': [], 'ai_ratings': film_doc['ai_interactions']}
+
+    # Calculate film tier (Masterpiece, Epic, etc.)
+    tier_result = calculate_film_tier(film_doc)
+    film_doc['film_tier'] = tier_result['tier']
+    film_doc['tier_score'] = tier_result['score']
+    film_doc['tier_bonuses'] = tier_result.get('bonuses', {})
+
+    # Apply immediate tier bonus
+    if tier_result.get('triggered') and tier_result.get('tier_info'):
+        immediate_bonus = tier_result['tier_info'].get('immediate_bonus', 0)
+        if immediate_bonus != 0:
+            bonus_amount = int(opening_day_revenue * immediate_bonus)
+            film_doc['opening_day_revenue'] += bonus_amount
+            film_doc['tier_opening_bonus'] = bonus_amount
+
+    # Generate critic reviews
+    try:
+        critic_data = generate_critic_reviews(film_doc, user.get('language', 'it'))
+        if isinstance(critic_data, dict):
+            film_doc['critic_reviews'] = critic_data.get('reviews', [])
+            film_doc['critic_effects'] = critic_data.get('total_effects', {})
+        elif isinstance(critic_data, list):
+            film_doc['critic_reviews'] = critic_data
+            film_doc['critic_effects'] = {}
+    except Exception as e:
+        logging.error(f"Critic reviews error: {e}")
+        film_doc['critic_reviews'] = []
+        film_doc['critic_effects'] = {}
+
+    # Generate synopsis from screenplay
+    screenplay_text = project.get('screenplay', project.get('pre_screenplay', ''))
+    genre_name = genre_val.replace('_', ' ').title()
+    director_name = cast.get('director', {}).get('name', 'Regista')
+    actor_names = [a.get('name', '') for a in cast.get('actors', [])[:3]]
+    film_doc['synopsis'] = f"Un avvincente {genre_name} diretto da {director_name}. {project['title']} racconta una storia che vi terrà col fiato sospeso."
+
+    # Try AI-generated synopsis
+    try:
+        if EMERGENT_LLM_KEY and screenplay_text:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"synopsis-{film_id}",
+                system_message="Sei uno scrittore di sinossi cinematografiche. Scrivi riassunti avvincenti e drammatici."
+            ).with_model("openai", "gpt-4o-mini")
+            cast_str = ", ".join(actor_names) if actor_names else "cast internazionale"
+            prompt = f"""Crea una sinossi avvincente per un film {genre_name}.
+Titolo: {project['title']}
+Regista: {director_name}
+Cast: {cast_str}
+Sceneggiatura: {screenplay_text[:500]}
+Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolgente."""
+            result = await chat.send_message(UserMessage(text=prompt))
+            if result:
+                film_doc['synopsis'] = result.strip()
+    except Exception as e:
+        logging.error(f"Synopsis generation error: {e}")
+
+    # Generate poster via AI
+    film_doc['poster_url'] = None
+    try:
+        if EMERGENT_LLM_KEY:
+            import base64
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            img_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+            poster_prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. Dramatic lighting, high quality, no text overlay. Style: modern Hollywood movie poster."
+            images = await img_gen.generate_images(
+                prompt=poster_prompt,
+                model="gpt-image-1",
+                number_of_images=1
+            )
+            if images and len(images) > 0:
+                image_b64 = base64.b64encode(images[0]).decode('utf-8')
+                film_doc['poster_url'] = f"data:image/png;base64,{image_b64}"
+    except Exception as e:
+        logging.error(f"Poster generation error: {e}")
+
+    # Soundtrack info from composer
+    if cast.get('composer') and cast['composer'].get('skills'):
+        comp_skills = cast['composer']['skills']
+        soundtrack_rating = sum(comp_skills.values()) / max(1, len(comp_skills))
+        film_doc['soundtrack_rating'] = round(soundtrack_rating, 1)
+        film_doc['soundtrack_boost'] = {
+            'day_1_multiplier': round(1.0 + (soundtrack_rating / 100) * 1.5, 2),
+            'day_2_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.8, 2),
+            'day_3_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.3, 2),
+        }
+
     await db.films.insert_one(film_doc)
 
     # Update project status
@@ -1557,13 +1700,26 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
             'film_id': film_id,
             'final_quality': quality_score,
             'final_tier': tier,
-            'completed_at': datetime.now(timezone.utc).isoformat()
+            'completed_at': now_str
         }}
     )
 
-    # Award XP
+    # Award XP and fame
     xp_gain = int(quality_score * 2)
-    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': xp_gain, 'fame': quality_score * 0.1}})
+    if quality_score >= 90:
+        xp_gain += XP_REWARDS.get('film_blockbuster', 500)
+    elif quality_score >= 80:
+        xp_gain += XP_REWARDS.get('film_hit', 250)
+
+    current_fame = user.get('fame', 50)
+    fame_change = calculate_fame_change(quality_score, opening_day_revenue, current_fame)
+    new_fame = max(0, min(100, current_fame + fame_change))
+
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'fame': new_fame},
+         '$inc': {'total_xp': xp_gain}}
+    )
 
     # Notification
     from server import create_notification
@@ -1580,6 +1736,8 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'quality_score': quality_score,
         'tier': tier,
         'tier_label': tier_labels.get(tier, tier),
+        'imdb_rating': film_doc.get('imdb_rating', 0),
+        'poster_url': film_doc.get('poster_url'),
         'cost_summary': {
             'total_money': total_cost,
             'total_cinepass': total_cinepass,

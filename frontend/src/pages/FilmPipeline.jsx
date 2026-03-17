@@ -1114,10 +1114,23 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
       {releaseResult && (
         <Card className="bg-[#1A1A1B] border-yellow-600 ring-1 ring-yellow-500/30" data-testid="release-result">
           <CardContent className="p-4 text-center space-y-3">
-            <Film className="w-10 h-10 mx-auto text-yellow-400" />
+            {releaseResult.poster_url ? (
+              <img src={releaseResult.poster_url} alt={releaseResult.title} className="w-full max-w-xs mx-auto h-64 object-cover rounded-lg shadow-lg" />
+            ) : (
+              <Film className="w-10 h-10 mx-auto text-yellow-400" />
+            )}
             <h2 className="text-lg font-bold">{releaseResult.title}</h2>
-            <div className={`text-3xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-              {releaseResult.quality_score}
+            <div className="flex items-center justify-center gap-4">
+              <div className={`text-3xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {releaseResult.quality_score}
+              </div>
+              {releaseResult.imdb_rating && (
+                <div className="flex items-center gap-1">
+                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                  <span className="text-xl font-bold text-yellow-400">{releaseResult.imdb_rating.toFixed(1)}</span>
+                  <span className="text-xs text-gray-500">IMDb</span>
+                </div>
+              )}
             </div>
             <Badge className={`${releaseResult.tier === 'masterpiece' ? 'bg-yellow-500 text-black' : releaseResult.tier === 'excellent' ? 'bg-green-500/30 text-green-400' : 'bg-gray-600'}`}>
               {releaseResult.tier_label}
@@ -1132,7 +1145,12 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
               <p>Cast: {releaseResult.modifiers?.cast_quality}</p>
               <p className="text-green-400 mt-1">+{releaseResult.xp_gained} XP guadagnati!</p>
             </div>
-            <Button onClick={() => setReleaseResult(null)} variant="outline" className="border-gray-700 text-xs">Chiudi</Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => { setReleaseResult(null); window.location.href = `/films/${releaseResult.film_id}`; }} className="bg-yellow-600 hover:bg-yellow-500 text-black text-xs">
+                <Film className="w-3 h-3 mr-1" /> Vai al Film
+              </Button>
+              <Button onClick={() => setReleaseResult(null)} variant="outline" className="border-gray-700 text-xs">Chiudi</Button>
+            </div>
           </CardContent>
         </Card>
       )}

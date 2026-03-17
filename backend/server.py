@@ -116,7 +116,7 @@ from server_utils import (
     TRANSLATIONS, GENRES, GENRE_LIST, REJECTION_REASONS, calculate_rejection_chance,
     SPONSORS, EQUIPMENT_PACKAGES,
     generate_person_name, initialize_cast_pool_if_needed, get_or_create_person,
-    update_person_skills, calculate_box_office
+    update_person_skills, calculate_box_office, AD_PLATFORMS
 )
 
 # Import minigame data for challenge system

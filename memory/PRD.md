@@ -109,6 +109,13 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
+### Bug Fix Batch (17 Mar 2026)
+- Dashboard: nickname utente nella welcome (non production_house_name)
+- Post-Produzione Studio: mostra solo film pipeline in pre_production (non film rilasciati)
+- Casting: agenti variabili per ruolo (1-5 agenti, 1-3 candidati ciascuno)
+- Casting speed-up: costo ridotto da $15K a $5K per agente in arrivo
+- Scuola Recitazione: counter "X occupati / Y disponibili"
+
 ### Fase 3 Pipeline Completata (17 Mar 2026)
 - **Sottogeneri**: da Select dropdown a badge cliccabili (max 3) con contatore
 - **Location**: raggruppate per categoria (Studi, Citta, Natura, Storici) con filtri e selezione multipla

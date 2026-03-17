@@ -147,8 +147,8 @@ const ContestsPage = () => {
             <DialogTitle className="text-base">{contests.find(c => c.contest_id === activeContest)?.name}</DialogTitle>
           </DialogHeader>
 
-          {/* Budget Guess */}
-          {challenge?.genre && challenge?.options && !challenge?.questions && !challenge?.actors && (
+          {/* Budget Guess - has equipment field (not box_office) */}
+          {challenge?.genre && challenge?.options && !challenge?.questions && !challenge?.actors && challenge?.equipment && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2 bg-white/5 rounded"><span className="text-gray-500">Genere:</span> <span className="font-bold">{challenge.genre}</span></div>
@@ -174,10 +174,23 @@ const ContestsPage = () => {
               <p className="text-sm text-center font-medium">{challenge.question}</p>
               <div className="space-y-2">
                 {challenge.actors.map(a => (
-                  <Button key={a.id} variant="outline" disabled={submitting} className={`w-full border-gray-700 justify-start h-10 ${selectedAnswer === a.id ? 'ring-2 ring-cyan-400 bg-cyan-500/10' : ''}`}
+                  <Button key={a.id} variant="outline" disabled={submitting} className={`w-full border-gray-700 justify-start h-auto py-2 px-3 ${selectedAnswer === a.id ? 'ring-2 ring-cyan-400 bg-cyan-500/10' : ''}`}
                     onClick={() => { setSelectedAnswer(a.id); submitAnswer(a.id, challenge.correct); }} data-testid={`actor-option-${a.id}`}>
-                    <span className="font-medium">{a.name}</span>
-                    <span className="ml-auto text-xs text-yellow-400">IMDb {a.imdb}</span>
+                    <div className="flex flex-col items-start w-full">
+                      <div className="flex justify-between w-full items-center">
+                        <span className="font-medium text-sm">{a.name}</span>
+                        <span className="text-xs text-yellow-400">IMDb {a.imdb?.toFixed?.(1) || a.imdb}</span>
+                      </div>
+                      {a.skill_hints && Object.keys(a.skill_hints).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Object.entries(a.skill_hints).map(([k, v]) => (
+                            <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded ${v > 70 ? 'bg-green-500/20 text-green-400' : v > 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {k}: {v}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </Button>
                 ))}
               </div>
@@ -185,12 +198,12 @@ const ContestsPage = () => {
           )}
 
           {/* Box Office Prediction */}
-          {challenge?.title && challenge?.options && !challenge?.actors && !challenge?.genre && (
+          {(challenge?.challenge_type === 'box_office' || (challenge?.title && challenge?.options && !challenge?.actors && !challenge?.genre && !challenge?.questions)) && (
             <div className="space-y-3">
               <div className="p-3 bg-white/5 rounded text-center">
                 <p className="text-xs text-gray-500">{language === 'it' ? 'Film:' : 'Film:'}</p>
                 <p className="font-bold">{challenge.title}</p>
-                <p className="text-xs text-gray-400">{challenge.genre}</p>
+                <p className="text-xs text-gray-400">{challenge.film_genre || challenge.genre}</p>
               </div>
               <p className="text-xs text-gray-400 text-center">{language === 'it' ? 'Come andrà al botteghino?' : 'How will it perform?'}</p>
               <div className="grid grid-cols-2 gap-2">

@@ -483,13 +483,55 @@ async def _generate_cast_match():
     skill_to_test = random.choice(['drama', 'comedy', 'action', 'romance', 'horror'])
     skill_names = {'drama': 'Dramma', 'comedy': 'Commedia', 'action': 'Azione', 'romance': 'Romantico', 'horror': 'Horror'}
     
+    # Map skill to actual skill key names (actors might have different key formats)
+    skill_key_map = {
+        'drama': ['Drama', 'drama', 'Dramma'],
+        'comedy': ['Comedy Timing', 'comedy', 'Commedia'],
+        'action': ['Action Sequences', 'action', 'Azione'],
+        'romance': ['Chemistry', 'romance', 'Romantico', 'Emotional Range'],
+        'horror': ['Drama', 'horror', 'Horror', 'Emotional Range']
+    }
+    
+    def get_skill_value(actor, skill):
+        skills = actor.get('skills', {})
+        for key in skill_key_map.get(skill, [skill]):
+            if key in skills:
+                return skills[key]
+        # Fallback: average of all skills
+        vals = list(skills.values())
+        return sum(vals) / len(vals) if vals else 0
+    
     # Find the best actor for this skill
-    best = max(actors, key=lambda a: a.get('skills', {}).get(skill_to_test, 0))
+    best = max(actors, key=lambda a: get_skill_value(a, skill_to_test))
+    
+    # Build actor info with skill hints (show a few relevant skills)
+    actor_list = []
+    for a in actors:
+        skills = a.get('skills', {})
+        # Show 2-3 relevant skill hints
+        hint_skills = {}
+        for key in skill_key_map.get(skill_to_test, []):
+            if key in skills:
+                hint_skills[key] = skills[key]
+        # Also add 1-2 other random skills for context
+        other_keys = [k for k in skills.keys() if k not in hint_skills]
+        for k in random.sample(other_keys, min(2, len(other_keys))):
+            hint_skills[k] = skills[k]
+        
+        actor_list.append({
+            'id': a['id'],
+            'name': a['name'],
+            'imdb': a.get('imdb_rating', 5),
+            'skill_hints': hint_skills
+        })
+    
+    # Shuffle actors so correct isn't always in a predictable position
+    random.shuffle(actor_list)
     
     return {
         'question': f"Chi è il migliore per un film di genere {skill_names.get(skill_to_test, skill_to_test)}?",
         'skill': skill_to_test,
-        'actors': [{'id': a['id'], 'name': a['name'], 'imdb': a.get('imdb_rating', 5)} for a in actors],
+        'actors': actor_list,
         'correct': best['id']
     }
 
@@ -498,7 +540,7 @@ async def _generate_box_office():
     """Predict box office result for a film."""
     # Get a random released film
     film = await db.films.aggregate([
-        {'$match': {'status': {'$in': ['released', 'completed']}}},
+        {'$match': {'status': {'$in': ['released', 'completed', 'in_theaters']}}},
         {'$sample': {'size': 1}},
         {'$project': {'_id': 0, 'title': 1, 'genre': 1, 'total_revenue': 1, 'quality_score': 1, 'tier': 1}}
     ]).to_list(1)
@@ -508,13 +550,14 @@ async def _generate_box_office():
     
     f = film[0]
     tier = f.get('tier', 'mediocre')
-    tier_map = {'masterpiece': 'Capolavoro', 'excellent': 'Eccellente', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso', 'terrible': 'Flop'}
     options = ['Capolavoro', 'Buono', 'Mediocre', 'Flop']
     correct = 'Capolavoro' if tier in ('masterpiece', 'excellent') else 'Buono' if tier == 'good' else 'Mediocre' if tier == 'mediocre' else 'Flop'
+    random.shuffle(options)
     
     return {
+        'challenge_type': 'box_office',
         'title': f.get('title', '?'),
-        'genre': f.get('genre', '?'),
+        'film_genre': f.get('genre', '?'),
         'options': options,
         'correct': correct
     }
@@ -581,6 +624,13 @@ def _generate_trivia():
         {'q': 'Cos\'è il "Dolby Atmos"?', 'options': ['Tecnologia audio immersiva', 'Tipo di telecamera', 'Formato video 8K', 'Software per effetti'], 'correct': 'Tecnologia audio immersiva'},
     ]
     selected = random.sample(questions, min(5, len(questions)))
+    # Shuffle options for each question so correct answer isn't always first
+    for q in selected:
+        correct = q['correct']
+        random.shuffle(q['options'])
+        # Ensure correct answer is still in options
+        if correct not in q['options']:
+            q['options'][0] = correct
     return {'questions': selected}
 
 

@@ -96,6 +96,8 @@ const InfrastructurePage = () => {
   const [schoolStatus, setSchoolStatus] = useState(null);
   const [schoolRecruits, setSchoolRecruits] = useState([]);
   const [schoolLoading, setSchoolLoading] = useState(false);
+  const [castingStudents, setCastingStudents] = useState(null);
+  const [castingActionLoading, setCastingActionLoading] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -163,12 +165,14 @@ const InfrastructurePage = () => {
       // Load school data if cinema_school
       if (infra.type === 'cinema_school') {
         setSchoolLoading(true);
-        const [statusRes, recruitsRes] = await Promise.all([
+        const [statusRes, recruitsRes, castingRes] = await Promise.all([
           api.get('/acting-school/status'),
-          api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } }))
+          api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } })),
+          api.get('/acting-school/casting-students').catch(() => ({ data: null }))
         ]);
         setSchoolStatus(statusRes.data);
         setSchoolRecruits(recruitsRes.data.recruits || []);
+        setCastingStudents(castingRes.data);
         setSchoolLoading(false);
       }
     } catch (e) {
@@ -469,9 +473,13 @@ const InfrastructurePage = () => {
                     <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{language === 'it' ? infra.description_it : infra.description}</p>
                     <div className="flex justify-between items-center">
                       <span className="text-yellow-500 font-semibold text-sm">${infra.base_cost?.toLocaleString()}</span>
-                      <Button size="sm" className="h-7 text-xs" disabled={!canBuy} onClick={() => { setSelectedType(infra); setShowPurchaseDialog(true); }}>
-                        {canBuy ? 'Acquista' : 'Bloccato'}
-                      </Button>
+                      {infra.already_owned ? (
+                        <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">Già posseduto</Badge>
+                      ) : (
+                        <Button size="sm" className="h-7 text-xs" disabled={!canBuy} onClick={() => { setSelectedType(infra); setShowPurchaseDialog(true); }}>
+                          {canBuy ? 'Acquista' : 'Bloccato'}
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -623,6 +631,73 @@ const InfrastructurePage = () => {
                   ))}
                 </div>
               )}
+
+              {/* ===== CASTING AGENCY STUDENTS ===== */}
+              {castingStudents?.has_school && (
+                <div className="space-y-2" data-testid="infra-casting-students">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Award className="w-4 h-4 text-cyan-400" /> Studenti Agenzia Casting
+                    </h4>
+                    <Badge className="bg-cyan-500/20 text-cyan-300 text-[9px]">{castingStudents.used}/{castingStudents.capacity} posti</Badge>
+                  </div>
+                  {castingStudents.students?.length > 0 ? castingStudents.students.map(s => (
+                    <div key={s.id} className={`p-3 rounded border ${s.all_maxed ? 'bg-amber-500/5 border-amber-500/20' : s.can_graduate ? 'bg-green-500/5 border-green-500/20' : 'bg-cyan-500/5 border-cyan-500/20'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <img src={s.avatar_url} alt="" className="w-8 h-8 rounded-full bg-gray-700" />
+                          <div>
+                            <p className="text-sm font-medium">{s.name}</p>
+                            <p className="text-[10px] text-gray-500">{s.age} anni &bull; {s.nationality} {s.is_legendary ? <span className="text-yellow-400">• Leggendario</span> : ''}</p>
+                          </div>
+                        </div>
+                        <Badge className={`text-[9px] ${s.all_maxed ? 'bg-amber-500/20 text-amber-400' : s.can_graduate ? 'bg-green-500/20 text-green-400' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                          {s.all_maxed ? 'Max Potenziale' : s.can_graduate ? 'Pronto!' : `${Math.round(s.elapsed_hours)}h`}
+                        </Badge>
+                      </div>
+                      {s.all_maxed && (
+                        <div className="flex items-center gap-1.5 p-1.5 mb-2 bg-amber-500/10 rounded border border-amber-500/15 text-[10px] text-amber-300">
+                          <AlertTriangle className="w-3 h-3 flex-shrink-0" /> Potenziale massimo raggiunto. {s.can_graduate && 'Diplomalo!'}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-0.5 mb-2">
+                        {Object.entries(s.current_skills || {}).map(([k, v]) => (
+                          <div key={k} className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-500 w-24 truncate">{SKILL_TRANSLATIONS?.[k]?.[language] || k}</span>
+                            <div className="flex-1 h-1 bg-gray-800 rounded-full"><div className="h-full rounded-full" style={{ width: `${Math.min(100, v)}%`, background: v > 70 ? '#22c55e' : v > 40 ? '#eab308' : '#ef4444' }} /></div>
+                            <span className="text-[9px] text-gray-400 w-5 text-right">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {s.needs_payment && s.total_due > 0 && (
+                        <div className="flex items-center justify-between p-1.5 mb-2 bg-red-500/10 rounded border border-red-500/15">
+                          <span className="text-[10px] text-red-300"><DollarSign className="w-3 h-3 inline" /> Da pagare: ${s.total_due.toLocaleString()}</span>
+                          <Button size="sm" className="bg-red-700 hover:bg-red-800 text-[10px] h-5 px-2" disabled={castingActionLoading === s.id}
+                            onClick={async () => { setCastingActionLoading(s.id); try { const r = await api.post(`/acting-school/pay-training/${s.id}`); toast.success(r.data.message); refreshUser(); const cr = await api.get('/acting-school/casting-students'); setCastingStudents(cr.data); } catch(e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setCastingActionLoading(null); } }}>
+                            Paga
+                          </Button>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {s.can_graduate && (
+                          <Button size="sm" className="flex-1 bg-green-700 hover:bg-green-800 text-xs" disabled={castingActionLoading === s.id || (s.needs_payment && s.total_due > 0)}
+                            onClick={async () => { setCastingActionLoading(s.id); try { const r = await api.post(`/acting-school/graduate/${s.id}`); toast.success(r.data.message); refreshUser(); const cr = await api.get('/acting-school/casting-students'); setCastingStudents(cr.data); } catch(e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setCastingActionLoading(null); } }}>
+                            <GraduationCap className="w-3 h-3 mr-1" /> Diploma
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="text-xs border-gray-600 text-gray-400" disabled={castingActionLoading === s.id}
+                          onClick={async () => { setCastingActionLoading(s.id); try { const r = await api.post(`/acting-school/dismiss/${s.id}`); toast.success(r.data.message); const cr = await api.get('/acting-school/casting-students'); setCastingStudents(cr.data); } catch(e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setCastingActionLoading(null); } }}>
+                          <X className="w-3 h-3 mr-1" /> Rimuovi
+                        </Button>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-center text-[10px] text-gray-500 py-3">Nessuno studente. Invia attori dalla Casting Agency dello Studio di Produzione.</p>
+                  )}
+                </div>
+              )}
+
+
 
               {/* Ready Trainees */}
               {schoolStatus?.trainees?.filter(t => t.status === 'ready').length > 0 && (

@@ -37,14 +37,24 @@ async def get_infrastructure_types(user: dict = Depends(get_current_user)):
     level_info = get_level_from_xp(user.get('total_xp', 0))
     fame = user.get('fame', 50)
     
+    # Check which unique types are already owned
+    unique_types = ['cinema_school', 'production_studio']
+    owned_unique = set()
+    for ut in unique_types:
+        count = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': ut})
+        if count > 0:
+            owned_unique.add(ut)
+    
     result = []
     for infra_id, infra in INFRASTRUCTURE_TYPES.items():
-        can_purchase = level_info['level'] >= infra['level_required'] and fame >= infra['fame_required']
+        already_owned = infra_id in owned_unique
+        can_purchase = level_info['level'] >= infra['level_required'] and fame >= infra['fame_required'] and not already_owned
         result.append({
             **infra,
             'can_purchase': can_purchase,
             'meets_level': level_info['level'] >= infra['level_required'],
-            'meets_fame': fame >= infra['fame_required']
+            'meets_fame': fame >= infra['fame_required'],
+            'already_owned': already_owned
         })
     
     return sorted(result, key=lambda x: x['level_required'])
@@ -112,6 +122,12 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
         language_country = LANGUAGE_TO_COUNTRY.get(user.get('language', 'en'), 'USA')
         if request.country != language_country:
             raise HTTPException(status_code=400, detail=f"First cinema must be in {language_country}")
+    
+    # Block duplicate purchase for unique infrastructure types
+    unique_types = ['cinema_school', 'production_studio']
+    if request.type in unique_types and existing > 0:
+        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione'}
+        raise HTTPException(status_code=400, detail=f"Possiedi già una {names.get(request.type, request.type)}! Puoi averne solo una.")
     
     # Calculate cost
     cost = calculate_infrastructure_cost(request.type, city)

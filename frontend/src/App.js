@@ -431,6 +431,18 @@ const TopNavbar = () => {
             )}
           </Button>
 
+          {/* Tutorial - Colore evidenziato */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/tutorial' ? 'text-lime-400' : 'text-lime-400/70 hover:text-lime-400'}`}
+            onClick={() => navigate('/tutorial')}
+            data-testid="tutorial-nav-btn"
+            title="Tutorial"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </Button>
+
           {/* Funds - Compact */}
           <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-yellow-500/20">
             <DollarSign className="w-3 h-3 text-yellow-500" />
@@ -666,9 +678,9 @@ const TopNavbar = () => {
           <Trophy className="w-4 h-4" />
           <span className="text-[8px]">Board</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/drafts' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/drafts')}>
-          <Save className="w-4 h-4" />
-          <span className="text-[8px]">Bozze</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/tutorial' ? 'text-lime-400' : 'text-lime-400/70'}`} onClick={() => navigate('/tutorial')} data-testid="tutorial-bottom-btn">
+          <HelpCircle className="w-4 h-4" />
+          <span className="text-[8px]">Guida</span>
         </button>
         <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')}>
           <Swords className="w-4 h-4" />

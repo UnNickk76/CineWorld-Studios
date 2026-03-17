@@ -109,6 +109,15 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
+### Fase 3 Pipeline Completata (17 Mar 2026)
+- **Sottogeneri**: da Select dropdown a badge cliccabili (max 3) con contatore
+- **Location**: raggruppate per categoria (Studi, Citta, Natura, Storici) con filtri e selezione multipla
+- **Marketplace Film**: nuova pagina /marketplace con ricerca, griglia film, dettagli + acquisto
+- **Fattori Nascosti Avanzati**: chimica cast, trend genere, critica, tempismo mercato, eventi virali/scandali
+- **Speed-Up Ciak**: gia implementato (50%, 80%, istantaneo)
+- Backend: subgenres/locations come array, bonus multi-sottogenere (+0.3) e multi-location (+0.2/loc)
+- Test: 100% (8/8 backend, tutti frontend)
+
 ### Mercato Film (17 Mar 2026)
 - Nuova pagina Marketplace sostituisce Bozze (obsolete con la pipeline)
 - Backend già implementato: scarta film → vendita al 70% → acquisto da altri giocatori

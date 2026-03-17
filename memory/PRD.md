@@ -153,11 +153,23 @@
 - Supporto query param `?tab=` nella FilmPipeline per navigazione diretta ai tab
 - Test: 100% frontend verificato (9/9 test)
 
+### Casting Avanzato v2 (17 Mar 2026 - msg #507)
+- **Dettagli Attori Enrichiti**: genere (♀/♂), età, nazionalità con icona Globe, fame label (Sconosciuto/Emergente/Famoso/Superstar), trend crescita (rising/declining/stable), badge "Collaboratore" se ha lavorato con il giocatore
+- **Casting Dinamico**: logica fame-based - giocatori con bassa fama ricevono più attori sconosciuti/emergenti, alta fama accede a famosi/superstar
+- **Proposte Raddoppiate**: max attori da 8 a 16, più agenti (2-7), più candidati per agente (2-4 per attori)
+- **Bottom Nav Mobile**: "Produci!" button allargato con stile giallo prominente, aggiunto "Mercato" con icona Store
+- **Nav ridotta**: rimossi Board, Guida, Chat dal bottom nav; mantenuti Home, Film, Produci!, Mercato, Infra, Sfide, Notifiche
+- Backend: `generate_cast_proposals` in film_pipeline.py completamente riscritto
+- Frontend: nuovi componenti GenderIcon, FameLabel, GrowthTrend, PersonMeta in FilmPipeline.jsx
+- Test: 100% backend + frontend (iteration 79)
+
 ## Task Prossimi
-- **Fase 3 Pipeline Film**: Marketplace Film Scartati, Fattori Nascosti Avanzati, Speed-Up "Ciak! Si Gira!"
-- Layout mobile pagina Contest
-- Sistema ruoli Admin (RBAC)
+- **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)
+- **(P2)** Layout mobile pagina Contest
+- **(P1)** Sistema ruoli Admin (RBAC)
 
 ## Backlog
-- Ulteriore refactoring server.py (ancora 11,608 righe - estrarre film routes, admin, AI, users)
+- Ulteriore refactoring server.py (ancora ~15K righe - estrarre film routes, admin, AI, users)
+- Refactoring FilmPipeline.jsx (>1200 righe - decomposizione in sub-components)
+- Refactoring Dashboard.jsx
 - Runware, Stripe, PWA, Tutorial popup

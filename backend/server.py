@@ -5400,6 +5400,30 @@ async def get_donations_status():
     settings = await db.game_settings.find_one({'key': 'global'}, {'_id': 0}) or {}
     return {'donations_enabled': settings.get('donations_enabled', True)}
 
+@api_router.get("/game/donation-popup-check")
+async def check_donation_popup(user: dict = Depends(get_current_user)):
+    """Check if donation popup should be shown (once per 24h, backend-tracked)."""
+    settings = await db.game_settings.find_one({'key': 'global'}, {'_id': 0}) or {}
+    if not settings.get('donations_enabled', True):
+        return {'show_popup': False}
+    last_shown = user.get('last_donation_popup')
+    if not last_shown:
+        return {'show_popup': True}
+    now = datetime.now(timezone.utc)
+    if last_shown.tzinfo is None:
+        last_shown = last_shown.replace(tzinfo=timezone.utc)
+    diff = (now - last_shown).total_seconds()
+    return {'show_popup': diff > 86400}
+
+@api_router.post("/game/donation-popup-seen")
+async def mark_donation_popup_seen(user: dict = Depends(get_current_user)):
+    """Mark donation popup as seen."""
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'last_donation_popup': datetime.now(timezone.utc)}}
+    )
+    return {'ok': True}
+
 @api_router.post("/admin/set-user-role")
 async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
     """Assign a role to a user (admin only). Roles: moderator, vip, tester, etc."""

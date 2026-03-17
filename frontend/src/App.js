@@ -178,23 +178,29 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup - only once per 24h, checked only once per app lifecycle
+  // Show donate popup - once per 24h, tracked by backend (same pattern as LoginRewardPopup)
   useEffect(() => {
-    api.get('/game/donations-status').then(r => {
-      const enabled = r.data.donations_enabled;
-      setDonationsEnabled(enabled);
-      if (enabled && !_donatePopupChecked) {
-        _donatePopupChecked = true;
-        const lastShown = localStorage.getItem('donatePopupLastShown');
-        const now = Date.now();
-        const twentyFourHours = 24 * 60 * 60 * 1000;
-        if (!lastShown || (now - parseInt(lastShown)) > twentyFourHours) {
-          localStorage.setItem('donatePopupLastShown', now.toString());
-          setTimeout(() => setShowDonatePopup(true), 2500);
+    if (!user || _donatePopupChecked) return;
+    _donatePopupChecked = true;
+    const checkDonate = async () => {
+      try {
+        const res = await api.get('/game/donation-popup-check');
+        setDonationsEnabled(true);
+        if (res.data.show_popup) {
+          setShowDonatePopup(true);
+          api.post('/game/donation-popup-seen').catch(() => {});
         }
+      } catch {
+        // If endpoint fails (e.g. not logged in), just check donations status
+        try {
+          const r = await api.get('/game/donations-status');
+          setDonationsEnabled(r.data.donations_enabled);
+        } catch {}
       }
-    }).catch(() => {});
-  }, [api]);
+    };
+    const timer = setTimeout(checkDonate, 2500);
+    return () => clearTimeout(timer);
+  }, [user]);
 
   // Lightweight refresh on navigation - only notification counts
   useEffect(() => {

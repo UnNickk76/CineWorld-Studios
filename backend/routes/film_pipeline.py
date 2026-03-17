@@ -13,6 +13,133 @@ from auth_utils import get_current_user
 
 router = APIRouter()
 
+# === ROLE VALUES - Impact on film quality and actor growth ===
+ROLE_VALUES = {
+    'Protagonista': {'quality_weight': 1.5, 'growth_rate': 1.2, 'label': 'Protagonista'},
+    'Co-Protagonista': {'quality_weight': 1.2, 'growth_rate': 1.0, 'label': 'Co-Protagonista'},
+    'Antagonista': {'quality_weight': 1.3, 'growth_rate': 1.1, 'label': 'Antagonista'},
+    'Supporto': {'quality_weight': 0.7, 'growth_rate': 0.6, 'label': 'Supporto'},
+    'Cameo': {'quality_weight': 0.3, 'growth_rate': 0.2, 'label': 'Cameo'},
+}
+
+# === EXTRAS (Comparse) - Genre fit affects quality ===
+# Optimal ranges per genre: going below wastes money, going above can hurt quality
+EXTRAS_OPTIMAL = {
+    'action': {'min': 200, 'max': 700, 'sweet': 400},
+    'comedy': {'min': 50, 'max': 300, 'sweet': 150},
+    'drama': {'min': 50, 'max': 250, 'sweet': 120},
+    'horror': {'min': 100, 'max': 500, 'sweet': 250},
+    'sci_fi': {'min': 150, 'max': 800, 'sweet': 400},
+    'romance': {'min': 50, 'max': 150, 'sweet': 80},
+    'thriller': {'min': 50, 'max': 300, 'sweet': 150},
+    'animation': {'min': 50, 'max': 200, 'sweet': 100},
+    'documentary': {'min': 50, 'max': 100, 'sweet': 50},
+    'fantasy': {'min': 200, 'max': 800, 'sweet': 500},
+    'musical': {'min': 100, 'max': 500, 'sweet': 300},
+    'western': {'min': 100, 'max': 400, 'sweet': 200},
+    'war': {'min': 300, 'max': 1000, 'sweet': 600},
+    'noir': {'min': 50, 'max': 200, 'sweet': 100},
+    'adventure': {'min': 150, 'max': 600, 'sweet': 350},
+    'biographical': {'min': 50, 'max': 300, 'sweet': 150},
+}
+EXTRAS_COST_PER_PERSON = 500  # $500 per extra
+
+# === CGI PACKAGES by Genre ===
+CGI_PACKAGES = {
+    'horror': [
+        {'id': 'horror_creatures', 'name': 'Mostri e Creature', 'cost': 500000, 'quality_bonus': 3.5, 'desc': 'Creature terrificanti in CGI'},
+        {'id': 'horror_haunted', 'name': 'Ambienti Infestati', 'cost': 350000, 'quality_bonus': 2.5, 'desc': 'Case infestate, cimiteri oscuri'},
+        {'id': 'horror_gore', 'name': 'Effetti Sangue & Gore', 'cost': 250000, 'quality_bonus': 2.0, 'desc': 'Effetti splatter realistici'},
+        {'id': 'horror_demons', 'name': 'Demoni e Fantasmi', 'cost': 450000, 'quality_bonus': 3.0, 'desc': 'Entita soprannaturali'},
+        {'id': 'horror_undead', 'name': 'Zombie e Non-Morti', 'cost': 400000, 'quality_bonus': 2.8, 'desc': 'Orde di zombie in CGI'},
+        {'id': 'horror_transform', 'name': 'Trasformazioni', 'cost': 600000, 'quality_bonus': 4.0, 'desc': 'Licantropi, mutazioni, possessioni'},
+    ],
+    'sci_fi': [
+        {'id': 'scifi_ships', 'name': 'Astronavi', 'cost': 700000, 'quality_bonus': 4.0, 'desc': 'Flotte spaziali e caccia stellari'},
+        {'id': 'scifi_planets', 'name': 'Pianeti e Galassie', 'cost': 600000, 'quality_bonus': 3.5, 'desc': 'Mondi alieni e nebulose'},
+        {'id': 'scifi_robots', 'name': 'Robot e Androidi', 'cost': 500000, 'quality_bonus': 3.0, 'desc': 'Intelligenze artificiali e mech'},
+        {'id': 'scifi_portals', 'name': 'Portali e Wormhole', 'cost': 400000, 'quality_bonus': 2.5, 'desc': 'Varchi dimensionali e teletrasporto'},
+        {'id': 'scifi_aliens', 'name': 'Alieni', 'cost': 550000, 'quality_bonus': 3.2, 'desc': 'Razze aliene e creature extraterrestri'},
+        {'id': 'scifi_weapons', 'name': 'Armi Futuristiche', 'cost': 350000, 'quality_bonus': 2.0, 'desc': 'Laser, blaster, scudi energetici'},
+        {'id': 'scifi_cities', 'name': 'Citta del Futuro', 'cost': 650000, 'quality_bonus': 3.8, 'desc': 'Megalopoli futuristiche e cyberpunk'},
+    ],
+    'action': [
+        {'id': 'action_explosions', 'name': 'Esplosioni Massive', 'cost': 400000, 'quality_bonus': 3.0, 'desc': 'Esplosioni cinematografiche'},
+        {'id': 'action_vehicles', 'name': 'Veicoli Militari', 'cost': 500000, 'quality_bonus': 3.2, 'desc': 'Tank, elicotteri, jet da combattimento'},
+        {'id': 'action_destruction', 'name': 'Crolli e Distruzione', 'cost': 600000, 'quality_bonus': 3.5, 'desc': 'Edifici che crollano, tsunami di detriti'},
+        {'id': 'action_chase', 'name': 'Inseguimenti Epici', 'cost': 350000, 'quality_bonus': 2.5, 'desc': 'Inseguimenti ad alta velocita'},
+        {'id': 'action_stunts', 'name': 'Acrobazie Impossibili', 'cost': 300000, 'quality_bonus': 2.0, 'desc': 'Salti, cadute, combattimenti'},
+        {'id': 'action_weapons', 'name': 'Arsenale Hi-Tech', 'cost': 250000, 'quality_bonus': 1.8, 'desc': 'Armi speciali e gadget'},
+    ],
+    'fantasy': [
+        {'id': 'fantasy_dragons', 'name': 'Draghi e Creature', 'cost': 700000, 'quality_bonus': 4.0, 'desc': 'Draghi, fenici, grifoni'},
+        {'id': 'fantasy_magic', 'name': 'Magie e Incantesimi', 'cost': 400000, 'quality_bonus': 2.8, 'desc': 'Effetti magici e sortilegi'},
+        {'id': 'fantasy_kingdoms', 'name': 'Castelli e Regni', 'cost': 550000, 'quality_bonus': 3.2, 'desc': 'Regni fantastici e fortezze'},
+        {'id': 'fantasy_forests', 'name': 'Boschi Incantati', 'cost': 350000, 'quality_bonus': 2.5, 'desc': 'Foreste magiche e rovine antiche'},
+        {'id': 'fantasy_portals', 'name': 'Portali Dimensionali', 'cost': 400000, 'quality_bonus': 2.8, 'desc': 'Varchi tra mondi e dimensioni'},
+        {'id': 'fantasy_artifacts', 'name': 'Armi e Artefatti', 'cost': 300000, 'quality_bonus': 2.0, 'desc': 'Spade leggendarie e reliquie'},
+    ],
+    'adventure': [
+        {'id': 'adv_environments', 'name': 'Ambienti Esotici', 'cost': 400000, 'quality_bonus': 2.8, 'desc': 'Giungle, deserti, oceani'},
+        {'id': 'adv_temples', 'name': 'Templi e Rovine', 'cost': 350000, 'quality_bonus': 2.5, 'desc': 'Templi antichi e trappole'},
+        {'id': 'adv_creatures', 'name': 'Creature Selvagge', 'cost': 450000, 'quality_bonus': 3.0, 'desc': 'Animali giganti e bestie mitiche'},
+        {'id': 'adv_underwater', 'name': 'Mondi Sottomarini', 'cost': 500000, 'quality_bonus': 3.2, 'desc': 'Citta sottomarine e abissi'},
+        {'id': 'adv_sky', 'name': 'Volo e Paracadutismo', 'cost': 300000, 'quality_bonus': 2.0, 'desc': 'Scene aeree mozzafiato'},
+        {'id': 'adv_treasure', 'name': 'Tesori e Reliquie', 'cost': 250000, 'quality_bonus': 1.8, 'desc': 'Tesori nascosti e mappe antiche'},
+    ],
+    'war': [
+        {'id': 'war_battles', 'name': 'Battaglie Epiche', 'cost': 700000, 'quality_bonus': 4.0, 'desc': 'Scontri su larga scala'},
+        {'id': 'war_aircraft', 'name': 'Aerei e Bombardieri', 'cost': 500000, 'quality_bonus': 3.0, 'desc': 'Combattimenti aerei'},
+        {'id': 'war_naval', 'name': 'Battaglie Navali', 'cost': 600000, 'quality_bonus': 3.5, 'desc': 'Navi da guerra e sommergibili'},
+        {'id': 'war_trenches', 'name': 'Trincee e Bunker', 'cost': 350000, 'quality_bonus': 2.5, 'desc': 'Ambienti di guerra'},
+        {'id': 'war_tanks', 'name': 'Corazzati e Artiglieria', 'cost': 450000, 'quality_bonus': 2.8, 'desc': 'Tank e pezzi di artiglieria'},
+        {'id': 'war_aftermath', 'name': 'Devastazione Bellica', 'cost': 400000, 'quality_bonus': 2.5, 'desc': 'Citta distrutte e rovine'},
+    ],
+}
+# Default CGI for genres not listed
+CGI_DEFAULT = [
+    {'id': 'default_environments', 'name': 'Ambientazioni Digitali', 'cost': 300000, 'quality_bonus': 2.0, 'desc': 'Set virtuali e sfondi'},
+    {'id': 'default_crowd', 'name': 'Folla Digitale', 'cost': 250000, 'quality_bonus': 1.5, 'desc': 'Folle simulate in CGI'},
+    {'id': 'default_weather', 'name': 'Meteo Estremo', 'cost': 200000, 'quality_bonus': 1.2, 'desc': 'Tempeste, tornado, tsunami'},
+    {'id': 'default_vehicles', 'name': 'Veicoli', 'cost': 350000, 'quality_bonus': 2.0, 'desc': 'Auto, moto, aerei'},
+    {'id': 'default_fire', 'name': 'Fuoco e Fiamme', 'cost': 200000, 'quality_bonus': 1.5, 'desc': 'Incendi e esplosioni piccole'},
+    {'id': 'default_digital', 'name': 'Ritocco Digitale', 'cost': 150000, 'quality_bonus': 1.0, 'desc': 'Pulizia e miglioramento digitale'},
+]
+
+# === VFX PACKAGES by Genre ===
+VFX_PACKAGES = {
+    'horror': [
+        {'id': 'vfx_horror_atmo', 'name': 'Atmosfera Oscura', 'cost': 150000, 'quality_bonus': 1.5, 'desc': 'Nebbia, ombre, distorsioni'},
+        {'id': 'vfx_horror_jump', 'name': 'Jump Scare FX', 'cost': 100000, 'quality_bonus': 1.0, 'desc': 'Effetti shock e tensione'},
+        {'id': 'vfx_horror_decay', 'name': 'Decomposizione', 'cost': 200000, 'quality_bonus': 1.8, 'desc': 'Invecchiamento, decomposizione'},
+        {'id': 'vfx_horror_vision', 'name': 'Visioni e Allucinazioni', 'cost': 180000, 'quality_bonus': 1.5, 'desc': 'Effetti psichedelici'},
+    ],
+    'sci_fi': [
+        {'id': 'vfx_scifi_holo', 'name': 'Ologrammi', 'cost': 200000, 'quality_bonus': 1.8, 'desc': 'Display olografici e interfacce'},
+        {'id': 'vfx_scifi_shield', 'name': 'Scudi Energetici', 'cost': 180000, 'quality_bonus': 1.5, 'desc': 'Barriere e campi di forza'},
+        {'id': 'vfx_scifi_teleport', 'name': 'Teletrasporto', 'cost': 150000, 'quality_bonus': 1.2, 'desc': 'Effetti di materializzazione'},
+        {'id': 'vfx_scifi_hyper', 'name': 'Iperspazio', 'cost': 250000, 'quality_bonus': 2.0, 'desc': 'Salto nell\'iperspazio e velocita luce'},
+    ],
+    'action': [
+        {'id': 'vfx_action_slow', 'name': 'Slow Motion', 'cost': 120000, 'quality_bonus': 1.2, 'desc': 'Rallenti cinematografici'},
+        {'id': 'vfx_action_impact', 'name': 'Effetti Impatto', 'cost': 150000, 'quality_bonus': 1.5, 'desc': 'Shockwave e onde d\'urto'},
+        {'id': 'vfx_action_fire', 'name': 'Fuoco e Fiamme', 'cost': 180000, 'quality_bonus': 1.5, 'desc': 'Incendi ed effetti pirotecnici'},
+        {'id': 'vfx_action_debris', 'name': 'Detriti e Polvere', 'cost': 100000, 'quality_bonus': 1.0, 'desc': 'Particelle, polvere, frammenti'},
+    ],
+    'fantasy': [
+        {'id': 'vfx_fantasy_glow', 'name': 'Aura Magica', 'cost': 150000, 'quality_bonus': 1.5, 'desc': 'Effetti luminosi e particelle magiche'},
+        {'id': 'vfx_fantasy_morph', 'name': 'Metamorfosi', 'cost': 200000, 'quality_bonus': 1.8, 'desc': 'Trasformazioni e shape-shifting'},
+        {'id': 'vfx_fantasy_elemental', 'name': 'Elementi Naturali', 'cost': 180000, 'quality_bonus': 1.5, 'desc': 'Fuoco magico, ghiaccio, fulmini'},
+        {'id': 'vfx_fantasy_enchant', 'name': 'Incantesimi', 'cost': 160000, 'quality_bonus': 1.2, 'desc': 'Rune, cerchi magici, evocazioni'},
+    ],
+}
+VFX_DEFAULT = [
+    {'id': 'vfx_default_color', 'name': 'Color Grading Pro', 'cost': 100000, 'quality_bonus': 1.0, 'desc': 'Correzione colore cinematografica'},
+    {'id': 'vfx_default_composite', 'name': 'Compositing', 'cost': 150000, 'quality_bonus': 1.2, 'desc': 'Integrazione effetti e green screen'},
+    {'id': 'vfx_default_particle', 'name': 'Particelle', 'cost': 120000, 'quality_bonus': 1.0, 'desc': 'Pioggia, neve, scintille'},
+    {'id': 'vfx_default_cleanup', 'name': 'Pulizia Digitale', 'cost': 80000, 'quality_bonus': 0.8, 'desc': 'Rimozione cavi, correzioni'},
+]
+
 # ==================== MODELS ====================
 
 class FilmProposalRequest(BaseModel):
@@ -28,7 +155,7 @@ class CastSpeedUpRequest(BaseModel):
 class SelectCastRequest(BaseModel):
     role_type: str
     proposal_id: str
-    actor_role: Optional[str] = None  # Protagonista, Antagonista, Supporto, Cameo
+    actor_role: Optional[str] = None  # Protagonista, Co-Protagonista, Antagonista, Supporto, Cameo
 
 class ScreenplaySubmitRequest(BaseModel):
     mode: str  # 'ai', 'pre_only', 'manual'
@@ -36,6 +163,11 @@ class ScreenplaySubmitRequest(BaseModel):
 
 class RemasterRequest(BaseModel):
     pass
+
+class ProductionSetupRequest(BaseModel):
+    extras_count: int = 50  # 50-1000
+    cgi_packages: List[str] = []  # list of CGI package IDs
+    vfx_packages: List[str] = []  # list of VFX package IDs
 
 class SpeedUpShootingRequest(BaseModel):
     option: str  # 'fast' (50%), 'faster' (80%), 'instant'
@@ -1182,9 +1314,41 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         composer_avg = sum(composer['skills'].values()) / max(1, len(composer['skills']))
         soundtrack_score = round(composer_avg * 0.08, 1)  # 0-8 points based on composer skill avg (0-100)
 
+    # Production setup bonuses (extras, CGI, VFX)
+    prod_setup = project.get('production_setup', {})
+    extras_count = prod_setup.get('extras_count', 100)
+    cgi_bonus = prod_setup.get('cgi_bonus', 0)
+    vfx_bonus = prod_setup.get('vfx_bonus', 0)
+
+    # Extras fit bonus/penalty
+    genre = project.get('genre', 'drama')
+    optimal = EXTRAS_OPTIMAL.get(genre, {'min': 50, 'max': 500, 'sweet': 200})
+    if optimal['min'] <= extras_count <= optimal['max']:
+        # Good range - bonus based on closeness to sweet spot
+        extras_bonus = 2.0 - abs(extras_count - optimal['sweet']) / max(1, optimal['max'] - optimal['min']) * 2.0
+        extras_bonus = max(0.5, round(extras_bonus, 1))
+    elif extras_count > optimal['max']:
+        # Too many extras - penalty proportional to excess
+        excess_ratio = (extras_count - optimal['max']) / optimal['max']
+        extras_bonus = -round(excess_ratio * 3.0, 1)
+    else:
+        extras_bonus = 0.0
+
+    # Role-weighted cast quality
+    role_weighted_quality = 0
+    for actor in cast.get('actors', []):
+        if actor.get('skills'):
+            avg_skill = sum(actor['skills'].values()) / max(1, len(actor['skills']))
+            role_weight = ROLE_VALUES.get(actor.get('role_in_film', 'Supporto'), {}).get('quality_weight', 0.7)
+            role_weighted_quality += avg_skill * role_weight
+    if cast.get('actors'):
+        role_weighted_quality = role_weighted_quality / len(cast['actors'])
+
     # Final score calculation
     base_quality = pre_imdb * 8  # 0-80 range
-    quality_score = base_quality + screenplay_mod + remaster_boost + buzz_influence + (cast_quality * 0.2) + soundtrack_score
+    quality_score = (base_quality + screenplay_mod + remaster_boost + buzz_influence +
+                     (cast_quality * 0.15) + (role_weighted_quality * 0.1) + soundtrack_score +
+                     cgi_bonus + vfx_bonus + extras_bonus)
 
     # === ADVANCED HIDDEN FACTORS (Phase 3) ===
     advanced_factors = {}
@@ -1277,6 +1441,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'buzz_influence': buzz_influence,
         'remaster_boost': remaster_boost,
         'soundtrack_score': soundtrack_score,
+        'production_setup': prod_setup,
         'advanced_factors': advanced_factors,
         'pipeline_project_id': project_id,
         'created_at': datetime.now(timezone.utc).isoformat(),
@@ -1327,7 +1492,12 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
             'remaster': remaster_boost,
             'buzz': round(buzz_influence, 1),
             'cast_quality': round(cast_quality, 1),
+            'role_weighted': round(role_weighted_quality, 1),
             'soundtrack': soundtrack_score,
+            'cgi': cgi_bonus,
+            'vfx': vfx_bonus,
+            'extras': extras_bonus,
+            'extras_count': extras_count,
             'advanced_factors': advanced_factors
         },
         'xp_gained': xp_gain
@@ -1335,6 +1505,92 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
 
 
 # ==================== BUZZ SYSTEM ====================
+
+
+# ==================== PRODUCTION SETUP (Extras, CGI, VFX) ====================
+
+@router.get("/film-pipeline/production-options/{genre}")
+async def get_production_options(genre: str, user: dict = Depends(get_current_user)):
+    """Get CGI, VFX packages and extras info for a genre."""
+    cgi = CGI_PACKAGES.get(genre, CGI_DEFAULT)
+    vfx = VFX_PACKAGES.get(genre, VFX_DEFAULT)
+    extras_info = EXTRAS_OPTIMAL.get(genre, {'min': 50, 'max': 500, 'sweet': 200})
+    return {
+        'cgi_packages': cgi,
+        'vfx_packages': vfx,
+        'extras_optimal': extras_info,
+        'extras_cost_per_person': EXTRAS_COST_PER_PERSON,
+        'role_values': ROLE_VALUES
+    }
+
+@router.post("/film-pipeline/{project_id}/production-setup")
+async def set_production_setup(project_id: str, req: ProductionSetupRequest, user: dict = Depends(get_current_user)):
+    """Set extras, CGI and VFX for a film in pre-production."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    if project['status'] != 'pre_production':
+        raise HTTPException(status_code=400, detail="Il film deve essere in pre-produzione")
+
+    # Validate extras
+    extras_count = max(50, min(1000, req.extras_count))
+    genre = project.get('genre', 'drama')
+
+    # Calculate CGI cost
+    available_cgi = CGI_PACKAGES.get(genre, CGI_DEFAULT)
+    cgi_ids = {p['id'] for p in available_cgi}
+    selected_cgi = [p for p in available_cgi if p['id'] in req.cgi_packages and p['id'] in cgi_ids]
+    cgi_cost = sum(p['cost'] for p in selected_cgi)
+    cgi_bonus = sum(p['quality_bonus'] for p in selected_cgi)
+
+    # Calculate VFX cost
+    available_vfx = VFX_PACKAGES.get(genre, VFX_DEFAULT)
+    vfx_ids = {p['id'] for p in available_vfx}
+    selected_vfx = [p for p in available_vfx if p['id'] in req.vfx_packages and p['id'] in vfx_ids]
+    vfx_cost = sum(p['cost'] for p in selected_vfx)
+    vfx_bonus = sum(p['quality_bonus'] for p in selected_vfx)
+
+    # Extras cost
+    extras_cost = extras_count * EXTRAS_COST_PER_PERSON
+
+    total_cost = cgi_cost + vfx_cost + extras_cost
+
+    if user.get('funds', 0) < total_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_cost:,}")
+
+    # Deduct funds
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+
+    # Save production setup
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'production_setup': {
+                'extras_count': extras_count,
+                'extras_cost': extras_cost,
+                'cgi_packages': [{'id': p['id'], 'name': p['name'], 'cost': p['cost'], 'quality_bonus': p['quality_bonus']} for p in selected_cgi],
+                'cgi_cost': cgi_cost,
+                'cgi_bonus': cgi_bonus,
+                'vfx_packages': [{'id': p['id'], 'name': p['name'], 'cost': p['cost'], 'quality_bonus': p['quality_bonus']} for p in selected_vfx],
+                'vfx_cost': vfx_cost,
+                'vfx_bonus': vfx_bonus,
+                'total_cost': total_cost,
+                'setup_completed': True
+            }
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'Setup produzione completato! Costo totale: ${total_cost:,}',
+        'total_cost': total_cost,
+        'extras_count': extras_count,
+        'cgi_count': len(selected_cgi),
+        'vfx_count': len(selected_vfx)
+    }
 
 @router.get("/film-pipeline/buzz")
 async def get_buzz_films(user: dict = Depends(get_current_user)):

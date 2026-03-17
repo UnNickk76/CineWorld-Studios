@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
-  Zap, ChevronRight, RefreshCw, ThumbsDown, ThumbsUp, ShoppingCart, Film, TrendingUp
+  Zap, ChevronRight, RefreshCw, ThumbsDown, ThumbsUp, ShoppingCart, Film, TrendingUp,
+  Settings, Sparkles, Wand2
 } from 'lucide-react';
 
 const TABS = [
@@ -309,7 +310,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [expandedRoles, setExpandedRoles] = useState({});
   const [actorRoles, setActorRoles] = useState({});
 
-  const ACTOR_ROLES = ['Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
+  const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
   const SkillBar = ({ label, value, max = 100 }) => (
     <div className="flex items-center gap-1.5">
@@ -650,6 +651,11 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [setupFilm, setSetupFilm] = useState(null);
+  const [prodOptions, setProdOptions] = useState(null);
+  const [extrasCount, setExtrasCount] = useState(200);
+  const [selectedCGI, setSelectedCGI] = useState([]);
+  const [selectedVFX, setSelectedVFX] = useState([]);
 
   const fetch = useCallback(async () => {
     try { const res = await api.get('/film-pipeline/pre-production'); setFilms(res.data.films || []); }
@@ -657,6 +663,34 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
   }, [api]);
 
   useEffect(() => { fetch(); const i = setInterval(fetch, 30000); return () => clearInterval(i); }, [fetch]);
+
+  const openSetup = async (film) => {
+    setSetupFilm(film);
+    try {
+      const res = await api.get(`/film-pipeline/production-options/${film.genre}`);
+      setProdOptions(res.data);
+      setExtrasCount(res.data.extras_optimal?.sweet || 200);
+      setSelectedCGI([]);
+      setSelectedVFX([]);
+    } catch (e) { toast.error('Errore caricamento opzioni'); }
+  };
+
+  const submitSetup = async () => {
+    if (!setupFilm) return;
+    setActionLoading(`setup-${setupFilm.id}`);
+    try {
+      const res = await api.post(`/film-pipeline/${setupFilm.id}/production-setup`, {
+        extras_count: extrasCount, cgi_packages: selectedCGI, vfx_packages: selectedVFX
+      });
+      toast.success(res.data.message);
+      setSetupFilm(null);
+      refreshUser(); fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const toggleCGI = (id) => setSelectedCGI(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleVFX = (id) => setSelectedVFX(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const remaster = async (filmId) => {
     setActionLoading(`rem-${filmId}`);
@@ -676,6 +710,14 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
     catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
   };
 
+  const totalSetupCost = () => {
+    if (!prodOptions) return 0;
+    const extrasCost = extrasCount * (prodOptions.extras_cost_per_person || 500);
+    const cgiCost = (prodOptions.cgi_packages || []).filter(p => selectedCGI.includes(p.id)).reduce((s, p) => s + p.cost, 0);
+    const vfxCost = (prodOptions.vfx_packages || []).filter(p => selectedVFX.includes(p.id)).reduce((s, p) => s + p.cost, 0);
+    return extrasCost + cgiCost + vfxCost;
+  };
+
   if (loading) return <div className="text-center py-8 text-gray-500">Caricamento...</div>;
   if (!films.length) return <div className="text-center py-12 text-gray-500"><Clapperboard className="w-10 h-10 mx-auto mb-2 opacity-30" /><p>Nessun film in pre-produzione.</p></div>;
 
@@ -684,6 +726,7 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
       {films.map(f => {
         const remasterInProgress = f.remaster_started_at && !f.remaster_completed;
         const remasterDone = f.remaster_completed;
+        const hasSetup = f.production_setup?.setup_completed;
         return (
           <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`preprod-film-${f.id}`}>
             <CardContent className="p-3 space-y-2">
@@ -694,19 +737,28 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                     {remasterDone && <span className="text-green-400 ml-1"> +{f.remaster_quality_boost}% remaster</span>}
                   </p>
                 </div>
-                {f.screenplay_mode && (
-                  <Badge className={`text-[9px] ${f.screenplay_mode === 'ai' ? 'bg-cyan-500/20 text-cyan-400' : f.screenplay_mode === 'manual' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-600/20 text-gray-400'}`}>
-                    {f.screenplay_mode === 'ai' ? 'AI' : f.screenplay_mode === 'manual' ? 'Manuale' : 'Base'}
+                {hasSetup && (
+                  <Badge className="bg-green-500/20 text-green-400 text-[9px]">
+                    <Check className="w-3 h-3 mr-0.5" />
+                    Setup OK
                   </Badge>
                 )}
               </div>
+
+              {/* Production setup summary if completed */}
+              {hasSetup && (
+                <div className="p-2 bg-black/30 rounded border border-gray-700 text-[10px] text-gray-400 space-y-0.5">
+                  <p>Comparse: {f.production_setup.extras_count} &bull; CGI: {f.production_setup.cgi_packages?.length || 0} pacchetti &bull; VFX: {f.production_setup.vfx_packages?.length || 0} effetti</p>
+                  <p>Costo produzione: <span className="text-yellow-400">${f.production_setup.total_cost?.toLocaleString()}</span></p>
+                </div>
+              )}
 
               {remasterInProgress && (
                 <div className="p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <RefreshCw className="w-3 h-3 animate-spin text-yellow-400" />
-                      <span className="text-[10px] text-yellow-300">Rimasterizzazione in corso... {Math.round(f.remaster_remaining_minutes || 0)} min</span>
+                      <span className="text-[10px] text-yellow-300">Rimasterizzazione... {Math.round(f.remaster_remaining_minutes || 0)} min</span>
                     </div>
                     <Button size="sm" className="h-5 px-2 text-[9px] bg-yellow-600 hover:bg-yellow-700"
                       disabled={actionLoading === `speed-${f.id}`} onClick={() => speedUpRemaster(f.id)}>
@@ -716,7 +768,13 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {!hasSetup && (
+                  <Button size="sm" variant="outline" className="text-xs border-orange-700 text-orange-400"
+                    onClick={() => openSetup(f)} data-testid={`setup-${f.id}`}>
+                    <Settings className="w-3 h-3 mr-1" /> Setup Produzione
+                  </Button>
+                )}
                 {!f.remaster_started_at && (
                   <Button size="sm" variant="outline" className="text-xs border-yellow-700 text-yellow-400"
                     disabled={actionLoading === `rem-${f.id}`} onClick={() => remaster(f.id)} data-testid={`remaster-${f.id}`}>
@@ -733,6 +791,105 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
           </Card>
         );
       })}
+
+      {/* Production Setup Dialog */}
+      <Dialog open={!!setupFilm} onOpenChange={() => setSetupFilm(null)}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-lg max-h-[80vh] overflow-y-auto">
+          {setupFilm && prodOptions && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base">
+                  <Settings className="w-5 h-5 text-orange-400" />
+                  Setup Produzione - {setupFilm.title}
+                </DialogTitle>
+                <DialogDescription>Configura comparse, CGI e effetti speciali. Solo denaro, niente crediti.</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 mt-2">
+                {/* EXTRAS SLIDER */}
+                <div>
+                  <label className="text-xs font-medium flex items-center gap-1 mb-2">
+                    <Users className="w-3.5 h-3.5 text-blue-400" />
+                    Comparse: <span className="text-yellow-400">{extrasCount}</span>
+                    <span className="text-gray-500 text-[9px] ml-auto">
+                      (Ottimale: {prodOptions.extras_optimal.min}-{prodOptions.extras_optimal.max})
+                    </span>
+                  </label>
+                  <input type="range" min={50} max={1000} step={10} value={extrasCount}
+                    onChange={e => setExtrasCount(parseInt(e.target.value))}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-500 bg-gray-700"
+                    data-testid="extras-slider" />
+                  <div className="flex justify-between text-[8px] text-gray-500 mt-0.5">
+                    <span>50</span>
+                    <span className="text-green-400">Sweet spot: {prodOptions.extras_optimal.sweet}</span>
+                    <span>1000</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 mt-0.5">Costo: ${(extrasCount * prodOptions.extras_cost_per_person).toLocaleString()}</p>
+                </div>
+
+                {/* CGI PACKAGES */}
+                <div>
+                  <label className="text-xs font-medium flex items-center gap-1 mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Pacchetti CGI
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(prodOptions.cgi_packages || []).map(pkg => (
+                      <button key={pkg.id} onClick={() => toggleCGI(pkg.id)}
+                        className={`p-2 rounded text-left border transition-all ${selectedCGI.includes(pkg.id) ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700 hover:border-gray-600'}`}
+                        data-testid={`cgi-${pkg.id}`}>
+                        <p className="text-[10px] font-medium">{pkg.name}</p>
+                        <p className="text-[8px] text-gray-500">{pkg.desc}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[9px] text-green-400">+{pkg.quality_bonus}</span>
+                          <span className="text-[9px] text-yellow-400">${(pkg.cost / 1000).toFixed(0)}K</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* VFX PACKAGES */}
+                <div>
+                  <label className="text-xs font-medium flex items-center gap-1 mb-2">
+                    <Wand2 className="w-3.5 h-3.5 text-cyan-400" />
+                    Effetti Speciali (VFX)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(prodOptions.vfx_packages || []).map(pkg => (
+                      <button key={pkg.id} onClick={() => toggleVFX(pkg.id)}
+                        className={`p-2 rounded text-left border transition-all ${selectedVFX.includes(pkg.id) ? 'border-cyan-500 bg-cyan-500/10' : 'border-gray-700 hover:border-gray-600'}`}
+                        data-testid={`vfx-${pkg.id}`}>
+                        <p className="text-[10px] font-medium">{pkg.name}</p>
+                        <p className="text-[8px] text-gray-500">{pkg.desc}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[9px] text-green-400">+{pkg.quality_bonus}</span>
+                          <span className="text-[9px] text-yellow-400">${(pkg.cost / 1000).toFixed(0)}K</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TOTAL COST */}
+                <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <div>
+                    <p className="text-xs font-medium">Costo Totale</p>
+                    <p className="text-[9px] text-gray-400">Solo denaro, niente crediti</p>
+                  </div>
+                  <p className="text-lg font-bold text-yellow-400">${totalSetupCost().toLocaleString()}</p>
+                </div>
+
+                <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={submitSetup}
+                  disabled={actionLoading === `setup-${setupFilm.id}`} data-testid="confirm-setup">
+                  {actionLoading === `setup-${setupFilm.id}` ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
+                  Conferma Setup Produzione
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

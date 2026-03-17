@@ -1,0 +1,95 @@
+{
+  "summary": "Iteration 76 - All 5 Bug Fixes Verified. Backend API tests: 10/10 passed. Frontend UI tests: All verified via Playwright screenshots.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "bug_fix_1_dashboard_nickname": {
+      "status": "VERIFIED",
+      "description": "Dashboard welcome shows nickname 'NeoMorpheus' in yellow, production_house_name 'Anacapito Studio's' as gray subtitle",
+      "evidence": "Screenshot shows 'BENVENUTO IN CINEWORLD STUDIO'S, NeoMorpheus' with 'Anacapito Studio's' below"
+    },
+    "bug_fix_2_post_production_films": {
+      "status": "VERIFIED",
+      "description": "Production Studio Post-Production shows 0 films - correctly queries film_projects with status 'pre_production' instead of released films",
+      "evidence": "Screenshot shows 'Nessun film pronto per il rilascio' in Post-Production panel",
+      "code_location": "server.py line 9887-9888: queries film_projects with status 'pre_production'"
+    },
+    "bug_fix_3_variable_casting_agents": {
+      "status": "VERIFIED",
+      "description": "Casting proposals show variable agent counts per role (not all same number)",
+      "evidence": "Screenshot shows Regista: 5 disponibili, Sceneggiatore: 2 agenti in arrivo, Attori: 8 agenti, Compositore: 3 agenti",
+      "code_location": "film_pipeline.py lines 176-192: role_bonus varies per type, agents 1-5, candidates 1-3 each"
+    },
+    "bug_fix_4_casting_speedup_cost": {
+      "status": "VERIFIED",
+      "description": "Casting speed-up cost is $5,000 per pending (not $15,000)",
+      "evidence": "Sceneggiatore (2 pending): $10,000, Attori (8 pending): $40,000, Compositore (3 pending): $15,000 - all = pending * $5,000",
+      "code_location": "film_pipeline.py line 496: cost = len(pending) * 5000"
+    },
+    "bug_fix_5_acting_school_counter": {
+      "status": "VERIFIED", 
+      "description": "Acting School counter shows 'occupati / disponibili' format",
+      "evidence": "Header shows 'Livello 1 • 1 occupati / 0 disponibili', Casting section shows '1 occupati / 2 disponibili'",
+      "code_location": "ActingSchool.jsx line 174: shows training_count + ' occupati / ' + available_slots + ' disponibili'"
+    }
+  },
+  "backend_api_tests": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0,
+    "tests": [
+      "test_login_returns_nickname - PASS",
+      "test_login_returns_production_house_name - PASS",
+      "test_nickname_different_from_production_house - PASS",
+      "test_production_studio_status_endpoint - PASS",
+      "test_released_films_are_from_pipeline - PASS",
+      "test_casting_films_have_proposals - PASS",
+      "test_speed_up_cost_calculation - PASS",
+      "test_acting_school_status - PASS",
+      "test_film_pipeline_counts - PASS",
+      "test_film_pipeline_all_projects - PASS"
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bugfixes_iter76.py",
+    "/app/test_reports/pytest/pytest_iter76_bugfixes.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Dashboard.jsx line 359: Correctly shows user?.nickname with production_house_name as subtitle",
+    "server.py line 9887-9888: Post-production now queries film_projects with status 'pre_production' (pipeline films ready for shooting)",
+    "film_pipeline.py lines 166-255: generate_cast_proposals uses variable agents (1-5) and candidates per agent (1-3)",
+    "film_pipeline.py line 496: Speed-up cost correctly calculated as len(pending) * 5000",
+    "ActingSchool.jsx line 174, 192-194: Counter displays 'X occupati / Y disponibili' format",
+    "FilmPipeline.jsx lines 408-412: Speed-up button shows dollar cost from backend calculation"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bugfixes_iter76.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (all 5 bug fixes verified via UI)"
+  },
+  "test_credentials": {
+    "email": "fandrex1@gmail.com",
+    "password": "Ciaociao1"
+  },
+  "seed_data_creation": "Test film 'Test Agenti Variabili' was pre-existing from main agent context",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 bug fixes verified working: (1) Dashboard shows nickname in welcome, production_house_name as subtitle (2) Production Studio Post-Production shows pipeline films in pre_production status, not released films (3) Casting has variable agents per role (1-5 agents, each bringing 1-3 candidates) (4) Casting speed-up cost is $5,000 per pending proposal (5) Acting School shows 'X occupati / Y disponibili' counter format. User has 2 films in casting phase: 'Test Agenti Variabili' and 'La Vendetta del Drago Rosso'.",
+  "verified_bug_fixes": {
+    "bug_1_dashboard_nickname": "FIXED - Welcome shows 'NeoMorpheus' (nickname), subtitle shows 'Anacapito Studio's' (production_house_name)",
+    "bug_2_post_production_query": "FIXED - Queries film_projects with status 'pre_production' instead of films 'in_theaters'",
+    "bug_3_variable_casting_agents": "FIXED - Each role has different agent counts (1-5 agents per role, 1-3 candidates each)",
+    "bug_4_speedup_cost_5k": "FIXED - Cost is $5,000 per pending (2 pending = $10K, 8 pending = $40K)",
+    "bug_5_acting_school_counter": "FIXED - Shows 'occupati / disponibili' format in header and casting students section"
+  }
+}

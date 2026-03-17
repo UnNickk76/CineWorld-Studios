@@ -408,7 +408,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                                 <Button size="sm" className="h-5 px-1.5 text-[9px] bg-yellow-600 hover:bg-yellow-700"
                                   disabled={actionLoading === `speed-${f.id}-${role}`}
                                   onClick={() => speedUp(f.id, role)}>
-                                  <Zap className="w-2.5 h-2.5 mr-0.5" /> Sblocca ({pending.length})
+                                  <Zap className="w-2.5 h-2.5 mr-0.5" /> Sblocca (${(pending.length * 5000).toLocaleString()})
                                 </Button>
                               )}
                             </div>
@@ -440,7 +440,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                         {!selected && pending.length > 0 && available.length === 0 && (
                           <div className="flex items-center gap-1.5 p-2 text-[10px] text-gray-500">
                             <Clock className="w-3 h-3 animate-pulse text-yellow-500" />
-                            {pending.length} agenti in arrivo...
+                            {pending.length} {pending.length === 1 ? 'agente in arrivo' : 'agenti in arrivo'}...
                           </div>
                         )}
                       </div>

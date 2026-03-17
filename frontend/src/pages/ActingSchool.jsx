@@ -171,7 +171,7 @@ const ActingSchool = () => {
               {status.school_name}
             </h1>
             <p className="text-xs text-gray-400">
-              Livello {status.school_level} &bull; {status.available_slots}/{status.max_slots} slot disponibili
+              Livello {status.school_level} &bull; {status.training_count} occupati / {status.available_slots} disponibili
             </p>
           </div>
           <Badge variant="outline" className="border-yellow-500/40 text-yellow-400">
@@ -190,7 +190,7 @@ const ActingSchool = () => {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Badge className="bg-cyan-500/20 text-cyan-400 text-[10px]">
-                    {castingStudents.used}/{castingStudents.capacity} posti
+                    {castingStudents.used} occupati / {castingStudents.capacity - castingStudents.used} disponibili
                   </Badge>
                   <Badge className="bg-gray-700 text-gray-300 text-[10px]">
                     Costo: ${(castingStudents.daily_cost || 0).toLocaleString()}/giorno

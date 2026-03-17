@@ -279,12 +279,12 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
             <Wand2 className="w-4 h-4" /> Post-Produzione / Remaster
           </h4>
           <p className="text-[10px] text-gray-500">
-            Migliora film già rilasciati. +{studioData.post_production.remaster_quality_bonus} qualità | 
+            Film pronti al rilascio. +{studioData.post_production.remaster_quality_bonus} qualita | 
             Costo: ${studioData.post_production.remaster_cost?.toLocaleString()} + {studioData.post_production.remaster_cinepass} CP
           </p>
           
           {studioData.released_films?.length === 0 ? (
-            <p className="text-center text-gray-500 text-xs py-4">Nessun film da rimasterizzare</p>
+            <p className="text-center text-gray-500 text-xs py-4">Nessun film pronto per il rilascio</p>
           ) : (
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {studioData.released_films?.map(film => (
@@ -292,7 +292,7 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
                   <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=60'} alt="" className="w-8 h-10 rounded object-cover" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">{film.title}</p>
-                    <p className="text-[10px] text-gray-500">Q: {(film.quality_score || 0).toFixed(0)}% | ${(film.total_revenue || 0).toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">Pre-IMDb: {(film.pre_imdb_score || 0).toFixed(1)} | {film.genre}</p>
                   </div>
                   <Button
                     size="sm"

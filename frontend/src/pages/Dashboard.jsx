@@ -356,7 +356,7 @@ const Dashboard = () => {
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
         <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
-          {t('welcome')}, <span className="text-yellow-500">{user?.production_house_name || user?.nickname}</span>
+          {t('welcome')}, <span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
         </h1>
         <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
       </motion.div>

@@ -9884,9 +9884,10 @@ async def get_production_studio_status(user: dict = Depends(get_current_user)):
         {'user_id': user['id'], 'status': 'pending_release'}, {'_id': 0}
     ).sort('created_at', -1).to_list(20)
     
-    released_films = await db.films.find(
-        {'user_id': user['id'], 'status': 'in_theaters', 'remastered': {'$ne': True}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'quality_score': 1, 'genre': 1, 'total_revenue': 1}
+    released_films = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'pre_production'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pre_imdb_score': 1, 'genre': 1, 
+         'remaster_completed': 1, 'remaster_started_at': 1, 'remaster_quality_boost': 1}
     ).sort('created_at', -1).limit(10).to_list(10)
     
     return {

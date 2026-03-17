@@ -173,9 +173,22 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'fame': 1, 'total_xp': 1})
     fame = user.get('fame', 50) if user else 50
 
-    # Number of proposals: higher IMDb + fame = more proposals
-    num_proposals = 2 + int(pre_imdb / 3) + int(fame / 100)
-    num_proposals = min(num_proposals, 6)
+    # Number of agents varies per role (variable, not fixed!)
+    base_agents = 1 + int(pre_imdb / 4) + int(fame / 150)
+    # Role-specific variation
+    role_bonus = {'directors': random.randint(0, 1), 'screenwriters': random.randint(0, 1),
+                  'actors': random.randint(1, 3), 'composers': random.randint(0, 1)}
+    num_agents = base_agents + role_bonus.get(role_type, 0)
+    num_agents = max(1, min(num_agents, 5))
+
+    # Each agent brings 1-3 candidates
+    total_candidates = 0
+    agent_batches = []
+    for _ in range(num_agents):
+        candidates_per_agent = random.randint(1, 3) if role_type == 'actors' else random.randint(1, 2)
+        agent_batches.append(candidates_per_agent)
+        total_candidates += candidates_per_agent
+    total_candidates = min(total_candidates, 8)
 
     # Determine people type
     people_type = role_type
@@ -191,50 +204,57 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     # Get random people from DB
     people = await db.people.aggregate([
         {'$match': {'type': people_type}},
-        {'$sample': {'size': num_proposals * 2}},
+        {'$sample': {'size': total_candidates * 2}},
         {'$project': {'_id': 0, 'id': 1, 'name': 1, 'skills': 1, 'fame': 1, 'category': 1,
                        'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
                        'imdb_rating': 1, 'films_count': 1}}
-    ]).to_list(num_proposals * 2)
+    ]).to_list(total_candidates * 2)
 
     # Sort by quality and take the appropriate number
     people.sort(key=lambda p: p.get('fame', 0), reverse=True)
 
     # Higher IMDb films attract better candidates
     if pre_imdb >= 8:
-        selected = people[:num_proposals]  # Best candidates
+        selected = people[:total_candidates]  # Best candidates
     elif pre_imdb >= 6:
-        selected = people[1:num_proposals + 1]  # Good candidates
+        selected = people[1:total_candidates + 1]  # Good candidates
     else:
-        selected = people[num_proposals:][:num_proposals]  # Worse candidates
+        selected = people[total_candidates:][:total_candidates]  # Worse candidates
 
     if not selected:
-        selected = people[:num_proposals]
+        selected = people[:total_candidates]
 
-    # Generate proposal timing based on pre-IMDb
+    # Generate proposal timing - grouped by agent
+    agent_names = [
+        "Agenzia Stella", "Management Rossa", "Talent Milano", "Star Agency",
+        "Cinema Partners", "Golden Cast", "Elite Agents", "Silver Screen Mgmt",
+        "Agenzia del Cinema", "World Talent Group"
+    ]
     proposals = []
-    for i, person in enumerate(selected):
-        # Base delay: lower IMDb = longer wait
-        base_minutes = max(5, (10 - pre_imdb) * 8)
-        delay_minutes = int(base_minutes + random.uniform(0, base_minutes * 0.5) + i * random.randint(3, 15))
+    candidate_idx = 0
+    for agent_idx, batch_size in enumerate(agent_batches):
+        # Base delay per agent
+        base_minutes = max(3, (10 - pre_imdb) * 6)
+        agent_delay = int(base_minutes + random.uniform(0, base_minutes * 0.4) + agent_idx * random.randint(5, 20))
 
-        # Agent name
-        agent_names = [
-            "Agenzia Stella", "Management Rossa", "Talent Milano", "Star Agency",
-            "Cinema Partners", "Golden Cast", "Elite Agents", "Silver Screen Mgmt",
-            "Agenzia del Cinema", "World Talent Group"
-        ]
+        agent_name = random.choice(agent_names)
 
-        proposals.append({
-            'id': str(uuid.uuid4()),
-            'person': person,
-            'agent_name': random.choice(agent_names),
-            'delay_minutes': delay_minutes,
-            'available_at': None,  # Will be set when casting starts
-            'status': 'pending',  # pending, available, accepted, rejected
-            'cost': person.get('cost_per_film', 50000),
-            'negotiable': random.random() < 0.3,  # 30% chance of negotiation
-        })
+        for j in range(batch_size):
+            if candidate_idx >= len(selected):
+                break
+            person = selected[candidate_idx]
+            candidate_idx += 1
+
+            proposals.append({
+                'id': str(uuid.uuid4()),
+                'person': person,
+                'agent_name': agent_name,
+                'delay_minutes': agent_delay + j * random.randint(0, 3),  # Same agent, slight variation
+                'available_at': None,
+                'status': 'pending',
+                'cost': person.get('cost_per_film', 50000),
+                'negotiable': random.random() < 0.3,
+            })
 
     return proposals
 
@@ -472,8 +492,8 @@ async def speed_up_casting(project_id: str, req: CastSpeedUpRequest, user: dict 
     if not pending:
         return {'message': 'Nessuna proposta in attesa', 'cost': 0}
 
-    # Cost: proportional to number of pending and pre-IMDb
-    cost = len(pending) * 15000
+    # Cost: reduced proportional to number of pending
+    cost = len(pending) * 5000
     if user.get('funds', 0) < cost:
         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
 

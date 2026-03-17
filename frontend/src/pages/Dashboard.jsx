@@ -67,6 +67,7 @@ const Dashboard = () => {
   const [releaseSuccess, setReleaseSuccess] = useState(null);
   // Shooting system
   const [shootingFilms, setShootingFilms] = useState([]);
+  const [pipelineCount, setPipelineCount] = useState(0);
   const [shootingPopup, setShootingPopup] = useState(null);
   const [shootingDays, setShootingDays] = useState(5);
   const [shootingConfig, setShootingConfig] = useState(null);
@@ -236,6 +237,13 @@ const Dashboard = () => {
         try {
           const shootRes = await api.get('/films/shooting');
           setShootingFilms(shootRes.data?.films || []);
+        } catch {}
+        // Fetch pipeline active film count for Produci! badge
+        try {
+          const pipeRes = await api.get('/film-pipeline/counts');
+          const d = pipeRes.data;
+          const total = (d.proposed || 0) + (d.casting || 0) + (d.screenplay || 0) + (d.pre_production || 0) + (d.shooting || 0);
+          setPipelineCount(total);
         } catch {}
         // Fetch shooting config
         try {
@@ -875,10 +883,11 @@ const Dashboard = () => {
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Festival' : 'Festivals'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Premi cinema' : 'Awards'}</p></div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer" onClick={() => navigate('/create-film')}>
+        <Card className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/20 cursor-pointer relative" onClick={() => navigate('/create-film')}>
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
             <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-lg"><Clapperboard className="w-4 h-4 sm:w-5 sm:h-5 text-black" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>
+            {pipelineCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">{pipelineCount}</span>}
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border-emerald-500/20 cursor-pointer relative" onClick={() => navigate('/emerging-screenplays')} data-testid="emerging-screenplays-card">

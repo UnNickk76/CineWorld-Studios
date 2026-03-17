@@ -356,6 +356,11 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
           <Globe className="w-2.5 h-2.5" />{person.nationality}
         </span>
       )}
+      {person?.imdb_rating != null && (
+        <Badge className="text-[8px] h-4 bg-yellow-500/20 text-yellow-400 font-bold">
+          <Star className="w-2.5 h-2.5 mr-0.5 fill-yellow-400" />{person.imdb_rating.toFixed(1)}
+        </Badge>
+      )}
       {person?.fame_category && <FameLabel fameCategory={person.fame_category} fameLabel={person.fame_label} />}
       {person?.growth_trend && <GrowthTrend trend={person.growth_trend} />}
       {person?.has_worked_with_player && (

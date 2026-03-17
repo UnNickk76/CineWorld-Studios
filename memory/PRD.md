@@ -109,10 +109,20 @@
 6. **Box Office film query**: Aggiunto status `in_theaters` alla query
 - Test: 100% backend + frontend verificato
 
+### Navigazione e UI Rinnovata (17 Mar 2026)
+- **"Produci!"** sostituisce "Crea Film" in nav bar (top + card dashboard) con icona Clapperboard
+- Menu a tendina (Select dropdown) per genere e sottogenere nella pipeline (sostituiti bottoni griglia)
+- Card "IN ATTESA" rimossa dalla dashboard (funzionalità inclusa nella pipeline)
+- Card "CIAK!" aggiornata: naviga a `/create-film?tab=shooting` (link diretto al tab riprese)
+- Vecchio FilmWizard (`/create`) ora reindirizza a FilmPipeline
+- Tutti i link `navigate('/create')` aggiornati a `navigate('/create-film')`
+- Supporto query param `?tab=` nella FilmPipeline per navigazione diretta ai tab
+- Test: 100% frontend verificato (9/9 test)
+
 ## Task Prossimi
-- Acting School Potenziata (età attori, sezione dedicata, miglioramento skill, diploma)
-- Sistema ruoli Admin (RBAC)
+- **Fase 3 Pipeline Film**: Marketplace Film Scartati, Fattori Nascosti Avanzati, Speed-Up "Ciak! Si Gira!"
 - Layout mobile pagina Contest
+- Sistema ruoli Admin (RBAC)
 
 ## Backlog
 - Ulteriore refactoring server.py (ancora 11,608 righe - estrarre film routes, admin, AI, users)

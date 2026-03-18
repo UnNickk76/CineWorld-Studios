@@ -48,13 +48,26 @@ Cinematic empire game where players build film studios, produce films, hire cast
 
 ---
 
+### Session 5 (March 18)
+- **"I Miei Film" Popup Menu:** Bottom nav "I Miei" button opens popup with 3 options (Film, Serie TV, Anime)
+- **MyFilms.jsx Refactored:** Handles `?view=` parameter (film/series/anime) for dynamic content display
+- **Release/System Notes Updated** in backend
+
+### Session 6 (March 18)
+- **Removed "FILM IN ATTESA DI RILASCIO" card** from Dashboard (user request - no longer needed)
+- **Verified all untested Session 5 features** via testing agent (100% pass rate, iteration_92)
+
 ## COMPLETED P0/P1 TASKS
-- [x] Production Menu UI
+- [x] Production Menu UI (5 buttons)
 - [x] TV Series Pipeline
 - [x] Anime Pipeline
 - [x] Sequel Pipeline (saga bonus + fatigue)
 - [x] CineBoard Series/Anime Trend Classifiche
+- [x] CineBoard Popup Menu (Film, Serie TV, Anime)
 - [x] Emittente TV Broadcast System
+- [x] "I Miei Film" Popup Menu (Film, Serie TV, Anime)
+- [x] MyFilms.jsx dynamic view (?view= parameter)
+- [x] Dashboard cleanup (removed pending films card)
 
 ## Remaining Tasks
 

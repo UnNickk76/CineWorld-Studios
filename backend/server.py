@@ -1371,6 +1371,23 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user = await db.users.find_one({'id': payload['user_id']}, {'_id': 0})
         if not user:
             raise HTTPException(status_code=401, detail="Utente non trovato")
+        
+        # Update last_active and online_users (throttled: max once per minute)
+        now = datetime.now(timezone.utc)
+        uid = user['id']
+        last_seen = online_users.get(uid, {}).get('last_seen', '')
+        should_update = True
+        if last_seen:
+            try:
+                ls = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                should_update = (now - ls).total_seconds() > 60
+            except Exception:
+                pass
+        if should_update:
+            now_iso = now.isoformat()
+            online_users[uid] = {'last_seen': now_iso, 'nickname': user.get('nickname', '')}
+            await db.users.update_one({'id': uid}, {'$set': {'last_active': now_iso}})
+        
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token scaduto")
@@ -8081,20 +8098,59 @@ async def get_all_users(user: dict = Depends(get_current_user)):
 
 @api_router.get("/users/all-players")
 async def get_all_players(user: dict = Depends(get_current_user)):
-    """Get all players (for online/offline list) with online status."""
+    """Get all players with online/recently-active/offline status."""
+    now = datetime.now(timezone.utc)
     all_users = await db.users.find(
         {'id': {'$ne': user['id']}},
         {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'accept_offline_challenges': 1, 'last_active': 1}
     ).limit(200).to_list(200)
     
     for u in all_users:
-        u['is_online'] = u['id'] in online_users
-        # Ensure last_active is always present (None if not set)
-        if 'last_active' not in u:
-            u['last_active'] = None
+        user_id = u['id']
+        # Check in-memory online tracking
+        if user_id in online_users:
+            last_seen_str = online_users[user_id].get('last_seen', '')
+            try:
+                last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                seconds_ago = (now - last_seen).total_seconds()
+            except Exception:
+                seconds_ago = 9999
+            
+            if seconds_ago < 300:  # Active in last 5 minutes
+                u['online_status'] = 'online'
+                u['is_online'] = True
+            elif seconds_ago < 600:  # Active 5-10 minutes ago
+                u['online_status'] = 'recently'
+                u['is_online'] = False
+            else:
+                u['online_status'] = 'offline'
+                u['is_online'] = False
+        else:
+            # Check DB last_active field
+            last_active = u.get('last_active')
+            if last_active:
+                try:
+                    la = datetime.fromisoformat(str(last_active).replace('Z', '+00:00'))
+                    seconds_ago = (now - la).total_seconds()
+                    if seconds_ago < 300:
+                        u['online_status'] = 'online'
+                        u['is_online'] = True
+                    elif seconds_ago < 600:
+                        u['online_status'] = 'recently'
+                        u['is_online'] = False
+                    else:
+                        u['online_status'] = 'offline'
+                        u['is_online'] = False
+                except Exception:
+                    u['online_status'] = 'offline'
+                    u['is_online'] = False
+            else:
+                u['online_status'] = 'offline'
+                u['is_online'] = False
     
-    # Sort: online first, then alphabetically
-    all_users.sort(key=lambda x: (not x['is_online'], x.get('nickname', '').lower()))
+    # Sort: online first, then recently, then offline
+    status_order = {'online': 0, 'recently': 1, 'offline': 2}
+    all_users.sort(key=lambda x: (status_order.get(x.get('online_status', 'offline'), 2), x.get('nickname', '').lower()))
     
     return all_users
 
@@ -8124,10 +8180,10 @@ async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_u
     
     # Calculate detailed stats
     total_films = len(all_films)
-    total_revenue = sum(f.get('revenue', 0) for f in all_films)
-    total_likes = sum(f.get('likes', 0) for f in all_films)
-    total_views = sum(f.get('views', 0) for f in all_films)
-    avg_quality = sum(f.get('quality_score', 0) for f in all_films) / total_films if total_films > 0 else 0
+    total_revenue = sum(f.get('total_revenue', f.get('revenue', 0)) or 0 for f in all_films)
+    total_likes = sum(f.get('likes_count', f.get('likes', 0)) or 0 for f in all_films)
+    total_views = sum(f.get('views', 0) or 0 for f in all_films)
+    avg_quality = sum(f.get('quality_score', f.get('quality', 0)) or 0 for f in all_films) / total_films if total_films > 0 else 0
     
     # Genre breakdown
     genre_counts = {}
@@ -8183,8 +8239,11 @@ async def get_chat_rooms(user: dict = Depends(get_current_user)):
         other_id = next((pid for pid in room['participant_ids'] if pid != user['id']), None)
         if other_id:
             other_user = await db.users.find_one({'id': other_id}, {'_id': 0, 'password': 0, 'email': 0})
-            room['other_user'] = other_user
-            room['other_user']['is_online'] = other_id in online_users
+            if other_user:
+                room['other_user'] = other_user
+                room['other_user']['is_online'] = other_id in online_users
+            else:
+                room['other_user'] = {'nickname': 'Utente rimosso', 'is_online': False}
         
         # Get last message
         last_msg = await db.chat_messages.find_one(

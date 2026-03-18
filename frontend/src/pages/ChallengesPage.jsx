@@ -131,8 +131,8 @@ const ChallengesPage = () => {
       const res = await api.get('/users/all-players');
       const players = Array.isArray(res.data) ? res.data : [];
       const others = players.filter(p => p.id !== user?.id);
-      setOnlinePlayers(others.filter(p => p.is_online));
-      setOfflinePlayersList(others.filter(p => !p.is_online));
+      setOnlinePlayers(others.filter(p => p.online_status === 'online'));
+      setOfflinePlayersList(others.filter(p => p.online_status !== 'online'));
     } catch (e) { 
       setOnlinePlayers([]); 
       setOfflinePlayersList([]); 
@@ -948,8 +948,9 @@ const ChallengesPage = () => {
                           <p className="text-sm font-semibold">{p.nickname}</p>
                           <p className="text-[10px] text-gray-400">{p.production_house_name}</p>
                         </div>
-                        <Badge className={`text-[10px] ${p.is_online ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                          {p.is_online ? 'Online' : timeAgo(p.last_active) || 'Offline'}
+                        <Badge className={`text-[10px] ${p.online_status === 'online' ? 'bg-green-500/20 text-green-400' : p.online_status === 'recently' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                          <span className={`inline-block w-2 h-2 rounded-full mr-1 ${p.online_status === 'online' ? 'bg-green-400 animate-pulse' : p.online_status === 'recently' ? 'bg-yellow-400' : 'bg-gray-500'}`}></span>
+                          {p.online_status === 'online' ? 'Online' : p.online_status === 'recently' ? 'Recente' : timeAgo(p.last_active) || 'Offline'}
                         </Badge>
                       </div>
                     ))}
@@ -1172,7 +1173,10 @@ const ChallengesPage = () => {
                       <p className="text-sm font-semibold">{p.nickname}</p>
                       <p className="text-[10px] text-gray-400">{p.production_house_name} {p.level ? `• Lv.${p.level}` : ''}</p>
                     </div>
-                    <Badge className="bg-gray-500/20 text-gray-400 text-[10px]">{timeAgo(p.last_active) || 'Offline'}</Badge>
+                    <Badge className={`text-[10px] ${p.online_status === 'recently' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full mr-1 ${p.online_status === 'recently' ? 'bg-yellow-400' : 'bg-gray-500'}`}></span>
+                      {p.online_status === 'recently' ? 'Recente' : timeAgo(p.last_active) || 'Offline'}
+                    </Badge>
                     {opponentId === p.id && <CheckCircle className="w-5 h-5 text-cyan-400" />}
                   </div>
                 ))}
@@ -1231,13 +1235,16 @@ const ChallengesPage = () => {
                   >
                     <div className="relative">
                       <Avatar className="w-9 h-9"><AvatarFallback className="bg-green-500/20 text-green-400 text-sm">{p.nickname?.[0]}</AvatarFallback></Avatar>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0D0D0D]"></div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0D0D0D] animate-pulse"></div>
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{p.nickname}</p>
                       <p className="text-[10px] text-gray-400">{p.production_house_name} {p.level ? `• Lv.${p.level}` : ''}</p>
                     </div>
-                    <Badge className="bg-green-500/20 text-green-400 text-[10px]">Online</Badge>
+                    <Badge className="bg-green-500/20 text-green-400 text-[10px]">
+                      <span className="inline-block w-2 h-2 rounded-full mr-1 bg-green-400 animate-pulse"></span>
+                      Online
+                    </Badge>
                     {opponentId === p.id && <CheckCircle className="w-5 h-5 text-green-400" />}
                   </div>
                 ))}

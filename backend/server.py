@@ -15452,14 +15452,73 @@ async def accept_emerging_screenplay(
         {'$inc': {'total_xp': xp_reward}}
     )
     
-    # Return the screenplay data so frontend can navigate to wizard
+    # Create a film project in the pipeline pre-filled with screenplay data
+    import uuid as _uuid
+    from routes.film_pipeline import calculate_pre_imdb
+    
+    genre = screenplay.get('genre', 'drama')
+    title = screenplay.get('title', 'Film Senza Titolo')
+    subgenres = screenplay.get('subgenres', [screenplay.get('subgenre', '')])
+    pre_screenplay = screenplay.get('synopsis', screenplay.get('logline', ''))
+    locations = screenplay.get('locations', [])
+    
+    # Calculate pre-IMDb
+    imdb_result = calculate_pre_imdb(title, genre, subgenres, pre_screenplay, locations if locations else ['Roma'])
+    
+    # Build location objects
+    from server import LOCATIONS
+    selected_locations = []
+    for loc_name in (locations if locations else ['Roma']):
+        loc = next((l for l in LOCATIONS if l['name'] == loc_name), {'name': loc_name, 'cost_per_day': 50000, 'category': 'other'})
+        selected_locations.append(loc)
+    
+    project_id = str(_uuid.uuid4())
+    now_str = datetime.now(timezone.utc).isoformat()
+    
+    project = {
+        'id': project_id,
+        'user_id': user['id'],
+        'status': 'proposed',
+        'title': title,
+        'genre': genre,
+        'subgenres': subgenres,
+        'subgenre': subgenres[0] if subgenres else '',
+        'pre_screenplay': pre_screenplay,
+        'locations': selected_locations,
+        'location': selected_locations[0] if selected_locations else {},
+        'location_name': (locations[0] if locations else 'Roma'),
+        'pre_imdb_score': imdb_result['score'],
+        'pre_imdb_factors': imdb_result['factors'],
+        'hidden_factor': imdb_result['hidden_factor'],
+        'cast': {'director': None, 'screenwriter': None, 'actors': [], 'composer': None},
+        'cast_proposals': {},
+        'costs_paid': {'creation': cost},
+        'cinepass_paid': {},
+        'from_emerging_screenplay': True,
+        'emerging_screenplay_id': screenplay_id,
+        'emerging_option': option,
+        'created_at': now_str,
+        'updated_at': now_str
+    }
+    
+    # If full_package, also add the full screenplay text
+    if option == 'full_package' and screenplay.get('full_text'):
+        project['screenplay'] = screenplay['full_text']
+        project['screenplay_mode'] = 'emerging'
+    
+    await db.film_projects.insert_one(project)
+    project.pop('_id', None)
+    
+    # Return the project so frontend can navigate
     return {
         'success': True,
         'option': option,
         'cost': cost,
         'screenplay': screenplay,
+        'project': project,
+        'project_id': project_id,
         'xp_earned': xp_reward,
-        'message': f"Sceneggiatura acquistata! -{cost:,.0f}$"
+        'message': f"Sceneggiatura acquistata! -{cost:,.0f}$. Film '{title}' creato nella pipeline!"
     }
 
 

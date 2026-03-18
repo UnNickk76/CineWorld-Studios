@@ -5633,6 +5633,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.150', 'date': '2026-03-18', 'title': 'CineBoard: Classifiche Emittenti TV',
+     'changes': [
+         {'type': 'new', 'text': 'Classifica "Emittenti Piu Viste": top emittenti per spettatori di sempre'},
+         {'type': 'new', 'text': 'Classifica "Share Settimanale": top emittenti per share della settimana'},
+         {'type': 'new', 'text': 'Classifica "Share Giornaliero": share live aggiornato ogni 5 minuti'},
+         {'type': 'new', 'text': 'Sezione "Emittenti TV" nel popup CineBoard con 3 opzioni di classifica'},
+         {'type': 'improvement', 'text': 'Tab rapidi nella pagina classifica per passare tra Di Sempre, Settimanale, Giornaliero'},
+     ]},
     {'version': '0.149', 'date': '2026-03-18', 'title': 'Emittenti TV: Sistema Completo Netflix-Style',
      'changes': [
          {'type': 'new', 'text': 'Acquisto multiplo Emittenti TV: costi, livello e fama crescono esponenzialmente'},
@@ -6353,18 +6361,23 @@ async def add_release_note(version: str, title: str, changes: list):
     return True
 
 DEFAULT_SYSTEM_NOTES = [
+    {'title': 'CineBoard: Classifiche Emittenti TV', 'content': "Nuove classifiche per le Emittenti TV!\n\n• Emittenti Più Viste di Sempre: chi ha raggiunto più spettatori in totale\n• Share Settimanale: top emittenti per share della settimana\n• Share Giornaliero: classifica live aggiornata ogni 5 minuti\n\nAccedi dal popup CineBoard nella navbar superiore. Chi ha lo share più alto domina la classifica!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Emittenti TV: Il Tuo Canale Netflix!', 'content': "Il sistema Emittenti TV è stato completamente rinnovato!\n\n• Puoi comprare più emittenti TV (costi crescono esponenzialmente)\n• Setup in 2 step: scegli un nome (permanente!) e la nazione, poi configura la pubblicità\n• Dashboard TV stile Netflix con sezioni Consigliati, Del Momento, I Più Visti\n• Slider pubblicità: più secondi = più incasso ma meno share\n• I film si possono inserire solo dopo la fine del cinema\n• Serie TV e Anime sempre inseribili\n• Revenue automatico ogni ora basato su qualità e share\n• Requisiti ridotti: Studio Serie TV e Anime -40%, Emittente TV -60%\n• Pagina pubblica per vedere tutte le emittenti dei giocatori\n• Nuovo tasto \"Le Mie TV!\" sulla Dashboard", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Dashboard Rinnovata', 'content': "La Dashboard è stata completamente rinnovata!\n\n• Ultimi Aggiornamenti: mostra le 5 produzioni più recenti di TUTTI i giocatori con locandina e produttore\n• I Miei Film: 5 locandine in fila unica ottimizzata per mobile con \"Vedi Tutti\"\n• Le Mie Serie TV: 5 locandine con link a \"Vedi Tutti\"\n• I Miei Anime: 5 locandine con link a \"Vedi Tutti\"\n• Layout più compatto e informativo", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Fix Sfide Online 1v1', 'content': "Risolto un bug importante nelle sfide online!\n\n• Il popup \"Sfida Ricevuta\" ora porta direttamente alla selezione film per accettare\n• Il pulsante \"Unisciti\" nelle sfide in attesa ora funziona correttamente\n• Cliccando la notifica sfida si apre il flusso di accettazione\n• Le notifiche sfida vengono controllate ogni 30 secondi anche senza refresh\n• Nuova UI: banner \"Sei stato sfidato!\" e pulsante \"ACCETTA SFIDA!\" differenziato", 'category': 'bugfix', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Emittente TV: Live Ratings & Storico Episodi', 'content': "La tua emittente televisiva è stata potenziata!\n\n• Live Ratings: audience in tempo reale con aggiornamento automatico ogni 5 secondi\n• Sparkline animata per ogni broadcast attivo\n• Share % e indicatore trend (crescita/calo/stabile)\n• Sistema Momentum: serie di qualità guadagnano pubblico episodio dopo episodio\n• Storico Episodi: clicca su un broadcast per vedere il grafico audience, dettaglio per episodio, analytics (picco, media, ricavi)\n• Banner LIVE con stats della rete completi", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Dashboard Semplificata', 'content': "La Dashboard è stata ripulita!\n\n• Rimossa la sezione 'Film in Attesa di Rilascio' dalla Dashboard\n• I film in attesa si gestiscono ora direttamente dalla Pipeline di Produzione (pulsante Produci!)\n• Layout più pulito e veloce da consultare", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
     {'title': 'Serie TV, Anime, Sequel e Emittente TV!', 'content': "Aggiornamento massiccio! Ora puoi produrre molto di più:\n\n• SERIE TV: 10 generi disponibili (Drama, Crime, Thriller...), pipeline completa con casting, sceneggiatura AI e produzione\n• ANIME: 8 generi unici (Shonen, Seinen, Shojo, Mecha, Isekai...), costi ridotti ma tempi più lunghi\n• SEQUEL: pipeline ridotta con cast ereditato (sconto 30%), bonus saga crescente fino a +15%\n• EMITTENTE TV: assegna le tue serie a 3 fasce orarie (Daytime, Prime Time, Late Night) e guadagna ricavi pubblicitari!\n\nSblocca lo Studio Serie TV e lo Studio Anime dalla sezione Infrastrutture. Il pulsante Produci! ora mostra 5 opzioni.\n\nNuove classifiche CineBoard per Serie TV e Anime (trend settimanale)!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'Nuova Pipeline di Produzione Cinematografica!', 'content': 'Il sistema di creazione film e stato completamente rinnovato! Ora troverai il nuovo pulsante Produci! nella barra di navigazione. La produzione si divide in 6 fasi: Creazione, Proposte, Casting, Sceneggiatura, Pre-Produzione e Riprese. Ogni fase ha il suo tab dedicato con badge conteggio. I generi e sottogeneri si selezionano ora con pratici menu a tendina. La card CIAK! in dashboard ti porta direttamente alle riprese in corso. Buona produzione!', 'category': 'update', 'priority': 'high', 'author': "Anacapito Studio's"},
-    {'title': 'Dashboard Semplificata', 'content': "La Dashboard è stata ripulita!\n\n• Rimossa la sezione 'Film in Attesa di Rilascio' dalla Dashboard\n• I film in attesa si gestiscono ora direttamente dalla Pipeline di Produzione (pulsante Produci!)\n• Layout più pulito e veloce da consultare", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
     {'title': 'Bug Fix - Studio di Produzione', 'content': 'Risolti diversi bug importanti:\n\n- Studio di Produzione: i 3 pannelli (Pre-Produzione, Post-Produzione, Agenzia Casting) ora si aprono correttamente\n- Agenzia Casting: corretti i nomi dei talenti che apparivano come "Unknown"\n- Aggiunto pulsante "Porta in Studio di Produzione" nel popup distribuzione', 'category': 'bugfix', 'priority': 'normal', 'author': "Anacapito Studio's"},
-    {'title': 'Cast Filtrato per Livello e Fama', 'content': 'Importante cambiamento nel bilanciamento del gioco!\n\nOra il cast disponibile durante la creazione film dipende dal tuo livello e dalla tua fama:\n\n- Livello 1-9: accesso ad attori 1 stella\n- Livello 10-19: fino a 2 stelle\n- Livello 20-29: fino a 3 stelle\n- Livello 30-39: fino a 4 stelle\n- Livello 40+: accesso completo a 5 stelle\n\nAnche la fama del tuo studio influenza quali talenti accettano di lavorare con te.\n\nQuesto rende la progressione pi\u00f9 significativa: salire di livello sblocca cast migliori e film di qualit\u00e0 superiore!', 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
-    {'title': 'Agenzia Casting Potenziata', 'content': "L'Agenzia Casting dello Studio di Produzione \u00e8 stata completamente rinnovata!\n\nNovit\u00e0:\n- I talenti ora hanno nomi reali in base alla nazionalit\u00e0\n- Cliccando su un talento si apre un popup con due scelte:\n  1. Usa Subito: il talento entra nel tuo Cast Personale ed \u00e8 subito disponibile per i film\n  2. Invia alla Scuola di Recitazione: il talento parte con skill gi\u00e0 avanzate e migliora nel tempo\n\nStrategia: i talenti leggendari sono rari ma potentissimi. Ingaggiarli subito costa di pi\u00f9 ma hai un attore top immediato. Inviarli a scuola \u00e8 un investimento a lungo termine!\n\nAttenzione: puoi ingaggiare ogni talento solo una volta a settimana.", 'category': 'feature', 'priority': 'normal', 'author': "Anacapito Studio's"},
-    {'title': 'Nuovo Sistema Riprese Film - Ciak, si Gira!', 'content': "Grande novit\u00e0! Ora puoi girare i tuoi film prima di rilasciarli!\n\nCome funziona:\n1. Crea un film come sempre\n2. Nel popup di distribuzione, scegli:\n   - Rilascio Diretto: costo ridotto del 30%, ma qualit\u00e0 limitata a 5.8 IMDb e incassi ridotti\n   - Inizia le Riprese: scegli da 1 a 10 giorni di riprese\n\nBonus Riprese:\n- 1 giorno: +10% qualit\u00e0\n- 3 giorni: +18%\n- 5 giorni: +25%\n- 7 giorni: +32%\n- 10 giorni: +40%\n\nDurante le riprese accadono eventi casuali ogni giorno:\n- Giornata Perfetta (+2%)\n- Improvvisazione Geniale (+3%)\n- Ispirazione Creativa (+2%)\n- Ritardo Meteo (-1%)\n- E altri...\n\nPuoi chiudere anticipatamente le riprese pagando CinePass (2 \u00d7 giorni mancanti).\n\nTroverai il nuovo pulsante \"Ciak!\" nella Dashboard per monitorare i progressi!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
-    {'title': 'Tutorial Aggiornato - 16 Step Completi', 'content': "Il tutorial \u00e8 stato completamente aggiornato con tutti i nuovi contenuti!\n\nNovit\u00e0 nel tutorial:\n\u2022 Step 2 ora include tutti i 12 passaggi dettagliati della creazione film\n\u2022 Step 3 spiega il sistema di distribuzione con costi e zone\n\u2022 Nuovo Step 12 dedicato allo Studio di Produzione\n\u2022 Totale: 16 step completi per padroneggiare il gioco\n\nConsigliamo ai nuovi giocatori di leggerlo tutto per capire al meglio le meccaniche!", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
-    {'title': 'Bozze Sceneggiatura - Crea Film Gratis!', 'content': "Novit\u00e0 nello Studio di Produzione! Ora puoi generare Bozze Sceneggiatura con intelligenza artificiale.\n\nCome funziona:\n1. Vai nel tuo Studio di Produzione > Pre-Produzione\n2. Scegli il genere e un titolo opzionale\n3. La AI generer\u00e0 titolo, sinossi e sottogeneri\n\nVantaggi delle bozze:\n\u2022 CinePass GRATIS quando crei il film con la bozza\n\u2022 Bonus qualit\u00e0 da +4% a +13% in base al livello dello studio\n\u2022 Titolo, genere e sceneggiatura pre-compilati nel Film Wizard\n\nPuoi tenere fino a 3 + livello bozze attive. Strategia: genera le bozze prima di creare i tuoi film per massimizzare la qualit\u00e0 e risparmiare CinePass!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
-    {'title': 'Studio di Produzione - Ora Disponibile!', 'content': "Lo Studio di Produzione \u00e8 finalmente operativo! Una volta acquistato (livello 15), avrai accesso a 3 potenti funzionalit\u00e0:\n\n\u2022 Pre-Produzione: Applica bonus ai tuoi film in attesa di rilascio. Storyboard aumenta la qualit\u00e0, Casting Interno riduce i costi degli attori, e Scouting riduce i costi delle location.\n\n\u2022 Post-Produzione: Rimasterizza i film gi\u00e0 rilasciati per migliorare qualit\u00e0 e rating IMDb.\n\n\u2022 Agenzia Casting: Ogni settimana troverai un pool esclusivo di talenti scontati fino al 40%! Con un po di fortuna, potresti trovare attori leggendari.\n\nPi\u00f9 sali di livello con lo studio, maggiori saranno i bonus!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
-    {'title': 'Fix Sfide 1v1', 'content': 'Risolto il bug che non assegnava i +2 CinePass dopo una vittoria nelle sfide offline. Ridotte anche le probabilit\u00e0 di pareggio nelle skill battle.', 'category': 'bugfix', 'priority': 'normal', 'author': "Anacapito Studio's"},
-    {'title': 'Sistema Distribuzione Film', 'content': 'Novit\u00e0! Ora i film non escono pi\u00f9 automaticamente. Dopo la creazione, scegli dove distribuirli: Nazionale, Continentale o Mondiale. Ogni zona ha costi e ricavi diversi!', 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Cast Filtrato per Livello e Fama', 'content': 'Importante cambiamento nel bilanciamento del gioco!\n\nOra il cast disponibile durante la creazione film dipende dal tuo livello e dalla tua fama:\n\n- Livello 1-9: accesso ad attori 1 stella\n- Livello 10-19: fino a 2 stelle\n- Livello 20-29: fino a 3 stelle\n- Livello 30-39: fino a 4 stelle\n- Livello 40+: accesso completo a 5 stelle\n\nAnche la fama del tuo studio influenza quali talenti accettano di lavorare con te.\n\nQuesto rende la progressione piu significativa: salire di livello sblocca cast migliori e film di qualita superiore!', 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Agenzia Casting Potenziata', 'content': "L'Agenzia Casting dello Studio di Produzione e stata completamente rinnovata!\n\nNovita:\n- I talenti ora hanno nomi reali in base alla nazionalita\n- Cliccando su un talento si apre un popup con due scelte:\n  1. Usa Subito: il talento entra nel tuo Cast Personale ed e subito disponibile per i film\n  2. Invia alla Scuola di Recitazione: il talento parte con skill gia avanzate e migliora nel tempo\n\nStrategia: i talenti leggendari sono rari ma potentissimi. Ingaggiarli subito costa di piu ma hai un attore top immediato. Inviarli a scuola e un investimento a lungo termine!\n\nAttenzione: puoi ingaggiare ogni talento solo una volta a settimana.", 'category': 'feature', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Nuovo Sistema Riprese Film - Ciak, si Gira!', 'content': "Grande novita! Ora puoi girare i tuoi film prima di rilasciarli!\n\nCome funziona:\n1. Crea un film come sempre\n2. Nel popup di distribuzione, scegli:\n   - Rilascio Diretto: costo ridotto del 30%, ma qualita limitata a 5.8 IMDb e incassi ridotti\n   - Inizia le Riprese: scegli da 1 a 10 giorni di riprese\n\nBonus Riprese:\n- 1 giorno: +10% qualita\n- 3 giorni: +18%\n- 5 giorni: +25%\n- 7 giorni: +32%\n- 10 giorni: +40%\n\nDurante le riprese accadono eventi casuali ogni giorno:\n- Giornata Perfetta (+2%)\n- Improvvisazione Geniale (+3%)\n- Ispirazione Creativa (+2%)\n- Ritardo Meteo (-1%)\n- E altri...\n\nPuoi chiudere anticipatamente le riprese pagando CinePass (2 x giorni mancanti).\n\nTroverai il nuovo pulsante Ciak! nella Dashboard per monitorare i progressi!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Tutorial Aggiornato - 16 Step Completi', 'content': "Il tutorial e stato completamente aggiornato con tutti i nuovi contenuti!\n\nNovita nel tutorial:\n- Step 2 ora include tutti i 12 passaggi dettagliati della creazione film\n- Step 3 spiega il sistema di distribuzione con costi e zone\n- Nuovo Step 12 dedicato allo Studio di Produzione\n- Totale: 16 step completi per padroneggiare il gioco\n\nConsigliamo ai nuovi giocatori di leggerlo tutto per capire al meglio le meccaniche!", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Bozze Sceneggiatura - Crea Film Gratis!', 'content': "Novita nello Studio di Produzione! Ora puoi generare Bozze Sceneggiatura con intelligenza artificiale.\n\nCome funziona:\n1. Vai nel tuo Studio di Produzione > Pre-Produzione\n2. Scegli il genere e un titolo opzionale\n3. La AI generera titolo, sinossi e sottogeneri\n\nVantaggi delle bozze:\n- CinePass GRATIS quando crei il film con la bozza\n- Bonus qualita da +4% a +13% in base al livello dello studio\n- Titolo, genere e sceneggiatura pre-compilati nel Film Wizard\n\nPuoi tenere fino a 3 + livello bozze attive. Strategia: genera le bozze prima di creare i tuoi film per massimizzare la qualita e risparmiare CinePass!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Studio di Produzione - Ora Disponibile!', 'content': "Lo Studio di Produzione e finalmente operativo! Una volta acquistato (livello 15), avrai accesso a 3 potenti funzionalita:\n\n- Pre-Produzione: Applica bonus ai tuoi film in attesa di rilascio\n- Post-Produzione: Rimasterizza i film gia rilasciati per migliorare qualita e rating IMDb\n- Agenzia Casting: Ogni settimana troverai un pool esclusivo di talenti scontati fino al 40%!\n\nPiu sali di livello con lo studio, maggiori saranno i bonus!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Fix Sfide 1v1', 'content': 'Risolto il bug che non assegnava i +2 CinePass dopo una vittoria nelle sfide offline. Ridotte anche le probabilita di pareggio nelle skill battle.', 'category': 'bugfix', 'priority': 'normal', 'author': "Anacapito Studio's"},
+    {'title': 'Sistema Distribuzione Film', 'content': 'Novita! Ora i film non escono piu automaticamente. Dopo la creazione, scegli dove distribuirli: Nazionale, Continentale o Mondiale. Ogni zona ha costi e ricavi diversi!', 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
 ]
 
 async def initialize_system_notes():
@@ -14804,6 +14817,95 @@ async def get_cineboard_anime_weekly(user: dict = Depends(get_current_user)):
     return {'series': series}
 
 
+@api_router.get("/cineboard/tv-stations-alltime")
+async def get_cineboard_tv_stations_alltime(user: dict = Depends(get_current_user)):
+    """Top TV stations by total viewers of all time."""
+    stations = await db.tv_stations.find(
+        {'setup_complete': True},
+        {'_id': 0, 'id': 1, 'station_name': 1, 'nation': 1, 'user_id': 1, 'owner_nickname': 1,
+         'total_viewers': 1, 'total_revenue': 1, 'current_share': 1, 'contents': 1}
+    ).sort('total_viewers', -1).to_list(20)
+    
+    for i, s in enumerate(stations):
+        s['rank'] = i + 1
+        contents = s.get('contents', {})
+        s['content_count'] = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
+        del s['contents']
+    
+    return {'stations': stations}
+
+
+@api_router.get("/cineboard/tv-stations-weekly")
+async def get_cineboard_tv_stations_weekly(user: dict = Depends(get_current_user)):
+    """Top TV stations by weekly share (updated from last 7 days revenue)."""
+    stations = await db.tv_stations.find(
+        {'setup_complete': True},
+        {'_id': 0, 'id': 1, 'station_name': 1, 'nation': 1, 'user_id': 1, 'owner_nickname': 1,
+         'total_viewers': 1, 'total_revenue': 1, 'current_share': 1, 'contents': 1}
+    ).sort('current_share', -1).to_list(20)
+    
+    for i, s in enumerate(stations):
+        s['rank'] = i + 1
+        contents = s.get('contents', {})
+        s['content_count'] = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
+        del s['contents']
+    
+    return {'stations': stations}
+
+
+@api_router.get("/cineboard/tv-stations-daily")
+async def get_cineboard_tv_stations_daily(user: dict = Depends(get_current_user)):
+    """Top TV stations by daily share (live snapshot, updates every 5 min)."""
+    from routes.tv_stations import _calc_share_and_revenue, BASE_HOURLY_VIEWERS, AD_REVENUE_PER_1K, SHARE_PENALTY_PER_AD_SECOND
+    import random
+    
+    stations = await db.tv_stations.find(
+        {'setup_complete': True},
+        {'_id': 0}
+    ).to_list(50)
+    
+    results = []
+    for s in stations:
+        contents = s.get('contents', {})
+        total_content = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
+        
+        # Fetch quality scores for live calculation
+        film_ids = [c['content_id'] for c in contents.get('films', [])]
+        series_ids = [c['content_id'] for c in contents.get('tv_series', []) + contents.get('anime', [])]
+        qualities = []
+        if film_ids:
+            films = await db.films.find({'id': {'$in': film_ids}}, {'_id': 0, 'quality_score': 1}).to_list(100)
+            qualities.extend([f.get('quality_score', 50) for f in films])
+        if series_ids:
+            series_docs = await db.tv_series.find({'id': {'$in': series_ids}}, {'_id': 0, 'quality_score': 1}).to_list(100)
+            qualities.extend([sd.get('quality_score', 50) for sd in series_docs])
+        
+        avg_quality = sum(qualities) / max(1, len(qualities)) if qualities else 50
+        ad_seconds = s.get('ad_seconds', 30)
+        
+        share_base = (avg_quality / 100) * 20
+        ad_penalty = ad_seconds * SHARE_PENALTY_PER_AD_SECOND * 0.1
+        volume_bonus = min(5, total_content * 0.5)
+        variation = random.uniform(-1.0, 1.0)
+        live_share = max(0.5, min(30, share_base - ad_penalty + volume_bonus + variation))
+        
+        results.append({
+            'id': s['id'],
+            'station_name': s['station_name'],
+            'nation': s['nation'],
+            'user_id': s['user_id'],
+            'owner_nickname': s.get('owner_nickname', '?'),
+            'live_share': round(live_share, 1),
+            'total_revenue': s.get('total_revenue', 0),
+            'total_viewers': s.get('total_viewers', 0),
+            'content_count': total_content,
+        })
+    
+    results.sort(key=lambda x: x['live_share'], reverse=True)
+    for i, r in enumerate(results):
+        r['rank'] = i + 1
+    
+    return {'stations': results}
 
 
 @api_router.get("/players/{player_id}/profile")

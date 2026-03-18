@@ -445,6 +445,38 @@ const TopNavbar = () => {
                         <Sparkles className="w-4 h-4 text-orange-400" />
                         <div className="text-left"><span className="block">Anime</span><span className="text-[9px] opacity-50">Trend Settimanale</span></div>
                       </button>
+                      <div className="border-t border-white/5 my-1" />
+                      <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Emittenti TV</p>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=tv-alltime') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=tv-alltime'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-tv-alltime"
+                      >
+                        <Radio className="w-4 h-4 text-red-400" />
+                        <div className="text-left"><span className="block">Più Viste</span><span className="text-[9px] opacity-50">Di Sempre</span></div>
+                      </button>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=tv-weekly') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=tv-weekly'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-tv-weekly"
+                      >
+                        <Radio className="w-4 h-4 text-red-400" />
+                        <div className="text-left"><span className="block">Share Settimanale</span><span className="text-[9px] opacity-50">Top Share</span></div>
+                      </button>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=tv-daily') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=tv-daily'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-tv-daily"
+                      >
+                        <Radio className="w-4 h-4 text-red-400" />
+                        <div className="text-left"><span className="block">Share Giornaliero</span><span className="text-[9px] opacity-50">Live (ogni 5 min)</span></div>
+                      </button>
                     </div>
                   </motion.div>
                 </>

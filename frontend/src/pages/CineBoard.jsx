@@ -54,13 +54,14 @@ const CineBoard = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
   const [searchParams] = useSearchParams();
-  const currentView = searchParams.get('view') || 'film'; // film, series, anime
+  const currentView = searchParams.get('view') || 'film'; // film, series, anime, tv-alltime, tv-weekly, tv-daily
   const [activeTab, setActiveTab] = useState('daily');
   const [films, setFilms] = useState([]);
   const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [seriesData, setSeriesData] = useState([]);
   const [animeData, setAnimeData] = useState([]);
+  const [tvStationsData, setTvStationsData] = useState([]);
   const navigate = useNavigate();
 
   const t = (key) => {
@@ -91,6 +92,21 @@ const CineBoard = () => {
       api.get('/cineboard/anime-weekly')
         .then(r => setAnimeData(r.data.series || []))
         .catch(() => setAnimeData([]))
+        .finally(() => setLoading(false));
+    } else if (currentView === 'tv-alltime') {
+      api.get('/cineboard/tv-stations-alltime')
+        .then(r => setTvStationsData(r.data.stations || []))
+        .catch(() => setTvStationsData([]))
+        .finally(() => setLoading(false));
+    } else if (currentView === 'tv-weekly') {
+      api.get('/cineboard/tv-stations-weekly')
+        .then(r => setTvStationsData(r.data.stations || []))
+        .catch(() => setTvStationsData([]))
+        .finally(() => setLoading(false));
+    } else if (currentView === 'tv-daily') {
+      api.get('/cineboard/tv-stations-daily')
+        .then(r => setTvStationsData(r.data.stations || []))
+        .catch(() => setTvStationsData([]))
         .finally(() => setLoading(false));
     } else if (activeTab === 'attendance') {
       api.get('/cineboard/attendance')
@@ -263,6 +279,116 @@ const CineBoard = () => {
                     </div>
                   </CardContent>
                 </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // TV Stations Views
+  if (currentView.startsWith('tv-')) {
+    const viewLabels = {
+      'tv-alltime': { title: 'Emittenti Più Viste', subtitle: 'Di Sempre', metric: 'viewers', color: 'red' },
+      'tv-weekly': { title: 'Share Settimanale', subtitle: 'Top Emittenti', metric: 'share', color: 'red' },
+      'tv-daily': { title: 'Share Giornaliero', subtitle: 'Live (ogni 5 min)', metric: 'live_share', color: 'red' },
+    };
+    const cfg = viewLabels[currentView] || viewLabels['tv-alltime'];
+
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-tv-page">
+        <div className="flex items-center gap-3 mb-4">
+          <Radio className="w-7 h-7 text-red-500" />
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-2xl">{cfg.title}</h1>
+            <p className="text-xs text-gray-400">{cfg.subtitle}</p>
+          </div>
+          <Button variant="ghost" size="sm" className="ml-auto text-xs text-gray-500" onClick={() => navigate('/social')}>
+            <ChevronLeft className="w-3 h-3 mr-1" /> CineBoard
+          </Button>
+        </div>
+
+        {/* Quick tabs for TV views */}
+        <div className="flex gap-1.5 mb-4 overflow-x-auto">
+          {[
+            { key: 'tv-alltime', label: 'Di Sempre' },
+            { key: 'tv-weekly', label: 'Settimanale' },
+            { key: 'tv-daily', label: 'Giornaliero' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => navigate(`/social?view=${tab.key}`)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                currentView === tab.key
+                  ? 'bg-red-500 text-white'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+              }`}
+              data-testid={`tv-tab-${tab.key}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 text-red-400 animate-spin" /></div>
+        ) : tvStationsData.length === 0 ? (
+          <Card className="bg-[#111113] border-white/5">
+            <CardContent className="p-6 text-center">
+              <Radio className="w-10 h-10 text-gray-700 mx-auto mb-2" />
+              <p className="text-gray-500 text-sm">Nessuna emittente in classifica</p>
+              <p className="text-gray-600 text-xs mt-1">Crea la tua emittente TV per apparire qui!</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {tvStationsData.map((s, i) => (
+              <Card
+                key={s.id}
+                className={`bg-[#111113] border-white/5 cursor-pointer hover:border-red-500/20 transition-all ${i < 3 ? 'border-red-500/10' : ''}`}
+                onClick={() => navigate(`/tv-station/${s.id}`)}
+                data-testid={`tv-rank-${s.rank}`}
+              >
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                    i === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                    i === 1 ? 'bg-gray-400/20 text-gray-300' :
+                    i === 2 ? 'bg-orange-500/20 text-orange-400' :
+                    'bg-white/5 text-gray-500'
+                  }`}>
+                    {s.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{s.station_name}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                      <Globe className="w-2.5 h-2.5" />
+                      <span>{s.nation}</span>
+                      <span>|</span>
+                      <span>{s.owner_nickname}</span>
+                      <span>|</span>
+                      <span>{s.content_count} cont.</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {currentView === 'tv-alltime' ? (
+                      <>
+                        <p className="text-sm font-bold text-red-400">{(s.total_viewers || 0).toLocaleString()}</p>
+                        <p className="text-[9px] text-gray-500">spettatori</p>
+                      </>
+                    ) : currentView === 'tv-daily' ? (
+                      <>
+                        <p className="text-sm font-bold text-red-400">{s.live_share || s.current_share || 0}%</p>
+                        <p className="text-[9px] text-gray-500">share live</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold text-red-400">{s.current_share || 0}%</p>
+                        <p className="text-[9px] text-gray-500">share</p>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
               </Card>
             ))}
           </div>

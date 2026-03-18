@@ -1,179 +1,151 @@
 <analysis>**original_problem_statement:**
-The user's high-level goal is to add strategic depth and improve the UI/UX of their cinematic empire game.
-
-Initial requests included:
-1.  **Gameplay Features:** Implement Equipment and Sponsor systems.
-2.  **UI Overhaul:** Redesign the Cineboard leaderboards and film posters.
-3.  **Bug Fixes:** Address numerous critical issues like a broken screenplay purchase flow and incorrect IMDb score calculations.
-
-During the session, the following requests and issues were addressed:
-1.  **Cineboard Trend Bars:** Implement release-relative trend bars (hourly for daily, daily for weekly).
-2.  **Screenplay Purchase Flow:** A critical bug where buying a screenplay (from Marketplace or Emerging Screenplays) would incorrectly reset the film creation process instead of advancing the film to the correct pipeline stage.
-3.  **Performance & Timeouts:** Users experienced frequent timeouts and slow loading times on game pages, especially the Dashboard and Film Pipeline.
-4.  **Full Package Bug:** When purchasing a full package screenplay, the pre-selected cast was not showing up, and the screenplay tab was broken, preventing progress.
-5.  **Deployment Login Failure:** A critical Authentication failed error blocked users from logging into the deployed application.
-6.  **IMDb Score Realism:** The user reported that all new films were becoming masterpieces with 100% quality, asking for the score to be recalibrated for all films.
-7.  **Film Quality Calculation:** The user requested a more unpredictable film quality calculation. They found that simply buying the best cast and equipment always resulted in a masterpiece, removing strategic depth. They asked for a random factor to be introduced to make outcomes less certain.
+The user's initial high-level goal was to add strategic depth to their cinematic empire game by introducing new gameplay features (Equipment, Sponsors) and overhauling the UI (Cineboard, film posters). Over the course of the session, this expanded significantly to include:
+- Fixing numerous critical bugs related to the film production pipeline, user login, and data calculation.
+- A major performance overhaul to address slow loading times caused by storing large poster images as base64 strings in the database.
+- Reworking the core film quality calculation to be less predictable and more engaging.
+- Fixing bugs in the Acting School and Casting Agency features where state was not correctly synchronized.
+- A complete redesign of how Sequels, TV Series, and Anime are produced, shifting from a simplistic instant-creation model to a more integrated system requiring new, unlockable sub-infrastructures (TV Studio, Anime Studio, TV Network).
+- A UI overhaul of the main production button to support these new game mechanics.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game with a complete film production pipeline.
-- **Core Systems:** Equipment, Sponsors, and User Presence systems are fully implemented.
-- **Cineboard Leaderboards:** Fully overhauled with Daily, Weekly, Top 50, and Attendance tabs. They feature realistic attendance/revenue decay and newly implemented release-relative trend bars.
-- **Performance Optimizations:** A major performance overhaul was completed. This includes:
-    - **Backend:** A new  endpoint consolidates over 13 API calls into one. In-memory caching was added to slow endpoints (Cineboard). Over 28 MongoDB indexes were created on startup, and query projections were added to reduce data transfer.
-    - **Frontend:** Implemented a context-level caching and request-deduplication system (). Polling intervals were reduced, and the dashboard was refactored to use the new batch endpoint, significantly speeding up load times.
-- **Bug Fixes:** Critical bugs related to the screenplay purchase flow, full package pipeline progression, and deployment login have been fixed.
-- **IMDb Score:** The scoring formula has been recalibrated multiple times to produce a more realistic distribution, with the latest version rewarding top-quality films more appropriately (e.g., 100%+ quality can achieve a 10.0 IMDb score).
-- **Migration System:** A robust one-time migration system in  is used to apply data fixes and recalculations (like IMDb scores and fixing broken films) on application startup.
+The application is a full-stack cinematic empire game built with React, FastAPI, and MongoDB.
+- **Core Gameplay:** The film production pipeline is the central feature, allowing users to create films from scratch. Systems for Equipment, Sponsors, Casting, and an Acting School are implemented.
+- **Performance:** A critical performance bottleneck has been resolved by migrating all poster images from base64 strings in the database to static files served from the backend. This, combined with frontend lazy loading () and other optimizations (caching, DB indexing), has significantly improved page load times.
+- **Film Quality:** The film quality calculation has been re-balanced to a v3 formula, providing a more realistic and engaging distribution of scores. A migration system is in place to apply these changes to existing films.
+- **Bug Fixes:** Numerous critical bugs have been resolved, including a broken film detail page, a dysfunctional multi-actor casting flow, and synchronization issues between the Casting Agency and the Acting School.
+- **New Production System (Foundation):**
+    - **Backend:** New infrastructure types (, , ) that are dependent on the main  have been defined in . A new lightweight endpoint, , has been created to check if a user owns these studios.
+    - **Frontend:** Placeholder pages have been created for the new pipelines (, ) and the TV Network management page (). The main router in  has been updated to include routes for these new pages.
 
 **Last working item**:
-- **Last item agent was working:** Overhauling the film quality score calculation to introduce unpredictability, as requested by the user. The agent identified the deterministic formula in  and began rewriting it to include synergy factors, genre/director chemistry, and a controlled chaos random element. The goal is to prevent a pay-to-win scenario where buying the best items always guarantees a masterpiece.
+- **Last item agent was working:** Implementing the UI for the new production system. The agent had just laid the backend and frontend foundations (defining infrastructure types, creating an unlock-status endpoint, and creating placeholder pages with routes). The immediate next step is to modify the main UI to reflect these changes.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** backend testing agent
+- **Which testing method agent to use?** both
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
 - **Issue 1: (P2) Contest Page Mobile Layout Is Broken**
-  - A known, recurring issue where the  page is not rendered correctly on mobile devices.
+    - **Description:** A recurring issue where the  (Contests) page does not render correctly on mobile devices. The agent performed a visual check and believed it was fixed, but given its history, it may have subtle or specific problems that were missed.
 
 **Issues Detail:**
 - **Issue 1: Contest Page Mobile Layout Is Broken**
-    - **Attempted fixes:** None in this session.
-    - **Next debug checklist:** Inspect the CSS and component structure of  in a mobile viewport to identify and fix the layout issues.
-    - **Why fix this issue and what will be achieved with the fix?** Improves the accessibility and usability of the game's contest features for mobile users.
+    - **Attempted fixes:** None in this session beyond a visual check.
+    - **Next debug checklist:**
+        - Use browser developer tools to inspect the page on various mobile viewports (e.g., iPhone SE, Galaxy S20).
+        - Check for CSS flexbox/grid issues, overflowing elements, or hardcoded widths that break the layout.
+        - Examine the component structure in .
+    - **Why fix this issue and what will be achieved with the fix?** To ensure a consistent and usable experience for players on all devices, improving accessibility for a core game feature.
     - **Status:** NOT STARTED
     - **Is recurring issue?** Y
     - **Should Test frontend/backend/both after fix?** frontend
     - **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1: (P0) Finalize and Test New Film Quality Score Formula**
-    - **Where to resume:** The agent has started modifying the  function in . The new logic needs to be completed, and a new one-time migration () must be created and added to  to apply the new formula to all existing films.
-    - **What will be achieved with this?** The game will have more strategic depth and unpredictability, making the outcome of film production more engaging and less deterministic.
+- **Task 1: (P0) Implement UI for New Production Menu**
+    - **Where to resume:** The agent must modify the mobile bottom navigation bar in . The current single Produci! button needs to be replaced with a dynamic menu or group of four buttons: Produci Film, Produci Serie TV, Produci Anime, and La Tua TV.
+    - **Implementation Details:**
+        1.  Fetch the user's production capabilities from the new  endpoint.
+        2.  Create a state variable (e.g., ) in  to hold this data.
+        3.  The three new buttons (Produci Serie TV, Produci Anime, La Tua TV) should be rendered in a disabled/locked state by default.
+        4.  Enable each button based on the corresponding / value from the  state.
+        5.  Clicking an enabled button should navigate to the correct page (, , ).
+    - **What will be achieved with this?** The UI will align with the new game design, providing users with clear, visible goals (unlocking the new studios) and access points for the new production types.
     - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** backend
+    - **Should Test frontend/backend/both after fix?** both
     - **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P1) New Infrastructure: Casting Agency:** A user-requested feature for a new building that other players can use for a fee.
-  - **(P1) Implement Admin RBAC System:** Replace the hardcoded admin check with a proper role-based access control system.
-  - **(P1) Add CinePass (Credits) cost for speed-ups:** In every step of the film pipeline where a user can pay with in-game money to speed up the process, add an alternative option to pay with CinePass credits. The total cost for a single film should not exceed 25-30 credits.
-
+  - **(P0) Full Sequel Pipeline:** Rework sequel creation to use a reduced version of the Film Pipeline, inheriting cast/crew and receiving a quality bonus based on the parent film's success.
+  - **(P0) Full TV Series Pipeline:** Implement the full production pipeline for TV Series, starting with a pilot episode. Subsequent episodes should be generated daily with a mini-plot generated by an AI.
+  - **(P0) Full Anime Pipeline:** Implement a unique production pipeline for Anime, similar in structure to TV series but with its own distinct mechanics.
+  - **(P1) Build TV Network Feature:** Develop the La Tua TV page () into a full feature where players can manage their broadcast schedule, track audience ratings, and generate revenue from their TV series and anime.
+  - **(P1) Marketplace for TV/Anime:** Extend the in-game marketplace to include separate sections for trading the rights to TV series and anime.
 - **Future Tasks:**
-  - **(P1) Refactor :** This monolithic file continues to grow and is a top-priority technical debt item.
-  - **(P2) Refactor  & :** Decompose these large components into smaller, specialized components.
-  - **(P2)** Implement Stripe, PWA, and a Tutorial popup.
+  - **(P1)** Implement a Casting Agency building that other players can visit and use for a fee.
+  - **(P1)** Replace the hardcoded admin check with a formal Role-Based Access Control (RBAC) system.
+  - **(P1)** Add an option to use CinePass (premium currency) to speed up pipeline steps.
+  - **(P1)** Refactor  by breaking it into smaller, more manageable route and service files.
+  - **(P2)** Decompose the large  and  components.
+  - **(P2)** Implement Stripe integration, PWA functionality, and a tutorial popup for new users.
 
 **Completed work in this session**
-- **Feature: Release-Relative Trend Bars:**
-  - Implemented backend logic and frontend UI in  to show dynamic trend bars based on a film's release time, not the calendar.
-- **CRITICAL FIX: Screenplay Purchase Flow:**
-  - Fixed a bug where buying a screenplay incorrectly reset the film creation flow. Now, the film correctly advances to the  stage.
-- **CRITICAL FIX: Full-Stack Performance Optimization:**
-  - Implemented a backend batch endpoint () to reduce 13+ API calls to one.
-  - Added over 28 MongoDB indexes and server-side in-memory caching.
-  - Implemented frontend caching, request deduplication, and reduced polling frequency.
-- **CRITICAL FIX: Full Package Pipeline Flow:**
-  - Fixed a series of bugs preventing progress for full package films. The cast and screenplay now appear correctly as read-only, and pipeline advancement works as expected. Added a migration () to repair existing broken films.
-- **CRITICAL FIX: Deployment Login Failure:**
-  - Resolved an Authentication failed error on the deployed server by adding a migration () to reset the user's password.
-- **Feature: IMDb Score Recalibration:**
-  - Reworked the IMDb calculation formula to be more rewarding for high-quality films. Added a migration () to apply the new formula to all 36 existing films.
-
-**Earlier issues found/mentioned but not fixed**
-- **Issue 1: Contest Page Mobile Layout Is Broken**
-  - **Debug checklist:** Inspect  and its CSS in a mobile viewport.
-  - **Why to solve this issue and what will be achieved with this?** To provide a consistent user experience on all devices.
-  - **Should Test frontend/backend/both after fix:** frontend
-  - **Is recurring issue?** Y
+- **CRITICAL FIX: Performance Overhaul (Poster Loading):** Migrated all film poster images from database Base64 strings to static files on disk, creating a new  endpoint and updating all frontend components to use lightweight URLs and . This fixed major performance issues on the Dashboard and film list pages.
+- **CRITICAL FIX: Film Detail Page Crash:** Resolved a frontend crash on film detail pages by adding missing  icon imports to .
+- **Bug Fix: Multi-Actor Casting:** Rewrote the casting logic in  and  to allow hiring multiple actors for a film. The UI was changed from a like/dislike system to a direct-hire click on actor cards, with a new renegotiation flow.
+- **Bug Fix: Acting School Synchronization:** Fixed a bug where students sent to the Acting School did not appear. Also fixed a de-sync issue where dismissing a student from the school now correctly deletes the associated  record, making the recruit available again in the Casting Agency.
+- **Feature: Re-balanced Film Quality Formula (v3):** Adjusted the quality calculation with a new multiplier () to create a better-balanced distribution of film scores (average ~65). A migration () was created and executed.
+- **Feature Design & Foundation:** Designed the new Sequel/Series/Anime system and documented it in  and . Implemented the foundational backend infrastructure types and frontend placeholder pages for this system.
 
 **Known issue recurrence from previous fork**
 - **Issue recurrence in previous fork:** Contest Page Mobile Layout issue.
-- **Recurrence count:** High.
-- **Status:** NOT STARTED.
+- **Recurrence count:** High
+- **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **One-Time DB Migrations:** Heavily used in  to fix production data issues, including resetting passwords, recalculating scores, and backfilling data for new features.
-- **Performance Optimization (Full Stack):**
-    - **Backend Batch Endpoint:** The  endpoint aggregates data from multiple sources into a single, efficient call.
-    - **DB Indexing & Projections:** Extensive indexes were added to , , , etc., and projections were used to minimize payload size in leaderboard queries.
-    - **Server & Client Caching:** Implemented time-based in-memory caching on the backend for slow endpoints and a more advanced cache with request deduplication on the frontend.
-- **Stateful Pipeline Logic:** The film pipeline now has complex stateful logic to handle full package films, using flags like , , and  to alter the UI and backend behavior.
+- **Static File Serving:** The app now serves images from a static directory () via a dedicated FastAPI route (), a significant shift from embedding base64 data in the database.
+- **One-Time DB Migrations:** Used extensively in  to apply data fixes and schema changes, such as extracting poster images and recalibrating quality scores for all existing films.
+- **Conditional UI Rendering:** The next phase of development will heavily rely on fetching user capabilities from an API () and conditionally enabling/disabling UI elements (the new production buttons).
+- **State Synchronization:** Addressed a critical bug where two separate features (Casting Agency and Acting School) that shared data were not correctly synchronized, leading to a confusing user experience.
 
 **key DB schema**
-- **film_projects:**
-  -  (boolean): New flag indicating if the cast was pre-selected from a full package and is read-only.
-  -  (boolean): Flag indicating the film originated from the Emerging Screenplays feature.
-  -  (string): 'full_package' or 'screenplay_only'. Used to determine pipeline behavior.
-  -  (string): Synopsis used for full package films before the full screenplay text is generated/assigned.
-- **migrations:**
-  - Tracks execution of one-time fixes. New migrations added: , , .
+- **infrastructure:** Now supports new types: , , . These new types include a  field to link them to the main .
+- **films:** The  field has been migrated from a  base64 string to a relative API URL (e.g., ). The  field stores a dictionary detailing the components of the final quality score.
+- **casting_school_students:** A  has been added to link a student back to their original entry in the weekly casting pool.
+- **casting_hires:** This collection is now actively managed; records are deleted when a student is dismissed from the acting school to ensure the recruit becomes available again.
 
 **All files of reference**
-- : Contains new migrations, caching logic, and the dashboard batch endpoint.
-- : Contains fixes for the full package pipeline flow.
-- : Contains the latest IMDb scoring formula.
-- : Contains the complex UI logic for the film pipeline, including the read-only views for full package films.
-- : Now uses the new, optimized batch endpoint.
-- : Contains the new frontend caching and API optimization logic.
-- : Updated with the latest feature requests and completed work.
-
-**Areas that need refactoring**:
-- ** (CRITICAL):** Still a massive file. Needs to be broken down into modules (e.g., , , ).
-- ** (CRITICAL):** This component is now over 1700 lines long and handles all pipeline steps. It should be decomposed into separate tab components (e.g., , ).
-- ** (HIGH):** Although optimized, it's still a large component that could be broken down.
-
-**key api endpoints**
-- ** (New):** A highly optimized endpoint that aggregates over 13 different data sources for the main dashboard, drastically improving load times.
-- ** (Updated):** Logic updated to handle full package films, auto-filling the screenplay.
-- ** (Updated):** Logic updated to handle full package films.
+- **Most Critical:** , , .
+- **New Files:** , , , .
+- **Heavily Modified:** , , .
+- **Performance-Related:** All pages displaying film posters were updated (, , , ).
 
 **Critical Info for New Agent**
 - **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **TOP PRIORITY (P0):** Complete the implementation of the new **film quality score formula**. The user wants more unpredictability. You need to finish the logic in  and create a migration to recalculate the  for all existing films.
-- **Performance Work:** Be aware of the extensive performance optimizations. The frontend now uses a  function from  for static data. The dashboard relies on the  endpoint. Do not re-implement fetching logic that has already been optimized.
-- **Pipeline Logic:** The film pipeline is complex. Pay close attention to the  logic in  and the corresponding flags (, ) in the backend to understand how full package films behave differently.
+- **TOP PRIORITY (P0):** Complete the UI for the new production system. This involves modifying the bottom navigation bar in  to show four production buttons (Produci Film, Serie TV, Anime, La Tua TV) and controlling their enabled/disabled state based on the data from the  endpoint.
+- **LONG-TERM PLAN:** The user has approved a major, multi-step rework of Sequels, TV Series, and Anime. All future development on these features must follow the detailed plan laid out in  and the design document . Do not implement these features until the foundational UI work is complete.
+- **PERFORMANCE:** The most significant performance issue (base64 posters) has been fixed. Be mindful of this and ensure that new features do not introduce similar bottlenecks. Use the  pattern for all new images.
 
 **documents and test reports created in this job**
-- 
+-  (Updated)
+-  (New)
 - 
 - 
 - 
 - 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports My Films page isn't loading and that a 100% quality film (Oltre Atlas) only got a 9.2 IMDb score. Asks for a recalibration for all films.
-2.  **Agent:** Identifies the IMDb formula is too restrictive.
-3.  **Agent:** Reworks the  formula to allow for higher scores (up to 10.0) and adds a migration () to apply it to all existing films. (COMPLETED)
-4.  **Agent:** Confirms the new IMDb distribution is much more realistic and finishes the task. (COMPLETED)
-5.  **User:** Requests that the film quality calculation itself be improved. States that buying top-tier items always results in a masterpiece, which is predictable and boring. Asks for more randomness and unpredictability. (PENDING)
-6.  **Agent:** Acknowledges the request and begins analyzing the  function in . (IN PROGRESS)
-7.  **Agent:** Starts rewriting the quality formula to introduce more complex factors and randomness. (IN PROGRESS)
-8.  **User:** (No new message, waiting for implementation).
-9.  **Agent:** (No new messages).
-10. **Agent:** (No new messages).
+1.  **User:** Reports that the casting system only allows hiring one actor. Also reports that screenplay/poster generation shows an error but works eventually. Complains that film quality scores are now too low. (PENDING)
+2.  **Agent:** Fixes the multi-actor casting bug, re-balances the film quality score to a middle-ground, and determines the poster/screenplay error is a transient AI API issue, not a code bug. (COMPLETED)
+3.  **User:** Reports a de-sync bug: actors sent to the Acting School appear in the Casting Agency with an A Scuola badge, but the school itself shows 0 students. (PENDING)
+4.  **Agent:** Fixes the synchronization bug by ensuring dismissed students have their  record deleted, making them available again in the agency. (COMPLETED)
+5.  **User:** Asks how Sequels, TV Series, and Anime currently work. (PENDING)
+6.  **Agent:** Provides a detailed breakdown of the current simplistic implementation for each. (COMPLETED)
+7.  **User:** Asks for ideas on how to make them more complete and engaging. Suggests a future TV Network infrastructure. (PENDING)
+8.  **Agent:** Proposes a multi-option plan to the user, including using the full pipeline for series/anime and a reduced pipeline for sequels. (COMPLETED)
+9.  **User:** Approves the plan, asking for the pipeline approach for all. Asks the agent to put the plan in the future tasks and to design the TV Network concept. (PENDING)
+10. **User:** Defines the new UI: the main Produce! button should become four separate buttons (Film, TV Series, Anime, TV Network), which are unlocked by purchasing new sub-infrastructures. Asks the agent to proceed with implementation. (PENDING - In Progress)
 
 **Project Health Check:**
 - **Broken:**
-  - **Contest Page Mobile Layout:** The  page remains unusable on mobile devices.
+    - Contest Page Mobile Layout () is a recurring issue and likely still broken for some users/devices.
 - **Mocked:**
-  - None.
+    - The new pages (, , ) are currently just placeholder components.
 
 **3rd Party Integrations**
 - **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
 - **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
-- **Pillow:** Used for image manipulation.
+- **Pillow:** Used for image manipulation on the backend.
 - **APScheduler:** Used for backend scheduled tasks.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES (Used for every major fix and feature).
+- **Testing agent used after significant changes:** YES
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** []
 - **Known regressions:** None.
@@ -183,4 +155,4 @@ The application is a full-stack cinematic empire game with a complete film produ
 - **Password:** 
 
 **What agent forgot to execute**
-- The recurring issue with the mobile layout on the  page has not been addressed in this or previous sessions.</analysis>
+- The recurring issue with the mobile layout on the  page has been noted in multiple sessions but has not been definitively resolved. Each time it is checked, it appears to work, but the user continues to report it.</analysis>

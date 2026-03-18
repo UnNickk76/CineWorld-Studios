@@ -13,7 +13,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -84,6 +84,9 @@ const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPa
 const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
 const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays'));
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
+const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
+const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
+const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -136,6 +139,8 @@ const TopNavbar = () => {
   const [popupView, setPopupView] = useState('stats'); // 'stats' or 'studio' - for global player popup
   const [profileGenreFilter, setProfileGenreFilter] = useState(null); // Genre filter for online user profile
   const [popupGenreFilter, setPopupGenreFilter] = useState(null); // Genre filter for player popup
+  const [productionUnlocks, setProductionUnlocks] = useState(null);
+  const [showProductionMenu, setShowProductionMenu] = useState(false);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -145,6 +150,7 @@ const TopNavbar = () => {
     api.get('/system-notes/unread').then(r => setSystemNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/emerging-screenplays/count').then(r => setEmergingScreenplaysCount(r.data.new || 0)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
+    api.get('/production-studios/unlock-status').then(r => setProductionUnlocks(r.data)).catch(() => {});
     
     // Online users + all players polling
     const fetchOnlineUsers = () => {
@@ -206,6 +212,7 @@ const TopNavbar = () => {
   useEffect(() => {
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
+    setShowProductionMenu(false);
   }, [location.pathname]);
 
 
@@ -264,7 +271,10 @@ const TopNavbar = () => {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
-    { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci!' : 'Produce!' },
+    { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
+    { path: '/create-series', icon: Tv, label: 'Serie TV', locked: !productionUnlocks?.has_studio_serie_tv },
+    { path: '/create-anime', icon: Sparkles, label: 'Anime', locked: !productionUnlocks?.has_studio_anime },
+    { path: '/my-tv', icon: Radio, label: 'La Tua TV', locked: !productionUnlocks?.has_emittente_tv },
     { path: '/marketplace', icon: Store, label: language === 'it' ? 'Mercato' : 'Market' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
@@ -571,17 +581,23 @@ const TopNavbar = () => {
             <div className="grid grid-cols-3 gap-2 p-3 bg-[#0a0a0a]">
               {navItems.map(item => (
                 <Button
-                  key={item.path}
+                  key={item.path + item.label}
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
                   className={`flex flex-col items-center gap-1.5 h-16 py-2 px-1 relative rounded-xl ${
                     item.disabled ? 'opacity-40 cursor-not-allowed' :
+                    item.locked ? 'opacity-50 bg-[#1a1a1a] text-gray-500 border border-white/5' :
                     location.pathname === item.path 
                       ? 'bg-yellow-500 text-black hover:bg-yellow-400' 
                       : 'bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 border border-white/5'
                   }`}
-                  onClick={() => { if (!item.disabled) { navigate(item.path); setMobileMenuOpen(false); } }}
+                  onClick={() => { 
+                    if (item.disabled) return;
+                    if (item.locked) { navigate('/infrastructure'); setMobileMenuOpen(false); return; }
+                    navigate(item.path); setMobileMenuOpen(false); 
+                  }}
                 >
+                  {item.locked && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
                   <item.icon className="w-5 h-5" />
                   <span className="text-[9px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
                   {item.notificationCount > 0 && (
@@ -658,6 +674,107 @@ const TopNavbar = () => {
       </button>
       )}
 
+      {/* Production Menu Overlay */}
+      <AnimatePresence>
+        {showProductionMenu && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-[55] sm:hidden"
+              onClick={() => setShowProductionMenu(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="fixed bottom-[58px] left-2 right-2 z-[56] sm:hidden"
+              data-testid="production-menu"
+            >
+              <div className="bg-[#111113] border border-white/10 rounded-2xl p-3 shadow-2xl">
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold text-center mb-2.5">Produci</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Film - Always available */}
+                  <button
+                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
+                    onClick={() => { navigate('/create-film'); setShowProductionMenu(false); }}
+                    data-testid="prod-menu-film"
+                  >
+                    <Camera className="w-5 h-5 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <span className="text-xs font-bold block leading-tight">Film</span>
+                      <span className="text-[8px] opacity-60 block leading-tight">Pipeline completa</span>
+                    </div>
+                  </button>
+                  {/* Serie TV */}
+                  <button
+                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                      productionUnlocks?.has_studio_serie_tv 
+                        ? (location.pathname === '/create-series' ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20')
+                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      if (productionUnlocks?.has_studio_serie_tv) { navigate('/create-series'); setShowProductionMenu(false); }
+                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
+                    }}
+                    data-testid="prod-menu-series"
+                  >
+                    {!productionUnlocks?.has_studio_serie_tv && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
+                    <Tv className="w-5 h-5 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <span className="text-xs font-bold block leading-tight">Serie TV</span>
+                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_studio_serie_tv ? 'Produci serie' : 'Sblocca studio'}</span>
+                    </div>
+                  </button>
+                  {/* Anime */}
+                  <button
+                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                      productionUnlocks?.has_studio_anime
+                        ? (location.pathname === '/create-anime' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20')
+                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      if (productionUnlocks?.has_studio_anime) { navigate('/create-anime'); setShowProductionMenu(false); }
+                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
+                    }}
+                    data-testid="prod-menu-anime"
+                  >
+                    {!productionUnlocks?.has_studio_anime && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
+                    <Sparkles className="w-5 h-5 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <span className="text-xs font-bold block leading-tight">Anime</span>
+                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_studio_anime ? 'Produci anime' : 'Sblocca studio'}</span>
+                    </div>
+                  </button>
+                  {/* La Tua TV */}
+                  <button
+                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                      productionUnlocks?.has_emittente_tv
+                        ? (location.pathname === '/my-tv' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20')
+                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      if (productionUnlocks?.has_emittente_tv) { navigate('/my-tv'); setShowProductionMenu(false); }
+                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
+                    }}
+                    data-testid="prod-menu-tv"
+                  >
+                    {!productionUnlocks?.has_emittente_tv && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
+                    <Radio className="w-5 h-5 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <span className="text-xs font-bold block leading-tight">La Tua TV</span>
+                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_emittente_tv ? 'Gestisci canale' : 'Sblocca emittente'}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">
         <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} data-testid="bottom-nav-home">
@@ -668,17 +785,16 @@ const TopNavbar = () => {
           <Film className="w-4 h-4" />
           <span className="text-[8px]">Film</span>
         </button>
-        {/* PRODUCI! - Larger button spanning 2x width */}
+        {/* PRODUCI! - Opens production menu */}
         <button 
-          className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl min-w-0 col-span-2 ${location.pathname === '/create-film' ? 'bg-yellow-500 text-black' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'}`}
-          onClick={() => navigate('/create-film')}
+          className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl min-w-0 transition-all ${showProductionMenu ? 'bg-yellow-500 text-black' : ['/create-film','/create-series','/create-anime','/my-tv'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'}`}
+          onClick={() => setShowProductionMenu(!showProductionMenu)}
           data-testid="bottom-nav-produci"
           style={{ minWidth: '72px' }}
         >
-          <Camera className="w-5 h-5" />
+          {showProductionMenu ? <X className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
           <span className="text-[9px] font-bold">Produci!</span>
         </button>
-        {/* MERCATO button */}
         <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/marketplace' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/marketplace')} data-testid="bottom-nav-mercato">
           <Store className="w-4 h-4" />
           <span className="text-[8px]">Mercato</span>
@@ -1470,6 +1586,9 @@ function App() {
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
+                <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
+                <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
+                <Route path="/my-tv" element={<ProtectedRoute><EmittenteTVPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />

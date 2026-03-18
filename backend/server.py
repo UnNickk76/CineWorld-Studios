@@ -10571,6 +10571,28 @@ async def get_production_studio_status(user: dict = Depends(get_current_user)):
         'released_films': released_films
     }
 
+
+@api_router.get("/production-studios/unlock-status")
+async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
+    """Fast endpoint to check which sub-studios are unlocked. Used by bottom nav."""
+    infra_types = await db.infrastructure.find(
+        {'owner_id': user['id'], 'type': {'$in': ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv']}},
+        {'_id': 0, 'type': 1, 'level': 1, 'id': 1}
+    ).to_list(10)
+    owned = {i['type']: {'level': i.get('level', 1), 'id': i.get('id')} for i in infra_types}
+    return {
+        'has_production_studio': 'production_studio' in owned,
+        'has_studio_serie_tv': 'studio_serie_tv' in owned,
+        'has_studio_anime': 'studio_anime' in owned,
+        'has_emittente_tv': 'emittente_tv' in owned,
+        'studios': owned,
+        'requirements': {
+            'studio_serie_tv': {'level': 12, 'fame': 100, 'cost': 3000000},
+            'studio_anime': {'level': 15, 'fame': 150, 'cost': 4000000},
+            'emittente_tv': {'level': 18, 'fame': 200, 'cost': 5000000}
+        }
+    }
+
 class PreProductionRequest(BaseModel):
     bonus_type: str  # storyboard, casting_interno, scouting
 

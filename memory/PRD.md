@@ -71,6 +71,7 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - [x] Emittente TV Broadcast System
 - [x] "I Miei Film" Popup Menu (Film, Serie TV, Anime)
 - [x] MyFilms.jsx dynamic view (?view= parameter)
+- [x] Fix: accettazione sfide online 1v1 (popup → selezione film → join)
 - [x] Emittente TV Live Ratings + Storico Episodi + Momentum
 - [x] Dashboard "Ultimi Aggiornamenti" (rilasci da tutti i player)
 - [x] Dashboard 3 sezioni orizzontali (Film, Serie TV, Anime con 5 poster)

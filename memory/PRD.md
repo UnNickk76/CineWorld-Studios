@@ -22,12 +22,15 @@ Cinematic empire game where players build film studios, produce films, hire cast
 
 ## What's Been Implemented
 
-### Completed (Latest Session - March 18, 2026)
-- **Film Quality Score v2 ("Alchemy Formula"):** Overhauled to introduce unpredictability. Investments set the floor (~65 max deterministic), but random "alchemy" factors (director vision, audience reception, cast chemistry, critics, market timing, lightning events) create wide variance. Best investments: 13% masterpiece, 34% excellent, 38% good, 15% mediocre/bad.
-- **Migration recalculate_quality_v2:** Applied new formula to all 36 existing films. Average quality dropped from 74.2 to 49.6 with realistic spread.
-- **CRITICAL BUG FIX: Film Detail Page crash** - Fixed missing `TrendingDown` and `RotateCcw` imports in FilmDetail.jsx that caused "QUALCOSA E ANDATO STORTO" error.
-- **MAJOR PERFORMANCE FIX: Poster extraction to disk** - Extracted 22 base64 posters (31MB) from MongoDB to static files on disk. New `/api/posters/{filename}` endpoint with 1-week cache headers. All poster generation code updated to save to disk. Frontend uses `posterSrc()` helper.
-- **Bug fixes in social feed:** Fixed KeyError for missing user_id and AttributeError for non-dict cast items.
+### Session March 18, 2026 - Part 2
+- **Bug Fix: Casting Agency hired status** - Backend `/api/production-studio/casting` now returns `hired` and `hire_action` per recruit. Frontend greys out hired recruits with "Nel cast" or "A scuola" badges.
+- **Bug Fix: Acting School slot counter** - Fixed confusing "Tutti gli slot occupati" message. Now shows correct count per section (training slots vs casting slots).
+- **Bug Fix: Film Detail page crash** - Fixed missing `TrendingDown` and `RotateCcw` imports in FilmDetail.jsx.
+- **Performance: Poster extraction to disk** - Extracted 22 base64 posters (31MB) from MongoDB to static files. New `/api/posters/{filename}` endpoint with 1-week cache headers.
+
+### Session March 18, 2026 - Part 1
+- **Film Quality Score v2 ("Alchemy Formula")** - Overhauled for unpredictability. Best investments: 13% masterpiece, 34% excellent, 38% good, 15% mediocre/bad.
+- **Migration recalculate_quality_v2** - All 36 films recalculated (avg 74.2 → 49.6).
 
 ### Previously Completed
 - Release-relative trend bars on CineBoard
@@ -36,13 +39,6 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - "Full Package" pipeline flow fix
 - Deployment login fix
 - IMDb score recalibration (v5 formula)
-
-## Quality Score v2 Distribution
-| Scenario | Mean | Masterpiece % | Excellent % | Good % | Mediocre/Bad % |
-|----------|------|---------------|-------------|--------|----------------|
-| Best investments | 69.5 | 13% | 34% | 38% | 15% |
-| Good investments | 57.3 | 2% | 16% | 39% | 43% |
-| Average | 35.5 | 0% | 1% | 7% | 92% |
 
 ## Credentials
 - User: fandrex1@gmail.com / Ciaociao1
@@ -54,6 +50,7 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - Casting Agency (new building for other players)
 - Admin RBAC System
 - CinePass cost for speed-ups in pipeline
+- Pre-engagement system: hired actors should appear in player's films for a contract duration. Cost varies by skills and duration. When contract expires, actor returns to public pool.
 
 ## Future/Backlog (P2)
 - Refactor server.py (monolithic, 16k+ lines)
@@ -67,9 +64,10 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - `/app/backend/routes/film_pipeline.py` - Pipeline logic + quality formula v2
 - `/app/backend/server.py` - Migrations, routes, batch endpoints, poster serving
 - `/app/backend/game_systems.py` - IMDb formula, game calculations
+- `/app/backend/routes/acting_school.py` - Acting school training system
 - `/app/backend/static/posters/` - Static poster files (31MB)
-- `/app/frontend/src/pages/FilmDetail.jsx` - Film detail with posterSrc() helper
-- `/app/frontend/src/pages/Dashboard.jsx` - Main dashboard with posterSrc()
-- `/app/frontend/src/pages/MyFilms.jsx` - Film grid with posterSrc()
-- `/app/frontend/src/pages/CineBoard.jsx` - Leaderboards using poster_url directly
-- `/app/frontend/src/contexts/index.jsx` - Auth + caching context
+- `/app/frontend/src/components/ProductionStudioPanel.jsx` - Production Studio with casting
+- `/app/frontend/src/pages/InfrastructurePage.jsx` - Infrastructure + school
+- `/app/frontend/src/pages/FilmDetail.jsx` - Film detail with posterSrc()
+- `/app/frontend/src/pages/Dashboard.jsx` - Main dashboard
+- `/app/frontend/src/pages/CineBoard.jsx` - Leaderboards

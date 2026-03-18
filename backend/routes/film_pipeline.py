@@ -1381,8 +1381,14 @@ async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depe
             number_of_images=1
         )
         if images and len(images) > 0:
-            image_b64 = base64.b64encode(images[0]).decode('utf-8')
-            poster_url = f"data:image/png;base64,{image_b64}"
+            import os as _os
+            poster_dir = '/app/backend/static/posters'
+            _os.makedirs(poster_dir, exist_ok=True)
+            filename = f"proj_{project_id}.png"
+            filepath = _os.path.join(poster_dir, filename)
+            with open(filepath, 'wb') as f:
+                f.write(images[0])
+            poster_url = f"/api/posters/{filename}"
     except HTTPException:
         raise
     except Exception as e:
@@ -2091,8 +2097,14 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
                     number_of_images=1
                 )
                 if images and len(images) > 0:
-                    image_b64 = base64.b64encode(images[0]).decode('utf-8')
-                    film_doc['poster_url'] = f"data:image/png;base64,{image_b64}"
+                    import os as _os
+                    poster_dir = '/app/backend/static/posters'
+                    _os.makedirs(poster_dir, exist_ok=True)
+                    filename = f"{film_id}.png"
+                    filepath = _os.path.join(poster_dir, filename)
+                    with open(filepath, 'wb') as f:
+                        f.write(images[0])
+                    film_doc['poster_url'] = f"/api/posters/{filename}"
         except Exception as e:
             logging.error(f"Poster generation error: {e}")
 

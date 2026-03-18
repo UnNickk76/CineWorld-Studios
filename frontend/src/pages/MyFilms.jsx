@@ -4,6 +4,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400';
+  if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
+  return url;
+};
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -98,7 +105,7 @@ const MyFilms = () => {
           {films.map(film => (
             <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
               <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
-                <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
+                <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
                 <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status === 'in_theaters' ? 'LIVE' : film.status}</Badge>
                 {(film.virtual_likes > 0) && (
                   <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">

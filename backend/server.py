@@ -6456,6 +6456,47 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration recalculate_imdb_v5: Recalculated {updated} films with new formula")
 
+    # Migration: Extract base64 posters to disk files for performance
+    if 'extract_posters_to_disk_v1' not in completed:
+        import base64 as _b64
+        poster_dir = '/app/backend/static/posters'
+        os.makedirs(poster_dir, exist_ok=True)
+        all_films = await db.films.find({'poster_url': {'$regex': '^data:image/'}}, {'_id': 0, 'id': 1, 'poster_url': 1}).to_list(1000)
+        extracted = 0
+        for film in all_films:
+            try:
+                poster_data = film['poster_url']
+                header, b64data = poster_data.split(',', 1)
+                ext = 'png' if 'png' in header else 'jpg' if 'jpeg' in header or 'jpg' in header else 'webp' if 'webp' in header else 'png'
+                filename = f"{film['id']}.{ext}"
+                filepath = os.path.join(poster_dir, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(_b64.b64decode(b64data))
+                new_url = f"/api/posters/{filename}"
+                await db.films.update_one({'id': film['id']}, {'$set': {'poster_url': new_url}})
+                extracted += 1
+            except Exception as e:
+                logging.error(f"Failed to extract poster for {film['id']}: {e}")
+        # Also extract from film_projects
+        all_projects = await db.film_projects.find({'poster_url': {'$regex': '^data:image/'}}, {'_id': 0, 'id': 1, 'poster_url': 1}).to_list(1000)
+        for proj in all_projects:
+            try:
+                poster_data = proj['poster_url']
+                header, b64data = poster_data.split(',', 1)
+                ext = 'png' if 'png' in header else 'jpg' if 'jpeg' in header or 'jpg' in header else 'webp' if 'webp' in header else 'png'
+                filename = f"proj_{proj['id']}.{ext}"
+                filepath = os.path.join(poster_dir, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(_b64.b64decode(b64data))
+                new_url = f"/api/posters/{filename}"
+                await db.film_projects.update_one({'id': proj['id']}, {'$set': {'poster_url': new_url}})
+                extracted += 1
+            except Exception as e:
+                logging.error(f"Failed to extract poster for project {proj['id']}: {e}")
+        completed.append('extract_posters_to_disk_v1')
+        changed = True
+        logging.info(f"Migration extract_posters_to_disk_v1: Extracted {extracted} posters to disk")
+
     # Migration: Recalculate ALL films' quality_score with new Alchemy v2 formula
     if 'recalculate_quality_v2' not in completed:
         import random as _rng
@@ -8767,9 +8808,15 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
                     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                     jpeg_bytes = jpeg_buffer.getvalue()
                     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
-                    poster_data_url = f"data:image/jpeg;base64,{image_base64}"
+                    poster_dir = '/app/backend/static/posters'
+                    os.makedirs(poster_dir, exist_ok=True)
+                    filename = f"task_{task_id}.jpg"
+                    filepath = os.path.join(poster_dir, filename)
+                    with open(filepath, 'wb') as f:
+                        f.write(jpeg_bytes)
+                    poster_file_url = f"/api/posters/{filename}"
                     logging.info(f"AI Poster task {task_id} generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
-                    poster_tasks[task_id] = {'status': 'done', 'poster_url': poster_data_url, 'error': ''}
+                    poster_tasks[task_id] = {'status': 'done', 'poster_url': poster_file_url, 'error': ''}
                     return
                 logging.warning(f"Poster task {task_id} attempt {attempt+1}: No image returned")
             except Exception as e:
@@ -8849,9 +8896,16 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
                 jpeg_bytes = jpeg_buffer.getvalue()
                 
                 image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
-                poster_data_url = f"data:image/jpeg;base64,{image_base64}"
+                poster_dir = '/app/backend/static/posters'
+                os.makedirs(poster_dir, exist_ok=True)
+                import uuid as _uuid
+                filename = f"gen_{_uuid.uuid4().hex[:12]}.jpg"
+                filepath = os.path.join(poster_dir, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(jpeg_bytes)
+                poster_file_url = f"/api/posters/{filename}"
                 logging.info(f"AI Poster generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
-                return {'poster_base64': image_base64, 'poster_url': poster_data_url}
+                return {'poster_base64': image_base64, 'poster_url': poster_file_url}
             
             last_error = 'No image generated'
             logging.warning(f"Poster attempt {attempt+1}: No image returned")
@@ -9136,15 +9190,23 @@ async def _generate_fallback_poster(request) -> dict:
             draw.text((stx + dx, sty + dy), subtitle, font=font_subtitle, fill=(0, 0, 0))
         draw.text((stx, sty), subtitle, font=font_subtitle, fill=(220, 180, 50))
     
-    # Save poster
+    # Save poster to disk
     jpeg_buffer = BytesIO()
     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
     jpeg_bytes = jpeg_buffer.getvalue()
+    
+    poster_dir = '/app/backend/static/posters'
+    os.makedirs(poster_dir, exist_ok=True)
+    import uuid as _uuid
+    filename = f"fb_{_uuid.uuid4().hex[:12]}.jpg"
+    filepath = os.path.join(poster_dir, filename)
+    with open(filepath, 'wb') as f:
+        f.write(jpeg_bytes)
+    poster_file_url = f"/api/posters/{filename}"
     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
-    poster_data_url = f"data:image/jpeg;base64,{image_base64}"
     
     logging.info(f"Fallback poster generated for '{title}' ({genre}, genre_image={has_genre_image}): {len(jpeg_bytes)} bytes")
-    return {'poster_base64': image_base64, 'poster_url': poster_data_url, 'is_fallback': True}
+    return {'poster_base64': image_base64, 'poster_url': poster_file_url, 'is_fallback': True}
 
 @api_router.post("/ai/translate")
 async def translate_text(request: TranslationRequest, user: dict = Depends(get_current_user)):
@@ -16440,6 +16502,16 @@ async def serve_trailer(filename: str):
     if not os.path.isfile(trailer_path):
         raise HTTPException(status_code=404, detail=f"Trailer non trovato: {filename}")
     return TrailerFileResponse(trailer_path, media_type="video/mp4")
+
+@app.get("/api/posters/{filename}")
+async def serve_poster(filename: str):
+    """Serve extracted poster files with aggressive caching."""
+    poster_path = os.path.join("/app/backend/static/posters", filename)
+    if not os.path.isfile(poster_path):
+        raise HTTPException(status_code=404, detail="Poster non trovato")
+    ext = filename.rsplit('.', 1)[-1].lower()
+    media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
+    return FileResponse(poster_path, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
 
 # Serve React build as fallback (production: nginx may proxy all to backend)
 _build_dir = '/app/frontend/build'

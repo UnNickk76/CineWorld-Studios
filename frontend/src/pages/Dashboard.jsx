@@ -3,7 +3,14 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
-import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
+import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations, API } from '../contexts';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400';
+  if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
+  return url;
+};
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -432,9 +439,10 @@ const Dashboard = () => {
                   data-testid={`pending-film-${film.id}`}
                 >
                   <img
-                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'}
+                    src={posterSrc(film.poster_url)}
                     alt={film.title}
                     className="w-10 h-14 object-cover rounded"
+                    loading="lazy"
                     onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }}
                   />
                   <div className="flex-1 min-w-0">
@@ -476,7 +484,7 @@ const Dashboard = () => {
                 return (
                   <div key={sf.id} className="bg-black/30 rounded-lg p-2 border border-white/5" data-testid={`shooting-dialog-film-${sf.id}`}>
                     <div className="flex items-center gap-2 mb-1.5">
-                      {sf.poster_url && <img src={sf.poster_url} alt="" className="w-8 h-12 rounded object-cover" />}
+                      {sf.poster_url && <img src={posterSrc(sf.poster_url)} alt="" className="w-8 h-12 rounded object-cover" loading="lazy" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold truncate">{sf.title}</p>
                         <p className="text-[10px] text-gray-500">Giorno {sf.shooting_days_completed}/{sf.shooting_days} | Bonus: +{sf.shooting_bonus}%</p>
@@ -534,7 +542,7 @@ const Dashboard = () => {
               {/* Film mini card */}
               <div className="flex items-center gap-3 bg-black/30 rounded-lg p-3 border border-white/5">
                 <img
-                  src={releasePopup.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'}
+                  src={posterSrc(releasePopup.poster_url)}
                   alt={releasePopup.title}
                   className="w-12 h-16 object-cover rounded"
                 />
@@ -915,7 +923,7 @@ const Dashboard = () => {
               <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer hover:border-white/15 transition-colors" onClick={() => navigate(`/films/${film.id}`)}>
                 <div className="aspect-[2/3] relative">
                   <img 
-                    src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'} 
+                    src={posterSrc(film.poster_url)} 
                     alt={film.title} 
                     className="w-full h-full object-cover" 
                     loading="lazy"

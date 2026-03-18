@@ -212,7 +212,7 @@ const CineBoard = () => {
                 
                 {/* Poster */}
                 <div className="w-20 flex-shrink-0 cursor-pointer relative" onClick={() => navigate(`/films/${film.id}`)}>
-                  <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt={film.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                  <img src={film.poster_url ? (film.poster_url.startsWith('/') ? `${BACKEND_URL}${film.poster_url}` : film.poster_url) : `${BACKEND_URL}/api/films/${film.id}/poster`} alt={film.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
                   <div style={{display:'none'}} className="w-full h-full items-center justify-center"><FilmPoster film={film} /></div>
                   {/* Virtual Likes Badge */}
                   {(film.virtual_likes > 0) && (
@@ -412,7 +412,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
+                      <img src={film.poster_url ? (film.poster_url.startsWith('/') ? `${BACKEND_URL}${film.poster_url}` : film.poster_url) : `${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
@@ -459,7 +459,7 @@ const CineBoard = () => {
                       {film.rank}
                     </div>
                     <div className="w-10 h-14 rounded bg-gray-800 overflow-hidden flex-shrink-0">
-                      <img src={`${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
+                      <img src={film.poster_url ? (film.poster_url.startsWith('/') ? `${BACKEND_URL}${film.poster_url}` : film.poster_url) : `${BACKEND_URL}/api/films/${film.id}/poster`} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>

@@ -2,6 +2,11 @@
 // Extracted from App.js for modularity
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600';
+  if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
+  return url;
+};
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
@@ -35,7 +40,7 @@ import {
   Eye, EyeOff, Lock, Unlock, Mail, Phone, Calendar, MapPin, Building,
   Sparkles, Flame, Target, Gamepad2, Music, Palette, Camera, Video,
   BookOpen, Newspaper, Gift, Crown, Medal, Gem, Coins, Wallet,
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, MoreHorizontal, MoreVertical,
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, MoreHorizontal, MoreVertical, RotateCcw, TrendingDown,
   ChevronUp, ChevronsUpDown, Lightbulb, Megaphone, Share2, ThumbsUp,
   ThumbsDown, Bookmark, Flag, AlertTriangle, XCircle, CheckCircle,
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
@@ -332,7 +337,7 @@ const FilmDetail = () => {
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="bg-[#1A1A1A] border-white/10 overflow-hidden">
           <div className="aspect-[2/3] relative">
-            <img src={film.poster_url || 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=600'} alt={film.title} className="w-full h-full object-cover" />
+            <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
             {film.is_sequel && (
               <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow-lg">
                 SEQUEL #{film.sequel_number || 2}

@@ -6240,17 +6240,17 @@ async def run_startup_migrations():
     changed = False
     
     # Migration: Add $40M to NeoMorpheus
-    if 'neomorpheus_40m_v2' not in completed:
+    if 'neomorpheus_40m_v3' not in completed:
         neo = await db.users.find_one(
             {'nickname': {'$regex': '^neomorpheus$', '$options': 'i'}},
-            {'_id': 0, 'id': 1, 'money': 1, 'nickname': 1}
+            {'_id': 0, 'id': 1, 'funds': 1, 'nickname': 1}
         )
         if neo:
-            result = await db.users.update_one({'id': neo['id']}, {'$inc': {'money': 40_000_000}})
-            logging.info(f"Migration neomorpheus_40m_v2: Added $40M to {neo['nickname']} (was ${neo.get('money', 0)}, modified={result.modified_count})")
+            result = await db.users.update_one({'id': neo['id']}, {'$inc': {'funds': 40_000_000}})
+            logging.info(f"Migration neomorpheus_40m_v3: Added $40M FUNDS to {neo['nickname']} (was ${neo.get('funds', 0)}, modified={result.modified_count})")
         else:
-            logging.warning("Migration neomorpheus_40m_v2: NeoMorpheus user not found!")
-        completed.append('neomorpheus_40m_v2')
+            logging.warning("Migration neomorpheus_40m_v3: NeoMorpheus user not found!")
+        completed.append('neomorpheus_40m_v3')
         changed = True
     
     # Migration: Recalculate all IMDb ratings with new non-linear formula
@@ -6303,6 +6303,47 @@ async def run_startup_migrations():
         completed.append('repair_incomplete_films_v2')
         changed = True
         logging.info(f"Migration repair_incomplete_films_v2: Repaired {len(incomplete)} films")
+    
+    # Migration: Refund orphaned screenplay purchases (accepted but no film_project created)
+    if 'refund_orphan_screenplays_v1' not in completed:
+        orphan_screenplays = await db.emerging_screenplays.find({
+            'status': 'accepted',
+        }, {'_id': 0}).to_list(200)
+        
+        refunded_count = 0
+        for sp in orphan_screenplays:
+            buyer_id = sp.get('accepted_by')
+            if not buyer_id:
+                continue
+            # Check if a corresponding film_project was created
+            project = await db.film_projects.find_one({
+                'user_id': buyer_id,
+                'from_emerging_screenplay': True,
+                'title': sp.get('title')
+            }, {'_id': 0, 'id': 1})
+            
+            if not project:
+                # No project found — refund the cost
+                option = sp.get('accepted_option', 'screenplay_only')
+                cost = sp.get('full_package_cost', 0) if option == 'full_package' else sp.get('screenplay_cost', 0)
+                if cost > 0:
+                    await db.users.update_one({'id': buyer_id}, {'$inc': {'funds': cost}})
+                    refunded_count += 1
+                    logging.info(f"Refunded ${cost} to user {buyer_id} for orphaned screenplay '{sp.get('title')}'")
+        
+        completed.append('refund_orphan_screenplays_v1')
+        changed = True
+        logging.info(f"Migration refund_orphan_screenplays_v1: Refunded {refunded_count} orphaned purchases")
+    
+    # Migration: Ensure all released films have status 'in_theaters' so they appear in CineBoard
+    if 'fix_film_status_v1' not in completed:
+        result = await db.films.update_many(
+            {'status': {'$in': ['released', 'active', 'completed']}, 'day_in_theaters': {'$lt': 100}},
+            {'$set': {'status': 'in_theaters'}}
+        )
+        completed.append('fix_film_status_v1')
+        changed = True
+        logging.info(f"Migration fix_film_status_v1: Fixed status for {result.modified_count} films")
     
     if changed:
         await db.migrations.update_one(
@@ -6520,19 +6561,22 @@ async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/add-money")
 async def admin_add_money(data: dict, user: dict = Depends(get_current_user)):
-    """Add or remove money from a user (admin only)."""
+    """Add or remove funds from a user (admin only)."""
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
     nickname = data.get('nickname')
     amount = data.get('amount', 0)
     if not nickname or not amount:
         raise HTTPException(status_code=400, detail="nickname e amount richiesti")
-    target = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'id': 1, 'nickname': 1, 'money': 1})
+    target = await db.users.find_one(
+        {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'funds': 1}
+    )
     if not target:
         raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
-    result = await db.users.update_one({'id': target['id']}, {'$inc': {'money': amount}})
-    new_money = (target.get('money', 0) + amount)
-    return {'success': True, 'nickname': nickname, 'old_money': target.get('money', 0), 'added': amount, 'new_money': new_money}
+    result = await db.users.update_one({'id': target['id']}, {'$inc': {'funds': amount}})
+    new_funds = (target.get('funds', 0) + amount)
+    return {'success': True, 'nickname': target['nickname'], 'old_funds': target.get('funds', 0), 'added': amount, 'new_funds': new_funds}
 
 @api_router.post("/admin/repair-films")
 async def admin_repair_films(data: dict, user: dict = Depends(get_current_user)):

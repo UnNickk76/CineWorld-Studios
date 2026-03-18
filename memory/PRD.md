@@ -205,6 +205,17 @@
 - **Fix Frontend**: `EmergingScreenplays.jsx` e `FilmMarketplace.jsx` navigano a `/create-film?tab=casting` dopo acquisto
 - Test: 100% (5/5 passed, 1 skipped)
 
+### Ottimizzazione Performance (18 Mar 2026)
+- **Dashboard batch endpoint** (`/api/dashboard/batch`): singolo endpoint sostituisce 13+ API call separate (stats, film, challenges, pipeline, ecc.)
+- **MongoDB indexes**: aggiunti 28+ indici su tutte le collection critiche (film_projects, infrastructure, challenges, people, ecc.)
+- **Server-side TTL cache**: cineboard endpoints (daily, weekly, now-playing) con cache 30s
+- **Query projections**: ridotta dimensione dati cineboard da ~19KB/film a ~3KB/film
+- **Frontend caching**: `cachedGet` con TTL 2min + deduplicazione richieste in-flight
+- **Ridotto polling**: casting/pre-prod 30s→60s, shooting 15s→45s
+- **Ridotto timeout axios**: 45s→12s, retry 1.5s→0.8s
+- **Performance**: Dashboard batch 120ms (localhost), Pipeline 33ms, Cineboard ~370ms
+- Test: 100% (13/13 backend + 3/3 frontend)
+
 ## Task Prossimi
 - **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)
 - **(P2)** Layout mobile pagina Contest

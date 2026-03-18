@@ -8003,10 +8003,27 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, {'_id': 0}).to_list(50)
+    my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, {'_id': 0}).sort('created_at', -1).to_list(10)
+    my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, {'_id': 0}).sort('created_at', -1).to_list(10)
+    recent_releases_task = db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
+    ).sort('released_at', -1).to_list(10)
     
-    films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task
+    films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
     )
+    
+    # Enrich recent releases with producer nicknames
+    producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
+    producers = {}
+    if producer_ids:
+        producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(50)
+        producers = {p['id']: p for p in producer_docs}
+    for r in recent_releases:
+        p = producers.get(r.get('user_id'), {})
+        r['producer_nickname'] = p.get('nickname', '?')
+        r['producer_house'] = p.get('production_house_name', '')
     
     # Statistics calculation
     total_box_office = sum(f.get('realistic_box_office', 0) or f.get('total_revenue', 0) for f in films)
@@ -8062,6 +8079,9 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
             'infrastructure_count': len(infrastructure)
         },
         'featured_films': featured,
+        'my_series': my_series[:5],
+        'my_anime': my_anime[:5],
+        'recent_releases': recent_releases,
         'challenges': challenges,
         'pending_revenue': {'total': total_pending, 'films_count': len(films_in_theaters)},
         'pending_films': pending_films,

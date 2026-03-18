@@ -46,7 +46,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown, Pen
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown, Pen, Tv
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
@@ -59,6 +59,9 @@ const Dashboard = () => {
   const { setIsOpen: openProductionMenu } = useProductionMenu();
   const [stats, setStats] = useState(null);
   const [films, setFilms] = useState([]);
+  const [mySeries, setMySeries] = useState([]);
+  const [myAnime, setMyAnime] = useState([]);
+  const [recentReleases, setRecentReleases] = useState([]);
   const [pendingFilms, setPendingFilms] = useState([]);
   const [challenges, setChallenges] = useState({ daily: [], weekly: [] });
   const [catchupData, setCatchupData] = useState(null);
@@ -216,6 +219,9 @@ const Dashboard = () => {
         const d = batchRes.data;
         setStats(d.stats);
         setFilms(Array.from(new Map((d.featured_films || []).map(f => [f.id, f])).values()));
+        setMySeries(d.my_series || []);
+        setMyAnime(d.my_anime || []);
+        setRecentReleases(d.recent_releases || []);
         setChallenges(d.challenges || []);
         setPendingRevenue(d.pending_revenue || {});
         setPendingFilms(d.pending_films || []);
@@ -420,7 +426,39 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* Pending Films Section removed - no longer needed */}
+      {/* Ultimi Aggiornamenti - Recent releases from all players */}
+      {recentReleases.length > 0 && (
+        <Card className="mb-4 bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20" data-testid="recent-releases-section">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                {language === 'it' ? 'ULTIMI AGGIORNAMENTI' : 'LATEST RELEASES'}
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-6 text-[10px] text-purple-400 hover:text-purple-300 px-2">
+                CineBoard <ChevronRight className="w-3 h-3 ml-0.5" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {recentReleases.slice(0, 5).map(film => (
+                <div key={film.id} className="cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-release-${film.id}`}>
+                  <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                    <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                    {(film.virtual_likes > 0) && (
+                      <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
+                        <Heart className="w-1.5 h-1.5 text-pink-400 fill-pink-400" />
+                        <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
+                  <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Shooting Dialog - opens from CIAK! button */}
       <Dialog open={showShootingDialog} onOpenChange={setShowShootingDialog}>
@@ -868,42 +906,81 @@ const Dashboard = () => {
         </Card>
       </div>
 
+      {/* I Miei Film - 5 poster row */}
       {films.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-3 px-3" data-testid="my-films-sticky-header">
-            <h2 className="font-['Bebas_Neue'] text-xl">{t('my_films')}</h2>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-7 text-xs">Vedi Tutti <ChevronRight className="w-3 h-3 ml-1" /></Button>
+        <div className="mb-4" data-testid="my-films-section">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Film className="w-4 h-4 text-yellow-400" />{language === 'it' ? 'I MIEI FILM' : 'MY FILMS'}</h2>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/films')} className="h-6 text-[10px] text-yellow-400 hover:text-yellow-300 px-2">Vedi Tutti <ChevronRight className="w-3 h-3 ml-0.5" /></Button>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
-            {films.map(film => (
-              <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden cursor-pointer hover:border-white/15 transition-colors" onClick={() => navigate(`/films/${film.id}`)}>
-                <div className="aspect-[2/3] relative">
-                  <img 
-                    src={posterSrc(film.poster_url)} 
-                    alt={film.title} 
-                    className="w-full h-full object-cover" 
-                    loading="lazy"
-                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400'; }}
-                  />
-                  {film.is_sequel && (
-                    <div className="absolute top-0.5 right-0.5 bg-purple-600/90 text-white text-[6px] px-1 py-0.5 rounded font-bold">
-                      #{film.sequel_number || 2}
-                    </div>
-                  )}
+          <div className="grid grid-cols-5 gap-1.5">
+            {films.slice(0, 5).map(film => (
+              <div key={film.id} className="cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`my-film-${film.id}`}>
+                <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                  <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                  {film.is_sequel && <div className="absolute top-0.5 right-0.5 bg-purple-600/90 text-white text-[6px] px-1 py-0.5 rounded font-bold">#{film.sequel_number || 2}</div>}
                   {(film.virtual_likes > 0) && (
                     <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
-                      <Heart className="w-2 h-2 text-pink-400 fill-pink-400" />
-                      <span className="text-[7px] text-pink-300">{film.virtual_likes}</span>
+                      <Heart className="w-1.5 h-1.5 text-pink-400 fill-pink-400" />
+                      <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
                     </div>
                   )}
                 </div>
-                <CardContent className="p-1">
-                  <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{film.title}</h3>
-                  <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px] text-gray-400">
-                    <span>${((film.total_revenue || 0)/1000).toFixed(0)}K</span>
-                  </div>
-                </CardContent>
-              </Card>
+                <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
+                <p className="text-[6px] text-gray-500 truncate">${((film.total_revenue || 0)/1000).toFixed(0)}K</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Le Mie Serie TV - 5 poster row */}
+      {mySeries.length > 0 && (
+        <div className="mb-4" data-testid="my-series-section">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Tv className="w-4 h-4 text-blue-400" />{language === 'it' ? 'LE MIE SERIE TV' : 'MY TV SERIES'}</h2>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-6 text-[10px] text-blue-400 hover:text-blue-300 px-2">Vedi Tutti <ChevronRight className="w-3 h-3 ml-0.5" /></Button>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {mySeries.slice(0, 5).map(s => (
+              <div key={s.id} className="cursor-pointer group" onClick={() => navigate('/films?view=series')} data-testid={`my-series-${s.id}`}>
+                <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                  {s.poster_url ? (
+                    <img src={posterSrc(s.poster_url)} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full bg-blue-500/10 flex items-center justify-center"><Tv className="w-6 h-6 text-blue-400/30" /></div>
+                  )}
+                  <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${s.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'}`}>{s.status === 'completed' ? 'DONE' : s.status}</Badge>
+                </div>
+                <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
+                <p className="text-[6px] text-gray-500 truncate">{s.genre_name || s.genre}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* I Miei Anime - 5 poster row */}
+      {myAnime.length > 0 && (
+        <div className="mb-4" data-testid="my-anime-section">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Sparkles className="w-4 h-4 text-orange-400" />{language === 'it' ? 'I MIEI ANIME' : 'MY ANIME'}</h2>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=anime')} className="h-6 text-[10px] text-orange-400 hover:text-orange-300 px-2">Vedi Tutti <ChevronRight className="w-3 h-3 ml-0.5" /></Button>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {myAnime.slice(0, 5).map(a => (
+              <div key={a.id} className="cursor-pointer group" onClick={() => navigate('/films?view=anime')} data-testid={`my-anime-${a.id}`}>
+                <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                  {a.poster_url ? (
+                    <img src={posterSrc(a.poster_url)} alt={a.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full bg-orange-500/10 flex items-center justify-center"><Sparkles className="w-6 h-6 text-orange-400/30" /></div>
+                  )}
+                  <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${a.status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}>{a.status === 'completed' ? 'DONE' : a.status}</Badge>
+                </div>
+                <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
+                <p className="text-[6px] text-gray-500 truncate">{a.genre_name || a.genre}</p>
+              </div>
             ))}
           </div>
         </div>

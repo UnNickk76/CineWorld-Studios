@@ -93,6 +93,19 @@ const ChallengesPage = () => {
   const [offlineLoading, setOfflineLoading] = useState(false);
   const [challengeLimits, setChallengeLimits] = useState(null);
   const [lastCinepassReward, setLastCinepassReward] = useState(0);
+  const [joiningChallengeId, setJoiningChallengeId] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle ?accept=CHALLENGE_ID from notification popup
+  useEffect(() => {
+    const acceptId = searchParams.get('accept');
+    if (acceptId) {
+      setJoiningChallengeId(acceptId);
+      setSelectedFilms([]);
+      setView('create');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     loadData();
@@ -1028,7 +1041,7 @@ const ChallengesPage = () => {
                     <p className="font-semibold">{c.type.toUpperCase()} - {c.creator_nickname}</p>
                     <p className="text-xs text-gray-400">{c.participants?.length || 1}/{c.required_players || 2} {language === 'it' ? 'giocatori' : 'players'}</p>
                   </div>
-                  <Button size="sm" onClick={() => { setSelectedFilms([]); viewBattleResult(c.id); }} className="bg-pink-500 hover:bg-pink-600">
+                  <Button size="sm" onClick={() => { setSelectedFilms([]); setJoiningChallengeId(c.id); setView('create'); }} className="bg-pink-500 hover:bg-pink-600" data-testid={`join-challenge-${c.id}`}>
                     {language === 'it' ? 'Unisciti' : 'Join'}
                   </Button>
                 </div>
@@ -1275,11 +1288,24 @@ const ChallengesPage = () => {
       <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-2 mb-2">
-            <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
-            <h1 className="font-['Bebas_Neue'] text-3xl">CREA SFIDA 1v1</h1>
+            <Button variant="ghost" size="sm" onClick={() => { setView('home'); setJoiningChallengeId(null); }} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
+            <h1 className="font-['Bebas_Neue'] text-3xl">{joiningChallengeId ? 'ACCETTA SFIDA 1v1' : 'CREA SFIDA 1v1'}</h1>
           </div>
           <p className="text-gray-400 text-sm">Seleziona 3 film per la sfida</p>
         </motion.div>
+
+        {/* Accept challenge banner */}
+        {joiningChallengeId && (
+          <Card className="bg-gradient-to-r from-pink-500/15 to-purple-500/10 border-pink-500/30 mb-4" data-testid="accept-challenge-banner">
+            <CardContent className="p-3 flex items-center gap-3">
+              <Swords className="w-5 h-5 text-pink-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-pink-400">{language === 'it' ? 'Sei stato sfidato!' : 'You have been challenged!'}</p>
+                <p className="text-xs text-gray-400">{language === 'it' ? 'Scegli 3 film per accettare la sfida. Il costo di partecipazione è $50.000.' : 'Choose 3 films to accept the challenge. Participation cost is $50,000.'}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Cost Info Banner */}
         <Card className="bg-gradient-to-r from-yellow-500/10 to-green-500/5 border-yellow-500/30 mb-4">
@@ -1407,11 +1433,21 @@ const ChallengesPage = () => {
           )}
           <Button 
             className="w-full h-12 bg-pink-500 hover:bg-pink-600 font-['Bebas_Neue'] text-lg"
-            onClick={() => setChallengeMode('choose')}
-            disabled={selectedFilms.length !== 3}
+            onClick={() => {
+              if (joiningChallengeId) {
+                joinChallenge(joiningChallengeId);
+              } else {
+                setChallengeMode('choose');
+              }
+            }}
+            disabled={selectedFilms.length !== 3 || loading}
             data-testid="launch-challenge-btn"
           >
-            <Swords className="w-5 h-5 mr-2" /> LANCIA SFIDA! ({selectedFilms.length}/3 film)
+            {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Swords className="w-5 h-5 mr-2" />}
+            {joiningChallengeId 
+              ? (language === 'it' ? `ACCETTA SFIDA! (${selectedFilms.length}/3 film)` : `ACCEPT CHALLENGE! (${selectedFilms.length}/3 films)`)
+              : `${language === 'it' ? 'LANCIA SFIDA!' : 'LAUNCH CHALLENGE!'} (${selectedFilms.length}/3 film)`
+            }
           </Button>
         </div>
       </div>

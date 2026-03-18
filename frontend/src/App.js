@@ -1527,17 +1527,21 @@ const ProtectedRoute = ({ children }) => {
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
   const [productionMenuOpen, setProductionMenuOpen] = useState(false);
   
-  // Check for pending challenge invites on login
+  // Check for pending challenge invites - on login + every 30s
   useEffect(() => {
-    if (user && api) {
-      api.get('/notifications?limit=50').then(r => {
+    if (!user || !api) return;
+    const checkChallengeInvites = () => {
+      api.get('/notifications?limit=20').then(r => {
         const notifs = r.data?.notifications || r.data || [];
         const pending = notifs.find(n => 
           n.type === 'challenge_invite' && !n.read && n.data?.is_popup
         );
-        if (pending) setPendingChallengePopup(pending);
+        if (pending && !pendingChallengePopup) setPendingChallengePopup(pending);
       }).catch(() => {});
-    }
+    };
+    checkChallengeInvites();
+    const interval = setInterval(checkChallengeInvites, 30000);
+    return () => clearInterval(interval);
   }, [user, api]);
   
   const openPlayerPopup = async (userId) => {
@@ -1603,7 +1607,7 @@ const ProtectedRoute = ({ children }) => {
               <Button className="flex-1 bg-pink-500 hover:bg-pink-600" onClick={() => {
                 api.post(`/notifications/${pendingChallengePopup.id}/read`).catch(() => {});
                 setPendingChallengePopup(null);
-                navigate('/challenges');
+                navigate(`/challenges?accept=${pendingChallengePopup.data?.challenge_id}`);
               }} data-testid="accept-challenge-btn">
                 <Swords className="w-4 h-4 mr-1" /> Accetta Sfida!
               </Button>

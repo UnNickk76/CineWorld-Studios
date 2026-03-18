@@ -166,7 +166,7 @@ const NotificationsPage = () => {
                     } else {
                       // Fallback routing based on notification type
                       const typeRoutes = {
-                        'challenge_invite': '/challenges',
+                        'challenge_invite': notif.data?.challenge_id ? `/challenges?accept=${notif.data.challenge_id}` : '/challenges',
                         'challenge_won': '/challenges',
                         'challenge_lost': '/challenges',
                         'versus_result': '/challenges',

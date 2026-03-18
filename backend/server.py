@@ -14020,50 +14020,58 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
 
     for film in films:
         daily_rev = 0
-        hourly_trend = {}
         for dr in film.get('daily_revenues', []):
             dr_date = dr.get('date', '')
             if dr_date:
                 try:
                     d = datetime.fromisoformat(dr_date.replace('Z', '+00:00'))
                     if d >= today_start:
-                        amt = dr.get('amount', 0)
-                        daily_rev += amt
-                        hour_key = d.strftime('%H:00')
-                        hourly_trend[hour_key] = hourly_trend.get(hour_key, 0) + amt
+                        daily_rev += dr.get('amount', 0)
                 except Exception:
                     pass
+        
+        # Calculate days since release for decay
+        quality = film.get('quality_score', film.get('quality', 50))
+        released_at = film.get('released_at', film.get('release_date', film.get('created_at', now.isoformat())))
+        try:
+            rd = datetime.fromisoformat(str(released_at).replace('Z', '+00:00'))
+            days_old = max(0, (now - rd).total_seconds() / 86400)
+        except Exception:
+            rd = now - timedelta(days=30)
+            days_old = 30
+        
         if daily_rev <= 0:
-            # Fallback: estimate daily revenue using exponential decay
             total_rev = film.get('total_revenue', 0)
-            quality = film.get('quality_score', film.get('quality', 50))
-            # Calculate days in theaters
-            released_at = film.get('released_at', film.get('release_date', film.get('created_at', now.isoformat())))
-            try:
-                rd = datetime.fromisoformat(str(released_at).replace('Z', '+00:00'))
-                days_old = max(0, (now - rd).total_seconds() / 86400)
-            except Exception:
-                days_old = 30
-            
-            # Decay: masterpieces keep earning, others drop fast
             if quality >= 90:
-                decay = 0.92 ** days_old   # Masterpiece
+                decay = 0.92 ** days_old
             elif quality >= 80:
-                decay = 0.85 ** days_old   # Great
+                decay = 0.85 ** days_old
             elif quality >= 65:
-                decay = 0.78 ** days_old   # Good
+                decay = 0.78 ** days_old
             else:
-                decay = 0.70 ** days_old   # Mediocre
-            
-            # Opening day was ~5% of total, then decayed
+                decay = 0.70 ** days_old
             daily_rev = total_rev * 0.05 * decay
-            
-            current_hour = now.hour
-            for h in range(max(0, current_hour - 5), current_hour + 1):
-                hourly_trend[f'{h:02d}:00'] = round(daily_rev / max(current_hour, 1))
+        
+        # Generate 6 bars: 4-hour blocks since release (showing decay pattern)
+        opening_rev = film.get('opening_day_revenue', film.get('total_revenue', 100000) * 0.05)
+        if quality >= 90:
+            block_decay = 0.92
+        elif quality >= 80:
+            block_decay = 0.85
+        elif quality >= 65:
+            block_decay = 0.78
+        else:
+            block_decay = 0.70
+        
+        hourly_blocks = []
+        for i in range(6):
+            block_day = days_old - 1 + (i * 4 / 24)  # Spread across today
+            block_rev = opening_rev * (block_decay ** max(0, block_day)) * (1.0 - i * 0.08)
+            label = f'{i*4}-{(i+1)*4}h'
+            hourly_blocks.append({'hour': label, 'revenue': round(max(0, block_rev))})
         
         film['daily_revenue'] = round(daily_rev)
-        film['hourly_trend'] = [{'hour': k, 'revenue': round(v)} for k, v in sorted(hourly_trend.items())]
+        film['hourly_trend'] = hourly_blocks
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
@@ -14129,11 +14137,32 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
                 day = (now - timedelta(days=6-i)).strftime('%Y-%m-%d')
                 daily_trend[day] = round(weekly_rev / 7 * (1 + (i - 3) * 0.05))
         
-        # Format daily trend with day labels
-        day_labels = {'Mon': 'Lun', 'Tue': 'Mar', 'Wed': 'Mer', 'Thu': 'Gio', 'Fri': 'Ven', 'Sat': 'Sab', 'Sun': 'Dom'}
-        sorted_days = sorted(daily_trend.items())
+        # Generate 7 bars: one for each day since release (release-relative trend)
+        released_at = film.get('released_at', film.get('release_date', film.get('created_at', now.isoformat())))
+        try:
+            rd = datetime.fromisoformat(str(released_at).replace('Z', '+00:00'))
+        except Exception:
+            rd = now - timedelta(days=30)
+        
+        quality = film.get('quality_score', film.get('quality', 50))
+        opening_rev = film.get('opening_day_revenue', film.get('total_revenue', 100000) * 0.05)
+        
+        if quality >= 90:
+            day_decay = 0.92
+        elif quality >= 80:
+            day_decay = 0.85
+        elif quality >= 65:
+            day_decay = 0.78
+        else:
+            day_decay = 0.70
+        
+        daily_trend_since_release = []
+        for i in range(7):
+            day_rev = opening_rev * (day_decay ** i)
+            daily_trend_since_release.append({'day': f'G{i+1}', 'revenue': round(max(0, day_rev))})
+        
         film['weekly_revenue'] = round(weekly_rev)
-        film['daily_trend'] = [{'date': k, 'day': day_labels.get(datetime.strptime(k, '%Y-%m-%d').strftime('%a'), k), 'revenue': round(v)} for k, v in sorted_days]
+        film['daily_trend'] = daily_trend_since_release
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])

@@ -170,10 +170,16 @@
 
 ### CineBoard Leaderboard Overhaul (18 Mar 2026)
 - Rimossa tab "Hall of Fame", sostituite con "Giornaliera" e "Settimanale"
-- 4 tab: In Sala (Top 50), Giornaliera, Settimanale, Affluenze
+- 4 tab: Giornaliera, Settimanale, In Sala (Top 50), Affluenze
 - Backend: GET /api/cineboard/daily (ordinato per daily_revenue), GET /api/cineboard/weekly (ordinato per weekly_revenue)
 - UI: Revenue giornaliera/settimanale mostrata nel formato "$XM oggi" / "$XM sett."
-- Test: 100% backend + frontend (iteration 80)
+- **Barre trend relative al rilascio (18 Mar 2026):**
+  - Daily: 6 barre verdi per blocchi 4 ore dal rilascio (0-4h, 4-8h, 8-12h, 12-16h, 16-20h, 20-24h)
+  - Weekly: 7 barre viola per i primi 7 giorni dal rilascio (G1-G7)
+  - Pattern decadimento basato su qualità film (90%+: 0.92, 80%+: 0.85, 65%+: 0.78, <65: 0.70)
+  - Backend: calcolo trend basato su opening_revenue × decay^day
+  - Frontend: barre con altezza in pixel proporzionale, tooltip con revenue, labels sotto ogni barra
+- Test: 100% backend (17/17) + frontend verificato
 
 ### Admin Tools (18 Mar 2026)
 - **POST /api/admin/add-money**: Aggiunge/rimuove denaro a un utente (solo admin). Params: `{nickname, amount}`

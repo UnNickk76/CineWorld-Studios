@@ -266,29 +266,51 @@ const CineBoard = () => {
                     </div>
                   </div>
                   
-                  {/* Trend mini chart for daily/weekly */}
-                  {activeTab === 'daily' && film.hourly_trend?.length > 0 && (
-                    <div className="mt-1.5 flex items-end gap-[2px] h-5" title="Andamento orario">
-                      {film.hourly_trend.map((h, i) => {
-                        const maxRev = Math.max(...film.hourly_trend.map(x => x.revenue), 1);
-                        const pct = (h.revenue / maxRev) * 100;
-                        return <div key={i} className="flex-1 bg-green-500/60 rounded-t-sm min-w-[2px]" style={{height: `${Math.max(pct, 5)}%`}} title={`${h.hour}: $${(h.revenue/1000).toFixed(0)}K`} />;
-                      })}
-                      <span className="text-[7px] text-gray-500 ml-0.5">orario</span>
-                    </div>
-                  )}
-                  {activeTab === 'weekly' && film.daily_trend?.length > 0 && (
-                    <div className="mt-1.5 flex items-end gap-[2px] h-5" title="Andamento giornaliero">
-                      {film.daily_trend.map((d, i) => {
-                        const maxRev = Math.max(...film.daily_trend.map(x => x.revenue), 1);
-                        const pct = (d.revenue / maxRev) * 100;
-                        return <div key={i} className="flex-1 flex flex-col items-center">
-                          <div className="w-full bg-purple-500/60 rounded-t-sm" style={{height: `${Math.max(pct * 0.2, 1)}px`, minHeight: '1px'}} title={`${d.day}: $${(d.revenue/1000).toFixed(0)}K`} />
-                          <span className="text-[6px] text-gray-600 leading-none">{d.day}</span>
-                        </div>;
-                      })}
-                    </div>
-                  )}
+                  {/* Release-relative trend bars */}
+                  {activeTab === 'daily' && film.hourly_trend?.length > 0 && (() => {
+                    const maxRev = Math.max(...film.hourly_trend.map(x => x.revenue), 1);
+                    const BAR_H = 28;
+                    return (
+                      <div className="mt-2 flex items-end gap-1" data-testid={`trend-daily-${film.id}`}>
+                        {film.hourly_trend.map((h, i) => {
+                          const px = Math.max((h.revenue / maxRev) * BAR_H, 3);
+                          return (
+                            <div key={i} className="flex flex-col items-center" style={{width: '14%'}}>
+                              <div 
+                                className="w-full rounded-t-sm bg-green-500/70 hover:bg-green-400/90 transition-colors"
+                                style={{height: `${px}px`}}
+                                title={`${h.hour}: $${(h.revenue/1000000).toFixed(2)}M`}
+                              />
+                              <span className="text-[7px] text-gray-500 mt-0.5 leading-none">{h.hour.replace('h','')}</span>
+                            </div>
+                          );
+                        })}
+                        <span className="text-[7px] text-gray-600 self-end ml-0.5 pb-0.5">{language === 'it' ? 'ore' : 'hrs'}</span>
+                      </div>
+                    );
+                  })()}
+                  {activeTab === 'weekly' && film.daily_trend?.length > 0 && (() => {
+                    const maxRev = Math.max(...film.daily_trend.map(x => x.revenue), 1);
+                    const BAR_H = 28;
+                    return (
+                      <div className="mt-2 flex items-end gap-1" data-testid={`trend-weekly-${film.id}`}>
+                        {film.daily_trend.map((d, i) => {
+                          const px = Math.max((d.revenue / maxRev) * BAR_H, 3);
+                          return (
+                            <div key={i} className="flex flex-col items-center" style={{width: '12%'}}>
+                              <div 
+                                className="w-full rounded-t-sm bg-purple-500/70 hover:bg-purple-400/90 transition-colors"
+                                style={{height: `${px}px`}}
+                                title={`${d.day}: $${(d.revenue/1000000).toFixed(2)}M`}
+                              />
+                              <span className="text-[7px] text-gray-500 mt-0.5 leading-none">{d.day}</span>
+                            </div>
+                          );
+                        })}
+                        <span className="text-[7px] text-gray-600 self-end ml-0.5 pb-0.5">{language === 'it' ? 'giorni' : 'days'}</span>
+                      </div>
+                    );
+                  })()}
                   
                   {/* Action Row */}
                   <div className="flex items-center gap-2 mt-2">

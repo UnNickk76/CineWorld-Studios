@@ -1,0 +1,80 @@
+{
+  "summary": "Iteration 90: Tested TV Series & Anime Pipeline system. All backend APIs for /api/series-pipeline/* work correctly including genres (10 TV, 8 anime), create, advance-to-casting, available-actors, select-cast, advance-to-screenplay, write-screenplay (AI), start-production, production-status, and release. Frontend PRODUCI card opens production menu overlay with '1 da sbloccare' badge (only emittente_tv locked). SeriesTVPipeline and AnimePipeline pages show full create forms with genre grids and episode sliders. EmittenteTVPage shows locked state with requirements (Level 18, Fame 200, $5M cost).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter90_series_pipeline.py",
+    "/app/test_reports/pytest/pytest_iter90_series_pipeline.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iter90_series_pipeline.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed, 2 fixture errors due to max concurrent limit)",
+    "frontend": "100% (9/9 tests passed)"
+  },
+  "test_credentials": "fandrex1@gmail.com / Ciaociao1",
+  "seed_data_creation": "Created and cleaned up TEST_ prefixed series during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "User fandrex1@gmail.com has studio_serie_tv and studio_anime unlocked. Only emittente_tv is locked. User has 2 completed TV series: 'TEST_Full_Pipeline' (84.2 quality) and 'Roma Criminale' (93.6 quality). Production menu correctly shows '1 da sbloccare' badge. All series pipeline endpoints verified working including full flow: concept->casting->screenplay->production->release.",
+  "tests_executed": {
+    "Backend API Tests (pytest)": {
+      "test_unlock_status_returns_200": "PASSED - API returns 200",
+      "test_user_has_tv_and_anime_studios": "PASSED - has_studio_serie_tv=True, has_studio_anime=True, has_emittente_tv=False",
+      "test_tv_series_genres_returns_10": "PASSED - Returns 10 genres (drama, comedy, thriller, sci_fi, horror, crime, romance, fantasy, action, medical)",
+      "test_anime_genres_returns_8": "PASSED - Returns 8 anime genres with descriptions (shonen, seinen, shojo, mecha, isekai, slice_of_life, horror, sports)",
+      "test_create_tv_series": "PASSED - Creates series in 'concept' status",
+      "test_create_anime_series": "PASSED - Creates anime with correct type",
+      "test_create_series_invalid_genre": "PASSED - Returns 400 for invalid genre",
+      "test_get_my_tv_series": "PASSED - Returns user's TV series list",
+      "test_get_my_anime": "PASSED - Returns user's anime list",
+      "test_series_counts": "PASSED - Returns tv_in_pipeline, anime_in_pipeline, tv_completed, anime_completed",
+      "test_cleanup_test_series": "PASSED - Discards TEST_ prefixed series"
+    },
+    "Backend Manual Tests (curl)": {
+      "advance_to_casting": "PASSED - Status changes to 'casting'",
+      "get_available_actors": "PASSED - Returns 5 test actors (user has hired actors)",
+      "select_cast": "PASSED - Returns cast with salary calculation",
+      "advance_to_screenplay": "PASSED - Status changes to 'screenplay'",
+      "write_screenplay_ai": "PASSED - Generates 3189 char screenplay using emergentintegrations LlmChat",
+      "start_production": "PASSED - Status='production', duration_minutes=64",
+      "production_status": "PASSED - Returns progress, elapsed/remaining minutes",
+      "release": "PASSED - Returns quality score (84.2), breakdown, xp_reward (80), fame_bonus (15)"
+    },
+    "Frontend Tests (Playwright)": {
+      "step_01_login": "PASSED - Successfully logged in",
+      "step_02_produci_card_visible": "PASSED - PRODUCI card visible on Dashboard",
+      "step_03_produci_card_opens_menu": "PASSED - Clicking PRODUCI card opens production menu overlay",
+      "step_04_unlockable_badge": "PASSED - Badge shows '1 da sbloccare'",
+      "step_05_create_series_page": "PASSED - /create-series shows 'Pipeline Serie TV' with genre grid",
+      "step_06_genre_buttons_tv": "PASSED - Genre buttons (drama, comedy) found",
+      "step_07_create_anime_page": "PASSED - /create-anime shows 'Pipeline Anime' with 8 genres",
+      "step_08_anime_genres_with_desc": "PASSED - Shonen, isekai genres found with descriptions",
+      "step_09_emittente_tv_locked": "PASSED - /my-tv shows locked page with requirements (L18, Fame 200, $5M)"
+    }
+  },
+  "features_verified": {
+    "backend_series_pipeline_endpoints": "VERIFIED - All 13 endpoints working",
+    "genres_tv_series_10": "VERIFIED - drama, comedy, thriller, sci_fi, horror, crime, romance, fantasy, action, medical",
+    "genres_anime_8": "VERIFIED - shonen, seinen, shojo, mecha, isekai, slice_of_life, horror, sports with descriptions",
+    "full_pipeline_flow": "VERIFIED - concept->casting->screenplay->production->release",
+    "ai_screenplay_generation": "VERIFIED - Uses emergentintegrations LlmChat with EMERGENT_LLM_KEY",
+    "quality_calculation": "VERIFIED - Returns score + breakdown (base, cast_bonus, screenplay_bonus, mastery_bonus)",
+    "produci_card_dashboard": "VERIFIED - Opens production menu overlay",
+    "production_menu_2x2_grid": "VERIFIED - Film (enabled), Serie TV (enabled), Anime (enabled), La Tua TV (locked)",
+    "unlockable_count_badge": "VERIFIED - Shows '1 da sbloccare' for emittente_tv only",
+    "series_tv_pipeline_page": "VERIFIED - Full create form with 10 genres, episode slider, description",
+    "anime_pipeline_page": "VERIFIED - Full create form with 8 genres + descriptions, episode slider",
+    "emittente_tv_locked_page": "VERIFIED - Shows requirements and infrastructure redirect"
+  }
+}

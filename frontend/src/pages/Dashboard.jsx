@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
-import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations, API } from '../contexts';
+import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations, API, useProductionMenu } from '../contexts';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -56,6 +56,7 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 const Dashboard = () => {
   const { user, api, refreshUser, updateUser } = useContext(AuthContext);
   const { t, language } = useTranslations();
+  const { setIsOpen: openProductionMenu } = useProductionMenu();
   const [stats, setStats] = useState(null);
   const [films, setFilms] = useState([]);
   const [pendingFilms, setPendingFilms] = useState([]);
@@ -863,7 +864,7 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 mb-4">
         {/* PRODUCI! - Double width */}
-        <Card className="col-span-2 md:col-span-2 bg-gradient-to-br from-yellow-500/30 to-yellow-600/10 border-yellow-500/30 cursor-pointer relative" onClick={() => navigate('/create-film')} data-testid="produci-card">
+        <Card className="col-span-2 md:col-span-2 bg-gradient-to-br from-yellow-500/30 to-yellow-600/10 border-yellow-500/30 cursor-pointer relative" onClick={() => openProductionMenu(true)} data-testid="produci-card">
           <CardContent className="p-2 sm:p-3 flex items-center gap-3">
             <div className="p-2 sm:p-2.5 bg-yellow-500 rounded-lg"><Clapperboard className="w-5 h-5 sm:w-6 sm:h-6 text-black" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-lg sm:text-xl">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>

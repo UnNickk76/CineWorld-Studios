@@ -72,6 +72,7 @@ from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
 from routes.film_pipeline import router as film_pipeline_router
+from routes.series_pipeline import router as series_pipeline_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from cast_system import (
@@ -16470,6 +16471,7 @@ app.include_router(social_router, prefix="/api")
 app.include_router(infrastructure_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(film_pipeline_router, prefix="/api")
+app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 

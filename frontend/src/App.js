@@ -38,7 +38,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
 // Import from refactored modules
-import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations, API, PlayerPopupContext, usePlayerPopup } from './contexts';
+import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTranslations, API, PlayerPopupContext, usePlayerPopup, ProductionMenuContext, useProductionMenu } from './contexts';
 import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
@@ -140,7 +140,7 @@ const TopNavbar = () => {
   const [profileGenreFilter, setProfileGenreFilter] = useState(null); // Genre filter for online user profile
   const [popupGenreFilter, setPopupGenreFilter] = useState(null); // Genre filter for player popup
   const [productionUnlocks, setProductionUnlocks] = useState(null);
-  const [showProductionMenu, setShowProductionMenu] = useState(false);
+  const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -694,7 +694,17 @@ const TopNavbar = () => {
               data-testid="production-menu"
             >
               <div className="bg-[#111113] border border-white/10 rounded-2xl p-3 shadow-2xl">
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold text-center mb-2.5">Produci</p>
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Produci</p>
+                  {(() => {
+                    const locked = [!productionUnlocks?.has_studio_serie_tv, !productionUnlocks?.has_studio_anime, !productionUnlocks?.has_emittente_tv].filter(Boolean).length;
+                    return locked > 0 ? (
+                      <span className="text-[9px] bg-yellow-500/15 text-yellow-400 px-2 py-0.5 rounded-full font-medium" data-testid="unlockable-count">
+                        {locked} da sbloccare
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {/* Film - Always available */}
                   <button
@@ -1422,6 +1432,7 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   const [popupData, setPopupData] = useState(null);
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
+  const [productionMenuOpen, setProductionMenuOpen] = useState(false);
   
   // Check for pending challenge invites on login
   useEffect(() => {
@@ -1453,6 +1464,7 @@ const ProtectedRoute = ({ children }) => {
   if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
   return (
+    <ProductionMenuContext.Provider value={{ isOpen: productionMenuOpen, setIsOpen: setProductionMenuOpen }}>
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
@@ -1507,6 +1519,7 @@ const ProtectedRoute = ({ children }) => {
         </Dialog>
       )}
     </PlayerPopupContext.Provider>
+    </ProductionMenuContext.Provider>
   );
 };
 

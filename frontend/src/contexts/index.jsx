@@ -248,3 +248,8 @@ export const LanguageProvider = ({ children }) => {
 // Player Popup Context - allows any component to open a player profile popup
 export const PlayerPopupContext = React.createContext({ openPlayerPopup: () => {} });
 export const usePlayerPopup = () => React.useContext(PlayerPopupContext);
+
+
+// Production Menu Context - allows any component to open the production menu
+export const ProductionMenuContext = React.createContext({ isOpen: false, setIsOpen: () => {} });
+export const useProductionMenu = () => React.useContext(ProductionMenuContext);

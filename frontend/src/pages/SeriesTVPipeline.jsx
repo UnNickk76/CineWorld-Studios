@@ -1,74 +1,518 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { AuthContext, LanguageContext } from '../contexts';
-import { Tv, Lock, ArrowLeft, Loader2 } from 'lucide-react';
-import { Button } from '../components/ui/button';
+// CineWorld - TV Series Pipeline
+// Full production pipeline for TV series
+
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext, useTranslations } from '../contexts';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
+import { Progress } from '../components/ui/progress';
+import { Tv, ArrowRight, ArrowLeft, Users, Pen, Play, Film, Lock, Loader2, Trash2, Check, Star, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return null;
+  if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
+  return url;
+};
+
+const STEPS = [
+  { id: 'concept', label: 'Concept', icon: Tv, color: 'blue' },
+  { id: 'casting', label: 'Casting', icon: Users, color: 'purple' },
+  { id: 'screenplay', label: 'Sceneggiatura', icon: Pen, color: 'emerald' },
+  { id: 'production', label: 'Produzione', icon: Play, color: 'orange' },
+  { id: 'completed', label: 'Completata', icon: Star, color: 'yellow' },
+];
+
+const STATUS_TO_STEP = { concept: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function SeriesTVPipeline() {
-  const { api } = useContext(AuthContext);
-  const { language } = useContext(LanguageContext);
+  const { api, user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [genres, setGenres] = useState({});
+  const [mySeries, setMySeries] = useState([]);
+  const [activeSeries, setActiveSeries] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [unlocked, setUnlocked] = useState(false);
-  const [requirements, setRequirements] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const res = await api.get('/production-studios/unlock-status');
-        setUnlocked(res.data.has_studio_serie_tv);
-        setRequirements(res.data.requirements?.studio_serie_tv);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    };
-    check();
+  // Concept form
+  const [title, setTitle] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [numEpisodes, setNumEpisodes] = useState(10);
+  const [description, setDescription] = useState('');
+
+  // Casting
+  const [availableActors, setAvailableActors] = useState([]);
+  const [selectedCast, setSelectedCast] = useState([]);
+
+  // Production
+  const [prodStatus, setProdStatus] = useState(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [genresRes, seriesRes] = await Promise.all([
+        api.get('/series-pipeline/genres?series_type=tv_series'),
+        api.get('/series-pipeline/my?series_type=tv_series'),
+      ]);
+      setGenres(genresRes.data.genres || {});
+      setMySeries(seriesRes.data.series || []);
+      
+      // Auto-select active series (first in-progress)
+      const inProgress = (seriesRes.data.series || []).find(s => !['completed', 'cancelled'].includes(s.status));
+      if (inProgress) setActiveSeries(inProgress);
+    } catch (e) { console.error(e); }
+    setLoading(false);
   }, [api]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-    </div>
-  );
+  useEffect(() => { loadData(); }, [loadData]);
 
-  if (!unlocked) return (
-    <div className="min-h-screen bg-[#0a0a0b] p-4 flex flex-col items-center justify-center text-center" data-testid="series-locked">
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-8 max-w-sm">
-        <Lock className="w-16 h-16 text-blue-400/50 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-blue-300 mb-2">Studio Serie TV</h2>
-        <p className="text-sm text-gray-400 mb-4">
-          {language === 'it' ? 'Acquista lo Studio Serie TV dallo Studio di Produzione per sbloccare questa funzione!' : 'Purchase the TV Series Studio from the Production Studio to unlock!'}
-        </p>
-        {requirements && (
-          <div className="space-y-1 text-xs text-gray-500 mb-4">
-            <p>Livello richiesto: <span className="text-blue-300">{requirements.level}</span></p>
-            <p>Fama richiesta: <span className="text-blue-300">{requirements.fame}</span></p>
-            <p>Costo: <span className="text-blue-300">${requirements.cost?.toLocaleString()}</span></p>
-          </div>
-        )}
-        <Button onClick={() => navigate('/infrastructure')} className="bg-blue-600 hover:bg-blue-700">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Vai alle Infrastrutture
-        </Button>
-      </div>
+  // Load actors when in casting
+  useEffect(() => {
+    if (activeSeries?.status === 'casting') {
+      api.get(`/series-pipeline/${activeSeries.id}/available-actors`).then(r => {
+        setAvailableActors(r.data.actors || []);
+      }).catch(() => {});
+    }
+  }, [activeSeries?.status, activeSeries?.id, api]);
+
+  // Poll production status
+  useEffect(() => {
+    if (activeSeries?.status === 'production') {
+      const poll = () => {
+        api.get(`/series-pipeline/${activeSeries.id}/production-status`).then(r => {
+          setProdStatus(r.data);
+          if (r.data.complete) {
+            setActiveSeries(prev => ({ ...prev, status: 'ready_to_release' }));
+          }
+        }).catch(() => {});
+      };
+      poll();
+      const interval = setInterval(poll, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [activeSeries?.status, activeSeries?.id, api]);
+
+  const createSeries = async () => {
+    if (!title.trim() || !selectedGenre) return toast.error('Inserisci titolo e genere');
+    setActionLoading(true);
+    try {
+      const res = await api.post('/series-pipeline/create', {
+        title, genre: selectedGenre, num_episodes: numEpisodes,
+        series_type: 'tv_series', description
+      });
+      toast.success(`"${title}" creata! Costo: $${res.data.cost?.toLocaleString()}`);
+      setActiveSeries(res.data.series);
+      setTitle(''); setDescription('');
+      loadData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nella creazione');
+    }
+    setActionLoading(false);
+  };
+
+  const advanceToCasting = async () => {
+    setActionLoading(true);
+    try {
+      await api.post(`/series-pipeline/${activeSeries.id}/advance-to-casting`);
+      setActiveSeries(prev => ({ ...prev, status: 'casting' }));
+      toast.success('Fase casting iniziata!');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const selectCast = async () => {
+    if (selectedCast.length === 0) return toast.error('Seleziona almeno un attore');
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/select-cast`, {
+        cast: selectedCast.map(c => ({ actor_id: c.actor_id, role: c.role }))
+      });
+      toast.success(`Cast selezionato! Stipendi totali: $${res.data.total_salary?.toLocaleString()}`);
+      setActiveSeries(prev => ({ ...prev, cast: res.data.cast }));
+      setSelectedCast([]);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const advanceToScreenplay = async () => {
+    setActionLoading(true);
+    try {
+      await api.post(`/series-pipeline/${activeSeries.id}/advance-to-screenplay`);
+      setActiveSeries(prev => ({ ...prev, status: 'screenplay' }));
+      toast.success('Fase sceneggiatura iniziata!');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const writeScreenplay = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/write-screenplay`, { mode: 'ai' });
+      setActiveSeries(prev => ({ ...prev, screenplay: { text: res.data.screenplay } }));
+      toast.success('Sceneggiatura generata!');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione'); }
+    setActionLoading(false);
+  };
+
+  const startProduction = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/start-production`);
+      setActiveSeries(prev => ({ ...prev, status: 'production', production_duration_minutes: res.data.duration_minutes }));
+      toast.success(`Produzione avviata! Durata: ${res.data.duration_minutes} minuti`);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const releaseSeries = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/release`);
+      toast.success(`Serie completata! Qualità: ${res.data.quality?.score}/100 (+${res.data.xp_reward} XP, +${res.data.fame_bonus} Fama)`);
+      setActiveSeries(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const discardSeries = async () => {
+    if (!window.confirm('Vuoi cancellare questa serie? Riceverai un rimborso del 50%.')) return;
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/discard`);
+      toast.success(`Serie cancellata. Rimborso: $${res.data.refund?.toLocaleString()}`);
+      setActiveSeries(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const toggleCastMember = (actor, role) => {
+    setSelectedCast(prev => {
+      const exists = prev.find(c => c.actor_id === actor.id);
+      if (exists) return prev.filter(c => c.actor_id !== actor.id);
+      return [...prev, { actor_id: actor.id, name: actor.name, role, skill: actor.skill }];
+    });
+  };
+
+  const currentStep = activeSeries ? (STATUS_TO_STEP[activeSeries.status] ?? 0) : -1;
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] p-4 pb-20" data-testid="series-pipeline">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white"><ArrowLeft className="w-5 h-5" /></button>
-          <Tv className="w-6 h-6 text-blue-400" />
-          <h1 className="text-xl font-bold text-blue-300">Produci Serie TV</h1>
+    <div className="min-h-screen bg-[#0A0A0B] text-white pb-20 pt-16">
+      <div className="max-w-2xl mx-auto px-3">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4 mt-2">
+          <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-500/30">
+            <Tv className="w-6 h-6 text-blue-400" />
+          </div>
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-2xl text-blue-400" data-testid="series-pipeline-title">Pipeline Serie TV</h1>
+            <p className="text-xs text-gray-500">Produci la tua serie televisiva</p>
+          </div>
         </div>
-        <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-6 text-center">
-          <Tv className="w-12 h-12 text-blue-400/40 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-blue-200 mb-2">Prossimamente!</h3>
-          <p className="text-sm text-gray-400">
-            La produzione di Serie TV con pipeline completa, casting, sceneggiatura per stagione e episodi giornalieri con mini-trame AI arriva presto.
-          </p>
-        </div>
+
+        {/* Step Progress */}
+        {activeSeries && (
+          <div className="flex items-center gap-1 mb-4 px-1" data-testid="series-steps">
+            {STEPS.map((step, i) => (
+              <React.Fragment key={step.id}>
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                  i === currentStep ? `bg-${step.color}-500/20 text-${step.color}-400 border border-${step.color}-500/30` :
+                  i < currentStep ? 'bg-white/5 text-gray-400' : 'bg-white/[0.02] text-gray-600'
+                }`}>
+                  {i < currentStep ? <Check className="w-3 h-3" /> : <step.icon className="w-3 h-3" />}
+                  <span className="hidden sm:inline">{step.label}</span>
+                </div>
+                {i < STEPS.length - 1 && <div className={`flex-1 h-px ${i < currentStep ? 'bg-white/20' : 'bg-white/5'}`} />}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* No active series - show create form or completed list */}
+        {!activeSeries ? (
+          <div className="space-y-4">
+            {/* Create New Series */}
+            <Card className="bg-[#111113] border-blue-500/20" data-testid="create-series-form">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-['Bebas_Neue'] text-blue-400">Nuova Serie TV</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input
+                  placeholder="Titolo della serie"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  className="bg-white/5 border-white/10 text-white"
+                  data-testid="series-title-input"
+                />
+                <div>
+                  <label className="text-xs text-gray-400 mb-1.5 block">Genere</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Object.entries(genres).map(([key, g]) => (
+                      <button
+                        key={key}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          selectedGenre === key ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/5'
+                        }`}
+                        onClick={() => { setSelectedGenre(key); setNumEpisodes(g.ep_range[0]); }}
+                        data-testid={`genre-${key}`}
+                      >
+                        {g.name_it}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {selectedGenre && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">
+                      Episodi ({genres[selectedGenre]?.ep_range[0]}-{genres[selectedGenre]?.ep_range[1]})
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={genres[selectedGenre]?.ep_range[0]}
+                        max={genres[selectedGenre]?.ep_range[1]}
+                        value={numEpisodes}
+                        onChange={e => setNumEpisodes(parseInt(e.target.value))}
+                        className="flex-1 accent-blue-500"
+                        data-testid="episodes-slider"
+                      />
+                      <span className="text-sm font-bold text-blue-400 w-8 text-center">{numEpisodes}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Costo stimato: ${((numEpisodes * 150000 * (genres[selectedGenre]?.cost_mult || 1))).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                <Input
+                  placeholder="Descrizione breve (opzionale)"
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  className="bg-white/5 border-white/10 text-white"
+                  data-testid="series-description-input"
+                />
+                <Button
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={createSeries}
+                  disabled={actionLoading || !title.trim() || !selectedGenre}
+                  data-testid="create-series-btn"
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Tv className="w-4 h-4 mr-2" />}
+                  Crea Serie TV
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Completed Series */}
+            {mySeries.filter(s => s.status === 'completed').length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-400 mb-2">Serie Completate</h3>
+                <div className="space-y-2">
+                  {mySeries.filter(s => s.status === 'completed').map(s => (
+                    <Card key={s.id} className="bg-[#111113] border-white/5" data-testid={`completed-series-${s.id}`}>
+                      <CardContent className="p-3 flex items-center gap-3">
+                        {s.poster_url && <img src={posterSrc(s.poster_url)} alt="" className="w-12 h-16 rounded object-cover" loading="lazy" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{s.title}</p>
+                          <p className="text-[10px] text-gray-500">{s.genre_name} - {s.num_episodes} ep. - S{s.season_number}</p>
+                        </div>
+                        <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Active Series Pipeline */
+          <div className="space-y-3" data-testid="active-series-pipeline">
+            {/* Series Header */}
+            <Card className="bg-[#111113] border-blue-500/20">
+              <CardContent className="p-3 flex items-center gap-3">
+                {activeSeries.poster_url ? (
+                  <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-16 h-24 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-16 h-24 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                    <Tv className="w-8 h-8 text-blue-400/50" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold truncate" data-testid="active-series-title">{activeSeries.title}</h2>
+                  <p className="text-xs text-gray-400">{activeSeries.genre_name} - {activeSeries.num_episodes} episodi</p>
+                  <Badge className="bg-blue-500/20 text-blue-400 text-[10px] mt-1">{activeSeries.status}</Badge>
+                </div>
+                <button onClick={discardSeries} className="p-2 text-red-400/60 hover:text-red-400 transition-colors" data-testid="discard-series-btn">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </CardContent>
+            </Card>
+
+            {/* CONCEPT PHASE */}
+            {activeSeries.status === 'concept' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className="bg-[#111113] border-blue-500/10">
+                  <CardContent className="p-4 text-center space-y-3">
+                    <Tv className="w-10 h-10 text-blue-400 mx-auto" />
+                    <p className="text-sm text-gray-300">Il concept della serie è pronto! Procedi al casting per selezionare il cast.</p>
+                    <Button className="w-full bg-blue-500 hover:bg-blue-600" onClick={advanceToCasting} disabled={actionLoading} data-testid="advance-to-casting-btn">
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Vai al Casting <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* CASTING PHASE */}
+            {activeSeries.status === 'casting' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                {/* Already selected cast */}
+                {(activeSeries.cast?.length > 0) && (
+                  <Card className="bg-[#111113] border-purple-500/10">
+                    <CardHeader className="pb-1"><CardTitle className="text-sm text-purple-400">Cast Selezionato</CardTitle></CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="space-y-1.5">
+                        {activeSeries.cast.map((c, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs bg-purple-500/5 rounded-lg px-2 py-1.5">
+                            <span className="font-medium">{c.name}</span>
+                            <div className="flex items-center gap-2">
+                              <Badge className="text-[9px] bg-white/5">{c.role}</Badge>
+                              <span className="text-gray-500">${c.season_salary?.toLocaleString()}/stagione</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Available actors to cast */}
+                <Card className="bg-[#111113] border-purple-500/10">
+                  <CardHeader className="pb-1"><CardTitle className="text-sm text-purple-400">Attori Disponibili</CardTitle></CardHeader>
+                  <CardContent className="p-3 pt-0">
+                    {availableActors.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-4">Nessun attore disponibile. Assumi attori dall'Agenzia Casting!</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                        {availableActors.filter(a => !a.in_school).map(actor => {
+                          const isSelected = selectedCast.find(c => c.actor_id === actor.id);
+                          return (
+                            <div key={actor.id} className={`flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer border ${
+                              isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
+                            }`} onClick={() => toggleCastMember(actor, 'Supporto')} data-testid={`actor-${actor.id}`}>
+                              <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-400">
+                                {actor.name?.charAt(0)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate">{actor.name}</p>
+                                <p className="text-[10px] text-gray-500">Skill: {actor.skill} | Pop: {actor.popularity}</p>
+                              </div>
+                              {isSelected && (
+                                <select
+                                  className="bg-[#1a1a1a] text-xs rounded px-1.5 py-1 border border-white/10 text-white"
+                                  value={isSelected.role}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}
+                                >
+                                  <option value="Protagonista">Protagonista</option>
+                                  <option value="Co-Protagonista">Co-Protagonista</option>
+                                  <option value="Antagonista">Antagonista</option>
+                                  <option value="Supporto">Supporto</option>
+                                </select>
+                              )}
+                              {isSelected ? <Check className="w-4 h-4 text-purple-400" /> : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {selectedCast.length > 0 && (
+                      <Button className="w-full mt-2 bg-purple-500 hover:bg-purple-600 text-white" onClick={selectCast} disabled={actionLoading} data-testid="confirm-cast-btn">
+                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
+                        Conferma Cast ({selectedCast.length})
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Advance button (if cast selected) */}
+                {activeSeries.cast?.length > 0 && (
+                  <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white" onClick={advanceToScreenplay} disabled={actionLoading} data-testid="advance-to-screenplay-btn">
+                    Vai alla Sceneggiatura <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
+              </motion.div>
+            )}
+
+            {/* SCREENPLAY PHASE */}
+            {activeSeries.status === 'screenplay' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                <Card className="bg-[#111113] border-emerald-500/10">
+                  <CardHeader className="pb-1"><CardTitle className="text-sm text-emerald-400">Sceneggiatura</CardTitle></CardHeader>
+                  <CardContent className="p-3 pt-0 space-y-3">
+                    {activeSeries.screenplay?.text ? (
+                      <div className="bg-black/30 rounded-lg p-3 max-h-64 overflow-y-auto">
+                        <p className="text-xs text-gray-300 whitespace-pre-line">{activeSeries.screenplay.text}</p>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Pen className="w-8 h-8 text-emerald-400/40 mx-auto mb-2" />
+                        <p className="text-xs text-gray-500 mb-3">Genera la sceneggiatura con l'AI per il concept della serie</p>
+                        <Button className="bg-emerald-500 hover:bg-emerald-600 text-white" onClick={writeScreenplay} disabled={actionLoading} data-testid="generate-screenplay-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Pen className="w-4 h-4 mr-2" />}
+                          Genera Sceneggiatura AI
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {activeSeries.screenplay?.text && (
+                  <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={startProduction} disabled={actionLoading} data-testid="start-production-btn">
+                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                    Avvia Produzione <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
+              </motion.div>
+            )}
+
+            {/* PRODUCTION PHASE */}
+            {(activeSeries.status === 'production' || activeSeries.status === 'ready_to_release') && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                <Card className="bg-[#111113] border-orange-500/10">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-orange-400">Produzione</span>
+                      <span className="text-xs text-gray-400">
+                        {prodStatus?.complete || activeSeries.status === 'ready_to_release' 
+                          ? 'Completata!' 
+                          : `${prodStatus?.remaining_minutes?.toFixed(0) || '?'} min rimanenti`}
+                      </span>
+                    </div>
+                    <Progress value={prodStatus?.progress || (activeSeries.status === 'ready_to_release' ? 100 : 0)} className="h-2" />
+                    {(prodStatus?.complete || activeSeries.status === 'ready_to_release') && (
+                      <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="release-series-btn">
+                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
+                        Rilascia Serie!
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

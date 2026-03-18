@@ -6270,8 +6270,8 @@ async def run_startup_migrations():
         completed.append('neomorpheus_40m_v3')
         changed = True
     
-    # Migration: Recalculate all IMDb ratings with new non-linear formula
-    if 'recalculate_imdb_v3' not in completed:
+    # Migration: Recalculate all IMDb ratings with new compressed formula
+    if 'recalculate_imdb_v4' not in completed:
         from game_systems import calculate_imdb_rating
         films = await db.films.find({}, {'_id': 0}).to_list(2000)
         updated = 0
@@ -6282,7 +6282,7 @@ async def run_startup_migrations():
                 updated += 1
             except Exception as e:
                 logging.error(f"Migration recalculate_imdb_v3: Error for film {film.get('id')}: {e}")
-        completed.append('recalculate_imdb_v3')
+        completed.append('recalculate_imdb_v4')
         changed = True
         logging.info(f"Migration recalculate_imdb_v3: Updated IMDb for {updated}/{len(films)} films")
     
@@ -14034,8 +14034,30 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
                 except Exception:
                     pass
         if daily_rev <= 0:
-            # Estimate: spread total revenue across active hours
-            daily_rev = film.get('total_revenue', 0) * 0.05
+            # Fallback: estimate daily revenue using exponential decay
+            total_rev = film.get('total_revenue', 0)
+            quality = film.get('quality_score', film.get('quality', 50))
+            # Calculate days in theaters
+            released_at = film.get('released_at', film.get('release_date', film.get('created_at', now.isoformat())))
+            try:
+                rd = datetime.fromisoformat(str(released_at).replace('Z', '+00:00'))
+                days_old = max(0, (now - rd).total_seconds() / 86400)
+            except Exception:
+                days_old = 30
+            
+            # Decay: masterpieces keep earning, others drop fast
+            if quality >= 90:
+                decay = 0.92 ** days_old   # Masterpiece
+            elif quality >= 80:
+                decay = 0.85 ** days_old   # Great
+            elif quality >= 65:
+                decay = 0.78 ** days_old   # Good
+            else:
+                decay = 0.70 ** days_old   # Mediocre
+            
+            # Opening day was ~5% of total, then decayed
+            daily_rev = total_rev * 0.05 * decay
+            
             current_hour = now.hour
             for h in range(max(0, current_hour - 5), current_hour + 1):
                 hourly_trend[f'{h:02d}:00'] = round(daily_rev / max(current_hour, 1))
@@ -14079,15 +14101,33 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
                     if d >= week_start:
                         amt = dr.get('amount', 0)
                         weekly_rev += amt
-                        day_key = d.strftime('%a')
                         daily_trend[d.strftime('%Y-%m-%d')] = daily_trend.get(d.strftime('%Y-%m-%d'), 0) + amt
                 except Exception:
                     pass
         if weekly_rev <= 0:
-            weekly_rev = film.get('total_revenue', 0) * 0.25
+            # Fallback: estimate weekly revenue with decay
+            total_rev = film.get('total_revenue', 0)
+            quality = film.get('quality_score', film.get('quality', 50))
+            released_at = film.get('released_at', film.get('release_date', film.get('created_at', now.isoformat())))
+            try:
+                rd = datetime.fromisoformat(str(released_at).replace('Z', '+00:00'))
+                days_old = max(0, (now - rd).total_seconds() / 86400)
+            except Exception:
+                days_old = 30
+            
+            if quality >= 90:
+                decay = 0.92 ** max(0, days_old - 7)
+            elif quality >= 80:
+                decay = 0.85 ** max(0, days_old - 7)
+            elif quality >= 65:
+                decay = 0.78 ** max(0, days_old - 7)
+            else:
+                decay = 0.70 ** max(0, days_old - 7)
+            
+            weekly_rev = total_rev * 0.25 * decay
             for i in range(7):
                 day = (now - timedelta(days=6-i)).strftime('%Y-%m-%d')
-                daily_trend[day] = round(weekly_rev / 7)
+                daily_trend[day] = round(weekly_rev / 7 * (1 + (i - 3) * 0.05))
         
         # Format daily trend with day labels
         day_labels = {'Mon': 'Lun', 'Tue': 'Mar', 'Wed': 'Mer', 'Thu': 'Gio', 'Fri': 'Ven', 'Sat': 'Sab', 'Sun': 'Dom'}

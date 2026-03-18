@@ -6395,6 +6395,41 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration fix_fandrex_password_v1: Reset password (modified={result.modified_count})")
     
+    # Migration: Fix existing full_package films - add cast_locked and pre-fill cast
+    if 'fix_full_package_cast_v1' not in completed:
+        full_pkg_films = await db.film_projects.find(
+            {'from_emerging_screenplay': True, 'emerging_option': 'full_package', 'cast_locked': {'$ne': True}},
+            {'_id': 0}
+        ).to_list(200)
+        fixed = 0
+        for proj in full_pkg_films:
+            sp_id = proj.get('emerging_screenplay_id')
+            if sp_id:
+                sp = await db.emerging_screenplays.find_one({'id': sp_id}, {'_id': 0, 'proposed_cast': 1, 'screenwriter': 1})
+                if sp and sp.get('proposed_cast'):
+                    proposed = sp['proposed_cast']
+                    sw = sp.get('screenwriter', {})
+                    new_cast = {
+                        'director': proposed.get('director'),
+                        'screenwriter': {
+                            'id': sw.get('id'), 'name': sw.get('name', 'Unknown'),
+                            'nationality': sw.get('nationality', ''), 'gender': sw.get('gender', 'male'),
+                            'avatar_url': sw.get('avatar_url', ''), 'skills': sw.get('skills', {}),
+                            'stars': sw.get('stars', 3), 'fame': sw.get('fame', 50),
+                            'cost': sw.get('cost', 100000), 'is_star': sw.get('is_star', False),
+                        } if sw.get('id') else None,
+                        'actors': proposed.get('actors', []),
+                        'composer': proposed.get('composer'),
+                    }
+                    await db.film_projects.update_one(
+                        {'id': proj['id']},
+                        {'$set': {'cast': new_cast, 'cast_locked': True}}
+                    )
+                    fixed += 1
+        completed.append('fix_full_package_cast_v1')
+        changed = True
+        logging.info(f"Migration fix_full_package_cast_v1: Fixed {fixed} full_package films")
+    
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},

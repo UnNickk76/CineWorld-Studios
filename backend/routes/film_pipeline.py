@@ -913,20 +913,34 @@ async def advance_to_screenplay(project_id: str, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Progetto non trovato")
 
     cast = project.get('cast', {})
-    if not cast.get('director') or not cast.get('screenwriter') or not cast.get('composer') or not cast.get('actors'):
-        raise HTTPException(status_code=400, detail="Devi completare il casting prima di procedere")
+    is_full_package = project.get('from_emerging_screenplay') and project.get('emerging_option') == 'full_package'
+    
+    # Full package films have pre-filled cast, relaxed validation
+    if is_full_package:
+        if not cast.get('director'):
+            raise HTTPException(status_code=400, detail="Il cast del pacchetto non include un regista")
+    else:
+        if not cast.get('director') or not cast.get('screenwriter') or not cast.get('composer') or not cast.get('actors'):
+            raise HTTPException(status_code=400, detail="Devi completare il casting prima di procedere")
 
     from routes.cinepass import spend_cinepass
     cp_cost = STEP_CINEPASS['screenplay']
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
 
+    update_fields = {
+        'status': 'screenplay',
+        'cinepass_paid.screenplay': cp_cost,
+        'updated_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Auto-fill screenplay for full_package films
+    if is_full_package and not project.get('screenplay'):
+        update_fields['screenplay'] = project.get('pre_screenplay', '')
+        update_fields['screenplay_mode'] = 'full_package'
+
     await db.film_projects.update_one(
         {'id': project_id},
-        {'$set': {
-            'status': 'screenplay',
-            'cinepass_paid.screenplay': cp_cost,
-            'updated_at': datetime.now(timezone.utc).isoformat()
-        }}
+        {'$set': update_fields}
     )
 
     return {'success': True, 'message': f'"{project["title"]}" in fase Sceneggiatura!'}
@@ -1405,20 +1419,29 @@ async def advance_to_preproduction(project_id: str, user: dict = Depends(get_cur
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
-    if not project.get('screenplay'):
+    
+    # Full package films use pre_screenplay as their screenplay
+    is_full_package = project.get('from_emerging_screenplay') and project.get('emerging_option') == 'full_package'
+    if not project.get('screenplay') and not is_full_package:
         raise HTTPException(status_code=400, detail="Devi prima completare la sceneggiatura")
-
+    
     from routes.cinepass import spend_cinepass
     cp_cost = STEP_CINEPASS['pre_production']
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
 
+    # Auto-set screenplay from pre_screenplay for full_package
+    update_fields = {
+        'status': 'pre_production',
+        'cinepass_paid.pre_production': cp_cost,
+        'updated_at': datetime.now(timezone.utc).isoformat()
+    }
+    if is_full_package and not project.get('screenplay'):
+        update_fields['screenplay'] = project.get('pre_screenplay', '')
+        update_fields['screenplay_mode'] = 'full_package'
+
     await db.film_projects.update_one(
         {'id': project_id},
-        {'$set': {
-            'status': 'pre_production',
-            'cinepass_paid.pre_production': cp_cost,
-            'updated_at': datetime.now(timezone.utc).isoformat()
-        }}
+        {'$set': update_fields}
     )
     return {'success': True, 'message': f'"{project["title"]}" in Pre-Produzione!'}
 

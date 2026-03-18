@@ -476,7 +476,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
       {films.map(f => {
         const cast = f.cast || {};
         const castComplete = cast.director && cast.screenwriter && cast.composer && cast.actors?.length > 0;
-        const isLocked = f.cast_locked === true;
+        const isLocked = f.cast_locked === true || (f.from_emerging_screenplay && f.emerging_option === 'full_package');
         return (
           <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`casting-film-${f.id}`}>
             <CardContent className="p-3">
@@ -792,16 +792,19 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
 
   return (
     <div className="space-y-3">
-      {films.map(f => (
+      {films.map(f => {
+        const isFullPackage = f.from_emerging_screenplay && f.emerging_option === 'full_package';
+        return (
         <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`screenplay-film-${f.id}`}>
           <CardContent className="p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-sm">{f.title}</h3>
                 <p className="text-[10px] text-gray-500">{f.genre} &bull; {f.subgenre} &bull; Pre-IMDb: <span className="text-yellow-400">{f.pre_imdb_score}</span></p>
+                {isFullPackage && <Badge className="bg-emerald-500/20 text-emerald-400 text-[9px] mt-1">Pacchetto Completo - Sceneggiatura inclusa</Badge>}
               </div>
               <div className="flex items-center gap-1.5">
-                {f.screenplay && (
+                {(f.screenplay || isFullPackage) && (
                   <Button size="sm" className="bg-green-700 hover:bg-green-800 text-xs" onClick={() => advance(f.id)}
                     disabled={actionLoading === `adv-${f.id}`} data-testid={`advance-preprod-${f.id}`}>
                     <ChevronRight className="w-3 h-3 mr-1" /> Pre-Produzione (3 CP)
@@ -821,6 +824,73 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
               </div>
             </div>
 
+            {/* Full package: screenplay is read-only, show pre_screenplay as final */}
+            {isFullPackage ? (
+              <>
+                <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
+                  <p className="text-[9px] text-green-400 font-medium mb-0.5">Sceneggiatura (Pacchetto Completo)</p>
+                  <p className="text-[10px] text-gray-300 line-clamp-6">{f.pre_screenplay}</p>
+                </div>
+
+                {/* Poster section for full_package */}
+                <div className="p-2 rounded border border-purple-500/30 bg-purple-500/5">
+                  <p className="text-[10px] text-purple-400 font-semibold mb-1.5">Locandina del Film</p>
+                  {f.poster_url ? (
+                    <div className="flex items-start gap-2">
+                      <img src={f.poster_url} alt="Locandina" className="w-20 h-28 object-cover rounded" />
+                      <div className="flex-1">
+                        <p className="text-[9px] text-green-400 mb-1">Locandina creata!</p>
+                        <Button size="sm" variant="outline" className="text-[9px] border-purple-700 text-purple-400 h-6"
+                          onClick={() => { setPosterMode(p => ({...p, [f.id]: 'ai_auto'})); generatePoster(f.id); }}
+                          disabled={posterLoading === f.id}>
+                          {posterLoading === f.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin mr-0.5" /> : null}
+                          Rigenera
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-1 mb-1.5">
+                        {[
+                          { id: 'ai_auto', label: 'AI Automatica', desc: 'Dalla sceneggiatura' },
+                          { id: 'ai_custom', label: 'AI + Prompt', desc: 'Scrivi tu il prompt' },
+                          { id: 'classic', label: 'Stile Classico', desc: 'Scegli uno stile' }
+                        ].map(opt => (
+                          <button key={opt.id} onClick={() => setPosterMode(p => ({...p, [f.id]: opt.id}))}
+                            className={`flex-1 p-1.5 rounded text-center border transition-all ${(posterMode[f.id] || 'ai_auto') === opt.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700'}`}>
+                            <p className="text-[9px] font-medium text-gray-200">{opt.label}</p>
+                            <p className="text-[7px] text-gray-500">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                      {(posterMode[f.id] || 'ai_auto') === 'ai_custom' && (
+                        <input type="text" placeholder="Descrivi la locandina che vuoi..."
+                          value={posterPrompt[f.id] || ''} onChange={e => setPosterPrompt(p => ({...p, [f.id]: e.target.value}))}
+                          className="w-full mb-1.5 text-[10px] bg-black/30 border border-gray-700 rounded p-1.5 text-white" />
+                      )}
+                      {(posterMode[f.id] || 'ai_auto') === 'classic' && (
+                        <div className="grid grid-cols-4 gap-1 mb-1.5">
+                          {CLASSIC_STYLES.map(s => (
+                            <button key={s.id} onClick={() => setPosterStyle(p => ({...p, [f.id]: s.id}))}
+                              className={`p-1 rounded text-center border transition-all ${(posterStyle[f.id] || 'drama') === s.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700'}`}>
+                              <p className="text-[8px] font-medium">{s.label}</p>
+                              <p className="text-[7px] text-gray-500">{s.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-800 text-[10px] h-7"
+                        onClick={() => generatePoster(f.id)} disabled={posterLoading === f.id}
+                        data-testid={`generate-poster-${f.id}`}>
+                        {posterLoading === f.id ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                        Crea Locandina
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+            <>
             {/* Pre-screenplay (always visible, not editable) */}
             <div className="p-2 bg-yellow-500/5 rounded border border-yellow-500/20">
               <p className="text-[9px] text-yellow-400 font-medium mb-0.5">Pre-Sceneggiatura (originale)</p>
@@ -924,9 +994,12 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
                 </Button>
               </>
             )}
+            </>
+            )}
           </CardContent>
         </Card>
-      ))}
+      );
+      })}
     </div>
   );
 };

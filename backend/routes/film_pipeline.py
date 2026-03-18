@@ -1778,58 +1778,130 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Equipment bonus
     equipment_bonus = project.get('equipment_bonus', 0)
 
-    # Final score calculation
-    base_quality = pre_imdb * 8  # 0-80 range
-    quality_score = (base_quality + screenplay_mod + remaster_boost + buzz_influence +
-                     (cast_quality * 0.15) + (role_weighted_quality * 0.1) + soundtrack_score +
-                     cgi_bonus + vfx_bonus + extras_bonus + equipment_bonus)
+    # === QUALITY SCORE CALCULATION v2 ===
+    # Philosophy: Cinema is ALCHEMY, not chemistry.
+    # Great ingredients help, but the result is NEVER guaranteed.
+    # Even $200M blockbusters can flop, and low-budget gems become classics.
+    # Investments set the floor (~65 max), but the ceiling comes from luck and vision.
 
-    # === ADVANCED HIDDEN FACTORS (Phase 3) ===
+    # --- FOUNDATION (max ~65 with perfect inputs) ---
+    base_quality = pre_imdb * 4.0  # 0-40 range (was 5.5)
+
+    # Cast with heavier diminishing returns (max ~7)
+    if cast_quality > 70:
+        cast_contrib = 70 * 0.08 + (cast_quality - 70) * 0.03
+    else:
+        cast_contrib = cast_quality * 0.08
+
+    # Role-weighted quality (max ~4.5)
+    if role_weighted_quality > 60:
+        role_contrib = 60 * 0.05 + (role_weighted_quality - 60) * 0.02
+    else:
+        role_contrib = role_weighted_quality * 0.05
+
+    # Soundtrack (capped at 4)
+    soundtrack_contrib = min(soundtrack_score, 4)
+
+    # Equipment/CGI/VFX with heavy diminishing returns (capped at 5)
+    tech_bonus = cgi_bonus + vfx_bonus + equipment_bonus
+    tech_contrib = min(tech_bonus, 3) + max(0, tech_bonus - 3) * 0.2
+    tech_contrib = min(tech_contrib, 5)
+
+    # Deterministic score (max ~65 with perfect everything)
+    deterministic = (base_quality + screenplay_mod + remaster_boost + buzz_influence +
+                     cast_contrib + role_contrib + soundtrack_contrib +
+                     tech_contrib + extras_bonus)
+
+    quality_score = deterministic
+
+    # === THE ALCHEMY - Unpredictability System v2 ===
+    # No amount of money can control these factors.
     advanced_factors = {}
 
-    # 1. Cast Chemistry - random synergy between cast members
-    chemistry = random.choice([-3, -1, 0, 0, 1, 2, 3, 5])
+    # 1. DIRECTOR VISION - The single most impactful random factor
+    # A visionary director finds angles nobody expected. A mismatch ruins everything.
+    director_skills = cast.get('director', {}).get('skills', {})
+    director_avg = sum(director_skills.values()) / max(1, len(director_skills)) if director_skills else 40
+    director_mean = (director_avg - 50) * 0.08  # slight advantage for great directors
+    director_vision = round(max(-22, min(22, random.gauss(director_mean, 9))), 1)
+    if director_vision != 0:
+        if director_vision >= 15:
+            advanced_factors['visione_regista'] = f'+{director_vision} (Visione geniale del regista!)'
+        elif director_vision >= 8:
+            advanced_factors['visione_regista'] = f'+{director_vision} (Regia ispirata)'
+        elif director_vision <= -15:
+            advanced_factors['visione_regista'] = f'{director_vision} (Regia completamente sbagliata!)'
+        elif director_vision <= -8:
+            advanced_factors['visione_regista'] = f'{director_vision} (Regia sottotono)'
+        else:
+            advanced_factors['visione_regista'] = f'{director_vision:+}'
+    quality_score += director_vision
+
+    # 2. Audience Reception - the crowd is unpredictable
+    audience_roll = round(max(-20, min(20, random.gauss(0, 8))), 1)
+    if audience_roll != 0:
+        if audience_roll >= 12:
+            advanced_factors['pubblico'] = f'+{audience_roll} (Il pubblico impazzisce!)'
+        elif audience_roll >= 6:
+            advanced_factors['pubblico'] = f'+{audience_roll} (Ben accolto)'
+        elif audience_roll <= -12:
+            advanced_factors['pubblico'] = f'{audience_roll} (Il pubblico non gradisce!)'
+        elif audience_roll <= -6:
+            advanced_factors['pubblico'] = f'{audience_roll} (Tiepida accoglienza)'
+        else:
+            advanced_factors['pubblico'] = f'{audience_roll:+}'
+    quality_score += audience_roll
+
+    # 3. Cast Chemistry - synergy between actors
+    chemistry = random.choice([-5, -3, -2, -1, 0, 0, 0, 1, 2, 3, 4, 6])
     if chemistry != 0:
         advanced_factors['chimica_cast'] = f'{chemistry:+}'
         quality_score += chemistry
 
-    # 2. Genre Trend - some genres randomly become hot/cold
-    trend_genres = {'action': 1, 'horror': -1, 'comedy': 1, 'drama': 0, 'sci_fi': 2, 'thriller': 0, 'romance': -1, 'animated': 1}
-    genre_trend = trend_genres.get(project.get('genre', ''), 0) + random.choice([-2, -1, 0, 0, 0, 1, 2])
+    # 4. Genre Trend - market appetite for this genre
+    trend_genres = {'action': 1, 'horror': -1, 'comedy': 1, 'drama': 0, 'sci_fi': 2, 'thriller': 0, 'romance': -1, 'animation': 1}
+    genre_trend = trend_genres.get(project.get('genre', ''), 0) + random.choice([-3, -2, -1, 0, 0, 0, 0, 1, 2, 3])
     if genre_trend != 0:
         advanced_factors['trend_genere'] = f'{genre_trend:+}'
         quality_score += genre_trend
 
-    # 3. Critical Reception - critics can be unpredictable
-    critic_roll = random.choice([-5, -3, -1, 0, 0, 0, 1, 2, 3, 5, 8])
+    # 5. Critical Reception - critics can make or break
+    critic_roll = random.choice([-8, -5, -3, -1, 0, 0, 0, 1, 2, 4, 6, 10])
     if critic_roll != 0:
-        if critic_roll >= 5:
-            advanced_factors['critica'] = f'+{critic_roll} (Acclamato!)'
-        elif critic_roll <= -3:
-            advanced_factors['critica'] = f'{critic_roll} (Stroncato!)'
+        if critic_roll >= 6:
+            advanced_factors['critica'] = f'+{critic_roll} (Acclamato dalla critica!)'
+        elif critic_roll <= -5:
+            advanced_factors['critica'] = f'{critic_roll} (Stroncato dalla critica!)'
         else:
             advanced_factors['critica'] = f'{critic_roll:+}'
         quality_score += critic_roll
 
-    # 4. Market Timing - lucky or unlucky release window
-    timing = random.choice([-3, -1, 0, 0, 0, 0, 1, 2, 4])
+    # 6. Market Timing
+    timing = random.choice([-4, -2, -1, 0, 0, 0, 0, 1, 3, 5])
     if timing != 0:
         advanced_factors['tempismo_mercato'] = f'{timing:+}'
         quality_score += timing
 
-    # 5. Unexpected Event - rare but impactful
+    # 7. Lightning in a Bottle - rare extraordinary events
     event_roll = random.random()
-    if event_roll < 0.05:  # 5% chance viral hit
-        advanced_factors['evento_virale'] = '+10 (Il film diventa virale!)'
-        quality_score += 10
-    elif event_roll < 0.08:  # 3% chance controversy
-        advanced_factors['controversia'] = '-8 (Scandalo durante il lancio!)'
+    if event_roll < 0.03:  # 3% cultural phenomenon
+        advanced_factors['fenomeno_culturale'] = '+14 (Fenomeno culturale!)'
+        quality_score += 14
+    elif event_roll < 0.06:  # 3% viral hit
+        advanced_factors['evento_virale'] = '+9 (Il film diventa virale!)'
+        quality_score += 9
+    elif event_roll < 0.10:  # 4% controversy hurts
+        advanced_factors['controversia'] = '-12 (Scandalo durante il lancio!)'
+        quality_score -= 12
+    elif event_roll < 0.13:  # 3% production disaster
+        advanced_factors['disastro_produzione'] = '-8 (Problemi in produzione!)'
         quality_score -= 8
-    elif event_roll < 0.12:  # 4% chance awards buzz
-        advanced_factors['buzz_premi'] = '+6 (Candidato ai premi!)'
-        quality_score += 6
+    elif event_roll < 0.18:  # 5% awards buzz
+        advanced_factors['buzz_premi'] = '+7 (Candidato ai premi!)'
+        quality_score += 7
 
-    quality_score = max(10, min(100, quality_score + random.uniform(-3, 3)))
+    # Final clamp
+    quality_score = max(10, min(100, quality_score))
     quality_score = round(quality_score, 1)
 
     # Determine tier

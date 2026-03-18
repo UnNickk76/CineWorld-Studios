@@ -4775,19 +4775,29 @@ async def get_social_feed(
     ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
     
     for film in films:
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        film['owner'] = owner
+        # Handle films that might have owner_id instead of user_id
+        owner_id = film.get('user_id') or film.get('owner_id')
+        if owner_id:
+            owner = await db.users.find_one({'id': owner_id}, {'_id': 0, 'password': 0, 'email': 0})
+            film['owner'] = owner
+        else:
+            film['owner'] = None
         
         like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
         film['user_liked'] = like is not None
         
-        # Get cast details with roles
+        # Get cast details with roles (handle both dict and string format)
         cast_details = []
         for actor_info in film.get('cast', []):
-            actor = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0})
-            if actor:
-                actor['role'] = actor_info.get('role', 'supporting')
-                cast_details.append(actor)
+            # Skip if actor_info is not a dict (old format might have strings or other types)
+            if not isinstance(actor_info, dict):
+                continue
+            actor_id = actor_info.get('actor_id') or actor_info.get('id')
+            if actor_id:
+                actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
+                if actor:
+                    actor['role'] = actor_info.get('role', 'supporting')
+                    cast_details.append(actor)
         film['cast_details'] = cast_details
     
     total = await db.films.count_documents({'user_id': {'$ne': user['id']}})
@@ -6445,6 +6455,50 @@ async def run_startup_migrations():
         completed.append('recalculate_imdb_v5')
         changed = True
         logging.info(f"Migration recalculate_imdb_v5: Recalculated {updated} films with new formula")
+
+    # Migration: Recalculate ALL films' quality_score with new Alchemy v2 formula
+    if 'recalculate_quality_v2' not in completed:
+        import random as _rng
+        from game_systems import calculate_imdb_rating
+        all_films = await db.films.find({}, {'_id': 0}).to_list(1000)
+        updated = 0
+        for film in all_films:
+            old_q = film.get('quality_score', 50)
+            # Scale down the deterministic base to match new formula ceiling (~65)
+            base = old_q * 0.65
+            # Apply alchemy factors (same distribution as release_film v2)
+            dir_vision = round(max(-22, min(22, _rng.gauss(0, 9))), 1)
+            audience = round(max(-20, min(20, _rng.gauss(0, 8))), 1)
+            chem = _rng.choice([-5, -3, -2, -1, 0, 0, 0, 1, 2, 3, 4, 6])
+            critic = _rng.choice([-8, -5, -3, -1, 0, 0, 0, 1, 2, 4, 6, 10])
+            timing = _rng.choice([-4, -2, -1, 0, 0, 0, 0, 1, 3, 5])
+            lightning = 0
+            ev = _rng.random()
+            if ev < 0.03: lightning = 14
+            elif ev < 0.06: lightning = 9
+            elif ev < 0.10: lightning = -12
+            elif ev < 0.13: lightning = -8
+            elif ev < 0.18: lightning = 7
+            new_q = base + dir_vision + audience + chem + critic + timing + lightning
+            new_q = max(10, min(100, round(new_q, 1)))
+            # Determine new tier
+            if new_q >= 85: new_tier = 'masterpiece'
+            elif new_q >= 70: new_tier = 'excellent'
+            elif new_q >= 55: new_tier = 'good'
+            elif new_q >= 40: new_tier = 'mediocre'
+            else: new_tier = 'bad'
+            # Recalculate IMDb from new quality
+            temp_film = {**film, 'quality_score': new_q}
+            new_imdb = calculate_imdb_rating(temp_film)
+            await db.films.update_one(
+                {'id': film['id']},
+                {'$set': {'quality_score': new_q, 'tier': new_tier, 'imdb_rating': new_imdb}}
+            )
+            updated += 1
+            logging.info(f"  Film '{film.get('title','?')}': {old_q:.1f} -> {new_q:.1f} (tier: {new_tier}, IMDb: {new_imdb:.1f})")
+        completed.append('recalculate_quality_v2')
+        changed = True
+        logging.info(f"Migration recalculate_quality_v2: Recalculated {updated} films with Alchemy v2 formula")
 
     if changed:
         await db.migrations.update_one(

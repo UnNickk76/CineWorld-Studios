@@ -55,7 +55,11 @@ Cinematic empire game where players build film studios, produce films, hire cast
 
 ### Session 6 (March 18)
 - **Removed "FILM IN ATTESA DI RILASCIO" card** from Dashboard (user request - no longer needed)
-- **Verified all untested Session 5 features** via testing agent (100% pass rate, iteration_92)
+- **Added "ULTIMI AGGIORNAMENTI" section** in its place: shows 5 latest releases from ALL players with poster, title, producer name
+- **Added 3 horizontal sections** at bottom of Dashboard: "I Miei Film" (5 posters), "Le Mie Serie TV" (5 posters), "I Miei Anime" (5 posters), each with "Vedi Tutti" button
+- **Backend extended**: `/api/dashboard/batch` now returns `my_series`, `my_anime`, `recent_releases` with producer info
+- **Verified** via testing agent: 100% pass rate (iteration 92 + 93)
+- **Updated** Release Notes (v0.091, v0.092) and System Notes
 
 ## COMPLETED P0/P1 TASKS
 - [x] Production Menu UI (5 buttons)
@@ -67,6 +71,8 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - [x] Emittente TV Broadcast System
 - [x] "I Miei Film" Popup Menu (Film, Serie TV, Anime)
 - [x] MyFilms.jsx dynamic view (?view= parameter)
+- [x] Dashboard "Ultimi Aggiornamenti" (rilasci da tutti i player)
+- [x] Dashboard 3 sezioni orizzontali (Film, Serie TV, Anime con 5 poster)
 - [x] Dashboard cleanup (removed pending films card)
 
 ## Remaining Tasks

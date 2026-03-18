@@ -5632,6 +5632,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.092', 'date': '2026-03-18', 'title': 'Dashboard Rinnovata: Sezioni Produzioni & Ultimi Aggiornamenti',
+     'changes': [
+         {'type': 'new', 'text': 'Sezione "Ultimi Aggiornamenti" in Dashboard: mostra le 5 produzioni piu recenti di TUTTI i giocatori'},
+         {'type': 'new', 'text': 'Sezione "Le Mie Serie TV" in Dashboard: 5 locandine con link a Vedi Tutti'},
+         {'type': 'new', 'text': 'Sezione "I Miei Anime" in Dashboard: 5 locandine con link a Vedi Tutti'},
+         {'type': 'improvement', 'text': 'Sezione "I Miei Film" ottimizzata: 5 locandine in fila unica per mobile'},
+         {'type': 'improvement', 'text': 'Layout Dashboard piu compatto e informativo'},
+     ]},
     {'version': '0.091', 'date': '2026-03-18', 'title': 'Dashboard Semplificata',
      'changes': [
          {'type': 'improvement', 'text': 'Rimossa la sezione "Film in Attesa di Rilascio" dalla Dashboard per un layout piu pulito'},

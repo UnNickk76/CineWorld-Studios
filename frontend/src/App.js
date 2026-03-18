@@ -86,6 +86,7 @@ const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
 const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
 const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
+const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 
 // ==================== COMPONENTS ====================
@@ -141,6 +142,7 @@ const TopNavbar = () => {
   const [popupGenreFilter, setPopupGenreFilter] = useState(null); // Genre filter for player popup
   const [productionUnlocks, setProductionUnlocks] = useState(null);
   const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
+  const [showCineboardMenu, setShowCineboardMenu] = useState(false);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -213,6 +215,7 @@ const TopNavbar = () => {
     api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     setShowProductionMenu(false);
+    setShowCineboardMenu(false);
   }, [location.pathname]);
 
 
@@ -272,6 +275,7 @@ const TopNavbar = () => {
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
     { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
+    { path: '/create-sequel', icon: Copy, label: language === 'it' ? 'Sequel' : 'Sequel' },
     { path: '/create-series', icon: Tv, label: 'Serie TV', locked: !productionUnlocks?.has_studio_serie_tv },
     { path: '/create-anime', icon: Sparkles, label: 'Anime', locked: !productionUnlocks?.has_studio_anime },
     { path: '/my-tv', icon: Radio, label: 'La Tua TV', locked: !productionUnlocks?.has_emittente_tv },
@@ -375,17 +379,74 @@ const TopNavbar = () => {
             <Crown className="w-4 h-4" />
           </Button>
           
-          {/* CineBoard/Social */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
-            onClick={() => navigate('/social')}
-            data-testid="cineboard-btn"
-            title="CineBoard"
-          >
-            <Trophy className="w-4 h-4" />
-          </Button>
+          {/* CineBoard/Social - Popup Menu */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showCineboardMenu || location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
+              onClick={() => setShowCineboardMenu(!showCineboardMenu)}
+              data-testid="cineboard-btn"
+              title="CineBoard"
+            >
+              <Trophy className="w-4 h-4" />
+            </Button>
+            <AnimatePresence>
+              {showCineboardMenu && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[60]"
+                    onClick={() => setShowCineboardMenu(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+                    className="absolute top-full right-0 mt-1 z-[61] w-48"
+                    data-testid="cineboard-menu"
+                  >
+                    <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl space-y-1">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Classifiche</p>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.pathname === '/social' && !location.search ? 'bg-green-500/20 text-green-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-film"
+                      >
+                        <Film className="w-4 h-4 text-yellow-400" />
+                        <div className="text-left"><span className="block">Film</span><span className="text-[9px] opacity-50">Top 50, Giornaliera, Settimanale</span></div>
+                      </button>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=series') ? 'bg-blue-500/20 text-blue-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=series'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-series"
+                      >
+                        <Tv className="w-4 h-4 text-blue-400" />
+                        <div className="text-left"><span className="block">Serie TV</span><span className="text-[9px] opacity-50">Trend Settimanale</span></div>
+                      </button>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=anime') ? 'bg-orange-500/20 text-orange-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=anime'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-anime"
+                      >
+                        <Sparkles className="w-4 h-4 text-orange-400" />
+                        <div className="text-left"><span className="block">Anime</span><span className="text-[9px] opacity-50">Trend Settimanale</span></div>
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
           
           {/* Cinema Journal */}
           <Button
@@ -705,22 +766,28 @@ const TopNavbar = () => {
                     ) : null;
                   })()}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {/* Film - Always available */}
                   <button
-                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
                     onClick={() => { navigate('/create-film'); setShowProductionMenu(false); }}
                     data-testid="prod-menu-film"
                   >
-                    <Camera className="w-5 h-5 flex-shrink-0" />
-                    <div className="text-left min-w-0">
-                      <span className="text-xs font-bold block leading-tight">Film</span>
-                      <span className="text-[8px] opacity-60 block leading-tight">Pipeline completa</span>
-                    </div>
+                    <Camera className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">Film</span>
+                  </button>
+                  {/* Sequel - Always available */}
+                  <button
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all ${location.pathname === '/create-sequel' ? 'bg-amber-600 text-white' : 'bg-amber-600/10 text-amber-500 border border-amber-600/25 hover:bg-amber-600/20'}`}
+                    onClick={() => { navigate('/create-sequel'); setShowProductionMenu(false); }}
+                    data-testid="prod-menu-sequel"
+                  >
+                    <Copy className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">Sequel</span>
                   </button>
                   {/* Serie TV */}
                   <button
-                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
                       productionUnlocks?.has_studio_serie_tv 
                         ? (location.pathname === '/create-series' ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20')
                         : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
@@ -731,16 +798,13 @@ const TopNavbar = () => {
                     }}
                     data-testid="prod-menu-series"
                   >
-                    {!productionUnlocks?.has_studio_serie_tv && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
-                    <Tv className="w-5 h-5 flex-shrink-0" />
-                    <div className="text-left min-w-0">
-                      <span className="text-xs font-bold block leading-tight">Serie TV</span>
-                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_studio_serie_tv ? 'Produci serie' : 'Sblocca studio'}</span>
-                    </div>
+                    {!productionUnlocks?.has_studio_serie_tv && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    <Tv className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">Serie TV</span>
                   </button>
                   {/* Anime */}
                   <button
-                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
                       productionUnlocks?.has_studio_anime
                         ? (location.pathname === '/create-anime' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20')
                         : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
@@ -751,16 +815,13 @@ const TopNavbar = () => {
                     }}
                     data-testid="prod-menu-anime"
                   >
-                    {!productionUnlocks?.has_studio_anime && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
-                    <Sparkles className="w-5 h-5 flex-shrink-0" />
-                    <div className="text-left min-w-0">
-                      <span className="text-xs font-bold block leading-tight">Anime</span>
-                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_studio_anime ? 'Produci anime' : 'Sblocca studio'}</span>
-                    </div>
+                    {!productionUnlocks?.has_studio_anime && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    <Sparkles className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">Anime</span>
                   </button>
                   {/* La Tua TV */}
                   <button
-                    className={`flex items-center gap-2.5 p-3 rounded-xl transition-all relative ${
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
                       productionUnlocks?.has_emittente_tv
                         ? (location.pathname === '/my-tv' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20')
                         : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
@@ -771,13 +832,12 @@ const TopNavbar = () => {
                     }}
                     data-testid="prod-menu-tv"
                   >
-                    {!productionUnlocks?.has_emittente_tv && <Lock className="w-3 h-3 absolute top-1.5 right-1.5 text-gray-600" />}
-                    <Radio className="w-5 h-5 flex-shrink-0" />
-                    <div className="text-left min-w-0">
-                      <span className="text-xs font-bold block leading-tight">La Tua TV</span>
-                      <span className="text-[8px] opacity-60 block leading-tight">{productionUnlocks?.has_emittente_tv ? 'Gestisci canale' : 'Sblocca emittente'}</span>
-                    </div>
+                    {!productionUnlocks?.has_emittente_tv && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    <Radio className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">La Tua TV</span>
                   </button>
+                  {/* Empty cell for alignment */}
+                  <div></div>
                 </div>
               </div>
             </motion.div>
@@ -1601,6 +1661,7 @@ function App() {
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
+                <Route path="/create-sequel" element={<ProtectedRoute><SequelPipeline /></ProtectedRoute>} />
                 <Route path="/my-tv" element={<ProtectedRoute><EmittenteTVPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />

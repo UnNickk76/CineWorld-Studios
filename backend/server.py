@@ -73,6 +73,8 @@ from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.series_pipeline import router as series_pipeline_router
+from routes.sequel_pipeline import router as sequel_pipeline_router
+from routes.emittente_tv import router as emittente_tv_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from cast_system import (
@@ -14600,7 +14602,79 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
     return {'films': sorted_films}
 
 
-# ==================== PLAYER PROFILE (PUBLIC) ====================
+@api_router.get("/cineboard/series-weekly")
+async def get_cineboard_series_weekly(user: dict = Depends(get_current_user)):
+    """Get this week's top TV series ranked by quality."""
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=7)).isoformat()
+    
+    series = await db.tv_series.find(
+        {'type': 'tv_series', 'status': 'completed', 'completed_at': {'$gte': week_start}},
+        {'_id': 0}
+    ).sort('quality_score', -1).to_list(20)
+    
+    if len(series) < 5:
+        extra = await db.tv_series.find(
+            {'type': 'tv_series', 'status': 'completed', 'id': {'$nin': [s['id'] for s in series]}},
+            {'_id': 0}
+        ).sort('quality_score', -1).to_list(20 - len(series))
+        series.extend(extra)
+    
+    owner_ids = list(set(s.get('user_id') for s in series if s.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids) + 1)
+    owners_map = {o['id']: o for o in owners_list}
+    
+    for i, s in enumerate(series):
+        s['rank'] = i + 1
+        s['owner'] = owners_map.get(s.get('user_id'))
+        completed = s.get('completed_at', '')
+        try:
+            d = datetime.fromisoformat(completed)
+            s['is_new'] = d >= (now - timedelta(days=7))
+        except Exception:
+            s['is_new'] = False
+    
+    return {'series': series}
+
+
+@api_router.get("/cineboard/anime-weekly")
+async def get_cineboard_anime_weekly(user: dict = Depends(get_current_user)):
+    """Get this week's top anime ranked by quality."""
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=7)).isoformat()
+    
+    series = await db.tv_series.find(
+        {'type': 'anime', 'status': 'completed', 'completed_at': {'$gte': week_start}},
+        {'_id': 0}
+    ).sort('quality_score', -1).to_list(20)
+    
+    if len(series) < 5:
+        extra = await db.tv_series.find(
+            {'type': 'anime', 'status': 'completed', 'id': {'$nin': [s['id'] for s in series]}},
+            {'_id': 0}
+        ).sort('quality_score', -1).to_list(20 - len(series))
+        series.extend(extra)
+    
+    owner_ids = list(set(s.get('user_id') for s in series if s.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids) + 1)
+    owners_map = {o['id']: o for o in owners_list}
+    
+    for i, s in enumerate(series):
+        s['rank'] = i + 1
+        s['owner'] = owners_map.get(s.get('user_id'))
+        completed = s.get('completed_at', '')
+        try:
+            d = datetime.fromisoformat(completed)
+            s['is_new'] = d >= (now - timedelta(days=7))
+        except Exception:
+            s['is_new'] = False
+    
+    return {'series': series}
+
+
+
 
 @api_router.get("/players/{player_id}/profile")
 async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
@@ -16472,6 +16546,8 @@ app.include_router(infrastructure_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(series_pipeline_router, prefix="/api")
+app.include_router(sequel_pipeline_router, prefix="/api")
+app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 

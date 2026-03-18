@@ -39,7 +39,8 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding,
+  Tv, Radio
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
@@ -52,10 +53,14 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const CineBoard = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
+  const [searchParams] = useSearchParams();
+  const currentView = searchParams.get('view') || 'film'; // film, series, anime
   const [activeTab, setActiveTab] = useState('daily');
   const [films, setFilms] = useState([]);
   const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [seriesData, setSeriesData] = useState([]);
+  const [animeData, setAnimeData] = useState([]);
   const navigate = useNavigate();
 
   const t = (key) => {
@@ -77,7 +82,17 @@ const CineBoard = () => {
 
   useEffect(() => {
     setLoading(true);
-    if (activeTab === 'attendance') {
+    if (currentView === 'series') {
+      api.get('/cineboard/series-weekly')
+        .then(r => setSeriesData(r.data.series || []))
+        .catch(() => setSeriesData([]))
+        .finally(() => setLoading(false));
+    } else if (currentView === 'anime') {
+      api.get('/cineboard/anime-weekly')
+        .then(r => setAnimeData(r.data.series || []))
+        .catch(() => setAnimeData([]))
+        .finally(() => setLoading(false));
+    } else if (activeTab === 'attendance') {
       api.get('/cineboard/attendance')
         .then(r => setAttendanceData(r.data))
         .catch(() => setAttendanceData(null))
@@ -94,7 +109,7 @@ const CineBoard = () => {
         .catch(() => setFilms([]))
         .finally(() => setLoading(false));
     }
-  }, [api, activeTab]);
+  }, [api, activeTab, currentView]);
 
   const handleLike = async (filmId) => {
     try {
@@ -147,6 +162,116 @@ const CineBoard = () => {
   };
 
   if (loading) return <LoadingSpinner />;
+
+  // Series TV Weekly Trend View
+  if (currentView === 'series') {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-series-page">
+        <div className="flex items-center gap-3 mb-4">
+          <Tv className="w-8 h-8 text-blue-400" />
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-3xl text-blue-400">Trend Serie TV</h1>
+            <p className="text-xs text-gray-400">Classifica settimanale delle migliori serie TV</p>
+          </div>
+        </div>
+        {seriesData.length === 0 ? (
+          <Card className="bg-[#1A1A1A] border-white/10 p-8 text-center">
+            <Tv className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+            <h3 className="text-lg mb-2 text-gray-400">Nessuna serie in classifica</h3>
+            <p className="text-xs text-gray-500">Produci serie TV per vederle qui!</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {seriesData.map(s => (
+              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden ${s.rank <= 3 ? 'border-blue-500/30' : ''}`} data-testid={`series-rank-${s.rank}`}>
+                <div className="flex">
+                  <div className={`w-12 flex items-center justify-center font-bold text-lg ${
+                    s.rank === 1 ? 'bg-yellow-500 text-black' : s.rank === 2 ? 'bg-gray-300 text-black' : s.rank === 3 ? 'bg-amber-600 text-white' : s.rank <= 10 ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-gray-400'
+                  }`}>#{s.rank}</div>
+                  <div className="w-16 flex-shrink-0 bg-blue-500/10 flex items-center justify-center">
+                    {s.poster_url ? <img src={s.poster_url.startsWith('/') ? `${BACKEND_URL}${s.poster_url}` : s.poster_url} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Tv className="w-6 h-6 text-blue-400/50" />}
+                  </div>
+                  <CardContent className="flex-1 p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm truncate">{s.title}</h3>
+                        <p className="text-[10px] text-gray-400 truncate">{s.owner?.production_house_name || s.owner?.nickname || 'Studio'}</p>
+                      </div>
+                      <div className="flex items-center gap-1 bg-blue-500/20 px-2 py-1 rounded ml-2">
+                        <Star className="w-3.5 h-3.5 text-blue-400 fill-blue-400" />
+                        <span className="font-bold text-blue-400 text-sm">{s.quality_score?.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <Badge className="bg-white/10 text-gray-300 text-[10px] h-5">{s.genre_name}</Badge>
+                      <span className="text-[10px] text-gray-400">{s.num_episodes} ep. - S{s.season_number}</span>
+                      {s.is_new && <Badge className="bg-green-500/20 text-green-400 text-[9px]">Nuovo</Badge>}
+                    </div>
+                  </CardContent>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Anime Weekly Trend View
+  if (currentView === 'anime') {
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-anime-page">
+        <div className="flex items-center gap-3 mb-4">
+          <Sparkles className="w-8 h-8 text-orange-400" />
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-3xl text-orange-400">Trend Anime</h1>
+            <p className="text-xs text-gray-400">Classifica settimanale dei migliori anime</p>
+          </div>
+        </div>
+        {animeData.length === 0 ? (
+          <Card className="bg-[#1A1A1A] border-white/10 p-8 text-center">
+            <Sparkles className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+            <h3 className="text-lg mb-2 text-gray-400">Nessun anime in classifica</h3>
+            <p className="text-xs text-gray-500">Produci anime per vederli qui!</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {animeData.map(s => (
+              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden ${s.rank <= 3 ? 'border-orange-500/30' : ''}`} data-testid={`anime-rank-${s.rank}`}>
+                <div className="flex">
+                  <div className={`w-12 flex items-center justify-center font-bold text-lg ${
+                    s.rank === 1 ? 'bg-yellow-500 text-black' : s.rank === 2 ? 'bg-gray-300 text-black' : s.rank === 3 ? 'bg-amber-600 text-white' : s.rank <= 10 ? 'bg-orange-500/20 text-orange-400' : 'bg-white/10 text-gray-400'
+                  }`}>#{s.rank}</div>
+                  <div className="w-16 flex-shrink-0 bg-orange-500/10 flex items-center justify-center">
+                    {s.poster_url ? <img src={s.poster_url.startsWith('/') ? `${BACKEND_URL}${s.poster_url}` : s.poster_url} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Sparkles className="w-6 h-6 text-orange-400/50" />}
+                  </div>
+                  <CardContent className="flex-1 p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm truncate">{s.title}</h3>
+                        <p className="text-[10px] text-gray-400 truncate">{s.owner?.production_house_name || s.owner?.nickname || 'Studio'}</p>
+                      </div>
+                      <div className="flex items-center gap-1 bg-orange-500/20 px-2 py-1 rounded ml-2">
+                        <Star className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
+                        <span className="font-bold text-orange-400 text-sm">{s.quality_score?.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <Badge className="bg-white/10 text-gray-300 text-[10px] h-5">{s.genre_name}</Badge>
+                      <span className="text-[10px] text-gray-400">{s.num_episodes} ep.</span>
+                      {s.is_new && <Badge className="bg-green-500/20 text-green-400 text-[9px]">Nuovo</Badge>}
+                    </div>
+                  </CardContent>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default Film View
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-page">

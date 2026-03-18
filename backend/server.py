@@ -5183,7 +5183,7 @@ async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
     } for f in films]
 
 # Parameterized film routes - MUST be after specific routes
-@api_router.get("/films/{film_id}", response_model=FilmResponse)
+@api_router.get("/films/{film_id}")
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
@@ -5192,7 +5192,37 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     # Calculate and add cineboard_score
     film['cineboard_score'] = calculate_cineboard_score(film)
     
-    return FilmResponse(**film)
+    # Ensure all expected fields exist with defaults
+    film.setdefault('subtitle', None)
+    film.setdefault('subgenres', [])
+    film.setdefault('release_date', film.get('created_at', '')[:10] if film.get('created_at') else None)
+    film.setdefault('weeks_in_theater', 0)
+    film.setdefault('actual_weeks_in_theater', 0)
+    film.setdefault('locations', [])
+    film.setdefault('location_costs', {})
+    film.setdefault('cast', [])
+    film.setdefault('extras_count', 0)
+    film.setdefault('extras_cost', 0)
+    film.setdefault('poster_url', None)
+    film.setdefault('total_budget', film.get('budget', 0))
+    film.setdefault('status', 'released')
+    film.setdefault('quality_score', film.get('quality', 0))
+    film.setdefault('audience_satisfaction', 50.0)
+    film.setdefault('likes_count', 0)
+    film.setdefault('box_office', {})
+    film.setdefault('daily_revenues', [])
+    film.setdefault('opening_day_revenue', 0)
+    film.setdefault('total_revenue', 0)
+    film.setdefault('imdb_rating', None)
+    film.setdefault('film_tier', None)
+    film.setdefault('liked_by', [])
+    film.setdefault('virtual_likes', 0)
+    film.setdefault('cumulative_attendance', 0)
+    film.setdefault('popularity_score', 0)
+    film.setdefault('distribution_zone', None)
+    film.setdefault('distribution_cost', 0)
+    
+    return film
 
 @api_router.get("/films/{film_id}/distribution")
 async def get_film_distribution(film_id: str, user: dict = Depends(get_current_user)):
@@ -6205,34 +6235,42 @@ async def initialize_system_notes():
 
 async def run_startup_migrations():
     """Run one-time data migrations on startup."""
-    migrations_done = await db.migrations.find_one({'id': 'startup_migrations'}, {'_id': 0})
-    if not migrations_done:
-        migrations_done = {'id': 'startup_migrations', 'completed': []}
-    
-    completed = migrations_done.get('completed', [])
+    migrations_doc = await db.migrations.find_one({'id': 'startup_migrations'}, {'_id': 0})
+    completed = (migrations_doc or {}).get('completed', [])
+    changed = False
     
     # Migration: Add $40M to NeoMorpheus
-    if 'neomorpheus_40m' not in completed:
-        neo = await db.users.find_one({'nickname': 'NeoMorpheus'}, {'_id': 0, 'id': 1, 'money': 1})
+    if 'neomorpheus_40m_v2' not in completed:
+        neo = await db.users.find_one(
+            {'nickname': {'$regex': '^neomorpheus$', '$options': 'i'}},
+            {'_id': 0, 'id': 1, 'money': 1, 'nickname': 1}
+        )
         if neo:
-            await db.users.update_one({'id': neo['id']}, {'$inc': {'money': 40_000_000}})
-            completed.append('neomorpheus_40m')
-            logging.info(f"Migration: Added $40M to NeoMorpheus (was ${neo.get('money', 0)})")
+            result = await db.users.update_one({'id': neo['id']}, {'$inc': {'money': 40_000_000}})
+            logging.info(f"Migration neomorpheus_40m_v2: Added $40M to {neo['nickname']} (was ${neo.get('money', 0)}, modified={result.modified_count})")
+        else:
+            logging.warning("Migration neomorpheus_40m_v2: NeoMorpheus user not found!")
+        completed.append('neomorpheus_40m_v2')
+        changed = True
     
-    # Migration: Recalculate all IMDb ratings with new formula
-    if 'recalculate_imdb_v2' not in completed:
+    # Migration: Recalculate all IMDb ratings with new non-linear formula
+    if 'recalculate_imdb_v3' not in completed:
         from game_systems import calculate_imdb_rating
-        films = await db.films.find({}, {'_id': 0}).to_list(1000)
+        films = await db.films.find({}, {'_id': 0}).to_list(2000)
         updated = 0
         for film in films:
-            new_imdb = calculate_imdb_rating(film)
-            await db.films.update_one({'id': film['id']}, {'$set': {'imdb_rating': new_imdb}})
-            updated += 1
-        completed.append('recalculate_imdb_v2')
-        logging.info(f"Migration: Recalculated IMDb for {updated} films")
+            try:
+                new_imdb = calculate_imdb_rating(film)
+                await db.films.update_one({'id': film['id']}, {'$set': {'imdb_rating': new_imdb}})
+                updated += 1
+            except Exception as e:
+                logging.error(f"Migration recalculate_imdb_v3: Error for film {film.get('id')}: {e}")
+        completed.append('recalculate_imdb_v3')
+        changed = True
+        logging.info(f"Migration recalculate_imdb_v3: Updated IMDb for {updated}/{len(films)} films")
     
-    # Migration: Repair films missing poster/reviews/box_office
-    if 'repair_incomplete_films_v1' not in completed:
+    # Migration: Repair films missing poster/reviews/box_office (NEVER removes films)
+    if 'repair_incomplete_films_v2' not in completed:
         import random as _rnd
         incomplete = await db.films.find({
             '$or': [
@@ -6247,7 +6285,7 @@ async def run_startup_migrations():
                 genre = film.get('genre', 'drama')
                 updates['poster_url'] = f"https://loremflickr.com/400/600/{genre},movie,cinema"
             if not film.get('reviews') or film.get('reviews') == []:
-                quality = film.get('quality_score', 50)
+                quality = film.get('quality_score', film.get('quality', 50))
                 papers = ["Variety", "Cahiers du Cinema", "The Hollywood Reporter", "Empire Magazine", "Screen International"]
                 reviews = []
                 for paper in _rnd.sample(papers, min(3, len(papers))):
@@ -6256,20 +6294,23 @@ async def run_startup_migrations():
                     reviews.append({'newspaper': paper, 'score': score, 'sentiment': sentiment,
                         'text': f"Un film {'eccellente' if score >= 7 else 'discreto' if score >= 5 else 'deludente'}."})
                 updates['reviews'] = reviews
+                updates['critic_reviews'] = reviews
             if not film.get('box_office'):
                 tr = film.get('total_revenue', 0)
                 updates['box_office'] = {'opening_weekend': tr * 0.3, 'domestic': tr * 0.6, 'international': tr * 0.4, 'total': tr}
             if updates:
                 await db.films.update_one({'id': film['id']}, {'$set': updates})
-        completed.append('repair_incomplete_films_v1')
-        logging.info(f"Migration: Repaired {len(incomplete)} incomplete films")
+        completed.append('repair_incomplete_films_v2')
+        changed = True
+        logging.info(f"Migration repair_incomplete_films_v2: Repaired {len(incomplete)} films")
     
-    # Save migration state
-    await db.migrations.update_one(
-        {'id': 'startup_migrations'},
-        {'$set': {'completed': completed}},
-        upsert=True
-    )
+    if changed:
+        await db.migrations.update_one(
+            {'id': 'startup_migrations'},
+            {'$set': {'completed': completed}},
+            upsert=True
+        )
+        logging.info(f"Migrations completed: {completed}")
 
 
 
@@ -13860,9 +13901,10 @@ async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
 
 @api_router.get("/cineboard/daily")
 async def get_cineboard_daily(user: dict = Depends(get_current_user)):
-    """Get today's top films ranked by daily revenue."""
+    """Get today's top films ranked by daily revenue with hourly trend."""
     from datetime import datetime, timezone, timedelta
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     films = await db.films.find(
         {'status': 'in_theaters'},
         {'_id': 0}
@@ -13875,18 +13917,28 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
 
     for film in films:
         daily_rev = 0
+        hourly_trend = {}
         for dr in film.get('daily_revenues', []):
             dr_date = dr.get('date', '')
             if dr_date:
                 try:
                     d = datetime.fromisoformat(dr_date.replace('Z', '+00:00'))
                     if d >= today_start:
-                        daily_rev += dr.get('amount', 0)
+                        amt = dr.get('amount', 0)
+                        daily_rev += amt
+                        hour_key = d.strftime('%H:00')
+                        hourly_trend[hour_key] = hourly_trend.get(hour_key, 0) + amt
                 except Exception:
                     pass
         if daily_rev <= 0:
+            # Estimate: spread total revenue across active hours
             daily_rev = film.get('total_revenue', 0) * 0.05
+            current_hour = now.hour
+            for h in range(max(0, current_hour - 5), current_hour + 1):
+                hourly_trend[f'{h:02d}:00'] = round(daily_rev / max(current_hour, 1))
+        
         film['daily_revenue'] = round(daily_rev)
+        film['hourly_trend'] = [{'hour': k, 'revenue': round(v)} for k, v in sorted(hourly_trend.items())]
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
@@ -13899,9 +13951,10 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
 
 @api_router.get("/cineboard/weekly")
 async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
-    """Get this week's top films ranked by weekly revenue."""
+    """Get this week's top films ranked by weekly revenue with daily trend."""
     from datetime import datetime, timezone, timedelta
-    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    now = datetime.now(timezone.utc)
+    week_start = now - timedelta(days=7)
     films = await db.films.find(
         {'status': 'in_theaters'},
         {'_id': 0}
@@ -13914,18 +13967,30 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
 
     for film in films:
         weekly_rev = 0
+        daily_trend = {}
         for dr in film.get('daily_revenues', []):
             dr_date = dr.get('date', '')
             if dr_date:
                 try:
                     d = datetime.fromisoformat(dr_date.replace('Z', '+00:00'))
                     if d >= week_start:
-                        weekly_rev += dr.get('amount', 0)
+                        amt = dr.get('amount', 0)
+                        weekly_rev += amt
+                        day_key = d.strftime('%a')
+                        daily_trend[d.strftime('%Y-%m-%d')] = daily_trend.get(d.strftime('%Y-%m-%d'), 0) + amt
                 except Exception:
                     pass
         if weekly_rev <= 0:
             weekly_rev = film.get('total_revenue', 0) * 0.25
+            for i in range(7):
+                day = (now - timedelta(days=6-i)).strftime('%Y-%m-%d')
+                daily_trend[day] = round(weekly_rev / 7)
+        
+        # Format daily trend with day labels
+        day_labels = {'Mon': 'Lun', 'Tue': 'Mar', 'Wed': 'Mer', 'Thu': 'Gio', 'Fri': 'Ven', 'Sat': 'Sab', 'Sun': 'Dom'}
+        sorted_days = sorted(daily_trend.items())
         film['weekly_revenue'] = round(weekly_rev)
+        film['daily_trend'] = [{'date': k, 'day': day_labels.get(datetime.strptime(k, '%Y-%m-%d').strftime('%a'), k), 'revenue': round(v)} for k, v in sorted_days]
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])

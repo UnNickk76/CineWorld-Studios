@@ -154,14 +154,26 @@
 - Test: 100% frontend verificato (9/9 test)
 
 ### Casting Avanzato v2 (17 Mar 2026 - msg #507)
-- **Dettagli Attori Enrichiti**: genere (♀/♂), età, nazionalità con icona Globe, fame label (Sconosciuto/Emergente/Famoso/Superstar), trend crescita (rising/declining/stable), badge "Collaboratore" se ha lavorato con il giocatore
-- **Casting Dinamico**: logica fame-based - giocatori con bassa fama ricevono più attori sconosciuti/emergenti, alta fama accede a famosi/superstar
-- **Proposte Raddoppiate**: max attori da 8 a 16, più agenti (2-7), più candidati per agente (2-4 per attori)
-- **Bottom Nav Mobile**: "Produci!" button allargato con stile giallo prominente, aggiunto "Mercato" con icona Store
-- **Nav ridotta**: rimossi Board, Guida, Chat dal bottom nav; mantenuti Home, Film, Produci!, Mercato, Infra, Sfide, Notifiche
-- Backend: `generate_cast_proposals` in film_pipeline.py completamente riscritto
-- Frontend: nuovi componenti GenderIcon, FameLabel, GrowthTrend, PersonMeta in FilmPipeline.jsx
+- **Dettagli Attori Enrichiti**: genere, eta, nazionalita con icona Globe, fame label, trend crescita, badge "Collaboratore"
+- **Casting Dinamico**: logica fame-based
+- **Proposte Raddoppiate**: max attori da 8 a 16
+- **Bottom Nav Mobile**: "Produci!" button allargato, aggiunto "Mercato"
+- Backend: `generate_cast_proposals` riscritto
+- Frontend: componenti GenderIcon, FameLabel, GrowthTrend, PersonMeta
 - Test: 100% backend + frontend (iteration 79)
+
+### Sistema Equipment e Sponsor (18 Mar 2026)
+- **Equipment**: ~10 pacchetti attrezzature (base/pro/premium) selezionabili durante il Casting. Impattano il punteggio finale del film. Popup con checkbox, costi e descrizioni. Backend: GET /api/film-pipeline/{id}/equipment-options, POST /api/film-pipeline/{id}/select-equipment
+- **Sponsor**: ~20 proposte sponsor selezionabili in Pre-Produzione (da 1 a max 6, basato su fama). Offrono denaro immediato ma prendono % sugli incassi orari. La fama sponsor aumenta l'affluenza al cinema (NON il punteggio IMDb). Nomi sponsor visibili nel popup di rilascio film. Backend: GET /api/film-pipeline/{id}/sponsor-offers, POST /api/film-pipeline/{id}/select-sponsors
+- Frontend: Popup sponsor completo con selezione multipla, riepilogo costi/revenue share/affluenza, summary dopo selezione
+- Test: 100% backend + frontend (iteration 80)
+
+### CineBoard Leaderboard Overhaul (18 Mar 2026)
+- Rimossa tab "Hall of Fame", sostituite con "Giornaliera" e "Settimanale"
+- 4 tab: In Sala (Top 50), Giornaliera, Settimanale, Affluenze
+- Backend: GET /api/cineboard/daily (ordinato per daily_revenue), GET /api/cineboard/weekly (ordinato per weekly_revenue)
+- UI: Revenue giornaliera/settimanale mostrata nel formato "$XM oggi" / "$XM sett."
+- Test: 100% backend + frontend (iteration 80)
 
 ## Task Prossimi
 - **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)

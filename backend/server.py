@@ -6203,6 +6203,76 @@ async def initialize_system_notes():
         logging.info(f"Initialized {len(DEFAULT_SYSTEM_NOTES)} default system notes")
 
 
+async def run_startup_migrations():
+    """Run one-time data migrations on startup."""
+    migrations_done = await db.migrations.find_one({'id': 'startup_migrations'}, {'_id': 0})
+    if not migrations_done:
+        migrations_done = {'id': 'startup_migrations', 'completed': []}
+    
+    completed = migrations_done.get('completed', [])
+    
+    # Migration: Add $40M to NeoMorpheus
+    if 'neomorpheus_40m' not in completed:
+        neo = await db.users.find_one({'nickname': 'NeoMorpheus'}, {'_id': 0, 'id': 1, 'money': 1})
+        if neo:
+            await db.users.update_one({'id': neo['id']}, {'$inc': {'money': 40_000_000}})
+            completed.append('neomorpheus_40m')
+            logging.info(f"Migration: Added $40M to NeoMorpheus (was ${neo.get('money', 0)})")
+    
+    # Migration: Recalculate all IMDb ratings with new formula
+    if 'recalculate_imdb_v2' not in completed:
+        from game_systems import calculate_imdb_rating
+        films = await db.films.find({}, {'_id': 0}).to_list(1000)
+        updated = 0
+        for film in films:
+            new_imdb = calculate_imdb_rating(film)
+            await db.films.update_one({'id': film['id']}, {'$set': {'imdb_rating': new_imdb}})
+            updated += 1
+        completed.append('recalculate_imdb_v2')
+        logging.info(f"Migration: Recalculated IMDb for {updated} films")
+    
+    # Migration: Repair films missing poster/reviews/box_office
+    if 'repair_incomplete_films_v1' not in completed:
+        import random as _rnd
+        incomplete = await db.films.find({
+            '$or': [
+                {'poster_url': {'$exists': False}}, {'poster_url': None}, {'poster_url': ''},
+                {'reviews': {'$exists': False}}, {'reviews': None}, {'reviews': []},
+                {'box_office': {'$exists': False}}, {'box_office': None},
+            ]
+        }, {'_id': 0}).to_list(500)
+        for film in incomplete:
+            updates = {}
+            if not film.get('poster_url'):
+                genre = film.get('genre', 'drama')
+                updates['poster_url'] = f"https://loremflickr.com/400/600/{genre},movie,cinema"
+            if not film.get('reviews') or film.get('reviews') == []:
+                quality = film.get('quality_score', 50)
+                papers = ["Variety", "Cahiers du Cinema", "The Hollywood Reporter", "Empire Magazine", "Screen International"]
+                reviews = []
+                for paper in _rnd.sample(papers, min(3, len(papers))):
+                    score = round(max(1.0, min(10.0, quality / 10 + _rnd.uniform(-1.5, 1.5))), 1)
+                    sentiment = 'positive' if score >= 6.5 else 'mixed' if score >= 4.5 else 'negative'
+                    reviews.append({'newspaper': paper, 'score': score, 'sentiment': sentiment,
+                        'text': f"Un film {'eccellente' if score >= 7 else 'discreto' if score >= 5 else 'deludente'}."})
+                updates['reviews'] = reviews
+            if not film.get('box_office'):
+                tr = film.get('total_revenue', 0)
+                updates['box_office'] = {'opening_weekend': tr * 0.3, 'domestic': tr * 0.6, 'international': tr * 0.4, 'total': tr}
+            if updates:
+                await db.films.update_one({'id': film['id']}, {'$set': updates})
+        completed.append('repair_incomplete_films_v1')
+        logging.info(f"Migration: Repaired {len(incomplete)} incomplete films")
+    
+    # Save migration state
+    await db.migrations.update_one(
+        {'id': 'startup_migrations'},
+        {'$set': {'completed': completed}},
+        upsert=True
+    )
+
+
+
 
 def get_next_version():
     """Calculate the next version number."""
@@ -9348,6 +9418,9 @@ async def startup_event():
     # Initialize system notes if empty
     await initialize_system_notes()
     logging.info("System notes initialized")
+    
+    # One-time migrations
+    await run_startup_migrations()
     
     # ==================== APSCHEDULER SETUP ====================
     # Start the background scheduler for autonomous game operations

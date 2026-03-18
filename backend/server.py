@@ -4832,102 +4832,8 @@ def calculate_imdb_rating(film: dict) -> float:
     
     return round(min(imdb_rating, 10.0), 1)
 
-@api_router.get("/cineboard/now-playing")
-async def get_cineboard_now_playing(
-    limit: int = 50,
-    user: dict = Depends(get_current_user)
-):
-    """Get top 50 films currently in theaters, ranked by composite score."""
-    film_fields = {
-        '_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1,
-        'quality': 1, 'quality_score': 1, 'revenue': 1, 'likes_count': 1, 'status': 1,
-        'cast': 1, 'director': 1, 'screenwriter': 1, 'equipment_package': 1,
-        'release_date': 1, 'weeks_in_theater': 1, 'actual_weeks_in_theater': 1,
-        'total_revenue': 1, 'current_cinemas': 1, 'film_tier': 1
-    }
-    films = await db.films.find(
-        {'status': 'in_theaters'},
-        film_fields
-    ).to_list(100)
-    
-    if not films:
-        return {'films': [], 'total': 0, 'category': 'now_playing'}
-    
-    # Bulk fetch owners (only essential fields for display)
-    owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
-    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'level': 1})
-    owners_map = {o['id']: o async for o in owners_cursor}
-    
-    # Bulk fetch user likes
-    film_ids = [f['id'] for f in films]
-    likes_cursor = db.likes.find({'film_id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0, 'film_id': 1})
-    liked_set = {l['film_id'] async for l in likes_cursor}
-    
-    for film in films:
-        film['cineboard_score'] = calculate_film_score(film)
-        film['imdb_rating'] = calculate_imdb_rating(film)
-        film['owner'] = owners_map.get(film.get('user_id'))
-        film['user_liked'] = film['id'] in liked_set
-    
-    films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
-    
-    for i, film in enumerate(films[:limit]):
-        film['rank'] = i + 1
-    
-    return {
-        'films': films[:limit],
-        'total': len(films),
-        'category': 'now_playing'
-    }
-
-@api_router.get("/cineboard/hall-of-fame")
-async def get_cineboard_hall_of_fame(
-    limit: int = 50,
-    user: dict = Depends(get_current_user)
-):
-    """Get top 50 films of all time (all statuses), ranked by composite score."""
-    film_fields = {
-        '_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1,
-        'quality': 1, 'quality_score': 1, 'revenue': 1, 'likes_count': 1, 'status': 1,
-        'cast': 1, 'director': 1, 'screenwriter': 1, 'equipment_package': 1,
-        'release_date': 1, 'weeks_in_theater': 1, 'actual_weeks_in_theater': 1,
-        'total_revenue': 1, 'current_cinemas': 1, 'film_tier': 1
-    }
-    films = await db.films.find(
-        {},
-        film_fields
-    ).sort('quality', -1).limit(100).to_list(100)
-    
-    if not films:
-        return {'films': [], 'total': 0, 'category': 'hall_of_fame'}
-    
-    # Bulk fetch owners (only essential fields for display)
-    owner_ids = list(set(f['user_id'] for f in films if f.get('user_id')))
-    owners_cursor = db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'level': 1})
-    owners_map = {o['id']: o async for o in owners_cursor}
-    
-    # Bulk fetch user likes
-    film_ids = [f['id'] for f in films]
-    likes_cursor = db.likes.find({'film_id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0, 'film_id': 1})
-    liked_set = {l['film_id'] async for l in likes_cursor}
-    
-    for film in films:
-        film['cineboard_score'] = calculate_film_score(film)
-        film['imdb_rating'] = calculate_imdb_rating(film)
-        film['owner'] = owners_map.get(film.get('user_id'))
-        film['user_liked'] = film['id'] in liked_set
-    
-    films.sort(key=lambda x: x.get('cineboard_score', 0), reverse=True)
-    
-    for i, film in enumerate(films[:limit]):
-        film['rank'] = i + 1
-        film['hall_of_fame'] = film.get('status') in ['completed', 'withdrawn'] and film.get('cineboard_score', 0) > 50
-    
-    return {
-        'films': films[:limit],
-        'total': len(films),
-        'category': 'hall_of_fame'
-    }
+# OLD cineboard/now-playing removed - superseded by the one in CINEBOARD section below
+# OLD cineboard/hall-of-fame removed - superseded by daily/weekly leaderboards
 
 @api_router.get("/cineboard/attendance")
 async def get_cineboard_attendance(
@@ -6598,6 +6504,33 @@ async def admin_repair_films(data: dict, user: dict = Depends(get_current_user))
             repaired.append({'id': film['id'], 'title': film.get('title'), 'fixed': list(updates.keys())})
     
     return {'success': True, 'repaired_count': len(repaired), 'repaired': repaired}
+
+
+@api_router.post("/admin/recalculate-imdb")
+async def admin_recalculate_imdb(data: dict, user: dict = Depends(get_current_user)):
+    """Recalculate IMDb rating for all films using the updated formula (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    from game_systems import calculate_imdb_rating
+    target_nickname = data.get('nickname')
+    query = {}
+    if target_nickname:
+        target_user = await db.users.find_one({'nickname': target_nickname}, {'_id': 0, 'id': 1})
+        if not target_user:
+            raise HTTPException(status_code=404, detail=f"Utente '{target_nickname}' non trovato")
+        query['user_id'] = target_user['id']
+    
+    films = await db.films.find(query, {'_id': 0}).to_list(1000)
+    updated = []
+    for film in films:
+        old_imdb = film.get('imdb_rating', 0)
+        new_imdb = calculate_imdb_rating(film)
+        if abs(old_imdb - new_imdb) > 0.1:
+            await db.films.update_one({'id': film['id']}, {'$set': {'imdb_rating': new_imdb}})
+            updated.append({'id': film['id'], 'title': film.get('title'), 'old': old_imdb, 'new': new_imdb})
+    
+    return {'success': True, 'updated_count': len(updated), 'total_films': len(films), 'updated': updated[:50]}
+
 
 
 
@@ -13806,25 +13739,22 @@ def calculate_cineboard_score(film: dict) -> float:
 @api_router.get("/cineboard/now-playing")
 async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
     """Get top 50 films currently in theaters, ranked by CineBoard score."""
-    # Get films that are 'in_theaters' status
     films = await db.films.find(
         {'status': 'in_theaters'},
         {'_id': 0}
     ).to_list(500)
     
-    # Calculate scores and enrich data
+    # Bulk fetch owners
+    owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_map = {o['id']: o for o in owners_list}
+    
     for film in films:
         film['cineboard_score'] = calculate_cineboard_score(film)
-        # Get owner info
-        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
-        film['owner'] = owner
-        # Check if current user liked
+        film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
     
-    # Sort by score and take top 50
     sorted_films = sorted(films, key=lambda x: x['cineboard_score'], reverse=True)[:50]
-    
-    # Add ranks
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
     
@@ -13833,27 +13763,22 @@ async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
 @api_router.get("/cineboard/hall-of-fame")
 async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
     """Get all-time top films (Hall of Fame), ranked by CineBoard score."""
-    # Get all completed films (not just in theaters)
     films = await db.films.find(
         {'status': {'$in': ['completed', 'in_theaters']}},
         {'_id': 0}
     ).to_list(1000)
     
-    # Calculate scores and enrich data
+    owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_map = {o['id']: o for o in owners_list}
+    
     for film in films:
         film['cineboard_score'] = calculate_cineboard_score(film)
-        # Get owner info
-        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
-        film['owner'] = owner
-        # Check if current user liked
+        film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
-        # Mark if high enough score for Hall of Fame
         film['hall_of_fame'] = film['cineboard_score'] >= 60
     
-    # Sort by score and take top 100
     sorted_films = sorted(films, key=lambda x: x['cineboard_score'], reverse=True)[:100]
-    
-    # Add ranks
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
     
@@ -13870,7 +13795,11 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(500)
 
-    daily_films = []
+    # Bulk fetch owners
+    owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_map = {o['id']: o for o in owners_list}
+
     for film in films:
         daily_rev = 0
         for dr in film.get('daily_revenues', []):
@@ -13886,12 +13815,10 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
             daily_rev = film.get('total_revenue', 0) * 0.05
         film['daily_revenue'] = round(daily_rev)
         film['cineboard_score'] = calculate_cineboard_score(film)
-        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
-        film['owner'] = owner
+        film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
-        daily_films.append(film)
 
-    sorted_films = sorted(daily_films, key=lambda x: x['daily_revenue'], reverse=True)[:50]
+    sorted_films = sorted(films, key=lambda x: x['daily_revenue'], reverse=True)[:50]
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
 
@@ -13907,7 +13834,11 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(500)
 
-    weekly_films = []
+    # Bulk fetch owners
+    owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_map = {o['id']: o for o in owners_list}
+
     for film in films:
         weekly_rev = 0
         for dr in film.get('daily_revenues', []):
@@ -13923,12 +13854,10 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
             weekly_rev = film.get('total_revenue', 0) * 0.25
         film['weekly_revenue'] = round(weekly_rev)
         film['cineboard_score'] = calculate_cineboard_score(film)
-        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
-        film['owner'] = owner
+        film['owner'] = owners_map.get(film.get('user_id'))
         film['user_liked'] = user['id'] in film.get('liked_by', [])
-        weekly_films.append(film)
 
-    sorted_films = sorted(weekly_films, key=lambda x: x['weekly_revenue'], reverse=True)[:50]
+    sorted_films = sorted(films, key=lambda x: x['weekly_revenue'], reverse=True)[:50]
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
 

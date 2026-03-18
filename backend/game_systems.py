@@ -833,26 +833,44 @@ def graduate_student(student: dict, school_id: str, owner_id: str) -> dict:
 # ==================== FILM RATING SYSTEM (IMDb Style) ====================
 
 def calculate_imdb_rating(film: dict) -> float:
-    """Calculate IMDb-style rating (1-10) for a film."""
+    """Calculate IMDb-style rating (1-10) for a film.
+    Uses a realistic distribution: most films 4-7, excellent 7-8.5, masterpieces 8.5-9.5.
+    quality_score 0-100 maps to roughly:
+      0-30  → 2.0-4.0 (terrible)
+      30-50 → 4.0-5.5 (poor)
+      50-65 → 5.5-6.5 (mediocre)
+      65-80 → 6.5-7.5 (good)
+      80-90 → 7.5-8.5 (excellent)
+      90+   → 8.5-9.5 (masterpiece, very rare)
+    """
     quality = film.get('quality_score', 50)
-    
-    # Base rating from quality (scaled to 1-10)
-    base_rating = 1 + (quality / 100) * 9
-    
-    # Adjust based on various factors
-    cast_bonus = min(len(film.get('cast', [])) * 0.05, 0.5)
-    
-    # Director skill bonus
+
+    # Non-linear mapping: compress high quality into realistic IMDb range
+    if quality >= 90:
+        base = 8.5 + ((quality - 90) / 10) * 1.0  # 90-100 → 8.5-9.5
+    elif quality >= 80:
+        base = 7.5 + ((quality - 80) / 10) * 1.0  # 80-90 → 7.5-8.5
+    elif quality >= 65:
+        base = 6.5 + ((quality - 65) / 15) * 1.0  # 65-80 → 6.5-7.5
+    elif quality >= 50:
+        base = 5.5 + ((quality - 50) / 15) * 1.0  # 50-65 → 5.5-6.5
+    elif quality >= 30:
+        base = 4.0 + ((quality - 30) / 20) * 1.5  # 30-50 → 4.0-5.5
+    else:
+        base = 2.0 + (quality / 30) * 2.0            # 0-30 → 2.0-4.0
+
+    # Small bonuses from cast/director (max +0.3)
+    cast_bonus = min(len(film.get('cast', [])) * 0.03, 0.15)
     director = film.get('director', {})
     director_skills = director.get('skills', {})
-    director_avg = sum(director_skills.values()) / max(len(director_skills), 1)
-    director_bonus = (director_avg / 10 - 5) * 0.1
-    
-    # Random variance (±0.5)
-    variance = random.uniform(-0.5, 0.5)
-    
-    final_rating = base_rating + cast_bonus + director_bonus + variance
-    return round(max(1.0, min(10.0, final_rating)), 1)
+    director_avg = sum(director_skills.values()) / max(len(director_skills), 1) if director_skills else 50
+    director_bonus = max(-0.1, min(0.15, (director_avg - 50) / 100 * 0.3))
+
+    # Random variance (±0.3)
+    variance = random.uniform(-0.3, 0.3)
+
+    final_rating = base + cast_bonus + director_bonus + variance
+    return round(max(1.0, min(9.5, final_rating)), 1)
 
 def generate_ai_interactions(film: dict, current_day: int) -> List[dict]:
     """Generate fake AI user interactions for a film."""

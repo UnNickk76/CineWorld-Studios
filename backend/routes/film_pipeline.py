@@ -851,11 +851,13 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
     if cost > 0:
         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
 
-    # Mark proposal as accepted, others as rejected
+    # Mark proposal as accepted
+    # For actors: keep other proposals available so user can hire more
+    # For other roles: mark others as passed (only one allowed)
     for p in proposals:
         if p['id'] == req.proposal_id:
             p['status'] = 'accepted'
-        elif p.get('status') not in ('rejected',):
+        elif cast_key != 'actors' and p.get('status') not in ('rejected',):
             p['status'] = 'passed'
 
     # Update cast
@@ -898,6 +900,109 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
         'message': f"{person['name']} ingaggiato come {cast_key}!",
         'person': person,
         'cost': cost,
+        'casting_complete': casting_complete
+    }
+
+
+class RenegotiateRequest(BaseModel):
+    role_type: str
+    proposal_id: str
+    actor_role: str = None
+
+@router.post("/film-pipeline/{project_id}/renegotiate")
+async def renegotiate_cast(project_id: str, req: RenegotiateRequest, user: dict = Depends(get_current_user)):
+    """Renegotiate with a rejected cast member by offering more money."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'casting'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    proposals = project.get('cast_proposals', {}).get(req.role_type, [])
+    proposal = next((p for p in proposals if p['id'] == req.proposal_id), None)
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposta non trovata")
+    if proposal.get('status') != 'rejected':
+        raise HTTPException(status_code=400, detail="Puoi rinegoziare solo con chi ha rifiutato")
+
+    # Renegotiation: 30% cost increase, lower rejection rate
+    original_cost = proposal.get('cost', 0)
+    renegotiate_increase = int(original_cost * 0.3)
+    new_cost = original_cost + renegotiate_increase
+    new_rejection_rate = max(0.05, proposal.get('person', {}).get('rejection_rate', 0.3) - 0.2)
+
+    if user.get('funds', 0) < new_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${new_cost:,} per rinegoziare")
+
+    # Try again with lower rejection rate
+    if random.random() < new_rejection_rate:
+        proposal['status'] = 'rejected'
+        proposal['renegotiate_count'] = proposal.get('renegotiate_count', 0) + 1
+        await db.film_projects.update_one(
+            {'id': project_id},
+            {'$set': {f'cast_proposals.{req.role_type}': proposals}}
+        )
+        return {
+            'accepted': False,
+            'message': f"{proposal['person']['name']} ha rifiutato ancora! Il prezzo sale a ${new_cost:,}.",
+            'new_cost': new_cost
+        }
+
+    # Accepted!
+    proposal['status'] = 'accepted'
+    proposal['cost'] = new_cost
+    person = proposal['person']
+
+    # Pay
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -new_cost}})
+
+    cast_key = req.role_type
+    if req.role_type == 'directors': cast_key = 'director'
+    elif req.role_type == 'screenwriters': cast_key = 'screenwriter'
+    elif req.role_type == 'composers': cast_key = 'composer'
+
+    if cast_key == 'actors':
+        person_with_role = {**person, 'role_in_film': req.actor_role or 'Supporto'}
+        actors = project.get('cast', {}).get('actors', [])
+        actors.append(person_with_role)
+        await db.film_projects.update_one(
+            {'id': project_id},
+            {'$set': {
+                f'cast.actors': actors,
+                f'cast_proposals.{req.role_type}': proposals,
+                f'costs_paid.cast_{person["id"]}': new_cost,
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            }}
+        )
+    else:
+        for p in proposals:
+            if p['id'] != req.proposal_id and p.get('status') not in ('rejected',):
+                p['status'] = 'passed'
+        await db.film_projects.update_one(
+            {'id': project_id},
+            {'$set': {
+                f'cast.{cast_key}': person,
+                f'cast_proposals.{req.role_type}': proposals,
+                f'costs_paid.cast_{person["id"]}': new_cost,
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            }}
+        )
+
+    updated = await db.film_projects.find_one({'id': project_id}, {'_id': 0, 'cast': 1})
+    cast = updated.get('cast', {})
+    casting_complete = (
+        cast.get('director') is not None and
+        cast.get('screenwriter') is not None and
+        cast.get('composer') is not None and
+        len(cast.get('actors', [])) >= 1
+    )
+
+    return {
+        'accepted': True,
+        'message': f"{person['name']} ha accettato la rinegoziazione! Costo: ${new_cost:,}",
+        'person': person,
+        'cost': new_cost,
         'casting_complete': casting_complete
     }
 
@@ -1791,7 +1896,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Investments set the floor (~65 max), but the ceiling comes from luck and vision.
 
     # --- FOUNDATION (max ~65 with perfect inputs) ---
-    base_quality = pre_imdb * 4.0  # 0-40 range (was 5.5)
+    base_quality = pre_imdb * 4.8  # 0-48 range (balanced between old 5.5 and v2's 4.0)
 
     # Cast with heavier diminishing returns (max ~7)
     if cast_quality > 70:

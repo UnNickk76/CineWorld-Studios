@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
-  Zap, ChevronRight, RefreshCw, ThumbsDown, ThumbsUp, ShoppingCart, Film, TrendingUp, TrendingDown,
+  Zap, ChevronRight, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus
 } from 'lucide-react';
 
@@ -307,6 +307,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [equipmentOptions, setEquipmentOptions] = useState([]);
   const [selectedEquipment, setSelectedEquipment] = useState({});
   const [equipLoading, setEquipLoading] = useState(false);
+  const [rejectedProposal, setRejectedProposal] = useState(null);
 
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
@@ -424,6 +425,27 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
       if (res.data.accepted) {
         toast.success(res.data.message);
         if (res.data.casting_complete) toast.success('Casting completo! Puoi procedere alla sceneggiatura.');
+      } else {
+        // Rejected - show renegotiate option
+        setRejectedProposal({ filmId, roleType, proposalId, name: res.data.message });
+        toast.error(res.data.message);
+      }
+      refreshUser(); fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const renegotiate = async (filmId, roleType, proposalId) => {
+    setActionLoading(`renego-${proposalId}`);
+    try {
+      const res = await api.post(`/film-pipeline/${filmId}/renegotiate`, {
+        role_type: roleType, proposal_id: proposalId,
+        actor_role: roleType === 'actors' ? (actorRoles[proposalId] || 'Supporto') : null
+      });
+      if (res.data.accepted) {
+        toast.success(res.data.message);
+        setRejectedProposal(null);
+        if (res.data.casting_complete) toast.success('Casting completo!');
       } else {
         toast.error(res.data.message);
       }
@@ -650,7 +672,10 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
 
                             {/* Show available proposals with enhanced details */}
                             {!selected && available.map(prop => (
-                              <div key={prop.id} className="p-2 mb-1.5 bg-black/20 rounded border border-gray-800" data-testid={`proposal-card-${prop.id}`}>
+                              <div key={prop.id} 
+                                className={`p-2 mb-1.5 bg-black/20 rounded border transition-all ${role === 'actors' ? 'border-cyan-800/40 cursor-pointer hover:border-cyan-500/60 hover:bg-cyan-500/5' : 'border-gray-800'}`}
+                                onClick={role === 'actors' ? () => selectCast(f.id, role, prop.id) : undefined}
+                                data-testid={`proposal-card-${prop.id}`}>
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
@@ -674,13 +699,20 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                                         {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                       </select>
                                     )}
-                                    <Button size="sm" className="h-6 px-2 text-[10px] bg-cyan-700 hover:bg-cyan-800"
-                                      disabled={actionLoading === `select-${prop.id}`}
-                                      onClick={(e) => { e.stopPropagation(); selectCast(f.id, role, prop.id); }}
-                                      data-testid={`select-${prop.id}`}>
-                                      {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3 mr-0.5" />}
-                                      Scegli
-                                    </Button>
+                                    {role !== 'actors' && (
+                                      <Button size="sm" className="h-6 px-2 text-[10px] bg-cyan-700 hover:bg-cyan-800"
+                                        disabled={actionLoading === `select-${prop.id}`}
+                                        onClick={(e) => { e.stopPropagation(); selectCast(f.id, role, prop.id); }}
+                                        data-testid={`select-${prop.id}`}>
+                                        {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-0.5" />}
+                                        Scegli
+                                      </Button>
+                                    )}
+                                    {role === 'actors' && (
+                                      <Badge className="bg-cyan-600/30 text-cyan-300 text-[9px]">
+                                        {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Clicca per ingaggiare'}
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
                                 {/* Skill bars */}
@@ -691,6 +723,25 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                                     ))}
                                   </div>
                                 )}
+                              </div>
+                            ))}
+
+                            {/* Show rejected proposals with renegotiate option */}
+                            {proposals.filter(p => p.status === 'rejected').map(prop => (
+                              <div key={prop.id} className="p-2 mb-1.5 bg-red-500/5 rounded border border-red-800/40" data-testid={`rejected-${prop.id}`}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-red-300">{prop.person?.name}</p>
+                                    <p className="text-[9px] text-red-400">Ha rifiutato &bull; Costo rinegoziazione: ${Math.round(prop.cost * 1.3).toLocaleString()}</p>
+                                  </div>
+                                  <Button size="sm" className="h-6 px-2 text-[10px] bg-amber-700 hover:bg-amber-800"
+                                    disabled={actionLoading === `renego-${prop.id}`}
+                                    onClick={(e) => { e.stopPropagation(); renegotiate(f.id, role, prop.id); }}
+                                    data-testid={`renegotiate-${prop.id}`}>
+                                    {actionLoading === `renego-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-0.5" />}
+                                    Rinegozia
+                                  </Button>
+                                </div>
                               </div>
                             ))}
 

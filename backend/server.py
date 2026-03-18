@@ -6541,6 +6541,35 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration recalculate_quality_v2: Recalculated {updated} films with Alchemy v2 formula")
 
+    # Migration: Recalculate quality with balanced formula (4.8 base_mult instead of 4.0)
+    if 'recalculate_quality_v3_balanced' not in completed:
+        import random as _rng
+        from game_systems import calculate_imdb_rating
+        all_films = await db.films.find({}, {'_id': 0}).to_list(1000)
+        updated = 0
+        for film in all_films:
+            old_q = film.get('quality_score', 50)
+            # Scale up from v2: multiply by ~1.2 to match 4.8/4.0 ratio
+            base = old_q * 1.2
+            # Apply slight randomness to vary from previous values
+            adj = round(_rng.gauss(0, 4), 1)
+            new_q = max(10, min(100, round(base + adj, 1)))
+            if new_q >= 85: new_tier = 'masterpiece'
+            elif new_q >= 70: new_tier = 'excellent'
+            elif new_q >= 55: new_tier = 'good'
+            elif new_q >= 40: new_tier = 'mediocre'
+            else: new_tier = 'bad'
+            temp_film = {**film, 'quality_score': new_q}
+            new_imdb = calculate_imdb_rating(temp_film)
+            await db.films.update_one(
+                {'id': film['id']},
+                {'$set': {'quality_score': new_q, 'tier': new_tier, 'imdb_rating': new_imdb}}
+            )
+            updated += 1
+        completed.append('recalculate_quality_v3_balanced')
+        changed = True
+        logging.info(f"Migration recalculate_quality_v3_balanced: Recalculated {updated} films")
+
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},

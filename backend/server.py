@@ -10711,7 +10711,23 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
         {'user_id': user['id'], 'week': week_key},
         {'_id': 0, 'recruit_id': 1, 'action': 1}
     ).to_list(50)
-    hired_map = {h['recruit_id']: h['action'] for h in hired_this_week}
+    
+    # Cross-check: for "school" hires, verify student still exists and is active
+    active_students = set()
+    if any(h['action'] == 'school' for h in hired_this_week):
+        active = await db.casting_school_students.find(
+            {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
+            {'_id': 0, 'source_recruit_id': 1}
+        ).to_list(100)
+        active_students = {s.get('source_recruit_id') for s in active if s.get('source_recruit_id')}
+    
+    hired_map = {}
+    for h in hired_this_week:
+        if h['action'] == 'school' and h['recruit_id'] not in active_students:
+            # Student was dismissed - remove stale hire record
+            await db.casting_hires.delete_one({'user_id': user['id'], 'recruit_id': h['recruit_id'], 'action': 'school'})
+            continue
+        hired_map[h['recruit_id']] = h['action']
 
     recruits = []
     genders = ['male', 'female']
@@ -10887,6 +10903,7 @@ async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_cu
             'enrolled_at': datetime.now(timezone.utc).isoformat(),
             'status': 'training',
             'source': 'casting_agency',
+            'source_recruit_id': req.recruit_id,
             'avatar_url': f"https://api.dicebear.com/7.x/avataaars/svg?seed={target['name'].replace(' ','')}{age}"
         }
         

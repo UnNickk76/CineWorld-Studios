@@ -811,4 +811,12 @@ async def dismiss_casting_student(student_id: str, user: dict = Depends(get_curr
         {'$set': {'status': 'dismissed', 'dismissed_at': datetime.now(timezone.utc).isoformat()}}
     )
     
+    # Also remove the casting_hires record so the recruit slot becomes available again
+    if student.get('source_recruit_id'):
+        await db.casting_hires.delete_one({
+            'user_id': user['id'],
+            'recruit_id': student['source_recruit_id'],
+            'action': 'school'
+        })
+    
     return {'message': f"{student['name']} è stato rimosso dalla scuola."}

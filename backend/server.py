@@ -16155,6 +16155,24 @@ async def accept_emerging_screenplay(
         'casting_started_at': now_str
     }
     
+    # If full_package, pre-fill cast from the screenplay's proposed_cast
+    if option == 'full_package':
+        proposed = screenplay.get('proposed_cast', {})
+        sw = screenplay.get('screenwriter', {})
+        project['cast'] = {
+            'director': proposed.get('director'),
+            'screenwriter': {
+                'id': sw.get('id'), 'name': sw.get('name', 'Unknown'),
+                'nationality': sw.get('nationality', ''), 'gender': sw.get('gender', 'male'),
+                'avatar_url': sw.get('avatar_url', ''), 'skills': sw.get('skills', {}),
+                'stars': sw.get('stars', 3), 'fame': sw.get('fame', 50),
+                'cost': sw.get('cost', 100000), 'is_star': sw.get('is_star', False),
+            } if sw.get('id') else None,
+            'actors': proposed.get('actors', []),
+            'composer': proposed.get('composer'),
+        }
+        project['cast_locked'] = True  # Mark cast as pre-selected (read-only)
+    
     # Generate cast proposals so the film goes directly to Casting
     from routes.film_pipeline import generate_cast_proposals
     now_dt = datetime.now(timezone.utc)

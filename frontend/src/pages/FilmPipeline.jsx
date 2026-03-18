@@ -476,6 +476,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
       {films.map(f => {
         const cast = f.cast || {};
         const castComplete = cast.director && cast.screenwriter && cast.composer && cast.actors?.length > 0;
+        const isLocked = f.cast_locked === true;
         return (
           <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`casting-film-${f.id}`}>
             <CardContent className="p-3">
@@ -483,8 +484,9 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                 <div>
                   <h3 className="font-semibold text-sm">{f.title}</h3>
                   <p className="text-[10px] text-gray-500">{f.genre} &bull; {f.subgenre} &bull; Pre-IMDb: <span className="text-yellow-400">{f.pre_imdb_score}</span></p>
+                  {isLocked && <Badge className="bg-emerald-500/20 text-emerald-400 text-[9px] mt-1">Pacchetto Completo - Cast incluso</Badge>}
                 </div>
-                {castComplete && (
+                {(castComplete || isLocked) && (
                   <Button size="sm" className="bg-green-700 hover:bg-green-800 text-xs" onClick={() => advanceToScreenplay(f.id)}
                     disabled={actionLoading === `adv-${f.id}`} data-testid={`advance-screenplay-${f.id}`}>
                     {actionLoading === `adv-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 mr-1" />}
@@ -493,6 +495,40 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                 )}
               </div>
 
+              {/* Locked cast: read-only view always visible */}
+              {isLocked ? (
+                <div className="space-y-2 mt-2">
+                  <div className="space-y-2">
+                    {cast.director && (
+                      <div className="rounded border border-green-800 bg-green-500/5 p-2">
+                        <span className="text-[10px] font-semibold text-gray-400">🎬 Regista</span>
+                        <SelectedCastDetail person={cast.director} roleName="Regista" />
+                      </div>
+                    )}
+                    {cast.screenwriter && (
+                      <div className="rounded border border-green-800 bg-green-500/5 p-2">
+                        <span className="text-[10px] font-semibold text-gray-400">📝 Sceneggiatore</span>
+                        <SelectedCastDetail person={cast.screenwriter} roleName="Sceneggiatore" />
+                      </div>
+                    )}
+                    {cast.actors?.length > 0 && (
+                      <div className="rounded border border-green-800 bg-green-500/5 p-2">
+                        <span className="text-[10px] font-semibold text-gray-400">🎭 Attori ({cast.actors.length})</span>
+                        {cast.actors.map((a, idx) => (
+                          <SelectedCastDetail key={idx} person={a} roleName={a.role || a.role_in_film || 'Attore'} />
+                        ))}
+                      </div>
+                    )}
+                    {cast.composer && (
+                      <div className="rounded border border-green-800 bg-green-500/5 p-2">
+                        <span className="text-[10px] font-semibold text-gray-400">🎵 Compositore</span>
+                        <SelectedCastDetail person={cast.composer} roleName="Compositore" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="flex gap-2 mb-2">
                 <Button variant="outline" size="sm" className="flex-1 text-xs border-gray-700"
                   onClick={() => setSelectedFilm(selectedFilm === f.id ? null : f.id)}>
@@ -671,6 +707,8 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                     );
                   })}
                 </div>
+              )}
+              </>
               )}
             </CardContent>
           </Card>

@@ -5633,6 +5633,20 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.149', 'date': '2026-03-18', 'title': 'Emittenti TV: Sistema Completo Netflix-Style',
+     'changes': [
+         {'type': 'new', 'text': 'Acquisto multiplo Emittenti TV: costi, livello e fama crescono esponenzialmente'},
+         {'type': 'new', 'text': 'Setup Wizard: Step 1 (Nome permanente + Nazione), Step 2 (Pubblicita + Contenuti)'},
+         {'type': 'new', 'text': 'Dashboard TV stile Netflix: sezioni Consigliati, Del Momento, I Piu Visti'},
+         {'type': 'new', 'text': 'Gestione contenuti: file orizzontali scrollabili per Film, Serie TV, Anime'},
+         {'type': 'new', 'text': 'Slider pubblicita: piu secondi = piu incasso ma meno share (modificabile)'},
+         {'type': 'new', 'text': 'Film inseribili solo dopo uscita dal cinema'},
+         {'type': 'new', 'text': 'Pagina pubblica "Emittenti TV" per vedere tutte le emittenti dei giocatori'},
+         {'type': 'new', 'text': 'Tasto "Le Mie TV!" sulla Dashboard con popup lista stazioni'},
+         {'type': 'new', 'text': 'Icona TV nella navbar inferiore per accedere alle emittenti'},
+         {'type': 'new', 'text': 'Revenue system automatico ogni ora basato su qualita, share e volume contenuti'},
+         {'type': 'improvement', 'text': 'Requisiti ridotti: Studio Serie TV -40%, Studio Anime -40%, Emittente TV -60%'},
+     ]},
     {'version': '0.148', 'date': '2026-03-18', 'title': 'Fix CineBoard Popup Mobile',
      'changes': [
          {'type': 'bugfix', 'text': 'Popup CineBoard ora visibile correttamente su mobile (era tagliato fuori schermo)'},

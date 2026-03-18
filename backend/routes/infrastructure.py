@@ -124,13 +124,31 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
             raise HTTPException(status_code=400, detail=f"First cinema must be in {language_country}")
     
     # Block duplicate purchase for unique infrastructure types
-    unique_types = ['cinema_school', 'production_studio']
+    unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime']
     if request.type in unique_types and existing > 0:
-        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione'}
+        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime'}
         raise HTTPException(status_code=400, detail=f"Possiedi già una {names.get(request.type, request.type)}! Puoi averne solo una.")
+    
+    # Exponential scaling for emittente_tv (multiple purchases allowed)
+    if request.type == 'emittente_tv' and existing > 0:
+        exp_mult = 2.5 ** existing
+        extra_level = int(existing * 3)
+        extra_fame = int(existing * 40)
+        req_level = infra_type['level_required'] + extra_level
+        req_fame = infra_type['fame_required'] + extra_fame
+        level_info_check = get_level_from_xp(user.get('total_xp', 0))
+        if level_info_check['level'] < req_level:
+            raise HTTPException(status_code=400, detail=f"Livello {req_level} richiesto per la TV #{existing+1}")
+        fame_check = user.get('fame', 50)
+        if fame_check < req_fame:
+            raise HTTPException(status_code=400, detail=f"Fama {req_fame} richiesta per la TV #{existing+1}")
     
     # Calculate cost
     cost = calculate_infrastructure_cost(request.type, city)
+    
+    # Exponential cost multiplier for emittente_tv
+    if request.type == 'emittente_tv' and existing > 0:
+        cost = int(cost * (2.5 ** existing))
     
     # Check funds
     if user.get('funds', 0) < cost:

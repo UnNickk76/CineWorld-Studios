@@ -75,6 +75,7 @@ from routes.film_pipeline import router as film_pipeline_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
+from routes.tv_stations import router as tv_stations_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from cast_system import (
@@ -10053,6 +10054,15 @@ async def startup_event():
         replace_existing=True
     )
     
+    # Every hour: Update TV station revenues
+    from routes.tv_stations import calculate_tv_station_revenues
+    scheduler.add_job(
+        calculate_tv_station_revenues,
+        IntervalTrigger(hours=1),
+        id='update_tv_station_revenue',
+        replace_existing=True
+    )
+    
     # Daily at 00:00 UTC: Reset daily challenges
     scheduler.add_job(
         reset_daily_challenges,
@@ -10696,9 +10706,9 @@ async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
         'has_emittente_tv': 'emittente_tv' in owned,
         'studios': owned,
         'requirements': {
-            'studio_serie_tv': {'level': 12, 'fame': 100, 'cost': 3000000},
-            'studio_anime': {'level': 15, 'fame': 150, 'cost': 4000000},
-            'emittente_tv': {'level': 18, 'fame': 200, 'cost': 5000000}
+            'studio_serie_tv': {'level': 7, 'fame': 60, 'cost': 3000000},
+            'studio_anime': {'level': 9, 'fame': 90, 'cost': 4000000},
+            'emittente_tv': {'level': 7, 'fame': 80, 'cost': 2000000}
         }
     }
 
@@ -16654,6 +16664,7 @@ app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")
+app.include_router(tv_stations_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 

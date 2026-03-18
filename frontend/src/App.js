@@ -88,6 +88,8 @@ const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
 const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
+const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
+const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -906,6 +908,10 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname.startsWith('/tv-station') ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/tv-stations')} data-testid="bottom-nav-tv">
+          <Radio className="w-4 h-4" />
+          <span className="text-[8px]">TV</span>
+        </button>
         <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')} data-testid="bottom-nav-sfide">
           <Swords className="w-4 h-4" />
           <span className="text-[8px]">Sfide</span>
@@ -1700,6 +1706,9 @@ function App() {
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
                 <Route path="/create-sequel" element={<ProtectedRoute><SequelPipeline /></ProtectedRoute>} />
                 <Route path="/my-tv" element={<ProtectedRoute><EmittenteTVPage /></ProtectedRoute>} />
+                <Route path="/tv-station/:stationId" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
+                <Route path="/tv-station-setup" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
+                <Route path="/tv-stations" element={<ProtectedRoute><AllTVStationsPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />

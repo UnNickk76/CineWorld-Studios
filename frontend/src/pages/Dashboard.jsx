@@ -46,7 +46,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown, Pen, Tv
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, TrendingDown, Pen, Tv, Radio
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
@@ -68,6 +68,9 @@ const Dashboard = () => {
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collecting, setCollecting] = useState(false);
   const [emergingCount, setEmergingCount] = useState(0);
+  const [myTVStations, setMyTVStations] = useState([]);
+  const [hasEmittenteTV, setHasEmittenteTV] = useState(false);
+  const [showTVPopup, setShowTVPopup] = useState(false);
   const [availableContests, setAvailableContests] = useState(0);
   const [releasePopup, setReleasePopup] = useState(null); // film to release
   const [distConfig, setDistConfig] = useState(null);
@@ -229,6 +232,19 @@ const Dashboard = () => {
         setHasStudio(d.has_studio || false);
         setShootingFilms(d.shooting_films || []);
         setPipelineCount(d.pipeline_total || 0);
+        
+        // Load TV stations
+        try {
+          const tvRes = await api.get('/tv-stations/my');
+          setMyTVStations(tvRes.data.stations || []);
+          setHasEmittenteTV(tvRes.data.total_count > 0 || (tvRes.data.unconfigured_emittente || []).length > 0);
+        } catch {
+          // Check unlock status as fallback
+          try {
+            const unlockRes = await api.get('/production-studios/unlock-status');
+            setHasEmittenteTV(unlockRes.data.has_emittente_tv);
+          } catch {}
+        }
         
         // Contests still separate (different API structure)
         try {
@@ -906,6 +922,37 @@ const Dashboard = () => {
         </Card>
       </div>
 
+      {/* LE MIE TV! - Full width button */}
+      <Card
+        className={`mb-4 cursor-pointer transition-all ${
+          hasEmittenteTV
+            ? 'bg-gradient-to-r from-red-500/25 to-red-600/10 border-red-500/30 hover:border-red-500/50'
+            : 'bg-[#1A1A1A] border-white/5 opacity-50 cursor-not-allowed'
+        }`}
+        onClick={() => {
+          if (!hasEmittenteTV) { toast.info(language === 'it' ? 'Sblocca un\'Emittente TV nelle Infrastrutture!' : 'Unlock a TV Broadcaster in Infrastructure!'); return; }
+          setShowTVPopup(true);
+        }}
+        data-testid="le-mie-tv-card"
+      >
+        <CardContent className="p-2.5 sm:p-3 flex items-center gap-3">
+          <div className={`p-2 sm:p-2.5 rounded-lg ${hasEmittenteTV ? 'bg-red-500' : 'bg-gray-700'}`}>
+            <Radio className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-['Bebas_Neue'] text-lg sm:text-xl">{language === 'it' ? 'Le Mie TV!' : 'My TVs!'}</h3>
+            <p className="text-[10px] sm:text-xs text-gray-400">
+              {hasEmittenteTV
+                ? `${myTVStations.length} emittent${myTVStations.length === 1 ? 'e' : 'i'} televisiv${myTVStations.length === 1 ? 'a' : 'e'}`
+                : (language === 'it' ? 'Sblocca nelle Infrastrutture' : 'Unlock in Infrastructure')
+              }
+            </p>
+          </div>
+          {hasEmittenteTV && <ChevronRight className="w-5 h-5 text-red-400" />}
+          {!hasEmittenteTV && <Lock className="w-4 h-4 text-gray-600" />}
+        </CardContent>
+      </Card>
+
       {/* I Miei Film - 5 poster row */}
       {films.length > 0 && (
         <div className="mb-4" data-testid="my-films-section">
@@ -993,6 +1040,46 @@ const Dashboard = () => {
         statType={selectedStatType}
         api={api}
       />
+
+      {/* TV Stations Popup */}
+      <Dialog open={showTVPopup} onOpenChange={setShowTVPopup}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm p-0" data-testid="tv-popup">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="font-['Bebas_Neue'] text-lg text-red-400 flex items-center gap-2">
+              <Radio className="w-5 h-5" /> Le Mie TV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 pt-0 space-y-2">
+            {myTVStations.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-gray-500 text-xs mb-2">Non hai ancora configurato nessuna emittente</p>
+                <Button size="sm" className="bg-red-500 hover:bg-red-600 text-xs" onClick={() => { setShowTVPopup(false); navigate('/my-tv'); }}>
+                  Configura Emittente
+                </Button>
+              </div>
+            ) : (
+              myTVStations.map(s => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/5 hover:border-red-500/20 cursor-pointer transition-all"
+                  onClick={() => { setShowTVPopup(false); navigate(`/tv-station/${s.id}`); }}
+                  data-testid={`tv-popup-station-${s.id}`}
+                >
+                  <div className="p-1.5 bg-red-500/20 rounded-lg"><Radio className="w-4 h-4 text-red-400" /></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{s.station_name}</p>
+                    <p className="text-[10px] text-gray-500">{s.nation} | Share: {s.current_share || 0}%</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </div>
+              ))
+            )}
+            <Button variant="outline" size="sm" className="w-full text-xs border-white/10 mt-2" onClick={() => { setShowTVPopup(false); navigate('/tv-stations'); }} data-testid="view-all-tv-btn">
+              Vedi Tutte le Emittenti <ChevronRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

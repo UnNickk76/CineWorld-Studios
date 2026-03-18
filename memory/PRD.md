@@ -181,6 +181,16 @@
 - **Release Notes aggiornate**: RELEASE_NOTES portate alla v0.136 con tutte le feature recenti (Equipment, Sponsor, CineBoard, Poster, Casting v2, Mercato, Pipeline)
 - **System Notes auto-init**: Se il DB deploy non ha system notes, vengono create automaticamente 10 note di default al primo avvio
 
+### Decadimento Esponenziale Affluenza & Revenue (18 Mar 2026)
+- **Affluenza**: Film nuovi hanno boost iniziale 2.5x (giorno 1), 1.8x (giorni 2-3), 1.2x (prima settimana)
+- **Decadimento basato su qualita**: Capolavori (90+): -1.5%/giorno, Eccellenti (80-89): -4%/giorno, Buoni (65-79): -7%/giorno, Mediocri (<65): -12%/giorno
+- **IMDb boost**: Film con IMDb alto ricevono più affluenza iniziale (moltiplicatore 0.5-3.0x)
+- **Revenue decadimento**: Stesso schema di decadimento per incassi box office
+- **Daily revenues tracciati** ogni 10 minuti per classifica giornaliera
+- Fix: $40M migrazione usa campo `funds` (non `money`)
+- Fix: Rimborso automatico sceneggiature orfane
+- Fix: Film con status errato convertiti a `in_theaters`
+
 ## Task Prossimi
 - **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)
 - **(P2)** Layout mobile pagina Contest

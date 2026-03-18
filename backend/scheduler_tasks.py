@@ -44,16 +44,15 @@ async def update_all_films_revenue():
     Update realistic box office for all films in theaters.
     Runs every 10 minutes to calculate real-time earnings.
     
-    The box office is calculated based on:
-    - Hours since release
-    - Opening day revenue as baseline
-    - 15% daily decay
-    - Quality score as multiplier
+    Revenue decay is based on quality/IMDb:
+    - Masterpieces (quality 90+): slow decay → long box office run
+    - Good films (65-89): moderate decay
+    - Mediocre films (<65): fast decay
+    New films get a big opening boost based on IMDb.
     """
     try:
         now = datetime.now(timezone.utc)
         
-        # Find films in theaters
         active_films = await scheduler_db.films.find({
             'status': {'$in': ['in_theaters', 'released']}
         }).to_list(1000)
@@ -61,8 +60,7 @@ async def update_all_films_revenue():
         updated_count = 0
         for film in active_films:
             try:
-                # Parse release date
-                release_str = film.get('release_date', now.isoformat())
+                release_str = film.get('release_date', film.get('released_at', now.isoformat()))
                 release_str = release_str.replace('Z', '+00:00')
                 if '+' not in release_str and '-' not in release_str[-6:]:
                     release_str += '+00:00'
@@ -71,41 +69,70 @@ async def update_all_films_revenue():
                 if release_date.tzinfo is None:
                     release_date = release_date.replace(tzinfo=timezone.utc)
                 
-                # Calculate hours in theater
                 hours_in_theater = max(0, (now - release_date).total_seconds() / 3600)
                 days_in_theater = hours_in_theater / 24
                 
-                # Get film parameters
                 opening_day = film.get('opening_day_revenue', 100000)
-                quality = film.get('quality_score', 50)
+                quality = film.get('quality_score', film.get('quality', 50))
+                imdb = film.get('imdb_rating', 5.0) or 5.0
                 quality_multiplier = quality / 100
                 
-                # Calculate realistic cumulative box office
-                # Formula: Sum of daily revenues with 15% decay per day
+                # IMDb-based opening boost: higher IMDb = bigger opening
+                imdb_boost = 0.5 + (imdb / 10) * 2.0  # Range: 0.5 - 2.5
+                
+                # Quality-based decay rate (matches attendance decay)
+                if quality >= 90:
+                    daily_decay = 0.92   # Masterpiece: loses 8%/day
+                elif quality >= 80:
+                    daily_decay = 0.87   # Excellent: loses 13%/day
+                elif quality >= 65:
+                    daily_decay = 0.82   # Good: loses 18%/day
+                else:
+                    daily_decay = 0.75   # Mediocre: loses 25%/day
+                
+                # Calculate cumulative box office with quality-based decay
                 realistic_box_office = 0
                 for day in range(int(days_in_theater) + 1):
-                    decay = 0.85 ** day  # 15% decay each day
-                    daily_revenue = opening_day * decay * quality_multiplier
+                    decay = daily_decay ** day
+                    # Opening weekend boost (first 3 days)
+                    if day == 0:
+                        day_boost = 2.5
+                    elif day < 3:
+                        day_boost = 1.8
+                    elif day < 7:
+                        day_boost = 1.2
+                    else:
+                        day_boost = 1.0
+                    
+                    daily_revenue = opening_day * decay * quality_multiplier * imdb_boost * day_boost
                     
                     if day < int(days_in_theater):
                         realistic_box_office += daily_revenue
                     else:
-                        # Partial day - prorate by hours
                         hours_partial = (days_in_theater - day) * 24
                         realistic_box_office += (daily_revenue / 24) * hours_partial
                 
                 realistic_box_office = int(realistic_box_office)
                 
-                # Calculate estimated final revenue (if film stays ~17 days = 2.5 weeks)
-                # 40% reduction from original 4 weeks
+                # Estimated final (17 days run)
                 max_days = 17
                 estimated_final = 0
                 for day in range(max_days):
-                    decay = 0.85 ** day
-                    estimated_final += opening_day * decay * quality_multiplier
+                    decay = daily_decay ** day
+                    day_boost = 2.5 if day == 0 else 1.8 if day < 3 else 1.2 if day < 7 else 1.0
+                    estimated_final += opening_day * decay * quality_multiplier * imdb_boost * day_boost
                 estimated_final = int(estimated_final)
                 
-                # Update film with realistic values
+                # Track hourly revenue for daily leaderboard
+                current_hourly = int((opening_day * (daily_decay ** days_in_theater) * quality_multiplier * imdb_boost) / 24)
+                daily_revenues = film.get('daily_revenues', [])
+                daily_revenues.append({
+                    'date': now.isoformat(),
+                    'amount': max(0, current_hourly)
+                })
+                # Keep last 7 days of data (7*24*6 = 1008 entries at 10-min intervals)
+                daily_revenues = daily_revenues[-1008:]
+                
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
                     {'$set': {
@@ -113,6 +140,7 @@ async def update_all_films_revenue():
                         'realistic_box_office': realistic_box_office,
                         'estimated_final_revenue': estimated_final,
                         'hours_in_theater': round(hours_in_theater, 1),
+                        'daily_revenues': daily_revenues,
                         'box_office_last_update': now.isoformat()
                     }}
                 )
@@ -148,7 +176,8 @@ async def update_film_attendance():
     """
     Update attendance (affluenza) for all films in theaters.
     Runs every 10 minutes to simulate real-time cinema attendance.
-    This affects film rankings dynamically.
+    NEW: Exponential decay based on days in theaters + IMDb rating.
+    Masterpieces maintain high attendance, others decay quickly.
     """
     try:
         now = datetime.now(timezone.utc)
@@ -164,19 +193,59 @@ async def update_film_attendance():
         updated_count = 0
         for film in active_films:
             try:
-                quality = film.get('quality_score', 50)
-                popularity = film.get('popularity_score', 50)
+                quality = film.get('quality_score', film.get('quality', 50))
+                imdb = film.get('imdb_rating', 5.0) or 5.0
                 likes = film.get('likes_count', 0)
                 
-                # Calculate base attendance based on quality and popularity
-                # Higher quality = more cinemas want to show the film
-                base_cinemas = int(10 + (quality * 0.8) + (popularity * 0.5))
+                # Calculate days in theaters
+                released_at = film.get('released_at', film.get('created_at', now.isoformat()))
+                try:
+                    release_date = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+                    days_in_theaters = max(0, (now - release_date).total_seconds() / 86400)
+                except Exception:
+                    days_in_theaters = film.get('day_in_theaters', 0)
                 
-                # Add some randomness (±20%)
-                num_cinemas = int(base_cinemas * random.uniform(0.8, 1.2))
-                num_cinemas = max(5, min(500, num_cinemas))  # Cap between 5-500
+                # --- EXPONENTIAL DECAY based on quality tier ---
+                # Masterpiece (quality >= 90): very slow decay, maintains audience
+                # Excellent (80-89): slow decay
+                # Good (65-79): moderate decay
+                # Mediocre (<65): fast decay
+                if quality >= 90:
+                    daily_decay = 0.985   # loses ~1.5%/day → after 30 days: ~64% remaining
+                elif quality >= 80:
+                    daily_decay = 0.96    # loses ~4%/day → after 30 days: ~29%
+                elif quality >= 65:
+                    daily_decay = 0.93    # loses ~7%/day → after 30 days: ~11%
+                else:
+                    daily_decay = 0.88    # loses ~12%/day → after 30 days: ~2%
                 
-                # Distribute cinemas across countries based on weights
+                decay_factor = daily_decay ** days_in_theaters
+                
+                # --- INITIAL BOOST for new films based on IMDb ---
+                # Higher IMDb = bigger opening, creating a "splash" effect
+                # IMDb 9+ → 3x base, IMDb 7 → 1.5x, IMDb 5 → 0.8x
+                imdb_multiplier = 0.5 + (imdb / 10) * 2.5  # Range: 0.5 - 3.0
+                
+                # New film boost: extra attendance in first 3 days (opening weekend)
+                if days_in_theaters < 1:
+                    new_film_boost = 2.5  # Opening day: 2.5x
+                elif days_in_theaters < 3:
+                    new_film_boost = 1.8  # Days 2-3: 1.8x
+                elif days_in_theaters < 7:
+                    new_film_boost = 1.2  # First week: 1.2x
+                else:
+                    new_film_boost = 1.0
+                
+                # --- BASE ATTENDANCE ---
+                base_cinemas = int(10 + (quality * 0.8))
+                effective_cinemas = int(base_cinemas * imdb_multiplier * decay_factor * new_film_boost)
+                effective_cinemas = max(3, min(500, effective_cinemas))
+                
+                # Add some randomness (±15%)
+                num_cinemas = int(effective_cinemas * random.uniform(0.85, 1.15))
+                num_cinemas = max(3, min(500, num_cinemas))
+                
+                # Distribute cinemas across countries
                 cinema_distribution = []
                 remaining_cinemas = num_cinemas
                 
@@ -187,9 +256,10 @@ async def update_film_attendance():
                     country_cinemas = max(0, min(remaining_cinemas, country_cinemas))
                     
                     if country_cinemas > 0:
-                        # Calculate attendance per cinema (50-200 average per showing)
-                        avg_attendance = int(30 + (quality * 1.5) + random.randint(-20, 40))
-                        avg_attendance = max(20, min(300, avg_attendance))
+                        # Attendance per cinema also affected by decay + IMDb
+                        base_avg = int(30 + (quality * 1.2))
+                        avg_attendance = int(base_avg * decay_factor * imdb_multiplier * new_film_boost * random.uniform(0.8, 1.2))
+                        avg_attendance = max(10, min(400, avg_attendance))
                         
                         cinema_distribution.append({
                             'country_code': country['code'],
@@ -210,16 +280,19 @@ async def update_film_attendance():
                 attendance_history.append({
                     'timestamp': now.isoformat(),
                     'total_cinemas': total_cinemas,
-                    'total_attendance': total_attendance
+                    'total_attendance': total_attendance,
+                    'days_in_theaters': round(days_in_theaters, 1),
+                    'decay_factor': round(decay_factor, 3)
                 })
                 # Keep only last 144 entries (24 hours at 10-min intervals)
                 attendance_history = attendance_history[-144:]
                 
-                # Calculate cumulative attendance
+                # Cumulative
                 cumulative_attendance = film.get('cumulative_attendance', 0) + total_attendance
                 total_screenings = film.get('total_screenings', 0) + total_cinemas
                 
-                # Update popularity score based on attendance trend
+                # Update popularity based on attendance trend
+                popularity = film.get('popularity_score', 50)
                 recent_avg = sum(h['total_attendance'] for h in attendance_history[-6:]) / min(6, len(attendance_history)) if attendance_history else 0
                 older_avg = sum(h['total_attendance'] for h in attendance_history[-12:-6]) / 6 if len(attendance_history) > 6 else recent_avg
                 
@@ -227,14 +300,13 @@ async def update_film_attendance():
                 if older_avg > 0:
                     attendance_trend = recent_avg / older_avg
                 
-                # Adjust popularity based on attendance (±5% max per update)
                 popularity_adjustment = (attendance_trend - 1) * 5
                 new_popularity = max(0, min(100, popularity + popularity_adjustment))
                 
-                # Calculate new cineboard score including attendance factor
+                # CineBoard score
                 revenue = film.get('total_revenue', 0)
                 awards = len(film.get('awards', []))
-                attendance_factor = min(20, (cumulative_attendance / 100000) * 10)  # Max 20 points from attendance
+                attendance_factor = min(20, (cumulative_attendance / 100000) * 10)
                 
                 cineboard_score = (
                     quality * 0.25 +
@@ -245,7 +317,7 @@ async def update_film_attendance():
                     attendance_factor
                 )
                 
-                # Update film document
+                # Update film
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
                     {'$set': {
@@ -258,6 +330,7 @@ async def update_film_attendance():
                         'attendance_history': attendance_history,
                         'popularity_score': round(new_popularity, 1),
                         'cineboard_score': round(cineboard_score, 2),
+                        'day_in_theaters': round(days_in_theaters),
                         'last_attendance_update': now.isoformat()
                     }}
                 )
@@ -267,7 +340,7 @@ async def update_film_attendance():
                 logger.error(f"[SCHEDULER] Error updating attendance for film {film.get('id')}: {film_error}")
         
         if updated_count > 0:
-            logger.info(f"[SCHEDULER] Updated attendance for {updated_count} films")
+            logger.info(f"[SCHEDULER] Updated attendance for {updated_count} films (with decay)")
     except Exception as e:
         logger.error(f"[SCHEDULER] Error in update_film_attendance: {e}")
 

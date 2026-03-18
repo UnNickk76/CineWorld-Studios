@@ -18,13 +18,15 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - Festivals & Awards
 - Infrastructure (buildings)
 - Chat, Friends, Social Feed
-- Performance: batch endpoints, caching, 28+ indexes
+- Performance: batch endpoints, caching, 28+ indexes, static poster files
 
 ## What's Been Implemented
 
-### Completed (Latest Session - March 2026)
-- **Film Quality Score v2 ("Alchemy Formula"):** Overhauled to introduce unpredictability. Investments set the floor (~65 max deterministic), but random "alchemy" factors (director vision, audience reception, cast chemistry, critics, market timing, lightning events) create wide variance. Even top investments only guarantee ~70% of films are "good" or better.
-- **Migration recalculate_quality_v2:** Applied new formula to all 36 existing films. Average quality dropped from 74.2 to 49.6 with realistic spread (Min: 10, Max: 87.9).
+### Completed (Latest Session - March 18, 2026)
+- **Film Quality Score v2 ("Alchemy Formula"):** Overhauled to introduce unpredictability. Investments set the floor (~65 max deterministic), but random "alchemy" factors (director vision, audience reception, cast chemistry, critics, market timing, lightning events) create wide variance. Best investments: 13% masterpiece, 34% excellent, 38% good, 15% mediocre/bad.
+- **Migration recalculate_quality_v2:** Applied new formula to all 36 existing films. Average quality dropped from 74.2 to 49.6 with realistic spread.
+- **CRITICAL BUG FIX: Film Detail Page crash** - Fixed missing `TrendingDown` and `RotateCcw` imports in FilmDetail.jsx that caused "QUALCOSA E ANDATO STORTO" error.
+- **MAJOR PERFORMANCE FIX: Poster extraction to disk** - Extracted 22 base64 posters (31MB) from MongoDB to static files on disk. New `/api/posters/{filename}` endpoint with 1-week cache headers. All poster generation code updated to save to disk. Frontend uses `posterSrc()` helper.
 - **Bug fixes in social feed:** Fixed KeyError for missing user_id and AttributeError for non-dict cast items.
 
 ### Previously Completed
@@ -46,7 +48,7 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - User: fandrex1@gmail.com / Ciaociao1
 
 ## Pending Issues
-- **(P2) Contest Page Mobile Layout:** Reported as broken but latest testing shows it's functional (10 cards visible, proper stacking on 375x812). May need user confirmation.
+- None critical
 
 ## Upcoming Tasks (P1)
 - Casting Agency (new building for other players)
@@ -63,8 +65,11 @@ Cinematic empire game where players build film studios, produce films, hire cast
 
 ## Key Files
 - `/app/backend/routes/film_pipeline.py` - Pipeline logic + quality formula v2
-- `/app/backend/server.py` - Migrations, routes, batch endpoints
+- `/app/backend/server.py` - Migrations, routes, batch endpoints, poster serving
 - `/app/backend/game_systems.py` - IMDb formula, game calculations
-- `/app/frontend/src/pages/ContestsPage.jsx` - Daily contests
-- `/app/frontend/src/pages/Dashboard.jsx` - Main dashboard
+- `/app/backend/static/posters/` - Static poster files (31MB)
+- `/app/frontend/src/pages/FilmDetail.jsx` - Film detail with posterSrc() helper
+- `/app/frontend/src/pages/Dashboard.jsx` - Main dashboard with posterSrc()
+- `/app/frontend/src/pages/MyFilms.jsx` - Film grid with posterSrc()
+- `/app/frontend/src/pages/CineBoard.jsx` - Leaderboards using poster_url directly
 - `/app/frontend/src/contexts/index.jsx` - Auth + caching context

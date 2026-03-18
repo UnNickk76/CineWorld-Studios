@@ -5632,6 +5632,14 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.094', 'date': '2026-03-18', 'title': 'Fix Sfide Online 1v1: Accettazione Sfide',
+     'changes': [
+         {'type': 'bugfix', 'text': 'Corretto il flusso di accettazione sfide online: ora il popup porta direttamente alla selezione film'},
+         {'type': 'bugfix', 'text': 'Pulsante "Unisciti" nelle sfide in attesa ora apre la selezione film (prima non funzionava)'},
+         {'type': 'bugfix', 'text': 'Cliccando la notifica sfida dalla pagina Notifiche ora si apre il flusso di accettazione'},
+         {'type': 'new', 'text': 'Polling notifiche sfide ogni 30 secondi: le sfide arrivano anche senza refresh'},
+         {'type': 'improvement', 'text': 'UI migliorata: banner "Sei stato sfidato!", pulsante "ACCETTA SFIDA!" differenziato'},
+     ]},
     {'version': '0.093', 'date': '2026-03-18', 'title': 'Emittente TV Potenziata: Live Ratings & Storico Episodi',
      'changes': [
          {'type': 'new', 'text': 'Live Ratings: audience in tempo reale con aggiornamento ogni 5 secondi e sparkline animata'},

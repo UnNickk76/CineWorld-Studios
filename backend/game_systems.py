@@ -838,41 +838,50 @@ def calculate_imdb_rating(film: dict) -> float:
       0-30  → 2.0-3.5 (terrible)
       30-50 → 3.5-5.0 (poor)
       50-65 → 5.0-6.0 (mediocre)
-      65-80 → 6.0-7.0 (good)
-      80-90 → 7.0-8.0 (great)
-      90-95 → 8.0-8.5 (excellent - very rare)
-      95+   → 8.5-9.2 (masterpiece - almost never)
+      65-80 → 6.0-7.5 (good)
+      80-90 → 7.5-8.5 (great)
+      90-95 → 8.5-9.2 (excellent - rare)
+      95-100 → 9.2-9.8 (masterpiece - very rare)
     """
     quality = film.get('quality_score', film.get('quality', 50))
 
-    # Non-linear mapping with compressed top range
+    # Non-linear mapping with expanded top range
     if quality >= 95:
-        base = 8.5 + ((quality - 95) / 5) * 0.7     # 95-100 → 8.5-9.2
+        base = 9.2 + ((quality - 95) / 5) * 0.6      # 95-100 → 9.2-9.8
     elif quality >= 90:
-        base = 8.0 + ((quality - 90) / 5) * 0.5      # 90-95 → 8.0-8.5
+        base = 8.5 + ((quality - 90) / 5) * 0.7       # 90-95 → 8.5-9.2
     elif quality >= 80:
-        base = 7.0 + ((quality - 80) / 10) * 1.0     # 80-90 → 7.0-8.0
+        base = 7.5 + ((quality - 80) / 10) * 1.0      # 80-90 → 7.5-8.5
     elif quality >= 65:
-        base = 6.0 + ((quality - 65) / 15) * 1.0     # 65-80 → 6.0-7.0
+        base = 6.0 + ((quality - 65) / 15) * 1.5      # 65-80 → 6.0-7.5
     elif quality >= 50:
-        base = 5.0 + ((quality - 50) / 15) * 1.0     # 50-65 → 5.0-6.0
+        base = 5.0 + ((quality - 50) / 15) * 1.0      # 50-65 → 5.0-6.0
     elif quality >= 30:
-        base = 3.5 + ((quality - 30) / 20) * 1.5     # 30-50 → 3.5-5.0
+        base = 3.5 + ((quality - 30) / 20) * 1.5      # 30-50 → 3.5-5.0
     else:
-        base = 2.0 + (quality / 30) * 1.5             # 0-30 → 2.0-3.5
+        base = 2.0 + (quality / 30) * 1.5              # 0-30 → 2.0-3.5
 
-    # Small bonuses from cast/director (max +0.2)
-    cast_bonus = min(len(film.get('cast', [])) * 0.02, 0.1)
+    # Cast bonus (max +0.15)
+    cast = film.get('cast', {})
+    if isinstance(cast, list):
+        cast_bonus = min(len(cast) * 0.02, 0.1)
+    else:
+        actors = cast.get('actors', [])
+        cast_bonus = min(len(actors) * 0.02, 0.1)
+    
+    # Director skill bonus (max +0.1)
     director = film.get('director', {})
-    director_skills = director.get('skills', {})
+    if not director and isinstance(cast, dict):
+        director = cast.get('director', {})
+    director_skills = director.get('skills', {}) if isinstance(director, dict) else {}
     director_avg = sum(director_skills.values()) / max(len(director_skills), 1) if director_skills else 50
     director_bonus = max(-0.05, min(0.1, (director_avg - 50) / 100 * 0.2))
 
-    # Random variance (±0.2)
-    variance = random.uniform(-0.2, 0.2)
+    # Small random variance (±0.15)
+    variance = random.uniform(-0.15, 0.15)
 
     final_rating = base + cast_bonus + director_bonus + variance
-    return round(max(1.0, min(9.2, final_rating)), 1)
+    return round(max(1.0, min(10.0, final_rating)), 1)
 
 def generate_ai_interactions(film: dict, current_day: int) -> List[dict]:
     """Generate fake AI user interactions for a film."""

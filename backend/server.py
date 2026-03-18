@@ -6430,6 +6430,22 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration fix_full_package_cast_v1: Fixed {fixed} full_package films")
     
+    # Migration: Recalculate ALL films' IMDb ratings with new formula v5
+    if 'recalculate_imdb_v5' not in completed:
+        from game_systems import calculate_imdb_rating
+        all_films = await db.films.find({}, {'_id': 0}).to_list(1000)
+        updated = 0
+        for film in all_films:
+            new_imdb = calculate_imdb_rating(film)
+            await db.films.update_one(
+                {'id': film['id']},
+                {'$set': {'imdb_rating': new_imdb}}
+            )
+            updated += 1
+        completed.append('recalculate_imdb_v5')
+        changed = True
+        logging.info(f"Migration recalculate_imdb_v5: Recalculated {updated} films with new formula")
+
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},

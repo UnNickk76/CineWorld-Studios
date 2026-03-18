@@ -205,6 +205,12 @@
 - **Fix Frontend**: `EmergingScreenplays.jsx` e `FilmMarketplace.jsx` navigano a `/create-film?tab=casting` dopo acquisto
 - Test: 100% (5/5 passed, 1 skipped)
 
+### Ricalibrazione IMDb Rating Formula v5 (18 Mar 2026)
+- **Formula espansa**: Quality 100 ora raggiunge IMDb ~9.8 (era capped a 9.2). Quality 95+ → 9.2-9.8, Quality 90-95 → 8.5-9.2
+- **Distribuzione realistica**: 103% → 10.0, 97% → 9.6, 88% → 8.6, 80% → 7.5, 73% → 7.0, 68% → 6.4
+- **Migrazione**: `recalculate_imdb_v5` ricalcola tutti i 36 film esistenti
+- **Cast bonus migliorato**: Gestisce sia cast dict che list (vecchio formato)
+
 ### Fix Pipeline Full Package Films (18 Mar 2026)
 - **Casting**: Film full_package mostrano cast pre-compilato read-only (no "Sblocca"), isLocked check include sia `cast_locked` che `from_emerging_screenplay + full_package`
 - **Sceneggiatura**: Film full_package mostrano sceneggiatura read-only con badge verde + solo generazione poster

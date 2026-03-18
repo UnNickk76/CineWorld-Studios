@@ -800,7 +800,7 @@ const InfrastructurePage = () => {
               )}
 
               {schoolStatus?.available_slots === 0 && schoolStatus?.training_count > 0 && schoolRecruits.length > 0 && (
-                <p className="text-center text-xs text-gray-500 py-2">Tutti gli slot sono occupati. Attendi il completamento della formazione o migliora la scuola.</p>
+                <p className="text-center text-xs text-gray-500 py-2">Tutti gli slot della scuola sono occupati ({schoolStatus.training_count}/{schoolStatus.max_slots}). Attendi il completamento della formazione o migliora la scuola.</p>
               )}
 
               {/* Upgrade Section */}

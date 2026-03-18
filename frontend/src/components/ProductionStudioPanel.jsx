@@ -318,6 +318,13 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
           </h4>
           <p className="text-[10px] text-gray-500">
             Talenti esclusivi con sconto {castingData?.discount_percent || 0}%. Si rinnovano ogni settimana.
+            {castingData?.recruits && (() => {
+              const available = castingData.recruits.filter(r => !r.hired).length;
+              const total = castingData.recruits.length;
+              return available > 0 
+                ? ` (${available}/${total} disponibili)` 
+                : ` — Tutti ingaggiati! Nuovi talenti la prossima settimana.`;
+            })()}
           </p>
           
           {loading ? (
@@ -329,23 +336,41 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
               {castingData?.recruits?.map(r => (
                 <div 
                   key={r.id} 
-                  className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-all hover:ring-1 hover:ring-amber-400/30 ${r.is_legendary ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-black/30 border-white/5'}`}
-                  onClick={() => setSelectedRecruit(r)}
+                  className={`flex items-center gap-2 p-2 rounded border transition-all ${
+                    r.hired 
+                      ? 'bg-black/20 border-white/5 opacity-50 cursor-default' 
+                      : r.is_legendary 
+                        ? 'bg-yellow-500/10 border-yellow-500/20 cursor-pointer hover:ring-1 hover:ring-amber-400/30' 
+                        : 'bg-black/30 border-white/5 cursor-pointer hover:ring-1 hover:ring-amber-400/30'
+                  }`}
+                  onClick={() => !r.hired && setSelectedRecruit(r)}
                   data-testid={`recruit-${r.id}`}
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.is_legendary ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700 text-gray-300'}`}>
-                    {r.is_legendary ? <Crown className="w-4 h-4" /> : r.name?.[0]}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.hired ? 'bg-gray-700 text-gray-500' : r.is_legendary ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700 text-gray-300'}`}>
+                    {r.hired ? <Check className="w-4 h-4" /> : r.is_legendary ? <Crown className="w-4 h-4" /> : r.name?.[0]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       <p className="text-xs font-semibold truncate">{r.name}</p>
                       {r.is_legendary && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
                     </div>
-                    <p className="text-[10px] text-gray-500">Abilità: {r.skill} | {r.nationality}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {r.hired 
+                        ? (r.hire_action === 'school' ? 'Inviato alla Scuola' : 'Ingaggiato') 
+                        : `Abilità: ${r.skill} | ${r.nationality}`}
+                    </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[10px] text-gray-500 line-through">${r.original_cost?.toLocaleString()}</p>
-                    <p className="text-xs font-bold text-green-400">${r.discounted_cost?.toLocaleString()}</p>
+                    {r.hired ? (
+                      <Badge className="bg-green-500/20 text-green-400 text-[9px]">
+                        {r.hire_action === 'school' ? 'A scuola' : 'Nel cast'}
+                      </Badge>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-gray-500 line-through">${r.original_cost?.toLocaleString()}</p>
+                        <p className="text-xs font-bold text-green-400">${r.discounted_cost?.toLocaleString()}</p>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

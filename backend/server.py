@@ -10677,6 +10677,13 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
     seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
     rng = random.Random(seed)
     
+    # Check which recruits were already hired this week
+    hired_this_week = await db.casting_hires.find(
+        {'user_id': user['id'], 'week': week_key},
+        {'_id': 0, 'recruit_id': 1, 'action': 1}
+    ).to_list(50)
+    hired_map = {h['recruit_id']: h['action'] for h in hired_this_week}
+
     recruits = []
     genders = ['male', 'female']
     for i in range(num_recruits):
@@ -10691,9 +10698,10 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
         base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
         base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
         discounted_cost = int(base_cost * (1 - discount / 100))
+        rid = f'casting_{seed}_{i}'
         
         recruits.append({
-            'id': f'casting_{seed}_{i}',
+            'id': rid,
             'name': name,
             'age': rng.randint(18, 55),
             'gender': gender,
@@ -10702,7 +10710,9 @@ async def get_casting_agency(user: dict = Depends(get_current_user)):
             'skill': base_skill,
             'original_cost': base_cost,
             'discounted_cost': discounted_cost,
-            'discount_percent': discount
+            'discount_percent': discount,
+            'hired': rid in hired_map,
+            'hire_action': hired_map.get(rid)
         })
     
     return {

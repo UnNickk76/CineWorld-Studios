@@ -197,6 +197,14 @@
 - Fix: Rimborso automatico sceneggiature orfane
 - Fix: Film con status errato convertiti a `in_theaters`
 
+### Bug Fix: Acquisto Sceneggiatura va a Casting (18 Mar 2026)
+- **Problema**: Acquistando una sceneggiatura emergente o un film dal mercato, il film veniva messo in stato `proposed`, costringendo a rifare titolo/genere/sceneggiatura
+- **Fix Backend**: `accept_emerging_screenplay` ora crea il film direttamente in stato `casting` con proposte cast generate automaticamente
+- **Fix Backend**: `marketplace/buy` ora auto-avanza film con `status_before_discard='proposed'` a `casting`
+- **Fix Backend**: `generate_cast_proposals` ora gestisce correttamente il campo `cast` sia come dict che come list (vecchio formato)
+- **Fix Frontend**: `EmergingScreenplays.jsx` e `FilmMarketplace.jsx` navigano a `/create-film?tab=casting` dopo acquisto
+- Test: 100% (5/5 passed, 1 skipped)
+
 ## Task Prossimi
 - **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)
 - **(P2)** Layout mobile pagina Contest

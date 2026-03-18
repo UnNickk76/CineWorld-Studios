@@ -408,7 +408,7 @@ const TopNavbar = () => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                    className="absolute top-full right-0 mt-1 z-[61] w-48"
+                    className="fixed top-14 left-2 right-2 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:w-48 mt-1 z-[61]"
                     data-testid="cineboard-menu"
                   >
                     <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl space-y-1">

@@ -222,6 +222,7 @@
 - **(P1)** Sistema ruoli Admin (RBAC)
 
 ## Backlog
+- **(P1) Costo Crediti (CinePass) nelle Speed-Up della Pipeline**: Nelle sezioni di creazione film dove si può pagare in denaro per velocizzare, aggiungere anche il costo in crediti come opzione alternativa. Il costo totale crediti per rilasciare un film completo (dalla creazione al rilascio) non deve MAI superare 25-30 crediti. Distribuire proporzionalmente tra gli step (es. Casting 3-5, Sceneggiatura 3-5, Pre-Produzione 5-8, Shooting 5-8, Rilascio 3-5).
 - Ulteriore refactoring server.py (ancora ~15K righe - estrarre film routes, admin, AI, users)
 - Refactoring FilmPipeline.jsx (>1200 righe - decomposizione in sub-components)
 - Refactoring Dashboard.jsx

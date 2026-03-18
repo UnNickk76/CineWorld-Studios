@@ -6383,6 +6383,18 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration fix_film_status_v1: Fixed status for {result.modified_count} films")
     
+    # Migration: Reset password for test user (fix deployed auth)
+    if 'fix_fandrex_password_v1' not in completed:
+        from auth_utils import hash_password
+        new_hash = hash_password('Ciaociao1')
+        result = await db.users.update_one(
+            {'email': 'fandrex1@gmail.com'},
+            {'$set': {'password': new_hash}}
+        )
+        completed.append('fix_fandrex_password_v1')
+        changed = True
+        logging.info(f"Migration fix_fandrex_password_v1: Reset password (modified={result.modified_count})")
+    
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},

@@ -5632,6 +5632,15 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.093', 'date': '2026-03-18', 'title': 'Emittente TV Potenziata: Live Ratings & Storico Episodi',
+     'changes': [
+         {'type': 'new', 'text': 'Live Ratings: audience in tempo reale con aggiornamento ogni 5 secondi e sparkline animata'},
+         {'type': 'new', 'text': 'Storico Episodi: grafico a barre dell\'audience, dettaglio per episodio, analytics (picco, media, trend)'},
+         {'type': 'new', 'text': 'Share % per episodio: indica la percentuale di telespettatori rispetto al mercato'},
+         {'type': 'new', 'text': 'Sistema Momentum: la qualita della serie influenza la crescita audience durante la stagione'},
+         {'type': 'improvement', 'text': 'Indicatore trend (crescita/calo/stabile) per ogni broadcast'},
+         {'type': 'improvement', 'text': 'Stats rete completi: Live Viewers, Ricavi Ads, Slot Attivi nel banner LIVE'},
+     ]},
     {'version': '0.092', 'date': '2026-03-18', 'title': 'Dashboard Rinnovata: Sezioni Produzioni & Ultimi Aggiornamenti',
      'changes': [
          {'type': 'new', 'text': 'Sezione "Ultimi Aggiornamenti" in Dashboard: mostra le 5 produzioni piu recenti di TUTTI i giocatori'},

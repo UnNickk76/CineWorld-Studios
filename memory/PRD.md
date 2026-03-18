@@ -205,6 +205,13 @@
 - **Fix Frontend**: `EmergingScreenplays.jsx` e `FilmMarketplace.jsx` navigano a `/create-film?tab=casting` dopo acquisto
 - Test: 100% (5/5 passed, 1 skipped)
 
+### Bug Fix: Cast Pre-compilato per Full Package (18 Mar 2026)
+- **Problema**: Acquistando sceneggiatura con "full_package", il casting era vuoto nonostante fosse incluso nel pacchetto
+- **Fix Backend**: `accept_emerging_screenplay` ora pre-compila il cast da `proposed_cast` della sceneggiatura quando `option=full_package`, setta `cast_locked=true`
+- **Fix Frontend**: CastingTab mostra il cast pre-compilato in sezioni read-only con bordo verde (Regista, Sceneggiatore, Attori, Compositore) quando `cast_locked=true`
+- **Badge**: "Pacchetto Completo - Cast incluso" visibile sul film
+- Test: 100% (9/9 backend passed)
+
 ### Ottimizzazione Performance (18 Mar 2026)
 - **Dashboard batch endpoint** (`/api/dashboard/batch`): singolo endpoint sostituisce 13+ API call separate (stats, film, challenges, pipeline, ecc.)
 - **MongoDB indexes**: aggiunti 28+ indici su tutte le collection critiche (film_projects, infrastructure, challenges, people, ecc.)

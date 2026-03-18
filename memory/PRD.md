@@ -205,6 +205,14 @@
 - **Fix Frontend**: `EmergingScreenplays.jsx` e `FilmMarketplace.jsx` navigano a `/create-film?tab=casting` dopo acquisto
 - Test: 100% (5/5 passed, 1 skipped)
 
+### Fix Pipeline Full Package Films (18 Mar 2026)
+- **Casting**: Film full_package mostrano cast pre-compilato read-only (no "Sblocca"), isLocked check include sia `cast_locked` che `from_emerging_screenplay + full_package`
+- **Sceneggiatura**: Film full_package mostrano sceneggiatura read-only con badge verde + solo generazione poster
+- **Backend**: Validazione cast rilassata per full_package (solo regista richiesto), auto-compilazione sceneggiatura da pre_screenplay
+- **Migrazione**: `fix_full_package_cast_v1` corregge retroattivamente film full_package esistenti (pre-compila cast e setta cast_locked)
+- **Migrazione**: `fix_fandrex_password_v1` resetta password test user su DB deployed
+- Test: 100% (14/14 backend)
+
 ### Bug Fix: Cast Pre-compilato per Full Package (18 Mar 2026)
 - **Problema**: Acquistando sceneggiatura con "full_package", il casting era vuoto nonostante fosse incluso nel pacchetto
 - **Fix Backend**: `accept_emerging_screenplay` ora pre-compila il cast da `proposed_cast` della sceneggiatura quando `option=full_package`, setta `cast_locked=true`

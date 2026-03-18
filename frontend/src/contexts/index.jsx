@@ -20,7 +20,8 @@ export const useTranslations = () => {
 
 // Simple in-memory cache with TTL
 const apiCache = new Map();
-const CACHE_TTL = 60000; // 60 seconds
+const CACHE_TTL = 120000; // 2 minutes
+const inflightRequests = new Map(); // deduplication
 
 const getCached = (key) => {
   const entry = apiCache.get(key);
@@ -36,7 +37,7 @@ const setCache = (key, data) => {
   apiCache.set(key, { data, ts: Date.now() });
 };
 
-export const clearApiCache = () => apiCache.clear();
+export const clearApiCache = () => { apiCache.clear(); inflightRequests.clear(); };
 
 // Auth Provider with auto-login
 export const AuthProvider = ({ children }) => {
@@ -54,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   const api = React.useMemo(() => {
     const instance = axios.create({
       baseURL: API,
-      timeout: 45000
+      timeout: 12000
     });
 
     let logoutScheduled = false;
@@ -118,7 +119,7 @@ export const AuthProvider = ({ children }) => {
         // Retry once on network error or 5xx (not on 4xx)
         if (!config._retried && (!error.response || error.response.status >= 500)) {
           config._retried = true;
-          await new Promise(r => setTimeout(r, 1500));
+          await new Promise(r => setTimeout(r, 800));
           return instance(config);
         }
 
@@ -196,13 +197,22 @@ export const AuthProvider = ({ children }) => {
     setUser(res.data);
   };
 
-  // Cached GET - for read-only endpoints
+  // Cached GET with deduplication - for read-only endpoints
   const cachedGet = useCallback(async (url) => {
     const cached = getCached(url);
     if (cached) return { data: cached };
-    const res = await api.get(url);
-    setCache(url, res.data);
-    return res;
+    // Deduplicate in-flight requests
+    if (inflightRequests.has(url)) return inflightRequests.get(url);
+    const promise = api.get(url).then(res => {
+      setCache(url, res.data);
+      inflightRequests.delete(url);
+      return res;
+    }).catch(err => {
+      inflightRequests.delete(url);
+      throw err;
+    });
+    inflightRequests.set(url, promise);
+    return promise;
   }, [api]);
 
   return (

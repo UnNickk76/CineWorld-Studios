@@ -200,52 +200,29 @@ const Dashboard = () => {
               : `Welcome back! Collected $${catchupRes.data.catchup_revenue.toLocaleString()} for ${catchupRes.data.hours_missed} hours offline!`,
             { duration: 6000 }
           );
-          // Refresh user data to update funds
           refreshUser();
         }
         
-        const [statsRes, filmsRes, challengesRes, pendingRes, pendingFilmsRes] = await Promise.all([
-          api.get('/statistics/my'),
-          api.get('/films/my/featured?limit=9'),
-          api.get('/challenges'),
-          api.get('/revenue/pending-all'),
-          api.get('/films/pending')
-        ]);
-        setStats(statsRes.data);
-        setFilms(Array.from(new Map(filmsRes.data.map(f => [f.id, f])).values()));  // Deduplicate by ID
-        setChallenges(challengesRes.data);
-        setPendingRevenue(pendingRes.data);
-        setPendingFilms(pendingFilmsRes.data || []);
+        // Single batch call replaces 13+ separate API calls
+        const batchRes = await api.get('/dashboard/batch');
+        const d = batchRes.data;
+        setStats(d.stats);
+        setFilms(Array.from(new Map((d.featured_films || []).map(f => [f.id, f])).values()));
+        setChallenges(d.challenges || []);
+        setPendingRevenue(d.pending_revenue || {});
+        setPendingFilms(d.pending_films || []);
+        setEmergingCount(d.emerging_count || 0);
+        setHasStudio(d.has_studio || false);
+        setShootingFilms(d.shooting_films || []);
+        setPipelineCount(d.pipeline_total || 0);
         
-        // Fetch emerging screenplays count for badge
-        try {
-          const emergingRes = await api.get('/emerging-screenplays/count');
-          setEmergingCount(emergingRes.data.new || 0);
-        } catch {}
-        // Fetch available contests count for badge
+        // Contests still separate (different API structure)
         try {
           const contestsRes = await api.get('/cinepass/contests');
           const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
           setAvailableContests(available);
         } catch {}
-        // Check if user owns a production studio
-        try {
-          const studioRes = await api.get('/production-studio/status');
-          if (studioRes.data?.level) setHasStudio(true);
-        } catch {}
-        // Fetch shooting films
-        try {
-          const shootRes = await api.get('/films/shooting');
-          setShootingFilms(shootRes.data?.films || []);
-        } catch {}
-        // Fetch pipeline active film count for Produci! badge
-        try {
-          const pipeRes = await api.get('/film-pipeline/counts');
-          const d = pipeRes.data;
-          const total = (d.proposed || 0) + (d.casting || 0) + (d.screenplay || 0) + (d.pre_production || 0) + (d.shooting || 0);
-          setPipelineCount(total);
-        } catch {}
-        // Fetch shooting config
+        // Shooting config still separate
         try {
           const configRes = await api.get('/films/shooting/config');
           setShootingConfig(configRes.data);

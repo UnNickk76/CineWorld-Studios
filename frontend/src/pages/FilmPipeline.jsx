@@ -26,7 +26,7 @@ const TABS = [
 ];
 
 // ============ CREATION TAB ============
-const CreationTab = ({ api, refreshUser, refreshCounts }) => {
+const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [selectedSubgenres, setSelectedSubgenres] = useState([]);
@@ -39,9 +39,9 @@ const CreationTab = ({ api, refreshUser, refreshCounts }) => {
   const [step, setStep] = useState(1); // 1=title/genre, 2=screenplay, 3=location
 
   useEffect(() => {
-    api.get('/genres').then(r => setGenres(r.data || {})).catch(() => {});
-    api.get('/locations').then(r => setLocations(r.data || [])).catch(() => {});
-  }, [api]);
+    cachedGet('/genres').then(r => setGenres(r.data || {})).catch(() => {});
+    cachedGet('/locations').then(r => setLocations(r.data || [])).catch(() => {});
+  }, [cachedGet]);
 
   const toggleSubgenre = (sg) => {
     if (selectedSubgenres.includes(sg)) {
@@ -398,7 +398,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
     finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 30000); return () => clearInterval(i); }, [fetch]);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 60000); return () => clearInterval(i); }, [fetch]);
 
   const speedUp = async (filmId, roleType) => {
     setActionLoading(`speed-${filmId}-${roleType}`);
@@ -939,7 +939,7 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
     catch (e) { console.error(e); } finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 30000); return () => clearInterval(i); }, [fetch]);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 60000); return () => clearInterval(i); }, [fetch]);
 
   const openSetup = async (film) => {
     setSetupFilm(film);
@@ -1262,7 +1262,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
     catch (e) { console.error(e); } finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 15000); return () => clearInterval(i); }, [fetch]);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 45000); return () => clearInterval(i); }, [fetch]);
 
   const speedUp = async (filmId, option) => {
     setActionLoading(`speed-${filmId}`);
@@ -1528,7 +1528,7 @@ const PlaceholderTab = ({ icon: Icon, name }) => (
 
 // ============ MAIN PAGE ============
 const FilmPipeline = () => {
-  const { api, refreshUser } = useContext(AuthContext);
+  const { api, refreshUser, cachedGet } = useContext(AuthContext);
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'creation';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -1594,7 +1594,7 @@ const FilmPipeline = () => {
         )}
 
         {/* Tab Content */}
-        {activeTab === 'creation' && <CreationTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
+        {activeTab === 'creation' && <CreationTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} cachedGet={cachedGet} />}
         {activeTab === 'proposals' && <ProposalsTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
         {activeTab === 'casting' && <CastingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
         {activeTab === 'screenplay' && <ScreenplayTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}

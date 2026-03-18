@@ -18,6 +18,27 @@ import socketio
 import base64
 import asyncio
 import math
+import time as _time
+
+# Simple TTL cache for expensive endpoints
+class TTLCache:
+    def __init__(self):
+        self._data = {}
+    def get(self, key, ttl=30):
+        entry = self._data.get(key)
+        if entry and (_time.time() - entry[1]) < ttl:
+            return entry[0]
+        return None
+    def set(self, key, value):
+        self._data[key] = (value, _time.time())
+    def invalidate(self, prefix=None):
+        if prefix:
+            self._data = {k: v for k, v in self._data.items() if not k.startswith(prefix)}
+        else:
+            self._data.clear()
+
+_cache = TTLCache()
+
 import resend
 
 # APScheduler for background tasks
@@ -7755,6 +7776,94 @@ async def get_my_statistics(user: dict = Depends(get_current_user)):
         'infrastructure_count': len(infrastructure)
     }
 
+
+@api_router.get("/dashboard/batch")
+async def get_dashboard_batch(user: dict = Depends(get_current_user)):
+    """Single endpoint returning all dashboard data to reduce API calls from 13+ to 1."""
+    now = datetime.now(timezone.utc)
+    uid = user['id']
+    
+    # Parallel DB queries
+    films_task = db.films.find({'user_id': uid}, {'_id': 0}).to_list(100)
+    infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
+    challenges_task = db.challenges.find(
+        {'$or': [{'challenger_id': uid}, {'challenged_id': uid}]},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(50)
+    pending_films_task = db.films.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
+    pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
+    emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
+    shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, {'_id': 0}).to_list(50)
+    
+    films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task
+    )
+    
+    # Statistics calculation
+    total_box_office = sum(f.get('realistic_box_office', 0) or f.get('total_revenue', 0) for f in films)
+    total_likes = sum(f.get('likes_count', 0) for f in films)
+    avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
+    total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
+    total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
+    total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
+    INITIAL_FUNDS = 5000000
+    current_funds = user.get('funds', 0)
+    total_spent = total_film_costs + total_infra_costs
+    total_earned = current_funds + total_spent - INITIAL_FUNDS
+    lifetime_collected = user.get('total_lifetime_revenue', 0)
+    if total_earned < 0:
+        total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
+    
+    # Featured films (top 9 by quality)
+    featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
+    
+    # Pending revenue calc
+    films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
+    total_pending = 0
+    for f in films_in_theaters:
+        total_pending += f.get('pending_revenue', 0)
+    for i in infrastructure:
+        total_pending += i.get('pending_revenue', 0) if 'pending_revenue' in i else 0
+    
+    # Pipeline counts
+    pipeline_counts = {}
+    for p in pipeline_projects:
+        s = p.get('status', 'unknown')
+        pipeline_counts[s] = pipeline_counts.get(s, 0) + 1
+    pipeline_total = sum(pipeline_counts.values())
+    
+    # Has studio?
+    has_studio = any(i.get('type') == 'production_studio' for i in infrastructure)
+    
+    return {
+        'stats': {
+            'total_films': len(films),
+            'total_revenue': total_box_office,
+            'total_likes': total_likes,
+            'average_quality': avg_quality,
+            'current_funds': current_funds,
+            'production_house': user.get('production_house_name', ''),
+            'total_spent': total_spent,
+            'total_earned': total_earned,
+            'profit_loss': current_funds - INITIAL_FUNDS,
+            'total_film_costs': total_film_costs,
+            'total_infra_costs': total_infra_costs,
+            'total_infra_revenue': total_infra_revenue,
+            'lifetime_collected': lifetime_collected,
+            'infrastructure_count': len(infrastructure)
+        },
+        'featured_films': featured,
+        'challenges': challenges,
+        'pending_revenue': {'total': total_pending, 'films_count': len(films_in_theaters)},
+        'pending_films': pending_films,
+        'emerging_count': emerging_count,
+        'has_studio': has_studio,
+        'shooting_films': shooting_films,
+        'pipeline_counts': pipeline_counts,
+        'pipeline_total': pipeline_total
+    }
+
+
 # ==================== COLLECT ALL REVENUE (Films + Infrastructure) ====================
 
 @api_router.get("/revenue/pending-all")
@@ -9538,10 +9647,29 @@ async def startup_event():
         await db.likes.create_index([('film_id', 1), ('user_id', 1)])
         await db.users.create_index('id', unique=True)
         await db.users.create_index('nickname')
+        await db.users.create_index('email')
         await db.chat_messages.create_index([('room_id', 1), ('created_at', -1)])
         await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
         await db.film_drafts.create_index('user_id')
         await db.emerging_screenplays.create_index('status')
+        await db.film_projects.create_index([('user_id', 1), ('status', 1)])
+        await db.film_projects.create_index('available_for_purchase')
+        await db.film_projects.create_index('status')
+        await db.infrastructure.create_index('owner_id')
+        await db.challenges.create_index('status')
+        await db.challenges.create_index('challenger_id')
+        await db.challenges.create_index('challenged_id')
+        await db.virtual_reviews.create_index('film_id')
+        await db.film_ratings.create_index('film_id')
+        await db.film_comments.create_index('film_id')
+        await db.friendships.create_index('user_id')
+        await db.friendships.create_index('friend_id')
+        await db.follows.create_index('follower_id')
+        await db.follows.create_index('following_id')
+        await db.major_members.create_index('major_id')
+        await db.major_members.create_index('user_id')
+        await db.studio_drafts.create_index('user_id')
+        await db.casting_school_students.create_index('user_id')
         logging.info("MongoDB indexes created/verified")
     except Exception as e:
         logging.warning(f"Index creation warning: {e}")
@@ -13956,9 +14084,22 @@ def calculate_cineboard_score(film: dict) -> float:
 @api_router.get("/cineboard/now-playing")
 async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
     """Get top 50 films currently in theaters, ranked by CineBoard score."""
+    cached = _cache.get('cineboard_now_playing', ttl=30)
+    if cached:
+        # Personalize user_liked
+        for f in cached:
+            f['user_liked'] = user['id'] in f.get('liked_by', [])
+        return {'films': cached}
+    
+    FILM_PROJECTION = {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'genre': 1, 'subgenre': 1,
+        'poster_url': 1, 'imdb_rating': 1, 'quality_score': 1, 'quality': 1, 'likes_count': 1,
+        'liked_by': 1, 'daily_revenues': 1, 'total_revenue': 1, 'opening_day_revenue': 1,
+        'released_at': 1, 'release_date': 1, 'created_at': 1, 'status': 1,
+        'realistic_box_office': 1, 'total_attendance': 1, 'cineboard_score': 1,
+        'weekly_revenues': 1, 'estimated_final_revenue': 1}
     films = await db.films.find(
         {'status': 'in_theaters'},
-        {'_id': 0}
+        FILM_PROJECTION
     ).to_list(500)
     
     # Bulk fetch owners
@@ -13975,6 +14116,7 @@ async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
     
+    _cache.set('cineboard_now_playing', sorted_films)
     return {'films': sorted_films}
 
 @api_router.get("/cineboard/hall-of-fame")
@@ -14005,12 +14147,24 @@ async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
 @api_router.get("/cineboard/daily")
 async def get_cineboard_daily(user: dict = Depends(get_current_user)):
     """Get today's top films ranked by daily revenue with hourly trend."""
+    cached = _cache.get('cineboard_daily', ttl=30)
+    if cached:
+        for f in cached:
+            f['user_liked'] = user['id'] in f.get('liked_by', [])
+        return {'films': cached}
+    
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    FILM_PROJECTION = {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'genre': 1, 'subgenre': 1,
+        'poster_url': 1, 'imdb_rating': 1, 'quality_score': 1, 'quality': 1, 'likes_count': 1,
+        'liked_by': 1, 'daily_revenues': 1, 'total_revenue': 1, 'opening_day_revenue': 1,
+        'released_at': 1, 'release_date': 1, 'created_at': 1, 'status': 1,
+        'realistic_box_office': 1, 'total_attendance': 1, 'cineboard_score': 1,
+        'weekly_revenues': 1, 'estimated_final_revenue': 1}
     films = await db.films.find(
         {'status': 'in_theaters'},
-        {'_id': 0}
+        FILM_PROJECTION
     ).to_list(500)
 
     # Bulk fetch owners
@@ -14080,17 +14234,30 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
 
+    _cache.set('cineboard_daily', sorted_films)
     return {'films': sorted_films}
 
 @api_router.get("/cineboard/weekly")
 async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
     """Get this week's top films ranked by weekly revenue with daily trend."""
+    cached = _cache.get('cineboard_weekly', ttl=30)
+    if cached:
+        for f in cached:
+            f['user_liked'] = user['id'] in f.get('liked_by', [])
+        return {'films': cached}
+    
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     week_start = now - timedelta(days=7)
+    FILM_PROJECTION = {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'genre': 1, 'subgenre': 1,
+        'poster_url': 1, 'imdb_rating': 1, 'quality_score': 1, 'quality': 1, 'likes_count': 1,
+        'liked_by': 1, 'daily_revenues': 1, 'total_revenue': 1, 'opening_day_revenue': 1,
+        'released_at': 1, 'release_date': 1, 'created_at': 1, 'status': 1,
+        'realistic_box_office': 1, 'total_attendance': 1, 'cineboard_score': 1,
+        'weekly_revenues': 1, 'estimated_final_revenue': 1}
     films = await db.films.find(
         {'status': 'in_theaters'},
-        {'_id': 0}
+        FILM_PROJECTION
     ).to_list(500)
 
     # Bulk fetch owners
@@ -14171,6 +14338,7 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
     for i, film in enumerate(sorted_films):
         film['rank'] = i + 1
 
+    _cache.set('cineboard_weekly', sorted_films)
     return {'films': sorted_films}
 
 

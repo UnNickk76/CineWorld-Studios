@@ -303,6 +303,10 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [actionLoading, setActionLoading] = useState(null);
   const [expandedRoles, setExpandedRoles] = useState({});
   const [actorRoles, setActorRoles] = useState({});
+  const [equipmentOpen, setEquipmentOpen] = useState(null);
+  const [equipmentOptions, setEquipmentOptions] = useState([]);
+  const [selectedEquipment, setSelectedEquipment] = useState({});
+  const [equipLoading, setEquipLoading] = useState(false);
 
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
@@ -444,6 +448,29 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const roleLabels = { directors: 'Regista', screenwriters: 'Sceneggiatore', actors: 'Attori', composers: 'Compositore' };
   const roleIcons = { directors: '🎬', screenwriters: '📝', actors: '🎭', composers: '🎵' };
 
+  const openEquipment = async (filmId) => {
+    setEquipmentOpen(filmId);
+    try {
+      const res = await api.get(`/film-pipeline/${filmId}/equipment-options`);
+      setEquipmentOptions(res.data.options);
+      const sel = {};
+      (res.data.selected || []).forEach(e => { sel[e.id] = true; });
+      setSelectedEquipment(sel);
+    } catch (e) { toast.error('Errore caricamento attrezzature'); }
+  };
+
+  const saveEquipment = async (filmId) => {
+    setEquipLoading(true);
+    try {
+      const ids = Object.keys(selectedEquipment).filter(k => selectedEquipment[k]);
+      const res = await api.post(`/film-pipeline/${filmId}/select-equipment`, { equipment_ids: ids });
+      toast.success(res.data.message);
+      setEquipmentOpen(null);
+      refreshUser(); fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setEquipLoading(false); }
+  };
+
   return (
     <div className="space-y-3">
       {films.map(f => {
@@ -471,6 +498,11 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                   onClick={() => setSelectedFilm(selectedFilm === f.id ? null : f.id)}>
                   {selectedFilm === f.id ? 'Chiudi Casting' : 'Gestisci Casting'}
                 </Button>
+                <Button variant="outline" size="sm" className="text-xs border-amber-700 text-amber-400 hover:bg-amber-500/10"
+                  onClick={() => openEquipment(f.id)} data-testid={`equipment-btn-${f.id}`}>
+                  <Settings className="w-3 h-3 mr-0.5" /> Attrezzature
+                  {f.equipment?.length > 0 && <Badge className="ml-1 bg-green-500/20 text-green-400 text-[8px] h-4">{f.equipment.length}</Badge>}
+                </Button>
                 <Button variant="outline" size="sm" className="text-xs border-red-800/50 text-red-400 hover:bg-red-500/10"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
@@ -487,6 +519,42 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                   Scarta
                 </Button>
               </div>
+
+              {/* Equipment Popup */}
+              {equipmentOpen === f.id && (
+                <div className="p-2 mb-2 rounded border border-amber-500/30 bg-amber-500/5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-amber-400">Attrezzature Disponibili</p>
+                    <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setEquipmentOpen(null)}><X className="w-3 h-3" /></Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1">
+                    {equipmentOptions.map(eq => (
+                      <label key={eq.id} className={`flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-all ${selectedEquipment[eq.id] ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                        <input type="checkbox" checked={!!selectedEquipment[eq.id]}
+                          onChange={e => setSelectedEquipment(p => ({...p, [eq.id]: e.target.checked}))}
+                          className="accent-amber-500 w-3 h-3" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-medium">{eq.name}</span>
+                            <Badge className={`text-[7px] h-3 ${eq.tier === 'premium' ? 'bg-purple-500/20 text-purple-400' : eq.tier === 'pro' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-600/20 text-gray-400'}`}>{eq.tier}</Badge>
+                          </div>
+                          <p className="text-[8px] text-gray-500 truncate">{eq.desc}</p>
+                        </div>
+                        <span className="text-[9px] text-yellow-400 font-medium whitespace-nowrap">${(eq.cost/1000).toFixed(0)}K</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-gray-400">
+                      Totale: <span className="text-yellow-400">${(equipmentOptions.filter(e => selectedEquipment[e.id]).reduce((s, e) => s + e.cost, 0) / 1000).toFixed(0)}K</span>
+                    </span>
+                    <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-[10px] h-6" onClick={() => saveEquipment(f.id)} disabled={equipLoading}
+                      data-testid={`save-equipment-${f.id}`}>
+                      {equipLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-0.5" />} Conferma
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {selectedFilm === f.id && (
                 <div className="space-y-3 mt-2">
@@ -835,6 +903,36 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
   const [extrasCount, setExtrasCount] = useState(200);
   const [selectedCGI, setSelectedCGI] = useState([]);
   const [selectedVFX, setSelectedVFX] = useState([]);
+  // Sponsor states
+  const [sponsorOpen, setSponsorOpen] = useState(null);
+  const [sponsorOffers, setSponsorOffers] = useState([]);
+  const [selectedSponsors, setSelectedSponsors] = useState({});
+  const [maxSponsors, setMaxSponsors] = useState(1);
+  const [sponsorLoading, setSponsorLoading] = useState(false);
+
+  const openSponsors = async (filmId) => {
+    setSponsorOpen(filmId);
+    try {
+      const res = await api.get(`/film-pipeline/${filmId}/sponsor-offers`);
+      setSponsorOffers(res.data.offers || []);
+      setMaxSponsors(res.data.max_sponsors || 1);
+      const sel = {};
+      (res.data.selected || []).forEach(s => { sel[s.id] = true; });
+      setSelectedSponsors(sel);
+    } catch (e) { toast.error('Errore caricamento sponsor'); }
+  };
+
+  const saveSponsors = async (filmId) => {
+    setSponsorLoading(true);
+    try {
+      const ids = Object.keys(selectedSponsors).filter(k => selectedSponsors[k]);
+      const res = await api.post(`/film-pipeline/${filmId}/select-sponsors`, { sponsor_ids: ids });
+      toast.success(res.data.message);
+      setSponsorOpen(null);
+      refreshUser(); fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setSponsorLoading(false); }
+  };
 
   const fetch = useCallback(async () => {
     try { const res = await api.get('/film-pipeline/pre-production'); setFilms(res.data.films || []); }
@@ -947,6 +1045,71 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                 </div>
               )}
 
+              {/* Sponsor summary if selected */}
+              {f.sponsors?.length > 0 && (
+                <div className="p-2 bg-cyan-500/5 rounded border border-cyan-500/20 text-[10px] text-gray-400 space-y-0.5">
+                  <p className="text-[9px] text-cyan-400 font-medium">Sponsor selezionati:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {f.sponsors.map(sp => (
+                      <Badge key={sp.id} className="text-[8px] h-4" style={{ backgroundColor: sp.logo_color + '20', color: sp.logo_color, borderColor: sp.logo_color + '40' }}>
+                        {sp.name}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p>Incasso sponsor: <span className="text-green-400">${(f.sponsor_money || 0).toLocaleString()}</span> | Rev. share: <span className="text-red-400">{f.sponsor_rev_share_pct || 0}%</span> | Affluenza: <span className="text-blue-400">+{f.sponsor_attendance_boost_pct || 0}%</span></p>
+                </div>
+              )}
+
+              {/* Sponsor selection popup */}
+              {sponsorOpen === f.id && (
+                <div className="p-2 mb-2 rounded border border-cyan-500/30 bg-cyan-500/5 space-y-1.5" data-testid={`sponsor-popup-${f.id}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-cyan-400">Offerte Sponsor (max {maxSponsors})</p>
+                    <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setSponsorOpen(null)}><X className="w-3 h-3" /></Button>
+                  </div>
+                  <p className="text-[8px] text-gray-500">Gli sponsor ti offrono denaro in cambio di una % sugli incassi. La loro fama aumenta l'affluenza al cinema (non il punteggio IMDb).</p>
+                  <div className="grid grid-cols-1 gap-1 max-h-[300px] overflow-y-auto pr-1">
+                    {sponsorOffers.map(sp => {
+                      const isSelected = !!selectedSponsors[sp.id];
+                      const selectedCount = Object.values(selectedSponsors).filter(Boolean).length;
+                      const canSelect = isSelected || selectedCount < maxSponsors;
+                      return (
+                        <label key={sp.id} className={`flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-all ${isSelected ? 'border-cyan-500 bg-cyan-500/10' : canSelect ? 'border-gray-700 hover:border-gray-600' : 'border-gray-800 opacity-40'}`}>
+                          <input type="checkbox" checked={isSelected} disabled={!canSelect}
+                            onChange={e => setSelectedSponsors(p => ({...p, [sp.id]: e.target.checked}))}
+                            className="accent-cyan-500 w-3 h-3" data-testid={`sponsor-check-${sp.id}`} />
+                          <div className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: sp.logo_color }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-medium">{sp.name}</span>
+                              <Badge className="text-[7px] h-3 bg-gray-600/20 text-gray-400">{sp.category}</Badge>
+                            </div>
+                            <div className="flex items-center gap-2 text-[8px] text-gray-500">
+                              <span>Fama: {sp.fame}</span>
+                              <span className="text-red-400">Rev. share: {sp.revenue_share_pct}%</span>
+                              <span className="text-blue-400">Affluenza: +{sp.attendance_boost_pct}%</span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-green-400 font-medium whitespace-nowrap">${(sp.offer_amount / 1000).toFixed(0)}K</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[9px] text-gray-400">
+                      <span>Selezionati: <span className="text-cyan-400">{Object.values(selectedSponsors).filter(Boolean).length}/{maxSponsors}</span></span>
+                      <span className="ml-2">Incasso: <span className="text-green-400">${(sponsorOffers.filter(s => selectedSponsors[s.id]).reduce((sum, s) => sum + s.offer_amount, 0) / 1000).toFixed(0)}K</span></span>
+                      <span className="ml-2">Rev. share tot: <span className="text-red-400">{sponsorOffers.filter(s => selectedSponsors[s.id]).reduce((sum, s) => sum + s.revenue_share_pct, 0).toFixed(1)}%</span></span>
+                    </div>
+                    <Button size="sm" className="bg-cyan-700 hover:bg-cyan-800 text-[10px] h-6"
+                      onClick={() => saveSponsors(f.id)} disabled={sponsorLoading || Object.values(selectedSponsors).filter(Boolean).length === 0}
+                      data-testid={`save-sponsors-${f.id}`}>
+                      {sponsorLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-0.5" />} Conferma
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2 flex-wrap">
                 {!hasSetup && (
                   <Button size="sm" variant="outline" className="text-xs border-orange-700 text-orange-400"
@@ -954,6 +1117,11 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                     <Settings className="w-3 h-3 mr-1" /> Setup Produzione
                   </Button>
                 )}
+                <Button size="sm" variant="outline" className="text-xs border-cyan-700 text-cyan-400"
+                  onClick={() => openSponsors(f.id)} data-testid={`sponsors-btn-${f.id}`}>
+                  <DollarSign className="w-3 h-3 mr-0.5" /> Sponsor
+                  {f.sponsors?.length > 0 && <Badge className="ml-1 bg-green-500/20 text-green-400 text-[8px] h-4">{f.sponsors.length}</Badge>}
+                </Button>
                 {!f.remaster_started_at && (
                   <Button size="sm" variant="outline" className="text-xs border-yellow-700 text-yellow-400"
                     disabled={actionLoading === `rem-${f.id}`} onClick={() => remaster(f.id)} data-testid={`remaster-${f.id}`}>
@@ -968,7 +1136,6 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
                 <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-8 px-2"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
-                    if (!window.confirm(`Scartare "${f.title}"?`)) return;
                     setActionLoading(`discard-${f.id}`);
                     try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                     catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -1239,6 +1406,20 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                   <p className="text-green-400 text-xs font-medium">+{releaseResult.xp_gained} XP guadagnati!</p>
                 </div>
               </div>
+
+              {/* Sponsors on release */}
+              {releaseResult.sponsors?.length > 0 && (
+                <div className="text-[9px] text-gray-400 p-2 bg-cyan-500/5 rounded border border-cyan-500/20">
+                  <p className="text-[10px] font-medium text-cyan-300 mb-1">Sponsorizzato da:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {releaseResult.sponsors.map(sp => (
+                      <Badge key={sp.id || sp.name} className="text-[8px] h-4" style={{ backgroundColor: (sp.logo_color || '#666') + '20', color: sp.logo_color || '#aaa' }}>
+                        {sp.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Modifiers summary */}
               <div className="text-[9px] text-gray-400 p-2 bg-black/30 rounded space-y-0.5">

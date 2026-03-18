@@ -62,7 +62,8 @@ const CineBoard = () => {
     const translations = {
       cineboard: language === 'it' ? 'CineBoard' : 'CineBoard',
       nowPlaying: language === 'it' ? 'In Sala (Top 50)' : 'Now Playing (Top 50)',
-      hallOfFame: language === 'it' ? 'Hall of Fame' : 'Hall of Fame',
+      daily: language === 'it' ? 'Giornaliera' : 'Daily',
+      weekly: language === 'it' ? 'Settimanale' : 'Weekly',
       attendance: language === 'it' ? 'Affluenze' : 'Attendance',
       rank: language === 'it' ? 'Pos' : 'Rank',
       score: language === 'it' ? 'Punteggio' : 'Score',
@@ -82,7 +83,12 @@ const CineBoard = () => {
         .catch(() => setAttendanceData(null))
         .finally(() => setLoading(false));
     } else {
-      const endpoint = activeTab === 'now_playing' ? '/cineboard/now-playing' : '/cineboard/hall-of-fame';
+      const endpointMap = {
+        now_playing: '/cineboard/now-playing',
+        daily: '/cineboard/daily',
+        weekly: '/cineboard/weekly'
+      };
+      const endpoint = endpointMap[activeTab] || '/cineboard/now-playing';
       api.get(endpoint)
         .then(r => setFilms(r.data.films || []))
         .catch(() => setFilms([]))
@@ -157,16 +163,21 @@ const CineBoard = () => {
       
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-        <TabsList className="grid w-full grid-cols-3 bg-[#1A1A1A]">
+        <TabsList className="grid w-full grid-cols-4 bg-[#1A1A1A]">
           <TabsTrigger value="now_playing" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-xs sm:text-sm">
             <Film className="w-4 h-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">{t('nowPlaying')}</span>
             <span className="sm:hidden">Top 50</span>
           </TabsTrigger>
-          <TabsTrigger value="hall_of_fame" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-xs sm:text-sm">
-            <Award className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">{t('hallOfFame')}</span>
-            <span className="sm:hidden">Fame</span>
+          <TabsTrigger value="daily" className="data-[state=active]:bg-green-500 data-[state=active]:text-black text-xs sm:text-sm">
+            <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t('daily')}</span>
+            <span className="sm:hidden">Oggi</span>
+          </TabsTrigger>
+          <TabsTrigger value="weekly" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-xs sm:text-sm">
+            <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t('weekly')}</span>
+            <span className="sm:hidden">Settimana</span>
           </TabsTrigger>
           <TabsTrigger value="attendance" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white text-xs sm:text-sm">
             <Users className="w-4 h-4 mr-1 sm:mr-2" />
@@ -238,7 +249,13 @@ const CineBoard = () => {
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <Badge className="bg-white/10 text-gray-300 text-[10px] h-5">{film.genre}</Badge>
                     <span className="text-[10px] text-yellow-400"><Star className="w-3 h-3 inline" /> {film.quality_score?.toFixed(0)}%</span>
-                    <span className="text-[10px] text-green-400">${((film.total_revenue || 0) / 1000000).toFixed(1)}M</span>
+                    {activeTab === 'daily' && film.daily_revenue != null ? (
+                      <span className="text-[10px] text-green-400">${((film.daily_revenue || 0) / 1000000).toFixed(2)}M oggi</span>
+                    ) : activeTab === 'weekly' && film.weekly_revenue != null ? (
+                      <span className="text-[10px] text-green-400">${((film.weekly_revenue || 0) / 1000000).toFixed(2)}M sett.</span>
+                    ) : (
+                      <span className="text-[10px] text-green-400">${((film.total_revenue || 0) / 1000000).toFixed(1)}M</span>
+                    )}
                     
                     {/* CineBoard Score */}
                     <div className="ml-auto flex items-center gap-1">

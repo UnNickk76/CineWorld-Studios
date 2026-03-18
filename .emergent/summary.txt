@@ -1,54 +1,48 @@
 <analysis>**original_problem_statement:**
-The user is continuing a major overhaul of their cinematic empire simulation game. In this session, the user requested a series of significant feature additions and UI/UX refinements to the newly implemented multi-step film production pipeline.
+The user wants to add several major gameplay features and UI improvements to their cinematic empire game. The core requests are:
 
-The core requests included:
-1.  **UI/Navigation Changes:** Restructure the main navigation, rename key features (e.g., Crea Film to Produci!), remove obsolete sections (Bozze, Pre-Ingaggio), and add a dedicated Mercato (Marketplace) page.
-2.  **Gameplay Deepening:**
-    *   Add new production variables: a slider for  (extras), genre-specific  packages, and  packs, all influencing the final film score.
-    *   Expand actor roles to include .
-    *   Add a  (soundtrack score) to the final evaluation.
-3.  **Casting Improvements:**
-    *   Make cast selection more informative by showing skill bars, gender, age, nationality, fame level, and work history.
-    *   Make agent proposals more dynamic, influenced by player fame, and increase the number of actor candidates.
-4.  **Bug Fixes & UX:** Address multiple issues identified by the user via screenshots, including incorrect counters, flawed logic in infrastructure pages, and unfair casting mechanics.
-5.  **Tutorial & Onboarding:** Update the in-game tutorial to reflect all the new systems and add prominent, easy-to-find buttons to access it.
+1.  **Equipment System:** Add a new step during the Casting phase to purchase film equipment. This should be a clickable button opening a popup with ~10 equipment package options, each with a name, cost, description, and a value that impacts the final film score.
+2.  **Sponsor System:** Add a new step during the Pre-Production phase to select sponsors. This should be a clickable button with ~20 sponsor proposals.
+    *   Sponsor offers should scale with the film's potential value and the player's fame.
+    *   Players can select multiple sponsors (1 to 6).
+    *   Sponsors provide immediate cash (deducted from the film's cost) but take a percentage of the film's hourly box office revenue.
+    *   Sponsors' fame should boost cinema attendance (up to +30%) but **not** the IMDb score.
+    *   Sponsor names must appear on the final film poster and in the release announcement popup.
+3.  **Cineboard Overhaul:** In the Cineboard section, replace the Fame leaderboard with Daily and Weekly leaderboards, maintaining the existing clickable menu style.
+4.  **Customizable Posters:** In the Screenplay phase, after the script is complete, add a section for poster creation with three options:
+    *   AI-generated based on the script.
+    *   AI-generated based on a custom user prompt.
+    *   Selection from a list of pre-made classic poster templates.
+5.  **UI/UX Fixes:**
+    *   Address a bug where buying a pre-written screenplay from a writer leads to a broken, non-persistent creation flow.
+    *   Fix multiple bugs reported via screenshots, including non-working discard buttons, actor selection limits, and broken contest UI.
+    *   Restore the full-featured film detail page (with poster, reviews, box office) for films released from the new pipeline.
+    *   Fix the IMDb score calculation, which was consistently returning 10.0.
+    *   Update the film release popup to include a specific cinema background image and more detailed initial stats.
+    *   Rearrange the dashboard layout.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game with a complex, multi-step film production pipeline. During this session, the agent successfully implemented a vast number of user-requested features, significantly deepening the gameplay and refining the user experience.
+The application is a full-stack cinematic empire simulation game. The agent has successfully implemented the core logic for the new **Equipment** and **Sponsor** systems, including backend constants, API endpoints, and updates to the final film scoring/revenue logic. The frontend has been updated with buttons and non-functional popups for these features.
 
-Key completed items include:
-*   A fully functional **Marketplace** for discarded films, replacing the obsolete Drafts system.
-*   A new **Production Setup** phase within the pipeline, allowing players to configure extras, CGI, and VFX for their films, with costs and scoring impact.
-*   A revamped **Casting** interface that shows detailed actor skills via progress bars and allows assigning specific roles, including the new Co-Protagonist role.
-*   Updated backend scoring logic to account for soundtrack, extras, CGI, and VFX.
-*   Numerous UI/UX improvements, including navigation changes, clearer button naming (Produci!), and a highly visible Tutorial button.
-*   Multiple bug fixes related to casting logic, infrastructure page data, and casting costs.
-*   The in-game tutorial and release notes have been updated to reflect all the new features.
+A major regression was fixed where films released from the new pipeline were missing critical data; they now generate a complete film object with an AI-generated poster, critic reviews, box office data, and more. The user's request for **customizable posters** during the screenplay phase has been fully implemented.
+
+Numerous critical bugs have been resolved, including a broken screenplay purchase flow, a non-functional discard button, actor selection limits, and incorrect UI data rendering. The dashboard layout has also been updated as requested.
 
 **Last working item**:
-- **Last item agent was working:** The agent was just about to start implementing a new set of user requests provided in message #507.
-- **Status:** NOT STARTED
+- **Last item agent was working:** The agent was implementing the **Equipment** and **Sponsor** systems. The backend logic and frontend UI shells (buttons, popups) were created. The agent also began implementing the **Cineboard leaderboard** changes.
+- **Status:** IN PROGRESS
 - **Agent Testing Done:** N
 - **Which testing method agent to use?** both
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: (P2) Donation Popup Appears Repeatedly:** A recurring bug where the donation popup shows on every login and page reload.
-- **Issue 2: (P2) Contest Page Mobile Layout Is Broken:** A known, recurring issue where the  page is not rendered correctly on mobile devices.
+- **Issue 1: (P2) Contest Page Mobile Layout Is Broken**
+  - A known, recurring issue where the  page is not rendered correctly on mobile devices.
 
 **Issues Detail:**
-- **Issue 1: Donation Popup Appears Repeatedly**
-    - **Attempted fixes:** Multiple failed attempts in previous sessions.
-    - **Next debug checklist:** The user has requested to pause work on this. Do not attempt another fix unless requested.
-    - **Why fix this issue and what will be achieved with the fix?** Resolves a major user annoyance.
-    - **Status:** BLOCKED
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** both
-    - **Blocked on other issue:** None
-
-- **Issue 2: Contest Page Mobile Layout Is Broken**
+- **Issue 1: Contest Page Mobile Layout Is Broken**
     - **Attempted fixes:** None in this session.
     - **Next debug checklist:** Inspect the CSS and component structure of  in a mobile viewport to identify and fix the layout issues.
     - **Why fix this issue and what will be achieved with the fix?** Improves the accessibility and usability of the game's contest features for mobile users.
@@ -58,147 +52,133 @@ Key completed items include:
     - **Blocked on other issue:** None
 
 **In progress Task List**:
-None.
+- **Task 1: Complete Equipment and Sponsor Implementation (P0)**
+  - **Where to resume:**
+    1.  **Backend:** The endpoints (, ) and release logic are in place but untested. The logic for sponsor attendance boost needs verification.
+    2.  **Frontend:** The UI for selecting equipment and sponsors within their respective popups in  needs to be fully implemented and connected to the backend. State management for selections and cost/revenue updates is required.
+  - **What will be achieved with this?** Two major gameplay mechanics will be added, deepening the strategic depth of film production.
+  - **Status:** IN PROGRESS
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P0) Implement New UI and Casting Features (from message #507):**
-    - **UI Layout:** Make the Produci! button in the bottom nav take up two spaces. Add a Mercato button to the bottom nav, replacing the old board icon.
-    - **Actor Details:** Add icons/data for gender, age, and nationality to each actor.
-    - **Actor Info:** Display fame level (e.g., sconosciuto, emergente), growth trends, and an indicator if they've worked with the player before.
-    - **Dynamic Casting:** Adjust agent logic to propose more sconosciuti/emergenti actors to players with low fame.
-    - **More Actors:** Double the number of actor proposals from agents.
+  - **(P0) Cineboard Leaderboard Overhaul:** Implement the Daily and Weekly leaderboards, replacing the Fame leaderboard. This requires backend endpoint changes and frontend updates to .
 - **Future Tasks:**
-  - **(P1) New Infrastructure: Casting Agency:** User has requested a new infrastructure section for a Casting Agency that could be used by other players for a fee. This needs to be designed and implemented.
-  - **(P1) Refactor :** This monolithic backend file is still a top-priority technical debt item.
+  - **(P1) New Infrastructure: Casting Agency:** A user-requested feature for a new building that other players can use for a fee.
+  - **(P1) Refactor :** This monolithic file remains a top-priority technical debt item.
   - **(P1) Implement Admin RBAC System:** Replace the hardcoded admin check with a proper role-based access control system.
-  - **(P2) Refactor :** Decompose the large component into smaller, specialized components.
+  - **(P2) Refactor  & :** Decompose these large components into smaller, specialized components.
 
 **Completed work in this session**
-- **Feature: Production Setup:** Implemented a new UI in the Pre-Production tab for configuring  (extras) via a slider, and selecting genre-specific  and  packages. The backend was updated to handle costs and integrate these choices into the final film score.
-- **Feature: Marketplace for Discarded Films:** Replaced the obsolete Bozze (Drafts) system with a fully functional Mercato page, allowing players to buy and sell discarded film projects. This included fixing a backend bug in the  logic.
-- **Feature: Advanced Casting UI:**
-  - Implemented clickable, expandable sections for each cast role.
-  - Added visible skill bars (with color-coding) for all candidates.
-  - Added a dropdown menu next to each actor candidate to assign a specific role (, , , etc.).
-- **Feature: Scoring Logic Enhancement:** Added a  to the final film evaluation logic and updated the backend to save and display it.
-- **Feature: Multi-Select UI:** Implemented multi-select for subgenres (as clickable badges) and locations (in categorized groups) for the film proposal phase.
-- **Bug Fixes & UX (Batch 1):**
-  - Fixed student counters in the Acting School.
-  - Corrected the Post-Production Studio to only show films in the  status.
-  - Reduced casting speed-up costs and implemented variable agent proposals per role.
-  - Added the player's nickname to the dashboard header.
-- **UI/Navigation Overhaul:**
-  - Renamed Crea Film to Produci! and updated all relevant navigation links.
-  - Removed the Pre-Ingaggio feature entirely from the UI and backend routes.
-  - Simplified the Sceneggiature Studio to only offer the complete package purchase.
-- **Documentation & Onboarding:**
-  - Updated the multi-step  to reflect all the new gameplay mechanics.
-  - Added a prominent, colored tutorial icon/button to both the top and bottom navigation bars for easy access.
-- **System Updates:** Updated the  and added a new system note via API to inform players of the changes.
+- **CRITICAL FIX: Film Release Pipeline Restored:** Completely rewrote the  function () to generate a full film object, including an AI-generated poster, critic reviews, IMDb score, box office data, and more. This fixed a major regression.
+- **CRITICAL FIX: Screenplay Purchase Flow:** Fixed the  endpoint and  to correctly create a persistent  in the new pipeline, preventing loss of money and progress.
+- **Feature: Customizable Posters:** Implemented a new UI in  (ScreenplayTab) allowing users to generate a poster via AI (with/without prompt) or choose a classic template. Added the backend endpoint .
+- **Feature: Enhanced Casting UI:** Implemented a richer casting interface showing actor gender, age, nationality, fame, growth trends, work history, and an IMDb-style score.
+- **Feature: UI/UX Overhaul:**
+    - Updated the dashboard layout () to feature a larger Produci! card and a new Mercato card.
+    - Added a Discard button to all phases of the film pipeline.
+    - Created a new, visually rich release popup with a custom background image and key film stats.
+- **Bug Fixes:**
+    - **IMDb Score:** Fixed the calculation in .
+    - **Actor Selection:** Removed the bug in  that prevented hiring more than one actor.
+    - **Discard Logic:** Fixed the discard button by removing problematic  calls and ensuring backend logic was sound.
+    - **Marketplace:** The marketplace now correctly shows the user's own discarded films (as non-purchasable) and features a detailed info popup. The buy logic correctly restores films to their pre-discard status.
+    - **Contest UI:** Fixed the Quiz Registi in  which was appearing as a blank popup.
+    - **Proposal Visibility:** Hid bonus score factors from the UI for proposals and CGI/VFX packages.
 
 **Earlier issues found/mentioned but not fixed**
 - **Issue 1: Contest Page Mobile Layout Is Broken**
-  - **Debug checklist:** Inspect  and its associated CSS using browser developer tools in a mobile viewport.
-  - **Why to solve this issue and what will be achieved with this?** To provide a consistent and usable experience for players on all devices.
+  - **Debug checklist:** Inspect  and its CSS in a mobile viewport.
+  - **Why to solve this issue and what will be achieved with this?** To provide a consistent experience on all devices.
   - **Should Test frontend/backend/both after fix:** frontend
   - **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork:** Donation popup bug, Contest Page Mobile Layout issue.
-- **Recurrence count:** High (Donation popup), Low (Mobile Layout).
-- **Status:** BLOCKED (Donation Popup), NOT STARTED (Mobile Layout).
+- **Issue recurrence in previous fork:** Donation popup bug (now resolved per user feedback), Contest Page Mobile Layout issue.
+- **Recurrence count:** Low (Mobile Layout).
+- **Status:** NOT STARTED (Mobile Layout).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Dynamic UI Generation:** The frontend now dynamically fetches and displays CGI/VFX packages based on the selected film genre.
-- **Complex State Management:** The  component manages a complex state including multi-select arrays for subgenres/locations, slider values for extras, and selections for CGI/VFX.
-- **Backend-Driven UI:** The casting UI relies on detailed data from the backend, including skill levels, agent info, and costs, to render informative components.
-- **Modular Constants:** New game design elements (CGI/VFX packages, actor roles) were centralized in a  file for easier management.
-- **Feature Deprecation:** Successfully removed an obsolete feature (Pre-Ingaggio) by deleting its components, routes, and navigation links across the frontend.
+- **Monolithic Refactoring (In-place):** The  function was rewritten to consolidate logic from a deprecated endpoint, improving modularity within the new pipeline router.
+- **Stateful Pipeline:** The film creation process is now more stateful. Data like a custom poster, chosen equipment, and selected sponsors are saved progressively onto the  document in MongoDB.
+- **Backend-Driven Game Mechanics:** New features (Equipment, Sponsors) are defined as constants in , loaded via API, and their effects are calculated on the backend during the release phase, ensuring a single source of truth for game rules.
+- **AI Integration:** Poster generation was added with multiple modes: automatic from script, custom prompt-driven, and template-based.
 
 **key DB schema**
+- **film_projects:**
+  - : (New) Array of objects 
+  - : (New) Array of objects 
+  - : (New) String URL for the custom-generated or selected poster.
+  - : (New) Boolean flag to identify projects from the screenplay market.
 - **films:**
-  - : Array of objects, now includes  for each actor.
-  - : (New Object) Stores  (Number),  (Object), and  (Object).
-  - : (String) Fixed a bug to correctly store the film's status before it was sent to the marketplace.
-- **users:**
-  - : Added to the user object returned on login to be displayed on the dashboard.
+  - The document created upon release is now comprehensive, including , , , , , , , etc.
 
 **All files of reference**
-- : Core logic for all new production features.
-- : The main frontend component for the film creation process, heavily modified.
-- : Numerous endpoints were updated to support the new features and bug fixes.
-- : New page for the film marketplace.
-- : Routing table was updated.
-- : Tutorial content was updated.
-- : New file holding game design data.
-- : All UI text changes.
+- : The core backend logic for the entire production pipeline.
+- : The core frontend component for film creation.
+- : Holds definitions for new game mechanics (Equipment, Sponsors).
+- : Main user landing page.
+- : Where the fixed purchase flow starts.
+- : Contains legacy endpoints and bug fixes.
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** This file remains extremely large and is a significant source of technical debt.
-- ** (HIGH):** This component has grown substantially to accommodate all the new features. It should be broken down into smaller, more manageable sub-components (e.g., , , , ).
+- ** (CRITICAL):** Still contains a large amount of legacy logic that should be migrated or deprecated.
+- ** (HIGH):** Has become extremely large and complex. It should be broken down into smaller sub-components for each tab (, , etc.).
+- ** (HIGH):** This component is large and handles significant data loading.
 
 **key api endpoints**
-- : (New) Saves the extras, CGI, and VFX configuration for a film.
-- : (New) Fetches available CGI and VFX packages for a given genre.
-- : (Updated) Now accepts arrays for  and .
-- : (Updated) Now accepts an  for each selected actor.
-- : (Updated) Scoring logic was expanded to include soundtrack, extras, CGI, and VFX bonuses/penalties.
-- : (New) Fetches all discarded films available for purchase.
-- : (New) Allows a player to purchase a film from the marketplace.
+- : (New) Saves selected equipment to a film project.
+- : (New) Saves selected sponsors to a film project.
+- : (New) Generates and saves a poster URL to a film project.
+- : (Heavily Updated) Creates a complete  document with all gameplay data.
+- : (Updated) Now creates a  directly in the pipeline.
 
 **Critical Info for New Agent**
 - **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **TOP PRIORITY:** The next task is to begin implementing the user's latest request from message #507, focusing on the UI changes and new actor details in the casting process.
-- **PAUSED TASK:** Do **NOT** work on the recurring donation popup bug unless the user explicitly asks you to.
-- **Refactoring:** Be mindful of the large size of  and . While the user has not requested a refactor, new logic should be as modular as possible.
+- **TOP PRIORITY:** The next steps are to complete the implementation of the **Equipment** and **Sponsor** systems (connecting the frontend popups to the backend) and then implement the **Cineboard leaderboards** as requested in message #586.
+- **User Feedback:** The user has noted that a long-standing bug with a donation popup seems to have resolved itself. Do not investigate it unless the user reports it again.
 
 **documents and test reports created in this job**
-- Multiple  files were generated from successful test runs.
--  was updated.
--  was updated.
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Msg #345/346):** Decides to remove the Pre-Ingaggio feature and simplify the Sceneggiature studio.
-2.  **Agent:** Implements the removal and simplification.
-3.  **User (Msg #330/333):** Asks for several features: clickable cast with visible skills, a role dropdown for actors, and asks about soundtrack score.
-4.  **Agent:** Implements all three features.
-5.  **User (Msg #444):** Requests a major new feature set: Co-protagonista role, a slider for extras (comparse), and genre-specific CGI/VFX packages.
-6.  **Agent:** Implements the entire feature set.
-7.  **User (Msg #507):** Requests another batch of features/UI changes:
-    *   Make the Produci! button larger in the bottom nav.
-    *   Add a Mercato button to the bottom nav.
-    *   Add more actor details: gender icon, age, nationality, fame, growth trends, work history.
-    *   Make agent proposals smarter based on player fame.
-    *   Double the number of actor proposals.
-    *   Proposes a future Casting Agency infrastructure.
-8.  **Agent:** Acknowledges the request and begins analyzing the codebase. This is the current pending task.
+1.  **User (Msg #536):** Reports a critical bug where buying a screenplay leads to a broken, non-persistent flow, losing money and progress.
+2.  **Agent:** Identifies the cause (navigation to old wizard, no DB persistence) and fixes it by having the backend create a  and navigating the frontend to the correct pipeline page.
+3.  **User (Msg #586):** Requests a large batch of new features: Equipment system, Sponsor system, and a Cineboard leaderboard overhaul.
+4.  **Agent:** Acknowledges and starts planning.
+5.  **User (Msg #589):** Clarifies that sponsors should affect cinema attendance/revenue, not the IMDb score.
+6.  **Agent:** Acknowledges the clarification and proceeds with backend implementation for Equipment and Sponsors.
+7.  **User (Msg #492-495):** Notes that the donation popup bug seems to be gone and the app feels more stable. Starts a new playtesting session.
+8.  **User (Msg #496):** Reports that bonus values are visible on CGI/VFX packages and should be hidden.
+9.  **Agent:** Hides the bonus values.
+10. **User (Msg #502):** Reports a bug in the Contest page where a quiz popup is blank.
+11. **Agent:** Fixes the UI logic in  to correctly display the quiz content.
 
 **Project Health Check:**
 - **Broken:**
-  - **Contest Page Mobile Layout:** The  page remains unusable on mobile devices.
+    - **Contest Page Mobile Layout:** The  page remains unusable on mobile devices.
 - **Mocked:**
-  - None.
+    - None.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
-- **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
+- **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key. Used for generating film synopses and critic reviews.
+- **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key. Used for generating film posters.
 - **Pillow:** Used for image manipulation.
-- **APScheduler:** Used for backend scheduled tasks.
-- **PayPal.me:** External link for donations.
+- **APScheduler:** Used for backend scheduled tasks (e.g., box office updates).
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. The agent used  successfully after every major feature implementation and bug fix batch, achieving 100% pass rates.
+- **Testing agent used after significant changes:** YES, once early in the session.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** []
-- **Known regressions:** None in this session.
+- **Known regressions:** A major regression with the film release process was identified and fixed during this session.
 
 **Credentials to test flow:**
 - **User:** 
 - **Password:** 
 
 **What agent forgot to execute**
-- The long-standing **Contest Page mobile layout** issue remains unaddressed. All other user requests from this session were completed.</analysis>
+- The **Cineboard leaderboard update** from user message #586 was acknowledged but not started. This is the next highest priority after completing the Equipment/Sponsor feature.</analysis>

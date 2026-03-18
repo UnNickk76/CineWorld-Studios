@@ -53,6 +53,45 @@ EXTRAS_OPTIMAL = {
 }
 EXTRAS_COST_PER_PERSON = 500  # $500 per extra
 
+
+# === EQUIPMENT PACKAGES ===
+EQUIPMENT_PACKAGES = [
+    {'id': 'basic_cam', 'name': 'Telecamere Base', 'desc': 'Kit telecamere HD standard per produzioni indipendenti', 'base_cost': 50000, 'quality_bonus': 1.5, 'tier': 'base'},
+    {'id': 'pro_cam', 'name': 'Telecamere Professionali', 'desc': 'RED Komodo 6K + set di ottiche Zeiss cinematografiche', 'base_cost': 150000, 'quality_bonus': 3.5, 'tier': 'pro'},
+    {'id': 'lighting_std', 'name': 'Illuminazione Standard', 'desc': 'Kit luci LED Arri Skypanel + diffusori e bandiere', 'base_cost': 40000, 'quality_bonus': 1.0, 'tier': 'base'},
+    {'id': 'lighting_pro', 'name': 'Illuminazione Cinematografica', 'desc': 'Sistema HMI 18K + Fresnel Tungsten + Kino Flo per ogni set', 'base_cost': 120000, 'quality_bonus': 2.5, 'tier': 'pro'},
+    {'id': 'audio_std', 'name': 'Audio Standard', 'desc': 'Microfoni boom Sennheiser + mixer portatile', 'base_cost': 30000, 'quality_bonus': 1.0, 'tier': 'base'},
+    {'id': 'audio_dolby', 'name': 'Audio Dolby Atmos', 'desc': 'Registrazione Dolby Atmos completa con 128 tracce + foley studio', 'base_cost': 200000, 'quality_bonus': 4.0, 'tier': 'premium'},
+    {'id': 'steadicam', 'name': 'Steadicam & Gimbal', 'desc': 'DJI Ronin 4D + Steadicam Archer per riprese fluide', 'base_cost': 80000, 'quality_bonus': 2.0, 'tier': 'pro'},
+    {'id': 'crane_drone', 'name': 'Gru e Droni Cinematografici', 'desc': 'Gru Technocrane 50ft + DJI Inspire 3 per riprese aeree mozzafiato', 'base_cost': 180000, 'quality_bonus': 3.0, 'tier': 'premium'},
+    {'id': 'green_screen', 'name': 'Studio Green Screen', 'desc': 'Cyclorama 360° con tracking markers per compositing perfetto', 'base_cost': 100000, 'quality_bonus': 2.5, 'tier': 'pro'},
+    {'id': 'imax_rig', 'name': 'Rig IMAX 70mm', 'desc': 'Telecamere IMAX proprietarie per la massima risoluzione e impatto visivo', 'base_cost': 500000, 'quality_bonus': 6.0, 'tier': 'premium'},
+]
+
+# === SPONSORS ===
+SPONSORS = [
+    {'id': 'sip_cola', 'name': 'SipCola', 'fame': 95, 'logo_color': '#E31937', 'category': 'beverage'},
+    {'id': 'nexus_auto', 'name': 'Nexus Automotive', 'fame': 90, 'logo_color': '#1A3D7C', 'category': 'automotive'},
+    {'id': 'royal_air', 'name': 'Royal Air Lines', 'fame': 85, 'logo_color': '#003366', 'category': 'travel'},
+    {'id': 'volt_tech', 'name': 'VoltTech Electronics', 'fame': 88, 'logo_color': '#00C9FF', 'category': 'tech'},
+    {'id': 'bella_moda', 'name': 'Bella Moda', 'fame': 82, 'logo_color': '#FF69B4', 'category': 'fashion'},
+    {'id': 'aurora_bank', 'name': 'Aurora Bank', 'fame': 78, 'logo_color': '#DAA520', 'category': 'finance'},
+    {'id': 'titan_sport', 'name': 'Titan Sport', 'fame': 75, 'logo_color': '#FF4500', 'category': 'sport'},
+    {'id': 'sapore_italiano', 'name': 'Sapore Italiano', 'fame': 70, 'logo_color': '#228B22', 'category': 'food'},
+    {'id': 'golden_watch', 'name': 'Golden Watch Co.', 'fame': 92, 'logo_color': '#B8860B', 'category': 'luxury'},
+    {'id': 'planet_green', 'name': 'Planet Green Energy', 'fame': 65, 'logo_color': '#32CD32', 'category': 'energy'},
+    {'id': 'star_mobile', 'name': 'StarMobile', 'fame': 80, 'logo_color': '#6A0DAD', 'category': 'tech'},
+    {'id': 'domina_hotels', 'name': 'Domina Hotels', 'fame': 72, 'logo_color': '#8B4513', 'category': 'hospitality'},
+    {'id': 'viaggio_cruise', 'name': 'Viaggio Cruise', 'fame': 68, 'logo_color': '#4169E1', 'category': 'travel'},
+    {'id': 'ferro_costruzioni', 'name': 'Ferro Costruzioni', 'fame': 55, 'logo_color': '#708090', 'category': 'construction'},
+    {'id': 'natura_cosmetici', 'name': 'Natura Cosmetici', 'fame': 60, 'logo_color': '#DDA0DD', 'category': 'beauty'},
+    {'id': 'blitz_energy', 'name': 'Blitz Energy Drink', 'fame': 50, 'logo_color': '#00FF00', 'category': 'beverage'},
+    {'id': 'omega_pharma', 'name': 'Omega Pharma', 'fame': 73, 'logo_color': '#20B2AA', 'category': 'health'},
+    {'id': 'cinema_world', 'name': 'Cinema World Magazine', 'fame': 45, 'logo_color': '#FF6347', 'category': 'media'},
+    {'id': 'velox_logistics', 'name': 'Velox Logistics', 'fame': 40, 'logo_color': '#FF8C00', 'category': 'logistics'},
+    {'id': 'primo_assicurazioni', 'name': 'Primo Assicurazioni', 'fame': 58, 'logo_color': '#4682B4', 'category': 'insurance'},
+]
+
 # === CGI PACKAGES by Genre ===
 CGI_PACKAGES = {
     'horror': [
@@ -1097,6 +1136,164 @@ Scrivi TUTTO in italiano."""
     }
 
 
+
+# === EQUIPMENT ENDPOINTS ===
+@router.get("/film-pipeline/{project_id}/equipment-options")
+async def get_equipment_options(project_id: str, user: dict = Depends(get_current_user)):
+    """Get available equipment packages with costs scaled by pre-IMDb."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    # Scale costs: higher pre-IMDb = more expensive equipment available
+    cost_multiplier = 0.7 + (pre_imdb / 10) * 0.6  # 0.7x to 1.3x
+    options = []
+    for eq in EQUIPMENT_PACKAGES:
+        scaled_cost = int(eq['base_cost'] * cost_multiplier)
+        options.append({
+            'id': eq['id'], 'name': eq['name'], 'desc': eq['desc'],
+            'cost': scaled_cost, 'tier': eq['tier']
+        })
+    already_selected = project.get('equipment', [])
+    return {'options': options, 'selected': already_selected}
+
+class EquipmentSelect(BaseModel):
+    equipment_ids: List[str]
+
+@router.post("/film-pipeline/{project_id}/select-equipment")
+async def select_equipment(project_id: str, req: EquipmentSelect, user: dict = Depends(get_current_user)):
+    """Select equipment packages for a film in casting."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project['status'] != 'casting':
+        raise HTTPException(status_code=400, detail="Le attrezzature si scelgono durante il casting")
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    cost_multiplier = 0.7 + (pre_imdb / 10) * 0.6
+    selected = []
+    total_cost = 0
+    total_bonus = 0.0
+    for eq_id in req.equipment_ids:
+        eq = next((e for e in EQUIPMENT_PACKAGES if e['id'] == eq_id), None)
+        if not eq:
+            continue
+        cost = int(eq['base_cost'] * cost_multiplier)
+        selected.append({'id': eq['id'], 'name': eq['name'], 'cost': cost, 'tier': eq['tier']})
+        total_cost += cost
+        total_bonus += eq['quality_bonus']
+    # Check funds
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if (u.get('funds', 0)) < total_cost:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${total_cost:,}")
+    # Deduct and save
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {'equipment': selected, 'equipment_cost': total_cost, 'equipment_bonus': total_bonus},
+         '$inc': {'costs_paid.equipment': total_cost}}
+    )
+    return {'success': True, 'equipment': selected, 'total_cost': total_cost, 'message': f'Attrezzature selezionate! Costo: ${total_cost:,}'}
+
+# === SPONSOR ENDPOINTS ===
+@router.get("/film-pipeline/{project_id}/sponsor-offers")
+async def get_sponsor_offers(project_id: str, user: dict = Depends(get_current_user)):
+    """Get sponsor offers based on film value and player fame."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1, 'nickname': 1})
+    player_fame = u.get('fame', 50) if u else 50
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    total_cost = sum(project.get('costs_paid', {}).values())
+    # Max sponsors based on player fame
+    max_sponsors = 1 + int(player_fame / 20)  # 1-6
+    max_sponsors = min(max_sponsors, 6)
+    # Generate offers - higher film value = better offers
+    film_value_factor = (pre_imdb / 10) * (1 + total_cost / 2000000)
+    offers = []
+    for sp in SPONSORS:
+        # Only sponsors with fame <= player_fame + 20 will approach
+        if sp['fame'] > player_fame + 25:
+            continue
+        # Offer amount: exponential based on film value and sponsor fame
+        base_offer = int(sp['fame'] * 1000 * film_value_factor)
+        offer_amount = int(base_offer * (1 + random.random() * 0.3))
+        # Revenue share %: higher fame sponsors take less %
+        rev_share = round(max(5, 25 - (sp['fame'] / 10) + random.uniform(-3, 3)), 1)
+        # Attendance boost: based on sponsor fame (up to 30% total from all sponsors)
+        attendance_boost = round(sp['fame'] / 100 * 8, 1)  # 3-8% per sponsor
+        offers.append({
+            'id': sp['id'], 'name': sp['name'], 'fame': sp['fame'],
+            'logo_color': sp['logo_color'], 'category': sp['category'],
+            'offer_amount': offer_amount, 'revenue_share_pct': rev_share,
+            'attendance_boost_pct': attendance_boost
+        })
+    # Sort by offer amount desc
+    offers.sort(key=lambda x: x['offer_amount'], reverse=True)
+    already_selected = project.get('sponsors', [])
+    return {'offers': offers, 'selected': already_selected, 'max_sponsors': max_sponsors}
+
+class SponsorSelect(BaseModel):
+    sponsor_ids: List[str]
+
+@router.post("/film-pipeline/{project_id}/select-sponsors")
+async def select_sponsors(project_id: str, req: SponsorSelect, user: dict = Depends(get_current_user)):
+    """Select sponsors for a film in pre-production."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+    if project['status'] != 'pre_production':
+        raise HTTPException(status_code=400, detail="Gli sponsor si scelgono in pre-produzione")
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})
+    player_fame = u.get('fame', 50) if u else 50
+    max_sponsors = min(1 + int(player_fame / 20), 6)
+    if len(req.sponsor_ids) > max_sponsors:
+        raise HTTPException(status_code=400, detail=f"Puoi scegliere massimo {max_sponsors} sponsor con la tua fama attuale")
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    total_cost = sum(project.get('costs_paid', {}).values())
+    film_value_factor = (pre_imdb / 10) * (1 + total_cost / 2000000)
+    selected = []
+    total_sponsor_money = 0
+    total_rev_share = 0.0
+    total_attendance_boost = 0.0
+    for sp_id in req.sponsor_ids:
+        sp = next((s for s in SPONSORS if s['id'] == sp_id), None)
+        if not sp:
+            continue
+        base_offer = int(sp['fame'] * 1000 * film_value_factor)
+        offer_amount = int(base_offer * (1 + random.random() * 0.3))
+        rev_share = round(max(5, 25 - (sp['fame'] / 10) + random.uniform(-3, 3)), 1)
+        attendance_boost = round(sp['fame'] / 100 * 8, 1)
+        selected.append({
+            'id': sp['id'], 'name': sp['name'], 'fame': sp['fame'],
+            'logo_color': sp['logo_color'], 'category': sp['category'],
+            'offer_amount': offer_amount, 'revenue_share_pct': rev_share,
+            'attendance_boost_pct': attendance_boost
+        })
+        total_sponsor_money += offer_amount
+        total_rev_share += rev_share
+        total_attendance_boost += attendance_boost
+    # Cap total attendance boost at 30%
+    total_attendance_boost = min(total_attendance_boost, 30.0)
+    # Give sponsor money to player immediately
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': total_sponsor_money}})
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'sponsors': selected,
+            'sponsor_money': total_sponsor_money,
+            'sponsor_rev_share_pct': round(total_rev_share, 1),
+            'sponsor_attendance_boost_pct': round(total_attendance_boost, 1)
+        }}
+    )
+    return {
+        'success': True, 'sponsors': selected,
+        'total_money': total_sponsor_money,
+        'total_rev_share': round(total_rev_share, 1),
+        'total_attendance_boost': round(total_attendance_boost, 1),
+        'message': f'{len(selected)} sponsor selezionati! Ricevi ${total_sponsor_money:,} in sponsorizzazioni!'
+    }
+
 class PosterRequest(BaseModel):
     mode: str  # 'ai_auto', 'ai_custom', 'classic'
     custom_prompt: Optional[str] = None
@@ -1538,11 +1735,14 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     if cast.get('actors'):
         role_weighted_quality = role_weighted_quality / len(cast['actors'])
 
+    # Equipment bonus
+    equipment_bonus = project.get('equipment_bonus', 0)
+
     # Final score calculation
     base_quality = pre_imdb * 8  # 0-80 range
     quality_score = (base_quality + screenplay_mod + remaster_boost + buzz_influence +
                      (cast_quality * 0.15) + (role_weighted_quality * 0.1) + soundtrack_score +
-                     cgi_bonus + vfx_bonus + extras_bonus)
+                     cgi_bonus + vfx_bonus + extras_bonus + equipment_bonus)
 
     # === ADVANCED HIDDEN FACTORS (Phase 3) ===
     advanced_factors = {}
@@ -1623,6 +1823,9 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     if all_cast_fame:
         avg_cast_fame = sum(all_cast_fame) / len(all_cast_fame)
     opening_day_revenue = int((quality_score * 2000) + (avg_cast_fame * 500) + (total_cost * 0.1) + random.randint(10000, 100000))
+    # Apply sponsor attendance boost (up to 30%)
+    sponsor_boost = project.get('sponsor_attendance_boost_pct', 0) / 100
+    opening_day_revenue = int(opening_day_revenue * (1 + sponsor_boost))
 
     # Calculate audience satisfaction
     audience_satisfaction = max(20, min(100, quality_score + random.randint(-10, 15)))
@@ -1687,6 +1890,11 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         ],
         'attendance_history': [],
         'total_screenings': 0,
+        'equipment': project.get('equipment', []),
+        'sponsors': project.get('sponsors', []),
+        'sponsor_rev_share_pct': project.get('sponsor_rev_share_pct', 0),
+        'sponsor_attendance_boost_pct': project.get('sponsor_attendance_boost_pct', 0),
+        'production_house': user.get('nickname', user.get('email', 'Studio').split('@')[0]),
     }
 
     # Calculate IMDb rating
@@ -1835,6 +2043,7 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
         'tier_label': tier_labels.get(tier, tier),
         'imdb_rating': film_doc.get('imdb_rating', 0),
         'poster_url': film_doc.get('poster_url'),
+        'sponsors': project.get('sponsors', []),
         'cost_summary': {
             'total_money': total_cost,
             'total_cinepass': total_cinepass,

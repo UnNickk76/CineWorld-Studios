@@ -4954,8 +4954,9 @@ async def get_cineboard_attendance(
     ).sort('total_screenings', -1).to_list(100)
     
     # Process now playing - bulk fetch owners (only essential fields)
-    np_owner_ids = list(set(f['user_id'] for f in now_playing[:limit]))
-    at_owner_ids = list(set(f['user_id'] for f in all_time[:limit]))
+    # Use .get() to avoid KeyError if user_id is missing
+    np_owner_ids = list(set(f.get('user_id') for f in now_playing[:limit] if f.get('user_id')))
+    at_owner_ids = list(set(f.get('user_id') for f in all_time[:limit] if f.get('user_id')))
     all_owner_ids = list(set(np_owner_ids + at_owner_ids))
     owners_cursor = db.users.find({'id': {'$in': all_owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
     owners_map = {o['id']: o async for o in owners_cursor}
@@ -13688,6 +13689,82 @@ async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
         film['rank'] = i + 1
     
     return {'films': sorted_films}
+
+
+@api_router.get("/cineboard/daily")
+async def get_cineboard_daily(user: dict = Depends(get_current_user)):
+    """Get today's top films ranked by daily revenue."""
+    from datetime import datetime, timezone, timedelta
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    films = await db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(500)
+
+    daily_films = []
+    for film in films:
+        daily_rev = 0
+        for dr in film.get('daily_revenues', []):
+            dr_date = dr.get('date', '')
+            if dr_date:
+                try:
+                    d = datetime.fromisoformat(dr_date.replace('Z', '+00:00'))
+                    if d >= today_start:
+                        daily_rev += dr.get('amount', 0)
+                except Exception:
+                    pass
+        if daily_rev <= 0:
+            daily_rev = film.get('total_revenue', 0) * 0.05
+        film['daily_revenue'] = round(daily_rev)
+        film['cineboard_score'] = calculate_cineboard_score(film)
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
+        film['owner'] = owner
+        film['user_liked'] = user['id'] in film.get('liked_by', [])
+        daily_films.append(film)
+
+    sorted_films = sorted(daily_films, key=lambda x: x['daily_revenue'], reverse=True)[:50]
+    for i, film in enumerate(sorted_films):
+        film['rank'] = i + 1
+
+    return {'films': sorted_films}
+
+@api_router.get("/cineboard/weekly")
+async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
+    """Get this week's top films ranked by weekly revenue."""
+    from datetime import datetime, timezone, timedelta
+    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    films = await db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0}
+    ).to_list(500)
+
+    weekly_films = []
+    for film in films:
+        weekly_rev = 0
+        for dr in film.get('daily_revenues', []):
+            dr_date = dr.get('date', '')
+            if dr_date:
+                try:
+                    d = datetime.fromisoformat(dr_date.replace('Z', '+00:00'))
+                    if d >= week_start:
+                        weekly_rev += dr.get('amount', 0)
+                except Exception:
+                    pass
+        if weekly_rev <= 0:
+            weekly_rev = film.get('total_revenue', 0) * 0.25
+        film['weekly_revenue'] = round(weekly_rev)
+        film['cineboard_score'] = calculate_cineboard_score(film)
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1})
+        film['owner'] = owner
+        film['user_liked'] = user['id'] in film.get('liked_by', [])
+        weekly_films.append(film)
+
+    sorted_films = sorted(weekly_films, key=lambda x: x['weekly_revenue'], reverse=True)[:50]
+    for i, film in enumerate(sorted_films):
+        film['rank'] = i + 1
+
+    return {'films': sorted_films}
+
 
 # ==================== PLAYER PROFILE (PUBLIC) ====================
 

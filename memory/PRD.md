@@ -175,6 +175,12 @@
 - UI: Revenue giornaliera/settimanale mostrata nel formato "$XM oggi" / "$XM sett."
 - Test: 100% backend + frontend (iteration 80)
 
+### Admin Tools (18 Mar 2026)
+- **POST /api/admin/add-money**: Aggiunge/rimuove denaro a un utente (solo admin). Params: `{nickname, amount}`
+- **POST /api/admin/repair-films**: Ripara film incompleti (poster, recensioni, IMDb, box_office). Params opzionali: `{nickname}` per filtrare per utente
+- **Release Notes aggiornate**: RELEASE_NOTES portate alla v0.136 con tutte le feature recenti (Equipment, Sponsor, CineBoard, Poster, Casting v2, Mercato, Pipeline)
+- **System Notes auto-init**: Se il DB deploy non ha system notes, vengono create automaticamente 10 note di default al primo avvio
+
 ## Task Prossimi
 - **(P1)** Nuova Infrastruttura: Agenzia di Casting (uso da altri giocatori a pagamento)
 - **(P2)** Layout mobile pagina Contest

@@ -5645,6 +5645,39 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.136', 'date': '2026-03-18', 'title': 'CineBoard Giornaliera/Settimanale & Sistema Sponsor',
+     'changes': [
+         {'type': 'new', 'text': 'CineBoard: nuove classifiche Giornaliera e Settimanale (sostituita Hall of Fame)'},
+         {'type': 'new', 'text': 'Sistema Sponsor: fino a 6 sponsor per film, offrono denaro in cambio di % sugli incassi'},
+         {'type': 'new', 'text': 'La fama degli sponsor aumenta l\'affluenza al cinema (non il punteggio IMDb)'},
+         {'type': 'new', 'text': 'Nomi sponsor visibili nel popup di rilascio del film'},
+         {'type': 'new', 'text': 'Sistema Equipment: ~10 pacchetti attrezzature (base/pro/premium) nella fase Casting'},
+         {'type': 'improvement', 'text': 'CineBoard ora con 4 tab: In Sala, Giornaliera, Settimanale, Affluenze'},
+     ]},
+    {'version': '0.135', 'date': '2026-03-17', 'title': 'Casting Avanzato v2 & Locandine Personalizzabili',
+     'changes': [
+         {'type': 'new', 'text': 'Casting: dettagli arricchiti con genere, eta, nazionalita, fama, trend crescita'},
+         {'type': 'new', 'text': 'Casting dinamico: proposte basate sulla fama del giocatore'},
+         {'type': 'new', 'text': 'Locandine personalizzabili: AI da script, AI da prompt personalizzato, o template classici'},
+         {'type': 'new', 'text': 'Rilascio film completo: poster AI, recensioni, punteggio IMDb, box office dettagliato'},
+         {'type': 'fix', 'text': 'Fix acquisto sceneggiature: ora crea correttamente il progetto nella pipeline'},
+         {'type': 'fix', 'text': 'Fix pulsante Scarta in tutte le fasi della pipeline'},
+         {'type': 'fix', 'text': 'Fix selezione attori: rimosso limite errato a 1 attore'},
+         {'type': 'fix', 'text': 'Fix calcolo IMDb: punteggio ora realistico (non sempre 10.0)'},
+     ]},
+    {'version': '0.134', 'date': '2026-03-17', 'title': 'Mercato Film & Marketplace Rinnovato',
+     'changes': [
+         {'type': 'new', 'text': 'Mercato Film: compra e vendi film scartati tra giocatori'},
+         {'type': 'new', 'text': 'Card Mercato nella dashboard con accesso rapido'},
+         {'type': 'new', 'text': 'Popup dettagli film nel marketplace con poster e statistiche'},
+         {'type': 'improvement', 'text': 'Card Produci! ingrandita nella dashboard'},
+         {'type': 'fix', 'text': 'Quiz Registi nel Contest ora funzionante'},
+     ]},
+    {'version': '0.133', 'date': '2026-03-17', 'title': 'Admin: Gestione Denaro & Riparazione Film',
+     'changes': [
+         {'type': 'new', 'text': 'Endpoint admin per aggiungere/rimuovere denaro ai giocatori'},
+         {'type': 'new', 'text': 'Endpoint admin per riparare film incompleti (poster, recensioni, IMDb)'},
+     ]},
     {'version': '0.132', 'date': '2026-03-17', 'title': 'Navigazione Rinnovata & Dropdown Generi',
      'changes': [
          {'type': 'new', 'text': 'Nuovo pulsante "Produci!" nella barra di navigazione con icona Ciak'},
@@ -6233,6 +6266,38 @@ async def add_release_note(version: str, title: str, changes: list):
     
     return True
 
+DEFAULT_SYSTEM_NOTES = [
+    {'title': 'CineBoard: Classifiche Giornaliere e Settimanali', 'content': 'La sezione CineBoard ora include le classifiche Giornaliera e Settimanale! Scopri quali film stanno dominando il box office oggi e questa settimana. La vecchia Hall of Fame e stata sostituita.', 'category': 'feature', 'priority': 'high'},
+    {'title': 'Sistema Sponsor', 'content': 'Nella fase Pre-Produzione puoi ora selezionare fino a 6 sponsor per il tuo film! Gli sponsor offrono denaro immediato in cambio di una percentuale sugli incassi. La loro fama aumenta l\'affluenza al cinema.', 'category': 'feature', 'priority': 'high'},
+    {'title': 'Sistema Equipment', 'content': 'Durante il Casting puoi acquistare pacchetti attrezzature (base, pro, premium) che migliorano il punteggio finale del tuo film.', 'category': 'feature', 'priority': 'normal'},
+    {'title': 'Locandine Personalizzabili', 'content': 'Nella fase Sceneggiatura puoi scegliere tra: locandina AI generata dallo script, locandina AI da prompt personalizzato, o template classici per genere.', 'category': 'feature', 'priority': 'normal'},
+    {'title': 'Nuova Pipeline di Produzione Cinematografica!', 'content': 'Il sistema di creazione film e stato completamente rinnovato! 6 fasi: Creazione, Proposte, Casting, Sceneggiatura, Pre-Produzione e Riprese. Ogni film ora genera poster, recensioni, punteggio IMDb e dati box office al rilascio.', 'category': 'update', 'priority': 'high'},
+    {'title': 'Casting Avanzato v2', 'content': 'Il sistema di casting ora mostra dettagli arricchiti: genere, eta, nazionalita, livello di fama e trend di crescita per ogni membro del cast. Le proposte sono basate sulla tua fama!', 'category': 'update', 'priority': 'normal'},
+    {'title': 'Mercato Film', 'content': 'Puoi ora comprare e vendere film scartati nel nuovo Mercato! Accedi dalla card "Mercato" nella dashboard.', 'category': 'feature', 'priority': 'normal'},
+    {'title': 'Bug Fix - Vari Miglioramenti', 'content': 'Corretti: acquisto sceneggiature, pulsante Scarta, selezione attori multipli, calcolo IMDb realistico, Quiz Registi nel Contest.', 'category': 'bugfix', 'priority': 'normal'},
+    {'title': 'Contest e Mini-Giochi', 'content': 'I mini-giochi ora generano domande uniche con AI ad ogni partita. Sfide VS 1v1 disponibili con classifiche e ricompense.', 'category': 'update', 'priority': 'normal'},
+    {'title': 'Benvenuto in CineWorld!', 'content': 'CineWorld Studios e un gioco di simulazione di un impero cinematografico. Crea film, gestisci il cast, costruisci infrastrutture e competi con altri giocatori!', 'category': 'event', 'priority': 'normal'},
+]
+
+async def initialize_system_notes():
+    """Initialize default system notes if the collection is empty."""
+    existing_count = await db.system_notes.count_documents({})
+    if existing_count == 0:
+        for note_data in DEFAULT_SYSTEM_NOTES:
+            system_note = {
+                'id': str(uuid.uuid4()),
+                'title': note_data['title'],
+                'content': note_data['content'],
+                'category': note_data.get('category', 'update'),
+                'priority': note_data.get('priority', 'normal'),
+                'author': 'NeoMorpheus',
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.system_notes.insert_one(system_note)
+        logging.info(f"Initialized {len(DEFAULT_SYSTEM_NOTES)} default system notes")
+
+
+
 def get_next_version():
     """Calculate the next version number."""
     if not RELEASE_NOTES:
@@ -6435,6 +6500,106 @@ async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Utente non trovato")
     return {'success': True, 'user_id': target_id, 'role': role}
+
+@api_router.post("/admin/add-money")
+async def admin_add_money(data: dict, user: dict = Depends(get_current_user)):
+    """Add or remove money from a user (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    nickname = data.get('nickname')
+    amount = data.get('amount', 0)
+    if not nickname or not amount:
+        raise HTTPException(status_code=400, detail="nickname e amount richiesti")
+    target = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'id': 1, 'nickname': 1, 'money': 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
+    result = await db.users.update_one({'id': target['id']}, {'$inc': {'money': amount}})
+    new_money = (target.get('money', 0) + amount)
+    return {'success': True, 'nickname': nickname, 'old_money': target.get('money', 0), 'added': amount, 'new_money': new_money}
+
+@api_router.post("/admin/repair-films")
+async def admin_repair_films(data: dict, user: dict = Depends(get_current_user)):
+    """Repair films missing poster, reviews or IMDb data (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    target_nickname = data.get('nickname')
+    query = {
+        '$or': [
+            {'poster_url': {'$exists': False}},
+            {'poster_url': None},
+            {'poster_url': ''},
+            {'reviews': {'$exists': False}},
+            {'reviews': None},
+            {'reviews': []},
+            {'imdb_rating': {'$exists': False}},
+            {'imdb_rating': None},
+            {'imdb_rating': 0},
+        ]
+    }
+    if target_nickname:
+        target_user = await db.users.find_one({'nickname': target_nickname}, {'_id': 0, 'id': 1})
+        if not target_user:
+            raise HTTPException(status_code=404, detail=f"Utente '{target_nickname}' non trovato")
+        query['user_id'] = target_user['id']
+    
+    films = await db.films.find(query, {'_id': 0}).to_list(100)
+    repaired = []
+    
+    for film in films:
+        updates = {}
+        # Generate poster if missing
+        if not film.get('poster_url'):
+            genre = film.get('genre', 'drama')
+            title = film.get('title', 'Film')
+            updates['poster_url'] = f"https://loremflickr.com/400/600/{genre},movie,cinema"
+        
+        # Generate reviews if missing
+        if not film.get('reviews') or film.get('reviews') == []:
+            import random
+            NEWSPAPERS = [
+                {"name": "Variety", "bias": "mainstream"},
+                {"name": "Cahiers du Cinema", "bias": "artistic"},
+                {"name": "The Hollywood Reporter", "bias": "mainstream"},
+                {"name": "Screen International", "bias": "indie"},
+                {"name": "Empire Magazine", "bias": "mainstream"},
+            ]
+            quality = film.get('quality_score', 50)
+            reviews = []
+            for paper in random.sample(NEWSPAPERS, min(3, len(NEWSPAPERS))):
+                base = quality / 10
+                score = round(max(1.0, min(10.0, base + random.uniform(-1.5, 1.5))), 1)
+                sentiment = 'positive' if score >= 6.5 else 'mixed' if score >= 4.5 else 'negative'
+                reviews.append({
+                    'newspaper': paper['name'],
+                    'score': score,
+                    'sentiment': sentiment,
+                    'text': f"Un film {'eccellente' if score >= 7 else 'discreto' if score >= 5 else 'deludente'} che {'merita attenzione' if score >= 6 else 'lascia perplessi'}."
+                })
+            updates['reviews'] = reviews
+        
+        # Generate IMDb rating if missing
+        if not film.get('imdb_rating'):
+            import random
+            quality = film.get('quality_score', 50)
+            base_imdb = quality / 15 + 2.0
+            updates['imdb_rating'] = round(max(1.0, min(9.5, base_imdb + random.uniform(-0.5, 0.5))), 1)
+        
+        # Generate box_office if missing
+        if not film.get('box_office'):
+            updates['box_office'] = {
+                'opening_weekend': film.get('total_revenue', 0) * 0.3,
+                'domestic': film.get('total_revenue', 0) * 0.6,
+                'international': film.get('total_revenue', 0) * 0.4,
+                'total': film.get('total_revenue', 0)
+            }
+        
+        if updates:
+            await db.films.update_one({'id': film['id']}, {'$set': updates})
+            repaired.append({'id': film['id'], 'title': film.get('title'), 'fixed': list(updates.keys())})
+    
+    return {'success': True, 'repaired_count': len(repaired), 'repaired': repaired}
+
+
 
 @api_router.post("/admin/release-notes")
 async def create_release_note(note: NewReleaseNote):
@@ -9246,6 +9411,10 @@ async def startup_event():
     # Initialize release notes in database
     await initialize_release_notes()
     logging.info("Release notes initialized")
+    
+    # Initialize system notes if empty
+    await initialize_system_notes()
+    logging.info("System notes initialized")
     
     # ==================== APSCHEDULER SETUP ====================
     # Start the background scheduler for autonomous game operations

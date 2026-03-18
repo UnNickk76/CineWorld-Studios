@@ -143,6 +143,7 @@ const TopNavbar = () => {
   const [productionUnlocks, setProductionUnlocks] = useState(null);
   const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showCineboardMenu, setShowCineboardMenu] = useState(false);
+  const [showFilmsMenu, setShowFilmsMenu] = useState(false);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -216,6 +217,7 @@ const TopNavbar = () => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     setShowProductionMenu(false);
     setShowCineboardMenu(false);
+    setShowFilmsMenu(false);
   }, [location.pathname]);
 
 
@@ -735,6 +737,37 @@ const TopNavbar = () => {
       </button>
       )}
 
+      {/* Films Menu Overlay */}
+      <AnimatePresence>
+        {showFilmsMenu && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] sm:hidden" onClick={() => setShowFilmsMenu(false)} />
+            <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', damping: 25, stiffness: 350 }} className="fixed bottom-[58px] left-2 right-2 z-[56] sm:hidden" data-testid="films-menu">
+              <div className="bg-[#111113] border border-white/10 rounded-2xl p-3 shadow-2xl">
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold text-center mb-2">I Miei Contenuti</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.pathname === '/films' && !location.search ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
+                    onClick={() => { navigate('/films'); setShowFilmsMenu(false); }} data-testid="films-menu-film">
+                    <Film className="w-5 h-5" />
+                    <span className="text-[10px] font-bold">Film</span>
+                  </button>
+                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.search?.includes('view=series') ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20'}`}
+                    onClick={() => { navigate('/films?view=series'); setShowFilmsMenu(false); }} data-testid="films-menu-series">
+                    <Tv className="w-5 h-5" />
+                    <span className="text-[10px] font-bold">Serie TV</span>
+                  </button>
+                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.search?.includes('view=anime') ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20'}`}
+                    onClick={() => { navigate('/films?view=anime'); setShowFilmsMenu(false); }} data-testid="films-menu-anime">
+                    <Sparkles className="w-5 h-5" />
+                    <span className="text-[10px] font-bold">Anime</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Production Menu Overlay */}
       <AnimatePresence>
         {showProductionMenu && (
@@ -851,9 +884,9 @@ const TopNavbar = () => {
           <Clapperboard className="w-4 h-4" />
           <span className="text-[8px]">Home</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/films')} data-testid="bottom-nav-films">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : showFilmsMenu ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => setShowFilmsMenu(!showFilmsMenu)} data-testid="bottom-nav-films">
           <Film className="w-4 h-4" />
-          <span className="text-[8px]">Film</span>
+          <span className="text-[8px]">I Miei</span>
         </button>
         {/* PRODUCI! - Opens production menu */}
         <button 

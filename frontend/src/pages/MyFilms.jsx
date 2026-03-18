@@ -46,7 +46,7 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, Tv
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 
@@ -55,7 +55,10 @@ import { SKILL_TRANSLATIONS } from '../constants';
 const MyFilms = () => {
   const { api, user } = useContext(AuthContext);
   const { t } = useTranslations();
+  const [searchParams] = useSearchParams();
+  const currentView = searchParams.get('view') || 'film';
   const [films, setFilms] = useState([]);
+  const [series, setSeries] = useState([]);
   const [showAdDialog, setShowAdDialog] = useState(null);
   const [adPlatforms, setAdPlatforms] = useState([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState([]);
@@ -64,9 +67,14 @@ const MyFilms = () => {
   const navigate = useNavigate();
 
   useEffect(() => { 
-    api.get('/films/my').then(r=>setFilms(r.data)); 
-    api.get('/advertising/platforms').then(r=>setAdPlatforms(r.data)).catch(()=>{});
-  }, [api]);
+    if (currentView === 'film') {
+      api.get('/films/my').then(r=>setFilms(r.data)).catch(()=>{}); 
+      api.get('/advertising/platforms').then(r=>setAdPlatforms(r.data)).catch(()=>{});
+    } else {
+      const sType = currentView === 'anime' ? 'anime' : 'tv_series';
+      api.get(`/series-pipeline/my?series_type=${sType}`).then(r=>setSeries(r.data.series || [])).catch(()=>{});
+    }
+  }, [api, currentView]);
 
   const withdrawFilm = async (filmId) => {
     try {
@@ -92,6 +100,62 @@ const MyFilms = () => {
 
   const calculateAdCost = () => selectedPlatforms.reduce((s, pId) => { const p = adPlatforms.find(x => x.id === pId); return s + (p ? p.cost_per_day * adDays : 0); }, 0);
 
+  // Series/Anime View
+  if (currentView === 'series' || currentView === 'anime') {
+    const isAnime = currentView === 'anime';
+    const color = isAnime ? 'orange' : 'blue';
+    const Icon = isAnime ? Sparkles : Tv;
+    const label = isAnime ? 'I Miei Anime' : 'Le Mie Serie TV';
+    const createRoute = isAnime ? '/create-anime' : '/create-series';
+    const boardRoute = isAnime ? '/social?view=anime' : '/social?view=series';
+
+    return (
+      <div className="pt-16 pb-20 px-2 sm:px-3 max-w-7xl mx-auto" data-testid={`my-${currentView}-page`}>
+        <div className="flex items-center justify-between mb-4 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-2 sm:-mx-3 px-2 sm:px-3">
+          <h1 className={`font-['Bebas_Neue'] text-2xl sm:text-3xl text-${color}-400`}>{label}</h1>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => navigate(boardRoute)} className={`h-8 px-2 text-xs border-${color}-500/30 text-${color}-400`}><Trophy className="w-3 h-3 mr-1" />Classifica</Button>
+            <Button size="sm" onClick={() => navigate(createRoute)} className={`bg-${color}-500 text-white h-8 px-2 text-xs`}><Plus className="w-3 h-3 mr-1" />Crea</Button>
+          </div>
+        </div>
+        {series.length === 0 ? (
+          <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center">
+            <Icon className="w-10 h-10 mx-auto mb-3 text-gray-600" />
+            <h3 className="text-base mb-2">{isAnime ? 'Nessun anime ancora' : 'Nessuna serie TV ancora'}</h3>
+            <Button onClick={() => navigate(createRoute)} className={`bg-${color}-500 text-white text-sm`}>{isAnime ? 'Crea il tuo primo Anime' : 'Crea la tua prima Serie TV'}</Button>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
+            {series.map(s => (
+              <Card key={s.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
+                <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(boardRoute)}>
+                  {s.poster_url ? (
+                    <img src={posterSrc(s.poster_url)} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className={`w-full h-full bg-${color}-500/10 flex items-center justify-center`}>
+                      <Icon className={`w-8 h-8 text-${color}-400/30`} />
+                    </div>
+                  )}
+                  <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${
+                    s.status === 'completed' ? 'bg-green-500' : s.status === 'cancelled' ? 'bg-red-500' : `bg-${color}-500`
+                  }`}>{s.status === 'completed' ? 'DONE' : s.status}</Badge>
+                </div>
+                <CardContent className="p-1">
+                  <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{s.title}</h3>
+                  <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px]">
+                    <span className="text-gray-400">{s.genre_name}</span>
+                    <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${s.quality_score}/100` : `${s.num_episodes}ep`}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default Film View
   return (
     <div className="pt-16 pb-20 px-2 sm:px-3 max-w-7xl mx-auto" data-testid="my-films-page">
       <div className="flex items-center justify-between mb-4 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-2 sm:-mx-3 px-2 sm:px-3" data-testid="my-films-sticky-header-main">

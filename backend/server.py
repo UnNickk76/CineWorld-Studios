@@ -5632,6 +5632,18 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.090', 'date': '2026-03-18', 'title': 'Pipeline Serie TV, Anime, Sequel & Emittente TV',
+     'changes': [
+         {'type': 'new', 'text': 'Pipeline completa Serie TV: 10 generi, casting, sceneggiatura AI, produzione, release'},
+         {'type': 'new', 'text': 'Pipeline completa Anime: 8 generi (Shonen, Seinen, Shojo, Mecha, Isekai...), costi ridotti, tempi lunghi'},
+         {'type': 'new', 'text': 'Pipeline Sequel ridotta: eredita cast (sconto 30%), bonus saga crescente (+5/8/12/15%), rischio fatigue'},
+         {'type': 'new', 'text': 'Emittente TV: palinsesto con 3 fasce (Daytime, Prime Time, Late Night), ricavi pubblicitari'},
+         {'type': 'new', 'text': 'Classifiche CineBoard per Serie TV e Anime (trend settimanale)'},
+         {'type': 'new', 'text': 'Menu Produci! con 5 opzioni: Film, Sequel, Serie TV, Anime, La Tua TV'},
+         {'type': 'new', 'text': 'Menu I Miei Contenuti: Film, Serie TV e Anime in un popup dalla navbar'},
+         {'type': 'improvement', 'text': 'Card PRODUCI sulla Dashboard apre il menu produzione completo'},
+         {'type': 'improvement', 'text': 'Pulsante CineBoard nella navbar apre popup classifiche'},
+     ]},
     {'version': '0.136', 'date': '2026-03-18', 'title': 'CineBoard Giornaliera/Settimanale & Sistema Sponsor',
      'changes': [
          {'type': 'new', 'text': 'CineBoard: nuove classifiche Giornaliera e Settimanale (sostituita Hall of Fame)'},
@@ -6254,6 +6266,7 @@ async def add_release_note(version: str, title: str, changes: list):
     return True
 
 DEFAULT_SYSTEM_NOTES = [
+    {'title': 'Serie TV, Anime, Sequel e Emittente TV!', 'content': "Aggiornamento massiccio! Ora puoi produrre molto di più:\n\n• SERIE TV: 10 generi disponibili (Drama, Crime, Thriller...), pipeline completa con casting, sceneggiatura AI e produzione\n• ANIME: 8 generi unici (Shonen, Seinen, Shojo, Mecha, Isekai...), costi ridotti ma tempi più lunghi\n• SEQUEL: pipeline ridotta con cast ereditato (sconto 30%), bonus saga crescente fino a +15%\n• EMITTENTE TV: assegna le tue serie a 3 fasce orarie (Daytime, Prime Time, Late Night) e guadagna ricavi pubblicitari!\n\nSblocca lo Studio Serie TV e lo Studio Anime dalla sezione Infrastrutture. Il pulsante Produci! ora mostra 5 opzioni.\n\nNuove classifiche CineBoard per Serie TV e Anime (trend settimanale)!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'Nuova Pipeline di Produzione Cinematografica!', 'content': 'Il sistema di creazione film e stato completamente rinnovato! Ora troverai il nuovo pulsante Produci! nella barra di navigazione. La produzione si divide in 6 fasi: Creazione, Proposte, Casting, Sceneggiatura, Pre-Produzione e Riprese. Ogni fase ha il suo tab dedicato con badge conteggio. I generi e sottogeneri si selezionano ora con pratici menu a tendina. La card CIAK! in dashboard ti porta direttamente alle riprese in corso. Buona produzione!', 'category': 'update', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'Bug Fix - Studio di Produzione e Dashboard', 'content': 'Risolti diversi bug importanti:\n\n- Studio di Produzione: i 3 pannelli (Pre-Produzione, Post-Produzione, Agenzia Casting) ora si aprono correttamente\n- Dashboard: la sezione "Film in Attesa di Rilascio" \u00e8 ora sempre visibile\n- Agenzia Casting: corretti i nomi dei talenti che apparivano come "Unknown"\n- Aggiunto pulsante "In Attesa" nella griglia azioni rapide con pallino rosso\n- Aggiunto pulsante "Porta in Studio di Produzione" nel popup distribuzione', 'category': 'bugfix', 'priority': 'normal', 'author': "Anacapito Studio's"},
     {'title': 'Cast Filtrato per Livello e Fama', 'content': 'Importante cambiamento nel bilanciamento del gioco!\n\nOra il cast disponibile durante la creazione film dipende dal tuo livello e dalla tua fama:\n\n- Livello 1-9: accesso ad attori 1 stella\n- Livello 10-19: fino a 2 stelle\n- Livello 20-29: fino a 3 stelle\n- Livello 30-39: fino a 4 stelle\n- Livello 40+: accesso completo a 5 stelle\n\nAnche la fama del tuo studio influenza quali talenti accettano di lavorare con te.\n\nQuesto rende la progressione pi\u00f9 significativa: salire di livello sblocca cast migliori e film di qualit\u00e0 superiore!', 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},

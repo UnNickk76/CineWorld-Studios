@@ -420,52 +420,7 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* Pending Films Section - always visible */}
-      <Card className={`mb-4 border ${pendingFilms.length > 0 ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/20' : 'bg-[#1A1A1A] border-white/5'}`} data-testid="pending-films-section">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400" />
-              {language === 'it' ? 'FILM IN ATTESA DI RILASCIO' : 'FILMS PENDING RELEASE'}
-              {pendingFilms.length > 0 && <Badge className="bg-amber-500 text-black text-xs">{pendingFilms.length}</Badge>}
-            </h3>
-          </div>
-          {pendingFilms.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {pendingFilms.slice(0, 6).map(film => (
-                <div
-                  key={film.id}
-                  className="flex items-center gap-2 bg-black/30 rounded-lg p-2 cursor-pointer hover:bg-black/50 transition-colors border border-white/5 hover:border-amber-500/30"
-                  onClick={() => openReleasePopup(film)}
-                  data-testid={`pending-film-${film.id}`}
-                >
-                  <img
-                    src={posterSrc(film.poster_url)}
-                    alt={film.title}
-                    className="w-10 h-14 object-cover rounded"
-                    loading="lazy"
-                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">{film.title}</p>
-                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Qualità' : 'Quality'}: {(film.quality_score || 0).toFixed(0)}%</p>
-                    <Button size="sm" className="mt-1 h-5 text-[10px] bg-amber-500 hover:bg-amber-600 text-black px-2" data-testid={`release-btn-${film.id}`}>
-                      {language === 'it' ? 'Rilascia' : 'Release'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4" data-testid="no-pending-films">
-              <p className="text-gray-500 text-xs mb-2">{language === 'it' ? 'Nessun film in attesa di rilascio.' : 'No films pending release.'}</p>
-              <Button size="sm" className="h-7 text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30" onClick={() => navigate('/create-film')} data-testid="create-film-from-pending">
-                {language === 'it' ? 'Crea un Film' : 'Create a Film'}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Pending Films Section removed - no longer needed */}
 
       {/* Shooting Dialog - opens from CIAK! button */}
       <Dialog open={showShootingDialog} onOpenChange={setShowShootingDialog}>

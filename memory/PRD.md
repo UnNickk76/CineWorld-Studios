@@ -14,91 +14,77 @@ Cinematic empire game where players build film studios, produce films, hire cast
 
 ## What's Been Implemented
 
-### March 18, 2026 (Session 1)
-- **Multi-Actor Casting:** Click-to-hire with renegotiation (+30% cost).
-- **Quality v3 Balanced:** base_mult=4.8, avg ~66% quality with alchemy formula.
-- **Casting Agency sync fix:** Dismiss student -> hire record removed -> recruit available.
-- **Poster performance:** 22 base64 posters -> static files, /api/posters/{filename} with 1-week cache.
-- **Film Detail crash fix:** Missing icon imports.
-- **source_recruit_id tracking:** Students store recruit origin.
+### Session 1 (March 18, 2026)
+- Multi-Actor Casting, Quality v3 Balanced, Casting Agency sync fix
+- Poster performance overhaul (base64 -> static files)
+- Film Detail crash fix, source_recruit_id tracking
 
-### March 18, 2026 (Session 2)
-- **Production Menu UI (P0 Complete):** Replaced single "Produci!" button in mobile bottom nav with expandable production menu showing 4 options:
-  - **Film** (always available, navigates to /create-film)
-  - **Serie TV** (locked/unlocked based on studio_serie_tv ownership)
-  - **Anime** (locked/unlocked based on studio_anime ownership)
-  - **La Tua TV** (locked/unlocked based on emittente_tv ownership)
-- Locked buttons show lock icon and redirect to /infrastructure
-- Menu uses framer-motion slide-up animation with backdrop overlay
-- Hamburger menu also updated with locked state for new items
-- Backend endpoint `/api/production-studios/unlock-status` provides unlock data
-- Placeholder pages for /create-series, /create-anime, /my-tv show requirements when locked
-- **Testing:** 100% pass rate (9/9 backend, 15/15 frontend)
+### Session 2 (March 18, 2026)
+- **Production Menu UI:** Replaced single "Produci!" button with expandable 4-option menu (Film, Serie TV, Anime, La Tua TV)
+- Locked buttons with lock icon, redirect to /infrastructure
+- "X da sbloccare" indicator badge
+- Menu uses framer-motion, backdrop overlay
 
----
-
-## Upcoming Tasks (P0)
-- **Full Sequel Pipeline:** Rework sequel creation to use reduced Film Pipeline (inherits cast/crew, quality bonus from parent)
-- **Full TV Series Pipeline:** Full production pipeline for TV Series with pilot episode + daily episodes with AI mini-plots
-- **Full Anime Pipeline:** Unique production pipeline for Anime with distinct mechanics
-
-## Upcoming Tasks (P1)
-- **Build TV Network Feature:** "La Tua TV" page with broadcast schedule, audience ratings, ad revenue
-- **Marketplace for TV/Anime:** Extend marketplace for trading TV series and anime rights
-- Pre-engagement system for hired actors
-- Casting Agency as new building for other players
-- Admin RBAC System
-- CinePass cost for speed-ups in pipeline
+### Session 3 (March 18, 2026)
+- **Dashboard PRODUCI Fix:** PRODUCI card on Dashboard now opens production menu via shared ProductionMenuContext
+- **TV Series Pipeline (Full):** Complete backend + frontend for TV series production
+  - Backend: `/api/series-pipeline/*` endpoints (create, casting, screenplay AI, production, release)
+  - 10 genres: Drama, Comedy, Thriller, Sci-Fi, Horror, Crime, Romance, Fantasy, Action, Medical
+  - Quality calculation with breakdown (base, cast, screenplay, mastery bonuses)
+  - XP/Fame rewards on completion
+- **Anime Pipeline (Full):** Complete backend + frontend for anime production
+  - 8 genres: Shonen, Seinen, Shojo, Mecha, Isekai, Slice of Life, Horror, Sports
+  - Each genre has description, episode range, cost multiplier
+  - Lower cost per episode ($80K vs $150K TV), longer production time
+- **Emittente TV Page:** Management page with locked/unlocked states
+  - Locked: Shows requirements (Level 18, Fame 200, $5M)
+  - Unlocked: Palinsesto with 3 timeslots (Daytime/Prime Time/Late Night), stats, series list
+- **Testing:** 100% pass rate (iteration 89: 9+15 tests, iteration 90: 11+9 tests)
 
 ---
 
-## PLANNED FEATURES (Approved by User)
+## PLANNED FEATURES
 
-### P1 - SEQUEL / SAGHE (Rework)
+### P0 - SEQUEL / SAGHE (Rework) - NOT STARTED
 **Requisiti:** Livello 8 + 50 Fama
 - Pipeline ridotta: Casting (riconferma cast con sconto) -> Sceneggiatura -> Produzione -> Release
 - Bonus saga crescente: Sequel 2 = +5%, Sequel 3 = +8%, fino a +15%
 - Rischio "saga fatigue": dal capitolo 4, malus se qualita' bassa
 - Max 5 sequel per saga (6 capitoli totali)
 
-### P1 - SERIE TV (Rework Completo)
-**Requisiti:** Livello 12 + 100 Fama
-- Pipeline COMPLETA per stagione: Casting -> Sceneggiatura -> Equipment/VFX -> Produzione -> Release
-- 6-13 episodi per stagione, ogni giorno una puntata con mini-trama AI
-- Cast fisso + guest star, rinnovo o cancellazione dopo ogni stagione
+### P1 - EMITTENTE TV BROADCAST SYSTEM - NOT STARTED
+- Broadcast endpoint: assign series to timeslot, daily episode airing
+- Audience calculation based on quality, timeslot, emittente reach
+- Ad revenue per episode (CPM model)
+- Season renewal/cancellation system
+- See /app/memory/EMITTENTE_TV_DESIGN.md for full design
 
-### P1 - ANIME (Identita' Propria)
-**Requisiti:** Livello 15 + 150 Fama
-- Pipeline completa come Serie TV
-- Sottogeneri: Shonen, Seinen, Shojo, Mecha, Isekai
-- Costi bassi ma tempi lunghi, pubblico di nicchia fedele
-
-### P2 - EMITTENTE TV (Nuova Infrastruttura)
-- Slot: Prime Time, Daytime, Late Night
-- Palinsesto settimanale, audience per episodio
-- Entrate pubblicitarie, esclusive, competizione tra emittenti
-- Livelli emittente: piu' slot, piu' reach
+### P1 - MARKETPLACE TV/ANIME - NOT STARTED
+- Extend marketplace to trade TV series and anime rights
 
 ---
 
 ## Known Issues
-- **(P2) Contest Page Mobile Layout** - Recurring issue, mobile /games may not render correctly
+- **(P2) Contest Page Mobile Layout** - Recurring issue, /games may not render correctly on some mobile devices
 
 ## Backlog (P2)
 - Refactor server.py (monolithic, 16k+ lines)
 - Refactor FilmPipeline.jsx (1700+ lines)
 - Refactor Dashboard.jsx
-- Stripe integration
-- PWA support
-- Tutorial popup
+- Stripe integration, PWA, Tutorial popup
+- Casting Agency as visitable building
+- Admin RBAC System
+- CinePass speed-ups
 
 ## Key Files
-- `/app/backend/server.py` - Main backend, migrations, endpoints
-- `/app/backend/game_systems.py` - Infrastructure types, game mechanics
-- `/app/backend/routes/film_pipeline.py` - Film pipeline, casting, quality
-- `/app/backend/routes/acting_school.py` - Acting school + hire cleanup
-- `/app/frontend/src/App.js` - Main app, bottom nav, production menu
-- `/app/frontend/src/pages/FilmPipeline.jsx` - Film pipeline UI
-- `/app/frontend/src/pages/SeriesTVPipeline.jsx` - Placeholder
-- `/app/frontend/src/pages/AnimePipeline.jsx` - Placeholder
-- `/app/frontend/src/pages/EmittenteTVPage.jsx` - Placeholder
+- `/app/backend/server.py` - Main backend
+- `/app/backend/routes/series_pipeline.py` - TV Series & Anime pipeline
+- `/app/backend/routes/film_pipeline.py` - Film pipeline
+- `/app/backend/game_systems.py` - Infrastructure types
+- `/app/frontend/src/App.js` - Main app, production menu
+- `/app/frontend/src/contexts/index.jsx` - ProductionMenuContext
+- `/app/frontend/src/pages/SeriesTVPipeline.jsx` - TV Series pipeline UI
+- `/app/frontend/src/pages/AnimePipeline.jsx` - Anime pipeline UI
+- `/app/frontend/src/pages/EmittenteTVPage.jsx` - TV Network page
+- `/app/frontend/src/pages/Dashboard.jsx` - Dashboard with PRODUCI card
+- `/app/memory/EMITTENTE_TV_DESIGN.md` - TV Network design doc

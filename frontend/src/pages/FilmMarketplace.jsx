@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -31,6 +32,7 @@ const PHASE_COLORS = {
 const FilmMarketplace = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
+  const navigate = useNavigate();
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(null);
@@ -62,7 +64,8 @@ const FilmMarketplace = () => {
       toast.success(res.data.message);
       setSelectedFilm(null);
       refreshUser();
-      fetchMarketplace();
+      // Navigate to casting tab in pipeline
+      navigate('/create-film?tab=casting');
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nell\'acquisto');
     } finally {

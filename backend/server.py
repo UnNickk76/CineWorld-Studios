@@ -15963,7 +15963,7 @@ async def accept_emerging_screenplay(
     project = {
         'id': project_id,
         'user_id': user['id'],
-        'status': 'proposed',
+        'status': 'casting',
         'title': title,
         'genre': genre,
         'subgenres': subgenres,
@@ -15983,8 +15983,20 @@ async def accept_emerging_screenplay(
         'emerging_screenplay_id': screenplay_id,
         'emerging_option': option,
         'created_at': now_str,
-        'updated_at': now_str
+        'updated_at': now_str,
+        'casting_started_at': now_str
     }
+    
+    # Generate cast proposals so the film goes directly to Casting
+    from routes.film_pipeline import generate_cast_proposals
+    now_dt = datetime.now(timezone.utc)
+    cast_proposals = {}
+    for role in ['directors', 'screenwriters', 'actors', 'composers']:
+        proposals = await generate_cast_proposals(project, role)
+        for p in proposals:
+            p['available_at'] = (now_dt + timedelta(minutes=p['delay_minutes'])).isoformat()
+        cast_proposals[role] = proposals
+    project['cast_proposals'] = cast_proposals
     
     # If full_package, also add the full screenplay text
     if option == 'full_package' and screenplay.get('full_text'):

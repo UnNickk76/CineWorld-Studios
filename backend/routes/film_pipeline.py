@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import random
 import uuid
 import os
@@ -441,6 +441,11 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
     worked_with_ids = set()
     for film in user_films:
         cast = film.get('cast', {})
+        if isinstance(cast, list):
+            for member in cast:
+                if isinstance(member, dict) and member.get('id'):
+                    worked_with_ids.add(member['id'])
+            continue
         for actor in cast.get('actors', []):
             if actor.get('id'):
                 worked_with_ids.add(actor['id'])
@@ -982,12 +987,22 @@ async def buy_discarded_film(project_id: str, user: dict = Depends(get_current_u
     await db.users.update_one({'id': project['discarded_by']}, {'$inc': {'funds': price}})
 
     # Determine which phase to place the film in
-    # It goes to the phase it was in when discarded by the previous producer
     buyer_status = project.get('status_before_discard', 'proposed')
-    # Fallback safety: ensure valid status
     valid_statuses = ['proposed', 'casting', 'screenplay', 'pre_production', 'shooting']
     if buyer_status not in valid_statuses:
         buyer_status = 'proposed'
+    
+    # If film was in proposed phase, auto-advance to casting (buyer already paid)
+    now_dt = datetime.now(timezone.utc)
+    cast_proposals = project.get('cast_proposals', {})
+    if buyer_status == 'proposed':
+        buyer_status = 'casting'
+        cast_proposals = {}
+        for role in ['directors', 'screenwriters', 'actors', 'composers']:
+            proposals = await generate_cast_proposals(project, role)
+            for p in proposals:
+                p['available_at'] = (now_dt + timedelta(minutes=p['delay_minutes'])).isoformat()
+            cast_proposals[role] = proposals
 
     await db.film_projects.update_one(
         {'id': project_id},
@@ -996,9 +1011,11 @@ async def buy_discarded_film(project_id: str, user: dict = Depends(get_current_u
             'status': buyer_status,
             'available_for_purchase': False,
             'bought_from': project.get('discarded_by'),
-            'bought_at': datetime.now(timezone.utc).isoformat(),
+            'bought_at': now_dt.isoformat(),
             'purchase_price': price,
-            'updated_at': datetime.now(timezone.utc).isoformat()
+            'cast_proposals': cast_proposals,
+            'casting_started_at': now_dt.isoformat(),
+            'updated_at': now_dt.isoformat()
         }}
     )
 

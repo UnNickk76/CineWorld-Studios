@@ -101,8 +101,8 @@ export default function EmergingScreenplays() {
       toast.success(res.data.message);
       await refreshUser();
       setShowDetail(false);
-      // Navigate to film pipeline - project is already created in the backend
-      navigate('/create-film');
+      // Navigate to film pipeline casting tab - project is already in casting phase
+      navigate('/create-film?tab=casting');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore nell\'acquisto');
     } finally {

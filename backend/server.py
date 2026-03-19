@@ -4486,12 +4486,16 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
                 await db.films.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
                 await db.film_projects.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
                 poster_tasks[task_id] = {'status': 'done', 'poster_url': new_url, 'error': '', 'film_id': film_id}
+                await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'done', 'poster_url': new_url}})
             else:
                 poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'Generazione fallita', 'film_id': film_id}
+                await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'error', 'error': 'Generazione fallita'}})
         except Exception as e:
             logging.error(f"Regenerate poster error: {e}")
             poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': str(e), 'film_id': film_id}
+            await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'error', 'error': str(e)}})
     
+    await db.regen_tasks.insert_one({'task_id': task_id, 'film_id': film_id, 'status': 'pending', 'poster_url': '', 'error': ''})
     asyncio.create_task(_regen())
     return {'task_id': task_id}
 
@@ -9053,9 +9057,16 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
 
 @api_router.get("/ai/poster/status/{task_id}")
 async def get_poster_status(task_id: str, user: dict = Depends(get_current_user)):
-    """Poll poster generation status."""
+    """Poll poster generation status. Checks in-memory first, then MongoDB for regen tasks."""
     task = poster_tasks.get(task_id)
     if not task:
+        # Fallback: check MongoDB for regeneration tasks (persists across workers/restarts)
+        db_task = await db.regen_tasks.find_one({'task_id': task_id}, {'_id': 0})
+        if db_task:
+            result = {'status': db_task.get('status', 'pending'), 'poster_url': db_task.get('poster_url', ''), 'error': db_task.get('error', ''), 'film_id': db_task.get('film_id', '')}
+            if db_task.get('status') in ('done', 'error'):
+                await db.regen_tasks.delete_one({'task_id': task_id})
+            return result
         return {'status': 'error', 'error': 'Task not found'}
     result = {**task}
     # Cleanup completed tasks after retrieval

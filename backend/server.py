@@ -4455,10 +4455,9 @@ async def get_film_poster(film_id: str):
 
 @api_router.post("/films/{film_id}/regenerate-poster")
 async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_user)):
-    """Regenerate a film's poster using AI, based on its screenplay/plot."""
+    """Start async poster regeneration using the film's screenplay/plot. Returns task_id for polling."""
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
-        # Also check film_projects (drafts)
         film = await db.film_projects.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
@@ -4467,28 +4466,34 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
     genre = film.get('genre') or film.get('genre_name') or 'drama'
     screenplay = film.get('screenplay', '')
     plot_summary = screenplay[:300] if screenplay else title
+    cast_names = film.get('cast_names', [])[:5] if film.get('cast_names') else []
+    prod_house = user.get('production_house_name', '')
     
-    # Build poster request using film's actual data
-    poster_req = PosterRequest(
-        title=title,
-        genre=genre,
-        description=plot_summary,
-        style='cinematic',
-        cast_names=film.get('cast_names', [])[:5] if film.get('cast_names') else [],
-        production_house_name=user.get('production_house_name', ''),
-        force_fallback=False
-    )
+    import uuid as uuid_mod
+    task_id = str(uuid_mod.uuid4())
+    poster_tasks[task_id] = {'status': 'pending', 'poster_url': '', 'error': '', 'film_id': film_id}
     
-    result = await generate_poster(poster_req, user)
-    new_url = result.get('poster_url', '')
+    async def _regen():
+        try:
+            poster_req = PosterRequest(
+                title=title, genre=genre, description=plot_summary,
+                style='cinematic', cast_names=cast_names,
+                production_house_name=prod_house, force_fallback=False
+            )
+            result = await generate_poster(poster_req, user)
+            new_url = result.get('poster_url', '')
+            if new_url:
+                await db.films.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
+                await db.film_projects.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
+                poster_tasks[task_id] = {'status': 'done', 'poster_url': new_url, 'error': '', 'film_id': film_id}
+            else:
+                poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'Generazione fallita', 'film_id': film_id}
+        except Exception as e:
+            logging.error(f"Regenerate poster error: {e}")
+            poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': str(e), 'film_id': film_id}
     
-    if new_url:
-        # Update both films and film_projects collections
-        await db.films.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
-        await db.film_projects.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
-        return {'success': True, 'poster_url': new_url}
-    
-    raise HTTPException(status_code=500, detail="Generazione poster fallita")
+    asyncio.create_task(_regen())
+    return {'task_id': task_id}
 
 
 

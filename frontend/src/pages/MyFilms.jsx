@@ -105,11 +105,33 @@ const MyFilms = () => {
     e.stopPropagation();
     setRegenLoading(filmId);
     try {
-      const res = await api.post(`/films/${filmId}/regenerate-poster`, {}, { timeout: 120000 });
-      if (res.data.poster_url) {
-        setFilms(prev => prev.map(f => f.id === filmId ? { ...f, poster_url: res.data.poster_url } : f));
-        toast.success('Locandina rigenerata!');
+      // Start async generation
+      const startRes = await api.post(`/films/${filmId}/regenerate-poster`, {});
+      const taskId = startRes.data.task_id;
+      if (!taskId) { toast.error('Errore avvio rigenerazione'); setRegenLoading(null); return; }
+      toast.info('Generazione locandina AI in corso...');
+      
+      // Poll for result
+      const maxPolls = 40;
+      for (let i = 0; i < maxPolls; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const statusRes = await api.get(`/ai/poster/status/${taskId}`);
+          const { status, poster_url, error } = statusRes.data;
+          if (status === 'done' && poster_url) {
+            setFilms(prev => prev.map(f => f.id === filmId ? { ...f, poster_url } : f));
+            toast.success('Locandina rigenerata!');
+            setRegenLoading(null);
+            return;
+          }
+          if (status === 'error') {
+            toast.error(error || 'Errore generazione locandina');
+            setRegenLoading(null);
+            return;
+          }
+        } catch { /* polling error, continue */ }
       }
+      toast.error('Timeout generazione locandina');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore rigenerazione locandina');
     } finally {

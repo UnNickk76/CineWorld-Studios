@@ -11,6 +11,7 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Leaderboards and festivals
 - Persistent poster storage (MongoDB)
 - **Casting Agency** with personal actors, genre specializations, XP/fame bonuses
+- **Rich Actor Data** across all 8,245 people (actors, directors, screenwriters, composers)
 
 ## Architecture
 - **Frontend**: React (CRA) with Tailwind + Shadcn UI
@@ -21,6 +22,7 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 ## Key Data Models
 - **users**: id, nickname, funds, total_lifetime_revenue, likeability_score, interaction_score, character_score
 - **films**: id, user_id, title, total_revenue, realistic_box_office, agency_actors_count
+- **people**: id, name, type, skills, skill_caps, hidden_talent, strong_genres, strong_genres_names, adaptable_genre, adaptable_genre_name, gender, age, nationality, fame_score, fame_category
 - **agency_actors**: id, user_id, name, skills, skill_caps, hidden_talent, strong_genres, adaptable_genre, agency_name, films_worked
 - **agency_recruits_log**: user_id, recruit_id, actor_id, week
 - **poster_files**: filename, data, content_type, created_at
@@ -37,25 +39,22 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Cinema Journal, CineBoard, Hall of Fame, Festivals
 - Infrastructure (cinemas, studios, etc.)
 - Acting school
+- Casting Agency system (recruit, manage, fire actors)
+- Rich actor data for ALL 8,245 people (actors + directors + screenwriters + composers)
+- Genre badges (strong + adaptable) in all casting UIs
+- Gender icons on actor cards
+- Revenue bug fix ($12.6M -> $93M+)
+- Dashboard scores fix (Like/Social/Char)
+- Cinema Journal posters fix
+- Collect All $0 fix
+- Empty Series Market fix
+- Release Notes & System Notes updated
 
-## Session Fixes (March 19, 2026)
-### Bug Fixes
-1. **Cinema Journal Posters**: Removed `poster_url: 0` from projection queries
-2. **Dashboard Scores**: Added likeability/interaction/character scores to batch response
-3. **Revenue Drop Fix (P0)**: Scheduler uses `max(current, calculated)` to never decrease total_revenue
-4. **Revenue Display**: All endpoints use `max()` pattern instead of `or` for revenue
-
-### New Feature: Casting Agency System
-- **Agency Management Page** (`/casting-agency`): View actors, recruit from weekly pool, fire actors
-- **Auto-naming**: Agency named after player's production house + "Agency"
-- **Level System**: Lv1 = max 12 actors, 8 weekly recruits. Scales with level.
-- **Genre Specializations**: Each actor has 2 strong genres + 1 adaptable genre
-- **Dual Casting Flow**: Film/Series/Anime pipelines show "Dalla tua Agenzia" / "Dal Mercato" choice
-- **XP/Fame Bonus**: 1 actor=+25%, 2=+35%, 3=+50%, 4+=+70% XP and fame
-- **Actor Growth**: Skills improve gradually after each film, respecting hidden talent caps
-- **Fire → Market**: Fired actors join global pool, available for anyone
-- **School Integration**: School students available for casting (continue training + bonus)
-- **Navigation**: "Agenzia" button added to production menu
+## Session Fixes (March 19, 2026 - Fork 2)
+### Completed
+1. **Rich Actor Data - Film Pipeline**: Enriched existing cast proposals with latest people data (strong_genres, adaptable_genre, skill_caps, hidden_talent) via batch lookup in `get_casting_films` endpoint
+2. **Full People Migration**: Migrated all 6,187 non-actor people (2,061 directors, 2,062 screenwriters, 2,064 composers) to rich data model with genre preferences and skill caps
+3. **PersonMeta Component Update**: Added genre badges (emerald for strong genres, amber for adaptable) to the shared PersonMeta component in FilmPipeline.jsx
 
 ## Pending Issues
 - Contest Page mobile layout broken (P2)
@@ -73,3 +72,4 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Tutorial system
 - Component decomposition
 - Clickable agency name on actor cards
+- Casting Agency building (visual representation/upgrade path)

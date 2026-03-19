@@ -744,8 +744,30 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
 
     now = datetime.now(timezone.utc)
 
+    # Collect all person IDs to enrich with latest data from people collection
+    all_person_ids = set()
     for p in projects:
-        # Update proposal availability
+        for role, proposals in p.get('cast_proposals', {}).items():
+            for prop in proposals:
+                person = prop.get('person', {})
+                pid = person.get('id')
+                if pid and not person.get('strong_genres'):
+                    all_person_ids.add(pid)
+
+    # Batch-fetch missing rich data
+    rich_data_map = {}
+    if all_person_ids:
+        rich_people = await db.people.find(
+            {'id': {'$in': list(all_person_ids)}},
+            {'_id': 0, 'id': 1, 'strong_genres': 1, 'adaptable_genre': 1,
+             'strong_genres_names': 1, 'adaptable_genre_name': 1,
+             'skill_caps': 1, 'hidden_talent': 1}
+        ).to_list(len(all_person_ids))
+        for rp in rich_people:
+            rich_data_map[rp['id']] = rp
+
+    for p in projects:
+        # Update proposal availability + enrich person data
         updated = False
         for role, proposals in p.get('cast_proposals', {}).items():
             for prop in proposals:
@@ -754,6 +776,17 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
                     if now >= avail_at:
                         prop['status'] = 'available'
                         updated = True
+                # Enrich person with rich data if missing
+                person = prop.get('person', {})
+                pid = person.get('id')
+                if pid and pid in rich_data_map and not person.get('strong_genres'):
+                    rd = rich_data_map[pid]
+                    person['strong_genres'] = rd.get('strong_genres', [])
+                    person['adaptable_genre'] = rd.get('adaptable_genre', '')
+                    person['strong_genres_names'] = rd.get('strong_genres_names', [])
+                    person['adaptable_genre_name'] = rd.get('adaptable_genre_name', '')
+                    person['skill_caps'] = rd.get('skill_caps', {})
+                    person['hidden_talent'] = rd.get('hidden_talent', 0.5)
         # Persist updated statuses to DB
         if updated:
             await db.film_projects.update_one(

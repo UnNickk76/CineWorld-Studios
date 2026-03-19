@@ -372,6 +372,12 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
           <UserCheck className="w-2.5 h-2.5 mr-0.5" />Collaboratore
         </Badge>
       )}
+      {(person?.strong_genres_names || []).map((g, i) => (
+        <Badge key={`sg-${i}`} className="bg-emerald-500/15 text-emerald-400 text-[7px] h-3">{g}</Badge>
+      ))}
+      {person?.adaptable_genre_name && (
+        <Badge className="bg-amber-500/15 text-amber-400 text-[7px] h-3">~ {person.adaptable_genre_name}</Badge>
+      )}
     </div>
   );
 

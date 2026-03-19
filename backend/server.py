@@ -5110,18 +5110,18 @@ async def get_cinema_journal(
     ).sort('trailer_generated_at', -1).limit(5).to_list(5)
     
     for trailer_film in recent_trailers:
-        owner = await db.users.find_one({'id': trailer_film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+        owner = await db.users.find_one({'id': trailer_film.get('user_id')}, {'_id': 0, 'nickname': 1, 'production_house_name': 1}) if trailer_film.get('user_id') else None
         trailer_film['owner'] = owner
     
     # Get all films ordered by quality_score descending
     films = await db.films.find(
-        {},
+        {'user_id': {'$exists': True, '$ne': None}},
         {'_id': 0, 'poster_url': 0, 'attendance_history': 0}
     ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
     
     for film in films:
         # Get owner details (exclude large fields)
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0})
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0}) if film.get('user_id') else None
         film['owner'] = owner
         
         # Get director details
@@ -5163,9 +5163,9 @@ async def get_cinema_journal(
                 # Try to get name from actor_info if stored, otherwise generate placeholder
                 placeholder_name = actor_info.get('name', f"Actor #{len(main_cast)+1}")
                 main_cast.append({
-                    'id': actor_id,
+                    'id': actor_id or '',
                     'name': placeholder_name,
-                    'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed={actor_id[:8]}",
+                    'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed={(actor_id or 'unknown')[:8]}",
                     'gender': actor_info.get('gender', 'male'),
                     'role': actor_info.get('role', 'supporting'),
                     'nationality': 'Unknown',

@@ -5684,6 +5684,27 @@ async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user
 # ==================== RELEASE NOTES ====================
 
 RELEASE_NOTES = [
+    {'version': '0.153', 'date': '2026-03-19', 'title': 'Agenzia di Casting Personale',
+     'changes': [
+         {'type': 'new', 'text': 'Agenzia di Casting: recluta attori permanenti nella tua agenzia personale!'},
+         {'type': 'new', 'text': 'Nome automatico: "[Il tuo Studio] Agency" con gestione slot per livello'},
+         {'type': 'new', 'text': 'Livello 1: max 12 attori effettivi e 8 reclute settimanali (aumentano col livello)'},
+         {'type': 'new', 'text': 'Ogni attore ha 2 generi forti e 1 genere adattabile visibili nel profilo'},
+         {'type': 'new', 'text': 'Doppia scelta casting: "Dalla tua Agenzia" o "Dal Mercato" per Film, Serie TV e Anime'},
+         {'type': 'new', 'text': 'Bonus XP/Fama esponenziale: 1 attore +25%, 2 +35%, 3 +50%, 4+ +70%'},
+         {'type': 'new', 'text': 'Crescita graduale: gli attori migliorano dopo ogni film in base alla qualita'},
+         {'type': 'new', 'text': 'Talento nascosto: ogni attore ha un cap su certe skill che puo non superare mai'},
+         {'type': 'new', 'text': 'Licenziamento: attori licenziati tornano sul mercato globale per tutti'},
+         {'type': 'new', 'text': 'Studenti scuola recitazione disponibili per il casting (continuano la formazione)'},
+         {'type': 'new', 'text': 'Pulsante "Agenzia" nel menu Produci! per accesso rapido'},
+     ]},
+    {'version': '0.152', 'date': '2026-03-19', 'title': 'Fix Incassi, Poster Giornale & Score Dashboard',
+     'changes': [
+         {'type': 'fix', 'text': 'Fix critico: gli Incassi totali non calano piu dopo il ricalcolo dello scheduler'},
+         {'type': 'fix', 'text': 'Fix Giornale del Cinema: le locandine dei film ora visibili (erano escluse dalla query)'},
+         {'type': 'fix', 'text': 'Fix Dashboard: score Like, Social e Char ora mostrano i valori reali (non piu fissi a 50)'},
+         {'type': 'improvement', 'text': 'Formula revenue: usa max(box_office_realistico, revenue_totale) per non diminuire mai'},
+     ]},
     {'version': '0.150', 'date': '2026-03-18', 'title': 'CineBoard: Classifiche Emittenti TV',
      'changes': [
          {'type': 'new', 'text': 'Classifica "Emittenti Piu Viste": top emittenti per spettatori di sempre'},
@@ -6412,6 +6433,8 @@ async def add_release_note(version: str, title: str, changes: list):
     return True
 
 DEFAULT_SYSTEM_NOTES = [
+    {'title': 'Agenzia di Casting Personale', 'content': "Novita assoluta! Ora puoi avere la TUA agenzia di casting!\n\nCome funziona:\n1. Vai alla pagina Agenzia (pulsante nel menu Produci!)\n2. Ogni settimana trovi 8 nuove reclute da visionare\n3. Recluta quelle che ti piacciono: diventano attori permanenti della tua agenzia\n4. Livello 1: max 12 attori. Ogni livello dello Studio sblocca piu slot e reclute\n\nGeneri attore:\n- Ogni attore ha 2 generi in cui eccelle (badge verdi) e 1 genere adattabile (badge giallo)\n- Scegli attori con generi adatti ai tuoi film per massimizzare la qualita!\n\nBonus Film con attori propri:\n- 1 attore dalla tua agenzia: +25% XP e Fama\n- 2 attori: +35%\n- 3 attori: +50%\n- 4 o piu: +70%!\n\nCrescita attori:\n- Dopo ogni film, gli attori migliorano le skill in base alla qualita del film\n- Attenzione: ogni attore ha un 'talento nascosto' - alcune skill hanno un cap che non supereranno mai\n- Crescita graduale: nessuno diventa una star da un giorno all'altro!\n\nLicenziamento:\n- Puoi licenziare un attore per fare posto: tornera disponibile sul mercato globale\n\nStudenti della Scuola:\n- Gli studenti della scuola di recitazione sono disponibili per il casting\n- Continuano la formazione anche mentre girano un film, con bonus crescita!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
+    {'title': 'Fix Incassi e Dashboard', 'content': "Risolti bug importanti!\n\n- Gli Incassi totali non diminuiscono piu dopo il ricalcolo automatico dello scheduler\n- Le locandine dei film nel Giornale del Cinema sono ora visibili\n- I punteggi Like, Social e Char nella Dashboard mostrano i valori reali\n\nLa formula revenue ora usa il massimo tra box office realistico e revenue totale, garantendo che i tuoi guadagni non calino mai.", 'category': 'bugfix', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'CineBoard: Classifiche Emittenti TV', 'content': "Nuove classifiche per le Emittenti TV!\n\n• Emittenti Più Viste di Sempre: chi ha raggiunto più spettatori in totale\n• Share Settimanale: top emittenti per share della settimana\n• Share Giornaliero: classifica live aggiornata ogni 5 minuti\n\nAccedi dal popup CineBoard nella navbar superiore. Chi ha lo share più alto domina la classifica!", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'Emittenti TV: Il Tuo Canale Netflix!', 'content': "Il sistema Emittenti TV è stato completamente rinnovato!\n\n• Puoi comprare più emittenti TV (costi crescono esponenzialmente)\n• Setup in 2 step: scegli un nome (permanente!) e la nazione, poi configura la pubblicità\n• Dashboard TV stile Netflix con sezioni Consigliati, Del Momento, I Più Visti\n• Slider pubblicità: più secondi = più incasso ma meno share\n• I film si possono inserire solo dopo la fine del cinema\n• Serie TV e Anime sempre inseribili\n• Revenue automatico ogni ora basato su qualità e share\n• Requisiti ridotti: Studio Serie TV e Anime -40%, Emittente TV -60%\n• Pagina pubblica per vedere tutte le emittenti dei giocatori\n• Nuovo tasto \"Le Mie TV!\" sulla Dashboard", 'category': 'feature', 'priority': 'high', 'author': "Anacapito Studio's"},
     {'title': 'Dashboard Rinnovata', 'content': "La Dashboard è stata completamente rinnovata!\n\n• Ultimi Aggiornamenti: mostra le 5 produzioni più recenti di TUTTI i giocatori con locandina e produttore\n• I Miei Film: 5 locandine in fila unica ottimizzata per mobile con \"Vedi Tutti\"\n• Le Mie Serie TV: 5 locandine con link a \"Vedi Tutti\"\n• I Miei Anime: 5 locandine con link a \"Vedi Tutti\"\n• Layout più compatto e informativo", 'category': 'update', 'priority': 'normal', 'author': "Anacapito Studio's"},

@@ -2114,6 +2114,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'sponsor_rev_share_pct': project.get('sponsor_rev_share_pct', 0),
         'sponsor_attendance_boost_pct': project.get('sponsor_attendance_boost_pct', 0),
         'production_house': user.get('nickname', user.get('email', 'Studio').split('@')[0]),
+        'agency_actors_count': project.get('agency_actors_count', 0),
     }
 
     # Calculate IMDb rating
@@ -2236,8 +2237,21 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
     elif quality_score >= 80:
         xp_gain += XP_REWARDS.get('film_hit', 250)
 
+    # Agency actors bonus
+    agency_actors_count = project.get('agency_actors_count', 0)
+    if agency_actors_count == 0:
+        # Count from cast data
+        agency_actors_count = sum(1 for a in cast.get('actors', []) if a.get('is_agency_actor'))
+    agency_xp_mult, agency_fame_mult, agency_quality_bonus = 1.0, 1.0, 0
+    if agency_actors_count > 0:
+        from routes.casting_agency import calculate_agency_bonus, update_agency_actors_after_film
+        agency_xp_mult, agency_fame_mult, agency_quality_bonus = calculate_agency_bonus(agency_actors_count, quality_score)
+        xp_gain = int(xp_gain * agency_xp_mult)
+
     current_fame = user.get('fame', 50)
     fame_change = calculate_fame_change(quality_score, opening_day_revenue, current_fame)
+    if agency_actors_count > 0:
+        fame_change = int(fame_change * agency_fame_mult)
     new_fame = max(0, min(100, current_fame + fame_change))
 
     await db.users.update_one(
@@ -2245,6 +2259,13 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
         {'$set': {'fame': new_fame},
          '$inc': {'total_xp': xp_gain}}
     )
+
+    # Update agency actors' skills after film
+    if agency_actors_count > 0:
+        try:
+            await update_agency_actors_after_film(film_doc, user['id'])
+        except Exception as e:
+            logging.error(f"Agency actor update error: {e}")
 
     # Notification
     from server import create_notification

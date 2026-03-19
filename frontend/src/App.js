@@ -90,6 +90,7 @@ const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
+const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -905,6 +906,23 @@ const TopNavbar = () => {
                   </button>
                   {/* Empty cell for alignment */}
                   <div></div>
+                  {/* Casting Agency */}
+                  <button
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
+                      productionUnlocks?.has_production_studio
+                        ? (location.pathname === '/casting-agency' ? 'bg-purple-500 text-white' : 'bg-purple-500/10 text-purple-400 border border-purple-500/25 hover:bg-purple-500/20')
+                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      if (productionUnlocks?.has_production_studio) { navigate('/casting-agency'); setShowProductionMenu(false); }
+                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
+                    }}
+                    data-testid="prod-menu-casting-agency"
+                  >
+                    {!productionUnlocks?.has_production_studio && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    <UserCheck className="w-5 h-5" />
+                    <span className="text-[10px] font-bold leading-tight">Agenzia</span>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1757,6 +1775,7 @@ function App() {
                 <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
                 <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
+                <Route path="/casting-agency" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                 <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
                 <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />

@@ -48,6 +48,9 @@ export default function SeriesTVPipeline() {
   // Casting
   const [availableActors, setAvailableActors] = useState([]);
   const [selectedCast, setSelectedCast] = useState([]);
+  const [castingMode, setCastingMode] = useState(null); // null | 'agency' | 'market'
+  const [agencyActors, setAgencyActors] = useState({ effective: [], school: [] });
+  const [agencyInfo, setAgencyInfo] = useState(null);
 
   // Production
   const [prodStatus, setProdStatus] = useState(null);
@@ -75,6 +78,11 @@ export default function SeriesTVPipeline() {
     if (activeSeries?.status === 'casting') {
       api.get(`/series-pipeline/${activeSeries.id}/available-actors`).then(r => {
         setAvailableActors(r.data.actors || []);
+      }).catch(() => {});
+      // Also load agency actors
+      api.get('/agency/actors-for-casting').then(r => {
+        setAgencyActors({ effective: r.data.effective_actors || [], school: r.data.school_students || [] });
+        setAgencyInfo(r.data);
       }).catch(() => {});
     }
   }, [activeSeries?.status, activeSeries?.id, api]);
@@ -134,6 +142,22 @@ export default function SeriesTVPipeline() {
       toast.success(`Cast selezionato! Stipendi totali: $${res.data.total_salary?.toLocaleString()}`);
       setActiveSeries(prev => ({ ...prev, cast: res.data.cast }));
       setSelectedCast([]);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const submitAgencyCastSeries = async () => {
+    const selected = selectedCast.filter(c => c.is_agency);
+    if (selected.length === 0) return toast.error('Seleziona almeno un attore dall\'agenzia');
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/agency/cast-for-series/${activeSeries.id}`, {
+        actor_ids: selected.map(c => ({ actor_id: c.actor_id, role: c.role, source: c.source || 'effective' }))
+      });
+      toast.success(res.data.message);
+      setActiveSeries(prev => ({ ...prev, cast: res.data.cast }));
+      setSelectedCast([]);
+      loadData();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
   };
@@ -388,6 +412,7 @@ export default function SeriesTVPipeline() {
                             <span className="font-medium">{c.name}</span>
                             <div className="flex items-center gap-2">
                               <Badge className="text-[9px] bg-white/5">{c.role}</Badge>
+                              {c.is_agency_actor && <Badge className="text-[8px] bg-purple-500/20 text-purple-400">Agenzia</Badge>}
                               <span className="text-gray-500">${c.season_salary?.toLocaleString()}/stagione</span>
                             </div>
                           </div>
@@ -397,9 +422,103 @@ export default function SeriesTVPipeline() {
                   </Card>
                 )}
 
-                {/* Available actors to cast */}
+                {/* Casting mode choice */}
+                {!castingMode && (agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                  <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/5 space-y-2" data-testid="series-casting-mode-choice">
+                    <p className="text-xs font-semibold text-purple-300">Come vuoi ingaggiare gli attori?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button size="sm" className="h-auto py-2 bg-purple-600 hover:bg-purple-700 text-left flex-col items-start"
+                        onClick={() => setCastingMode('agency')} data-testid="series-cast-agency">
+                        <span className="text-xs font-semibold flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Dalla tua Agenzia</span>
+                        <span className="text-[9px] text-purple-200/70 mt-0.5">{agencyActors.effective.length} attori + {agencyActors.school.length} studenti</span>
+                      </Button>
+                      <Button size="sm" className="h-auto py-2 bg-cyan-600 hover:bg-cyan-700 text-left flex-col items-start"
+                        onClick={() => setCastingMode('market')} data-testid="series-cast-market">
+                        <span className="text-xs font-semibold flex items-center gap-1"><Star className="w-3.5 h-3.5" /> Dal Mercato</span>
+                        <span className="text-[9px] text-cyan-200/70 mt-0.5">Attori assunti e disponibili</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Agency casting mode */}
+                {(castingMode === 'agency') && (
+                  <Card className="bg-[#111113] border-purple-500/10">
+                    <CardHeader className="pb-1">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm text-purple-400">Attori dalla tua Agenzia</CardTitle>
+                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('market')}>Passa al Mercato</Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                        {[...agencyActors.effective.map(a => ({...a, _source: 'effective'})), ...agencyActors.school.map(a => ({...a, _source: 'school'}))].map(actor => {
+                          const alreadyCast = activeSeries.cast?.some(c => c.actor_id === actor.id);
+                          const isSelected = selectedCast.find(c => c.actor_id === actor.id);
+                          const skills = actor.skills || {};
+                          const avgSkill = Object.values(skills).length > 0
+                            ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+                          return (
+                            <div key={actor.id} className={`flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer border ${
+                              alreadyCast ? 'bg-green-500/5 border-green-500/20 opacity-60' : isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
+                            }`} onClick={() => !alreadyCast && setSelectedCast(prev => {
+                              const exists = prev.find(c => c.actor_id === actor.id);
+                              if (exists) return prev.filter(c => c.actor_id !== actor.id);
+                              return [...prev, { actor_id: actor.id, name: actor.name, role: 'Supporto', is_agency: true, source: actor._source }];
+                            })} data-testid={`series-agency-actor-${actor.id}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${actor._source === 'school' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                {actor.name?.charAt(0)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <p className="text-xs font-medium truncate">{actor.name}</p>
+                                  {actor._source === 'school' && <Badge className="text-[7px] bg-cyan-500/15 text-cyan-400 h-3.5">Studente</Badge>}
+                                  {actor.is_legendary && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5">Leggenda</Badge>}
+                                </div>
+                                <p className="text-[10px] text-gray-500">Skill: {avgSkill}</p>
+                                <div className="flex flex-wrap gap-0.5">
+                                  {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                                  {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <select className="bg-[#1a1a1a] text-xs rounded px-1.5 py-1 border border-white/10 text-white"
+                                  value={isSelected.role} onClick={e => e.stopPropagation()}
+                                  onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}>
+                                  <option value="Protagonista">Protagonista</option>
+                                  <option value="Co-Protagonista">Co-Protagonista</option>
+                                  <option value="Antagonista">Antagonista</option>
+                                  <option value="Supporto">Supporto</option>
+                                </select>
+                              )}
+                              {isSelected && <Check className="w-4 h-4 text-purple-400" />}
+                              {alreadyCast && <Badge className="text-[8px] bg-green-500/20 text-green-400">Nel cast</Badge>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {selectedCast.filter(c => c.is_agency).length > 0 && (
+                        <Button className="w-full mt-2 bg-purple-500 hover:bg-purple-600 text-white" onClick={submitAgencyCastSeries} disabled={actionLoading} data-testid="confirm-agency-cast-series">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
+                          Aggiungi dall'Agenzia ({selectedCast.filter(c => c.is_agency).length})
+                        </Button>
+                      )}
+                      <p className="text-[9px] text-amber-400 mt-1">Bonus: +20-70% XP e Fama per serie con i tuoi attori!</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Market casting mode - Available actors to cast */}
+                {(castingMode === 'market' || (!castingMode && agencyActors.effective.length === 0 && agencyActors.school.length === 0)) && (
                 <Card className="bg-[#111113] border-purple-500/10">
-                  <CardHeader className="pb-1"><CardTitle className="text-sm text-purple-400">Attori Disponibili</CardTitle></CardHeader>
+                  <CardHeader className="pb-1">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm text-purple-400">Attori Disponibili</CardTitle>
+                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('agency')}>Passa all'Agenzia</Button>
+                      )}
+                    </div>
+                  </CardHeader>
                   <CardContent className="p-3 pt-0">
                     {availableActors.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-4">Nessun attore disponibile. Assumi attori dall'Agenzia Casting!</p>
@@ -445,6 +564,7 @@ export default function SeriesTVPipeline() {
                     )}
                   </CardContent>
                 </Card>
+                )}
 
                 {/* Advance button (if cast selected) */}
                 {activeSeries.cast?.length > 0 && (

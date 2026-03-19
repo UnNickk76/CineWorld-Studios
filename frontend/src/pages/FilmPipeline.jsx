@@ -308,6 +308,11 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [selectedEquipment, setSelectedEquipment] = useState({});
   const [equipLoading, setEquipLoading] = useState(false);
   const [rejectedProposal, setRejectedProposal] = useState(null);
+  const [castingMode, setCastingMode] = useState({}); // {filmId: 'agency'|'market'|null}
+  const [agencyActors, setAgencyActors] = useState({ effective: [], school: [] });
+  const [agencyInfo, setAgencyInfo] = useState(null);
+  const [selectedAgencyActors, setSelectedAgencyActors] = useState({});
+  const [agencyRoles, setAgencyRoles] = useState({});
 
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
@@ -399,7 +404,15 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
     finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 60000); return () => clearInterval(i); }, [fetch]);
+  const loadAgencyActors = useCallback(async () => {
+    try {
+      const res = await api.get('/agency/actors-for-casting');
+      setAgencyActors({ effective: res.data.effective_actors || [], school: res.data.school_students || [] });
+      setAgencyInfo(res.data);
+    } catch (e) { console.error(e); }
+  }, [api]);
+
+  useEffect(() => { fetch(); loadAgencyActors(); const i = setInterval(fetch, 60000); return () => clearInterval(i); }, [fetch, loadAgencyActors]);
 
   const speedUp = async (filmId, roleType) => {
     setActionLoading(`speed-${filmId}-${roleType}`);
@@ -462,6 +475,34 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
       refreshUser(); refreshCounts(); fetch();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setActionLoading(null); }
+  };
+
+  const submitAgencyCast = async (filmId) => {
+    const selected = Object.entries(selectedAgencyActors)
+      .filter(([_, v]) => v)
+      .map(([actorId]) => {
+        const eff = agencyActors.effective.find(a => a.id === actorId);
+        const sch = agencyActors.school.find(a => a.id === actorId);
+        return {
+          actor_id: actorId,
+          role: agencyRoles[actorId] || 'Supporto',
+          source: eff ? 'effective' : sch ? 'school' : 'effective'
+        };
+      });
+    if (selected.length === 0) { toast.error('Seleziona almeno un attore'); return; }
+    setActionLoading(`agency-cast-${filmId}`);
+    try {
+      const res = await api.post(`/agency/cast-for-film/${filmId}`, { actor_ids: selected });
+      toast.success(res.data.message);
+      setSelectedAgencyActors({});
+      setAgencyRoles({});
+      refreshUser(); fetch(); loadAgencyActors();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const toggleAgencyActor = (actorId) => {
+    setSelectedAgencyActors(prev => ({ ...prev, [actorId]: !prev[actorId] }));
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Caricamento...</div>;
@@ -616,6 +657,154 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
 
               {selectedFilm === f.id && (
                 <div className="space-y-3 mt-2">
+                  {/* Agency/Market choice for actors */}
+                  {!castingMode[f.id] && (agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                    <div className="p-3 rounded border border-purple-800/40 bg-purple-500/5 space-y-2" data-testid="casting-mode-choice">
+                      <p className="text-xs font-semibold text-purple-300">Come vuoi ingaggiare gli attori?</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button size="sm" className="h-auto py-2 bg-purple-700/80 hover:bg-purple-700 text-left flex-col items-start"
+                          onClick={() => setCastingMode(p => ({...p, [f.id]: 'agency'}))} data-testid="cast-mode-agency">
+                          <span className="text-xs font-semibold flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Dalla tua Agenzia</span>
+                          <span className="text-[9px] text-purple-200/70 mt-0.5">
+                            {agencyActors.effective.length} attori + {agencyActors.school.length} studenti
+                          </span>
+                        </Button>
+                        <Button size="sm" className="h-auto py-2 bg-cyan-700/80 hover:bg-cyan-700 text-left flex-col items-start"
+                          onClick={() => setCastingMode(p => ({...p, [f.id]: 'market'}))} data-testid="cast-mode-market">
+                          <span className="text-xs font-semibold flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> Dal Mercato</span>
+                          <span className="text-[9px] text-cyan-200/70 mt-0.5">Attori proposti dagli agenti</span>
+                        </Button>
+                      </div>
+                      <p className="text-[9px] text-gray-500">Puoi usare entrambi i metodi. Regista, sceneggiatore e compositore sono dal mercato.</p>
+                    </div>
+                  )}
+                  {/* If no agency actors, auto-set to market */}
+                  {!castingMode[f.id] && agencyActors.effective.length === 0 && agencyActors.school.length === 0 && (() => { if (!castingMode[f.id]) setCastingMode(p => ({...p, [f.id]: 'market'})); return null; })()}
+
+                  {/* Agency casting mode */}
+                  {castingMode[f.id] === 'agency' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-purple-300">Attori dalla tua Agenzia</p>
+                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400"
+                          onClick={() => setCastingMode(p => ({...p, [f.id]: 'market'}))}>
+                          Passa al Mercato
+                        </Button>
+                      </div>
+                      {/* Already cast agency actors */}
+                      {cast.actors?.filter(a => a.is_agency_actor).length > 0 && (
+                        <div className="p-2 rounded border border-green-800 bg-green-500/5">
+                          <p className="text-[10px] font-medium text-green-400 mb-1">Attori agenzia nel cast:</p>
+                          {cast.actors.filter(a => a.is_agency_actor).map((a, i) => (
+                            <SelectedCastDetail key={i} person={a} roleName={a.role_in_film || 'Attore'} />
+                          ))}
+                        </div>
+                      )}
+                      {/* Effective actors */}
+                      {agencyActors.effective.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-medium text-gray-400 mb-1">Attori Effettivi ({agencyInfo?.agency_name})</p>
+                          {agencyActors.effective.map(actor => {
+                            const alreadyCast = cast.actors?.some(a => a.id === actor.id);
+                            const isSelected = selectedAgencyActors[actor.id];
+                            const avgSkill = Object.values(actor.skills || {}).length > 0
+                              ? Math.round(Object.values(actor.skills).reduce((a, b) => a + b, 0) / Object.values(actor.skills).length) : 0;
+                            return (
+                              <div key={actor.id} className={`p-2 mb-1 rounded border cursor-pointer transition-all ${alreadyCast ? 'border-green-800 bg-green-500/5 opacity-60' : isSelected ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700 hover:border-purple-800/60'}`}
+                                onClick={() => !alreadyCast && toggleAgencyActor(actor.id)} data-testid={`agency-actor-pick-${actor.id}`}>
+                                <div className="flex items-center gap-2">
+                                  <img src={actor.avatar_url} alt="" className="w-7 h-7 rounded-full bg-gray-800" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[11px] font-medium">{actor.name}</span>
+                                      {actor.is_legendary && <Badge className="bg-yellow-500/20 text-yellow-400 text-[7px] h-3.5">Leggenda</Badge>}
+                                      <span className="text-[9px] text-gray-500">Skill: {avgSkill}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                      {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[7px] h-3">{g}</Badge>)}
+                                      {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[7px] h-3">~ {actor.adaptable_genre_name}</Badge>}
+                                    </div>
+                                  </div>
+                                  {!alreadyCast && isSelected && (
+                                    <select value={agencyRoles[actor.id] || ''} onClick={e => e.stopPropagation()}
+                                      onChange={e => setAgencyRoles(p => ({...p, [actor.id]: e.target.value}))}
+                                      className="h-6 text-[9px] bg-gray-800 border border-gray-700 rounded px-1 text-white">
+                                      <option value="">Ruolo...</option>
+                                      {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                  )}
+                                  {alreadyCast && <Badge className="bg-green-500/20 text-green-400 text-[8px]">Nel cast</Badge>}
+                                  {!alreadyCast && isSelected && <Check className="w-4 h-4 text-purple-400" />}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* School students */}
+                      {agencyActors.school.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-medium text-gray-400 mb-1">Studenti Scuola Recitazione (continuano la formazione + bonus crescita)</p>
+                          {agencyActors.school.map(actor => {
+                            const alreadyCast = cast.actors?.some(a => a.id === actor.id);
+                            const isSelected = selectedAgencyActors[actor.id];
+                            const skills = actor.skills || {};
+                            const avgSkill = Object.values(skills).length > 0
+                              ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+                            return (
+                              <div key={actor.id} className={`p-2 mb-1 rounded border cursor-pointer transition-all ${alreadyCast ? 'border-green-800 bg-green-500/5 opacity-60' : isSelected ? 'border-cyan-500 bg-cyan-500/10' : 'border-gray-700 hover:border-cyan-800/60'}`}
+                                onClick={() => !alreadyCast && toggleAgencyActor(actor.id)} data-testid={`school-actor-pick-${actor.id}`}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-cyan-900/30 flex items-center justify-center text-[10px] font-bold text-cyan-400">
+                                    {actor.name?.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[11px] font-medium">{actor.name}</span>
+                                      <Badge className="bg-cyan-500/15 text-cyan-400 text-[7px] h-3">Studente</Badge>
+                                      <span className="text-[9px] text-gray-500">Skill: {avgSkill}</span>
+                                    </div>
+                                  </div>
+                                  {!alreadyCast && isSelected && (
+                                    <select value={agencyRoles[actor.id] || ''} onClick={e => e.stopPropagation()}
+                                      onChange={e => setAgencyRoles(p => ({...p, [actor.id]: e.target.value}))}
+                                      className="h-6 text-[9px] bg-gray-800 border border-gray-700 rounded px-1 text-white">
+                                      <option value="">Ruolo...</option>
+                                      {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                  )}
+                                  {alreadyCast && <Badge className="bg-green-500/20 text-green-400 text-[8px]">Nel cast</Badge>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Confirm button */}
+                      {Object.values(selectedAgencyActors).some(v => v) && (
+                        <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-800 text-xs"
+                          onClick={() => submitAgencyCast(f.id)}
+                          disabled={actionLoading === `agency-cast-${f.id}`} data-testid="confirm-agency-cast">
+                          {actionLoading === `agency-cast-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+                          Aggiungi {Object.values(selectedAgencyActors).filter(v => v).length} attore/i al cast
+                        </Button>
+                      )}
+                      <p className="text-[9px] text-amber-400">Bonus: +20-70% XP e Fama player per ogni film con i tuoi attori!</p>
+                    </div>
+                  )}
+
+                  {/* Market casting mode - the existing proposal system */}
+                  {(castingMode[f.id] === 'market' || (!castingMode[f.id] && agencyActors.effective.length === 0 && agencyActors.school.length === 0)) && (
+                    <div className="space-y-3">
+                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-cyan-300">Casting dal Mercato</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400"
+                            onClick={() => setCastingMode(p => ({...p, [f.id]: 'agency'}))}>
+                            Passa all'Agenzia
+                          </Button>
+                        </div>
+                      )}
                   {Object.entries(f.cast_proposals || {}).map(([role, proposals]) => {
                     const hasSelection = role === 'actors' ? cast.actors?.length > 0 : cast[role === 'directors' ? 'director' : role === 'screenwriters' ? 'screenwriter' : 'composer'];
                     const selected = role === 'actors' ? false : hasSelection; // Actors: never block, always allow more
@@ -757,6 +946,8 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                       </div>
                     );
                   })}
+                    </div>
+                  )}
                 </div>
               )}
               </>

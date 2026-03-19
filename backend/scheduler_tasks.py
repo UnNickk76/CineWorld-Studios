@@ -133,10 +133,14 @@ async def update_all_films_revenue():
                 # Keep last 7 days of data (7*24*6 = 1008 entries at 10-min intervals)
                 daily_revenues = daily_revenues[-1008:]
                 
+                # Never let total_revenue decrease - use max of current and calculated
+                current_total = film.get('total_revenue', 0)
+                safe_total = max(current_total, realistic_box_office)
+                
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
                     {'$set': {
-                        'total_revenue': realistic_box_office,
+                        'total_revenue': safe_total,
                         'realistic_box_office': realistic_box_office,
                         'estimated_final_revenue': estimated_final,
                         'hours_in_theater': round(hours_in_theater, 1),

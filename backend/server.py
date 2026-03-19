@@ -2426,16 +2426,16 @@ async def get_detailed_stats(user: dict = Depends(get_current_user)):
         else:
             films_by_quality['poor'] += 1
     
-    # Revenue breakdown - use realistic_box_office for current, estimated_final_revenue for projection
-    total_revenue = sum(f.get('realistic_box_office', 0) or f.get('total_revenue', 0) for f in all_films)
+    # Revenue breakdown - use max to never show decreased revenue
+    total_revenue = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in all_films)
     estimated_total = sum(f.get('estimated_final_revenue', 0) for f in all_films)
     revenue_by_genre = {}
     for film in all_films:
         genre = film.get('genre', 'unknown')
-        revenue_by_genre[genre] = revenue_by_genre.get(genre, 0) + (film.get('realistic_box_office', 0) or film.get('total_revenue', 0))
+        revenue_by_genre[genre] = revenue_by_genre.get(genre, 0) + max(film.get('realistic_box_office', 0), film.get('total_revenue', 0))
     
     # Top 5 films by revenue
-    top_films_revenue = sorted(all_films, key=lambda x: x.get('realistic_box_office', 0) or x.get('total_revenue', 0), reverse=True)[:5]
+    top_films_revenue = sorted(all_films, key=lambda x: max(x.get('realistic_box_office', 0), x.get('total_revenue', 0)), reverse=True)[:5]
     
     # Likes breakdown
     total_likes = sum(f.get('likes_count', 0) for f in all_films)
@@ -2463,7 +2463,7 @@ async def get_detailed_stats(user: dict = Depends(get_current_user)):
             'by_genre': films_by_genre,
             'by_month': films_by_month,
             'by_quality': films_by_quality,
-            'top_by_revenue': [{'id': f.get('id'), 'title': f.get('title'), 'revenue': f.get('realistic_box_office', 0) or f.get('total_revenue', 0)} for f in top_films_revenue],
+            'top_by_revenue': [{'id': f.get('id'), 'title': f.get('title'), 'revenue': max(f.get('realistic_box_office', 0), f.get('total_revenue', 0))} for f in top_films_revenue],
             'top_by_likes': [{'id': f.get('id'), 'title': f.get('title'), 'likes': f.get('likes_count', 0)} for f in top_films_likes]
         },
         'revenue': {
@@ -5106,7 +5106,7 @@ async def get_cinema_journal(
     # Get films with recent trailers (for headline section)
     recent_trailers = await db.films.find(
         {'trailer_url': {'$exists': True, '$ne': None}},
-        {'_id': 0, 'poster_url': 0}
+        {'_id': 0}
     ).sort('trailer_generated_at', -1).limit(5).to_list(5)
     
     for trailer_film in recent_trailers:
@@ -5116,7 +5116,7 @@ async def get_cinema_journal(
     # Get all films ordered by quality_score descending
     films = await db.films.find(
         {'user_id': {'$exists': True, '$ne': None}},
-        {'_id': 0, 'poster_url': 0, 'attendance_history': 0}
+        {'_id': 0, 'attendance_history': 0}
     ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
     
     for film in films:
@@ -8078,8 +8078,8 @@ async def get_global_statistics(user: dict = Depends(get_current_user)):
 async def get_my_statistics(user: dict = Depends(get_current_user)):
     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
     
-    # Current realistic box office (what has been generated so far)
-    total_box_office = sum(f.get('realistic_box_office', 0) or f.get('total_revenue', 0) for f in films)
+    # Current realistic box office (what has been generated so far) - use max to prevent decrease
+    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
     # Estimated final revenue (projection if films stay 4 weeks)
     total_estimated = sum(f.get('estimated_final_revenue', 0) for f in films)
     # What user has actually collected
@@ -8178,8 +8178,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_nickname'] = p.get('nickname', '?')
         r['producer_house'] = p.get('production_house_name', '')
     
-    # Statistics calculation
-    total_box_office = sum(f.get('realistic_box_office', 0) or f.get('total_revenue', 0) for f in films)
+    # Statistics calculation - use max to never show decreased revenue
+    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
     total_likes = sum(f.get('likes_count', 0) for f in films)
     avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
     total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
@@ -8263,7 +8263,10 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
             'total_infra_costs': total_infra_costs,
             'total_infra_revenue': total_infra_revenue,
             'lifetime_collected': lifetime_collected,
-            'infrastructure_count': len(infrastructure)
+            'infrastructure_count': len(infrastructure),
+            'likeability_score': user.get('likeability_score', 50),
+            'interaction_score': user.get('interaction_score', 50),
+            'character_score': user.get('character_score', 50)
         },
         'featured_films': featured,
         'my_series': my_series[:5],

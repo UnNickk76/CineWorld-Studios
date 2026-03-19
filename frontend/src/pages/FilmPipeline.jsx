@@ -807,8 +807,72 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                           <p className="text-xs font-semibold text-cyan-300">Casting dal Mercato</p>
                           <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400"
                             onClick={() => setCastingMode(p => ({...p, [f.id]: 'agency'}))}>
-                            Passa all'Agenzia
+                            Gestisci Agenzia
                           </Button>
+                        </div>
+                      )}
+
+                      {/* Agency actors in primo piano nel mercato */}
+                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                        <div className="p-2 rounded-lg border border-purple-500/15 bg-purple-500/5 space-y-1.5" data-testid="film-market-agency-section">
+                          <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                            <Users className="w-3 h-3" /> I tuoi Attori
+                            <Badge className="text-[7px] bg-amber-500/15 text-amber-400 h-3 ml-1">Bonus XP/Fama</Badge>
+                          </p>
+                          <div className="space-y-1 max-h-36 overflow-y-auto">
+                            {[...agencyActors.effective, ...agencyActors.school].map(actor => {
+                              const isSelected = selectedAgencyActors[actor.id];
+                              const skills = actor.skills || {};
+                              const avgSkill = Object.values(skills).length > 0
+                                ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+                              return (
+                                <div key={actor.id} className={`flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer border ${
+                                  isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-purple-500/10'
+                                }`} onClick={() => toggleAgencyActor(actor.id)} data-testid={`film-market-agency-actor-${actor.id}`}>
+                                  <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] font-bold text-purple-400">
+                                    {actor.name?.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1">
+                                      <p className="text-[11px] font-medium truncate">{actor.name}</p>
+                                      <Badge className="text-[6px] bg-purple-500/15 text-purple-400 h-3">Agenzia</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-[9px] text-gray-500">Skill: {avgSkill}</span>
+                                      {(actor.strong_genres_names || []).map((g, i) => <Badge key={`sg-${i}`} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                                      {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
+                                      value={agencyRoles[actor.id] || 'Supporto'} onClick={e => e.stopPropagation()}
+                                      onChange={e => setAgencyRoles(p => ({...p, [actor.id]: e.target.value}))}>
+                                      <option value="Protagonista">Protagonista</option>
+                                      <option value="Co-Protagonista">Co-Protagonista</option>
+                                      <option value="Antagonista">Antagonista</option>
+                                      <option value="Supporto">Supporto</option>
+                                    </select>
+                                  )}
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {Object.values(selectedAgencyActors).some(Boolean) && (
+                            <Button size="sm" className="w-full bg-purple-500 hover:bg-purple-600 text-white text-xs" onClick={() => submitAgencyCast(f.id)} disabled={actionLoading === `agency-cast-${f.id}`} data-testid="film-market-confirm-agency-cast">
+                              {actionLoading === `agency-cast-${f.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Users className="w-3.5 h-3.5 mr-1" />}
+                              Aggiungi dall'Agenzia ({Object.values(selectedAgencyActors).filter(Boolean).length})
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Divider before market proposals */}
+                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                        <div className="border-t border-white/5 pt-2">
+                          <p className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                            <Star className="w-3 h-3" /> Proposte dal Mercato
+                          </p>
                         </div>
                       )}
                   {Object.entries(f.cast_proposals || {}).map(([role, proposals]) => {

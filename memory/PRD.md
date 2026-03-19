@@ -95,7 +95,7 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - **Red Dot Shooting Badge**: Already implemented at Dashboard.jsx line 914 - verified working
 - **Testing:** 100% pass rate (iteration 98)
 
-### Session 8 (March 19) - Poster Storage Fix & Friend Request Bug
+### Session 8 (March 19) - Poster Storage Fix & Friend Request Bug & Regeneration
 - **Critical Bug Fix: Poster persistence across deployments**
   - Root cause: poster images saved to local filesystem which is lost on deployment
   - Solution: Created `poster_storage.py` module that saves posters to MongoDB collection `poster_files`
@@ -104,6 +104,12 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - **Bug Fix: Friend requests not working**
   - Root cause: `FriendRequest` model in `models/__init__.py` had `target_user_id` but frontend sends `user_id`
   - Fix: Aligned model field to `user_id` to match frontend and route handler
+- **Feature: Regenerate Poster button**
+  - New endpoint `POST /api/films/{film_id}/regenerate-poster` generates AI poster using film's screenplay/plot
+  - Frontend detects broken poster images with `onError`, shows placeholder with "Locandina mancante"
+  - Cyan "Locandina" button (with wand icon) appears between Ads and Trash buttons
+  - Uses film's genre and screenplay for contextually relevant AI poster generation
+  - New poster saved in MongoDB for persistence
 
 ## Remaining Tasks
 

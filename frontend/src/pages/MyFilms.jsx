@@ -64,6 +64,8 @@ const MyFilms = () => {
   const [selectedPlatforms, setSelectedPlatforms] = useState([]);
   const [adDays, setAdDays] = useState(7);
   const [adLoading, setAdLoading] = useState(false);
+  const [brokenPosters, setBrokenPosters] = useState({});
+  const [regenLoading, setRegenLoading] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { 
@@ -99,6 +101,27 @@ const MyFilms = () => {
   };
 
   const calculateAdCost = () => selectedPlatforms.reduce((s, pId) => { const p = adPlatforms.find(x => x.id === pId); return s + (p ? p.cost_per_day * adDays : 0); }, 0);
+
+  const handlePosterError = (filmId) => {
+    setBrokenPosters(prev => ({ ...prev, [filmId]: true }));
+  };
+
+  const regeneratePoster = async (filmId, e) => {
+    e.stopPropagation();
+    setRegenLoading(filmId);
+    try {
+      const res = await api.post(`/films/${filmId}/regenerate-poster`, {}, { timeout: 120000 });
+      if (res.data.poster_url) {
+        setFilms(prev => prev.map(f => f.id === filmId ? { ...f, poster_url: res.data.poster_url } : f));
+        setBrokenPosters(prev => { const n = { ...prev }; delete n[filmId]; return n; });
+        toast.success('Locandina rigenerata!');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore rigenerazione locandina');
+    } finally {
+      setRegenLoading(null);
+    }
+  };
 
   // Series/Anime View
   if (currentView === 'series' || currentView === 'anime') {
@@ -169,7 +192,14 @@ const MyFilms = () => {
           {films.map(film => (
             <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
               <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
-                <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
+                {brokenPosters[film.id] ? (
+                  <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center gap-1">
+                    <Image className="w-6 h-6 text-gray-600" />
+                    <span className="text-[7px] text-gray-500">Locandina mancante</span>
+                  </div>
+                ) : (
+                  <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" onError={() => handlePosterError(film.id)} />
+                )}
                 <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status === 'in_theaters' ? 'LIVE' : film.status}</Badge>
                 {(film.virtual_likes > 0) && (
                   <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
@@ -184,11 +214,24 @@ const MyFilms = () => {
                   <span className="text-gray-400">{(film.likes_count || 0) + (film.virtual_likes || 0)} lk</span>
                   <span className="text-green-400">${((film.total_revenue||0)/1000).toFixed(0)}K</span>
                 </div>
-                {film.status === 'in_theaters' && (
-                  <div className="flex gap-0.5 mt-0.5">
+                <div className="flex gap-0.5 mt-0.5">
+                  {film.status === 'in_theaters' && (
                     <Button variant="outline" size="sm" className="flex-1 h-5 sm:h-6 text-[7px] sm:text-[8px] border-yellow-500/30 text-yellow-400 px-1 py-0" onClick={() => setShowAdDialog(film)}>
                       Ads
                     </Button>
+                  )}
+                  {brokenPosters[film.id] && (
+                    <Button 
+                      variant="outline" size="sm" 
+                      className="flex-1 h-5 sm:h-6 text-[7px] sm:text-[8px] border-cyan-500/30 text-cyan-400 px-1 py-0"
+                      onClick={(e) => regeneratePoster(film.id, e)}
+                      disabled={regenLoading === film.id}
+                      data-testid={`regen-poster-${film.id}`}
+                    >
+                      {regenLoading === film.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <><Wand2 className="w-2 h-2 mr-0.5" />Locandina</>}
+                    </Button>
+                  )}
+                  {film.status === 'in_theaters' && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm" className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-orange-500/30 text-orange-400 px-1 py-0"><Trash2 className="w-2.5 h-2.5" /></Button>
@@ -198,8 +241,8 @@ const MyFilms = () => {
                         <AlertDialogFooter><AlertDialogCancel className="h-8 text-sm">No</AlertDialogCancel><AlertDialogAction onClick={() => withdrawFilm(film.id)} className="bg-orange-500 h-8 text-sm">Si</AlertDialogAction></AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

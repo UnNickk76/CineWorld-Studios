@@ -95,15 +95,15 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - **Red Dot Shooting Badge**: Already implemented at Dashboard.jsx line 914 - verified working
 - **Testing:** 100% pass rate (iteration 98)
 
-### Session 8 (March 19) - Poster Storage Fix
+### Session 8 (March 19) - Poster Storage Fix & Friend Request Bug
 - **Critical Bug Fix: Poster persistence across deployments**
-  - Root cause: poster images saved to local filesystem (`/app/backend/static/posters/`) which is lost on deployment
+  - Root cause: poster images saved to local filesystem which is lost on deployment
   - Solution: Created `poster_storage.py` module that saves posters to MongoDB collection `poster_files`
-  - Modified ALL poster generation code (server.py, film_pipeline.py, series_pipeline.py) to use MongoDB storage
-  - `serve_poster` endpoint now checks: disk cache → MongoDB → 404
-  - MongoDB-served posters are auto-cached to disk for fast subsequent requests
-  - Migration created to copy 22 existing posters from disk to MongoDB
+  - Modified ALL poster generation code to use MongoDB storage
   - Verified: all 22 posters load correctly even after removing disk files
+- **Bug Fix: Friend requests not working**
+  - Root cause: `FriendRequest` model in `models/__init__.py` had `target_user_id` but frontend sends `user_id`
+  - Fix: Aligned model field to `user_id` to match frontend and route handler
 
 ## Remaining Tasks
 

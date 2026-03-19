@@ -263,7 +263,7 @@ class MajorCreateRequest(BaseModel):
     description: Optional[str] = None
 
 class FriendRequest(BaseModel):
-    target_user_id: str
+    user_id: str
 
 # ==================== INFRASTRUCTURE MODELS ====================
 

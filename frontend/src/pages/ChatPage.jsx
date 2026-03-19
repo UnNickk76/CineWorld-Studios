@@ -49,6 +49,7 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 
 const ChatPage = () => {
   const { api, user } = useContext(AuthContext);
+  const { language } = useContext(LanguageContext);
   const { t } = useTranslations();
   const [rooms, setRooms] = useState({ public: [], private: [] });
   const [activeRoom, setActiveRoom] = useState(null);
@@ -59,6 +60,12 @@ const ChatPage = () => {
   const [activeTab, setActiveTab] = useState('public');
   const [showUsers, setShowUsers] = useState(false);
   const [loadingDM, setLoadingDM] = useState(null);
+  const messagesEndRef = useRef(null);
+  
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
   
   // User profile modal state
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -229,19 +236,25 @@ const ChatPage = () => {
   );
 
   return (
-    <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto h-[calc(100vh-5rem)]" data-testid="chat-page">
-      <div className="grid lg:grid-cols-4 gap-3 h-full">
-        {/* Sidebar */}
-        <Card className="bg-[#1A1A1A] border-white/10 lg:col-span-1 flex flex-col">
-          <CardHeader className="pb-2 pt-3 px-3">
-            <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center justify-between">
-              {t('chat')}
-              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setShowUsers(!showUsers)} data-testid="toggle-users-btn">
-                <Users className="w-3 h-3 mr-1" />
-                <span className="text-xs text-green-500">{onlineUsers.length}</span>
-              </Button>
-            </CardTitle>
-          </CardHeader>
+    <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto h-[calc(100vh-9rem)] flex flex-col" data-testid="chat-page">
+      <div className="grid lg:grid-cols-4 gap-3 flex-1 min-h-0">
+        {/* Sidebar - only visible on desktop, or when toggled on mobile */}
+        {(showUsers || false) && (
+          <Card className="bg-[#1A1A1A] border-white/10 lg:col-span-1 flex flex-col fixed inset-x-3 top-20 bottom-24 z-50 lg:static lg:inset-auto">
+            <CardHeader className="pb-2 pt-3 px-3 shrink-0">
+              <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center justify-between">
+                {t('chat')}
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setShowUsers(!showUsers)} data-testid="toggle-users-btn">
+                    <Users className="w-3 h-3 mr-1" />
+                    <span className="text-xs text-green-500">{onlineUsers.length}</span>
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 px-1" onClick={() => setShowUsers(false)}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
           
           {showUsers ? (
             <CardContent className="p-2 flex-1 overflow-hidden">
@@ -409,13 +422,18 @@ const ChatPage = () => {
             </CardContent>
           )}
         </Card>
+        )}
 
         {/* Chat Area */}
-        <Card className="bg-[#1A1A1A] border-white/10 lg:col-span-3 flex flex-col">
+        <Card className="bg-[#1A1A1A] border-white/10 lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
           {activeRoom ? (
             <>
-              <CardHeader className="pb-2 pt-3 px-3 border-b border-white/10">
+              <CardHeader className="pb-2 pt-3 px-3 border-b border-white/10 shrink-0">
                 <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  {/* Mobile: toggle users button */}
+                  <Button variant="ghost" size="sm" className="h-6 px-1 lg:hidden" onClick={() => setShowUsers(true)}>
+                    <Users className="w-3.5 h-3.5" />
+                  </Button>
                   {activeRoom.is_private && activeRoom.other_user ? (
                     <>
                       <Avatar className="w-6 h-6">
@@ -430,9 +448,9 @@ const ChatPage = () => {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 p-3 overflow-hidden flex flex-col">
-                <ScrollArea className="flex-1">
-                  <div className="space-y-2">
+              <CardContent className="flex-1 p-3 flex flex-col min-h-0 overflow-hidden">
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="space-y-2 pr-2">
                     {messages.length === 0 ? (
                       <div className="text-center py-8 text-gray-500 text-sm">
                         No messages yet. Start the conversation!
@@ -483,9 +501,10 @@ const ChatPage = () => {
                         </div>
                       ))
                     )}
+                    <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
-                <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
+                <div className="flex gap-2 mt-2 pt-2 border-t border-white/10 shrink-0">
                   <Input
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}

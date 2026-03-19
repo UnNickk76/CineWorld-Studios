@@ -8806,8 +8806,12 @@ async def get_room_messages(room_id: str, limit: int = 50, user: dict = Depends(
     ).sort('created_at', -1).limit(limit).to_list(limit)
     
     for msg in messages:
-        sender = await db.users.find_one({'id': msg['sender_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        msg['sender'] = sender
+        sid = msg.get('sender_id')
+        if sid:
+            sender = await db.users.find_one({'id': sid}, {'_id': 0, 'password': 0, 'email': 0})
+            msg['sender'] = sender
+        else:
+            msg['sender'] = None
     
     return messages[::-1]
 

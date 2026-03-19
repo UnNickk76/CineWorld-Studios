@@ -1,152 +1,64 @@
-# CineWorld Studio's - Product Requirements Document
+# CineWorld Studio's - PRD
 
 ## Original Problem Statement
-Cinematic empire game where players build film studios, produce films, hire cast, and compete on leaderboards.
+A cinematic empire game where users produce films, manage TV stations, compete in challenges, and build a Hollywood-style business empire.
 
-## Core Architecture
-- **Frontend:** React + Tailwind + Shadcn/UI + Framer Motion
-- **Backend:** FastAPI + MongoDB
-- **AI:** OpenAI GPT-4o-mini (text) + GPT-Image-1 (images) via Emergent LLM Key
-- **Scheduler:** APScheduler for autonomous game ops
+## Core Requirements
+- Film production pipeline (films, sequels, TV series, anime)
+- Netflix-style TV station management
+- Revenue/economy system with realistic box office simulation
+- Social features (friends, chat, challenges)
+- Leaderboards and festivals
+- Persistent poster storage (MongoDB)
 
-## Credentials
-- User: fandrex1@gmail.com / Ciaociao1
+## Architecture
+- **Frontend**: React (CRA) with Tailwind + Shadcn UI
+- **Backend**: FastAPI + MongoDB (Motor async driver)
+- **Scheduler**: APScheduler for background tasks
+- **AI**: OpenAI GPT-4o-mini (text) + GPT-Image-1 (posters) via Emergent LLM Key
 
----
+## Key Data Models
+- **users**: id, nickname, funds, total_lifetime_revenue, likeability_score, interaction_score, character_score
+- **films**: id, user_id, title, total_revenue, realistic_box_office, opening_day_revenue, quality_score, poster_url
+- **poster_files**: filename, data (binary), content_type, created_at
+- **poster_tasks**: _id (task_id), status, poster_url, film_id
+- **infrastructure**: owner_id, type, total_revenue, city, level
 
-## What's Been Implemented
+## Completed Features
+- Full film production pipeline
+- TV series and anime production
+- TV station management
+- Poster persistence in MongoDB
+- Async poster regeneration
+- Friend system, chat, challenges
+- Revenue collection system
+- Cinema Journal, CineBoard, Hall of Fame
+- Festival/Awards system
+- Infrastructure (cinemas, studios, etc.)
 
-### Session 1 (March 18)
-- Multi-Actor Casting, Quality v3, Casting sync fix, Poster performance overhaul
+## Session Fixes (March 19, 2026)
+1. **Cinema Journal Posters**: Removed `poster_url: 0` from projection queries - posters now show
+2. **Dashboard Scores**: Added likeability_score, interaction_score, character_score to dashboard batch response
+3. **Revenue Drop Fix (P0)**: Scheduler now uses `max(current_total, realistic_box_office)` to never decrease total_revenue
+4. **Revenue Display Fix**: All display logic changed from `or` to `max()` pattern across all endpoints
 
-### Session 2 (March 18)
-- Production Menu UI (4 buttons), Menu animations, unlock indicator
+## Known Issues (Resolved)
+- ~~Revenue drops after scheduler runs~~ FIXED
+- ~~Like/Social/Char always show 50~~ FIXED  
+- ~~Cinema Journal missing posters~~ FIXED
 
-### Session 3 (March 18)
-- Dashboard PRODUCI card opens production menu via shared context
-- TV Series Pipeline (full), Anime Pipeline (full), Emittente TV placeholder
+## Pending Issues
+- Contest Page mobile layout broken (P2)
 
-### Session 4 (March 18)
-- **CineBoard Popup Menu:** Trophy button in top navbar opens dropdown with 3 options:
-  - Film (all existing rankings at /social)
-  - Serie TV (weekly trend at /social?view=series)
-  - Anime (weekly trend at /social?view=anime)
-- Backend: `/api/cineboard/series-weekly` and `/api/cineboard/anime-weekly` endpoints
-- **Sequel Pipeline (P0 COMPLETE):**
-  - Backend: `/api/sequel-pipeline/*` - create, confirm-cast, write-screenplay, start-production, release, discard
-  - Select parent film, inherit cast with 30% discount, AI screenplay, 5-min quick production
-  - Saga bonus system: +5% (cap.2), +8% (cap.3), +12% (cap.4), +15% (cap.5-6)
-  - Saga fatigue: from cap.4, malus -8% if parent quality < 60
-  - Max 5 sequels per saga (6 chapters total)
-- **Production Menu Updated:** 5 buttons in 3-column grid (Film, Sequel, Serie TV, Anime, La Tua TV)
-- **Emittente TV Broadcast System (P1 COMPLETE):**
-  - Backend: `/api/emittente-tv/*` - broadcasts, assign, remove, air-episode, stats
-  - 3 timeslots: Daytime (x0.5 audience, $5K/g), Prime Time (x1.5, $15K/g), Late Night (x0.8, $8K/g)
-  - Assign series to slots, air episodes, earn ad revenue ($50 CPM)
-  - Frontend: Full management page with palinsesto, assignment panel, stats
-- **Testing:** 100% pass rate across all iterations (89-91)
+## Backlog (P1)
+- Marketplace for TV/Anime rights
+- Casting Agency building
+- Improve chat system
 
----
-
-### Session 5 (March 18)
-- **"I Miei Film" Popup Menu:** Bottom nav "I Miei" button opens popup with 3 options (Film, Serie TV, Anime)
-- **MyFilms.jsx Refactored:** Handles `?view=` parameter (film/series/anime) for dynamic content display
-- **Release/System Notes Updated** in backend
-
-### Session 6 (March 18)
-- **Removed "FILM IN ATTESA DI RILASCIO" card** from Dashboard (user request - no longer needed)
-- **Added "ULTIMI AGGIORNAMENTI" section** in its place: shows 5 latest releases from ALL players with poster, title, producer name
-- **Added 3 horizontal sections** at bottom of Dashboard: "I Miei Film" (5 posters), "Le Mie Serie TV" (5 posters), "I Miei Anime" (5 posters), each with "Vedi Tutti" button
-- **Backend extended**: `/api/dashboard/batch` now returns `my_series`, `my_anime`, `recent_releases` with producer info
-- **Verified** via testing agent: 100% pass rate (iteration 92 + 93)
-- **Updated** Release Notes (v0.091, v0.092) and System Notes
-
-## COMPLETED P0/P1 TASKS
-- [x] Production Menu UI (5 buttons)
-- [x] TV Series Pipeline
-- [x] Anime Pipeline
-- [x] Sequel Pipeline (saga bonus + fatigue)
-- [x] CineBoard Series/Anime Trend Classifiche
-- [x] CineBoard Popup Menu (Film, Serie TV, Anime)
-- [x] Emittente TV Broadcast System
-- [x] "I Miei Film" Popup Menu (Film, Serie TV, Anime)
-- [x] MyFilms.jsx dynamic view (?view= parameter)
-- [x] Classifiche Emittenti TV (Più Viste, Share Settimanale, Share Giornaliero live)
-- [x] Sistema TV Stations completo (Netflix-style, multi-acquisto, setup wizard, revenue)
-- [x] Pagina pubblica Emittenti TV
-- [x] "Le Mie TV!" button Dashboard + navbar TV icon
-- [x] Riduzione requisiti infrastrutture (Serie TV/Anime -40%, Emittente TV -60%)
-- [x] Fix: accettazione sfide online 1v1 (popup → selezione film → join)
-- [x] Emittente TV Live Ratings + Storico Episodi + Momentum
-- [x] Dashboard "Ultimi Aggiornamenti" (rilasci da tutti i player)
-- [x] Dashboard 3 sezioni orizzontali (Film, Serie TV, Anime con 5 poster)
-- [x] Dashboard cleanup (removed pending films card)
-
-### Session 7 (March 18) - Bug Fix & Notifications
-- **Bug Fix: AI Generation Timeout** - Root cause: axios global timeout was 12s, but LLM/image generation takes 20-60s.
-  - Fixed by overriding timeout per-request to 120s (screenplay) and 60s (poster) in:
-    - FilmWizard.jsx (screenplay + poster start/status/fallback)
-    - FilmPipeline.jsx (screenplay + poster)
-    - SeriesTVPipeline.jsx (screenplay)
-    - AnimePipeline.jsx (screenplay)
-  - Fixed stale closure in generateScreenplay using functional updater pattern
-- **Fame Requirement Reverted**: emittente_tv fame_required restored to 80 (was incorrectly changed to 40)
-- **Global Broadcast Notification**: Sent MEGA UPDATE v0.150 to all 6 existing players via /admin/broadcast-notification
-- **Red Dot Shooting Badge**: Already implemented at Dashboard.jsx line 914 - verified working
-- **Testing:** 100% pass rate (iteration 98)
-
-### Session 8 (March 19) - Poster Storage Fix & Friend Request Bug & Regeneration
-- **Critical Bug Fix: Poster persistence across deployments**
-  - Root cause: poster images saved to local filesystem which is lost on deployment
-  - Solution: Created `poster_storage.py` module that saves posters to MongoDB collection `poster_files`
-  - Modified ALL poster generation code to use MongoDB storage
-  - Verified: all 22 posters load correctly even after removing disk files
-- **Bug Fix: Friend requests not working**
-  - Root cause: `FriendRequest` model in `models/__init__.py` had `target_user_id` but frontend sends `user_id`
-  - Fix: Aligned model field to `user_id` to match frontend and route handler
-- **Feature: Regenerate Poster button**
-  - New endpoint `POST /api/films/{film_id}/regenerate-poster` generates AI poster using film's screenplay/plot
-  - Frontend detects broken poster images with `onError`, shows placeholder with "Locandina mancante"
-  - Cyan "Locandina" button (with wand icon) appears between Ads and Trash buttons
-  - Uses film's genre and screenplay for contextually relevant AI poster generation
-  - New poster saved in MongoDB for persistence
-
-## Remaining Tasks
-
-### P1 - MARKETPLACE TV/ANIME - NOT STARTED
-- Extend marketplace to trade TV series and anime rights
-- Buy/sell completed series between players
-
-### P1 - Casting Agency
-- Visitable building that other players can use for a fee
-
-### P1 - Chat System Improvement
-- User explicitly requested improvement of in-game chat (to be reminded later)
-
-### P2 - Known Issues
-- Contest Page Mobile Layout (/games) - recurring mobile rendering issue
-
-### P2 - Refactoring
-- Refactor server.py (16k+ lines → modular routes)
-- Refactor FilmPipeline.jsx (1700+ lines)
-- Refactor Dashboard.jsx
-
-### P2 - Future Features
-- Admin RBAC System
-- CinePass speed-ups
-- Stripe integration, PWA, Tutorial popup
-
-## Key Files
-- `/app/backend/server.py` - Main backend + cineboard endpoints
-- `/app/backend/routes/series_pipeline.py` - TV Series & Anime pipeline
-- `/app/backend/routes/sequel_pipeline.py` - Sequel pipeline
-- `/app/backend/routes/emittente_tv.py` - Broadcast system
-- `/app/backend/routes/film_pipeline.py` - Film pipeline
-- `/app/backend/game_systems.py` - Infrastructure types
-- `/app/frontend/src/App.js` - Main app, production menu, cineboard popup
-- `/app/frontend/src/contexts/index.jsx` - ProductionMenuContext
-- `/app/frontend/src/pages/SeriesTVPipeline.jsx` - TV Series pipeline UI
-- `/app/frontend/src/pages/AnimePipeline.jsx` - Anime pipeline UI
-- `/app/frontend/src/pages/SequelPipeline.jsx` - Sequel pipeline UI
-- `/app/frontend/src/pages/EmittenteTVPage.jsx` - TV Network management
-- `/app/frontend/src/pages/CineBoard.jsx` - CineBoard with series/anime views
+## Future (P2)
+- RBAC system
+- CinePass speed-up for pipeline steps
+- Stripe integration
+- PWA functionality
+- Tutorial system
+- Component decomposition

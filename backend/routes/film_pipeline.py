@@ -12,6 +12,7 @@ import logging
 
 from database import db
 from auth_utils import get_current_user
+import poster_storage
 from game_systems import (
     calculate_imdb_rating, generate_ai_interactions, calculate_film_tier,
     generate_critic_reviews, calculate_fame_change, get_level_from_xp,
@@ -1486,13 +1487,8 @@ async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depe
             number_of_images=1
         )
         if images and len(images) > 0:
-            import os as _os
-            poster_dir = '/app/backend/static/posters'
-            _os.makedirs(poster_dir, exist_ok=True)
             filename = f"proj_{project_id}.png"
-            filepath = _os.path.join(poster_dir, filename)
-            with open(filepath, 'wb') as f:
-                f.write(images[0])
+            await poster_storage.save_poster(filename, images[0], 'image/png')
             poster_url = f"/api/posters/{filename}"
     except HTTPException:
         raise
@@ -2202,13 +2198,8 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
                     number_of_images=1
                 )
                 if images and len(images) > 0:
-                    import os as _os
-                    poster_dir = '/app/backend/static/posters'
-                    _os.makedirs(poster_dir, exist_ok=True)
                     filename = f"{film_id}.png"
-                    filepath = _os.path.join(poster_dir, filename)
-                    with open(filepath, 'wb') as f:
-                        f.write(images[0])
+                    await poster_storage.save_poster(filename, images[0], 'image/png')
                     film_doc['poster_url'] = f"/api/posters/{filename}"
         except Exception as e:
             logging.error(f"Poster generation error: {e}")

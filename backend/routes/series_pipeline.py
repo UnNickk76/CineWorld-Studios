@@ -13,6 +13,7 @@ import math
 
 from database import db
 from auth_utils import get_current_user
+import poster_storage
 from game_systems import get_level_from_xp, XP_REWARDS
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
@@ -501,11 +502,14 @@ async def generate_series_poster(series_id: str, user: dict = Depends(get_curren
             img = Image.open(io.BytesIO(img_data))
             img = img.resize((400, 600), Image.LANCZOS)
             
-            poster_dir = '/app/backend/static/posters'
-            os.makedirs(poster_dir, exist_ok=True)
+            # Save to MongoDB for persistence
+            from io import BytesIO as _BytesIO
+            buf = _BytesIO()
+            img.save(buf, 'PNG', optimize=True)
+            png_bytes = buf.getvalue()
+            
             filename = f"series_{series_id}.png"
-            filepath = os.path.join(poster_dir, filename)
-            img.save(filepath, 'PNG', optimize=True)
+            await poster_storage.save_poster(filename, png_bytes, 'image/png')
             
             poster_url = f"/api/posters/{filename}"
             await db.tv_series.update_one(

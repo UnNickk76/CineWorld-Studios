@@ -78,6 +78,7 @@ from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
+import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
     generate_cast_pool, get_all_locations_flat,
@@ -111,6 +112,7 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+poster_storage.init_db(db)
 
 # JWT Config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'cineworld-secret-key-2024')
@@ -6573,7 +6575,7 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration recalculate_imdb_v5: Recalculated {updated} films with new formula")
 
-    # Migration: Extract base64 posters to disk files for performance
+    # Migration: Extract base64 posters to disk files AND MongoDB for persistence
     if 'extract_posters_to_disk_v1' not in completed:
         import base64 as _b64
         poster_dir = '/app/backend/static/posters'
@@ -6585,10 +6587,10 @@ async def run_startup_migrations():
                 poster_data = film['poster_url']
                 header, b64data = poster_data.split(',', 1)
                 ext = 'png' if 'png' in header else 'jpg' if 'jpeg' in header or 'jpg' in header else 'webp' if 'webp' in header else 'png'
+                ct = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
                 filename = f"{film['id']}.{ext}"
-                filepath = os.path.join(poster_dir, filename)
-                with open(filepath, 'wb') as f:
-                    f.write(_b64.b64decode(b64data))
+                img_bytes = _b64.b64decode(b64data)
+                await poster_storage.save_poster(filename, img_bytes, ct)
                 new_url = f"/api/posters/{filename}"
                 await db.films.update_one({'id': film['id']}, {'$set': {'poster_url': new_url}})
                 extracted += 1
@@ -6601,10 +6603,10 @@ async def run_startup_migrations():
                 poster_data = proj['poster_url']
                 header, b64data = poster_data.split(',', 1)
                 ext = 'png' if 'png' in header else 'jpg' if 'jpeg' in header or 'jpg' in header else 'webp' if 'webp' in header else 'png'
+                ct = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
                 filename = f"proj_{proj['id']}.{ext}"
-                filepath = os.path.join(poster_dir, filename)
-                with open(filepath, 'wb') as f:
-                    f.write(_b64.b64decode(b64data))
+                img_bytes = _b64.b64decode(b64data)
+                await poster_storage.save_poster(filename, img_bytes, ct)
                 new_url = f"/api/posters/{filename}"
                 await db.film_projects.update_one({'id': proj['id']}, {'$set': {'poster_url': new_url}})
                 extracted += 1
@@ -6612,7 +6614,15 @@ async def run_startup_migrations():
                 logging.error(f"Failed to extract poster for project {proj['id']}: {e}")
         completed.append('extract_posters_to_disk_v1')
         changed = True
-        logging.info(f"Migration extract_posters_to_disk_v1: Extracted {extracted} posters to disk")
+        logging.info(f"Migration extract_posters_to_disk_v1: Extracted {extracted} posters to disk + MongoDB")
+
+    # Migration: Copy existing disk posters to MongoDB for deployment persistence
+    if 'posters_to_mongodb_v1' not in completed:
+        migrated = await poster_storage.migrate_disk_to_db()
+        completed.append('posters_to_mongodb_v1')
+        changed = True
+        logging.info(f"Migration posters_to_mongodb_v1: Migrated {migrated} posters from disk to MongoDB")
+
 
     # Migration: Recalculate ALL films' quality_score with new Alchemy v2 formula
     if 'recalculate_quality_v2' not in completed:
@@ -8974,12 +8984,8 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
                     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
                     jpeg_bytes = jpeg_buffer.getvalue()
                     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
-                    poster_dir = '/app/backend/static/posters'
-                    os.makedirs(poster_dir, exist_ok=True)
                     filename = f"task_{task_id}.jpg"
-                    filepath = os.path.join(poster_dir, filename)
-                    with open(filepath, 'wb') as f:
-                        f.write(jpeg_bytes)
+                    await poster_storage.save_poster(filename, jpeg_bytes, 'image/jpeg')
                     poster_file_url = f"/api/posters/{filename}"
                     logging.info(f"AI Poster task {task_id} generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
                     poster_tasks[task_id] = {'status': 'done', 'poster_url': poster_file_url, 'error': ''}
@@ -9062,13 +9068,9 @@ async def generate_poster(request: PosterRequest, user: dict = Depends(get_curre
                 jpeg_bytes = jpeg_buffer.getvalue()
                 
                 image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
-                poster_dir = '/app/backend/static/posters'
-                os.makedirs(poster_dir, exist_ok=True)
                 import uuid as _uuid
                 filename = f"gen_{_uuid.uuid4().hex[:12]}.jpg"
-                filepath = os.path.join(poster_dir, filename)
-                with open(filepath, 'wb') as f:
-                    f.write(jpeg_bytes)
+                await poster_storage.save_poster(filename, jpeg_bytes, 'image/jpeg')
                 poster_file_url = f"/api/posters/{filename}"
                 logging.info(f"AI Poster generated with text overlay, compressed: {len(jpeg_bytes)} bytes (attempt {attempt+1})")
                 return {'poster_base64': image_base64, 'poster_url': poster_file_url}
@@ -9361,13 +9363,9 @@ async def _generate_fallback_poster(request) -> dict:
     img.save(jpeg_buffer, format='JPEG', quality=82, optimize=True)
     jpeg_bytes = jpeg_buffer.getvalue()
     
-    poster_dir = '/app/backend/static/posters'
-    os.makedirs(poster_dir, exist_ok=True)
     import uuid as _uuid
     filename = f"fb_{_uuid.uuid4().hex[:12]}.jpg"
-    filepath = os.path.join(poster_dir, filename)
-    with open(filepath, 'wb') as f:
-        f.write(jpeg_bytes)
+    await poster_storage.save_poster(filename, jpeg_bytes, 'image/jpeg')
     poster_file_url = f"/api/posters/{filename}"
     image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
     
@@ -16894,13 +16892,27 @@ async def serve_trailer(filename: str):
 
 @app.get("/api/posters/{filename}")
 async def serve_poster(filename: str):
-    """Serve extracted poster files with aggressive caching."""
+    """Serve poster files from MongoDB (persistent) with disk cache fallback."""
+    # First: check disk cache (fastest)
     poster_path = os.path.join("/app/backend/static/posters", filename)
-    if not os.path.isfile(poster_path):
-        raise HTTPException(status_code=404, detail="Poster non trovato")
-    ext = filename.rsplit('.', 1)[-1].lower()
-    media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
-    return FileResponse(poster_path, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    if os.path.isfile(poster_path):
+        ext = filename.rsplit('.', 1)[-1].lower()
+        media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
+        return FileResponse(poster_path, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    
+    # Second: check MongoDB (persistent across deployments)
+    data, content_type = await poster_storage.get_poster(filename)
+    if data:
+        # Cache to disk for future requests
+        try:
+            os.makedirs("/app/backend/static/posters", exist_ok=True)
+            with open(poster_path, 'wb') as f:
+                f.write(data)
+        except Exception:
+            pass
+        return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    
+    raise HTTPException(status_code=404, detail="Poster non trovato")
 
 # Serve React build as fallback (production: nginx may proxy all to backend)
 _build_dir = '/app/frontend/build'

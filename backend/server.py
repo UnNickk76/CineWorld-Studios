@@ -8222,7 +8222,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     
     # Pending revenue calc (dynamic, based on time since last collection)
     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
-    total_pending = 0
+    film_pending = 0
+    infra_pending = 0
     for f in films_in_theaters:
         try:
             date_str = f.get('last_revenue_collected') or f.get('release_date') or now.isoformat()
@@ -8239,7 +8240,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
                 base_hourly = f.get('opening_day_revenue', 100000) / 24
                 decay = 0.85 ** (week - 1)
                 hourly_rev = base_hourly * decay * (quality / 100)
-                total_pending += int(hourly_rev * min(6, hours_since))
+                film_pending += int(hourly_rev * min(6, hours_since))
         except:
             pass
     for i in infrastructure:
@@ -8258,9 +8259,10 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
             if hours_passed >= (1/60):
                 hourly_revenue = infra_type.get('passive_income', 500)
                 city_multiplier = i.get('city', {}).get('revenue_multiplier', 1.0)
-                total_pending += int(hourly_revenue * city_multiplier * hours_passed)
+                infra_pending += int(hourly_revenue * city_multiplier * hours_passed)
         except:
             pass
+    total_pending = film_pending + infra_pending
     
     # Pipeline counts
     pipeline_counts = {}
@@ -8297,7 +8299,13 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'my_anime': my_anime[:5],
         'recent_releases': recent_releases,
         'challenges': challenges,
-        'pending_revenue': {'total': total_pending, 'films_count': len(films_in_theaters)},
+        'pending_revenue': {
+            'total_pending': total_pending,
+            'film_pending': film_pending,
+            'infra_pending': infra_pending,
+            'can_collect': total_pending > 0,
+            'films_count': len(films_in_theaters)
+        },
         'pending_films': pending_films,
         'emerging_count': emerging_count,
         'has_studio': has_studio,

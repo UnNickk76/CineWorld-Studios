@@ -276,45 +276,95 @@ async def advance_to_casting(series_id: str, user: dict = Depends(get_current_us
 
 @router.get("/series-pipeline/{series_id}/available-actors")
 async def get_available_actors(series_id: str, user: dict = Depends(get_current_user)):
-    """Get actors available for casting (from user's hired actors)."""
+    """Get actors available for casting from multiple sources."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
-        {'_id': 0, 'cast': 1, 'type': 1}
+        {'_id': 0, 'cast': 1, 'type': 1, 'genre': 1}
     )
     if not series:
         raise HTTPException(404, "Serie non trovata")
-    
-    # Get user's hired actors that aren't in school
+
+    cast_ids = {c.get('actor_id') for c in series.get('cast', [])}
+    available = []
+
+    # 1. User's hired actors (old system)
     hired = await db.casting_hires.find(
-        {'user_id': user['id']},
-        {'_id': 0}
+        {'user_id': user['id']}, {'_id': 0}
     ).to_list(100)
-    
     hired_ids = [h['recruit_id'] for h in hired]
-    
-    # Get all available recruits from the weekly pool that user has hired
     if hired_ids:
         recruits = await db.casting_weekly_pool.find(
-            {'id': {'$in': hired_ids}},
-            {'_id': 0}
+            {'id': {'$in': hired_ids}}, {'_id': 0}
         ).to_list(100)
-    else:
-        recruits = []
-    
-    # Filter out actors already cast in this series
-    cast_ids = [c.get('actor_id') for c in series.get('cast', [])]
-    available = [r for r in recruits if r['id'] not in cast_ids]
-    
-    # Check which actors are in school
+        for r in recruits:
+            if r['id'] not in cast_ids:
+                r['source'] = 'hired'
+                available.append(r)
+
+    # 2. Global people pool (market actors)
+    people_actors = await db.people.find(
+        {'type': 'actor'}, {'_id': 0}
+    ).to_list(200)
+
+    import random
+    random.shuffle(people_actors)
+    for p in people_actors[:20]:
+        pid = p.get('id', '')
+        if pid in cast_ids or any(a.get('id') == pid for a in available):
+            continue
+        skills = p.get('skills', {})
+        avg_skill = int(sum(skills.values()) / max(1, len(skills))) if skills else p.get('fame_score', 50)
+        available.append({
+            'id': pid,
+            'name': p.get('name', 'Unknown'),
+            'skill': avg_skill,
+            'popularity': p.get('fame_score', 50),
+            'salary': p.get('cost_per_film', 100000),
+            'nationality': p.get('nationality', 'Unknown'),
+            'gender': p.get('gender', 'unknown'),
+            'stars': p.get('stars', 2),
+            'is_legendary': p.get('is_legendary', False),
+            'avatar_url': p.get('avatar_url', ''),
+            'source': 'market',
+            'former_agency': p.get('former_agency', ''),
+        })
+
+    # 3. Generate procedural actors if not enough
+    if len(available) < 8:
+        from server import NATIONALITIES, NAMES_BY_NATIONALITY
+        rng = random.Random(f"{series_id}-market")
+        needed = 8 - len(available)
+        for i in range(needed):
+            gender = rng.choice(['male', 'female'])
+            nat = rng.choice(NATIONALITIES)
+            nat_names = NAMES_BY_NATIONALITY.get(nat, NAMES_BY_NATIONALITY.get('USA', {'first_male': ['Alex'], 'first_female': ['Alex'], 'last': ['Smith']}))
+            first_names = nat_names.get(f'first_{gender}', ['Alex'])
+            last_names = nat_names.get('last', ['Smith'])
+            name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
+            skill = rng.randint(35, 85)
+            pop = rng.randint(20, 80)
+            salary = rng.randint(50000, 300000)
+            gen_id = f"gen_{series_id}_{i}"
+            available.append({
+                'id': gen_id,
+                'name': name,
+                'skill': skill,
+                'popularity': pop,
+                'salary': salary,
+                'nationality': nat,
+                'gender': gender,
+                'stars': 3 if skill >= 70 else 2,
+                'source': 'generated',
+            })
+
+    # Mark school students
     school_students = await db.casting_school_students.find(
-        {'user_id': user['id']},
-        {'_id': 0, 'source_recruit_id': 1}
+        {'user_id': user['id']}, {'_id': 0, 'source_recruit_id': 1}
     ).to_list(100)
     school_ids = {s.get('source_recruit_id') for s in school_students}
-    
     for a in available:
         a['in_school'] = a['id'] in school_ids
-    
+
     return {"actors": available}
 
 
@@ -331,48 +381,61 @@ async def select_cast(series_id: str, req: SelectCastRequest, user: dict = Depen
         raise HTTPException(400, "La serie non è nella fase di casting")
     if len(req.cast) == 0:
         raise HTTPException(400, "Seleziona almeno un attore")
-    
+
     # Validate actors exist and build cast list
-    cast_list = []
+    cast_list = series.get('cast', [])
     total_salary = 0
     for cm in req.cast:
+        # Skip if already in cast
+        if any(c.get('actor_id') == cm.actor_id for c in cast_list):
+            continue
+
+        # Try multiple sources
         actor = await db.casting_weekly_pool.find_one({'id': cm.actor_id}, {'_id': 0})
         if not actor:
-            raise HTTPException(400, f"Attore {cm.actor_id} non trovato")
-        
+            actor = await db.people.find_one({'id': cm.actor_id}, {'_id': 0})
+        if not actor:
+            # Could be a generated actor - use available-actors endpoint data
+            actor = {'id': cm.actor_id, 'name': 'Attore', 'skill': 50, 'popularity': 50, 'salary': 100000}
+
         # Salary per episode (based on actor skill and role)
         role_mult = {'Protagonista': 1.5, 'Co-Protagonista': 1.2, 'Antagonista': 1.3, 'Supporto': 0.7}.get(cm.role, 0.7)
-        salary_per_ep = int(actor.get('salary', 10000) * role_mult * 0.5)
+        base_salary = actor.get('salary', actor.get('cost_per_film', 100000))
+        salary_per_ep = int(base_salary * role_mult * 0.5)
         season_salary = salary_per_ep * series['num_episodes']
         total_salary += season_salary
-        
+
+        skills = actor.get('skills', {})
+        avg_skill = int(sum(skills.values()) / max(1, len(skills))) if skills else actor.get('skill', 50)
+
         cast_list.append({
             'actor_id': actor['id'],
             'name': actor.get('name', 'Unknown'),
-            'skill': actor.get('skill', 50),
-            'popularity': actor.get('popularity', 50),
+            'skill': avg_skill,
+            'popularity': actor.get('popularity', actor.get('fame_score', 50)),
             'role': cm.role,
             'salary_per_episode': salary_per_ep,
             'season_salary': season_salary,
         })
-    
+
     # Check funds for salaries
     fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
     if fresh_user.get('funds', 0) < total_salary:
         raise HTTPException(400, f"Fondi insufficienti per gli stipendi. Servono ${total_salary:,}")
-    
+
     # Deduct salary
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_salary}})
-    
+    if total_salary > 0:
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_salary}})
+
     await db.tv_series.update_one(
         {'id': series_id},
         {'$set': {
             'cast': cast_list,
-            'cast_total_salary': total_salary,
+            'cast_total_salary': sum(c.get('season_salary', 0) for c in cast_list),
             'updated_at': datetime.now(timezone.utc).isoformat()
         }}
     )
-    
+
     return {"cast": cast_list, "total_salary": total_salary}
 
 

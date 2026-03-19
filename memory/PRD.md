@@ -82,19 +82,30 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - [x] Dashboard 3 sezioni orizzontali (Film, Serie TV, Anime con 5 poster)
 - [x] Dashboard cleanup (removed pending films card)
 
+### Session 7 (March 18) - Bug Fix & Notifications
+- **Bug Fix: AI Generation Timeout** - Root cause: axios global timeout was 12s, but LLM/image generation takes 20-60s.
+  - Fixed by overriding timeout per-request to 120s (screenplay) and 60s (poster) in:
+    - FilmWizard.jsx (screenplay + poster start/status/fallback)
+    - FilmPipeline.jsx (screenplay + poster)
+    - SeriesTVPipeline.jsx (screenplay)
+    - AnimePipeline.jsx (screenplay)
+  - Fixed stale closure in generateScreenplay using functional updater pattern
+- **Fame Requirement Reverted**: emittente_tv fame_required restored to 80 (was incorrectly changed to 40)
+- **Global Broadcast Notification**: Sent MEGA UPDATE v0.150 to all 6 existing players via /admin/broadcast-notification
+- **Red Dot Shooting Badge**: Already implemented at Dashboard.jsx line 914 - verified working
+- **Testing:** 100% pass rate (iteration 98)
+
 ## Remaining Tasks
 
 ### P1 - MARKETPLACE TV/ANIME - NOT STARTED
 - Extend marketplace to trade TV series and anime rights
 - Buy/sell completed series between players
 
-### P1 - Sequel integration in film pipeline
-- Show sequel count on film detail pages
-- Allow sequel creation from film detail page directly
+### P1 - Casting Agency
+- Visitable building that other players can use for a fee
 
-### P1 - Emittente TV Automation
-- Scheduler auto-airs episodes daily (currently manual)
-- Notification system for aired episodes
+### P1 - Chat System Improvement
+- User explicitly requested improvement of in-game chat (to be reminded later)
 
 ### P2 - Known Issues
 - Contest Page Mobile Layout (/games) - recurring mobile rendering issue
@@ -105,7 +116,6 @@ Cinematic empire game where players build film studios, produce films, hire cast
 - Refactor Dashboard.jsx
 
 ### P2 - Future Features
-- Casting Agency as visitable building
 - Admin RBAC System
 - CinePass speed-ups
 - Stripe integration, PWA, Tutorial popup

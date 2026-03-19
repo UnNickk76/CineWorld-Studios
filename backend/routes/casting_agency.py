@@ -763,3 +763,151 @@ async def update_agency_actors_after_film(film: dict, user_id: str):
                 'last_film_date': datetime.now(timezone.utc).isoformat()
             }}
         )
+
+
+
+# ==================== AGENCY ↔ SCHOOL TRANSFER ====================
+
+@router.post("/api/agency/send-to-school/{actor_id}")
+async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_current_user)):
+    """Send an agency actor to acting school for training improvement."""
+    actor = await db.agency_actors.find_one(
+        {'id': actor_id, 'user_id': user['id']}, {'_id': 0}
+    )
+    if not actor:
+        raise HTTPException(404, "Attore non trovato nella tua agenzia")
+
+    # Check if school has capacity
+    from routes.acting_school import get_training_slots
+    school = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'acting_school'}, {'_id': 0, 'level': 1}
+    )
+    if not school:
+        raise HTTPException(400, "Non possiedi una Scuola di Recitazione. Acquistala dalle Infrastrutture!")
+
+    school_level = school.get('level', 1)
+    max_slots = get_training_slots(school_level)
+    current_students = await db.casting_school_students.count_documents({
+        'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}
+    })
+    if current_students >= max_slots:
+        raise HTTPException(400, f"Scuola piena! Hai {current_students}/{max_slots} posti occupati.")
+
+    # Enrollment cost based on actor stars
+    stars = actor.get('stars', 2)
+    enrollment_cost = {2: 50000, 3: 100000, 4: 200000, 5: 400000}.get(stars, 50000)
+
+    fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if fresh_user.get('funds', 0) < enrollment_cost:
+        raise HTTPException(400, f"Fondi insufficienti. Servono ${enrollment_cost:,}")
+
+    # Deduct cost
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -enrollment_cost}})
+
+    # Create school student from agency actor
+    now = datetime.now(timezone.utc).isoformat()
+    student = {
+        'id': actor['id'],
+        'user_id': user['id'],
+        'name': actor['name'],
+        'gender': actor.get('gender', 'male'),
+        'nationality': actor.get('nationality', 'Unknown'),
+        'age': actor.get('age', 25),
+        'avatar_url': actor.get('avatar_url', ''),
+        'base_skills': actor.get('skills', {}),
+        'skill_caps': actor.get('skill_caps', {}),
+        'hidden_talent': actor.get('hidden_talent', 0.5),
+        'strong_genres': actor.get('strong_genres', []),
+        'strong_genres_names': actor.get('strong_genres_names', []),
+        'adaptable_genre': actor.get('adaptable_genre', ''),
+        'adaptable_genre_name': actor.get('adaptable_genre_name', ''),
+        'motivation': actor.get('motivation', 0.8),
+        'training_days': 0,
+        'paid_days': 30,  # 30 days of pre-paid training
+        'status': 'training',
+        'enrolled_at': now,
+        'created_at': now,
+        'from_agency': True,
+        'fame_score': actor.get('fame_score', 30),
+        'fame_category': actor.get('fame_category', 'unknown'),
+        'stars': stars,
+        'films_count': actor.get('films_count', 0),
+        'films_worked': actor.get('films_worked', []),
+    }
+    await db.casting_school_students.insert_one(student)
+
+    # Remove from agency
+    await db.agency_actors.delete_one({'id': actor_id, 'user_id': user['id']})
+
+    return {
+        'success': True,
+        'message': f'{actor["name"]} è stato iscritto alla Scuola di Recitazione!',
+        'enrollment_cost': enrollment_cost,
+    }
+
+
+@router.post("/api/agency/transfer-from-school/{student_id}")
+async def transfer_school_student_to_agency(student_id: str, user: dict = Depends(get_current_user)):
+    """Transfer a school student (graduated or training) to the agency as permanent actor."""
+    student = await db.casting_school_students.find_one(
+        {'id': student_id, 'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
+    )
+    if not student:
+        raise HTTPException(404, "Studente non trovato o non disponibile")
+
+    # Check agency capacity
+    studio = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0, 'level': 1}
+    )
+    if not studio:
+        raise HTTPException(400, "Non possiedi uno Studio di Produzione!")
+
+    level = studio.get('level', 1)
+    max_actors = get_max_agency_actors(level)
+    current_count = await db.agency_actors.count_documents({'user_id': user['id']})
+    if current_count >= max_actors:
+        raise HTTPException(400, f"Agenzia piena! Hai {current_count}/{max_actors} attori.")
+
+    # Calculate current skills
+    from routes.acting_school import calculate_current_skills
+    current_skills = calculate_current_skills(student)
+
+    # Create agency actor from student
+    now = datetime.now(timezone.utc).isoformat()
+    agency_name = f"{user.get('production_house_name', 'Studio')} Agency"
+
+    agency_actor = {
+        'id': student['id'],
+        'user_id': user['id'],
+        'name': student['name'],
+        'gender': student.get('gender', 'male'),
+        'nationality': student.get('nationality', 'Unknown'),
+        'age': student.get('age', 25),
+        'avatar_url': student.get('avatar_url', ''),
+        'skills': current_skills,
+        'skill_caps': student.get('skill_caps', {}),
+        'hidden_talent': student.get('hidden_talent', 0.5),
+        'strong_genres': student.get('strong_genres', []),
+        'strong_genres_names': student.get('strong_genres_names', []),
+        'adaptable_genre': student.get('adaptable_genre', ''),
+        'adaptable_genre_name': student.get('adaptable_genre_name', ''),
+        'fame_score': student.get('fame_score', 30),
+        'fame_category': student.get('fame_category', 'unknown'),
+        'stars': student.get('stars', 2),
+        'cost_per_film': 50000 + int(sum(current_skills.values()) / max(1, len(current_skills)) * 2000),
+        'agency_name': agency_name,
+        'films_count': student.get('films_count', 0),
+        'films_worked': student.get('films_worked', []),
+        'recruited_at': now,
+        'from_school': True,
+    }
+    await db.agency_actors.insert_one(agency_actor)
+
+    # Remove from school
+    await db.casting_school_students.delete_one({'_id': student['_id']})
+
+    return {
+        'success': True,
+        'message': f'{student["name"]} è stato trasferito nella tua Agenzia!',
+        'actor_skills': current_skills,
+    }

@@ -29,7 +29,7 @@ function SkillBar({ name, value, cap }) {
   );
 }
 
-function ActorCard({ actor, onFire, firing }) {
+function ActorCard({ actor, onFire, onSendToSchool, firing, sendingToSchool }) {
   const [expanded, setExpanded] = useState(false);
   const skills = actor.skills || {};
   const avgSkill = Object.values(skills).length > 0
@@ -72,6 +72,12 @@ function ActorCard({ actor, onFire, firing }) {
               <Button size="sm" variant="ghost" className="h-6 text-[9px] text-red-400 hover:text-red-300 hover:bg-red-500/10"
                 onClick={() => onFire(actor.id)} disabled={firing} data-testid={`fire-actor-${actor.id}`}>
                 {firing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              </Button>
+            )}
+            {onSendToSchool && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                onClick={() => onSendToSchool(actor.id)} disabled={sendingToSchool} data-testid={`send-to-school-${actor.id}`}>
+                {sendingToSchool ? <RefreshCw className="w-3 h-3 animate-spin" /> : <BookOpen className="w-3 h-3" />}
               </Button>
             )}
           </div>
@@ -127,6 +133,75 @@ function RecruitCard({ recruit, onRecruit, recruiting, canRecruit }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SchoolTab({ api, slotsAvailable, actionId, onTransfer, onReload }) {
+  const [students, setStudents] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    api.get('/agency/actors-for-casting').then(r => {
+      setStudents(r.data.school_students || []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [api]);
+
+  if (loading) return <div className="text-center py-8 text-gray-500"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-2" data-testid="school-tab">
+      <div className="p-2 rounded border border-cyan-800/30 bg-cyan-500/5">
+        <p className="text-[10px] text-cyan-300">
+          Gli studenti della Scuola di Recitazione possono essere trasferiti nella tua Agenzia come attori permanenti.
+          Puoi anche mandare i tuoi attori dell'agenzia alla scuola per migliorare le loro skill (dal tab "I miei Attori").
+        </p>
+      </div>
+      {students.length === 0 ? (
+        <div className="text-center py-10 text-gray-500">
+          <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Nessuno studente nella scuola.</p>
+          <p className="text-xs text-gray-600 mt-1">Manda un attore alla scuola o iscrivi nuove reclute dalla Scuola di Recitazione.</p>
+        </div>
+      ) : (
+        students.map(student => {
+          const skills = student.skills || {};
+          const avgSkill = Object.values(skills).length > 0
+            ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+          return (
+            <Card key={student.id} className="bg-[#1A1A1B] border-cyan-800/30" data-testid={`school-student-${student.id}`}>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-cyan-500/20 flex items-center justify-center text-sm font-bold text-cyan-400">
+                    {student.name?.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold">{student.name}</span>
+                      <Badge className="text-[7px] bg-cyan-500/15 text-cyan-400 h-3.5">Studente</Badge>
+                      {student.status === 'max_potential' && <Badge className="text-[7px] bg-emerald-500/15 text-emerald-400 h-3.5">Potenziale Massimo</Badge>}
+                      {student.from_agency && <Badge className="text-[7px] bg-purple-500/15 text-purple-400 h-3.5">Ex Agenzia</Badge>}
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      Skill media: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>
+                      {student.nationality && <> &bull; {student.nationality}</>}
+                    </p>
+                    <div className="flex flex-wrap gap-0.5 mt-0.5">
+                      {(student.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                      {student.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {student.adaptable_genre_name}</Badge>}
+                    </div>
+                  </div>
+                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-[10px] h-7 px-3"
+                    onClick={() => onTransfer(student.id)} disabled={actionId === student.id || slotsAvailable <= 0}
+                    data-testid={`transfer-to-agency-${student.id}`}>
+                    {actionId === student.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><Users className="w-3 h-3 mr-1" /> Trasferisci in Agenzia</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+    </div>
   );
 }
 
@@ -191,6 +266,31 @@ export default function CastingAgencyPage() {
     finally { setActionId(null); }
   };
 
+  const sendToSchool = async (actorId) => {
+    const actor = actors.find(a => a.id === actorId);
+    const costMap = {2: 50000, 3: 100000, 4: 200000, 5: 400000};
+    const cost = costMap[actor?.stars || 2] || 50000;
+    if (!window.confirm(`Manda ${actor?.name} alla Scuola di Recitazione?\nCosto iscrizione: $${cost.toLocaleString()}\nInclude 30 giorni di training.`)) return;
+    setActionId(actorId);
+    try {
+      const res = await api.post(`/agency/send-to-school/${actorId}`);
+      toast.success(res.data.message);
+      loadInfo(); loadActors();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionId(null); }
+  };
+
+  const transferFromSchool = async (studentId) => {
+    if (!window.confirm('Trasferire questo studente nella tua Agenzia come attore permanente?')) return;
+    setActionId(studentId);
+    try {
+      const res = await api.post(`/agency/transfer-from-school/${studentId}`);
+      toast.success(res.data.message);
+      loadInfo(); loadActors();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionId(null); }
+  };
+
   if (loading) return <div className="text-center py-12 text-gray-500"><RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" /><p>Caricamento agenzia...</p></div>;
 
   if (info?.error) {
@@ -237,6 +337,11 @@ export default function CastingAgencyPage() {
           onClick={() => setTab('recruits')} data-testid="tab-recruits">
           <Star className="w-3.5 h-3.5 mr-1" /> Reclute Settimanali ({recruits.filter(r => !r.already_recruited).length})
         </Button>
+        <Button size="sm" variant={tab === 'school' ? 'default' : 'outline'}
+          className={tab === 'school' ? 'bg-cyan-700 hover:bg-cyan-800' : 'border-gray-700'}
+          onClick={() => setTab('school')} data-testid="tab-school">
+          <BookOpen className="w-3.5 h-3.5 mr-1" /> Scuola ({info?.school_students || 0})
+        </Button>
       </div>
 
       {/* Actors Tab */}
@@ -250,7 +355,8 @@ export default function CastingAgencyPage() {
             </div>
           ) : (
             actors.map(actor => (
-              <ActorCard key={actor.id} actor={actor} onFire={fire} firing={actionId === actor.id} />
+              <ActorCard key={actor.id} actor={actor} onFire={fire} onSendToSchool={sendToSchool}
+                firing={actionId === actor.id} sendingToSchool={actionId === actor.id} />
             ))
           )}
         </div>
@@ -275,6 +381,12 @@ export default function CastingAgencyPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* School Tab - Transfer students to Agency */}
+      {tab === 'school' && (
+        <SchoolTab api={api} slotsAvailable={slotsAvailable} actionId={actionId}
+          onTransfer={transferFromSchool} onReload={() => { loadInfo(); loadActors(); }} />
       )}
 
       {/* Bonus info */}

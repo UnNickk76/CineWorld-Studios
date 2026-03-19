@@ -345,11 +345,62 @@ def calculate_pre_imdb(title: str, genre: str, subgenres: list, pre_screenplay: 
 
 # ==================== CAST PROPOSAL GENERATOR ====================
 
+
+async def _generate_guest_star_proposals(film_project: dict, user_id: str) -> list:
+    """Generate guest star vocal proposals for animation films.
+    Only famous/superstar actors, high cost, optional but give bonus.
+    """
+    famous_actors = await db.people.aggregate([
+        {'$match': {'type': 'actor', 'fame_category': {'$in': ['famous', 'superstar']}}},
+        {'$sample': {'size': 30}},
+        {'$project': {'_id': 0, 'id': 1, 'name': 1, 'skills': 1, 'fame_score': 1,
+                       'fame_category': 1, 'cost_per_film': 1, 'avatar_url': 1,
+                       'imdb_rating': 1, 'films_count': 1,
+                       'gender': 1, 'age': 1, 'nationality': 1,
+                       'strong_genres': 1, 'adaptable_genre': 1,
+                       'strong_genres_names': 1, 'adaptable_genre_name': 1,
+                       'skill_caps': 1, 'hidden_talent': 1, 'stars': 1}}
+    ]).to_list(30)
+
+    for person in famous_actors:
+        fc = person.get('fame_category', 'famous')
+        person['fame_label'] = 'Superstar' if fc == 'superstar' else 'Famoso'
+        person['growth_trend'] = 'stable'
+        person['has_worked_with_player'] = False
+        person['is_guest_star'] = True
+
+    agent_names = ["Voice Stars Agency", "Dubbing Elite", "Celebrity Voices", "Star Voice Mgmt"]
+    proposals = []
+    for i, person in enumerate(famous_actors[:8]):
+        base_cost = person.get('cost_per_film', 500000)
+        guest_cost = int(base_cost * 2.5)  # Guest stars cost 2.5x
+        delay = random.randint(5, 25) + i * random.randint(2, 5)
+        proposals.append({
+            'id': str(uuid.uuid4()),
+            'person': person,
+            'agent_name': random.choice(agent_names),
+            'delay_minutes': delay,
+            'available_at': None,
+            'status': 'pending',
+            'cost': guest_cost,
+            'negotiable': False,
+            'is_guest_star': True,
+        })
+    return proposals
+
+
 async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
-    """Generate cast proposals from agents for a specific role."""
+    """Generate cast proposals from agents for a specific role.
+    For animation films, actors are Guest Star Vocali (famous only, optional).
+    """
     pre_imdb = film_project.get('pre_imdb_score', 5.0)
     genre = film_project.get('genre', 'drama')
     user_id = film_project['user_id']
+    is_animation = genre == 'animation'
+
+    # For animation films, actors become guest star vocali
+    if is_animation and role_type == 'actors':
+        return await _generate_guest_star_proposals(film_project, user_id)
 
     # Get user info for proposal quality and dynamic casting
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'fame': 1, 'total_xp': 1})

@@ -276,7 +276,9 @@ async def advance_to_casting(series_id: str, user: dict = Depends(get_current_us
 
 @router.get("/series-pipeline/{series_id}/available-actors")
 async def get_available_actors(series_id: str, user: dict = Depends(get_current_user)):
-    """Get actors available for casting from multiple sources."""
+    """Get actors available for casting from multiple sources.
+    For anime: only famous/superstar actors as Guest Star Vocali.
+    """
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
         {'_id': 0, 'cast': 1, 'type': 1, 'genre': 1}
@@ -284,8 +286,55 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
     if not series:
         raise HTTPException(404, "Serie non trovata")
 
+    is_anime = series.get('type') == 'anime'
     cast_ids = {c.get('actor_id') for c in series.get('cast', [])}
     available = []
+
+    if is_anime:
+        # ANIME: Only famous/superstar actors as Guest Star Vocali
+        famous_actors = await db.people.find(
+            {'type': 'actor', 'fame_category': {'$in': ['famous', 'superstar']}},
+            {'_id': 0}
+        ).to_list(300)
+
+        import random
+        random.shuffle(famous_actors)
+        for p in famous_actors[:12]:
+            pid = p.get('id', '')
+            if pid in cast_ids:
+                continue
+            skills = p.get('skills', {})
+            avg_skill = int(sum(skills.values()) / max(1, len(skills))) if skills else p.get('fame_score', 50)
+            # Guest star pricing: 2x normal cost
+            base_cost = p.get('cost_per_film', 500000)
+            guest_star_cost = int(base_cost * 2)
+            available.append({
+                'id': pid,
+                'name': p.get('name', 'Unknown'),
+                'skill': avg_skill,
+                'popularity': p.get('fame_score', 50),
+                'salary': guest_star_cost,
+                'nationality': p.get('nationality', 'Unknown'),
+                'gender': p.get('gender', 'unknown'),
+                'age': p.get('age', 30),
+                'stars': p.get('stars', 4),
+                'is_legendary': p.get('fame_category') == 'superstar',
+                'avatar_url': p.get('avatar_url', ''),
+                'skills': skills,
+                'skill_caps': p.get('skill_caps', {}),
+                'strong_genres': p.get('strong_genres', []),
+                'adaptable_genre': p.get('adaptable_genre', ''),
+                'strong_genres_names': p.get('strong_genres_names', []),
+                'adaptable_genre_name': p.get('adaptable_genre_name', ''),
+                'hidden_talent': p.get('hidden_talent', 0.5),
+                'fame_category': p.get('fame_category', 'famous'),
+                'films_count': p.get('films_count', 0),
+                'source': 'guest_star',
+                'is_guest_star': True,
+            })
+        return {"actors": available, "is_guest_star_mode": True, "can_skip": True}
+
+    # --- TV SERIES: normal casting ---
 
     # 1. User's hired actors (old system)
     hired = await db.casting_hires.find(
@@ -400,7 +449,11 @@ async def select_cast(series_id: str, req: SelectCastRequest, user: dict = Depen
         raise HTTPException(404, "Serie non trovata")
     if series['status'] != 'casting':
         raise HTTPException(400, "La serie non è nella fase di casting")
-    if len(req.cast) == 0:
+    
+    is_anime = series.get('type') == 'anime'
+    
+    # Anime can have empty cast (guest stars are optional)
+    if not is_anime and len(req.cast) == 0:
         raise HTTPException(400, "Seleziona almeno un attore")
 
     # Validate actors exist and build cast list
@@ -416,28 +469,37 @@ async def select_cast(series_id: str, req: SelectCastRequest, user: dict = Depen
         if not actor:
             actor = await db.people.find_one({'id': cm.actor_id}, {'_id': 0})
         if not actor:
-            # Could be a generated actor - use available-actors endpoint data
             actor = {'id': cm.actor_id, 'name': 'Attore', 'skill': 50, 'popularity': 50, 'salary': 100000}
 
-        # Salary per episode (based on actor skill and role)
-        role_mult = {'Protagonista': 1.5, 'Co-Protagonista': 1.2, 'Antagonista': 1.3, 'Supporto': 0.7}.get(cm.role, 0.7)
-        base_salary = actor.get('salary', actor.get('cost_per_film', 100000))
-        salary_per_ep = int(base_salary * role_mult * 0.5)
-        season_salary = salary_per_ep * series['num_episodes']
+        # Salary calculation
+        if is_anime:
+            # Guest star: flat fee (high cost), not per episode
+            base_salary = actor.get('cost_per_film', 500000)
+            season_salary = int(base_salary * 2)  # Guest stars cost 2x
+            salary_per_ep = int(season_salary / max(1, series['num_episodes']))
+        else:
+            role_mult = {'Protagonista': 1.5, 'Co-Protagonista': 1.2, 'Antagonista': 1.3, 'Supporto': 0.7}.get(cm.role, 0.7)
+            base_salary = actor.get('salary', actor.get('cost_per_film', 100000))
+            salary_per_ep = int(base_salary * role_mult * 0.5)
+            season_salary = salary_per_ep * series['num_episodes']
+        
         total_salary += season_salary
 
         skills = actor.get('skills', {})
         avg_skill = int(sum(skills.values()) / max(1, len(skills))) if skills else actor.get('skill', 50)
 
-        cast_list.append({
+        cast_entry = {
             'actor_id': actor['id'],
             'name': actor.get('name', 'Unknown'),
             'skill': avg_skill,
             'popularity': actor.get('popularity', actor.get('fame_score', 50)),
-            'role': cm.role,
+            'role': 'Guest Star Vocale' if is_anime else cm.role,
             'salary_per_episode': salary_per_ep,
             'season_salary': season_salary,
-        })
+        }
+        if is_anime:
+            cast_entry['is_guest_star'] = True
+        cast_list.append(cast_entry)
 
     # Check funds for salaries
     fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
@@ -471,7 +533,9 @@ async def advance_to_screenplay(series_id: str, user: dict = Depends(get_current
         raise HTTPException(404, "Serie non trovata")
     if series['status'] != 'casting':
         raise HTTPException(400, "La serie non è nella fase di casting")
-    if len(series.get('cast', [])) == 0:
+    # Anime can skip casting (guest stars are optional)
+    is_anime = series.get('type') == 'anime'
+    if not is_anime and len(series.get('cast', [])) == 0:
         raise HTTPException(400, "Seleziona almeno un attore prima di procedere")
     
     await db.tv_series.update_one(
@@ -691,6 +755,20 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
     series['_genre_mastery'] = genre_mastery
     quality_result = calculate_series_quality(series)
     
+    # Apply guest star bonus for anime
+    is_anime = series.get('type') == 'anime'
+    guest_star_bonus = 0
+    guest_star_fame_bonus = 0
+    guest_stars = [c for c in series.get('cast', []) if c.get('is_guest_star')]
+    if is_anime and guest_stars:
+        # Each guest star adds +3-6% quality and +5 fame
+        for gs in guest_stars:
+            bonus = random.uniform(3, 6) * (1 + gs.get('popularity', 50) / 200)
+            guest_star_bonus += bonus
+            guest_star_fame_bonus += 5
+        quality_result['score'] = min(98, quality_result['score'] + guest_star_bonus)
+        quality_result['breakdown']['guest_star_bonus'] = round(guest_star_bonus, 1)
+    
     # Generate episodes
     episodes = []
     for i in range(1, series['num_episodes'] + 1):
@@ -723,6 +801,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
     xp_reward = 80 if series['type'] == 'tv_series' else 100  # Anime gives more XP
     total_xp = (user.get('total_xp', 0) or 0) + xp_reward
     fame_bonus = 15 if quality_result['score'] >= 70 else 5
+    fame_bonus += guest_star_fame_bonus  # Guest star fame bonus
     
     await db.users.update_one(
         {'id': user['id']},

@@ -118,13 +118,13 @@ export default function AnimePipeline() {
   };
 
   const selectCast = async () => {
-    if (selectedCast.length === 0) return toast.error('Seleziona almeno un attore');
+    if (selectedCast.length === 0) return toast.error('Seleziona almeno una guest star');
     setActionLoading(true);
     try {
       const res = await api.post(`/series-pipeline/${activeSeries.id}/select-cast`, {
-        cast: selectedCast.map(c => ({ actor_id: c.actor_id, role: c.role }))
+        cast: selectedCast.map(c => ({ actor_id: c.actor_id, role: c.role || 'Guest Star Vocale' }))
       });
-      toast.success(`Cast confermato! Stipendi: $${res.data.total_salary?.toLocaleString()}`);
+      toast.success(`Guest Star ingaggiate! Costo: $${res.data.total_salary?.toLocaleString()}`);
       setActiveSeries(prev => ({ ...prev, cast: res.data.cast }));
       setSelectedCast([]);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -377,22 +377,30 @@ export default function AnimePipeline() {
                   </Card>
                 )}
 
-                {/* Casting mode choice */}
-                {!castingMode && (agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                {/* Casting mode choice - Anime: Guest Star Vocali */}
+                {!castingMode && (
                   <div className="p-3 rounded-lg border border-pink-500/20 bg-pink-500/5 space-y-2" data-testid="anime-casting-mode-choice">
-                    <p className="text-xs font-semibold text-pink-300">Come vuoi ingaggiare i doppiatori?</p>
+                    <p className="text-xs font-semibold text-pink-300">Guest Star Vocali (Opzionale)</p>
+                    <p className="text-[9px] text-gray-400">Ingaggia attori famosi per dare la voce ai personaggi! Costa molto ma migliora qualità e fama.</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <Button size="sm" className="h-auto py-2 bg-purple-600 hover:bg-purple-700 text-left flex-col items-start"
-                        onClick={() => setCastingMode('agency')} data-testid="anime-cast-agency">
-                        <span className="text-xs font-semibold flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Dalla tua Agenzia</span>
-                        <span className="text-[9px] text-purple-200/70 mt-0.5">{agencyActors.effective.length} + {agencyActors.school.length} studenti</span>
-                      </Button>
+                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                        <Button size="sm" className="h-auto py-2 bg-purple-600 hover:bg-purple-700 text-left flex-col items-start"
+                          onClick={() => setCastingMode('agency')} data-testid="anime-cast-agency">
+                          <span className="text-xs font-semibold flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Dalla tua Agenzia</span>
+                          <span className="text-[9px] text-purple-200/70 mt-0.5">{agencyActors.effective.length + agencyActors.school.length} attori</span>
+                        </Button>
+                      )}
                       <Button size="sm" className="h-auto py-2 bg-pink-600 hover:bg-pink-700 text-left flex-col items-start"
                         onClick={() => setCastingMode('market')} data-testid="anime-cast-market">
-                        <span className="text-xs font-semibold flex items-center gap-1"><Star className="w-3.5 h-3.5" /> Dal Mercato</span>
-                        <span className="text-[9px] text-pink-200/70 mt-0.5">Doppiatori disponibili</span>
+                        <span className="text-xs font-semibold flex items-center gap-1"><Star className="w-3.5 h-3.5" /> Guest Star Famose</span>
+                        <span className="text-[9px] text-pink-200/70 mt-0.5">Solo attori celebri</span>
                       </Button>
                     </div>
+                    <Button size="sm" variant="outline" className="w-full text-xs text-gray-400 border-white/10 hover:bg-white/5 mt-1"
+                      onClick={advanceToScreenplay} disabled={actionLoading} data-testid="anime-skip-casting">
+                      {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <ArrowRight className="w-3.5 h-3.5 mr-1" />}
+                      Procedi senza Guest Star
+                    </Button>
                   </div>
                 )}
 
@@ -401,8 +409,8 @@ export default function AnimePipeline() {
                   <Card className="bg-[#111113] border-purple-500/10">
                     <CardHeader className="pb-1">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm text-purple-400">Attori dalla tua Agenzia</CardTitle>
-                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('market')}>Passa al Mercato</Button>
+                        <CardTitle className="text-sm text-purple-400">I tuoi Attori come Guest Star</CardTitle>
+                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('market')}>Guest Star dal Mercato</Button>
                       </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0">
@@ -419,7 +427,7 @@ export default function AnimePipeline() {
                             }`} onClick={() => !alreadyCast && setSelectedCast(prev => {
                               const exists = prev.find(c => c.actor_id === actor.id);
                               if (exists) return prev.filter(c => c.actor_id !== actor.id);
-                              return [...prev, { actor_id: actor.id, name: actor.name, role: 'Supporto', is_agency: true, source: actor._source }];
+                              return [...prev, { actor_id: actor.id, name: actor.name, role: 'Guest Star Vocale', is_agency: true, source: actor._source }];
                             })} data-testid={`anime-agency-actor-${actor.id}`}>
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${actor._source === 'school' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-purple-500/20 text-purple-400'}`}>
                                 {actor.name?.charAt(0)}
@@ -428,20 +436,13 @@ export default function AnimePipeline() {
                                 <div className="flex items-center gap-1">
                                   <p className="text-xs font-medium truncate">{actor.name}</p>
                                   {actor._source === 'school' && <Badge className="text-[7px] bg-cyan-500/15 text-cyan-400 h-3.5">Studente</Badge>}
-                                  {actor.is_legendary && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5">Leggenda</Badge>}
+                                  <Badge className="text-[7px] bg-pink-500/15 text-pink-400 h-3.5">Guest Star</Badge>
                                 </div>
-                                <p className="text-[10px] text-gray-500">Skill: {avgSkill}</p>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[9px] text-gray-500">Skill: {avgSkill}</span>
+                                  {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                                </div>
                               </div>
-                              {isSelected && (
-                                <select className="bg-[#1a1a1a] text-xs rounded px-1.5 py-1 border border-white/10 text-white"
-                                  value={isSelected.role} onClick={e => e.stopPropagation()}
-                                  onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}>
-                                  <option value="Protagonista">Protagonista</option>
-                                  <option value="Co-Protagonista">Co-Protagonista</option>
-                                  <option value="Antagonista">Antagonista</option>
-                                  <option value="Supporto">Supporto</option>
-                                </select>
-                              )}
                               {isSelected && <Check className="w-4 h-4 text-purple-400" />}
                               {alreadyCast && <Badge className="text-[8px] bg-green-500/20 text-green-400">Nel cast</Badge>}
                             </div>
@@ -451,101 +452,38 @@ export default function AnimePipeline() {
                       {selectedCast.filter(c => c.is_agency).length > 0 && (
                         <Button className="w-full mt-2 bg-purple-500 hover:bg-purple-600" onClick={submitAgencyCastAnime} disabled={actionLoading} data-testid="anime-confirm-agency-cast">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
-                          Aggiungi dall'Agenzia ({selectedCast.filter(c => c.is_agency).length})
+                          Conferma Guest Star dall'Agenzia ({selectedCast.filter(c => c.is_agency).length})
                         </Button>
                       )}
                       <p className="text-[9px] text-amber-400 mt-1">Bonus: +20-70% XP e Fama con i tuoi attori!</p>
+                      <Button size="sm" variant="outline" className="w-full text-[10px] text-gray-400 border-white/10 hover:bg-white/5 mt-2"
+                        onClick={advanceToScreenplay} disabled={actionLoading}>
+                        Procedi senza altre Guest Star <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Market casting */}
-                {(castingMode === 'market' || (!castingMode && agencyActors.effective.length === 0 && agencyActors.school.length === 0)) && (
+                {/* Market casting — Guest Star Famose */}
+                {castingMode === 'market' && (
                 <Card className="bg-[#111113] border-pink-500/10">
                   <CardHeader className="pb-1">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm text-pink-400">Casting</CardTitle>
-                      {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
-                        <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('agency')}>Gestisci Agenzia</Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0 space-y-3">
-                    {/* Agency actors in primo piano */}
-                    {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
-                      <div className="space-y-1.5" data-testid="anime-market-agency-section">
-                        <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1">
-                          <Users className="w-3 h-3" /> I tuoi Attori
-                          <Badge className="text-[7px] bg-amber-500/15 text-amber-400 h-3 ml-1">Bonus XP/Fama</Badge>
-                        </p>
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {[...agencyActors.effective.map(a => ({...a, _source: 'effective'})), ...agencyActors.school.map(a => ({...a, _source: 'school'}))].map(actor => {
-                            const alreadyCast = activeSeries.cast?.some(c => c.actor_id === actor.id);
-                            const isSelected = selectedCast.find(c => c.actor_id === actor.id);
-                            const skills = actor.skills || {};
-                            const avgSkill = Object.values(skills).length > 0
-                              ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
-                            return (
-                              <div key={actor.id} className={`flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer border ${
-                                alreadyCast ? 'bg-green-500/5 border-green-500/20 opacity-60' : isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-purple-500/5 border-purple-500/15 hover:bg-purple-500/10'
-                              }`} onClick={() => !alreadyCast && setSelectedCast(prev => {
-                                const exists = prev.find(c => c.actor_id === actor.id);
-                                if (exists) return prev.filter(c => c.actor_id !== actor.id);
-                                return [...prev, { actor_id: actor.id, name: actor.name, role: 'Supporto', is_agency: true, source: actor._source }];
-                              })} data-testid={`anime-market-agency-actor-${actor.id}`}>
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${actor._source === 'school' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                                  {actor.name?.charAt(0)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1">
-                                    <p className="text-[11px] font-medium truncate">{actor.name}</p>
-                                    {actor._source === 'school' && <Badge className="text-[6px] bg-cyan-500/15 text-cyan-400 h-3">Studente</Badge>}
-                                    <Badge className="text-[6px] bg-purple-500/15 text-purple-400 h-3">Agenzia</Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span className="text-[9px] text-gray-500">Skill: {avgSkill}</span>
-                                    {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
-                                    {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
-                                    value={isSelected.role} onClick={e => e.stopPropagation()}
-                                    onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}>
-                                    <option value="Protagonista">Protagonista</option>
-                                    <option value="Co-Protagonista">Co-Protagonista</option>
-                                    <option value="Antagonista">Antagonista</option>
-                                    <option value="Supporto">Supporto</option>
-                                  </select>
-                                )}
-                                {isSelected && <Check className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />}
-                                {alreadyCast && <Badge className="text-[7px] bg-green-500/20 text-green-400">Nel cast</Badge>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {selectedCast.filter(c => c.is_agency).length > 0 && (
-                          <Button size="sm" className="w-full bg-purple-500 hover:bg-purple-600 text-white text-xs" onClick={submitAgencyCastAnime} disabled={actionLoading} data-testid="anime-market-confirm-agency-cast">
-                            {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Users className="w-3.5 h-3.5 mr-1" />}
-                            Aggiungi dall'Agenzia ({selectedCast.filter(c => c.is_agency).length})
-                          </Button>
+                      <CardTitle className="text-sm text-pink-400">Guest Star Vocali</CardTitle>
+                      <div className="flex gap-1">
+                        {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && (
+                          <Button size="sm" variant="ghost" className="h-6 text-[9px] text-gray-400" onClick={() => setCastingMode('agency')}>I tuoi Attori</Button>
                         )}
                       </div>
-                    )}
-
-                    {/* Divider */}
-                    {(agencyActors.effective.length > 0 || agencyActors.school.length > 0) && availableActors.filter(a => !a.in_school).length > 0 && (
-                      <div className="border-t border-white/5 pt-2">
-                        <p className="text-[10px] font-semibold text-pink-400 uppercase tracking-wider flex items-center gap-1">
-                          <Star className="w-3 h-3" /> Mercato Libero
-                        </p>
-                      </div>
-                    )}
+                    </div>
+                    <p className="text-[9px] text-gray-500 mt-1">Attori famosi che prestano la voce ai personaggi. Costano molto ma danno un bonus qualità e fama!</p>
+                  </CardHeader>
+                  <CardContent className="p-3 pt-0 space-y-3">
                     {availableActors.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-4">Nessun attore disponibile. Assumi dall'Agenzia Casting!</p>
+                      <p className="text-xs text-gray-500 text-center py-4">Nessuna guest star disponibile al momento.</p>
                     ) : (
                       <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-                        {availableActors.filter(a => !a.in_school).map(actor => {
+                        {availableActors.map(actor => {
                           const isSelected = selectedCast.find(c => c.actor_id === actor.id);
                           const alreadyCast = activeSeries.cast?.some(c => c.actor_id === actor.id);
                           const skills = actor.skills || {};
@@ -554,38 +492,31 @@ export default function AnimePipeline() {
                           return (
                             <div key={actor.id} className={`p-2 rounded-lg transition-all border ${
                               alreadyCast ? 'bg-green-500/5 border-green-500/20 opacity-60' : isSelected ? 'bg-pink-500/15 border-pink-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
-                            }`} data-testid={`anime-actor-${actor.id}`}>
-                              <div className="flex items-center gap-2 cursor-pointer" onClick={() => !alreadyCast && toggleCastMember(actor, 'Supporto')}>
+                            }`} data-testid={`anime-guest-star-${actor.id}`}>
+                              <div className="flex items-center gap-2 cursor-pointer" onClick={() => !alreadyCast && toggleCastMember(actor, 'Guest Star Vocale')}>
                                 {actor.avatar_url ? (
                                   <img src={actor.avatar_url} alt="" className="w-9 h-9 rounded-full bg-gray-800" />
                                 ) : (
-                                  <div className="w-9 h-9 rounded-full bg-pink-500/20 flex items-center justify-center text-xs font-bold text-pink-400">{actor.name?.charAt(0)}</div>
+                                  <div className="w-9 h-9 rounded-full bg-yellow-500/20 flex items-center justify-center text-xs font-bold text-yellow-400">{actor.name?.charAt(0)}</div>
                                 )}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1">
                                     <p className="text-xs font-semibold truncate">{actor.name}</p>
                                     <span className={`text-[10px] font-bold ${actor.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{actor.gender === 'female' ? '\u2640' : '\u2642'}</span>
-                                    {actor.is_legendary && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5">Leggenda</Badge>}
-                                    {[...Array(actor.stars || 2)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
+                                    <Badge className={`text-[6px] h-3 ${actor.fame_category === 'superstar' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                      {actor.fame_category === 'superstar' ? 'Superstar' : 'Famoso'}
+                                    </Badge>
+                                    {[...Array(actor.stars || 4)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
                                   </div>
-                                  <p className="text-[9px] text-gray-500">{actor.nationality} {actor.age ? `\u2022 ${actor.age} anni` : ''} \u2022 Skill: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span> \u2022 Film: {actor.films_count || 0}</p>
+                                  <p className="text-[9px] text-gray-500">{actor.nationality} {actor.age ? `\u2022 ${actor.age} anni` : ''} \u2022 Skill: <span className="text-emerald-400">{avgSkill}</span></p>
                                   <div className="flex flex-wrap gap-0.5 mt-0.5">
                                     {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
                                     {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                  <span className="text-[9px] text-yellow-400">${(actor.salary || 0).toLocaleString()}</span>
-                                  {isSelected && (
-                                    <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
-                                      value={isSelected.role} onClick={e => e.stopPropagation()}
-                                      onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}>
-                                      <option value="Protagonista">Protagonista</option>
-                                      <option value="Co-Protagonista">Co-Protagonista</option>
-                                      <option value="Antagonista">Antagonista</option>
-                                      <option value="Supporto">Supporto</option>
-                                    </select>
-                                  )}
+                                  <span className="text-[9px] text-red-400 font-bold">${(actor.salary || 0).toLocaleString()}</span>
+                                  <Badge className="text-[6px] bg-pink-500/15 text-pink-400 h-3">Guest Star</Badge>
                                   {isSelected && <Check className="w-3.5 h-3.5 text-pink-400" />}
                                   {alreadyCast && <Badge className="text-[7px] bg-green-500/20 text-green-400">Nel cast</Badge>}
                                 </div>
@@ -596,15 +527,20 @@ export default function AnimePipeline() {
                       </div>
                     )}
                     {selectedCast.filter(c => !c.is_agency).length > 0 && (
-                      <Button className="w-full mt-2 bg-pink-500 hover:bg-pink-600" onClick={selectCast} disabled={actionLoading} data-testid="anime-confirm-cast-btn">
-                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
-                        Conferma Cast ({selectedCast.filter(c => !c.is_agency).length})
+                      <Button className="w-full mt-2 bg-pink-500 hover:bg-pink-600" onClick={selectCast} disabled={actionLoading} data-testid="anime-confirm-guest-stars-btn">
+                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
+                        Ingaggia Guest Star ({selectedCast.filter(c => !c.is_agency).length}) — ${selectedCast.filter(c => !c.is_agency).reduce((sum, c) => sum + ((availableActors.find(a => a.id === c.actor_id) || {}).salary || 0), 0).toLocaleString()}
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="w-full text-[10px] text-gray-400 border-white/10 hover:bg-white/5"
+                      onClick={advanceToScreenplay} disabled={actionLoading} data-testid="anime-skip-guest-stars">
+                      {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <ArrowRight className="w-3.5 h-3.5 mr-1" />}
+                      Procedi senza Guest Star
+                    </Button>
                   </CardContent>
                 </Card>
                 )}
-                {activeSeries.cast?.length > 0 && (
+                {activeSeries.cast?.length > 0 && castingMode && (
                   <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={advanceToScreenplay} disabled={actionLoading} data-testid="anime-advance-screenplay-btn">
                     Vai alla Sceneggiatura <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>

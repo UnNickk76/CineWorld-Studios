@@ -8196,13 +8196,47 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     # Featured films (top 9 by quality)
     featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
     
-    # Pending revenue calc
+    # Pending revenue calc (dynamic, based on time since last collection)
     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
     total_pending = 0
     for f in films_in_theaters:
-        total_pending += f.get('pending_revenue', 0)
+        try:
+            date_str = f.get('last_revenue_collected') or f.get('release_date') or now.isoformat()
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_collected = datetime.fromisoformat(date_str)
+            if last_collected.tzinfo is None:
+                last_collected = last_collected.replace(tzinfo=timezone.utc)
+            hours_since = (now - last_collected).total_seconds() / 3600
+            if hours_since >= (1/60):
+                quality = f.get('quality_score', 50)
+                week = f.get('current_week', 1)
+                base_hourly = f.get('opening_day_revenue', 100000) / 24
+                decay = 0.85 ** (week - 1)
+                hourly_rev = base_hourly * decay * (quality / 100)
+                total_pending += int(hourly_rev * min(6, hours_since))
+        except:
+            pass
     for i in infrastructure:
-        total_pending += i.get('pending_revenue', 0) if 'pending_revenue' in i else 0
+        try:
+            infra_type = INFRASTRUCTURE_TYPES.get(i.get('type'))
+            if not infra_type:
+                continue
+            date_str = i.get('last_revenue_update') or now.isoformat()
+            date_str = date_str.replace('Z', '+00:00')
+            if '+' not in date_str and '-' not in date_str[-6:]:
+                date_str += '+00:00'
+            last_update = datetime.fromisoformat(date_str)
+            if last_update.tzinfo is None:
+                last_update = last_update.replace(tzinfo=timezone.utc)
+            hours_passed = min(6, (now - last_update).total_seconds() / 3600)
+            if hours_passed >= (1/60):
+                hourly_revenue = infra_type.get('passive_income', 500)
+                city_multiplier = i.get('city', {}).get('revenue_multiplier', 1.0)
+                total_pending += int(hourly_revenue * city_multiplier * hours_passed)
+        except:
+            pass
     
     # Pipeline counts
     pipeline_counts = {}

@@ -44,6 +44,7 @@ function ActorCard({ actor, onFire, firing }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-semibold truncate">{actor.name}</span>
+              <span className={`text-xs font-bold ${actor.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{actor.gender === 'female' ? '♀' : '♂'}</span>
               {actor.is_legendary && <Badge className="bg-yellow-500/20 text-yellow-400 text-[8px] h-4">Leggendario</Badge>}
               {[...Array(actor.stars || 2)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
             </div>
@@ -102,6 +103,7 @@ function RecruitCard({ recruit, onRecruit, recruiting, canRecruit }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold">{recruit.name}</span>
+              <span className={`text-[10px] font-bold ${recruit.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{recruit.gender === 'female' ? '\u2640' : '\u2642'}</span>
               {recruit.is_legendary && <Badge className="bg-yellow-500/20 text-yellow-400 text-[7px] h-3.5">Leggenda</Badge>}
               <span className="text-[9px] text-gray-500">{recruit.nationality} &bull; {recruit.age} anni</span>
             </div>

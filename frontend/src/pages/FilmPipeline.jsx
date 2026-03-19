@@ -807,7 +807,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
     try {
       const res = await api.post(`/film-pipeline/${filmId}/write-screenplay`, {
         mode: m, manual_text: m === 'manual' ? manualText[filmId] || '' : undefined
-      });
+      }, { timeout: 120000 });
       toast.success(res.data.message);
       refreshUser(); fetch();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -831,7 +831,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
       const body = { mode: pMode };
       if (pMode === 'ai_custom') body.custom_prompt = posterPrompt[filmId] || '';
       if (pMode === 'classic') body.classic_style = posterStyle[filmId] || 'drama';
-      const res = await api.post(`/film-pipeline/${filmId}/generate-poster`, body);
+      const res = await api.post(`/film-pipeline/${filmId}/generate-poster`, body, { timeout: 120000 });
       toast.success(res.data.message);
       fetch();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }

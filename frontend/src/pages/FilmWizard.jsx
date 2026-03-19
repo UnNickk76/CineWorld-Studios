@@ -477,8 +477,8 @@ const FilmWizard = () => {
   const generateScreenplay = async () => { 
     setGenerating(true); 
     try { 
-      const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }); 
-      setFilmData({...filmData, screenplay: res.data.screenplay, screenplay_source: 'ai'}); 
+      const res = await api.post('/ai/screenplay', { genre: filmData.genre, title: filmData.title, language, tone: 'dramatic', length: 'medium', custom_prompt: filmData.screenplay_prompt }, { timeout: 120000 }); 
+      setFilmData(prev => ({...prev, screenplay: res.data.screenplay, screenplay_source: 'ai'})); 
       toast.success(language === 'it' ? 'Sceneggiatura generata!' : 'Screenplay generated!'); 
     } catch(e) { 
       console.error('Screenplay generation error:', e);
@@ -508,7 +508,7 @@ const FilmWizard = () => {
         style: 'cinematic',
         cast_names: castNames.slice(0, 5),
         production_house_name: user?.production_house_name || ''
-      });
+      }, { timeout: 60000 });
       
       const taskId = startRes.data.task_id;
       if (!taskId) throw new Error('No task_id received');
@@ -521,7 +521,7 @@ const FilmWizard = () => {
       for (let i = 0; i < maxPolls; i++) {
         await new Promise(r => setTimeout(r, 3000));
         try {
-          const statusRes = await api.get(`/ai/poster/status/${taskId}`);
+          const statusRes = await api.get(`/ai/poster/status/${taskId}`, { timeout: 30000 });
           const { status, poster_url, error, is_fallback } = statusRes.data;
           
           if (status === 'done' && poster_url) {
@@ -579,7 +579,7 @@ const FilmWizard = () => {
       cast_names: castNames.slice(0, 5),
       force_fallback: true,
       production_house_name: user?.production_house_name || ''
-    });
+    }, { timeout: 60000 });
     if (res.data.poster_url) {
       setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));
       toast.success(language === 'it' ? 'Locandina classica generata!' : 'Classic poster generated!');
@@ -606,7 +606,7 @@ const FilmWizard = () => {
         cast_names: castNames.slice(0, 5),
         force_fallback: true,
         production_house_name: user?.production_house_name || ''
-      });
+      }, { timeout: 60000 });
       if (res.data.poster_url) {
         setFilmData(prev => ({...prev, poster_url: res.data.poster_url}));
         toast.success('Locandina classica generata!');

@@ -1,86 +1,119 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix a bug where a PRODUCI! button on the dashboard did not open the main production menu in the navigation bar. This evolved into a series of major feature implementations:
-- Implement a suggestion to add a badge indicating the number of unlockable production infrastructures.
-- Fulfill user request to create a popup menu for the CineBoard (leaderboard) button in the top navigation bar, with distinct sections for Films, TV Series, and Anime.
-- Implement full, end-to-end production pipelines for Sequels (P0), TV Series (P0), and Anime (P0).
-- Implement the foundational broadcast system for the Emittente TV (TV Network) feature (P1).
-- Implement a new popup menu for the I Miei Film (My Films) button in the bottom navigation bar, allowing users to view their produced Films, TV Series, and Anime.
-- Update the My Films page to dynamically display films, series, or anime based on the selection.
-- Update the in-game Release Notes and System Notes with the new features.
-
-The user emphasized the need for rapid, low-cost implementation for the final set of changes.
+The user's initial request was to fix a bug with a PRODUCI! button. This evolved into a series of major feature implementations and bug fixes:
+- **Core Production Pipelines:** Full end-to-end pipelines for Sequels, TV Series, and Anime.
+- **UI & Navigation:** New popups for CineBoard and My Films, plus a redesigned Produci! menu.
+- **Dashboard Revamp:** A major redesign to include horizontally scrolling sections for a player's films, series, and anime, plus a section for recent releases from all players.
+- **Bug Fixes:** A critical fix for the 1v1 online challenge acceptance flow and a UI fix for the CineBoard mobile popup.
+- **Emittente TV (TV Network) v1:** A foundational system for broadcasting with Live Ratings.
+- **Emittente TV (TV Network) v2 - Netflix-Style System:** A complete overhaul allowing players to purchase and manage multiple TV stations. This includes a setup wizard (name, nation, ad policy), a Netflix-style content management UI, hourly revenue generation, and a public directory of all stations.
+- **New Leaderboards:** Leaderboards for TV Stations were added to the CineBoard (all-time, weekly, daily).
+- **Maintenance:** Continuous updates and corrections to in-game Release Notes and System Notes, including fixing a major versioning error.
+- **Latest Request:** Halve the fame requirement for the first TV station, add a missing notification dot to a dashboard card, and send a global notification to all players about the new features.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game with a significantly expanded feature set.
-- **UI & Navigation:**
-  - The bottom navigation bar now features two popup menus:
-    1.  A Produci! menu with five options (Film, Sequel, Serie TV, Anime, La Tua TV), with items dynamically enabled based on the user's unlocked infrastructure. It also includes a badge showing the count of unlockable studios.
-    2.  A Film menu with three options to view produced Films, Series, and Anime.
-  - The top navigation bar features a CineBoard popup menu to view leaderboards for Films, TV Series (weekly trend), and Anime (weekly trend).
-  - A shared  synchronizes the state of the production menu between the dashboard card and the bottom navigation button.
-- **Core Gameplay Features:**
-  - **Full Production Pipelines:** End-to-end pipelines for creating **Serie TV**, **Anime**, and **Sequels** are now fully implemented. This includes backend routes, database collections, AI-powered screenplay generation, frontend UI pages, and integration into the main navigation.
-  - **TV Network (Emittente TV):** A foundational broadcast system is in place. Users can access the La Tua TV page, and backend routes exist to manage a programming schedule (assigning series/anime to slots).
-  - **Leaderboards:** The CineBoard now supports weekly trend leaderboards for TV Series and Anime, with corresponding backend endpoints.
-  - **My Productions Page:** The  page has been refactored to be a generic My Productions viewer, using a  query parameter to display lists of films, series, or anime.
-- **Backend:** New modular route files have been created for each new pipeline (, , ). The database schema has been expanded to include  and  collections. Release and system notes have been updated.
+The application is a full-stack cinematic empire game. Key features include:
+- **Production Pipelines:** Complete systems for producing Films, Sequels, TV Series, and Anime.
+- **Netflix-Style TV Stations:** A complex, multi-station system where players can create and manage their own TV channels. This includes a setup wizard, a content management UI, a public directory (), and hourly revenue generation based on audience share. Costs to purchase new stations scale exponentially.
+- **Revamped Dashboard:** Features horizontally scrolling sections for My Films, My Series, My Anime, and Recent Releases, each showing 5 posters. A new Le Mie TV! button opens a popup to manage the user's TV stations.
+- **Leaderboards (CineBoard):** Leaderboards exist for Films, weekly trends for Series and Anime, and now for TV Stations (all-time, weekly, and a live-updating daily share).
+- **Navigation:** The UI uses several popups for core actions (Produci!, I Miei Film, CineBoard). A new icon for the TV stations has been added to the bottom navigation bar.
+- **Backend:** The backend has modular routes for each feature, including a new . It uses  for hourly revenue calculation. Release Notes and System Notes are managed in  and updated automatically.
 
 **Last working item**:
-- **Last item agent was working:** The agent just completed the user's final request in the session: converting the I Miei Film button in the bottom navigation into a popup menu, updating the  page to display Series and Anime, and updating the backend release/system notes.
-- **Status:** USER VERIFICATION PENDING
+- **Last item agent was working:** The agent was executing the first part of a three-part user request: halving the fame requirement for purchasing the first TV station. The agent modified the  dictionary in , changing the  value for  from 80 to 40. The other two parts of the request (adding a notification dot and sending a global notification) have not been started.
+- **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** both. The changes affect core navigation () and a key data display page (). A full test is recommended to ensure no regressions were introduced.
+- **Which testing method agent to use?** both. The agent should first use  or a python script to test the  endpoint to verify the  requirement now shows . Then, use the  on the infrastructure purchase page to visually confirm the updated requirement is displayed to the user.
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: (P2) Contest Page Mobile Layout Is Broken**
-    - **Description:** A recurring issue where the  (Contests) page does not render correctly on mobile devices. This was noted in the previous handoff but was not addressed in this session.
+- **Issue 1 (P0):** Implement the red dot notification on the Riprese (Shooting) tab on the Dashboard.
+- **Issue 2 (P0):** Send a global system notification to all players detailing the major new features.
+- **Issue 3 (P2):** Contest Page Mobile Layout Is Broken.
 
 **Issues Detail:**
-- **Issue 1: Contest Page Mobile Layout Is Broken**
-    - **Attempted fixes:** None in this session.
-    - **Next debug checklist:**
-        - Use browser developer tools to inspect the page on various mobile viewports.
-        - Check for CSS flexbox/grid issues, overflowing elements, or hardcoded widths.
-        - Examine the component structure in .
-    - **Why fix this issue and what will be achieved with the fix?** To ensure a consistent and usable experience for players on all devices.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** frontend
-    - **Blocked on other issue:** None
+- **Issue 1: Missing Red Dot on Riprese (Shooting) Tab**
+  - **Attempted fixes:** None.
+  - **Next debug checklist:**
+    - Edit .
+    - Locate the scorciatoia card for Riprese in corso.
+    - The data is available in the  state variable.
+    - Add a conditional red dot element (e.g., a  with , , , , ) that renders if .
+  - **Why fix this issue and what will be achieved with the fix?** To provide a crucial visual indicator to the user that they have active productions in the shooting phase, improving user experience.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue:** None
+
+- **Issue 2: Send Global System Notification**
+  - **Attempted fixes:** None.
+  - **Next debug checklist:**
+    - The user wants a one-time broadcast to all existing players, not just a new note for future logins.
+    - The current  endpoint is insufficient.
+    - **Plan:** Create a new, temporary admin endpoint in , e.g., .
+    - This endpoint should:
+      1.  Accept a  and  in the request body.
+      2.  Fetch all users from the  collection ().
+      3.  Iterate through each user and insert a new notification document into the  collection for each . The notification  should be  or similar.
+      4.  Call this endpoint once with the required message, then it can be removed or disabled.
+  - **Why fix this issue and what will be achieved with the fix?** To inform the entire player base about the massive new features implemented (Series, Anime, TV Stations), which will drive engagement and usage.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** backend (manual verification by checking the  collection in the database).
+  - **Blocked on other issue:** None
+
+- **Issue 3: Contest Page Mobile Layout Is Broken**
+  - **Attempted fixes:** None in recent sessions.
+  - **Next debug checklist:**
+    - Navigate to  and use browser developer tools to simulate mobile viewports.
+    - Inspect the CSS in . Look for inflexible containers, overflowing elements, or missing responsive breakpoints (, , etc.).
+  - **Why fix this issue and what will be achieved with the fix?** A core game feature is currently unusable for mobile players, hurting accessibility and retention.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue:** None
 
 **In progress Task List**:
-None. All requested tasks for the session were completed.
+- **Task 1: Verify Fame Requirement Change**
+  - **Where to resume:** The agent has changed  to  in . The next step is to verify this change.
+  - **What will be achieved with this?** The fame requirement for purchasing the first TV station will be correctly halved as per the user's request.
+  - **Status:** IN PROGRESS
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P1) Enhance Emittente TV Broadcast Feature:** Fully build out the  into a rich management interface.
-  - **(P1) Implement Live Ratings:** A user-suggested feature to add a real-time audience tracking system to the Emittente TV page to make broadcasting more immersive.
-- **Future Tasks:**
-  - **(P1)** Marketplace for TV/Anime rights.
+  - **(P1)** Marketplace for TV/Anime rights (allowing players to buy/sell content for their TV stations).
   - **(P1)** A Casting Agency building that other players can visit and use for a fee.
+  - **(Future)** Improve the in-game chat system (user explicitly requested to be reminded of this).
+- **Future Tasks:**
   - **(P1)** Replace the hardcoded admin check with a formal Role-Based Access Control (RBAC) system.
   - **(P1)** Add an option to use CinePass (premium currency) to speed up pipeline steps.
-  - **(P2)** Decompose large components: , .
+  - **(P2)** Decompose large components like  and .
   - **(P2)** Implement Stripe integration, PWA functionality, and a tutorial popup.
 
 **Completed work in this session**
-- **UI/UX:**
-  - Fixed the Dashboard PRODUCI! card to open the shared production menu via a new .
-  - Implemented a CineBoard popup menu in the top navbar for navigating leaderboards.
-  - Implemented a My Films popup menu in the bottom navbar for navigating personal productions.
-  - Refactored the production menu to a 5-button layout and added an unlockable count badge.
-- **Features:**
-  - **Sequel Pipeline (P0):** Implemented a full, reduced-cost pipeline for creating sequels.
-  - **Series & Anime Pipelines (P0):** Implemented full end-to-end production pipelines for TV Series and Anime, from creation to release.
-  - **Emittente TV (P1):** Built the foundational backend and frontend for the TV Network broadcast system.
-  - **New Leaderboards:** Created backend endpoints and frontend UI for weekly TV Series and Anime leaderboards.
-- **Refactoring:**
-  - The  page was generalized to display Films, Series, or Anime using a URL query parameter ().
-- **Admin:**
-  - Updated the in-game Release Notes and System Notes in  to reflect all the new features.
+- **Feature: TV Station System (Netflix-Style)**
+  - Implemented multi-purchase TV stations with exponential cost scaling.
+  - Created a setup wizard (, , ) and a Netflix-style management UI in .
+  - Implemented hourly revenue generation based on audience share.
+  - Added a Le Mie TV! button to the Dashboard and an icon to the bottom navbar.
+- **Feature: Emittente TV Leaderboards**
+  - Added three new leaderboards to the CineBoard for TV Stations: all-time, weekly, and daily (live).
+- **Feature: Emittente TV Live Ratings**
+  - Enhanced the original TV page with a real-time simulated audience meter, share percentage, and trend indicators.
+- **Bug Fix: 1v1 Online Challenge Acceptance**
+  - Fixed a critical bug preventing users from accepting challenge invites from popups or the notifications page. Reworked the flow in  and .
+- **Bug Fix: CineBoard Mobile Popup**
+  - Fixed a UI bug where the CineBoard popup menu rendered off-screen on mobile.
+- **Feature: Dashboard Revamp**
+  - Replaced the main content area with four horizontally scrolling sections: Recent Releases, My Films, My TV Series, and My Anime.
+- **Admin & Maintenance:**
+  - Corrected a major versioning error in Release Notes, re-numbering recent releases from v0.137 to v0.150.
+  - Fully automated the process of updating release and system notes after each implementation.
+  - Synchronized system notes from the preview database to the static  list for deployment.
 
 **Earlier issues found/mentioned but not fixed**
 - **Issue 1: Contest Page Mobile Layout Is Broken**
@@ -98,70 +131,70 @@ None. All requested tasks for the session were completed.
 
 
 **Key Technical Concepts**
-- **Shared State with React Context:** The  was introduced to allow disconnected components ( and ) to control the same UI element. This pattern was immediately reused for the other new popup menus.
-- **URL-Driven UI State:** The app now heavily uses URL query parameters () to control the content displayed on pages like  and , making views linkable and state manageable.
-- **Component Generalization:**  was successfully refactored from a single-purpose component into a reusable viewer for multiple types of user productions (Films, Series, Anime).
-- **Modular Backend Routes:** Continued the practice of creating separate, focused router files for new features, improving maintainability of .
+- **Exponential Cost Scaling:** Used for purchasing multiple TV stations, implemented in  via the formula: .
+- **State-Driven UI Wizard:**  uses a  state to guide users through initial TV station configuration.
+- **URL-Driven UI State:** The  query parameter is used to trigger the challenge acceptance UI flow.
+- **Backend Task Scheduling (APScheduler):** A new hourly job calculates and distributes revenue for all TV stations based on their audience share.
 
 **key DB schema**
-- **series:** New collection storing all data related to TV series productions.
-- **anime:** New collection storing all data related to anime productions.
-- **films:** The existing collection is now used for sequels, distinguished by the  and  fields.
-- **emittente_tv_slots:** New collection to manage the broadcast schedule, linking a  to a specific time slot (, , ).
+- **infrastructure:**  can now have multiple entries per .
+- **tv_stations:** (New) Stores all data for a player's TV station, including , , ,  (programmed films/series), and dynamic stats like  and .
+- **release_notes:** Now correctly versioned up to .
+- **system_notes:** Kept in sync between the preview database and the static  array in  for deployment consistency.
 
 **All files of reference**
-- **Core Logic:** , 
-- **New Backend Routes:** , , 
-- **New Frontend Pages:** 
-- **Heavily Modified Pages:** , , , , , 
-- **Context:** 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
 
 **Critical Info for New Agent**
 - **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **TOP PRIORITY (P0):** The last set of changes (the My Films popup menu and corresponding page updates) was not tested. Your first action should be to propose a plan that starts with **verifying these changes** using the testing agent.
-- **USER PREFERENCE:** The user likes the new popup menu pattern for navigation. Keep this in mind for future UI/UX suggestions.
-- **NEXT STEPS:** After verification, the next logical P1 task is to fully develop the  into a rich broadcast management system, incorporating the user's Live Ratings idea.
+- **TOP PRIORITY (P0):** The user's last request is in progress. Your immediate actions must be:
+    1.  **Verify** that the fame requirement change for the first TV station (from 80 to 40) is working correctly.
+    2.  **Implement** the missing red dot on the Riprese (Shooting) shortcut card on the Dashboard.
+    3.  **Implement** a mechanism to send a one-time global notification to ALL players summarizing all the recent major updates.
+- **FUTURE TASK REMINDER:** The user explicitly wants to improve the in-game chat system later. Keep this in the backlog.
 
 **documents and test reports created in this job**
 - 
 - 
 - 
--  (Updated)
+- 
+- 
+- 
+-  (Updated with all new features)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Please proceed with P0/P1 tasks and also implement the suggestion for a CineBoard popup. Make the CineBoard popup have clickable options for Film, Series TV, and Anime leaderboards. TV/Anime leaderboards should be weekly trends. (PENDING)
-2.  **Agent:** Implements CineBoard popup, new backend endpoints for weekly trends, and updates CineBoard page. (COMPLETED)
-3.  **Agent:** Implements full Sequel pipeline (P0). (COMPLETED)
-4.  **Agent:** Implements foundational TV Network broadcast system (P1). (COMPLETED)
-5.  **Agent:** Runs screenshot tests for the new UIs. (COMPLETED)
-6.  **Agent:** Runs a full testing agent suite, which passes 100%. (COMPLETED)
-7.  **Agent:** Presents a  summary. (COMPLETED)
-8.  **User:** Remembers the Live Ratings suggestion for the future. Asks for a new feature: make the Film icon in the bottom navbar open a popup (like Produci!) with Film, Serie TV, and Anime sections. Each should link to a view showing the respective productions. Asks to update release notes and do it quickly/cheaply. (PENDING)
-9.  **Agent:** Implements the Film popup menu in , refactors  to handle different views, and updates release/system notes in . (COMPLETED)
-10. **Agent:** The agent did not perform any testing after this final implementation before the session ended. (PENDING)
+1.  **User:** Requests a massive new Netflix-style TV station feature. (COMPLETED)
+2.  **Agent:** Asks for clarification on the new TV feature. (COMPLETED)
+3.  **User:** Confirms details for the TV feature. (COMPLETED)
+4.  **Agent:** Completes and summarizes the TV station implementation. (COMPLETED)
+5.  **User:** Requests leaderboards for the new TV stations and asks for release/system notes to be updated and synced. (COMPLETED)
+6.  **Agent:** Implements TV leaderboards and updates notes. (COMPLETED)
+7.  **Agent:** Finishes and summarizes the leaderboard implementation. (COMPLETED)
+8.  **User:** Reports a versioning error with release notes, noting many are missing. (COMPLETED)
+9.  **Agent:** Acknowledges the error, deletes the incorrect notes, re-creates them with correct versioning (v0.137-v0.148), and verifies. (COMPLETED)
+10. **User:** Submits the latest request: halve fame for the first TV station, add a missing notification dot on the Shooting card, and send a global notification about all new features. Reminds the agent about improving the chat system in the future. (PENDING)
 
 **Project Health Check:**
 - **Broken:**
-    - Contest Page Mobile Layout () remains a recurring, unresolved issue.
+  - Contest Page Mobile Layout () is still broken and impacts a core feature on mobile.
 - **Mocked:**
-    - None. All placeholder pages from the previous session have been implemented with functionality.
+  - None.
 
 **3rd Party Integrations**
 - **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
 - **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
 - **Pillow:** Used for image manipulation on the backend.
-- **APScheduler:** Used for backend scheduled tasks.
+- **APScheduler:** Used for backend scheduled tasks (hourly TV revenue).
 
 **Testing status**
-- **Testing agent used after significant changes:** YES (but not for the very last change).
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** []
-- **Known regressions:** None identified, but the last change was not tested.
-
-**Credentials to test flow:**
-- **User:** 
-- **Password:** 
-
-**What agent forgot to execute**
-- The agent did not run any tests (not even a screenshot) after completing the final user request to implement the Film popup menu and update . This is a critical verification step that was missed.
-- The recurring mobile layout issue on the  page was not addressed.</analysis>
+- **Testing agent used after significant changes:** YES. The agent consistently used the testing agent after every major feature, achieving 100% pass rates.
+- **Trou</analysis>

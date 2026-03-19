@@ -151,7 +151,7 @@ export default function SeriesTVPipeline() {
   const writeScreenplay = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/series-pipeline/${activeSeries.id}/write-screenplay`, { mode: 'ai' });
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/write-screenplay`, { mode: 'ai' }, { timeout: 120000 });
       setActiveSeries(prev => ({ ...prev, screenplay: { text: res.data.screenplay } }));
       toast.success('Sceneggiatura generata!');
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione'); }

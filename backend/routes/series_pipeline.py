@@ -385,7 +385,7 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
             'name': p.get('name', 'Unknown'),
             'skill': avg_skill,
             'popularity': p.get('fame_score', 50),
-            'salary': p.get('cost_per_film', 100000),
+            'salary': min(150000, int(p.get('cost_per_film', 100000) * 0.15)),
             'nationality': p.get('nationality', 'Unknown'),
             'gender': p.get('gender', 'unknown'),
             'age': p.get('age', 30),
@@ -496,8 +496,8 @@ async def select_cast(series_id: str, req: SelectCastRequest, user: dict = Depen
             salary_per_ep = int(season_salary / max(1, series['num_episodes']))
         else:
             role_mult = {'Protagonista': 1.5, 'Co-Protagonista': 1.2, 'Antagonista': 1.3, 'Supporto': 0.7}.get(cm.role, 0.7)
-            base_salary = actor.get('salary', actor.get('cost_per_film', 100000))
-            salary_per_ep = int(base_salary * role_mult * 0.5)
+            base_salary = actor.get('salary', min(150000, int(actor.get('cost_per_film', 100000) * 0.15)))
+            salary_per_ep = int(base_salary * role_mult / max(1, series['num_episodes']))
             season_salary = salary_per_ep * series['num_episodes']
         
         total_salary += season_salary

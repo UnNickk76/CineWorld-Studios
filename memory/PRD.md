@@ -13,7 +13,7 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Casting Agency** with personal actors, genre specializations, XP/fame bonuses
 - **Rich Actor Data** across all 8,245 people (actors, directors, screenwriters, composers)
 - **Guest Star Vocali** system for Anime and Animation films
-- **Agency ↔ School** bidirectional transfer system
+- **Agency <-> School** bidirectional transfer system
 
 ## Architecture
 - **Frontend**: React (CRA) with Tailwind + Shadcn UI
@@ -21,71 +21,43 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Scheduler**: APScheduler for background tasks
 - **AI**: OpenAI GPT-4o-mini (text) + GPT-Image-1 (posters) via Emergent LLM Key
 
-## Key Data Models
-- **users**: id, nickname, funds, total_lifetime_revenue, likeability_score, interaction_score, character_score
-- **films**: id, user_id, title, total_revenue, realistic_box_office, agency_actors_count
-- **people**: id, name, type, skills, skill_caps, hidden_talent, strong_genres, strong_genres_names, adaptable_genre, adaptable_genre_name, gender, age, nationality, fame_score, fame_category
-- **agency_actors**: id, user_id, name, skills, skill_caps, hidden_talent, strong_genres, adaptable_genre, agency_name, films_worked, from_school
-- **casting_school_students**: id, user_id, name, base_skills, skill_caps, status, from_agency
-- **tv_series**: id, user_id, title, type (tv_series/anime), cast (with is_guest_star flag)
-
 ## Completed Features
 
 ### Core Game
 - Full film production pipeline with sequel support
 - TV series and anime production
-- TV station management
-- Poster persistence in MongoDB + async regeneration
-- Friend system, chat, challenges, leaderboards
-- Revenue collection system
-- Cinema Journal, CineBoard, Hall of Fame, Festivals
-- Infrastructure (cinemas, studios, etc.)
-- Acting school
+- TV station management, Cinema Journal, CineBoard, Hall of Fame, Festivals
+- Infrastructure (cinemas, studios, etc.), Acting school
+- Friend system, chat, challenges, leaderboards, revenue collection
 
 ### Casting System
 - Casting Agency (recruit, manage, fire actors)
 - Rich actor data for ALL 8,245 people
-- Genre badges (strong + adaptable) in all casting UIs
-- Gender icons on actor cards
-- Agency actors visible in all market casting views ("I tuoi Attori" section)
+- Genre badges (2 strong + 1 adaptable) on ALL actors in ALL pipelines
+- Gender icons, skill toggle buttons with color-coded skill bars
+- Agency actors in all market casting views ("I tuoi Attori" section)
+- Hired actors enriched with people data (genres, skills) from DB
 
 ### Guest Star Vocali (March 19, 2026)
-- **Anime**: Casting is now Guest Star Vocali — only famous/superstar actors, optional, expensive (2x cost), gives quality+fame bonus on release
-- **Film Animation**: Same guest star system for animation genre films
-- Backend returns `is_guest_star_mode: true` and `can_skip: true` for anime
-- Anime can advance to screenplay without any cast
-- Guest star bonus: +3-6% quality per star + +5 fame per star on release
+- Anime: Guest Star casting - only famous/superstar, optional, 2x cost, quality+fame bonus
+- Film Animation: same guest star system
+- Can advance to screenplay without cast for anime
 
-### Agency ↔ School Transfer (March 19, 2026)
-- **Agenzia → Scuola**: "Manda a Scuola" button on agency actors (cost: $50K-$400K based on stars, 30 days pre-paid training)
-- **Scuola → Agenzia**: "Trasferisci in Agenzia" button on school students
-- New "Scuola" tab in Casting Agency page showing transferable students
-- Actors transferred retain all skills, genres, and training progress
+### Agency <-> School Transfer (March 19, 2026)
+- Agenzia -> Scuola: send actor to school (cost $50K-$400K)
+- Scuola -> Agenzia: transfer student to agency
+- New "Scuola" tab in Casting Agency page
 
 ### Bug Fixes
-- Revenue drop fix ($12.6M -> $93M+)
-- Dashboard scores fix (Like/Social/Char)
-- Cinema Journal posters fix
-- Collect All $0 fix
-- Empty Series Market fix
-- Serie TV "Dal Mercato" crash fix (destructuring error)
+- Revenue drop fix, Dashboard scores, Cinema Journal posters, Collect All $0
+- Empty Series Market, Serie TV "Dal Mercato" crash (destructuring error)
 - Rich actor data enrichment for existing cast proposals
-- Full people migration (directors, screenwriters, composers)
+- Full people migration, \u2022 literal rendering fix
 
-## Pending Issues
-- Contest Page mobile layout broken (P2)
-
-## Backlog (P1)
-- Marketplace for TV/Anime rights
-- Improve chat system
-- Agency actors appear in global market casting proposals
-
-## Future (P2)
-- RBAC system
-- CinePass speed-up for pipeline steps
-- Stripe integration
-- PWA functionality
-- Tutorial system
-- Component decomposition
-- Clickable agency name on actor cards
-- Casting Agency building (visual representation/upgrade path)
+## Backlog
+- (P1) Guest Star per puntate singole nelle Serie TV
+- (P1) Marketplace diritti TV/Anime
+- (P1) Miglioramento sistema chat
+- (P2) Contest Page mobile layout fix
+- (P2) RBAC, CinePass, Stripe, PWA, Tutorial, Component decomposition
+- (P2) Casting Agency building visual

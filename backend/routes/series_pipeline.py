@@ -348,6 +348,23 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
         for r in recruits:
             if r['id'] not in cast_ids:
                 r['source'] = 'hired'
+                # Enrich with people data if missing genres/skills
+                if not r.get('strong_genres_names'):
+                    person = await db.people.find_one({'name': r.get('name')}, {'_id': 0, 'skills': 1, 'skill_caps': 1, 'strong_genres': 1, 'adaptable_genre': 1, 'strong_genres_names': 1, 'adaptable_genre_name': 1, 'hidden_talent': 1, 'fame_category': 1, 'films_count': 1, 'gender': 1, 'age': 1, 'nationality': 1, 'stars': 1})
+                    if person:
+                        for k in ['skills', 'skill_caps', 'strong_genres', 'adaptable_genre', 'strong_genres_names', 'adaptable_genre_name', 'hidden_talent', 'fame_category', 'films_count', 'gender', 'age', 'nationality', 'stars']:
+                            if k in person and not r.get(k):
+                                r[k] = person[k]
+                    else:
+                        # Generate random genres for old actors not in people collection
+                        import random as _rnd
+                        _all_genres = [('action','Action'),('comedy','Comedy'),('drama','Drama'),('horror','Horror'),('sci_fi','Sci-Fi'),('thriller','Thriller'),('romance','Romance'),('fantasy','Fantasy'),('animation','Animation'),('crime','Crime'),('mystery','Mystery'),('adventure','Adventure')]
+                        chosen = _rnd.sample(_all_genres, 3)
+                        r['strong_genres'] = [chosen[0][0], chosen[1][0]]
+                        r['strong_genres_names'] = [chosen[0][1], chosen[1][1]]
+                        r['adaptable_genre'] = chosen[2][0]
+                        r['adaptable_genre_name'] = chosen[2][1]
+                        r['hidden_talent'] = round(_rnd.uniform(0.4, 0.7), 2)
                 available.append(r)
 
     # 2. Global people pool (market actors)

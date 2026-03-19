@@ -418,7 +418,10 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
                        'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
                        'imdb_rating': 1, 'films_count': 1,
                        'gender': 1, 'age': 1, 'nationality': 1,
-                       'films_worked': 1, 'skill_changes': 1}}
+                       'films_worked': 1, 'skill_changes': 1,
+                       'strong_genres': 1, 'adaptable_genre': 1,
+                       'strong_genres_names': 1, 'adaptable_genre_name': 1,
+                       'skill_caps': 1, 'hidden_talent': 1, 'stars': 1}}
     ]).to_list(sample_size)
 
     # For low-fame players, also add a couple of famous people for aspiration
@@ -431,7 +434,10 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
                            'cost_per_film': 1, 'avatar_url': 1, 'rejection_rate': 1,
                            'imdb_rating': 1, 'films_count': 1,
                            'gender': 1, 'age': 1, 'nationality': 1,
-                           'films_worked': 1, 'skill_changes': 1}}
+                           'films_worked': 1, 'skill_changes': 1,
+                           'strong_genres': 1, 'adaptable_genre': 1,
+                           'strong_genres_names': 1, 'adaptable_genre_name': 1,
+                           'skill_caps': 1, 'hidden_talent': 1, 'stars': 1}}
         ]).to_list(famous_sample)
         people.extend(famous_people)
 

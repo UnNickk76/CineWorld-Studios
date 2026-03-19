@@ -523,43 +523,64 @@ export default function SeriesTVPipeline() {
                     {availableActors.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-4">Nessun attore disponibile. Assumi attori dall'Agenzia Casting!</p>
                     ) : (
-                      <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                      <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
                         {availableActors.filter(a => !a.in_school).map(actor => {
                           const isSelected = selectedCast.find(c => c.actor_id === actor.id);
+                          const alreadyCast = activeSeries.cast?.some(c => c.actor_id === actor.id);
+                          const skills = actor.skills || {};
+                          const avgSkill = Object.values(skills).length > 0
+                            ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : actor.skill || 50;
+                          const [showSkills, setShowSkills] = React.useState ? false : false;
                           return (
-                            <div key={actor.id} className={`flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer border ${
-                              isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
-                            }`} onClick={() => toggleCastMember(actor, 'Supporto')} data-testid={`actor-${actor.id}`}>
-                              <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-400">
-                                {actor.name?.charAt(0)}
+                            <div key={actor.id} className={`p-2 rounded-lg transition-all border ${
+                              alreadyCast ? 'bg-green-500/5 border-green-500/20 opacity-60' : isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
+                            }`} data-testid={`market-actor-${actor.id}`}>
+                              <div className="flex items-center gap-2 cursor-pointer" onClick={() => !alreadyCast && toggleCastMember(actor, 'Supporto')}>
+                                {actor.avatar_url ? (
+                                  <img src={actor.avatar_url} alt="" className="w-9 h-9 rounded-full bg-gray-800" />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-400">
+                                    {actor.name?.charAt(0)}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-xs font-semibold truncate">{actor.name}</p>
+                                    <span className={`text-[10px] font-bold ${actor.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{actor.gender === 'female' ? '\u2640' : '\u2642'}</span>
+                                    {actor.is_legendary && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5">Leggenda</Badge>}
+                                    {[...Array(actor.stars || 2)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
+                                  </div>
+                                  <p className="text-[9px] text-gray-500">{actor.nationality} {actor.age ? `\u2022 ${actor.age} anni` : ''} \u2022 Skill media: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span> \u2022 Film: {actor.films_count || 0}</p>
+                                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                    {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                                    {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                  <span className="text-[9px] text-yellow-400">${(actor.salary || actor.cost_per_film || 0).toLocaleString()}</span>
+                                  {isSelected && (
+                                    <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
+                                      value={isSelected.role} onClick={e => e.stopPropagation()}
+                                      onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}>
+                                      <option value="Protagonista">Protagonista</option>
+                                      <option value="Co-Protagonista">Co-Protagonista</option>
+                                      <option value="Antagonista">Antagonista</option>
+                                      <option value="Supporto">Supporto</option>
+                                    </select>
+                                  )}
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                                  {alreadyCast && <Badge className="text-[7px] bg-green-500/20 text-green-400">Nel cast</Badge>}
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium truncate">{actor.name}</p>
-                                <p className="text-[10px] text-gray-500">Skill: {actor.skill} | Pop: {actor.popularity}</p>
-                              </div>
-                              {isSelected && (
-                                <select
-                                  className="bg-[#1a1a1a] text-xs rounded px-1.5 py-1 border border-white/10 text-white"
-                                  value={isSelected.role}
-                                  onClick={e => e.stopPropagation()}
-                                  onChange={e => setSelectedCast(prev => prev.map(c => c.actor_id === actor.id ? { ...c, role: e.target.value } : c))}
-                                >
-                                  <option value="Protagonista">Protagonista</option>
-                                  <option value="Co-Protagonista">Co-Protagonista</option>
-                                  <option value="Antagonista">Antagonista</option>
-                                  <option value="Supporto">Supporto</option>
-                                </select>
-                              )}
-                              {isSelected ? <Check className="w-4 h-4 text-purple-400" /> : null}
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    {selectedCast.length > 0 && (
+                    {selectedCast.filter(c => !c.is_agency).length > 0 && (
                       <Button className="w-full mt-2 bg-purple-500 hover:bg-purple-600 text-white" onClick={selectCast} disabled={actionLoading} data-testid="confirm-cast-btn">
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
-                        Conferma Cast ({selectedCast.length})
+                        Conferma Cast ({selectedCast.filter(c => !c.is_agency).length})
                       </Button>
                     )}
                   </CardContent>

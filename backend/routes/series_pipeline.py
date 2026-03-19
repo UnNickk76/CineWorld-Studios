@@ -322,9 +322,19 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
             'salary': p.get('cost_per_film', 100000),
             'nationality': p.get('nationality', 'Unknown'),
             'gender': p.get('gender', 'unknown'),
+            'age': p.get('age', 30),
             'stars': p.get('stars', 2),
-            'is_legendary': p.get('is_legendary', False),
+            'is_legendary': p.get('is_legendary', False) or p.get('fame_category') == 'superstar',
             'avatar_url': p.get('avatar_url', ''),
+            'skills': skills,
+            'skill_caps': p.get('skill_caps', {}),
+            'strong_genres': p.get('strong_genres', []),
+            'adaptable_genre': p.get('adaptable_genre', ''),
+            'strong_genres_names': p.get('strong_genres_names', []),
+            'adaptable_genre_name': p.get('adaptable_genre_name', ''),
+            'hidden_talent': p.get('hidden_talent', 0.5),
+            'fame_category': p.get('fame_category', 'unknown'),
+            'films_count': p.get('films_count', 0),
             'source': 'market',
             'former_agency': p.get('former_agency', ''),
         })
@@ -332,6 +342,7 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
     # 3. Generate procedural actors if not enough
     if len(available) < 8:
         from server import NATIONALITIES, NAMES_BY_NATIONALITY
+        from routes.casting_agency import generate_actor_genres, generate_full_skills, GENRE_NAMES as AG_GENRE_NAMES, ACTOR_SKILL_NAMES
         rng = random.Random(f"{series_id}-market")
         needed = 8 - len(available)
         for i in range(needed):
@@ -341,19 +352,29 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
             first_names = nat_names.get(f'first_{gender}', ['Alex'])
             last_names = nat_names.get('last', ['Smith'])
             name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
-            skill = rng.randint(35, 85)
+            base_skill = rng.randint(35, 85)
             pop = rng.randint(20, 80)
             salary = rng.randint(50000, 300000)
             gen_id = f"gen_{series_id}_{i}"
+            strong_genres, adaptable_genre = generate_actor_genres(rng)
+            skills = generate_full_skills(base_skill, rng)
+            age = rng.randint(18, 55)
             available.append({
                 'id': gen_id,
                 'name': name,
-                'skill': skill,
+                'skill': base_skill,
                 'popularity': pop,
                 'salary': salary,
                 'nationality': nat,
                 'gender': gender,
-                'stars': 3 if skill >= 70 else 2,
+                'age': age,
+                'stars': 3 if base_skill >= 70 else 2,
+                'skills': skills,
+                'strong_genres': strong_genres,
+                'adaptable_genre': adaptable_genre,
+                'strong_genres_names': [AG_GENRE_NAMES.get(g, g) for g in strong_genres],
+                'adaptable_genre_name': AG_GENRE_NAMES.get(adaptable_genre, adaptable_genre),
+                'films_count': 0,
                 'source': 'generated',
             })
 

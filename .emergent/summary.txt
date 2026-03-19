@@ -1,71 +1,60 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix a bug with a PRODUCI! button. This has since evolved through numerous feature requests and bug fixes, including:
-- Full production pipelines for sequels, TV series, and anime.
-- A Netflix-style TV station management system.
-- A complete dashboard overhaul.
-- A critical fix for the 1v1 online challenge system.
-- **Poster Persistence:** A major refactor to move poster image storage from the ephemeral filesystem to a persistent MongoDB collection to survive deployments.
-- **Poster Regeneration:** A feature to allow users to regenerate missing or old posters via an async, non-blocking flow.
-- **Chat UI/Bug Fixes:** A fix for the mobile chat layout and clarification on how the in-game bot works.
-- **Revenue Calculation Fixes:** Multiple fixes related to how pending and total revenue are calculated and displayed.
-- **Data Integrity Fixes:** Patches to backend endpoints to handle inconsistent or missing data in the database without crashing.
-- **Latest Request:** The user has reported that their total revenue (Incassi) has drastically dropped after the latest deploy, and a user named Emilians is still not receiving income.
+The user's initial request was to fix a critical revenue bug. This expanded to include multiple new feature requests and bug fixes:
+- Fix a drastic drop in total revenue (Incassi).
+- Fix an issue where user Emilians was not receiving revenue.
+- Fix posters not appearing in the Cinema Journal.
+- Fix dashboard scores (Like/Social/Char) being stuck at default values.
+- Implement a complete Casting Agency system, allowing players to recruit, manage, and use their own roster of actors. This includes:
+    - A new Casting Agency page to view agency actors and weekly recruits.
+    - Agency actors have skill levels, preferred genres, and a hidden talent system.
+    - A choice in the Film, TV Series, and Anime pipelines to cast from the Agency or the Market.
+    - Using agency actors provides a fame and XP bonus on film/series release.
+- Update release notes and system notes with all recent changes.
+- Add gender icons next to actor names.
+- Fix an issue where Collect All revenue showed /bin/bash.
+- Fix the Market casting option for TV Series and Anime showing an empty list of actors.
+- Upgrade all 2,000+ existing actors in the game to a new, detailed data model with visible skills and genres, and display them using a rich UI card in all Market casting sections.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-- A full-stack cinematic empire game with features for film/series/anime production, TV station management, leaderboards, and social interactions (friends, chat).
-- The backend uses FastAPI with a MongoDB database. Scheduled tasks are managed by APScheduler.
-- **Persistent Poster Storage**: A new  module handles saving and retrieving poster images from a  collection in MongoDB, ensuring they persist across deployments. An endpoint  serves these images, with a disk-caching mechanism for performance.
-- **Asynchronous Poster Regeneration**: The system for regenerating posters is fully asynchronous. It uses a  collection in MongoDB to track the status of generation jobs, making it resilient to restarts and multi-worker environments.
-- **Dynamic Dashboard Data**: The main dashboard endpoint () now dynamically calculates pending revenue on each call, ensuring the Collect Revenue button state is always accurate.
-- **Bug Fixes**: Numerous bugs have been addressed, including AI generation timeouts, broken friend requests, chat UI issues, and server crashes due to inconsistent database records.
+- A full-stack cinematic empire game with production pipelines for films, TV series, and anime.
+- The major revenue calculation bug has been fixed, and the dashboard correctly displays total revenue and pending revenue to be collected.
+- A complete, multi-faceted **Casting Agency** system is now implemented:
+    - **Backend**: A new  route handles all agency logic, including viewing the agency, listing weekly recruits, and hiring actors. Actors now have a rich data model including detailed skills, strong/adaptable genres, and hidden talent. Film/Series release logic has been updated to grant bonuses for using agency actors.
+    - **Frontend**: A new  page allows players to manage their agency. The Film, TV Series, and Anime production pipelines now present a choice to cast from the player's private Agency or the public Market.
+- The casting Market for TV Series and Anime is now populated with a global pool of over 2,000 actors, all of whom have been migrated to the new rich data model.
+- The UI for all Market casting has been upgraded to display actors using a detailed rich card format, showing skills, genres, and gender.
+- The Release Notes and System Notes pages are fully updated with the latest features and bug fixes.
 
 **Last working item**:
-- **Last item agent was working:** The agent was investigating a critical bug where the user's total revenue displayed on the dashboard (Incassi) dropped significantly (e.g., from 1.6M to 2.6M) after the last set of fixes. The agent identified that the dashboard stat uses a formula , which prioritizes a newer, dynamically calculated  value over the older, static . The agent's initial investigation into why this caused a drop was inconclusive.
+- **Last item agent was working:** The agent was ensuring that the Market casting proposals for the **film pipeline** also displayed the new rich actor data (specifically, strong and adaptable genres). After migrating all 2,058 actors in the database to the new data model and updating the TV Series/Anime pipelines, the agent was updating the  function in  to include these new fields in its data projection. The user then said Prosegui (Continue), indicating the agent should finalize this last part.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** backend testing agent. The agent must write a script to perform a detailed analysis of the user 'NeoMorpheus' revenue data.
-  1.  Fetch all films for the user.
-  2.  For each film, log its , , and .
-  3.  Calculate the sum of  and the sum of  separately.
-  4.  Re-evaluate the logic in the  task in  which calculates . The hypothesis is that this calculation is underestimating the lifetime earnings of films, causing the total to drop.
+- **Which testing method agent to use?** manual testing by curl. The agent needs to verify that the response from the  endpoint includes the  and  fields for the proposed actors.
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1 (P0):** Drastic Drop in Total Revenue (Incassi).
-- **Issue 2 (P1):** User Emilians is still not receiving revenue correctly.
-- **Issue 3 (P2):** Contest Page Mobile Layout Is Broken.
+- **Issue 1 (P0):** Finalize and verify rich actor data in Film Pipeline casting.
+- **Issue 2 (P1):** Contest Page Mobile Layout Is Broken.
 
 **Issues Detail:**
-- **Issue 1: Drastic Drop in Total Revenue (Incassi)**
-  - **Attempted fixes:** The agent identified the line of code responsible for the calculation but initial checks did not reveal the root cause. The investigation was interrupted.
+- **Issue 1: Finalize and verify rich actor data in Film Pipeline casting**
+  - **Attempted fixes:** The agent correctly identified that the  function in  needed to be updated. The agent added  and  to the projection in the database query.
   - **Next debug checklist:**
-    1.  Investigate the  function in . This task updates the  field.
-    2.  The current hypothesis is that the formula in this task underestimates a film's total earnings, causing  to be lower than the historical , leading to the perceived drop in earnings on the dashboard.
-    3.  The fix will likely involve adjusting the calculation in  to be more accurate or ensuring that the dashboard's display logic ( in ) uses  to prevent the displayed value from ever decreasing.
-  - **Why fix this issue and what will be achieved with the fix?** This is a critical regression that erodes player trust by making it seem like their earnings have been unfairly taken away. Fixing it will restore confidence in the game's economy.
+    1.  Verify the backend change in  is correct.
+    2.  Restart the backend service to apply changes.
+    3.  Call the  endpoint and inspect the response to ensure the  object within the  now contains the new genre fields.
+    4.  The frontend  component in  should already display this data if it's present, but a quick visual check via a screenshot would be beneficial.
+  - **Why fix this issue and what will be achieved with the fix?** To ensure UI consistency across all casting flows (Film, TV, Anime) and fully complete the user's request to upgrade all actor displays.
   - **Status:** IN PROGRESS
   - **Is recurring issue?** N
   - **Should Test frontend/backend/both after fix?** backend
   - **Blocked on other issue:** None
 
-- **Issue 2: User Emilians Not Receiving Revenue**
-  - **Attempted fixes:** A previous fix corrected the dynamic calculation of pending revenue, which was thought to solve this. However, the user reports the issue persists for 'Emilians'.
-  - **Next debug checklist:**
-    1.  Once the main revenue drop (Issue 1) is fixed, run a specific diagnostic script for the user 'Emilians'.
-    2.  Verify the user's document in the  collection has a  field and is being correctly updated.
-    3.  Check if all of Emilians' films in the  collection have the necessary fields for revenue calculation (e.g., ).
-    4.  Simulate an API call to  using an auth token for Emilians and trace the execution to see where it fails or what it calculates.
-  - **Why fix this issue and what will be achieved with the fix?** A core gameplay loop is broken for a specific user, which needs to be resolved.
-  - **Status:** NOT STARTED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** backend
-  - **Blocked on other issue:** Issue 1
-
-- **Issue 3: Contest Page Mobile Layout Is Broken**
-  - **Attempted fixes:** None. This is a known issue from a previous session.
-  - **Next debug checklist:** Inspect CSS in  using mobile developer tools to identify layout issues.
+- **Issue 2: Contest Page Mobile Layout Is Broken**
+  - **Attempted fixes:** None. This is a known, low-priority issue from a previous session.
+  - **Next debug checklist:** Inspect CSS in  using mobile developer tools to identify and fix layout issues.
   - **Why fix this issue and what will be achieved with the fix?** To make a core game feature accessible to mobile users.
   - **Status:** NOT STARTED
   - **Is recurring issue?** Y
@@ -73,9 +62,9 @@ The user's initial request was to fix a bug with a PRODUCI! button. This has sin
   - **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1: Debug and Fix Revenue Drop**
-  - **Where to resume:** Focus on the  function in  as the likely source of the incorrect  value.
-  - **What will be achieved with this?** The user's total revenue stat will be restored to its correct value, and the underlying calculation logic will be fixed to prevent future discrepancies.
+- **Task 1: Complete Rich Actor Data Migration**
+  - **Where to resume:** Verify the changes made to  to ensure casting proposals for films include rich genre data.
+  - **What will be achieved with this?** All actor displays across the entire application will be unified with the new, detailed card format.
   - **Status:** IN PROGRESS
   - **Should Test frontend/backend/both after fix?** backend
   - **Blocked on something:** None
@@ -83,7 +72,7 @@ The user's initial request was to fix a bug with a PRODUCI! button. This has sin
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
   - (P1) Marketplace for TV/Anime rights.
-  - (P1) A Casting Agency building.
+  - (P1) A Casting Agency building (visual representation/upgrade path).
   - (P1) Improve the in-game chat system.
 - **Future Tasks:**
   - (P1) Implement a formal Role-Based Access Control (RBAC) system.
@@ -92,30 +81,34 @@ The user's initial request was to fix a bug with a PRODUCI! button. This has sin
   - (P2) Implement Stripe integration, PWA functionality, and a tutorial.
 
 **Completed work in this session**
-- **Critical Fix: Poster Persistence:** Migrated all poster image storage from the local filesystem to a persistent MongoDB collection () to survive app deployments. This involved creating a new helper module () and refactoring all poster generation logic in , , and .
-- **Feature: Poster Regeneration:** Added a button to the My Films page allowing users to regenerate posters for any film.
-- **Bug Fix: Async Poster Regeneration:** Made the poster regeneration process asynchronous (start -> poll) with state persisted in MongoDB to prevent proxy timeouts and errors in multi-worker environments.
-- **Bug Fix: Friendship Requests:** Fixed a failing friendship request flow caused by a Pydantic model mismatch between  and the frontend payload.
-- **Bug Fix: Chat Mobile UI:** Reworked the  layout to be usable on mobile, hiding the sidebar and making the message area full-screen and scrollable. Fixed multiple JS errors (, ) that were crashing the page.
-- **Bug Fix: Revenue Display:** Fixed a critical bug where the Dashboard did not show pending revenue because it was reading a static, un-updated database field. The logic in  was updated to calculate pending revenue dynamically.
-- **Bug Fix: Cinema Journal Crash:** Fixed a 500 error on the Cinema Journal page by adding defensive checks in the  endpoint to handle films with missing  or cast members with  .
+- **Critical Bug Fix (P0): Revenue Drop:** Fixed the core logic in  and  that caused total revenue to decrease. Player revenue was restored from 2.6M to 3M+.
+- **New Feature: Casting Agency System:** Implemented the entire feature from scratch, including backend routes, database models, and frontend pages for managing a personal actor agency.
+- **Refactor: Unified Casting UI:** Upgraded the casting Market UI for TV Series and Anime to use a rich, detailed actor card, consistent with the new Agency and Film casting UI.
+- **Data Migration: Rich Actor Data:** Wrote and executed a successful migration script to update all 2,058 actors in the  collection with a new, detailed data structure including skills and genre preferences.
+- **Bug Fix: Empty Series Market:** Fixed the  endpoint to correctly query the global  collection, populating the previously empty market.
+- **Bug Fix: Zero Pending Revenue:** Fixed a data structure mismatch between the  endpoint and the frontend, which caused the Collect All button to show /bin/bash.
+- **Bug Fix: Journal Posters & Dashboard Scores:** Fixed two bugs reported by the user: posters now appear in the Cinema Journal, and Like/Social/Charisma scores update correctly on the dashboard.
+- **Admin: Release & System Notes:** Updated the in-game Release Notes and System Notes pages with details of all new features and bug fixes.
+- **UI Tweak: Gender Icons:** Added gender icons (♂/♀) to actor cards in the Casting Agency page.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Ephemeral Filesystem vs. Persistent Storage:** The core of the poster bug was the realization that the container's local filesystem is ephemeral. The solution involved moving file storage to a persistent data store (MongoDB).
-- **Asynchronous Task Management:** A robust async pattern was implemented for poster regeneration, using MongoDB as a persistent state manager for tasks, making it reliable across multiple server processes and restarts.
-- **Dynamic vs. Static Data Calculation:** A critical bug was caused by an endpoint relying on a stale, static field () from the DB. The fix was to replace it with a dynamic, on-the-fly calculation, ensuring data freshness.
-- **Defensive Coding:** Several crashes were fixed by adding checks for  or missing keys (e.g., ) when processing database documents, making the backend more resilient to data inconsistencies.
+- **One-off Data Migration:** A script was written and executed to modify an entire collection in MongoDB (2,058  documents) in-place, adding new fields and standardizing the data structure without downtime.
+- **Frontend Component Refactoring:** The simple actor list in the TV/Anime pipelines was replaced with a more complex, reusable rich actor card component, promoting UI consistency.
+- **Conditional UI Rendering:** The casting tabs in all pipelines were refactored to conditionally render different UIs based on the user's choice (Agency vs. Market).
+- **Backend Response Synchronization:** Debugged and fixed multiple issues caused by a mismatch between the data structure returned by a backend API and the structure expected by the frontend client.
 
 **key DB schema**
-- **poster_files:** (New Collection) Stores poster image data. Schema: .
-- **poster_tasks:** (New Collection) Stores the state of async poster generation jobs. Schema: .
-- **films:** The  field is now being populated by a scheduler task and is the source of the current revenue bug. The  field now points to the  endpoint.
-- **users:** The  field is the source of truth for a player's money.
+- **people:** (Heavily Modified) All 2,058 actor documents now include , , , , and standardized .
+- **agency_actors:** (New Collection) Stores actors recruited by a player. Schema: .
+- **agency_recruits_log:** (New Collection) Tracks which weekly recruits have been hired by a user to prevent re-hiring.
+- **films:** The  field is now added upon release to calculate bonuses.
 
 **All files of reference**
+- 
+- 
 - 
 - 
 - 
@@ -127,25 +120,29 @@ The user's initial request was to fix a bug with a PRODUCI! button. This has sin
 
 **Critical Info for New Agent**
 - **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **HIGHEST PRIORITY (P0):** The drastic drop in the user's Incassi (total revenue) is a critical regression that has upset the user. Your immediate and primary focus must be to investigate  and  to find and fix the root cause of the miscalculation. Do not work on other tasks until this is resolved.
-- **Follow-up Priority (P1):** Once the main revenue bug is fixed, immediately re-investigate why user Emilians is still not receiving income. It is likely related but could be a separate edge case.
+- **HIGHEST PRIORITY (P0):** Your first action should be to complete the last user request: verifying that the film pipeline's Market casting correctly displays rich actor data (genres, etc.). This involves a final check of  and testing the API response.
+- **User is Engaged:** The user is highly engaged, providing frequent feedback, new feature ideas, and bug reports with images. Maintain a collaborative and responsive tone.
+
+**documents and test reports created in this job**
+- 
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports friend requests are not working. (RESOLVED)
-2.  **User:** Asks if the posters lost during the last deploy are gone forever. (PENDING - Led to regeneration feature)
-3.  **User:** Confirms they want Option A: a button on the film card to regenerate a missing poster. (RESOLVED)
-4.  **User:** Clarifies the regenerated poster should be relevant to the film's plot. (RESOLVED)
-5.  **User:** Reports the regeneration button isn't appearing on their device (iOS). (RESOLVED)
-6.  **User:** Reports that trying to regenerate a poster failed and logged them out of the game. (RESOLVED)
-7.  **User:** Reports that after regeneration, a Task not found error appears, and the poster only shows up after a page refresh. (RESOLVED)
-8.  **User:** Reports two issues: (1) the chat page layout is broken on mobile, and (2) asks how the FilmGuide bot works. (RESOLVED)
-9.  **User:** Reports that user Emilians is not receiving any income (automatic or manual). (RESOLVED - but user reports it persists)
-10. **User:** Reports that after the last deploy, their total revenue (Incassi) has plummeted and Emilians' issue is still not fixed. (PENDING)
+1.  **User:** Asks for an opinion on the game's potential. (Answered)
+2.  **User:** Reports Collect All shows /bin/bash. (Resolved)
+3.  **User:** Reports Market casting for TV series is empty. (Resolved)
+4.  **User:** Requests that all Market actors be upgraded to the new rich data model and UI. (In Progress)
+5.  **User:** Says Prosegui (Continue), prompting the agent to continue with the rich actor data implementation. (Pending Action)
+6.  **User:** Asks to update release/system notes. (Resolved)
+7.  **User:** Asks for gender icons in the agency. (Resolved)
+8.  **User:** Acknowledges the plan for the casting agency.
+9.  **User:** Adds more detailed requirements for the casting agency.
+10. **User:** Requests the large Casting Agency feature.
 
 **Project Health Check:**
 - **Broken:**
-  - **Core Economy:** The calculation for total revenue is critically flawed, showing a much lower number than is correct.
-  - **Contest Page:** The mobile layout for  remains broken.
+  - Contest Page mobile layout is still broken.
 - **Mocked:**
   - None.
 
@@ -153,15 +150,17 @@ The user's initial request was to fix a bug with a PRODUCI! button. This has sin
 - **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
 - **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
 - **Pillow:** Used for image manipulation on the backend.
-- **APScheduler:** Used for backend scheduled tasks (revenue calculation, etc.).
+- **APScheduler:** Used for backend scheduled tasks.
 
 **Testing status**
-- **Testing agent used after significant changes:** No, the last few fixes were tested manually with  and .
-- **Troubleshoot agent used after agent stuck in loop:** No.
-- **Test files created:** None in this session.
-- **Known regressions:** A major regression in total revenue calculation was introduced.
+- **Testing agent used after significant changes:** YES. The agent used the testing agent successfully after both the initial large bug-fixing session and the implementation of the Casting Agency feature.
+- **Troubleshoot agent used after agent stuck in loop:** NO.
+- **Test files created:** None.
+- **Known regressions:** None. All regressions identified during the session were fixed.
 
 **Credentials to test flow:**
 - **User:** 
 - **Password:** 
-- This user () is the one experiencing the revenue drop. Log in as this user to test and verify the fix.</analysis>
+
+**What agent forgot to execute**
+The agent was in the final steps of implementing the rich actor data for the Film Pipeline's Market view when it was forked. The user's last message was Prosegui (Continue), so the immediate next action is to finish that task and verify it.</analysis>

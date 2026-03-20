@@ -193,15 +193,23 @@ export default function SeriesTVPipeline() {
     setActionLoading(false);
   };
 
+  const [releaseCard, setReleaseCard] = useState(null);
+
   const releaseSeries = async () => {
     setActionLoading(true);
     try {
       const res = await api.post(`/series-pipeline/${activeSeries.id}/release`);
-      toast.success(`Serie completata! Qualità: ${res.data.quality?.score}/100 (+${res.data.xp_reward} XP, +${res.data.fame_bonus} Fama)`);
-      setActiveSeries(null);
-      loadData();
+      // Show release card instead of just a toast
+      setReleaseCard(res.data);
+      toast.success(`${res.data.type === 'anime' ? 'Anime' : 'Serie TV'} completata!`);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
+  };
+
+  const closeReleaseCard = () => {
+    setReleaseCard(null);
+    setActiveSeries(null);
+    loadData();
   };
 
   const discardSeries = async () => {
@@ -654,6 +662,7 @@ export default function SeriesTVPipeline() {
                                     {(actor.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
                                     {actor.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {actor.adaptable_genre_name}</Badge>}
                                   </div>
+                                  {actor.agency_name && <p className="text-[8px] text-gray-600 mt-0.5">Agenzia: {actor.agency_name}</p>}
                                 </div>
                                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                   <span className="text-[9px] text-yellow-400">${(actor.salary || actor.cost_per_film || 0).toLocaleString()}</span>
@@ -778,6 +787,84 @@ export default function SeriesTVPipeline() {
           </div>
         )}
       </div>
+
+    {/* Release Card Modal */}
+    {releaseCard && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="release-card-modal">
+        <Card className="bg-[#0e0e10] border-yellow-500/30 max-w-md w-full max-h-[85vh] overflow-y-auto">
+          <CardHeader className="pb-2 text-center">
+            <Badge className="mx-auto mb-2 bg-yellow-500/20 text-yellow-400 text-xs px-3 py-1">
+              {releaseCard.type === 'anime' ? 'Anime' : 'Serie TV'} Completata!
+            </Badge>
+            <CardTitle className="text-lg text-yellow-400">{releaseCard.title}</CardTitle>
+            <p className="text-[10px] text-gray-500 uppercase">{releaseCard.genre}</p>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                <p className="text-lg font-bold text-yellow-400">{releaseCard.quality?.score || 0}</p>
+                <p className="text-[8px] text-gray-500">QUALITA</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <p className="text-lg font-bold text-emerald-400">${(releaseCard.total_revenue || 0).toLocaleString()}</p>
+                <p className="text-[8px] text-gray-500">INCASSO</p>
+              </div>
+              <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                <p className="text-lg font-bold text-cyan-400">{releaseCard.audience_rating || 0}</p>
+                <p className="text-[8px] text-gray-500">VOTO PUBBLICO</p>
+              </div>
+            </div>
+
+            {/* XP/Fame */}
+            <div className="flex gap-2 justify-center">
+              <Badge className="bg-purple-500/20 text-purple-400 text-xs">+{releaseCard.xp_reward} XP</Badge>
+              <Badge className="bg-pink-500/20 text-pink-400 text-xs">+{releaseCard.fame_bonus} Fama</Badge>
+              <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">{releaseCard.episodes_count} episodi</Badge>
+            </div>
+
+            {/* Cast */}
+            {releaseCard.cast?.length > 0 && (
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase mb-1">Cast</p>
+                <div className="flex flex-wrap gap-1">
+                  {releaseCard.cast.map((c, i) => (
+                    <Badge key={i} className="bg-white/5 text-gray-300 text-[9px]">
+                      {c.name} <span className="text-gray-500 ml-0.5">({c.role})</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Audience Comments */}
+            {releaseCard.audience_comments?.length > 0 && (
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase mb-1">Commenti del Pubblico</p>
+                <div className="space-y-1.5">
+                  {releaseCard.audience_comments.map((c, i) => (
+                    <div key={i} className={`p-2 rounded-lg border text-[10px] ${
+                      c.sentiment === 'positive' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' :
+                      c.sentiment === 'negative' ? 'bg-red-500/5 border-red-500/20 text-red-300' :
+                      'bg-amber-500/5 border-amber-500/20 text-amber-300'
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <span>"{c.text}"</span>
+                        <Badge className={`ml-1 text-[8px] h-4 flex-shrink-0 ${c.rating >= 7 ? 'bg-emerald-500/20 text-emerald-400' : c.rating >= 5 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{c.rating}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={closeReleaseCard} data-testid="close-release-card">
+              Chiudi
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )}
     </div>
   );
 }

@@ -472,7 +472,7 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
                        'films_worked': 1, 'skill_changes': 1,
                        'strong_genres': 1, 'adaptable_genre': 1,
                        'strong_genres_names': 1, 'adaptable_genre_name': 1,
-                       'skill_caps': 1, 'hidden_talent': 1, 'stars': 1}}
+                       'skill_caps': 1, 'hidden_talent': 1, 'stars': 1, 'agency_name': 1}}
     ]).to_list(sample_size)
 
     # For low-fame players, also add a couple of famous people for aspiration
@@ -488,7 +488,7 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
                            'films_worked': 1, 'skill_changes': 1,
                            'strong_genres': 1, 'adaptable_genre': 1,
                            'strong_genres_names': 1, 'adaptable_genre_name': 1,
-                           'skill_caps': 1, 'hidden_talent': 1, 'stars': 1}}
+                           'skill_caps': 1, 'hidden_talent': 1, 'stars': 1, 'agency_name': 1}}
         ]).to_list(famous_sample)
         people.extend(famous_people)
 
@@ -812,7 +812,7 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
             {'id': {'$in': list(all_person_ids)}},
             {'_id': 0, 'id': 1, 'strong_genres': 1, 'adaptable_genre': 1,
              'strong_genres_names': 1, 'adaptable_genre_name': 1,
-             'skill_caps': 1, 'hidden_talent': 1}
+             'skill_caps': 1, 'hidden_talent': 1, 'agency_name': 1}
         ).to_list(len(all_person_ids))
         for rp in rich_people:
             rich_data_map[rp['id']] = rp
@@ -838,6 +838,7 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
                     person['adaptable_genre_name'] = rd.get('adaptable_genre_name', '')
                     person['skill_caps'] = rd.get('skill_caps', {})
                     person['hidden_talent'] = rd.get('hidden_talent', 0.5)
+                    person['agency_name'] = rd.get('agency_name', '')
         # Persist updated statuses to DB
         if updated:
             await db.film_projects.update_one(

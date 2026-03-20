@@ -403,6 +403,7 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
             'films_count': p.get('films_count', 0),
             'source': 'market',
             'former_agency': p.get('former_agency', ''),
+            'agency_name': p.get('agency_name', ''),
         })
 
     # 3. Generate procedural actors if not enough
@@ -826,14 +827,99 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
     )
     
     type_label = "Anime" if series['type'] == 'anime' else "Serie TV"
+
+    # Generate audience comments based on quality
+    quality_score = quality_result['score']
+    positive_comments = [
+        "Assolutamente fantastica!", "Non riesco a smettere di guardarla!",
+        "Capolavoro, ogni episodio è perfetto", "La migliore della stagione!",
+        "Trama avvincente e attori bravissimi", "Consigliata a tutti!",
+        "Incredibile colpo di scena nel finale!", "Atmosfera unica",
+        "Produzione di altissimo livello", "La storia ti prende dal primo minuto",
+    ]
+    mixed_comments = [
+        "Buona ma poteva essere meglio", "Alcuni episodi sono lenti",
+        "Inizio forte, poi cala un po'", "Discreta, niente di eccezionale",
+        "La recitazione salva una trama debole", "Guardabile, ma non memorabile",
+        "Ha dei momenti brillanti e altri no", "Non male per passare il tempo",
+    ]
+    negative_comments = [
+        "Deludente, mi aspettavo di più", "Trama confusa e prevedibile",
+        "Non sono riuscito a finirla", "Troppi cliché, poco originale",
+        "Produzione scadente", "Purtroppo non mi ha convinto",
+    ]
+
+    num_comments = random.randint(3, 6)
+    comments = []
+    for _ in range(num_comments):
+        roll = random.random() * 100
+        if roll < quality_score:
+            comments.append({'text': random.choice(positive_comments), 'sentiment': 'positive', 'rating': round(random.uniform(7, 10), 1)})
+        elif roll < quality_score + 20:
+            comments.append({'text': random.choice(mixed_comments), 'sentiment': 'mixed', 'rating': round(random.uniform(4.5, 7), 1)})
+        else:
+            comments.append({'text': random.choice(negative_comments), 'sentiment': 'negative', 'rating': round(random.uniform(2, 5), 1)})
+    avg_rating = round(sum(c['rating'] for c in comments) / max(1, len(comments)), 1)
+
+    # Calculate audience/revenue
+    base_audience = random.randint(100000, 500000) * (1 + quality_score / 100)
+    if is_anime:
+        base_audience *= 0.7  # Anime has smaller audience
+    audience = int(base_audience)
+    revenue_per_viewer = random.uniform(1.5, 4.0)
+    total_revenue = int(audience * revenue_per_viewer)
+
+    # Generate poster task (async - smaller format for series)
+    poster_task_id = None
+    try:
+        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV series poster, dramatic lighting, professional"
+        poster_prompt = f"{style}, poster for '{series['title']}', genre: {series.get('genre', 'drama')}, {series.get('subgenres', [''])[0] if series.get('subgenres') else ''}"
+        poster_task = {
+            '_id': str(uuid.uuid4()),
+            'type': 'series_poster',
+            'series_id': series_id,
+            'user_id': user['id'],
+            'prompt': poster_prompt,
+            'status': 'pending',
+            'created_at': now,
+        }
+        await db.poster_tasks.insert_one(poster_task)
+        poster_task_id = poster_task['_id']
+    except Exception:
+        pass  # Non-critical
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'status': 'completed',
+            'quality_score': quality_result['score'],
+            'quality_breakdown': quality_result['breakdown'],
+            'episodes': episodes,
+            'completed_at': now,
+            'updated_at': now,
+            'audience': audience,
+            'total_revenue': total_revenue,
+            'audience_comments': comments,
+            'audience_rating': avg_rating,
+            'poster_task_id': poster_task_id,
+        }}
+    )
     
+    # Add revenue to user
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': total_revenue, 'total_lifetime_revenue': total_revenue, 'pending_revenue': total_revenue}}
+    )
+
     # Create notification
     await db.notifications.insert_one({
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'type': 'series_released',
-        'message': f'{type_label} "{series["title"]}" completata! Qualità: {quality_result["score"]}/100',
-        'data': {'series_id': series_id, 'quality': quality_result['score']},
+        'message': f'{type_label} "{series["title"]}" completata! Qualita: {quality_result["score"]}/100 - Incasso: ${total_revenue:,}',
+        'data': {'series_id': series_id, 'quality': quality_result['score'], 'revenue': total_revenue},
         'read': False,
         'created_at': now,
     })
@@ -844,6 +930,15 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         "episodes_count": len(episodes),
         "xp_reward": xp_reward,
         "fame_bonus": fame_bonus,
+        "audience": audience,
+        "total_revenue": total_revenue,
+        "audience_rating": avg_rating,
+        "audience_comments": comments,
+        "poster_task_id": poster_task_id,
+        "cast": series.get('cast', []),
+        "title": series.get('title', ''),
+        "genre": series.get('genre', ''),
+        "type": series.get('type', ''),
     }
 
 

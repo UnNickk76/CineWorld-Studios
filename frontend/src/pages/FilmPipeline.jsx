@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
-  Zap, ChevronRight, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
+  Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus
 } from 'lucide-react';
 
@@ -313,6 +313,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [agencyInfo, setAgencyInfo] = useState(null);
   const [selectedAgencyActors, setSelectedAgencyActors] = useState({});
   const [agencyRoles, setAgencyRoles] = useState({});
+  const [expandedSkills, setExpandedSkills] = useState({});
 
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
@@ -929,30 +930,50 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                               <SelectedCastDetail person={selectedPerson} roleName={roleLabels[role]} />
                             )}
 
-                            {/* Show available proposals with enhanced details */}
-                            {!selected && available.map(prop => (
+                            {/* Show available proposals — unified card format */}
+                            {!selected && available.map(prop => {
+                              const person = prop.person || {};
+                              const skills = person.skills || {};
+                              const avgSkill = Object.values(skills).length > 0
+                                ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+                              const skillsOpen = expandedSkills[prop.id];
+                              return (
                               <div key={prop.id} 
-                                className={`p-2 mb-1.5 bg-black/20 rounded border transition-all ${role === 'actors' ? 'border-cyan-800/40 cursor-pointer hover:border-cyan-500/60 hover:bg-cyan-500/5' : 'border-gray-800'}`}
+                                className={`p-2 mb-1.5 rounded-lg border transition-all ${role === 'actors' ? 'border-cyan-800/30 cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5' : 'border-gray-800/50 hover:border-gray-700'} bg-white/[0.02]`}
                                 onClick={role === 'actors' ? () => selectCast(f.id, role, prop.id) : undefined}
                                 data-testid={`proposal-card-${prop.id}`}>
-                                <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  {person.avatar_url ? (
+                                    <img src={person.avatar_url} alt="" className="w-9 h-9 rounded-full bg-gray-800" />
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs font-bold text-cyan-400">
+                                      {person.name?.charAt(0)}
+                                    </div>
+                                  )}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <p className="text-xs font-medium">{prop.person?.name}</p>
-                                      {prop.person?.has_worked_with_player && (
-                                        <UserCheck className="w-3 h-3 text-cyan-400 flex-shrink-0" title="Ha lavorato con te" />
-                                      )}
+                                    <div className="flex items-center gap-1">
+                                      <p className="text-xs font-semibold truncate">{person.name}</p>
+                                      {person.gender && <span className={`text-[10px] font-bold ${person.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{person.gender === 'female' ? '\u2640' : '\u2642'}</span>}
+                                      {[...Array(person.stars || 2)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
+                                      {person.fame_category && <Badge className={`text-[6px] h-3 ${person.fame_category === 'superstar' ? 'bg-yellow-500/20 text-yellow-400' : person.fame_category === 'famous' ? 'bg-orange-500/20 text-orange-400' : person.fame_category === 'rising' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-gray-500/20 text-gray-400'}`}>{person.fame_label || person.fame_category}</Badge>}
                                     </div>
                                     <p className="text-[9px] text-gray-500">
-                                      da {prop.agent_name} &bull; ${prop.cost?.toLocaleString()}
+                                      {person.nationality}{person.age ? <>{' \u2022 '}{person.age}a</> : ''}{' \u2022 '}Skill: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>{person.films_count ? <>{' \u2022 '}{person.films_count} film</> : ''}
                                     </p>
-                                    <PersonMeta person={prop.person} />
+                                    <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                      {(person.strong_genres_names || []).map((g, i) => <Badge key={`sg-${i}`} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                                      {person.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {person.adaptable_genre_name}</Badge>}
+                                    </div>
+                                    {(person.agency_name || prop.agent_name) && (
+                                      <p className="text-[8px] text-gray-600 mt-0.5">Agenzia: {person.agency_name || prop.agent_name}</p>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <span className="text-[9px] text-yellow-400 font-bold">${prop.cost?.toLocaleString()}</span>
                                     {role === 'actors' && (
-                                      <select value={actorRoles[prop.id] || ''} onChange={e => setActorRoles(p => ({...p, [prop.id]: e.target.value}))}
+                                      <select value={actorRoles[prop.id] || ''} onChange={e => { e.stopPropagation(); setActorRoles(p => ({...p, [prop.id]: e.target.value})); }}
                                         onClick={e => e.stopPropagation()}
-                                        className="h-6 text-[9px] bg-gray-800 border border-gray-700 rounded px-1 text-white"
+                                        className="h-5 text-[8px] bg-gray-800 border border-gray-700 rounded px-0.5 text-white"
                                         data-testid={`actor-role-${prop.id}`}>
                                         <option value="">Ruolo...</option>
                                         {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -967,23 +988,37 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
                                         Scegli
                                       </Button>
                                     )}
-                                    {role === 'actors' && (
-                                      <Badge className="bg-cyan-600/30 text-cyan-300 text-[9px]">
-                                        {actionLoading === `select-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Clicca per ingaggiare'}
-                                      </Badge>
-                                    )}
+                                    {role === 'actors' && <Badge className="bg-cyan-600/20 text-cyan-300 text-[7px]">Clicca</Badge>}
+                                    {person.has_worked_with_player && <Badge className="text-[6px] bg-cyan-500/15 text-cyan-400 h-3">Collaboratore</Badge>}
                                   </div>
                                 </div>
-                                {/* Skill bars */}
-                                {prop.person?.skills && (
-                                  <div className="mt-1 space-y-0.5">
-                                    {Object.entries(prop.person.skills).map(([skill, val]) => (
-                                      <SkillBar key={skill} label={skill} value={val} />
-                                    ))}
+                                {/* Skill toggle */}
+                                {Object.keys(skills).length > 0 && (
+                                  <div className="mt-1">
+                                    <button className="text-[8px] text-cyan-400 hover:text-cyan-300 flex items-center gap-0.5"
+                                      onClick={e => { e.stopPropagation(); setExpandedSkills(p => ({...p, [prop.id]: !p[prop.id]})); }}
+                                      data-testid={`toggle-skills-${prop.id}`}>
+                                      {skillsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      {skillsOpen ? 'Nascondi Skill' : 'Mostra Skill'}
+                                    </button>
+                                    {skillsOpen && (
+                                      <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 mt-1 px-1">
+                                        {Object.entries(skills).sort(([,a],[,b]) => b - a).map(([k, v]) => (
+                                          <div key={k} className="flex items-center gap-1">
+                                            <span className="text-[8px] text-gray-500 capitalize w-16 truncate">{k.replace(/_/g, ' ')}</span>
+                                            <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                              <div className={`h-full rounded-full ${v >= 80 ? 'bg-emerald-500' : v >= 60 ? 'bg-cyan-500' : v >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{width: `${v}%`}} />
+                                            </div>
+                                            <span className="text-[8px] text-gray-400 w-5 text-right">{v}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
-                            ))}
+                              );
+                            })}
 
                             {/* Show rejected proposals with renegotiate option */}
                             {proposals.filter(p => p.status === 'rejected').map(prop => (

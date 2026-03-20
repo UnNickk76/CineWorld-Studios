@@ -29,15 +29,23 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Anime release card**: same as Serie TV with pink theme
 - Poster generation task queued for series/anime on release
 
+### Talent Scout System (NEW - Completed 2026-03-20)
+- **Talent Scout Attori** (infrastructure): Discovers young actors with hidden potential weekly. Level 1-5 progression with increasing talent quality/quantity. Diamond raw talents at level 4+.
+- **Talent Scout Sceneggiatori** (infrastructure): Finds ready-made screenplays from writers. Level 1-5 with famous writers at level 3+.
+- Scout tabs appear in Casting Agency page only when player owns the infrastructure.
+- Scouted actors go directly to player's agency. Screenplays are purchased and saved for use in film production.
+- Both are unique-type infrastructures (one per player).
+
 ### Bug Fixes Applied
 - Revenue drop, Dashboard scores, Cinema Journal posters, Collect All $0
 - Empty Series Market, Serie TV "Dal Mercato" crash
 - Rich actor data enrichment, hired actors genre enrichment
 - Actor salary scaling for series (15% of film cost)
+- MongoDB ObjectId serialization in scout pools
+- timedelta import fix in casting_agency.py
 
 ## Backlog
 - (P1) Guest Star per puntate singole nelle Serie TV
-- (P1) Talent Scout infrastructure (Screenwriters + Young Actors)
 - (P1) Marketplace diritti TV/Anime
 - (P1) Miglioramento sistema chat
 - (P2) Contest Page mobile layout fix

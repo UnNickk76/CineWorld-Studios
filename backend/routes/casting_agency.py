@@ -1244,3 +1244,14 @@ async def purchase_screenplay(screenplay_id: str, user: dict = Depends(get_curre
         'cost': cost,
         'screenplay': {'id': sp['id'], 'title': sp['title'], 'genre': sp['genre'], 'quality': sp['quality']},
     }
+
+
+
+@router.get("/api/agency/my-screenplays")
+async def get_my_screenplays(user: dict = Depends(get_current_user)):
+    """Get purchased screenplays that haven't been used yet."""
+    screenplays = await db.purchased_screenplays.find(
+        {'user_id': user['id'], 'used': False}, {'_id': 0}
+    ).to_list(50)
+    used_count = await db.purchased_screenplays.count_documents({'user_id': user['id'], 'used': True})
+    return {'screenplays': screenplays, 'used_count': used_count}

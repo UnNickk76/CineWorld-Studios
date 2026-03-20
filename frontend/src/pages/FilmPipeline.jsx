@@ -37,11 +37,14 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
   const [locations, setLocations] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1); // 1=title/genre, 2=screenplay, 3=location
+  const [myScreenplays, setMyScreenplays] = useState([]);
+  const [selectedScreenplay, setSelectedScreenplay] = useState(null);
 
   useEffect(() => {
     cachedGet('/genres').then(r => setGenres(r.data || {})).catch(() => {});
     cachedGet('/locations').then(r => setLocations(r.data || [])).catch(() => {});
-  }, [cachedGet]);
+    api.get('/agency/my-screenplays').then(r => setMyScreenplays(r.data.screenplays || [])).catch(() => {});
+  }, [cachedGet, api]);
 
   const toggleSubgenre = (sg) => {
     if (selectedSubgenres.includes(sg)) {
@@ -66,11 +69,15 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
     }
     setSubmitting(true);
     try {
-      const res = await api.post('/film-pipeline/create', {
+      const payload = {
         title, genre, subgenres: selectedSubgenres, pre_screenplay: preScreenplay, locations: selectedLocations
-      });
+      };
+      if (selectedScreenplay) payload.purchased_screenplay_id = selectedScreenplay.id;
+      const res = await api.post('/film-pipeline/create', payload);
       toast.success(res.data.message);
       setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay(''); setSelectedLocations([]); setStep(1);
+      setSelectedScreenplay(null);
+      setMyScreenplays(prev => prev.filter(s => s.id !== selectedScreenplay?.id));
       refreshUser(); refreshCounts();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella creazione');
@@ -103,6 +110,41 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
             <CardTitle className="text-sm flex items-center gap-2"><Film className="w-4 h-4 text-yellow-400" />Titolo & Genere</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Purchased screenplay selector */}
+            {myScreenplays.length > 0 && (
+              <div className="p-2.5 rounded border border-emerald-800/30 bg-emerald-500/5">
+                <p className="text-[10px] text-emerald-400 font-semibold mb-1.5 flex items-center gap-1">
+                  <BookOpen className="w-3 h-3" /> Hai {myScreenplays.length} sceneggiatura/e pronta/e
+                </p>
+                <div className="space-y-1.5">
+                  {myScreenplays.map(sp => (
+                    <button key={sp.id} onClick={() => {
+                      if (selectedScreenplay?.id === sp.id) {
+                        setSelectedScreenplay(null);
+                        setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay('');
+                      } else {
+                        setSelectedScreenplay(sp);
+                        setTitle(sp.title);
+                        setGenre(sp.genre);
+                        setSelectedSubgenres([]);
+                        setPreScreenplay(sp.synopsis || '');
+                      }
+                    }}
+                      className={`w-full text-left p-2 rounded text-xs transition-all ${selectedScreenplay?.id === sp.id ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-black/20 border border-gray-800 hover:border-emerald-800/50'}`}
+                      data-testid={`use-screenplay-${sp.id}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-white">{sp.title}</span>
+                          <span className="text-gray-500 ml-1.5">di {sp.writer_name}</span>
+                        </div>
+                        <Badge className={`text-[7px] h-3.5 ${sp.quality >= 70 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>Q{sp.quality}</Badge>
+                      </div>
+                      <p className="text-[9px] text-gray-500 mt-0.5">{sp.genre_name} {selectedScreenplay?.id === sp.id ? '- Selezionata' : '- Clicca per usare'}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Titolo del Film</label>
               <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Il titolo del tuo capolavoro..."

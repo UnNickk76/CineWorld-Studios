@@ -333,14 +333,21 @@ function ScoutTalentsTab({ api, slotsAvailable, onReload }) {
 
 function ScoutScreenplaysTab({ api }) {
   const [screenplays, setScreenplays] = React.useState([]);
+  const [myScreenplays, setMyScreenplays] = React.useState([]);
   const [scoutLevel, setScoutLevel] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [actionId, setActionId] = React.useState(null);
+  const [purchasedCount, setPurchasedCount] = React.useState(0);
 
   const load = React.useCallback(() => {
-    api.get('/agency/scout-screenplays').then(r => {
-      setScreenplays(r.data.screenplays || []);
-      setScoutLevel(r.data.scout_level || 0);
+    Promise.all([
+      api.get('/agency/scout-screenplays'),
+      api.get('/agency/my-screenplays')
+    ]).then(([scout, mine]) => {
+      setScreenplays(scout.data.screenplays || []);
+      setScoutLevel(scout.data.scout_level || 0);
+      setMyScreenplays(mine.data.screenplays || []);
+      setPurchasedCount((mine.data.screenplays?.length || 0) + (mine.data.used_count || 0));
     }).catch(() => {}).finally(() => setLoading(false));
   }, [api]);
 
@@ -401,6 +408,34 @@ function ScoutScreenplaysTab({ api }) {
             </CardContent>
           </Card>
         ))
+      )}
+
+      {/* My purchased screenplays */}
+      {myScreenplays.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <h3 className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+            <BookOpen className="w-3.5 h-3.5" /> Le Mie Sceneggiature ({myScreenplays.length} disponibili)
+          </h3>
+          <p className="text-[9px] text-gray-500">Usa queste sceneggiature quando crei un nuovo film in "Produci Film".</p>
+          {myScreenplays.map(sp => (
+            <Card key={sp.id} className="bg-[#1A1A1B] border-emerald-800/20" data-testid={`my-screenplay-${sp.id}`}>
+              <CardContent className="p-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold">{sp.title}</span>
+                    <p className="text-[9px] text-gray-500">
+                      di {sp.writer_name} {'\u2022'} {sp.genre_name} {'\u2022'} Qualita: <span className="text-emerald-400">{sp.quality}/100</span>
+                    </p>
+                  </div>
+                  <Badge className="text-[8px] bg-emerald-500/15 text-emerald-400 h-4">Pronta</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

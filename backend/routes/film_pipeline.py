@@ -197,6 +197,7 @@ class FilmProposalRequest(BaseModel):
     subgenres: List[str]  # Up to 3 subgenres
     pre_screenplay: str  # 100-500 chars
     locations: List[str]  # Multiple locations
+    purchased_screenplay_id: Optional[str] = None  # If using a purchased screenplay
 
 class CastSpeedUpRequest(BaseModel):
     role_type: str  # director, screenwriter, actors, composer
@@ -688,6 +689,19 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
         'created_at': datetime.now(timezone.utc).isoformat(),
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
+
+    # If using a purchased screenplay, mark it as used and add bonus
+    if req.purchased_screenplay_id:
+        ps = await db.purchased_screenplays.find_one(
+            {'id': req.purchased_screenplay_id, 'user_id': user['id'], 'used': False}
+        )
+        if ps:
+            await db.purchased_screenplays.update_one(
+                {'id': req.purchased_screenplay_id}, {'$set': {'used': True, 'used_in_film': project['id']}}
+            )
+            project['from_purchased_screenplay'] = True
+            project['purchased_screenplay_quality'] = ps.get('quality', 50)
+            project['purchased_screenplay_writer'] = ps.get('writer_name', '')
 
     await db.film_projects.insert_one(project)
     project.pop('_id', None)

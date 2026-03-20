@@ -2,7 +2,7 @@
 # Manage your personal casting agency with permanent actors
 
 from fastapi import APIRouter, HTTPException, Depends, Body
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from typing import Optional
 import uuid
@@ -1034,6 +1034,8 @@ async def get_scout_talents(user: dict = Depends(get_current_user)):
 
         if talents:
             await db.scout_talent_pool.insert_many(talents)
+            for t in talents:
+                t.pop('_id', None)
         existing = talents
 
     return {
@@ -1185,6 +1187,8 @@ async def get_scout_screenplays(user: dict = Depends(get_current_user)):
 
         if proposals:
             await db.scout_screenplay_pool.insert_many(proposals)
+            for p in proposals:
+                p.pop('_id', None)
         existing = proposals
 
     return {

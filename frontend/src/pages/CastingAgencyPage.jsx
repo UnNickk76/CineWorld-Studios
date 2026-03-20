@@ -591,6 +591,16 @@ export default function CastingAgencyPage() {
           onTransfer={transferFromSchool} onReload={() => { loadInfo(); loadActors(); }} />
       )}
 
+      {/* Scout Talents Tab */}
+      {tab === 'scout-actors' && (
+        <ScoutTalentsTab api={api} slotsAvailable={slotsAvailable} onReload={() => { loadInfo(); loadActors(); }} />
+      )}
+
+      {/* Scout Screenplays Tab */}
+      {tab === 'scout-screenplays' && (
+        <ScoutScreenplaysTab api={api} />
+      )}
+
       {/* Bonus info */}
       <Card className="bg-[#1A1A1B] border-gray-800">
         <CardContent className="p-3">

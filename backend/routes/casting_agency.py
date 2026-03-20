@@ -1038,12 +1038,18 @@ async def get_scout_talents(user: dict = Depends(get_current_user)):
                 t.pop('_id', None)
         existing = talents
 
+    available = [t for t in existing if not t.get('recruited')]
+    recruited_count = len([t for t in existing if t.get('recruited')])
+    total_generated = len(existing)
+
     return {
-        'talents': [t for t in existing if not t.get('recruited')],
+        'talents': available,
         'scout_level': scout_level,
         'has_scout': True,
         'config': {'num_talents': config[0], 'has_diamonds': config[4]},
         'upgrade_cost': SCOUT_UPGRADE_COSTS.get(scout_level + 1, None),
+        'recruited_count': recruited_count,
+        'total_generated': total_generated,
     }
 
 

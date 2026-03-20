@@ -3,7 +3,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { AuthContext } from '../contexts';
 
 const GENRE_ICONS = {
@@ -212,11 +212,15 @@ function ScoutTalentsTab({ api, slotsAvailable, onReload }) {
   const [loading, setLoading] = React.useState(true);
   const [actionId, setActionId] = React.useState(null);
   const [expandedSkills, setExpandedSkills] = React.useState({});
+  const [recruitedCount, setRecruitedCount] = React.useState(0);
+  const [totalGenerated, setTotalGenerated] = React.useState(0);
 
   const load = React.useCallback(() => {
     api.get('/agency/scout-talents').then(r => {
       setTalents(r.data.talents || []);
       setScoutLevel(r.data.scout_level || 0);
+      setRecruitedCount(r.data.recruited_count || 0);
+      setTotalGenerated(r.data.total_generated || 0);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [api]);
 
@@ -244,8 +248,18 @@ function ScoutTalentsTab({ api, slotsAvailable, onReload }) {
       </div>
       {talents.length === 0 ? (
         <div className="text-center py-10 text-gray-500">
-          <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Nessun talento disponibile questa settimana.</p>
+          {recruitedCount > 0 ? (
+            <>
+              <UserPlus className="w-8 h-8 mx-auto mb-2 text-emerald-500/50" />
+              <p className="text-sm text-emerald-400">Hai reclutato tutti i {recruitedCount} talenti di questa settimana!</p>
+              <p className="text-xs text-gray-500 mt-1">Sono ora nella tab "I miei Attori". Nuovi talenti la prossima settimana.</p>
+            </>
+          ) : (
+            <>
+              <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Lo scout sta cercando nuovi talenti... Torna presto!</p>
+            </>
+          )}
         </div>
       ) : (
         talents.map(talent => {

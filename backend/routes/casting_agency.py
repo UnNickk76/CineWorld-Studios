@@ -96,6 +96,14 @@ async def get_agency_info(user: dict = Depends(get_current_user)):
         'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}
     })
 
+    # Talent Scout info
+    scout_actors = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'talent_scout_actors'}, {'_id': 0, 'level': 1}
+    )
+    scout_screenwriters = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'talent_scout_screenwriters'}, {'_id': 0, 'level': 1}
+    )
+
     return {
         'agency_name': agency_name,
         'level': level,
@@ -103,7 +111,9 @@ async def get_agency_info(user: dict = Depends(get_current_user)):
         'current_actors': current_count,
         'slots_available': max(0, max_actors - current_count),
         'weekly_recruits_count': weekly_recruits,
-        'school_students': school_count
+        'school_students': school_count,
+        'talent_scout_actors': scout_actors.get('level', 1) if scout_actors else 0,
+        'talent_scout_screenwriters': scout_screenwriters.get('level', 1) if scout_screenwriters else 0,
     }
 
 
@@ -910,4 +920,317 @@ async def transfer_school_student_to_agency(student_id: str, user: dict = Depend
         'success': True,
         'message': f'{student["name"]} è stato trasferito nella tua Agenzia!',
         'actor_skills': current_skills,
+    }
+
+
+
+# ==================== TALENT SCOUT ====================
+
+TALENT_SCOUT_CONFIG = {
+    # level: (num_talents_per_week, min_hidden_talent, max_hidden_talent, max_skill_cap, has_diamonds)
+    1: (3, 0.65, 0.80, 85, False),
+    2: (4, 0.70, 0.85, 90, False),
+    3: (5, 0.75, 0.88, 95, False),
+    4: (6, 0.78, 0.92, 97, True),
+    5: (8, 0.80, 0.95, 100, True),
+}
+
+SCOUT_UPGRADE_COSTS = {1: 500000, 2: 1500000, 3: 3000000, 4: 6000000, 5: 12000000}
+
+SCREENPLAY_SCOUT_CONFIG = {
+    # level: (num_proposals, min_quality, max_quality, has_famous_writers)
+    1: (2, 40, 60, False),
+    2: (3, 45, 68, False),
+    3: (4, 50, 75, True),
+    4: (5, 55, 82, True),
+    5: (6, 65, 90, True),
+}
+
+
+@router.get("/api/agency/scout-talents")
+async def get_scout_talents(user: dict = Depends(get_current_user)):
+    """Get the current batch of scouted young talents (actors).
+    Talents are regenerated weekly and exclusive for 48h.
+    """
+    scout = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'talent_scout_actors'}, {'_id': 0, 'level': 1}
+    )
+    if not scout:
+        return {'talents': [], 'scout_level': 0, 'has_scout': False}
+
+    scout_level = scout.get('level', 1)
+    config = TALENT_SCOUT_CONFIG.get(scout_level, TALENT_SCOUT_CONFIG[1])
+    num_talents, min_ht, max_ht, max_cap, has_diamonds = config
+
+    # Check for existing batch (refreshes weekly)
+    now = datetime.now(timezone.utc)
+    import math
+    week_key = f"{now.isocalendar()[0]}-W{now.isocalendar()[1]}"
+
+    existing = await db.scout_talent_pool.find(
+        {'user_id': user['id'], 'week': week_key}, {'_id': 0}
+    ).to_list(20)
+
+    if not existing:
+        # Generate new talent batch
+        import random
+        first_names_m = ["Kenji","Marco","Liam","Rafael","Yuki","Dmitri","Carlos","Hassan","Jin","Erik","Tomás","Arjun","Felix","Omar","Kofi"]
+        first_names_f = ["Sakura","Mia","Elena","Priya","Yuna","Fatima","Isabella","Sofia","Ling","Amara","Naomi","Zara","Hana","Nina","Leila"]
+        last_names = ["Kim","Silva","Tanaka","Müller","Chen","Rossi","Petrov","Garcia","Nakamura","Johansson","Okafor","Singh","Dubois","Ahmed","Park"]
+        nationalities = ["Giappone","Italia","USA","Brasile","Corea","Germania","Francia","India","Russia","UK","Nigeria","Spagna","Messico","Egitto","Svezia"]
+        GENRES = [('action','Action'),('comedy','Comedy'),('drama','Drama'),('horror','Horror'),('sci_fi','Sci-Fi'),('thriller','Thriller'),('romance','Romance'),('fantasy','Fantasy'),('animation','Animation'),('crime','Crime'),('mystery','Mystery'),('adventure','Adventure')]
+        skill_names = ['action','drama','comedy','horror','romance','thriller','sci_fi','voice_acting','emotional_range','physical_acting','improvisation','method_acting']
+
+        talents = []
+        for i in range(num_talents):
+            gender = random.choice(['male', 'female'])
+            fn = random.choice(first_names_m if gender == 'male' else first_names_f)
+            ln = random.choice(last_names)
+            nat = random.choice(nationalities)
+            age = random.randint(18, 26)
+            hidden_talent = round(random.uniform(min_ht, max_ht), 2)
+
+            # Young talent: low skills but high caps
+            skills = {}
+            skill_caps = {}
+            for sk in random.sample(skill_names, random.randint(6, 10)):
+                base = random.randint(15, 45)
+                cap = min(max_cap, base + random.randint(25, 55))
+                skills[sk] = base
+                skill_caps[sk] = cap
+
+            # Diamond raw talent (very low skills, max caps)
+            is_diamond = has_diamonds and random.random() < 0.15
+            if is_diamond:
+                for sk in skills:
+                    skills[sk] = random.randint(10, 30)
+                    skill_caps[sk] = min(100, random.randint(90, 100))
+                hidden_talent = round(random.uniform(0.90, 0.98), 2)
+
+            chosen = random.sample(GENRES, 3)
+            talent = {
+                'id': str(uuid.uuid4()),
+                'user_id': user['id'],
+                'week': week_key,
+                'name': f"{fn} {ln}",
+                'gender': gender,
+                'nationality': nat,
+                'age': age,
+                'skills': skills,
+                'skill_caps': skill_caps,
+                'hidden_talent': hidden_talent,
+                'strong_genres': [chosen[0][0], chosen[1][0]],
+                'strong_genres_names': [chosen[0][1], chosen[1][1]],
+                'adaptable_genre': chosen[2][0],
+                'adaptable_genre_name': chosen[2][1],
+                'is_diamond': is_diamond,
+                'stars': 1 if not is_diamond else 2,
+                'cost': random.randint(20000, 60000) if not is_diamond else random.randint(80000, 150000),
+                'recruited': False,
+                'exclusive_until': (now + timedelta(hours=48)).isoformat(),
+                'created_at': now.isoformat(),
+            }
+            talents.append(talent)
+
+        if talents:
+            await db.scout_talent_pool.insert_many(talents)
+        existing = talents
+
+    return {
+        'talents': [t for t in existing if not t.get('recruited')],
+        'scout_level': scout_level,
+        'has_scout': True,
+        'config': {'num_talents': config[0], 'has_diamonds': config[4]},
+        'upgrade_cost': SCOUT_UPGRADE_COSTS.get(scout_level + 1, None),
+    }
+
+
+@router.post("/api/agency/recruit-scout-talent/{talent_id}")
+async def recruit_scout_talent(talent_id: str, user: dict = Depends(get_current_user)):
+    """Recruit a scouted talent directly into the agency."""
+    talent = await db.scout_talent_pool.find_one(
+        {'id': talent_id, 'user_id': user['id'], 'recruited': False}
+    )
+    if not talent:
+        raise HTTPException(404, "Talento non trovato o già reclutato")
+
+    # Check agency capacity
+    studio = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0, 'level': 1}
+    )
+    if not studio:
+        raise HTTPException(400, "Non possiedi uno Studio di Produzione!")
+    level = studio.get('level', 1)
+    max_actors = get_max_agency_actors(level)
+    current = await db.agency_actors.count_documents({'user_id': user['id']})
+    if current >= max_actors:
+        raise HTTPException(400, f"Agenzia piena! {current}/{max_actors} attori.")
+
+    cost = talent.get('cost', 50000)
+    fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if fresh_user.get('funds', 0) < cost:
+        raise HTTPException(400, f"Fondi insufficienti. Servono ${cost:,}")
+
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+    await db.scout_talent_pool.update_one({'id': talent_id}, {'$set': {'recruited': True}})
+
+    now = datetime.now(timezone.utc).isoformat()
+    production_house = user.get('production_house_name', 'Studio')
+    agency_actor = {
+        'id': talent['id'],
+        'user_id': user['id'],
+        'name': talent['name'],
+        'gender': talent.get('gender', 'male'),
+        'nationality': talent.get('nationality', 'Unknown'),
+        'age': talent.get('age', 20),
+        'skills': talent.get('skills', {}),
+        'skill_caps': talent.get('skill_caps', {}),
+        'hidden_talent': talent.get('hidden_talent', 0.7),
+        'strong_genres': talent.get('strong_genres', []),
+        'strong_genres_names': talent.get('strong_genres_names', []),
+        'adaptable_genre': talent.get('adaptable_genre', ''),
+        'adaptable_genre_name': talent.get('adaptable_genre_name', ''),
+        'fame_score': 5,
+        'fame_category': 'emerging',
+        'stars': talent.get('stars', 1),
+        'cost_per_film': cost,
+        'agency_name': f"{production_house} Agency",
+        'films_count': 0,
+        'films_worked': [],
+        'recruited_at': now,
+        'from_scout': True,
+        'is_diamond': talent.get('is_diamond', False),
+    }
+    await db.agency_actors.insert_one(agency_actor)
+
+    label = "Diamante Grezzo!" if talent.get('is_diamond') else "Nuovo talento!"
+    return {
+        'success': True,
+        'message': f'{label} {talent["name"]} è entrato nella tua Agenzia!',
+        'cost': cost,
+    }
+
+
+# ==================== TALENT SCOUT SCREENWRITERS ====================
+
+@router.get("/api/agency/scout-screenplays")
+async def get_scout_screenplays(user: dict = Depends(get_current_user)):
+    """Get ready-made screenplay proposals from scouted screenwriters."""
+    scout = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'talent_scout_screenwriters'}, {'_id': 0, 'level': 1}
+    )
+    if not scout:
+        return {'screenplays': [], 'scout_level': 0, 'has_scout': False}
+
+    scout_level = scout.get('level', 1)
+    config = SCREENPLAY_SCOUT_CONFIG.get(scout_level, SCREENPLAY_SCOUT_CONFIG[1])
+    num_proposals, min_q, max_q, has_famous = config
+
+    now = datetime.now(timezone.utc)
+    week_key = f"{now.isocalendar()[0]}-W{now.isocalendar()[1]}"
+
+    existing = await db.scout_screenplay_pool.find(
+        {'user_id': user['id'], 'week': week_key}, {'_id': 0}
+    ).to_list(20)
+
+    if not existing:
+        import random
+        GENRES = ['action','comedy','drama','horror','sci_fi','thriller','romance','fantasy','animation','crime','mystery','adventure']
+        GENRE_NAMES = {'action':'Action','comedy':'Comedy','drama':'Drama','horror':'Horror','sci_fi':'Sci-Fi','thriller':'Thriller','romance':'Romance','fantasy':'Fantasy','animation':'Animation','crime':'Crime','mystery':'Mystery','adventure':'Adventure'}
+
+        titles_by_genre = {
+            'action': ["L'Ultimo Colpo", "Fuoco Incrociato", "Codice Omega", "Operazione Tuono"],
+            'comedy': ["Caos in Famiglia", "Il Matrimonio Perfetto", "Vicini Impossibili"],
+            'drama': ["Il Peso del Silenzio", "Ombre di Luce", "La Scelta"],
+            'horror': ["La Casa dei Segreti", "Sussurri nel Buio", "L'Eco"],
+            'sci_fi': ["Oltre il Confine", "Singolarità", "Il Protocollo"],
+            'thriller': ["Il Testimone", "Doppio Gioco", "La Rete"],
+            'romance': ["Sotto le Stelle", "Il Destino di Noi", "Lettere d'Amore"],
+            'fantasy': ["Il Regno Perduto", "La Profezia del Drago", "L'Ultimo Guardiano"],
+            'crime': ["La Legge del Sangue", "Omertà", "Il Traditore"],
+            'mystery': ["L'Enigma di Villa Rossi", "Indizi Nascosti"],
+            'adventure': ["La Mappa Perduta", "I Cercatori d'Oro"],
+            'animation': ["Il Mondo di Aria", "Stelle Animate"],
+        }
+
+        writer_names_famous = ["Quentin Rivera","Nora Ephstein","Aaron Sorkinelli","Charlie Kaufmann","Greta Garwig"]
+        writer_names_normal = ["Marco Baldi","Sofia Chen","Luca Ferretti","Yuki Tanaka","Elena Voss","Omar Rashid","Mia Johansson"]
+
+        proposals = []
+        for i in range(num_proposals):
+            genre = random.choice(GENRES)
+            quality = random.randint(min_q, max_q)
+            is_famous_writer = has_famous and random.random() < 0.3
+            writer = random.choice(writer_names_famous if is_famous_writer else writer_names_normal)
+            titles_list = titles_by_genre.get(genre, ["Senza Titolo"])
+            title = random.choice(titles_list) + (" " + str(random.randint(2,5)) if random.random() > 0.7 else "")
+            cost = int(quality * 2000 + (50000 if is_famous_writer else 0))
+
+            proposal = {
+                'id': str(uuid.uuid4()),
+                'user_id': user['id'],
+                'week': week_key,
+                'title': title,
+                'genre': genre,
+                'genre_name': GENRE_NAMES.get(genre, genre),
+                'quality': quality,
+                'writer_name': writer,
+                'is_famous_writer': is_famous_writer,
+                'cost': cost,
+                'synopsis': f"Una storia {GENRE_NAMES.get(genre, genre).lower()} avvincente ambientata in un mondo pieno di sorprese. Qualità stimata: {quality}/100.",
+                'purchased': False,
+                'created_at': now.isoformat(),
+            }
+            proposals.append(proposal)
+
+        if proposals:
+            await db.scout_screenplay_pool.insert_many(proposals)
+        existing = proposals
+
+    return {
+        'screenplays': [s for s in existing if not s.get('purchased')],
+        'scout_level': scout_level,
+        'has_scout': True,
+        'config': {'num_proposals': config[0], 'has_famous': config[3]},
+        'upgrade_cost': SCOUT_UPGRADE_COSTS.get(scout_level + 1, None),
+    }
+
+
+@router.post("/api/agency/purchase-screenplay/{screenplay_id}")
+async def purchase_screenplay(screenplay_id: str, user: dict = Depends(get_current_user)):
+    """Purchase a ready-made screenplay from the scout."""
+    sp = await db.scout_screenplay_pool.find_one(
+        {'id': screenplay_id, 'user_id': user['id'], 'purchased': False}
+    )
+    if not sp:
+        raise HTTPException(404, "Sceneggiatura non trovata o già acquistata")
+
+    cost = sp.get('cost', 100000)
+    fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if fresh_user.get('funds', 0) < cost:
+        raise HTTPException(400, f"Fondi insufficienti. Servono ${cost:,}")
+
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+    await db.scout_screenplay_pool.update_one({'id': screenplay_id}, {'$set': {'purchased': True}})
+
+    # Save as a usable screenplay
+    await db.purchased_screenplays.insert_one({
+        'id': sp['id'],
+        'user_id': user['id'],
+        'title': sp['title'],
+        'genre': sp['genre'],
+        'genre_name': sp.get('genre_name', ''),
+        'quality': sp['quality'],
+        'writer_name': sp['writer_name'],
+        'is_famous_writer': sp.get('is_famous_writer', False),
+        'synopsis': sp.get('synopsis', ''),
+        'used': False,
+        'purchased_at': datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        'success': True,
+        'message': f'Sceneggiatura "{sp["title"]}" acquistata da {sp["writer_name"]}!',
+        'cost': cost,
+        'screenplay': {'id': sp['id'], 'title': sp['title'], 'genre': sp['genre'], 'quality': sp['quality']},
     }

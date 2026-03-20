@@ -3,7 +3,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles } from 'lucide-react';
+import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp } from 'lucide-react';
 import { AuthContext } from '../contexts';
 
 const GENRE_ICONS = {
@@ -205,6 +205,194 @@ function SchoolTab({ api, slotsAvailable, actionId, onTransfer, onReload }) {
   );
 }
 
+
+function ScoutTalentsTab({ api, slotsAvailable, onReload }) {
+  const [talents, setTalents] = React.useState([]);
+  const [scoutLevel, setScoutLevel] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [actionId, setActionId] = React.useState(null);
+  const [expandedSkills, setExpandedSkills] = React.useState({});
+
+  const load = React.useCallback(() => {
+    api.get('/agency/scout-talents').then(r => {
+      setTalents(r.data.talents || []);
+      setScoutLevel(r.data.scout_level || 0);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [api]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const recruit = async (talentId) => {
+    setActionId(talentId);
+    try {
+      const res = await api.post(`/agency/recruit-scout-talent/${talentId}`);
+      toast.success(res.data.message);
+      load(); onReload();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionId(null);
+  };
+
+  if (loading) return <div className="text-center py-8"><RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-500" /></div>;
+
+  return (
+    <div className="space-y-2" data-testid="scout-talents-tab">
+      <div className="p-2 rounded border border-amber-800/30 bg-amber-500/5">
+        <p className="text-[10px] text-amber-300">
+          Il tuo Talent Scout (Lv{scoutLevel}) trova giovani talenti con potenziale nascosto! Vengono rinnovati ogni settimana.
+          {scoutLevel >= 4 && ' Include anche Diamanti Grezzi con potenziale massimo!'}
+        </p>
+      </div>
+      {talents.length === 0 ? (
+        <div className="text-center py-10 text-gray-500">
+          <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Nessun talento disponibile questa settimana.</p>
+        </div>
+      ) : (
+        talents.map(talent => {
+          const skills = talent.skills || {};
+          const avgSkill = Object.values(skills).length > 0 ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+          const maxCap = Math.max(...Object.values(talent.skill_caps || {}), 0);
+          const skillsOpen = expandedSkills[talent.id];
+          return (
+            <Card key={talent.id} className={`${talent.is_diamond ? 'bg-[#1a1a0e] border-yellow-500/30' : 'bg-[#1A1A1B] border-amber-800/30'}`} data-testid={`scout-talent-${talent.id}`}>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${talent.is_diamond ? 'bg-yellow-500/30 text-yellow-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {talent.is_diamond ? <Diamond className="w-4 h-4" /> : talent.name?.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold">{talent.name}</span>
+                      <span className={`text-[10px] font-bold ${talent.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>{talent.gender === 'female' ? '\u2640' : '\u2642'}</span>
+                      {talent.is_diamond && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5 animate-pulse">Diamante Grezzo</Badge>}
+                      <Badge className="text-[7px] bg-amber-500/15 text-amber-400 h-3.5">{talent.age}a</Badge>
+                    </div>
+                    <p className="text-[9px] text-gray-500">
+                      {talent.nationality}{' \u2022 '}Skill: <span className={avgSkill >= 40 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>{' \u2022 '}Cap max: <span className="text-emerald-400">{maxCap}</span>{' \u2022 '}Talento: <span className="text-purple-400">{Math.round(talent.hidden_talent * 100)}%</span>
+                    </p>
+                    <div className="flex flex-wrap gap-0.5 mt-0.5">
+                      {(talent.strong_genres_names || []).map((g, i) => <Badge key={i} className="bg-emerald-500/15 text-emerald-400 text-[6px] h-3">{g}</Badge>)}
+                      {talent.adaptable_genre_name && <Badge className="bg-amber-500/15 text-amber-400 text-[6px] h-3">~ {talent.adaptable_genre_name}</Badge>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className="text-[10px] text-yellow-400 font-bold">${talent.cost?.toLocaleString()}</span>
+                    <Button size="sm" className={`h-7 px-3 text-[10px] ${talent.is_diamond ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                      onClick={() => recruit(talent.id)} disabled={actionId === talent.id || slotsAvailable <= 0}
+                      data-testid={`recruit-talent-${talent.id}`}>
+                      {actionId === talent.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Recluta'}
+                    </Button>
+                  </div>
+                </div>
+                {/* Skill toggle */}
+                {Object.keys(skills).length > 0 && (
+                  <div className="mt-1">
+                    <button className="text-[8px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
+                      onClick={() => setExpandedSkills(p => ({...p, [talent.id]: !p[talent.id]}))}>
+                      {skillsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      {skillsOpen ? 'Nascondi Skill' : 'Mostra Skill'}
+                    </button>
+                    {skillsOpen && (
+                      <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 mt-1 px-1">
+                        {Object.entries(skills).sort(([,a],[,b]) => b - a).map(([k, v]) => (
+                          <div key={k} className="flex items-center gap-1">
+                            <span className="text-[8px] text-gray-500 capitalize w-16 truncate">{k.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden relative">
+                              <div className={`h-full rounded-full ${v >= 60 ? 'bg-emerald-500' : v >= 40 ? 'bg-cyan-500' : 'bg-amber-500'}`} style={{width: `${v}%`}} />
+                              <div className="absolute top-0 h-full border-r border-dashed border-purple-400/50" style={{left: `${talent.skill_caps?.[k] || 100}%`}} />
+                            </div>
+                            <span className="text-[8px] text-gray-400 w-5 text-right">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function ScoutScreenplaysTab({ api }) {
+  const [screenplays, setScreenplays] = React.useState([]);
+  const [scoutLevel, setScoutLevel] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [actionId, setActionId] = React.useState(null);
+
+  const load = React.useCallback(() => {
+    api.get('/agency/scout-screenplays').then(r => {
+      setScreenplays(r.data.screenplays || []);
+      setScoutLevel(r.data.scout_level || 0);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [api]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const purchase = async (id) => {
+    setActionId(id);
+    try {
+      const res = await api.post(`/agency/purchase-screenplay/${id}`);
+      toast.success(res.data.message);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionId(null);
+  };
+
+  if (loading) return <div className="text-center py-8"><RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-500" /></div>;
+
+  return (
+    <div className="space-y-2" data-testid="scout-screenplays-tab">
+      <div className="p-2 rounded border border-emerald-800/30 bg-emerald-500/5">
+        <p className="text-[10px] text-emerald-300">
+          Il tuo Talent Scout Sceneggiatori (Lv{scoutLevel}) trova sceneggiature pronte da usare nei tuoi film! Rinnovate settimanalmente.
+          {scoutLevel >= 3 && ' Include anche sceneggiature di autori famosi!'}
+        </p>
+      </div>
+      {screenplays.length === 0 ? (
+        <div className="text-center py-10 text-gray-500">
+          <Pen className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Nessuna sceneggiatura disponibile questa settimana.</p>
+        </div>
+      ) : (
+        screenplays.map(sp => (
+          <Card key={sp.id} className={`${sp.is_famous_writer ? 'bg-[#1a1a0e] border-yellow-500/20' : 'bg-[#1A1A1B] border-emerald-800/30'}`} data-testid={`scout-screenplay-${sp.id}`}>
+            <CardContent className="p-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${sp.is_famous_writer ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                  <Pen className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold">{sp.title}</span>
+                    {sp.is_famous_writer && <Badge className="text-[7px] bg-yellow-500/20 text-yellow-400 h-3.5">Autore Famoso</Badge>}
+                  </div>
+                  <p className="text-[9px] text-gray-500">
+                    di {sp.writer_name}{' \u2022 '}{sp.genre_name}{' \u2022 '}Qualita: <span className={sp.quality >= 70 ? 'text-emerald-400' : sp.quality >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{sp.quality}/100</span>
+                  </p>
+                  <p className="text-[9px] text-gray-600 mt-0.5 line-clamp-1">{sp.synopsis}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-[10px] text-yellow-400 font-bold">${sp.cost?.toLocaleString()}</span>
+                  <Button size="sm" className="h-7 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => purchase(sp.id)} disabled={actionId === sp.id}
+                    data-testid={`buy-screenplay-${sp.id}`}>
+                    {actionId === sp.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Acquista'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
+
 export default function CastingAgencyPage() {
   const { api } = useContext(AuthContext);
   const [tab, setTab] = useState('actors');
@@ -326,7 +514,7 @@ export default function CastingAgencyPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button size="sm" variant={tab === 'actors' ? 'default' : 'outline'}
           className={tab === 'actors' ? 'bg-purple-700 hover:bg-purple-800' : 'border-gray-700'}
           onClick={() => setTab('actors')} data-testid="tab-actors">
@@ -342,6 +530,20 @@ export default function CastingAgencyPage() {
           onClick={() => setTab('school')} data-testid="tab-school">
           <BookOpen className="w-3.5 h-3.5 mr-1" /> Scuola ({info?.school_students || 0})
         </Button>
+        {info?.talent_scout_actors > 0 && (
+          <Button size="sm" variant={tab === 'scout-actors' ? 'default' : 'outline'}
+            className={tab === 'scout-actors' ? 'bg-amber-700 hover:bg-amber-800' : 'border-gray-700'}
+            onClick={() => setTab('scout-actors')} data-testid="tab-scout-actors">
+            <Search className="w-3.5 h-3.5 mr-1" /> Scout Talenti (Lv{info.talent_scout_actors})
+          </Button>
+        )}
+        {info?.talent_scout_screenwriters > 0 && (
+          <Button size="sm" variant={tab === 'scout-screenplays' ? 'default' : 'outline'}
+            className={tab === 'scout-screenplays' ? 'bg-emerald-700 hover:bg-emerald-800' : 'border-gray-700'}
+            onClick={() => setTab('scout-screenplays')} data-testid="tab-scout-screenplays">
+            <Pen className="w-3.5 h-3.5 mr-1" /> Scout Sceneggiature (Lv{info.talent_scout_screenwriters})
+          </Button>
+        )}
       </div>
 
       {/* Actors Tab */}

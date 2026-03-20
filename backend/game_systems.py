@@ -625,6 +625,38 @@ INFRASTRUCTURE_TYPES = {
         'tourist_attraction': True,
         'has_rides': True,
         'icon': 'ferris-wheel'
+    },
+    'talent_scout_actors': {
+        'id': 'talent_scout_actors',
+        'name': 'Talent Scout - Actors',
+        'name_it': 'Talent Scout Attori',
+        'description': 'Discover young talented actors with hidden potential',
+        'description_it': 'Scopri giovani talenti con potenziale nascosto. I talenti trovati entrano direttamente nella tua Agenzia Cast!',
+        'level_required': 10,
+        'fame_required': 25,
+        'base_cost': 500000,
+        'screens': 0,
+        'seats_per_screen': 0,
+        'daily_maintenance': 10000,
+        'revenue_multiplier': 0,
+        'max_level': 5,
+        'icon': 'search'
+    },
+    'talent_scout_screenwriters': {
+        'id': 'talent_scout_screenwriters',
+        'name': 'Talent Scout - Screenwriters',
+        'name_it': 'Talent Scout Sceneggiatori',
+        'description': 'Find talented screenwriters who offer ready-made screenplays',
+        'description_it': 'Trova sceneggiatori che propongono sceneggiature pronte per i tuoi film. Senza scout, devi scrivere tutto da zero!',
+        'level_required': 10,
+        'fame_required': 25,
+        'base_cost': 500000,
+        'screens': 0,
+        'seats_per_screen': 0,
+        'daily_maintenance': 10000,
+        'revenue_multiplier': 0,
+        'max_level': 5,
+        'icon': 'pen-tool'
     }
 }
 

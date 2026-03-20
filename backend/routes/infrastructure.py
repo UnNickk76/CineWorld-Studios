@@ -38,7 +38,7 @@ async def get_infrastructure_types(user: dict = Depends(get_current_user)):
     fame = user.get('fame', 50)
     
     # Check which unique types are already owned
-    unique_types = ['cinema_school', 'production_studio']
+    unique_types = ['cinema_school', 'production_studio', 'talent_scout_actors', 'talent_scout_screenwriters']
     owned_unique = set()
     for ut in unique_types:
         count = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': ut})

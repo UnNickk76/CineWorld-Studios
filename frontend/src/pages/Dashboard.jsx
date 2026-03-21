@@ -1059,7 +1059,7 @@ const Dashboard = () => {
                 <div
                   key={s.id}
                   className="flex items-center gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/5 hover:border-red-500/20 cursor-pointer transition-all"
-                  onClick={() => { setShowTVPopup(false); navigate(s.is_legacy ? '/emittente-tv' : `/tv-station/${s.id}`); }}
+                  onClick={() => { setShowTVPopup(false); navigate(s.is_legacy ? '/my-tv' : `/tv-station/${s.id}`); }}
                   data-testid={`tv-popup-station-${s.id}`}
                 >
                   <div className="p-1.5 bg-red-500/20 rounded-lg"><Radio className="w-4 h-4 text-red-400" /></div>

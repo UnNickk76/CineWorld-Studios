@@ -153,17 +153,36 @@ async def get_my_stations(user: dict = Depends(get_current_user)):
     # Also get unconfigured emittente_tv infrastructure
     all_emittente = await db.infrastructure.find(
         {'owner_id': user['id'], 'type': 'emittente_tv'},
-        {'_id': 0, 'id': 1, 'city': 1, 'country': 1, 'purchase_date': 1}
+        {'_id': 0, 'id': 1, 'city': 1, 'country': 1, 'purchase_date': 1, 'level': 1}
     ).to_list(20)
     
-    configured_infra_ids = {s['infra_id'] for s in stations}
+    configured_infra_ids = {s.get('infra_id') for s in stations}
     unconfigured = [e for e in all_emittente if e['id'] not in configured_infra_ids]
+    
+    # Check for legacy emittente_tv (old system: has infrastructure but not in tv_stations)
+    has_legacy_emittente = len(all_emittente) > 0
+    
+    # Build legacy station entries for dashboard display
+    legacy_stations = []
+    if has_legacy_emittente and len(stations) == 0:
+        for em in all_emittente:
+            legacy_stations.append({
+                'id': f'legacy-{em["id"]}',
+                'station_name': 'La Tua TV',
+                'nation': em.get('country', ''),
+                'city': em.get('city', {}).get('name', ''),
+                'current_share': 0,
+                'level': em.get('level', 1),
+                'is_legacy': True,
+            })
     
     return {
         "stations": stations,
+        "legacy_stations": legacy_stations,
         "unconfigured_emittente": unconfigured,
         "nations": NATIONS,
-        "total_count": len(stations),
+        "total_count": len(stations) + len(legacy_stations),
+        "has_emittente_tv": has_legacy_emittente or len(stations) > 0,
     }
 
 

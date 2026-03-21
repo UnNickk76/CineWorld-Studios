@@ -236,14 +236,11 @@ const Dashboard = () => {
         // Load TV stations
         try {
           const tvRes = await api.get('/tv-stations/my');
-          setMyTVStations(tvRes.data.stations || []);
-          setHasEmittenteTV(tvRes.data.total_count > 0 || (tvRes.data.unconfigured_emittente || []).length > 0);
+          const allStations = [...(tvRes.data.stations || []), ...(tvRes.data.legacy_stations || [])];
+          setMyTVStations(allStations);
+          setHasEmittenteTV(tvRes.data.has_emittente_tv || false);
         } catch {
-          // Check unlock status as fallback
-          try {
-            const unlockRes = await api.get('/production-studios/unlock-status');
-            setHasEmittenteTV(unlockRes.data.has_emittente_tv);
-          } catch {}
+          setHasEmittenteTV(false);
         }
         
         // Contests still separate (different API structure)
@@ -1062,13 +1059,13 @@ const Dashboard = () => {
                 <div
                   key={s.id}
                   className="flex items-center gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/5 hover:border-red-500/20 cursor-pointer transition-all"
-                  onClick={() => { setShowTVPopup(false); navigate(`/tv-station/${s.id}`); }}
+                  onClick={() => { setShowTVPopup(false); navigate(s.is_legacy ? '/emittente-tv' : `/tv-station/${s.id}`); }}
                   data-testid={`tv-popup-station-${s.id}`}
                 >
                   <div className="p-1.5 bg-red-500/20 rounded-lg"><Radio className="w-4 h-4 text-red-400" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">{s.station_name}</p>
-                    <p className="text-[10px] text-gray-500">{s.nation} | Share: {s.current_share || 0}%</p>
+                    <p className="text-[10px] text-gray-500">{s.is_legacy ? 'Emittente Attiva' : `${s.nation} | Share: ${s.current_share || 0}%`}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-600" />
                 </div>

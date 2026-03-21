@@ -1774,14 +1774,14 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
   const release = async (filmId) => {
     setActionLoading(`rel-${filmId}`);
     try {
-      const res = await api.post(`/film-pipeline/${filmId}/release`);
+      const res = await api.post(`/film-pipeline/${filmId}/release`, {}, { timeout: 60000 });
       setReleaseResult(res.data);
       // Cinematic reveal sequence
       setReleasePhase(1);
       setTimeout(() => setReleasePhase(2), 1500);
       setTimeout(() => setReleasePhase(3), 3200);
       refreshUser(); refreshCounts(); fetch();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore nel rilascio'); }
     finally { setActionLoading(null); }
   };
 

@@ -9,6 +9,7 @@ import random
 import uuid
 import os
 import logging
+import asyncio
 
 from database import db
 from auth_utils import get_current_user
@@ -2077,6 +2078,67 @@ def generate_release_event(project, cast, quality_score, genre):
 
 
 
+async def _generate_film_ai_content(film_id, title, genre_name, director_name, actor_names, screenplay_text, has_poster):
+    """Background task: generate AI synopsis and poster for a released film."""
+    key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not key:
+        return
+
+    # 1. Generate AI synopsis
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"synopsis-{film_id}",
+            system_message="Sei uno scrittore di sinossi cinematografiche. Scrivi riassunti avvincenti e drammatici."
+        ).with_model("openai", "gpt-4o-mini")
+        cast_str = ", ".join(actor_names) if actor_names else "cast internazionale"
+        prompt = f"""Crea una sinossi avvincente per un film {genre_name}.
+Titolo: {title}
+Regista: {director_name}
+Cast: {cast_str}
+Sceneggiatura: {screenplay_text[:500]}
+Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolgente."""
+        result = await chat.send_message(UserMessage(text=prompt))
+        if result:
+            await db.films.update_one({'id': film_id}, {'$set': {'synopsis': result.strip()}})
+            logging.info(f"AI synopsis generated for film {film_id}")
+    except Exception as e:
+        logging.error(f"Background synopsis error for {film_id}: {e}")
+
+    # 2. Generate poster if not already present
+    if not has_poster:
+        try:
+            import base64
+            from PIL import Image
+            import io
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            img_gen = OpenAIImageGeneration(api_key=key)
+            poster_prompt = f"Professional cinematic movie poster for '{title}', a {genre_name} film. Dramatic lighting, high quality, no text overlay. Style: modern Hollywood movie poster."
+            images = await img_gen.generate_images(
+                prompt=poster_prompt,
+                model="gpt-image-1",
+                n=1,
+                size="1024x1536",
+                quality="low"
+            )
+            if images:
+                img_data = base64.b64decode(images[0].b64_json)
+                img = Image.open(io.BytesIO(img_data))
+                img = img.resize((400, 600), Image.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, 'PNG', optimize=True)
+                png_bytes = buf.getvalue()
+
+                filename = f"{film_id}.png"
+                await poster_storage.save_poster(filename, png_bytes, 'image/png')
+                await db.films.update_one({'id': film_id}, {'$set': {'poster_url': f"/api/posters/{filename}"}})
+                logging.info(f"AI poster generated for film {film_id}")
+        except Exception as e:
+            logging.error(f"Background poster error for {film_id}: {e}")
+
+
+
 @router.post("/film-pipeline/{project_id}/release")
 async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     """Release a completed film to theaters. Shows cost summary."""
@@ -2423,58 +2485,19 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         film_doc['critic_reviews'] = []
         film_doc['critic_effects'] = {}
 
-    # Generate synopsis from screenplay
+    # Generate synopsis from screenplay (background - non-blocking)
     screenplay_text = project.get('screenplay', project.get('pre_screenplay', ''))
     genre_name = genre_val.replace('_', ' ').title()
     director_name = cast.get('director', {}).get('name', 'Regista')
     actor_names = [a.get('name', '') for a in cast.get('actors', [])[:3]]
     film_doc['synopsis'] = f"Un avvincente {genre_name} diretto da {director_name}. {project['title']} racconta una storia che vi terrà col fiato sospeso."
 
-    # Try AI-generated synopsis
-    try:
-        if EMERGENT_LLM_KEY and screenplay_text:
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
-            chat = LlmChat(
-                api_key=EMERGENT_LLM_KEY,
-                session_id=f"synopsis-{film_id}",
-                system_message="Sei uno scrittore di sinossi cinematografiche. Scrivi riassunti avvincenti e drammatici."
-            ).with_model("openai", "gpt-4o-mini")
-            cast_str = ", ".join(actor_names) if actor_names else "cast internazionale"
-            prompt = f"""Crea una sinossi avvincente per un film {genre_name}.
-Titolo: {project['title']}
-Regista: {director_name}
-Cast: {cast_str}
-Sceneggiatura: {screenplay_text[:500]}
-Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolgente."""
-            result = await chat.send_message(UserMessage(text=prompt))
-            if result:
-                film_doc['synopsis'] = result.strip()
-    except Exception as e:
-        logging.error(f"Synopsis generation error: {e}")
-
-    # Generate poster via AI - use project poster if already created
+    # Generate poster - use existing or defer to background
     existing_poster = project.get('poster_url')
     if existing_poster:
         film_doc['poster_url'] = existing_poster
     else:
         film_doc['poster_url'] = None
-        try:
-            if EMERGENT_LLM_KEY:
-                import base64
-                from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-                img_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
-                poster_prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. Dramatic lighting, high quality, no text overlay. Style: modern Hollywood movie poster."
-                images = await img_gen.generate_images(
-                    prompt=poster_prompt,
-                    model="gpt-image-1",
-                    number_of_images=1
-                )
-                if images and len(images) > 0:
-                    filename = f"{film_id}.png"
-                    await poster_storage.save_poster(filename, images[0], 'image/png')
-                    film_doc['poster_url'] = f"/api/posters/{filename}"
-        except Exception as e:
-            logging.error(f"Poster generation error: {e}")
 
     # Soundtrack info from composer
     if cast.get('composer') and cast['composer'].get('skills'):
@@ -2488,6 +2511,13 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
         }
 
     await db.films.insert_one(film_doc)
+    film_doc.pop('_id', None)
+
+    # Launch AI tasks in background (synopsis + poster) - non-blocking
+    asyncio.create_task(_generate_film_ai_content(
+        film_id, project['title'], genre_name, director_name,
+        actor_names, screenplay_text, existing_poster
+    ))
 
     # Update project status
     await db.film_projects.update_one(

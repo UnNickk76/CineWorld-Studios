@@ -26,6 +26,23 @@ NATIONS = [
     'Svezia', 'Norvegia', 'Paesi Bassi', 'Turchia'
 ]
 
+# Schedule capacity per infrastructure level
+SCHEDULE_CAPACITY = {
+    1: {'films': 3, 'tv_series': 2, 'anime': 2, 'total': 7},
+    2: {'films': 5, 'tv_series': 3, 'anime': 3, 'total': 11},
+    3: {'films': 7, 'tv_series': 5, 'anime': 4, 'total': 16},
+    4: {'films': 10, 'tv_series': 6, 'anime': 5, 'total': 21},
+    5: {'films': 13, 'tv_series': 8, 'anime': 7, 'total': 28},
+    6: {'films': 16, 'tv_series': 10, 'anime': 8, 'total': 34},
+    7: {'films': 20, 'tv_series': 12, 'anime': 10, 'total': 42},
+    8: {'films': 25, 'tv_series': 15, 'anime': 12, 'total': 52},
+    9: {'films': 30, 'tv_series': 18, 'anime': 15, 'total': 63},
+    10: {'films': 40, 'tv_series': 25, 'anime': 20, 'total': 85},
+}
+
+def get_schedule_capacity(level: int) -> dict:
+    return SCHEDULE_CAPACITY.get(min(level, 10), SCHEDULE_CAPACITY[1])
+
 
 class SetupStep1Request(BaseModel):
     infra_id: str
@@ -144,45 +161,67 @@ async def setup_step2(req: SetupStep2Request, user: dict = Depends(get_current_u
 
 @router.get("/tv-stations/my")
 async def get_my_stations(user: dict = Depends(get_current_user)):
-    """Get all user's TV stations."""
+    """Get all user's TV stations. Auto-provisions stations for owned infrastructure."""
     stations = await db.tv_stations.find(
         {'user_id': user['id']},
         {'_id': 0}
     ).sort('created_at', 1).to_list(20)
     
-    # Also get unconfigured emittente_tv infrastructure
+    # Get all emittente_tv infrastructure
     all_emittente = await db.infrastructure.find(
         {'owner_id': user['id'], 'type': 'emittente_tv'},
-        {'_id': 0, 'id': 1, 'city': 1, 'country': 1, 'purchase_date': 1, 'level': 1}
+        {'_id': 0}
     ).to_list(20)
     
     configured_infra_ids = {s.get('infra_id') for s in stations}
-    unconfigured = [e for e in all_emittente if e['id'] not in configured_infra_ids]
     
-    # Check for legacy emittente_tv (old system: has infrastructure but not in tv_stations)
-    has_legacy_emittente = len(all_emittente) > 0
-    
-    # Build legacy station entries for dashboard display
-    legacy_stations = []
-    if has_legacy_emittente and len(stations) == 0:
-        for em in all_emittente:
-            legacy_stations.append({
-                'id': f'legacy-{em["id"]}',
-                'station_name': 'La Tua TV',
-                'nation': em.get('country', ''),
-                'city': em.get('city', {}).get('name', ''),
+    # Auto-provision tv_stations for any infrastructure without one
+    for em in all_emittente:
+        if em['id'] not in configured_infra_ids:
+            now = datetime.now(timezone.utc).isoformat()
+            station_name = em.get('custom_name', 'La Mia TV')
+            new_station = {
+                'id': str(uuid.uuid4()),
+                'infra_id': em['id'],
+                'user_id': user['id'],
+                'owner_nickname': user.get('nickname', 'Player'),
+                'station_name': station_name,
+                'nation': em.get('country', 'Italia'),
+                'ad_seconds': 30,
+                'setup_step': 0,
+                'setup_complete': True,
+                'contents': {'films': [], 'tv_series': [], 'anime': []},
+                'total_revenue': 0,
+                'total_viewers': 0,
                 'current_share': 0,
-                'level': em.get('level', 1),
-                'is_legacy': True,
-            })
+                'created_at': now,
+                'updated_at': now,
+                'last_revenue_calc': now,
+            }
+            await db.tv_stations.insert_one(new_station)
+            new_station.pop('_id', None)
+            stations.append(new_station)
+            configured_infra_ids.add(em['id'])
+    
+    # Enrich stations with infrastructure level and capacity
+    infra_map = {em['id']: em for em in all_emittente}
+    for s in stations:
+        infra = infra_map.get(s.get('infra_id'), {})
+        s['infra_level'] = infra.get('level', 1)
+        cap = get_schedule_capacity(infra.get('level', 1))
+        s['capacity'] = cap
+        contents = s.get('contents', {})
+        s['content_count'] = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
+    
+    has_emittente_tv = len(all_emittente) > 0 or len(stations) > 0
     
     return {
         "stations": stations,
-        "legacy_stations": legacy_stations,
-        "unconfigured_emittente": unconfigured,
+        "legacy_stations": [],
+        "unconfigured_emittente": [],
         "nations": NATIONS,
-        "total_count": len(stations) + len(legacy_stations),
-        "has_emittente_tv": has_legacy_emittente or len(stations) > 0,
+        "total_count": len(stations),
+        "has_emittente_tv": has_emittente_tv,
     }
 
 
@@ -195,6 +234,11 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
     
     is_owner = station['user_id'] == user['id']
     contents = station.get('contents', {})
+    
+    # Get infrastructure level and capacity
+    infra = await db.infrastructure.find_one({'id': station.get('infra_id')}, {'_id': 0, 'level': 1, 'custom_name': 1, 'city': 1, 'country': 1})
+    infra_level = infra.get('level', 1) if infra else 1
+    capacity = get_schedule_capacity(infra_level)
     
     # Enrich content data
     enriched = {'films': [], 'tv_series': [], 'anime': []}
@@ -232,6 +276,8 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
         "share_data": share_data,
         "netflix_sections": sections,
         "is_owner": is_owner,
+        "infra_level": infra_level,
+        "capacity": capacity,
     }
 
 
@@ -249,7 +295,18 @@ async def add_content(req: AddContentRequest, user: dict = Depends(get_current_u
     
     contents = station.get('contents', {})
     
+    # Check capacity based on infrastructure level
+    infra = await db.infrastructure.find_one({'id': station.get('infra_id')}, {'_id': 0, 'level': 1})
+    infra_level = infra.get('level', 1) if infra else 1
+    cap = get_schedule_capacity(infra_level)
+    
+    total_content = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
+    if total_content >= cap['total']:
+        raise HTTPException(400, f"Palinsesto pieno! Livello {infra_level}: massimo {cap['total']} contenuti. Migliora l'infrastruttura per più spazio.")
+    
     if req.content_type == 'film':
+        if len(contents.get('films', [])) >= cap['films']:
+            raise HTTPException(400, f"Limite film raggiunto ({cap['films']}). Migliora l'infrastruttura per aggiungerne di più.")
         film = await db.films.find_one(
             {'id': req.content_id, 'user_id': user['id']},
             {'_id': 0, 'id': 1, 'title': 1, 'status': 1}
@@ -269,20 +326,23 @@ async def add_content(req: AddContentRequest, user: dict = Depends(get_current_u
         return {"message": f"'{film['title']}' aggiunto alla programmazione!"}
     
     elif req.content_type in ('tv_series', 'anime'):
+        key = 'anime' if req.content_type == 'anime' else 'tv_series'
+        if len(contents.get(key, [])) >= cap[key]:
+            raise HTTPException(400, f"Limite {key.replace('_', ' ')} raggiunto ({cap[key]}). Migliora l'infrastruttura per aggiungerne di più.")
         series = await db.tv_series.find_one(
             {'id': req.content_id, 'user_id': user['id'], 'status': 'completed'},
             {'_id': 0, 'id': 1, 'title': 1, 'type': 1}
         )
         if not series:
             raise HTTPException(404, "Serie non trovata o non completata")
-        key = 'anime' if series.get('type') == 'anime' else 'tv_series'
-        existing = [c['content_id'] for c in contents.get(key, [])]
+        actual_key = 'anime' if series.get('type') == 'anime' else 'tv_series'
+        existing = [c['content_id'] for c in contents.get(actual_key, [])]
         if req.content_id in existing:
             raise HTTPException(400, "Questo contenuto è già nella programmazione")
         content_entry = {'content_id': req.content_id, 'added_at': datetime.now(timezone.utc).isoformat()}
         await db.tv_stations.update_one(
             {'id': req.station_id},
-            {'$push': {f'contents.{key}': content_entry}, '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
+            {'$push': {f'contents.{actual_key}': content_entry}, '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
         )
         return {"message": f"'{series['title']}' aggiunto alla programmazione!"}
     else:

@@ -43,6 +43,8 @@ export default function TVStationPage() {
   const [shareData, setShareData] = useState(null);
   const [netflixSections, setNetflixSections] = useState({});
   const [isOwner, setIsOwner] = useState(false);
+  const [infraLevel, setInfraLevel] = useState(1);
+  const [capacity, setCapacity] = useState({ films: 3, tv_series: 2, anime: 2, total: 7 });
 
   // Setup wizard
   const [setupStep, setSetupStep] = useState(0);
@@ -71,6 +73,8 @@ export default function TVStationPage() {
       setNetflixSections(res.data.netflix_sections);
       setIsOwner(res.data.is_owner);
       setSettingsAd(res.data.station?.ad_seconds || 30);
+      setInfraLevel(res.data.infra_level || 1);
+      setCapacity(res.data.capacity || { films: 3, tv_series: 2, anime: 2, total: 7 });
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [api]);
@@ -367,18 +371,24 @@ export default function TVStationPage() {
     );
   };
 
-  const ContentManagementRow = ({ type, label, icon: Icon, color, items }) => (
+  const ContentManagementRow = ({ type, label, icon: Icon, color, items }) => {
+    const capKey = type === 'film' ? 'films' : type;
+    const maxItems = capacity[capKey] || 99;
+    return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2 px-1">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 text-${color}-400`} />
           <span className="text-sm font-bold">{label}</span>
-          <Badge className="text-[9px] bg-white/5">{items.length}</Badge>
+          <Badge className="text-[9px] bg-white/5">{items.length}/{maxItems}</Badge>
         </div>
-        {isOwner && (
+        {isOwner && items.length < maxItems && (
           <Button size="sm" variant="ghost" className={`h-6 text-[10px] text-${color}-400`} onClick={() => openAddContent(type)} data-testid={`manage-add-${type}`}>
             <Plus className="w-3 h-3 mr-0.5" /> Aggiungi
           </Button>
+        )}
+        {isOwner && items.length >= maxItems && (
+          <Badge className="text-[9px] bg-red-500/15 text-red-400">Pieno</Badge>
         )}
       </div>
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
@@ -402,7 +412,8 @@ export default function TVStationPage() {
         )}
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pb-20 pt-14">
@@ -433,7 +444,11 @@ export default function TVStationPage() {
 
         {/* Stats Bar */}
         {shareData && (
-          <div className="grid grid-cols-4 gap-2 mt-3" data-testid="station-stats">
+          <div className="grid grid-cols-5 gap-2 mt-3" data-testid="station-stats">
+            <div className="bg-black/30 rounded-lg p-2 text-center">
+              <p className="text-sm font-bold text-red-400">Lv.{infraLevel}</p>
+              <p className="text-[8px] text-gray-500">Livello</p>
+            </div>
             <div className="bg-black/30 rounded-lg p-2 text-center">
               <p className="text-sm font-bold text-cyan-400">{shareData.estimated_share}%</p>
               <p className="text-[8px] text-gray-500">Share</p>
@@ -447,8 +462,8 @@ export default function TVStationPage() {
               <p className="text-[8px] text-gray-500">Viewers</p>
             </div>
             <div className="bg-black/30 rounded-lg p-2 text-center">
-              <p className="text-sm font-bold text-yellow-400">{shareData.total_content}</p>
-              <p className="text-[8px] text-gray-500">Contenuti</p>
+              <p className="text-sm font-bold text-yellow-400">{shareData.total_content}/{capacity.total}</p>
+              <p className="text-[8px] text-gray-500">Palinsesto</p>
             </div>
           </div>
         )}

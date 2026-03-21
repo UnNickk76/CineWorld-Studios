@@ -16,34 +16,28 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - TV station management, Cinema Journal, CineBoard, Hall of Fame, Festivals
 - Infrastructure, Acting school, Friend system, chat, challenges, leaderboards
 
-### Casting System (Unified)
-- Casting Agency (recruit, manage, fire, send-to-school, transfer-from-school)
-- Rich actor data for ALL 8,325 people
-- Unified card format across ALL pipelines
-- Guest Star Vocali for Anime and Animation films
+### Dynamic Release Events System (NEW - 2026-03-21)
+- 19 eventi narrativi unici al rilascio film (scandalo, successo virale, selezione festival, flop, endorsement celebrity, ecc.)
+- Tre tipi: positivo, negativo, neutro con 3 livelli di rarità
+- Ogni evento modifica qualità e incassi del film
+- Descrizioni personalizzate con titolo del film
+- Bias qualità: film migliori = più probabilità eventi positivi
+- Frontend: card evento colorata nel risultato rilascio (verde/rosso/ambra), badge RARO per eventi rari
 
-### Release System
-- Film release with poster, quality, box office
-- Serie TV release card with quality, revenue, audience rating, comments
-- Anime release card (pink theme)
-- **Poster generation** for Series/Anime at release (background task with polling)
+### Poster Management for Series/Anime
+- Generate/regenerate poster for completed series/anime
+- Two modes: AI Automatica, AI + Prompt personalizzato
+- Automatic poster generation at release with background task + polling
 
 ### Talent Scout System
 - Talent Scout Attori + Sceneggiatori (infrastructure-gated)
 - Scout tabs in Casting Agency when infrastructure owned
 - Purchased screenplays usable in Film Pipeline creation
 
-### Poster Management for Series/Anime (NEW - 2026-03-21)
-- Generate/regenerate poster for completed series/anime
-- Two modes: AI Automatica, AI + Prompt personalizzato
-- Poster section expandable on completed series cards
-- Automatic poster generation at release with polling
-
 ### Bug Fixes Applied
 - TV Dashboard "0 emittenti" for legacy emittente_tv system
 - Infrastructure unique_types missing studio_serie_tv/studio_anime
 - Scout tab rendering missing in CastingAgencyPage
-- timedelta import, MongoDB _id serialization fixes
 
 ## Backlog
 - (P1) Guest Star per puntate singole Serie TV

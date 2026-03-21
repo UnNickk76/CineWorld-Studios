@@ -7002,6 +7002,43 @@ async def admin_add_money(data: dict, user: dict = Depends(get_current_user)):
     new_funds = (target.get('funds', 0) + amount)
     return {'success': True, 'nickname': target['nickname'], 'old_funds': target.get('funds', 0), 'added': amount, 'new_funds': new_funds}
 
+
+@api_router.post("/admin/add-cinepass")
+async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user)):
+    """Add or remove CinePass from a user (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    nickname = data.get('nickname')
+    amount = data.get('amount', 0)
+    if not nickname or not amount:
+        raise HTTPException(status_code=400, detail="nickname e amount richiesti")
+    target = await db.users.find_one(
+        {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'cinepass': 1}
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
+    await db.users.update_one({'id': target['id']}, {'$inc': {'cinepass': amount}})
+    old_cp = target.get('cinepass', 100)
+    return {'success': True, 'nickname': target['nickname'], 'old_cinepass': old_cp, 'added': amount, 'new_cinepass': old_cp + amount}
+
+
+@api_router.get("/admin/search-users")
+async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)):
+    """Search users by nickname (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    query = {}
+    if q:
+        query = {'nickname': {'$regex': q, '$options': 'i'}}
+    users = await db.users.find(
+        query,
+        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1}
+    ).sort('nickname', 1).limit(20).to_list(20)
+    return {'users': users, 'count': len(users)}
+
+
+
 @api_router.post("/admin/repair-films")
 async def admin_repair_films(data: dict, user: dict = Depends(get_current_user)):
     """Repair films missing poster, reviews or IMDb data (admin only)."""

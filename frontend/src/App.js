@@ -91,6 +91,7 @@ const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
+const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -303,6 +304,7 @@ const TopNavbar = () => {
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
     { path: '/system-notes', icon: Megaphone, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
     { path: '/credits', icon: Info, label: 'credits' },
+    ...(user?.nickname === 'NeoMorpheus' ? [{ path: '/admin', icon: Shield, label: 'Admin Panel' }] : []),
   ];
 
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {
@@ -1781,6 +1783,7 @@ function App() {
                 <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
                 <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
                 <Route path="/system-notes" element={<ProtectedRoute><SystemNotesPage /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
                 <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />

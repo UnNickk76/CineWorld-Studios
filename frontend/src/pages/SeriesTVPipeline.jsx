@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Tv, ArrowRight, ArrowLeft, Users, Pen, Play, Film, Lock, Loader2, Trash2, Check, Star, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Tv, ArrowRight, ArrowLeft, Users, Pen, Play, Film, Lock, Loader2, Trash2, Check, Star, X, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -193,21 +193,44 @@ export default function SeriesTVPipeline() {
     setActionLoading(false);
   };
 
-  const [releaseCard, setReleaseCard] = useState(null);
+  const [releaseCard, setReleaseCard] = React.useState(null);
+  const [releasePoster, setReleasePoster] = React.useState(null);
+  const [posterPolling, setPosterPolling] = React.useState(false);
 
   const releaseSeries = async () => {
     setActionLoading(true);
     try {
       const res = await api.post(`/series-pipeline/${activeSeries.id}/release`);
-      // Show release card instead of just a toast
       setReleaseCard(res.data);
+      setReleasePoster(null);
+      setPosterPolling(true);
       toast.success(`${res.data.type === 'anime' ? 'Anime' : 'Serie TV'} completata!`);
+      // Start polling for poster
+      const seriesId = activeSeries.id;
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const posterRes = await api.get(`/series-pipeline/${seriesId}/poster-status`);
+          if (posterRes.data.ready && posterRes.data.poster_url) {
+            setReleasePoster(posterRes.data.poster_url);
+            setPosterPolling(false);
+            clearInterval(pollInterval);
+          }
+        } catch {}
+        if (attempts >= 30) { // max ~60 seconds
+          setPosterPolling(false);
+          clearInterval(pollInterval);
+        }
+      }, 2000);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
   };
 
   const closeReleaseCard = () => {
     setReleaseCard(null);
+    setReleasePoster(null);
+    setPosterPolling(false);
     setActiveSeries(null);
     loadData();
   };
@@ -800,6 +823,18 @@ export default function SeriesTVPipeline() {
             <p className="text-[10px] text-gray-500 uppercase">{releaseCard.genre}</p>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
+            {/* Poster */}
+            <div className="flex justify-center">
+              {releasePoster ? (
+                <img src={posterSrc(releasePoster)} alt="Locandina" className="w-32 h-48 rounded-lg object-cover border border-yellow-500/20 shadow-lg shadow-yellow-500/10" />
+              ) : posterPolling ? (
+                <div className="w-32 h-48 rounded-lg bg-yellow-500/5 border border-yellow-500/20 flex flex-col items-center justify-center gap-2 animate-pulse">
+                  <Sparkles className="w-6 h-6 text-yellow-500/50" />
+                  <p className="text-[8px] text-yellow-500/60">Generando locandina...</p>
+                </div>
+              ) : null}
+            </div>
+
             {/* Stats */}
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">

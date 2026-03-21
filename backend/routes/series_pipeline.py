@@ -15,9 +15,57 @@ from database import db
 from auth_utils import get_current_user
 import poster_storage
 from game_systems import get_level_from_xp, XP_REWARDS
+import asyncio
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 logger = logging.getLogger(__name__)
+
+
+async def _generate_poster_background(series_id: str, title: str, genre: str, subgenres: list, is_anime: bool):
+    """Background task to generate a poster for a series/anime."""
+    key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not key:
+        return
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        img_gen = OpenAIImageGeneration(api_key=key)
+
+        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
+        subgenre_text = subgenres[0] if subgenres else ''
+        prompt = f"TV series poster for '{title}', {genre} {subgenre_text} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
+
+        images = await img_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            n=1,
+            size="1024x1536",
+            quality="low"
+        )
+
+        if images:
+            import base64
+            from PIL import Image
+            import io
+
+            img_data = base64.b64decode(images[0].b64_json)
+            img = Image.open(io.BytesIO(img_data))
+            img = img.resize((400, 600), Image.LANCZOS)
+
+            buf = io.BytesIO()
+            img.save(buf, 'PNG', optimize=True)
+            png_bytes = buf.getvalue()
+
+            filename = f"series_{series_id}.png"
+            await poster_storage.save_poster(filename, png_bytes, 'image/png')
+
+            poster_url = f"/api/posters/{filename}"
+            await db.tv_series.update_one(
+                {'id': series_id},
+                {'$set': {'poster_url': poster_url, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            logger.info(f"Poster generated for series {series_id}: {poster_url}")
+    except Exception as e:
+        logger.error(f"Background poster generation failed for {series_id}: {e}")
 
 router = APIRouter()
 
@@ -688,6 +736,19 @@ async def generate_series_poster(series_id: str, user: dict = Depends(get_curren
         raise HTTPException(500, f"Errore generazione poster: {str(e)}")
 
 
+@router.get("/series-pipeline/{series_id}/poster-status")
+async def get_poster_status(series_id: str, user: dict = Depends(get_current_user)):
+    """Check if the poster has been generated for a series."""
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id']},
+        {'_id': 0, 'poster_url': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    return {"poster_url": series.get('poster_url'), "ready": bool(series.get('poster_url'))}
+
+
+
 @router.post("/series-pipeline/{series_id}/start-production")
 async def start_production(series_id: str, user: dict = Depends(get_current_user)):
     """Start production phase (timer-based)."""
@@ -869,22 +930,13 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
     revenue_per_viewer = random.uniform(1.5, 4.0)
     total_revenue = int(audience * revenue_per_viewer)
 
-    # Generate poster task (async - smaller format for series)
-    poster_task_id = None
+    # Launch poster generation in background
     try:
-        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV series poster, dramatic lighting, professional"
-        poster_prompt = f"{style}, poster for '{series['title']}', genre: {series.get('genre', 'drama')}, {series.get('subgenres', [''])[0] if series.get('subgenres') else ''}"
-        poster_task = {
-            '_id': str(uuid.uuid4()),
-            'type': 'series_poster',
-            'series_id': series_id,
-            'user_id': user['id'],
-            'prompt': poster_prompt,
-            'status': 'pending',
-            'created_at': now,
-        }
-        await db.poster_tasks.insert_one(poster_task)
-        poster_task_id = poster_task['_id']
+        is_anime = series['type'] == 'anime'
+        asyncio.create_task(_generate_poster_background(
+            series_id, series['title'], series.get('genre', 'drama'),
+            series.get('subgenres', []), is_anime
+        ))
     except Exception:
         pass  # Non-critical
 
@@ -903,7 +955,6 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
             'total_revenue': total_revenue,
             'audience_comments': comments,
             'audience_rating': avg_rating,
-            'poster_task_id': poster_task_id,
         }}
     )
     
@@ -934,7 +985,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         "total_revenue": total_revenue,
         "audience_rating": avg_rating,
         "audience_comments": comments,
-        "poster_task_id": poster_task_id,
+        "poster_generating": True,
         "cast": series.get('cast', []),
         "title": series.get('title', ''),
         "genre": series.get('genre', ''),

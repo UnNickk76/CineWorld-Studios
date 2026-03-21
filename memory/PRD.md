@@ -34,10 +34,18 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Talent Scout Attori + Sceneggiatori
 - Purchased screenplays usable in Film Pipeline
 
+### Persistent Release Results (2026-03-21)
+- Film Detail page (/films/:id) now displays persistent release results visible to ALL authenticated users
+- Shows: Film Tier badge, Key Stats (Quality, Opening Revenue, IMDb, Total Revenue), Quality Modifiers (advanced_factors), Critic Reviews
+- Release Event detail (name, description, rarity, type) shows for pipeline-released films
+- Color-coded positive/negative modifiers, tier-specific badge styling
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 
 ## Backlog
+- (P1) Readable AI Screenplay (scrollable, accessible post-generation)
+- (P1) Free Visual Trailer System (storyboard-style, 3-5 key scenes as images)
 - (P1) Guest Star per puntate singole Serie TV
 - (P1) Marketplace diritti TV/Anime
 - (P2) Fix layout mobile Contest Page

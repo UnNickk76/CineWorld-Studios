@@ -1903,6 +1903,180 @@ async def speed_up_shooting(project_id: str, req: SpeedUpShootingRequest, user: 
     }
 
 
+
+# ==================== DYNAMIC RELEASE EVENTS ====================
+
+RELEASE_EVENTS = [
+    # POSITIVE EVENTS (quality + revenue boost)
+    {
+        'id': 'viral_tiktok', 'name': 'Successo Virale sui Social',
+        'type': 'positive', 'rarity': 'common',
+        'description': 'Una scena del film diventa virale su TikTok e Instagram. Milioni di visualizzazioni in poche ore generano un enorme passaparola!',
+        'quality_modifier': 5, 'revenue_modifier': 25,
+    },
+    {
+        'id': 'celebrity_endorsement', 'name': 'Endorsement di una Celebrity',
+        'type': 'positive', 'rarity': 'common',
+        'description': 'Una celebrità internazionale twitta entusiasticamente del film, spingendo milioni di fan a comprare il biglietto.',
+        'quality_modifier': 3, 'revenue_modifier': 20,
+    },
+    {
+        'id': 'festival_selection', 'name': 'Selezione a un Festival',
+        'type': 'positive', 'rarity': 'uncommon',
+        'description': 'Il film viene selezionato per un prestigioso festival internazionale! La critica e il pubblico ne parlano ovunque.',
+        'quality_modifier': 8, 'revenue_modifier': 15,
+    },
+    {
+        'id': 'critics_rave', 'name': 'Recensioni Entusiastiche',
+        'type': 'positive', 'rarity': 'uncommon',
+        'description': 'I critici più influenti al mondo sono unanimi: il film è un capolavoro. Le recensioni a 5 stelle piovono da ogni testata.',
+        'quality_modifier': 10, 'revenue_modifier': 20,
+    },
+    {
+        'id': 'cultural_phenomenon', 'name': 'Fenomeno Culturale',
+        'type': 'positive', 'rarity': 'rare',
+        'description': 'Il film trascende il cinema e diventa un fenomeno culturale. Citazioni, meme, merchandising: tutti ne parlano!',
+        'quality_modifier': 14, 'revenue_modifier': 40,
+    },
+    {
+        'id': 'award_buzz', 'name': 'Candidatura ai Premi',
+        'type': 'positive', 'rarity': 'uncommon',
+        'description': "Gli esperti dell'industria inseriscono il film tra i favoriti per i prossimi premi cinematografici. L'hype cresce!",
+        'quality_modifier': 7, 'revenue_modifier': 15,
+    },
+    {
+        'id': 'surprise_hit', 'name': 'Sorpresa al Botteghino',
+        'type': 'positive', 'rarity': 'common',
+        'description': 'Il film supera ogni aspettativa al botteghino del primo weekend. Il passaparola è esplosivo!',
+        'quality_modifier': 4, 'revenue_modifier': 30,
+    },
+    {
+        'id': 'soundtrack_charts', 'name': 'Colonna Sonora in Classifica',
+        'type': 'positive', 'rarity': 'common',
+        'description': 'La colonna sonora del film scala le classifiche musicali, portando nuova attenzione e pubblico nelle sale.',
+        'quality_modifier': 3, 'revenue_modifier': 18,
+    },
+    # NEGATIVE EVENTS (quality + revenue penalty)
+    {
+        'id': 'scandal', 'name': 'Scandalo sul Set',
+        'type': 'negative', 'rarity': 'common',
+        'description': "Emerge uno scandalo legato alla produzione del film. I media si scatenano e il pubblico si divide sull'opportunità di vederlo.",
+        'quality_modifier': -6, 'revenue_modifier': -15,
+    },
+    {
+        'id': 'bad_timing', 'name': 'Tempismo Sfortunato',
+        'type': 'negative', 'rarity': 'common',
+        'description': 'Il film esce nello stesso weekend di un blockbuster molto atteso. Le sale sono piene... per il film concorrente.',
+        'quality_modifier': -2, 'revenue_modifier': -25,
+    },
+    {
+        'id': 'leak', 'name': 'Leak Online',
+        'type': 'negative', 'rarity': 'uncommon',
+        'description': "Una copia del film viene diffusa online prima dell'uscita. Molti lo guardano gratis, devastando gli incassi.",
+        'quality_modifier': -3, 'revenue_modifier': -30,
+    },
+    {
+        'id': 'controversy', 'name': 'Polemica Pubblica',
+        'type': 'negative', 'rarity': 'uncommon',
+        'description': 'Il film genera una forte polemica per i suoi contenuti. Alcuni gruppi chiedono il boicottaggio.',
+        'quality_modifier': -8, 'revenue_modifier': -15,
+    },
+    {
+        'id': 'technical_issues', 'name': 'Problemi Tecnici nelle Sale',
+        'type': 'negative', 'rarity': 'common',
+        'description': "Problemi tecnici alla proiezione rovinano l'esperienza nelle sale principali. Le recensioni dei primi spettatori sono negative.",
+        'quality_modifier': -5, 'revenue_modifier': -10,
+    },
+    {
+        'id': 'actor_controversy', 'name': 'Scandalo di un Attore',
+        'type': 'negative', 'rarity': 'uncommon',
+        'description': "Uno degli attori protagonisti viene coinvolto in uno scandalo mediatico. L'attenzione si sposta dal film alla polemica.",
+        'quality_modifier': -7, 'revenue_modifier': -20,
+    },
+    {
+        'id': 'public_flop', 'name': 'Flop al Primo Weekend',
+        'type': 'negative', 'rarity': 'rare',
+        'description': "Il film delude clamorosamente al botteghino. Le sale si svuotano dopo il primo giorno e i media parlano di 'disastro'.",
+        'quality_modifier': -12, 'revenue_modifier': -35,
+    },
+    # NEUTRAL/MIXED EVENTS
+    {
+        'id': 'polarizing', 'name': 'Film Polarizzante',
+        'type': 'neutral', 'rarity': 'common',
+        'description': 'Il pubblico si divide nettamente: chi lo ama e chi lo odia. Le discussioni accese sui social generano comunque attenzione.',
+        'quality_modifier': -2, 'revenue_modifier': 10,
+    },
+    {
+        'id': 'cult_following', 'name': 'Cult Following Immediato',
+        'type': 'neutral', 'rarity': 'uncommon',
+        'description': 'Il film non conquista il grande pubblico ma sviluppa immediatamente un seguito di fan accaniti che lo vedono più volte.',
+        'quality_modifier': 2, 'revenue_modifier': 5,
+    },
+    {
+        'id': 'nothing_special', 'name': 'Uscita Tranquilla',
+        'type': 'neutral', 'rarity': 'common',
+        'description': "Il film esce senza particolari scossoni. Nessun evento degno di nota accompagna l'uscita in sala.",
+        'quality_modifier': 0, 'revenue_modifier': 0,
+    },
+]
+
+# Weighted by rarity
+EVENT_WEIGHTS = {'common': 5, 'uncommon': 3, 'rare': 1}
+
+
+def generate_release_event(project, cast, quality_score, genre):
+    """Generate a dynamic release event based on film context."""
+    # Quality-based bias: better films have slightly higher chance of positive events
+    positive_events = [e for e in RELEASE_EVENTS if e['type'] == 'positive']
+    negative_events = [e for e in RELEASE_EVENTS if e['type'] == 'negative']
+    neutral_events = [e for e in RELEASE_EVENTS if e['type'] == 'neutral']
+
+    # Base chances: positive 35%, negative 30%, neutral 35%
+    # Quality modifies: high quality films get +10% positive, low quality -10%
+    quality_bias = (quality_score - 50) / 200  # ±0.25 range
+    pos_chance = 0.35 + quality_bias
+    neg_chance = 0.30 - quality_bias
+    neutral_chance = 1 - pos_chance - neg_chance
+
+    roll = random.random()
+    if roll < pos_chance:
+        pool = positive_events
+    elif roll < pos_chance + neg_chance:
+        pool = negative_events
+    else:
+        pool = neutral_events
+
+    # Weighted random selection by rarity
+    weights = [EVENT_WEIGHTS.get(e['rarity'], 3) for e in pool]
+    event_template = random.choices(pool, weights=weights, k=1)[0]
+
+    # Personalize the description with film data
+    title = project.get('title', 'Il film')
+    director_name = cast.get('director', {}).get('name', 'il regista')
+    lead_actor = cast.get('actors', [{}])[0].get('name', 'il protagonista') if cast.get('actors') else 'il protagonista'
+
+    description = event_template['description']
+    description = description.replace('il film', f'"{title}"').replace('Il film', f'"{title}"')
+
+    # Scale modifiers slightly by rarity for variance
+    quality_mod = event_template['quality_modifier']
+    revenue_mod = event_template['revenue_modifier']
+    # Add small random variance (±20%)
+    quality_mod = round(quality_mod * random.uniform(0.8, 1.2))
+    revenue_mod = round(revenue_mod * random.uniform(0.8, 1.2))
+
+    return {
+        'id': event_template['id'],
+        'name': event_template['name'],
+        'type': event_template['type'],
+        'rarity': event_template['rarity'],
+        'description': description,
+        'quality_modifier': quality_mod,
+        'revenue_modifier': revenue_mod,
+    }
+
+
+
 @router.post("/film-pipeline/{project_id}/release")
 async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     """Release a completed film to theaters. Shows cost summary."""
@@ -2094,23 +2268,11 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         advanced_factors['tempismo_mercato'] = f'{timing:+}'
         quality_score += timing
 
-    # 7. Lightning in a Bottle - rare extraordinary events
-    event_roll = random.random()
-    if event_roll < 0.03:  # 3% cultural phenomenon
-        advanced_factors['fenomeno_culturale'] = '+14 (Fenomeno culturale!)'
-        quality_score += 14
-    elif event_roll < 0.06:  # 3% viral hit
-        advanced_factors['evento_virale'] = '+9 (Il film diventa virale!)'
-        quality_score += 9
-    elif event_roll < 0.10:  # 4% controversy hurts
-        advanced_factors['controversia'] = '-12 (Scandalo durante il lancio!)'
-        quality_score -= 12
-    elif event_roll < 0.13:  # 3% production disaster
-        advanced_factors['disastro_produzione'] = '-8 (Problemi in produzione!)'
-        quality_score -= 8
-    elif event_roll < 0.18:  # 5% awards buzz
-        advanced_factors['buzz_premi'] = '+7 (Candidato ai premi!)'
-        quality_score += 7
+    # 7. DYNAMIC RELEASE EVENT - narrative event that affects the film
+    release_event = generate_release_event(project, cast, quality_score, genre)
+    if release_event:
+        quality_score += release_event['quality_modifier']
+        advanced_factors['evento_rilascio'] = f"{release_event['quality_modifier']:+} ({release_event['name']})"
 
     # Final clamp
     quality_score = max(10, min(100, quality_score))
@@ -2150,6 +2312,9 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Apply sponsor attendance boost (up to 30%)
     sponsor_boost = project.get('sponsor_attendance_boost_pct', 0) / 100
     opening_day_revenue = int(opening_day_revenue * (1 + sponsor_boost))
+    # Apply release event revenue modifier
+    if release_event and release_event.get('revenue_modifier', 0) != 0:
+        opening_day_revenue = int(opening_day_revenue * (1 + release_event['revenue_modifier'] / 100))
 
     # Calculate audience satisfaction
     audience_satisfaction = max(20, min(100, quality_score + random.randint(-10, 15)))
@@ -2220,6 +2385,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'sponsor_attendance_boost_pct': project.get('sponsor_attendance_boost_pct', 0),
         'production_house': user.get('nickname', user.get('email', 'Studio').split('@')[0]),
         'agency_actors_count': project.get('agency_actors_count', 0),
+        'release_event': release_event,
     }
 
     # Calculate IMDb rating
@@ -2410,7 +2576,8 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
             'extras_count': extras_count,
             'advanced_factors': advanced_factors
         },
-        'xp_gained': xp_gain
+        'xp_gained': xp_gain,
+        'release_event': release_event,
     }
 
 

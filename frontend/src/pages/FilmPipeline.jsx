@@ -1907,6 +1907,42 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                 </div>
               </div>
 
+              {/* Release Event */}
+              {releaseResult.release_event && releaseResult.release_event.id !== 'nothing_special' && (
+                <div className={`p-3 rounded-lg border ${
+                  releaseResult.release_event.type === 'positive' ? 'bg-emerald-500/5 border-emerald-500/30' :
+                  releaseResult.release_event.type === 'negative' ? 'bg-red-500/5 border-red-500/30' :
+                  'bg-amber-500/5 border-amber-500/30'
+                }`} data-testid="release-event">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-base">{
+                      releaseResult.release_event.type === 'positive' ? '⚡' :
+                      releaseResult.release_event.type === 'negative' ? '💥' : '🔀'
+                    }</span>
+                    <span className={`text-xs font-bold ${
+                      releaseResult.release_event.type === 'positive' ? 'text-emerald-400' :
+                      releaseResult.release_event.type === 'negative' ? 'text-red-400' : 'text-amber-400'
+                    }`}>{releaseResult.release_event.name}</span>
+                    {releaseResult.release_event.rarity === 'rare' && (
+                      <Badge className="bg-purple-500/20 text-purple-400 text-[7px] h-3.5">RARO</Badge>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-300 leading-relaxed mb-2">{releaseResult.release_event.description}</p>
+                  <div className="flex gap-3 text-[9px]">
+                    {releaseResult.release_event.quality_modifier !== 0 && (
+                      <span className={releaseResult.release_event.quality_modifier > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        Qualita: {releaseResult.release_event.quality_modifier > 0 ? '+' : ''}{releaseResult.release_event.quality_modifier}
+                      </span>
+                    )}
+                    {releaseResult.release_event.revenue_modifier !== 0 && (
+                      <span className={releaseResult.release_event.revenue_modifier > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        Incassi: {releaseResult.release_event.revenue_modifier > 0 ? '+' : ''}{releaseResult.release_event.revenue_modifier}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Sponsors on release */}
               {releaseResult.sponsors?.length > 0 && (
                 <div className="text-[9px] text-gray-400 p-2 bg-cyan-500/5 rounded border border-cyan-500/20">

@@ -196,6 +196,7 @@ export default function SeriesTVPipeline() {
   const [releaseCard, setReleaseCard] = React.useState(null);
   const [releasePoster, setReleasePoster] = React.useState(null);
   const [posterPolling, setPosterPolling] = React.useState(false);
+  const [releasePhase, setReleasePhase] = React.useState(0);
   const [posterMode, setPosterMode] = React.useState({});
   const [posterPrompt, setPosterPrompt] = React.useState({});
   const [posterLoading, setPosterLoading] = React.useState(null);
@@ -221,7 +222,10 @@ export default function SeriesTVPipeline() {
       setReleaseCard(res.data);
       setReleasePoster(null);
       setPosterPolling(true);
-      toast.success(`${res.data.type === 'anime' ? 'Anime' : 'Serie TV'} completata!`);
+      // Cinematic reveal sequence
+      setReleasePhase(1);
+      setTimeout(() => setReleasePhase(2), 1400);
+      setTimeout(() => setReleasePhase(3), 3000);
       // Start polling for poster
       const seriesId = activeSeries.id;
       let attempts = 0;
@@ -235,10 +239,7 @@ export default function SeriesTVPipeline() {
             clearInterval(pollInterval);
           }
         } catch {}
-        if (attempts >= 30) { // max ~60 seconds
-          setPosterPolling(false);
-          clearInterval(pollInterval);
-        }
+        if (attempts >= 30) { setPosterPolling(false); clearInterval(pollInterval); }
       }, 2000);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
@@ -248,6 +249,7 @@ export default function SeriesTVPipeline() {
     setReleaseCard(null);
     setReleasePoster(null);
     setPosterPolling(false);
+    setReleasePhase(0);
     setActiveSeries(null);
     loadData();
   };
@@ -886,95 +888,182 @@ export default function SeriesTVPipeline() {
         )}
       </div>
 
-    {/* Release Card Modal */}
-    {releaseCard && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="release-card-modal">
-        <Card className="bg-[#0e0e10] border-yellow-500/30 max-w-md w-full max-h-[85vh] overflow-y-auto">
-          <CardHeader className="pb-2 text-center">
-            <Badge className="mx-auto mb-2 bg-yellow-500/20 text-yellow-400 text-xs px-3 py-1">
-              {releaseCard.type === 'anime' ? 'Anime' : 'Serie TV'} Completata!
-            </Badge>
-            <CardTitle className="text-lg text-yellow-400">{releaseCard.title}</CardTitle>
-            <p className="text-[10px] text-gray-500 uppercase">{releaseCard.genre}</p>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4 pt-0">
-            {/* Poster */}
-            <div className="flex justify-center">
-              {releasePoster ? (
-                <img src={posterSrc(releasePoster)} alt="Locandina" className="w-32 h-48 rounded-lg object-cover border border-yellow-500/20 shadow-lg shadow-yellow-500/10" />
-              ) : posterPolling ? (
-                <div className="w-32 h-48 rounded-lg bg-yellow-500/5 border border-yellow-500/20 flex flex-col items-center justify-center gap-2 animate-pulse">
-                  <Sparkles className="w-6 h-6 text-yellow-500/50" />
-                  <p className="text-[8px] text-yellow-500/60">Generando locandina...</p>
+    {/* Cinematic Release Experience */}
+    {releaseCard && releasePhase > 0 && (() => {
+      const evt = releaseCard.release_event;
+      const hasEvent = evt && evt.id !== 'quiet_release_series' && evt.id !== 'quiet_release_anime' && evt.id !== 'nothing_special';
+      const isAnimeType = releaseCard.type === 'anime';
+      const accentColor = isAnimeType ? 'pink' : 'purple';
+      const isRare = hasEvent && evt.rarity === 'rare';
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="release-card-modal">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            style={{ animation: 'rcFadeIn 0.5s ease-out' }}
+            onClick={() => { if (releasePhase >= 3) closeReleaseCard(); }} />
+
+          <div className="relative w-full max-w-sm z-10">
+            {/* Phase 1: Title */}
+            <div className="text-center mb-4" style={{ animation: 'rcSlideUp 0.8s ease-out both' }}>
+              <Badge className={`mx-auto mb-2 ${isAnimeType ? 'bg-pink-500/20 text-pink-400' : 'bg-purple-500/20 text-purple-400'} text-[10px]`}
+                style={{ animation: 'rcFadeIn 0.5s ease-out 0.2s both' }}>
+                {isAnimeType ? 'Anime' : 'Serie TV'} Completata!
+              </Badge>
+              <h1 className="text-xl font-black text-white tracking-tight"
+                style={{ animation: 'rcScaleIn 0.6s ease-out 0.4s both' }}>
+                {releaseCard.title}
+              </h1>
+              <p className={`text-[10px] ${isAnimeType ? 'text-pink-400/70' : 'text-purple-400/70'} uppercase mt-0.5`}
+                style={{ animation: 'rcFadeIn 0.4s ease-out 0.6s both' }}>
+                {releaseCard.genre} - {releaseCard.episodes_count} episodi
+              </p>
+            </div>
+
+            {/* Phase 2: Event reveal */}
+            {releasePhase >= 2 && hasEvent && (() => {
+              const borderC = evt.type === 'positive' ? 'border-emerald-500' : evt.type === 'negative' ? 'border-red-500' : 'border-amber-500';
+              const bgGrad = evt.type === 'positive' ? 'from-emerald-950/80 to-[#111]' : evt.type === 'negative' ? 'from-red-950/80 to-[#111]' : 'from-amber-950/80 to-[#111]';
+              const txtC = evt.type === 'positive' ? 'text-emerald-400' : evt.type === 'negative' ? 'text-red-400' : 'text-amber-400';
+              const glowC = evt.type === 'positive' ? 'shadow-emerald-500/30' : evt.type === 'negative' ? 'shadow-red-500/30' : 'shadow-amber-500/30';
+
+              return (
+                <div className={`relative rounded-xl border-2 ${borderC} bg-gradient-to-b ${bgGrad} p-3.5 shadow-lg ${glowC} ${isRare ? 'ring-2 ring-purple-500/50' : ''}`}
+                  style={{ animation: isRare ? 'rcShakeIn 0.7s ease-out both' : 'rcEventReveal 0.7s ease-out both' }}
+                  data-testid="release-event">
+
+                  {isRare && <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent"
+                      style={{ animation: 'rcShimmer 2s ease-in-out infinite' }} />
+                  </div>}
+
+                  <div className="flex justify-center mb-2">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      evt.type === 'positive' ? 'bg-emerald-500/20' : evt.type === 'negative' ? 'bg-red-500/20' : 'bg-amber-500/20'
+                    }`} style={{ animation: 'rcPulse 1.5s ease-in-out infinite' }}>
+                      <span className="text-xl">{evt.type === 'positive' ? '⚡' : evt.type === 'negative' ? '💥' : '🔀'}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-center mb-1.5">
+                    {isRare && <Badge className="bg-purple-500/30 text-purple-300 text-[7px] mb-1 border border-purple-500/40">EVENTO RARO</Badge>}
+                    <h3 className={`text-xs font-black ${txtC} uppercase tracking-wider`}>{evt.name}</h3>
+                  </div>
+
+                  <p className="text-[10px] text-gray-300 text-center leading-relaxed mb-2"
+                    style={{ animation: 'rcFadeIn 0.5s ease-out 0.3s both' }}>{evt.description}</p>
+
+                  <div className="flex justify-center gap-3 text-[10px] font-bold" style={{ animation: 'rcFadeIn 0.4s ease-out 0.5s both' }}>
+                    {evt.quality_modifier !== 0 && (
+                      <div className={`px-2 py-0.5 rounded-full ${evt.quality_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        Qualita {evt.quality_modifier > 0 ? '+' : ''}{evt.quality_modifier}
+                      </div>
+                    )}
+                    {evt.revenue_modifier !== 0 && (
+                      <div className={`px-2 py-0.5 rounded-full ${evt.revenue_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        Incassi {evt.revenue_modifier > 0 ? '+' : ''}{evt.revenue_modifier}%
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : null}
-            </div>
+              );
+            })()}
 
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <p className="text-lg font-bold text-yellow-400">{releaseCard.quality?.score || 0}</p>
-                <p className="text-[8px] text-gray-500">QUALITA</p>
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <p className="text-lg font-bold text-emerald-400">${(releaseCard.total_revenue || 0).toLocaleString()}</p>
-                <p className="text-[8px] text-gray-500">INCASSO</p>
-              </div>
-              <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                <p className="text-lg font-bold text-cyan-400">{releaseCard.audience_rating || 0}</p>
-                <p className="text-[8px] text-gray-500">VOTO PUBBLICO</p>
-              </div>
-            </div>
-
-            {/* XP/Fame */}
-            <div className="flex gap-2 justify-center">
-              <Badge className="bg-purple-500/20 text-purple-400 text-xs">+{releaseCard.xp_reward} XP</Badge>
-              <Badge className="bg-pink-500/20 text-pink-400 text-xs">+{releaseCard.fame_bonus} Fama</Badge>
-              <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">{releaseCard.episodes_count} episodi</Badge>
-            </div>
-
-            {/* Cast */}
-            {releaseCard.cast?.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase mb-1">Cast</p>
-                <div className="flex flex-wrap gap-1">
-                  {releaseCard.cast.map((c, i) => (
-                    <Badge key={i} className="bg-white/5 text-gray-300 text-[9px]">
-                      {c.name} <span className="text-gray-500 ml-0.5">({c.role})</span>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Audience Comments */}
-            {releaseCard.audience_comments?.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase mb-1">Commenti del Pubblico</p>
-                <div className="space-y-1.5">
-                  {releaseCard.audience_comments.map((c, i) => (
-                    <div key={i} className={`p-2 rounded-lg border text-[10px] ${
-                      c.sentiment === 'positive' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' :
-                      c.sentiment === 'negative' ? 'bg-red-500/5 border-red-500/20 text-red-300' :
-                      'bg-amber-500/5 border-amber-500/20 text-amber-300'
-                    }`}>
-                      <div className="flex justify-between items-start">
-                        <span>"{c.text}"</span>
-                        <Badge className={`ml-1 text-[8px] h-4 flex-shrink-0 ${c.rating >= 7 ? 'bg-emerald-500/20 text-emerald-400' : c.rating >= 5 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{c.rating}</Badge>
+            {/* Phase 3: Full results compact */}
+            {releasePhase >= 3 && (
+              <div className="mt-3 space-y-2" style={{ animation: 'rcSlideUp 0.6s ease-out both' }}>
+                <Card className={`bg-[#151517] ${isAnimeType ? 'border-pink-600/30' : 'border-purple-600/30'} overflow-hidden`}>
+                  <CardContent className="p-3 space-y-2.5">
+                    {/* Poster + Score row */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-20 flex-shrink-0">
+                        {releasePoster ? (
+                          <img src={posterSrc(releasePoster)} alt="Locandina" className={`w-full h-full object-cover rounded border ${isAnimeType ? 'border-pink-500/20' : 'border-purple-500/20'} shadow-lg`} />
+                        ) : posterPolling ? (
+                          <div className={`w-full h-full rounded ${isAnimeType ? 'bg-pink-500/5 border-pink-500/20' : 'bg-purple-500/5 border-purple-500/20'} border flex items-center justify-center animate-pulse`}>
+                            <Sparkles className={`w-4 h-4 ${isAnimeType ? 'text-pink-500/50' : 'text-purple-500/50'}`} />
+                          </div>
+                        ) : (
+                          <div className={`w-full h-full rounded ${isAnimeType ? 'bg-pink-500/5' : 'bg-purple-500/5'} border border-white/5 flex items-center justify-center`}>
+                            <Film className="w-5 h-5 text-gray-600" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        {/* Stats grid */}
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className={`p-1.5 rounded ${isAnimeType ? 'bg-pink-500/10 border-pink-500/20' : 'bg-yellow-500/10 border-yellow-500/20'} border`}>
+                            <p className={`text-lg font-black ${releaseCard.quality?.score >= 70 ? 'text-green-400' : releaseCard.quality?.score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}
+                              style={{ animation: 'rcCountUp 0.5s ease-out both' }}>
+                              {releaseCard.quality?.score || 0}
+                            </p>
+                            <p className="text-[7px] text-gray-500">QUALITA</p>
+                          </div>
+                          <div className="p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                            <p className="text-sm font-bold text-emerald-400">${((releaseCard.total_revenue || 0) / 1000000).toFixed(1)}M</p>
+                            <p className="text-[7px] text-gray-500">INCASSO</p>
+                          </div>
+                          <div className="p-1.5 rounded bg-cyan-500/10 border border-cyan-500/20">
+                            <p className="text-sm font-bold text-cyan-400">{releaseCard.audience_rating || 0}</p>
+                            <p className="text-[7px] text-gray-500">VOTO</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Badges */}
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">+{releaseCard.xp_reward} XP</Badge>
+                      <Badge className="bg-pink-500/20 text-pink-400 text-[9px]">+{releaseCard.fame_bonus} Fama</Badge>
+                      <Badge className="bg-cyan-500/20 text-cyan-400 text-[9px]">{releaseCard.episodes_count} ep.</Badge>
+                    </div>
+
+                    {/* Audience comments (compact) */}
+                    {releaseCard.audience_comments?.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[8px] text-gray-500 uppercase">Commenti</p>
+                        {releaseCard.audience_comments.slice(0, 2).map((c, i) => (
+                          <div key={i} className={`px-2 py-1 rounded text-[9px] border ${
+                            c.sentiment === 'positive' ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-300' :
+                            c.sentiment === 'negative' ? 'bg-red-500/5 border-red-500/15 text-red-300' :
+                            'bg-amber-500/5 border-amber-500/15 text-amber-300'
+                          }`}>
+                            "{c.text}" <Badge className={`ml-1 text-[7px] h-3 ${c.rating >= 7 ? 'bg-emerald-500/20 text-emerald-400' : c.rating >= 5 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{c.rating}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <Button className={`w-full ${isAnimeType ? 'bg-pink-600 hover:bg-pink-500' : 'bg-purple-600 hover:bg-purple-500'} text-white text-xs font-bold`}
+                      onClick={closeReleaseCard} data-testid="close-release-card">
+                      Chiudi
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             )}
+          </div>
 
-            <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={closeReleaseCard} data-testid="close-release-card">
-              Chiudi
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )}
+          {/* CSS Animations */}
+          <style>{`
+            @keyframes rcFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes rcSlideUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes rcScaleIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+            @keyframes rcEventReveal { from { opacity: 0; transform: scale(0.9) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+            @keyframes rcShakeIn {
+              0% { opacity: 0; transform: scale(0.8); }
+              40% { opacity: 1; transform: scale(1.04); }
+              55% { transform: scale(1) rotate(-1deg); }
+              70% { transform: scale(1.02) rotate(1deg); }
+              85% { transform: scale(1) rotate(-0.5deg); }
+              100% { transform: scale(1) rotate(0); }
+            }
+            @keyframes rcShimmer { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+            @keyframes rcCountUp { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+            @keyframes rcPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+          `}</style>
+        </div>
+      );
+    })()}
     </div>
   );
 }

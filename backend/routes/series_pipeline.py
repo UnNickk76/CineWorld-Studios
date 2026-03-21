@@ -17,6 +17,157 @@ import poster_storage
 from game_systems import get_level_from_xp, XP_REWARDS
 import asyncio
 
+# ==================== DYNAMIC RELEASE EVENTS (TV Series & Anime) ====================
+
+SERIES_EVENTS = [
+    # POSITIVE
+    {'id': 'binge_viral', 'name': 'Binge Watching Virale', 'type': 'positive', 'rarity': 'common',
+     'description': 'Gli spettatori non riescono a smettere di guardarla! I social si riempiono di post "Ho visto tutta la stagione in una notte".',
+     'quality_modifier': 4, 'revenue_modifier': 25},
+    {'id': 'critics_darling', 'name': 'Beniamina della Critica', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'I critici sono entusiasti: "La serie dell\'anno". Articoli e recensioni a 5 stelle ovunque.',
+     'quality_modifier': 8, 'revenue_modifier': 18},
+    {'id': 'water_cooler', 'name': 'Effetto Passaparola', 'type': 'positive', 'rarity': 'common',
+     'description': 'Tutti ne parlano in ufficio, a scuola, sui social. Il passaparola porta un\'ondata di nuovi spettatori.',
+     'quality_modifier': 3, 'revenue_modifier': 22},
+    {'id': 'award_nomination', 'name': 'Nominata ai Premi TV', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'La serie viene nominata ai piu importanti premi televisivi. La stampa impazzisce!',
+     'quality_modifier': 7, 'revenue_modifier': 15},
+    {'id': 'streaming_record', 'name': 'Record di Streaming', 'type': 'positive', 'rarity': 'rare',
+     'description': 'La serie batte ogni record di visualizzazioni! E\' la piu vista della storia della piattaforma.',
+     'quality_modifier': 12, 'revenue_modifier': 40},
+    {'id': 'social_trends', 'name': 'Trending sui Social', 'type': 'positive', 'rarity': 'common',
+     'description': 'Hashtag, meme e teorie: la serie domina i trending topic per settimane.',
+     'quality_modifier': 4, 'revenue_modifier': 20},
+    {'id': 'spin_off_demand', 'name': 'Richiesta di Spin-Off', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'I fan chiedono a gran voce spin-off e sequel. Le petizioni online raccolgono milioni di firme.',
+     'quality_modifier': 6, 'revenue_modifier': 15},
+    # NEGATIVE
+    {'id': 'plot_leak', 'name': 'Spoiler Diffusi', 'type': 'negative', 'rarity': 'common',
+     'description': 'Spoiler della trama vengono diffusi online prima della messa in onda. Molti spettatori perdono interesse.',
+     'quality_modifier': -4, 'revenue_modifier': -20},
+    {'id': 'filler_criticism', 'name': 'Episodi Riempitivi', 'type': 'negative', 'rarity': 'common',
+     'description': 'Il pubblico critica duramente gli episodi "filler". "Troppo lenta, poteva essere la meta" e il commento piu diffuso.',
+     'quality_modifier': -6, 'revenue_modifier': -12},
+    {'id': 'bad_finale', 'name': 'Finale Deludente', 'type': 'negative', 'rarity': 'uncommon',
+     'description': 'Il finale di stagione delude le aspettative. I fan sono furiosi e le recensioni crollano.',
+     'quality_modifier': -9, 'revenue_modifier': -18},
+    {'id': 'schedule_conflict', 'name': 'Concorrenza Spietata', 'type': 'negative', 'rarity': 'common',
+     'description': 'La serie esce nello stesso periodo di un titolo molto piu atteso. Gli ascolti ne risentono pesantemente.',
+     'quality_modifier': -3, 'revenue_modifier': -25},
+    {'id': 'cast_drama', 'name': 'Drammi nel Cast', 'type': 'negative', 'rarity': 'uncommon',
+     'description': 'Tensioni tra gli attori diventano pubbliche. L\'attenzione si sposta dalla serie al gossip.',
+     'quality_modifier': -5, 'revenue_modifier': -15},
+    {'id': 'audience_drop', 'name': 'Calo Ascolti Drastico', 'type': 'negative', 'rarity': 'rare',
+     'description': 'Dopo i primi episodi promettenti, gli ascolti crollano. La serie viene etichettata come "flop".',
+     'quality_modifier': -10, 'revenue_modifier': -30},
+    # NEUTRAL
+    {'id': 'slow_burn', 'name': 'Successo Graduale', 'type': 'neutral', 'rarity': 'common',
+     'description': 'La serie non esplode subito ma conquista il pubblico episodio dopo episodio. Un successo lento ma costante.',
+     'quality_modifier': 2, 'revenue_modifier': 5},
+    {'id': 'niche_hit', 'name': 'Successo di Nicchia', 'type': 'neutral', 'rarity': 'common',
+     'description': 'Non conquista il grande pubblico ma ha una fanbase dedicata e appassionata. Numeri discreti ma fedelta altissima.',
+     'quality_modifier': 1, 'revenue_modifier': 3},
+    {'id': 'quiet_release_series', 'name': 'Uscita Senza Clamore', 'type': 'neutral', 'rarity': 'common',
+     'description': 'La serie esce senza particolari eventi. Ascolti nella media, nessuna sorpresa.',
+     'quality_modifier': 0, 'revenue_modifier': 0},
+]
+
+ANIME_EVENTS = [
+    # POSITIVE
+    {'id': 'fandom_explosion', 'name': 'Fandom Esplosivo', 'type': 'positive', 'rarity': 'common',
+     'description': 'Il fandom esplode! Fan art, cosplay e teorie invadono i social. L\'anime diventa un fenomeno.',
+     'quality_modifier': 5, 'revenue_modifier': 28},
+    {'id': 'sakuga_moment', 'name': 'Sakuga Leggendario', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'Una sequenza di animazione diventa leggendaria. I fan la condividono ovunque come esempio di arte animata.',
+     'quality_modifier': 9, 'revenue_modifier': 20},
+    {'id': 'manga_boost', 'name': 'Boom Vendite Manga', 'type': 'positive', 'rarity': 'common',
+     'description': 'L\'anime fa impennare le vendite del manga originale. Editori e fan sono entusiasti.',
+     'quality_modifier': 4, 'revenue_modifier': 22},
+    {'id': 'global_sensation', 'name': 'Sensazione Globale', 'type': 'positive', 'rarity': 'rare',
+     'description': 'L\'anime supera i confini del Giappone e conquista il mondo. Trend globale su ogni piattaforma!',
+     'quality_modifier': 14, 'revenue_modifier': 45},
+    {'id': 'opening_viral', 'name': 'Opening Virale', 'type': 'positive', 'rarity': 'common',
+     'description': 'La sigla d\'apertura diventa virale. Cover, remix e balli TikTok portano milioni di nuovi spettatori.',
+     'quality_modifier': 3, 'revenue_modifier': 25},
+    {'id': 'cosplay_wave', 'name': 'Ondata Cosplay', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'I personaggi diventano i piu cosplayati nelle convention. Il merchandising va a ruba!',
+     'quality_modifier': 5, 'revenue_modifier': 18},
+    {'id': 'anime_award', 'name': 'Premio Anime dell\'Anno', 'type': 'positive', 'rarity': 'uncommon',
+     'description': 'L\'anime viene nominato come "Anime dell\'Anno" dalla critica internazionale.',
+     'quality_modifier': 8, 'revenue_modifier': 15},
+    # NEGATIVE
+    {'id': 'animation_downgrade', 'name': 'Calo Qualita Animazione', 'type': 'negative', 'rarity': 'common',
+     'description': 'La qualita dell\'animazione cala visibilmente negli episodi centrali. I fan notano e criticano.',
+     'quality_modifier': -6, 'revenue_modifier': -12},
+    {'id': 'filler_arc', 'name': 'Arco Narrativo Filler', 'type': 'negative', 'rarity': 'common',
+     'description': 'Un intero arco narrativo viene considerato filler. "Saltate gli episodi 5-8" diventa il consiglio piu diffuso.',
+     'quality_modifier': -5, 'revenue_modifier': -15},
+    {'id': 'adaptation_backlash', 'name': 'Tradimento del Materiale', 'type': 'negative', 'rarity': 'uncommon',
+     'description': 'I fan del manga originale sono furiosi per le modifiche alla storia. Le recensioni negative fioccano.',
+     'quality_modifier': -8, 'revenue_modifier': -20},
+    {'id': 'production_issues', 'name': 'Problemi di Produzione', 'type': 'negative', 'rarity': 'uncommon',
+     'description': 'Ritardi e problemi nello studio di animazione portano a episodi di qualita inferiore e tempi allungati.',
+     'quality_modifier': -7, 'revenue_modifier': -15},
+    {'id': 'seasonal_buried', 'name': 'Sepolto dalla Stagione', 'type': 'negative', 'rarity': 'rare',
+     'description': 'L\'anime esce nella stagione piu competitiva dell\'anno. Schiacciato da titoli piu forti, passa inosservato.',
+     'quality_modifier': -10, 'revenue_modifier': -30},
+    # NEUTRAL
+    {'id': 'cult_classic', 'name': 'Futuro Cult', 'type': 'neutral', 'rarity': 'common',
+     'description': 'L\'anime non sfonda al debutto ma ha tutte le carte per diventare un cult nel tempo. Fanbase piccola ma devota.',
+     'quality_modifier': 2, 'revenue_modifier': 4},
+    {'id': 'quiet_release_anime', 'name': 'Debutto Tranquillo', 'type': 'neutral', 'rarity': 'common',
+     'description': 'L\'anime debutta senza particolari scossoni. Numeri nella media, nessun evento degno di nota.',
+     'quality_modifier': 0, 'revenue_modifier': 0},
+    {'id': 'polarizing_anime', 'name': 'Anime Divisivo', 'type': 'neutral', 'rarity': 'uncommon',
+     'description': 'Il pubblico si divide: capolavoro per alcuni, delusione per altri. Le discussioni accese tengono viva l\'attenzione.',
+     'quality_modifier': -1, 'revenue_modifier': 8},
+]
+
+EVENT_WEIGHTS_SERIES = {'common': 5, 'uncommon': 3, 'rare': 1}
+
+
+def generate_series_release_event(series, quality_score, is_anime):
+    """Generate a dynamic release event for TV series or anime."""
+    pool_all = ANIME_EVENTS if is_anime else SERIES_EVENTS
+    
+    positive_events = [e for e in pool_all if e['type'] == 'positive']
+    negative_events = [e for e in pool_all if e['type'] == 'negative']
+    neutral_events = [e for e in pool_all if e['type'] == 'neutral']
+
+    quality_bias = (quality_score - 50) / 200
+    pos_chance = 0.35 + quality_bias
+    neg_chance = 0.30 - quality_bias
+    
+    roll = random.random()
+    if roll < pos_chance:
+        pool = positive_events
+    elif roll < pos_chance + neg_chance:
+        pool = negative_events
+    else:
+        pool = neutral_events
+
+    weights = [EVENT_WEIGHTS_SERIES.get(e['rarity'], 3) for e in pool]
+    event_template = random.choices(pool, weights=weights, k=1)[0]
+
+    title = series.get('title', "L'anime" if is_anime else 'La serie')
+    description = event_template['description']
+
+    quality_mod = round(event_template['quality_modifier'] * random.uniform(0.8, 1.2))
+    revenue_mod = round(event_template['revenue_modifier'] * random.uniform(0.8, 1.2))
+
+    return {
+        'id': event_template['id'],
+        'name': event_template['name'],
+        'type': event_template['type'],
+        'rarity': event_template['rarity'],
+        'description': description,
+        'quality_modifier': quality_mod,
+        'revenue_modifier': revenue_mod,
+    }
+
+
+
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 logger = logging.getLogger(__name__)
 
@@ -936,6 +1087,15 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
     revenue_per_viewer = random.uniform(1.5, 4.0)
     total_revenue = int(audience * revenue_per_viewer)
 
+    # Generate dynamic release event
+    release_event = generate_series_release_event(series, quality_score, is_anime)
+    if release_event:
+        quality_score += release_event['quality_modifier']
+        quality_score = max(5, min(99, quality_score))
+        # Apply revenue modifier
+        if release_event.get('revenue_modifier', 0) != 0:
+            total_revenue = int(total_revenue * (1 + release_event['revenue_modifier'] / 100))
+
     # Launch poster generation in background
     try:
         is_anime = series['type'] == 'anime'
@@ -952,7 +1112,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         {'id': series_id},
         {'$set': {
             'status': 'completed',
-            'quality_score': quality_result['score'],
+            'quality_score': quality_score,
             'quality_breakdown': quality_result['breakdown'],
             'episodes': episodes,
             'completed_at': now,
@@ -961,6 +1121,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
             'total_revenue': total_revenue,
             'audience_comments': comments,
             'audience_rating': avg_rating,
+            'release_event': release_event,
         }}
     )
     
@@ -996,6 +1157,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         "title": series.get('title', ''),
         "genre": series.get('genre', ''),
         "type": series.get('type', ''),
+        "release_event": release_event,
     }
 
 

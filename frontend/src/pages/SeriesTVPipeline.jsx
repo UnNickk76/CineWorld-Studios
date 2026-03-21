@@ -196,6 +196,23 @@ export default function SeriesTVPipeline() {
   const [releaseCard, setReleaseCard] = React.useState(null);
   const [releasePoster, setReleasePoster] = React.useState(null);
   const [posterPolling, setPosterPolling] = React.useState(false);
+  const [posterMode, setPosterMode] = React.useState({});
+  const [posterPrompt, setPosterPrompt] = React.useState({});
+  const [posterLoading, setPosterLoading] = React.useState(null);
+  const [expandedPoster, setExpandedPoster] = React.useState(null);
+
+  const generateSeriesPoster = async (seriesId) => {
+    const mode = posterMode[seriesId] || 'ai_auto';
+    setPosterLoading(seriesId);
+    try {
+      const body = { mode };
+      if (mode === 'ai_custom') body.custom_prompt = posterPrompt[seriesId] || '';
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, body, { timeout: 120000 });
+      toast.success(res.data.message || 'Locandina generata!');
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
+    finally { setPosterLoading(null); }
+  };
 
   const releaseSeries = async () => {
     setActionLoading(true);
@@ -376,13 +393,71 @@ export default function SeriesTVPipeline() {
                 <div className="space-y-2">
                   {mySeries.filter(s => s.status === 'completed').map(s => (
                     <Card key={s.id} className="bg-[#111113] border-white/5" data-testid={`completed-series-${s.id}`}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        {s.poster_url && <img src={posterSrc(s.poster_url)} alt="" className="w-12 h-16 rounded object-cover" loading="lazy" />}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate">{s.title}</p>
-                          <p className="text-[10px] text-gray-500">{s.genre_name} - {s.num_episodes} ep. - S{s.season_number}</p>
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          {s.poster_url ? (
+                            <img src={posterSrc(s.poster_url)} alt="" className="w-12 h-16 rounded object-cover" loading="lazy" />
+                          ) : (
+                            <div className="w-12 h-16 rounded bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                              <Film className="w-5 h-5 text-purple-400/50" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{s.title}</p>
+                            <p className="text-[10px] text-gray-500">{s.genre_name} - {s.num_episodes} ep. - S{s.season_number}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
+                            <button
+                              onClick={() => setExpandedPoster(expandedPoster === s.id ? null : s.id)}
+                              className="p-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-all"
+                              data-testid={`poster-toggle-${s.id}`}>
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
+
+                        {/* Poster management section */}
+                        {expandedPoster === s.id && (
+                          <div className="mt-3 p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5">
+                            <p className="text-[10px] text-purple-400 font-semibold mb-2">
+                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                            </p>
+                            
+                            {s.poster_url && (
+                              <div className="flex justify-center mb-2">
+                                <img src={posterSrc(s.poster_url)} alt="Locandina" className="w-20 h-28 object-cover rounded border border-purple-500/20" />
+                              </div>
+                            )}
+
+                            <div className="flex gap-1 mb-2">
+                              {[
+                                { id: 'ai_auto', label: 'AI Automatica' },
+                                { id: 'ai_custom', label: 'AI + Prompt' },
+                              ].map(opt => (
+                                <button key={opt.id} onClick={() => setPosterMode(p => ({...p, [s.id]: opt.id}))}
+                                  className={`flex-1 p-1.5 rounded text-center border transition-all text-[9px] ${(posterMode[s.id] || 'ai_auto') === opt.id ? 'border-purple-500 bg-purple-500/10 text-purple-300' : 'border-gray-700 text-gray-400'}`}
+                                  data-testid={`poster-mode-${opt.id}-${s.id}`}>
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {(posterMode[s.id] || 'ai_auto') === 'ai_custom' && (
+                              <input type="text" placeholder="Descrivi la locandina che vuoi..."
+                                value={posterPrompt[s.id] || ''} onChange={e => setPosterPrompt(p => ({...p, [s.id]: e.target.value}))}
+                                className="w-full mb-2 text-[10px] bg-black/30 border border-gray-700 rounded p-1.5 text-white"
+                                data-testid={`poster-prompt-${s.id}`} />
+                            )}
+
+                            <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-800 text-[10px] h-7"
+                              onClick={() => generateSeriesPoster(s.id)} disabled={posterLoading === s.id}
+                              data-testid={`generate-poster-${s.id}`}>
+                              {posterLoading === s.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

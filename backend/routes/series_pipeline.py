@@ -676,9 +676,14 @@ Includi (max 500 parole):
     return {"screenplay": screenplay_text}
 
 
+class PosterRequest(BaseModel):
+    mode: str = 'ai_auto'  # ai_auto, ai_custom
+    custom_prompt: Optional[str] = None
+
+
 @router.post("/series-pipeline/{series_id}/generate-poster")
-async def generate_series_poster(series_id: str, user: dict = Depends(get_current_user)):
-    """Generate a poster for the series using AI."""
+async def generate_series_poster(series_id: str, body: PosterRequest = PosterRequest(), user: dict = Depends(get_current_user)):
+    """Generate or regenerate a poster for the series using AI."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
         {'_id': 0}
@@ -695,9 +700,12 @@ async def generate_series_poster(series_id: str, user: dict = Depends(get_curren
         img_gen = OpenAIImageGeneration(api_key=key)
         
         is_anime = series['type'] == 'anime'
-        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
-        
-        prompt = f"TV series poster for '{series['title']}', {series.get('genre_name', series['genre'])} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
+
+        if body.mode == 'ai_custom' and body.custom_prompt:
+            prompt = f"{body.custom_prompt}. {'Anime art style.' if is_anime else 'Cinematic TV poster style.'} No text or titles in the image."
+        else:
+            style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
+            prompt = f"TV series poster for '{series['title']}', {series.get('genre_name', series['genre'])} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
         
         images = await img_gen.generate_images(
             prompt=prompt,
@@ -716,9 +724,7 @@ async def generate_series_poster(series_id: str, user: dict = Depends(get_curren
             img = Image.open(io.BytesIO(img_data))
             img = img.resize((400, 600), Image.LANCZOS)
             
-            # Save to MongoDB for persistence
-            from io import BytesIO as _BytesIO
-            buf = _BytesIO()
+            buf = io.BytesIO()
             img.save(buf, 'PNG', optimize=True)
             png_bytes = buf.getvalue()
             
@@ -730,7 +736,7 @@ async def generate_series_poster(series_id: str, user: dict = Depends(get_curren
                 {'id': series_id},
                 {'$set': {'poster_url': poster_url, 'updated_at': datetime.now(timezone.utc).isoformat()}}
             )
-            return {"poster_url": poster_url}
+            return {"poster_url": poster_url, "message": "Locandina generata!"}
     except Exception as e:
         logger.error(f"Poster generation error: {e}")
         raise HTTPException(500, f"Errore generazione poster: {str(e)}")

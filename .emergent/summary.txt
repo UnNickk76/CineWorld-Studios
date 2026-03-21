@@ -1,166 +1,162 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix a critical revenue bug. This expanded to include multiple new feature requests and bug fixes:
-- Fix a drastic drop in total revenue (Incassi).
-- Fix an issue where user Emilians was not receiving revenue.
-- Fix posters not appearing in the Cinema Journal.
-- Fix dashboard scores (Like/Social/Char) being stuck at default values.
-- Implement a complete Casting Agency system, allowing players to recruit, manage, and use their own roster of actors. This includes:
-    - A new Casting Agency page to view agency actors and weekly recruits.
-    - Agency actors have skill levels, preferred genres, and a hidden talent system.
-    - A choice in the Film, TV Series, and Anime pipelines to cast from the Agency or the Market.
-    - Using agency actors provides a fame and XP bonus on film/series release.
-- Update release notes and system notes with all recent changes.
-- Add gender icons next to actor names.
-- Fix an issue where Collect All revenue showed /bin/bash.
-- Fix the Market casting option for TV Series and Anime showing an empty list of actors.
-- Upgrade all 2,000+ existing actors in the game to a new, detailed data model with visible skills and genres, and display them using a rich UI card in all Market casting sections.
+The user initially provided a set of feature requests and bug reports. Throughout the session, new requests and bugs were raised and addressed. The current high-priority task is to make the results of a film's release (event, score, revenue, etc.) persistent and viewable by any player on a dedicated film detail page.
+
+**PRODUCT REQUIREMENTS (current and upcoming):**
+1.  **Persistent Release Results (P0):** When a film is clicked on from anywhere in the app (personal library, leaderboards), it should be possible to view its original release results, including the dynamic event that occurred, final score, revenue, and other stats. This view should be public to all players.
+2.  **Readable AI Screenplay (P1):** The AI-generated screenplay in the film pipeline should be fully readable in a scrollable box, potentially in a modal, and accessible even after it's been generated.
+3.  **Free Visual Trailer System (P1):** Replace the old paid video trailer system with a free, lightweight, storyboard-style visual trailer. This should be generated from the AI screenplay (e.g., 3-5 key scenes as images) and be available during pre-production to generate hype, which should slightly influence the film's final results.
+4.  **Guest Stars for TV Series (P1):** A future feature to allow hiring famous guest stars for a limited number of episodes in a TV series.
+5.  **Contest Page Mobile Layout Bug (P2):** A low-priority, recurring visual bug where the contest page layout is broken on mobile devices.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-- A full-stack cinematic empire game with production pipelines for films, TV series, and anime.
-- The major revenue calculation bug has been fixed, and the dashboard correctly displays total revenue and pending revenue to be collected.
-- A complete, multi-faceted **Casting Agency** system is now implemented:
-    - **Backend**: A new  route handles all agency logic, including viewing the agency, listing weekly recruits, and hiring actors. Actors now have a rich data model including detailed skills, strong/adaptable genres, and hidden talent. Film/Series release logic has been updated to grant bonuses for using agency actors.
-    - **Frontend**: A new  page allows players to manage their agency. The Film, TV Series, and Anime production pipelines now present a choice to cast from the player's private Agency or the public Market.
-- The casting Market for TV Series and Anime is now populated with a global pool of over 2,000 actors, all of whom have been migrated to the new rich data model.
-- The UI for all Market casting has been upgraded to display actors using a detailed rich card format, showing skills, genres, and gender.
-- The Release Notes and System Notes pages are fully updated with the latest features and bug fixes.
+The application is a full-stack cinematic empire game where users produce films, TV series, and anime. Key systems are in place for managing a casting agency, purchasing infrastructure, and navigating complex production pipelines. Recent work has unified UI elements, implemented a full Talent Scout system, and added a rich, narrative-driven Dynamic Release Event system for all content types, complete with a cinematic animated reveal. An admin panel for managing user currency has also been created. Numerous bugs related to infrastructure purchasing, UI navigation, and API timeouts have been resolved.
 
 **Last working item**:
-- **Last item agent was working:** The agent was ensuring that the Market casting proposals for the **film pipeline** also displayed the new rich actor data (specifically, strong and adaptable genres). After migrating all 2,058 actors in the database to the new data model and updating the TV Series/Anime pipelines, the agent was updating the  function in  to include these new fields in its data projection. The user then said Prosegui (Continue), indicating the agent should finalize this last part.
+- **Last item agent was working:** Implementing the user's request to make film release results persistent and publicly viewable. The agent was analyzing the existing backend (, ) and frontend () code to determine the best way to store and display this data. The agent found that the  object is already being saved to the  document in the database upon release.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** manual testing by curl. The agent needs to verify that the response from the  endpoint includes the  and  fields for the proposed actors.
+- **Which testing method agent to use?** both (Backend  to verify the film detail endpoint returns all necessary data; Frontend  to verify the new Release Result section on the  page.)
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1 (P0):** Finalize and verify rich actor data in Film Pipeline casting.
-- **Issue 2 (P1):** Contest Page Mobile Layout Is Broken.
+-   **Issue 1 (P0):** Make film release results persistent and publicly viewable.
+-   **Issue 2 (P2):** Contest Page Mobile Layout Is Broken.
 
 **Issues Detail:**
-- **Issue 1: Finalize and verify rich actor data in Film Pipeline casting**
-  - **Attempted fixes:** The agent correctly identified that the  function in  needed to be updated. The agent added  and  to the projection in the database query.
+- **Issue 1: Make film release results persistent and publicly viewable**
+  - **Attempted fixes:** The agent has investigated the existing code and confirmed that the core data () is already being saved in the  collection. The agent was starting to plan the necessary frontend changes.
   - **Next debug checklist:**
-    1.  Verify the backend change in  is correct.
-    2.  Restart the backend service to apply changes.
-    3.  Call the  endpoint and inspect the response to ensure the  object within the  now contains the new genre fields.
-    4.  The frontend  component in  should already display this data if it's present, but a quick visual check via a screenshot would be beneficial.
-  - **Why fix this issue and what will be achieved with the fix?** To ensure UI consistency across all casting flows (Film, TV, Anime) and fully complete the user's request to upgrade all actor displays.
+    1.  Verify the  endpoint returns the  object and all other necessary stats (final score, modifiers, revenue).
+    2.  In , create a new UI component to display the release event attractively (reusing styles from the cinematic reveal if possible).
+    3.  Render this component within the  page, likely in the right-hand column below the main stats.
+    4.  Ensure this data is loaded and displayed for any film, regardless of ownership.
+  - **Why fix this issue and what will be achieved with the fix?** To make a film's launch a memorable, persistent, and shareable milestone, adding to the game's narrative depth and social element.
   - **Status:** IN PROGRESS
   - **Is recurring issue?** N
-  - **Should Test frontend/backend/both after fix?** backend
+  - **Should Test frontend/backend/both after fix?** both
   - **Blocked on other issue:** None
 
 - **Issue 2: Contest Page Mobile Layout Is Broken**
-  - **Attempted fixes:** None. This is a known, low-priority issue from a previous session.
-  - **Next debug checklist:** Inspect CSS in  using mobile developer tools to identify and fix layout issues.
-  - **Why fix this issue and what will be achieved with the fix?** To make a core game feature accessible to mobile users.
+  - **Attempted fixes:** None in this session.
+  - **Next debug checklist:** Inspect CSS in  using mobile developer tools to identify and fix responsive layout issues.
+  - **Why fix this issue and what will be achieved with the fix?** To improve the user experience on mobile devices for a core game feature.
   - **Status:** NOT STARTED
   - **Is recurring issue?** Y
   - **Should Test frontend/backend/both after fix?** frontend
   - **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1: Complete Rich Actor Data Migration**
-  - **Where to resume:** Verify the changes made to  to ensure casting proposals for films include rich genre data.
-  - **What will be achieved with this?** All actor displays across the entire application will be unified with the new, detailed card format.
+- **Task 1: Implement Persistent & Public Film Release Results**
+  - **Where to resume:** Continue implementation in . The backend part is mostly complete as the data is already being saved and returned. The focus is now on building the UI to display it.
+  - **What will be achieved with this?** Any player will be able to click on any released film and see a summary of its launch, including the dynamic event, final score, and revenue.
   - **Status:** IN PROGRESS
-  - **Should Test frontend/backend/both after fix?** backend
+  - **Should Test frontend/backend/both after fix?** both
   - **Blocked on something:** None
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks:**
-  - (P1) Marketplace for TV/Anime rights.
-  - (P1) A Casting Agency building (visual representation/upgrade path).
-  - (P1) Improve the in-game chat system.
-- **Future Tasks:**
-  - (P1) Implement a formal Role-Based Access Control (RBAC) system.
-  - (P1) Add an option to use CinePass to speed up pipeline steps.
-  - (P2) Decompose large components.
-  - (P2) Implement Stripe integration, PWA functionality, and a tutorial.
+-   **Upcoming Tasks:**
+    -   (P1) **Readable AI Screenplay:** Improve the UI to make the AI-generated screenplay fully readable and scrollable within the Film Pipeline.
+    -   (P1) **Free Visual Trailer System:** Implement a free, storyboard-style trailer generated from the screenplay, available in pre-production to create hype.
+    -   (P1) **Guest Stars for TV Series episodes:** Allow hiring famous actors for a limited number of episodes.
+    -   (P1) **Marketplace for TV/Anime rights.**
+
+-   **Future Tasks:**
+    -   (P2) Improve the in-game chat system.
+    -   (P2) Implement a formal Role-Based Access Control (RBAC) system.
+    -   (P2) Add an option to use CinePass to speed up pipeline steps.
+    -   (P2) Decompose large components.
+    -   (P2) Implement Stripe integration, PWA functionality, and a tutorial.
 
 **Completed work in this session**
-- **Critical Bug Fix (P0): Revenue Drop:** Fixed the core logic in  and  that caused total revenue to decrease. Player revenue was restored from 2.6M to 3M+.
-- **New Feature: Casting Agency System:** Implemented the entire feature from scratch, including backend routes, database models, and frontend pages for managing a personal actor agency.
-- **Refactor: Unified Casting UI:** Upgraded the casting Market UI for TV Series and Anime to use a rich, detailed actor card, consistent with the new Agency and Film casting UI.
-- **Data Migration: Rich Actor Data:** Wrote and executed a successful migration script to update all 2,058 actors in the  collection with a new, detailed data structure including skills and genre preferences.
-- **Bug Fix: Empty Series Market:** Fixed the  endpoint to correctly query the global  collection, populating the previously empty market.
-- **Bug Fix: Zero Pending Revenue:** Fixed a data structure mismatch between the  endpoint and the frontend, which caused the Collect All button to show /bin/bash.
-- **Bug Fix: Journal Posters & Dashboard Scores:** Fixed two bugs reported by the user: posters now appear in the Cinema Journal, and Like/Social/Charisma scores update correctly on the dashboard.
-- **Admin: Release & System Notes:** Updated the in-game Release Notes and System Notes pages with details of all new features and bug fixes.
-- **UI Tweak: Gender Icons:** Added gender icons (♂/♀) to actor cards in the Casting Agency page.
+-   **Talent Scout System:** Completed and verified the entire feature, including UI, backend logic, and replacement of the old Weekly Recruits system.
+-   **Purchased Screenplays:** Implemented the full flow to buy, view, and use scouted screenplays in film production.
+-   **Dynamic Release Events:** Implemented a narrative event system for Films, TV Series, and Anime, including a cinematic, animated, multi-phase reveal experience. All backend logic to generate and apply event modifiers is complete.
+-   **Admin Panel:** Created a new, admin-only page () allowing management of user money and CinePass credits, with a user search feature.
+-   **Poster Generation for Series/Anime:** Completed the backend and frontend implementation for generating posters for TV series and anime, including the ability to edit/regenerate them post-release.
+-   **Release Timeout Bug Fix:** Refactored the film release endpoint to run long AI generation tasks (poster, synopsis) in the background, preventing frontend timeouts and ensuring a smooth user experience.
+-   **Multiple Bug Fixes:**
+    -   Resolved an issue where unique infrastructures (TV Studio, Anime Studio) could be purchased multiple times.
+    -   Fixed a bug where the My TV dashboard card showed 0 stations.
+    -   Corrected a broken navigation link from the TV dashboard popup to the TV management page.
+    -   Improved UX for the Talent Scout tab to clarify when all talents have been recruited.
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: Contest Page Mobile Layout Is Broken**
+    -   A recurring, low-priority visual bug that needs CSS adjustments for mobile viewports.
+
+**Known issue recurrence from previous fork**
+-   **Issue recurrence in previous fork:** Contest Page Mobile Layout Is Broken
+-   **Recurrence count:** 2+
+-   **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **One-off Data Migration:** A script was written and executed to modify an entire collection in MongoDB (2,058  documents) in-place, adding new fields and standardizing the data structure without downtime.
-- **Frontend Component Refactoring:** The simple actor list in the TV/Anime pipelines was replaced with a more complex, reusable rich actor card component, promoting UI consistency.
-- **Conditional UI Rendering:** The casting tabs in all pipelines were refactored to conditionally render different UIs based on the user's choice (Agency vs. Market).
-- **Backend Response Synchronization:** Debugged and fixed multiple issues caused by a mismatch between the data structure returned by a backend API and the structure expected by the frontend client.
+-   **Asynchronous Background Tasks:** Using  to run long-running AI operations (poster/synopsis generation) in the background, preventing API timeouts and improving frontend responsiveness.
+-   **State-Driven Cinematic UI:** Using timed  calls and sequential  updates in React to create a multi-phase, animated, full-screen cinematic reveal for release events.
+-   **Feature-Gated Admin Panel:** Conditionally rendering UI elements ( link) and protecting backend routes based on a hardcoded user nickname ().
+-   **Data Unification for Legacy Systems:** Modifying a primary API endpoint () to query and merge data from both a new system () and a legacy one () to provide a consistent view to the frontend without a data migration.
 
 **key DB schema**
-- **people:** (Heavily Modified) All 2,058 actor documents now include , , , , and standardized .
-- **agency_actors:** (New Collection) Stores actors recruited by a player. Schema: .
-- **agency_recruits_log:** (New Collection) Tracks which weekly recruits have been hired by a user to prevent re-hiring.
-- **films:** The  field is now added upon release to calculate bonuses.
+-   **films:** The  object is now populated on release. Other fields like , , ,  are also saved, making the release result persistent.
+-   **users:** Has a  field, now manageable via the admin panel.
+-   **purchased_screenplays:** Added  and  fields to track usage.
 
 **All files of reference**
-- 
-- 
-- 
-- 
-- 
-- 
-- 
-- 
-- 
-- 
+-   
+-   
+-   
+-   
+-   
+-   
+-   
 
 **Critical Info for New Agent**
-- **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
-- **HIGHEST PRIORITY (P0):** Your first action should be to complete the last user request: verifying that the film pipeline's Market casting correctly displays rich actor data (genres, etc.). This involves a final check of  and testing the API response.
-- **User is Engaged:** The user is highly engaged, providing frequent feedback, new feature ideas, and bug reports with images. Maintain a collaborative and responsive tone.
+-   **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
+-   **IMMEDIATE TASK (P0):** Your first priority is to complete the implementation of persistent release results. This mainly involves frontend work on  to display the data that is already being saved.
+-   **UPCOMING TASK (P1):** After completing the current task, the user wants to focus on improving the AI screenplay readability and implementing a new, free, storyboard-style trailer system. Be prepared to plan and discuss this next.
 
 **documents and test reports created in this job**
-- 
-- 
-- 
+-   
+-   
+-   
+-    (Updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks for an opinion on the game's potential. (Answered)
-2.  **User:** Reports Collect All shows /bin/bash. (Resolved)
-3.  **User:** Reports Market casting for TV series is empty. (Resolved)
-4.  **User:** Requests that all Market actors be upgraded to the new rich data model and UI. (In Progress)
-5.  **User:** Says Prosegui (Continue), prompting the agent to continue with the rich actor data implementation. (Pending Action)
-6.  **User:** Asks to update release/system notes. (Resolved)
-7.  **User:** Asks for gender icons in the agency. (Resolved)
-8.  **User:** Acknowledges the plan for the casting agency.
-9.  **User:** Adds more detailed requirements for the casting agency.
-10. **User:** Requests the large Casting Agency feature.
+1.  **User:** Requests an admin panel to manage user currency. (Completed)
+2.  **Agent:** Implements the admin panel. (Completed)
+3.  **User:** Reports a bug in Le mie TV navigation. (Completed)
+4.  **Agent:** Fixes the navigation bug. (Completed)
+5.  **User:** Reports a bug where the film release result screen fails to appear due to an error. (Completed)
+6.  **Agent:** Fixes the release timeout bug by moving AI generation to a background task. (Completed)
+7.  **User:** Submits a large, multi-part request for improving AI screenplays and adding a free visual trailer system. (Upcoming Task)
+8.  **Agent:** Proposes a plan to tackle the user's multi-part request. (Superseded)
+9.  **User:** Interrupts and reprioritizes. Asks to first make film release results persistent and viewable by everyone. (Current Task)
+10. **Agent:** Acknowledges the new priority and begins investigating the implementation for persistent release results. (In Progress)
 
 **Project Health Check:**
-- **Broken:**
-  - Contest Page mobile layout is still broken.
-- **Mocked:**
-  - None.
+-   **Broken:**
+    -   Contest Page mobile layout remains broken (low priority).
+-   **Mocked:**
+    -   None.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
-- **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
-- **Pillow:** Used for image manipulation on the backend.
-- **APScheduler:** Used for backend scheduled tasks.
+-   **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key. Used for audience comments, dynamic events, and AI synopsis.
+-   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key. Used for generating film/series posters.
+-   **APScheduler:** Used for backend scheduled game tasks.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. The agent used the testing agent successfully after both the initial large bug-fixing session and the implementation of the Casting Agency feature.
-- **Troubleshoot agent used after agent stuck in loop:** NO.
-- **Test files created:** None.
-- **Known regressions:** None. All regressions identified during the session were fixed.
+-   **Testing agent used after significant changes:** YES. The agent successfully used the testing agent to verify the Talent Scout System and the Dynamic Release Events system.
+-   **Troubleshoot agent used after agent stuck in loop:** NO.
+-   **Test files created:** None.
+-   **Known regressions:** None.
 
 **Credentials to test flow:**
-- **User:** 
-- **Password:** 
+-   **User:** 
+-   **Password:** 
 
 **What agent forgot to execute**
-The agent was in the final steps of implementing the rich actor data for the Film Pipeline's Market view when it was forked. The user's last message was Prosegui (Continue), so the immediate next action is to finish that task and verify it.</analysis>
+-   Nothing. The agent correctly handled the user's reprioritization, moving the screenplay/trailer feature to the upcoming task list and focusing on the new P0 task of persistent release results.</analysis>

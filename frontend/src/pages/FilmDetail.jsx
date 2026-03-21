@@ -861,6 +861,182 @@ const FilmDetail = () => {
               </div>
             </DialogContent>
           </Dialog>
+          {/* Release Results Section - Visible to all players */}
+          {(film.release_event || film.film_tier || film.advanced_factors) && (
+            <Card className={`border overflow-hidden ${
+              film.release_event?.type === 'positive' ? 'bg-gradient-to-br from-emerald-500/10 via-[#1A1A1A] to-green-500/5 border-emerald-500/30' :
+              film.release_event?.type === 'negative' ? 'bg-gradient-to-br from-red-500/10 via-[#1A1A1A] to-orange-500/5 border-red-500/30' :
+              'bg-gradient-to-br from-amber-500/10 via-[#1A1A1A] to-yellow-500/5 border-amber-500/30'
+            }`} data-testid="release-results-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                  <Sparkles className={`w-5 h-5 ${
+                    film.release_event?.type === 'positive' ? 'text-emerald-400' :
+                    film.release_event?.type === 'negative' ? 'text-red-400' : 'text-amber-400'
+                  }`} />
+                  {language === 'it' ? 'Risultati del Rilascio' : 'Release Results'}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {language === 'it' ? 'Riepilogo dell\'uscita in sala' : 'Theater release summary'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Film Tier Badge */}
+                {film.film_tier && (
+                  <div className={`flex items-center justify-between p-3 rounded-lg ${
+                    film.film_tier === 'masterpiece' ? 'bg-yellow-500/15 border border-yellow-500/30' :
+                    film.film_tier === 'epic' ? 'bg-purple-500/15 border border-purple-500/30' :
+                    film.film_tier === 'excellent' ? 'bg-blue-500/15 border border-blue-500/30' :
+                    film.film_tier === 'good' ? 'bg-green-500/15 border border-green-500/30' :
+                    film.film_tier === 'promising' ? 'bg-teal-500/15 border border-teal-500/30' :
+                    film.film_tier === 'flop' ? 'bg-red-500/15 border border-red-500/30' :
+                    'bg-white/5 border border-white/10'
+                  }`} data-testid="film-tier-badge">
+                    <div className="flex items-center gap-2">
+                      <Crown className={`w-5 h-5 ${
+                        film.film_tier === 'masterpiece' ? 'text-yellow-400' :
+                        film.film_tier === 'epic' ? 'text-purple-400' :
+                        film.film_tier === 'excellent' ? 'text-blue-400' :
+                        film.film_tier === 'good' ? 'text-green-400' :
+                        film.film_tier === 'flop' ? 'text-red-400' : 'text-gray-400'
+                      }`} />
+                      <div>
+                        <p className={`font-bold text-sm uppercase ${
+                          film.film_tier === 'masterpiece' ? 'text-yellow-400' :
+                          film.film_tier === 'epic' ? 'text-purple-400' :
+                          film.film_tier === 'excellent' ? 'text-blue-400' :
+                          film.film_tier === 'good' ? 'text-green-400' :
+                          film.film_tier === 'flop' ? 'text-red-400' : 'text-gray-300'
+                        }`}>{film.film_tier}</p>
+                        <p className="text-[10px] text-gray-500">{language === 'it' ? 'Tier del Film' : 'Film Tier'}</p>
+                      </div>
+                    </div>
+                    {film.tier_score != null && (
+                      <span className="text-lg font-bold text-white/80">{film.tier_score?.toFixed?.(0) || film.tier_score}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Release Event */}
+                {film.release_event && (
+                  <div className={`p-3 rounded-lg space-y-2 ${
+                    film.release_event.type === 'positive' ? 'bg-emerald-500/10 border border-emerald-500/20' :
+                    film.release_event.type === 'negative' ? 'bg-red-500/10 border border-red-500/20' :
+                    'bg-amber-500/10 border border-amber-500/20'
+                  }`} data-testid="release-event-detail">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {film.release_event.type === 'positive' ? (
+                          <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        ) : film.release_event.type === 'negative' ? (
+                          <TrendingDown className="w-4 h-4 text-red-400" />
+                        ) : (
+                          <Activity className="w-4 h-4 text-amber-400" />
+                        )}
+                        <span className={`font-semibold text-sm ${
+                          film.release_event.type === 'positive' ? 'text-emerald-400' :
+                          film.release_event.type === 'negative' ? 'text-red-400' : 'text-amber-400'
+                        }`}>{film.release_event.name}</span>
+                      </div>
+                      <Badge className={`text-[10px] ${
+                        film.release_event.rarity === 'rare' ? 'bg-yellow-500/30 text-yellow-300' :
+                        film.release_event.rarity === 'uncommon' ? 'bg-blue-500/30 text-blue-300' :
+                        'bg-gray-500/30 text-gray-300'
+                      }`}>{film.release_event.rarity === 'rare' ? (language === 'it' ? 'Raro' : 'Rare') : film.release_event.rarity === 'uncommon' ? (language === 'it' ? 'Non Comune' : 'Uncommon') : (language === 'it' ? 'Comune' : 'Common')}</Badge>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed italic">
+                      "{film.release_event.description}"
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      {film.release_event.quality_modifier !== 0 && (
+                        <Badge className={`text-[10px] ${film.release_event.quality_modifier > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {language === 'it' ? 'Qualità' : 'Quality'} {film.release_event.quality_modifier > 0 ? '+' : ''}{film.release_event.quality_modifier}
+                        </Badge>
+                      )}
+                      {film.release_event.revenue_modifier !== 0 && (
+                        <Badge className={`text-[10px] ${film.release_event.revenue_modifier > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {language === 'it' ? 'Ricavi' : 'Revenue'} {film.release_event.revenue_modifier > 0 ? '+' : ''}{film.release_event.revenue_modifier}%
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Key Release Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Qualità Finale' : 'Final Quality'}</p>
+                    <p className="text-lg font-bold text-white">{film.quality_score?.toFixed?.(0) || 0}%</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Apertura' : 'Opening'}</p>
+                    <p className="text-lg font-bold text-green-400">${(film.opening_day_revenue || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">IMDb</p>
+                    <p className="text-lg font-bold text-yellow-400">{film.imdb_rating?.toFixed?.(1) || '—'}</p>
+                  </div>
+                  <div className="p-2 rounded bg-black/20 text-center">
+                    <p className="text-[10px] text-gray-400">{language === 'it' ? 'Incasso Totale' : 'Total Revenue'}</p>
+                    <p className="text-lg font-bold text-emerald-400">${(film.total_revenue || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Advanced Factors Breakdown */}
+                {film.advanced_factors && Object.keys(film.advanced_factors).length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-[10px] text-gray-500 uppercase font-semibold flex items-center gap-1">
+                      <BarChart3 className="w-3 h-3" />
+                      {language === 'it' ? 'Modificatori di Qualità' : 'Quality Modifiers'}
+                    </p>
+                    <div className="space-y-1">
+                      {Object.entries(film.advanced_factors).map(([key, val]) => {
+                        const isPositive = typeof val === 'string' && val.trim().startsWith('+');
+                        const isNegative = typeof val === 'string' && val.trim().startsWith('-');
+                        return (
+                          <div key={key} className="flex items-center justify-between py-1 px-2 rounded bg-black/20 text-xs">
+                            <span className="text-gray-400 capitalize">{key.replace(/_/g, ' ')}</span>
+                            <span className={`font-mono font-semibold ${isPositive ? 'text-emerald-400' : isNegative ? 'text-red-400' : 'text-gray-300'}`}>{val}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Critic Reviews Summary */}
+                {film.critic_reviews && film.critic_reviews.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-[10px] text-gray-500 uppercase font-semibold flex items-center gap-1">
+                      <Newspaper className="w-3 h-3" />
+                      {language === 'it' ? 'Recensioni della Critica' : 'Critic Reviews'}
+                    </p>
+                    <div className="space-y-1">
+                      {film.critic_reviews.slice(0, 3).map((review, idx) => (
+                        <div key={idx} className={`p-2 rounded text-xs ${
+                          review.sentiment === 'positive' || review.rating >= 7 ? 'bg-emerald-500/10 border-l-2 border-emerald-500' :
+                          review.sentiment === 'negative' || review.rating <= 4 ? 'bg-red-500/10 border-l-2 border-red-500' :
+                          'bg-amber-500/10 border-l-2 border-amber-500'
+                        }`}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="font-medium text-[10px] text-gray-300">{review.critic_name || review.reviewer || 'Critic'}</span>
+                            <span className={`font-bold text-[10px] ${
+                              (review.rating || review.score || 0) >= 7 ? 'text-emerald-400' :
+                              (review.rating || review.score || 0) <= 4 ? 'text-red-400' : 'text-amber-400'
+                            }`}>{review.rating || review.score || '—'}/10</span>
+                          </div>
+                          {(review.text || review.review) && (
+                            <p className="text-gray-400 italic text-[10px] leading-tight">"{(review.text || review.review).substring(0, 120)}{(review.text || review.review).length > 120 ? '...' : ''}"</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Trailer Section */}
           <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30" data-testid="trailer-section">
             <CardHeader className="pb-2">

@@ -5324,6 +5324,10 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('popularity_score', 0)
     film.setdefault('distribution_zone', None)
     film.setdefault('distribution_cost', 0)
+    film.setdefault('release_event', None)
+    film.setdefault('advanced_factors', {})
+    film.setdefault('soundtrack_rating', None)
+    film.setdefault('critic_reviews', [])
     
     return film
 

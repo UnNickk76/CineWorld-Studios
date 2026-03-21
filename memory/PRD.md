@@ -16,31 +16,29 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - TV station management, Cinema Journal, CineBoard, Hall of Fame, Festivals
 - Infrastructure, Acting school, Friend system, chat, challenges, leaderboards
 
-### Dynamic Release Events System (NEW - 2026-03-21)
-- 19 eventi narrativi unici al rilascio film (scandalo, successo virale, selezione festival, flop, endorsement celebrity, ecc.)
-- Tre tipi: positivo, negativo, neutro con 3 livelli di rarità
-- Ogni evento modifica qualità e incassi del film
-- Descrizioni personalizzate con titolo del film
-- Bias qualità: film migliori = più probabilità eventi positivi
-- Frontend: card evento colorata nel risultato rilascio (verde/rosso/ambra), badge RARO per eventi rari
+### Dynamic Release Events System (Film + Serie TV + Anime)
+- **Film**: 19 eventi narrativi (scandalo, successo virale, fenomeno culturale, ecc.)
+- **Serie TV**: 16 eventi tematici (Binge Watching Virale, Record Streaming, Spoiler Diffusi, ecc.)
+- **Anime**: 15 eventi tematici (Fandom Esplosivo, Sakuga Leggendario, Sensazione Globale, ecc.)
+- Tre tipi: positivo/negativo/neutro, 3 livelli rarità
+- Modifica qualità e incassi, bias qualità, varianza ±20%
+- **Cinematic reveal a 3 fasi** su tutti i contenuti: titolo → evento → risultati
+- Animazioni: fadeIn, slideUp, scaleIn, eventReveal, shakeIn (rari), shimmer, countUp
 
-### Poster Management for Series/Anime
-- Generate/regenerate poster for completed series/anime
-- Two modes: AI Automatica, AI + Prompt personalizzato
-- Automatic poster generation at release with background task + polling
+### Poster Management
+- Generate/regenerate poster for Film, Series, Anime
+- AI Automatica + AI + Prompt personalizzato
+- Automatic background generation at release with polling
 
 ### Talent Scout System
-- Talent Scout Attori + Sceneggiatori (infrastructure-gated)
-- Scout tabs in Casting Agency when infrastructure owned
-- Purchased screenplays usable in Film Pipeline creation
+- Talent Scout Attori + Sceneggiatori
+- Purchased screenplays usable in Film Pipeline
 
-### Bug Fixes Applied
-- TV Dashboard "0 emittenti" for legacy emittente_tv system
-- Infrastructure unique_types missing studio_serie_tv/studio_anime
-- Scout tab rendering missing in CastingAgencyPage
+### Bug Fixes
+- TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 
 ## Backlog
 - (P1) Guest Star per puntate singole Serie TV
 - (P1) Marketplace diritti TV/Anime
 - (P2) Fix layout mobile Contest Page
-- (P2) RBAC, CinePass, Stripe, PWA, Tutorial, Component decomposition
+- (P2) RBAC, CinePass, Stripe, PWA, Tutorial

@@ -40,6 +40,14 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Release Event detail (name, description, rarity, type) shows for pipeline-released films
 - Color-coded positive/negative modifiers, tier-specific badge styling
 
+### TV Station System Refactor (2026-03-21)
+- Auto-provisions tv_station from emittente_tv infrastructure using infrastructure custom_name
+- Infrastructure level determines schedule capacity (Lv.1: 3 film, 2 serie, 2 anime = 7 total)
+- Dashboard "Le Mie TV" navigates directly to station page (no popup for single station)
+- /my-tv route redirects to new TV station system
+- Station page shows level, capacity, content counts per category
+- Eliminated legacy_stations system
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

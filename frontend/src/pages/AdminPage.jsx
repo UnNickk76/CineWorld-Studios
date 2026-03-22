@@ -521,9 +521,9 @@ function MaintenanceTab({ api }) {
       const res = await api.post('/admin/repair-database');
       setRepairResult(res.data);
       if (res.data.total_fixed > 0) {
-        toast.success(`Riparazione completata: ${res.data.total_fixed} problemi risolti`);
+        toast.success(`${res.data.total_fixed} problemi logici risolti!`);
       } else {
-        toast.success('Nessun problema trovato nel database');
+        toast.success('Nessun problema logico trovato');
       }
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore durante la riparazione');
@@ -532,23 +532,49 @@ function MaintenanceTab({ api }) {
     }
   };
 
+  const actionLabels = {
+    'proposed': 'Reset a Proposta',
+    'concept': 'Reset a Concept',
+    'discarded': 'Scartato',
+    'ready_for_casting': 'Sbloccato a Ready for Casting',
+  };
+
+  const categoryLabels = {
+    'films_invalid_status': 'Film - Stato invalido',
+    'films_stuck_casting': 'Film - Bloccati in Casting',
+    'films_stuck_screenplay': 'Film - Bloccati in Sceneggiatura',
+    'films_stuck_preproduction': 'Film - Bloccati in Pre-Produzione',
+    'films_stuck_coming_soon': 'Film - Coming Soon scaduti',
+    'films_missing_basics': 'Film - Dati base mancanti',
+    'series_invalid_status': 'Serie - Stato invalido',
+    'series_stuck_casting': 'Serie - Bloccate in Casting',
+    'series_stuck_screenplay': 'Serie - Bloccate in Sceneggiatura',
+    'series_stuck_production': 'Serie - Bloccate in Produzione',
+    'series_stuck_coming_soon': 'Serie - Coming Soon scaduti',
+    'series_missing_basics': 'Serie - Dati base mancanti',
+  };
+
   return (
     <div className="space-y-4" data-testid="maintenance-tab">
       <Card className="bg-[#111113] border-yellow-500/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
             <Wrench className="w-4 h-4" />
-            Riparazione Database
+            Riparazione Database Avanzata
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-gray-400 leading-relaxed">
-            Questo strumento analizza e ripara automaticamente tutti i progetti corrotti nel database:
+            Analizza TUTTI i progetti nel database e verifica la <span className="text-yellow-400 font-semibold">coerenza logica del flusso</span>:
           </p>
           <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
-            <li>Film/Serie in fase casting/sceneggiatura senza dati del cast → reset a "proposto"</li>
-            <li>Progetti con stati invalidi → scartati</li>
-            <li>Progetti senza ID o titolo → rimossi</li>
+            <li>Film in Casting senza proposte → reset a Proposta</li>
+            <li>Film in Sceneggiatura senza cast completo → reset a Proposta</li>
+            <li>Film in Sceneggiatura senza sinossi/genere → reset a Proposta</li>
+            <li>Film in Pre-Produzione senza sceneggiatura → reset a Proposta</li>
+            <li>Coming Soon con timer scaduto mai rilasciati → sbloccati</li>
+            <li>Serie senza cast/genere/episodi nelle fasi avanzate → reset</li>
+            <li>Progetti con stati invalidi o dati base mancanti → scartati</li>
           </ul>
           <Button
             onClick={repairDatabase}
@@ -557,34 +583,71 @@ function MaintenanceTab({ api }) {
             data-testid="repair-database-btn"
           >
             {repairLoading ? (
-              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Riparazione in corso...</>
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analisi e riparazione in corso...</>
             ) : (
-              <><Wrench className="w-4 h-4 mr-2" /> Ripara Database</>
+              <><Wrench className="w-4 h-4 mr-2" /> Analizza e Ripara Database</>
             )}
           </Button>
 
           {repairResult && (
-            <Card className={`border ${repairResult.total_fixed > 0 ? 'border-green-500/30 bg-green-500/5' : 'border-gray-700 bg-gray-800/30'}`}>
-              <CardContent className="p-3 space-y-2">
-                <p className="text-xs font-semibold text-white">
-                  {repairResult.total_fixed > 0
-                    ? `${repairResult.total_fixed} problemi risolti`
-                    : 'Nessun problema trovato'}
-                </p>
-                {repairResult.report && Object.entries(repairResult.report).map(([key, items]) => (
-                  items.length > 0 && (
-                    <div key={key} className="space-y-1">
-                      <p className="text-[10px] text-yellow-400 font-medium uppercase">{key.replace(/_/g, ' ')}</p>
-                      {items.map((item, i) => (
-                        <p key={i} className="text-[10px] text-gray-400">
-                          {item.title || item.id || item._id} {item.old_status ? `(${item.old_status})` : ''}
-                        </p>
-                      ))}
+            <div className="space-y-3">
+              {/* Stats summary */}
+              <Card className="border border-blue-500/30 bg-blue-500/5">
+                <CardContent className="p-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-lg font-black text-white">{repairResult.films_analyzed ?? 0}</p>
+                      <p className="text-[9px] text-gray-500">Film analizzati</p>
                     </div>
-                  )
-                ))}
-              </CardContent>
-            </Card>
+                    <div>
+                      <p className="text-lg font-black text-white">{repairResult.series_analyzed ?? 0}</p>
+                      <p className="text-[9px] text-gray-500">Serie analizzate</p>
+                    </div>
+                    <div>
+                      <p className={`text-lg font-black ${repairResult.total_fixed > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {repairResult.total_fixed}
+                      </p>
+                      <p className="text-[9px] text-gray-500">Problemi risolti</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Detailed report */}
+              {repairResult.total_fixed > 0 && repairResult.report && (
+                <Card className="border border-yellow-500/20 bg-yellow-500/5">
+                  <CardContent className="p-3 space-y-3">
+                    <p className="text-xs font-bold text-yellow-400">Dettaglio riparazioni:</p>
+                    {Object.entries(repairResult.report).map(([key, items]) => (
+                      items.length > 0 && (
+                        <div key={key} className="space-y-1">
+                          <p className="text-[10px] text-yellow-400 font-semibold">{categoryLabels[key] || key} ({items.length})</p>
+                          {items.map((item, i) => (
+                            <div key={i} className="bg-black/30 rounded px-2 py-1.5 space-y-0.5">
+                              <p className="text-[10px] text-white font-medium">{item.title || item.id}</p>
+                              <p className="text-[9px] text-gray-500">{item.reason}</p>
+                              <Badge className={`text-[8px] ${item.action === 'discarded' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                                {actionLabels[item.action] || item.action}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {repairResult.total_fixed === 0 && (
+                <Card className="border border-green-500/20 bg-green-500/5">
+                  <CardContent className="p-3 text-center">
+                    <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-1" />
+                    <p className="text-xs text-green-400 font-semibold">Tutti i progetti sono logicamente coerenti</p>
+                    <p className="text-[9px] text-gray-500 mt-1">{repairResult.total_analyzed} progetti analizzati, nessun blocco trovato</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

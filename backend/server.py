@@ -7455,93 +7455,216 @@ VALID_SERIES_STATUSES_REPAIR = {'concept', 'coming_soon', 'ready_for_casting', '
 
 @api_router.post("/admin/repair-database")
 async def admin_repair_database(user: dict = Depends(get_current_user)):
-    """Comprehensive database repair: fix all corrupted projects for ALL users.
-    Admin only. Run this after deploy to clean production database."""
+    """Comprehensive LOGICAL database repair for ALL users.
+    Checks flow consistency, not just missing data."""
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin può eseguire la riparazione")
     
-    now_str = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
+    
+    stats = {'films_analyzed': 0, 'series_analyzed': 0}
     report = {
         'films_invalid_status': [],
-        'films_missing_cast': [],
-        'films_missing_id_title': [],
+        'films_stuck_casting': [],
+        'films_stuck_screenplay': [],
+        'films_stuck_preproduction': [],
+        'films_stuck_coming_soon': [],
+        'films_missing_basics': [],
         'series_invalid_status': [],
-        'series_missing_cast': [],
-        'series_missing_id_title': [],
+        'series_stuck_casting': [],
+        'series_stuck_screenplay': [],
+        'series_stuck_production': [],
+        'series_stuck_coming_soon': [],
+        'series_missing_basics': [],
     }
     
-    # === FILM PROJECTS ===
-    # 1. Discard films with invalid status
-    async for f in db.film_projects.find({'status': {'$nin': list(VALID_FILM_STATUSES_REPAIR)}}):
-        await db.film_projects.update_one(
-            {'id': f['id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_invalid_status'}}
-        )
-        report['films_invalid_status'].append({'id': f.get('id'), 'title': f.get('title'), 'old_status': f.get('status')})
-    
-    # 2. Reset films in casting/screenplay/pre_production without essential cast data
-    async for f in db.film_projects.find({
-        'status': {'$in': ['casting', 'screenplay', 'pre_production']},
-    }):
-        cast = f.get('cast') or {}
-        cast_proposals = f.get('cast_proposals') or {}
-        has_cast = isinstance(cast, dict) and (cast.get('director') or cast.get('actors'))
-        has_proposals = isinstance(cast_proposals, dict) and len(cast_proposals) > 0
+    # ============================
+    # FILM PROJECTS - Full scan
+    # ============================
+    async for f in db.film_projects.find({'status': {'$nin': ['discarded', 'abandoned']}}, {'_id': 0}):
+        stats['films_analyzed'] += 1
+        fid = f.get('id', '?')
+        ftitle = f.get('title', '?')
+        fstatus = f.get('status', '?')
+        is_full_package = f.get('from_emerging_screenplay') and f.get('emerging_option') == 'full_package'
+        action = None
+        reason = ''
         
-        if not has_cast and not has_proposals:
-            await db.film_projects.update_one(
-                {'id': f['id']},
-                {'$set': {'status': 'proposed', 'reset_reason': 'admin_repair_missing_cast', 'updated_at': now_str}}
-            )
-            report['films_missing_cast'].append({'id': f.get('id'), 'title': f.get('title'), 'old_status': f.get('status')})
-    
-    # 3. Discard films missing id or title
-    async for f in db.film_projects.find({'$or': [{'id': {'$exists': False}}, {'title': {'$exists': False}}, {'id': None}, {'title': None}]}):
-        oid = str(f.get('_id', ''))
-        await db.film_projects.update_one(
-            {'_id': f['_id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_id_title'}}
-        )
-        report['films_missing_id_title'].append({'_id': oid})
-    
-    # === TV SERIES ===
-    # 4. Discard series with invalid status
-    async for s in db.tv_series.find({'status': {'$nin': list(VALID_SERIES_STATUSES_REPAIR)}}):
-        await db.tv_series.update_one(
-            {'id': s['id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_invalid_status'}}
-        )
-        report['series_invalid_status'].append({'id': s.get('id'), 'title': s.get('title'), 'old_status': s.get('status')})
-    
-    # 5. Reset series in casting/screenplay/production without cast
-    async for s in db.tv_series.find({
-        'status': {'$in': ['casting', 'screenplay', 'production']},
-    }):
-        cast = s.get('cast')
-        has_cast = cast and ((isinstance(cast, list) and len(cast) > 0) or (isinstance(cast, dict) and bool(cast)))
+        # 1. Invalid status
+        if fstatus not in VALID_FILM_STATUSES_REPAIR:
+            action = 'discarded'
+            reason = f'Stato invalido: {fstatus}'
+            report['films_invalid_status'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
         
-        if not has_cast:
-            await db.tv_series.update_one(
-                {'id': s['id']},
-                {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_cast'}}
-            )
-            report['series_missing_cast'].append({'id': s.get('id'), 'title': s.get('title'), 'old_status': s.get('status')})
+        # 2. Missing basic fields (id, title, genre)
+        elif not f.get('id') or not f.get('title'):
+            action = 'discarded'
+            reason = 'ID o titolo mancante'
+            report['films_missing_basics'].append({'id': fid, 'title': ftitle, 'action': action, 'reason': reason})
+        
+        # 3. CASTING: must have non-empty cast_proposals with actual proposals
+        elif fstatus == 'casting':
+            cast_proposals = f.get('cast_proposals') or {}
+            total_proposals = 0
+            if isinstance(cast_proposals, dict):
+                for role, props in cast_proposals.items():
+                    if isinstance(props, list):
+                        total_proposals += len(props)
+            if total_proposals == 0:
+                action = 'proposed'
+                reason = f'Casting senza proposte (cast_proposals vuote o assenti)'
+                report['films_stuck_casting'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
+        
+        # 4. SCREENPLAY: must have complete cast OR be full_package, must have pre_screenplay and genre
+        elif fstatus == 'screenplay':
+            cast = f.get('cast') or {}
+            problems = []
+            if not is_full_package:
+                if not (isinstance(cast, dict) and cast.get('director')):
+                    problems.append('regista mancante')
+                if not (isinstance(cast, dict) and cast.get('screenwriter')):
+                    problems.append('sceneggiatore mancante')
+                if not (isinstance(cast, dict) and cast.get('composer')):
+                    problems.append('compositore mancante')
+                if not (isinstance(cast, dict) and cast.get('actors') and len(cast['actors']) > 0):
+                    problems.append('attori mancanti')
+            if not f.get('pre_screenplay') and not f.get('screenplay'):
+                problems.append('sinossi/sceneggiatura mancante')
+            if not f.get('genre'):
+                problems.append('genere mancante')
+            if problems:
+                action = 'proposed'
+                reason = f'Sceneggiatura bloccata: {", ".join(problems)}'
+                report['films_stuck_screenplay'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
+        
+        # 5. PRE_PRODUCTION: must have screenplay text OR be full_package
+        elif fstatus == 'pre_production':
+            if not f.get('screenplay') and not is_full_package:
+                action = 'proposed'
+                reason = 'Pre-produzione senza sceneggiatura completata'
+                report['films_stuck_preproduction'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
+        
+        # 6. COMING_SOON with expired timer: auto-release to ready_for_casting
+        elif fstatus == 'coming_soon':
+            sra = f.get('scheduled_release_at')
+            if sra:
+                try:
+                    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if now >= release_dt:
+                        action = 'ready_for_casting'
+                        reason = f'Coming Soon scaduto (timer {sra}) mai rilasciato'
+                        report['films_stuck_coming_soon'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
+                except Exception:
+                    pass
+        
+        # Apply fix
+        if action:
+            update = {'updated_at': now_str, 'repair_reason': reason}
+            if action == 'discarded':
+                update['status'] = 'discarded'
+                update['discarded_at'] = now_str
+                update['discard_reason'] = f'admin_repair: {reason}'
+            elif action == 'proposed':
+                update['status'] = 'proposed'
+                update['reset_reason'] = f'admin_repair: {reason}'
+            elif action == 'ready_for_casting':
+                update['status'] = 'ready_for_casting'
+            await db.film_projects.update_one({'id': fid}, {'$set': update})
     
-    # 6. Discard series missing id or title
-    async for s in db.tv_series.find({'$or': [{'id': {'$exists': False}}, {'title': {'$exists': False}}, {'id': None}, {'title': None}]}):
-        oid = str(s.get('_id', ''))
-        await db.tv_series.update_one(
-            {'_id': s['_id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_id_title'}}
-        )
-        report['series_missing_id_title'].append({'_id': oid})
+    # ============================
+    # TV SERIES - Full scan
+    # ============================
+    async for s in db.tv_series.find({'status': {'$nin': ['discarded', 'abandoned']}}, {'_id': 0}):
+        stats['series_analyzed'] += 1
+        sid = s.get('id', '?')
+        stitle = s.get('title', '?')
+        sstatus = s.get('status', '?')
+        is_anime = s.get('type') == 'anime'
+        action = None
+        reason = ''
+        
+        # 1. Invalid status
+        if sstatus not in VALID_SERIES_STATUSES_REPAIR:
+            action = 'discarded'
+            reason = f'Stato invalido: {sstatus}'
+            report['series_invalid_status'].append({'id': sid, 'title': stitle, 'old_status': sstatus, 'action': action, 'reason': reason})
+        
+        # 2. Missing basics
+        elif not s.get('id') or not s.get('title'):
+            action = 'discarded'
+            reason = 'ID o titolo mancante'
+            report['series_missing_basics'].append({'id': sid, 'title': stitle, 'action': action, 'reason': reason})
+        
+        # 3. CASTING: series don't use cast_proposals, just check basic data
+        elif sstatus == 'casting':
+            if not s.get('genre') and not s.get('genre_name'):
+                action = 'discarded'
+                reason = 'Casting senza genere definito'
+                report['series_stuck_casting'].append({'id': sid, 'title': stitle, 'old_status': sstatus, 'action': action, 'reason': reason})
+        
+        # 4. SCREENPLAY: non-anime needs cast, all need title and genre
+        elif sstatus == 'screenplay':
+            problems = []
+            cast = s.get('cast') or []
+            if not is_anime and (not isinstance(cast, list) or len(cast) == 0):
+                problems.append('cast vuoto (non-anime)')
+            if not s.get('genre') and not s.get('genre_name'):
+                problems.append('genere mancante')
+            if not s.get('num_episodes'):
+                problems.append('numero episodi mancante')
+            if problems:
+                action = 'concept'
+                reason = f'Sceneggiatura bloccata: {", ".join(problems)}'
+                report['series_stuck_screenplay'].append({'id': sid, 'title': stitle, 'old_status': sstatus, 'action': action, 'reason': reason})
+        
+        # 5. PRODUCTION: needs screenplay
+        elif sstatus == 'production':
+            if not s.get('screenplay'):
+                action = 'concept'
+                reason = 'Produzione senza sceneggiatura'
+                report['series_stuck_production'].append({'id': sid, 'title': stitle, 'old_status': sstatus, 'action': action, 'reason': reason})
+        
+        # 6. COMING_SOON with expired timer
+        elif sstatus == 'coming_soon':
+            sra = s.get('scheduled_release_at')
+            if sra:
+                try:
+                    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if now >= release_dt:
+                        action = 'ready_for_casting'
+                        reason = f'Coming Soon scaduto (timer {sra}) mai rilasciato'
+                        report['series_stuck_coming_soon'].append({'id': sid, 'title': stitle, 'old_status': sstatus, 'action': action, 'reason': reason})
+                except Exception:
+                    pass
+        
+        # Apply fix
+        if action:
+            update = {'updated_at': now_str, 'repair_reason': reason}
+            if action == 'discarded':
+                update['status'] = 'discarded'
+                update['discarded_at'] = now_str
+                update['discard_reason'] = f'admin_repair: {reason}'
+            elif action == 'concept':
+                update['status'] = 'concept'
+                update['reset_reason'] = f'admin_repair: {reason}'
+            elif action == 'ready_for_casting':
+                update['status'] = 'ready_for_casting'
+            await db.tv_series.update_one({'id': sid}, {'$set': update})
     
     total_fixed = sum(len(v) for v in report.values())
     return {
         'success': True,
+        'total_analyzed': stats['films_analyzed'] + stats['series_analyzed'],
+        'films_analyzed': stats['films_analyzed'],
+        'series_analyzed': stats['series_analyzed'],
         'total_fixed': total_fixed,
         'report': report,
-        'message': f'Riparazione completata: {total_fixed} problemi risolti' if total_fixed > 0 else 'Nessun problema trovato nel database'
+        'message': f'Analisi completata: {stats["films_analyzed"]} film + {stats["series_analyzed"]} serie analizzati. {total_fixed} problemi logici risolti.' if total_fixed > 0 else f'Analisi completata: {stats["films_analyzed"]} film + {stats["series_analyzed"]} serie analizzati. Nessun problema logico trovato.'
     }
 
 

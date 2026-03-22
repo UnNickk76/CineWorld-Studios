@@ -53,6 +53,13 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Consolidated series release to single DB update (was two, causing inconsistency on failure)
 - Aligned series/anime release pattern with film release (immediate response, poster in background)
 
+### Dynamic Release Images (2026-03-22)
+- 3 static images: cinema_flop.jpg, cinema_normal.jpg, cinema_success.jpg
+- Backend returns release_outcome and release_image based on quality score (<55=flop, 55-75=normal, >75=success)
+- Full-width image at top of release modal with overlay text
+- Visual effects: success=zoom+glow+warm, flop=fade+desaturated+cold, normal=static
+- Mobile-optimized with scrollable modal
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

@@ -1045,3 +1045,49 @@ async def process_coming_soon_dynamic_events():
                     logger.error(f"Notification error for dynamic event: {ne}")
             except Exception as e:
                 logger.error(f"Error processing dynamic event for {item.get('id')}: {e}")
+
+
+
+# === AUTO-CLEANUP CORRUPTED PROJECTS ===
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned'}
+VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
+
+async def auto_cleanup_corrupted_projects():
+    """Periodic cleanup of corrupted/invalid projects. Runs every 30 min."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    
+    # 1. Fix films with invalid status
+    async for f in scheduler_db.film_projects.find({'status': {'$nin': list(VALID_FILM_STATUSES)}}):
+        await scheduler_db.film_projects.update_one(
+            {'id': f['id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'auto_cleanup_invalid_status'}}
+        )
+        logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) invalid status '{f.get('status')}' -> discarded")
+    
+    # 2. Fix series with invalid status
+    async for s in scheduler_db.tv_series.find({'status': {'$nin': list(VALID_SERIES_STATUSES)}}):
+        await scheduler_db.tv_series.update_one(
+            {'id': s['id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'auto_cleanup_invalid_status'}}
+        )
+        logger.warning(f"Auto-cleanup: series {s['id']} ({s.get('title')}) invalid status '{s.get('status')}' -> discarded")
+    
+    # 3. Fix films in casting/screenplay without essential data
+    async for f in scheduler_db.film_projects.find({
+        'status': {'$in': ['casting', 'screenplay', 'pre_production']},
+        '$or': [
+            {'cast_proposals': {'$exists': False}},
+            {'cast_proposals': None},
+            {'cast_proposals': {}},
+        ]
+    }):
+        # Check if cast has proposals (alt field)
+        cast = f.get('cast', {})
+        if not cast.get('proposals') and not cast.get('director') and not f.get('cast_proposals'):
+            await scheduler_db.film_projects.update_one(
+                {'id': f['id']},
+                {'$set': {'status': 'proposed', 'reset_reason': 'auto_cleanup_missing_cast', 'updated_at': now_str}}
+            )
+            logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) {f['status']} without cast -> proposed")
+    
+    logger.info("Auto-cleanup completed")

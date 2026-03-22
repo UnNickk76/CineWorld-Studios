@@ -329,22 +329,45 @@ async def get_series_genres(series_type: str = 'tv_series'):
     return {"genres": genres, "type": series_type}
 
 
+VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
+
+
 @router.get("/series-pipeline/my")
 async def get_my_series(series_type: str = 'tv_series', user: dict = Depends(get_current_user)):
     """Get all user's series of a given type."""
     cursor = db.tv_series.find(
-        {'user_id': user['id'], 'type': series_type},
+        {'user_id': user['id'], 'type': series_type, 'status': {'$in': list(VALID_SERIES_STATUSES)}},
         {'_id': 0}
     ).sort('created_at', -1)
     series = await cursor.to_list(100)
-    return {"series": series}
+    
+    # Structural validation: auto-discard corrupted entries
+    now_str = datetime.now(timezone.utc).isoformat()
+    safe_series = []
+    for s in series:
+        status = s.get('status', '')
+        cast = s.get('cast')
+        has_cast = cast and ((isinstance(cast, list) and len(cast) > 0) or (isinstance(cast, dict) and bool(cast)))
+        
+        # Validate state consistency
+        if status in ('casting', 'screenplay', 'production') and not has_cast:
+            await db.tv_series.update_one(
+                {'id': s['id']},
+                {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': f'auto_fix: {status} without cast'}}
+            )
+            continue
+        if not s.get('id') or not s.get('title'):
+            continue
+        safe_series.append(s)
+    
+    return {"series": safe_series}
 
 
 @router.get("/series-pipeline/counts")
 async def get_series_counts(user: dict = Depends(get_current_user)):
     """Get pipeline counts for TV series and anime."""
-    tv_count = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'tv_series', 'status': {'$nin': ['completed', 'cancelled']}})
-    anime_count = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'anime', 'status': {'$nin': ['completed', 'cancelled']}})
+    tv_count = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'tv_series', 'status': {'$nin': ['completed', 'cancelled', 'discarded', 'abandoned']}})
+    anime_count = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'anime', 'status': {'$nin': ['completed', 'cancelled', 'discarded', 'abandoned']}})
     tv_completed = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'tv_series', 'status': 'completed'})
     anime_completed = await db.tv_series.count_documents({'user_id': user['id'], 'type': 'anime', 'status': 'completed'})
     return {
@@ -873,6 +896,12 @@ async def write_screenplay(series_id: str, req: WriteScreenplayRequest, user: di
     if series['status'] != 'screenplay':
         raise HTTPException(400, "La serie non è nella fase di sceneggiatura")
     
+    # Validate required data exists
+    cast = series.get('cast') or []
+    if isinstance(cast, dict):
+        cast = []
+    genre = series.get('genre_name', series.get('genre', 'Drammatico'))
+    
     screenplay_text = ""
     
     if req.mode == 'ai':
@@ -880,8 +909,8 @@ async def write_screenplay(series_id: str, req: WriteScreenplayRequest, user: di
         if key:
             try:
                 from emergentintegrations.llm.chat import LlmChat, UserMessage
-                is_anime = series['type'] == 'anime'
-                genre_label = series.get('genre_name', series['genre'])
+                is_anime = series.get('type') == 'anime'
+                genre_label = genre
                 
                 system_msg = "Sei uno sceneggiatore professionista di serie TV italiane. Scrivi in italiano, conciso ma d'impatto." if not is_anime else "Sei un autore professionista di anime giapponesi. Scrivi trame avvincenti in italiano per anime."
                 
@@ -892,11 +921,11 @@ async def write_screenplay(series_id: str, req: WriteScreenplayRequest, user: di
                 ).with_model("openai", "gpt-4o-mini")
                 
                 type_label = "anime" if is_anime else "serie TV"
-                cast_names = ", ".join([f"{c['name']} ({c['role']})" for c in series.get('cast', [])])
+                cast_names = ", ".join([f"{c.get('name','?')} ({c.get('role','?')})" for c in cast if isinstance(c, dict)])
                 
                 prompt = f"""Scrivi il concept per un {type_label} {genre_label} intitolato "{series['title']}".
-Episodi previsti: {series['num_episodes']}
-Cast: {cast_names}
+Episodi previsti: {series.get('num_episodes', 8)}
+Cast: {cast_names or 'Da definire'}
 {f'Descrizione: {series["description"]}' if series.get('description') else ''}
 
 Includi (max 500 parole):
@@ -910,9 +939,9 @@ Includi (max 500 parole):
                 screenplay_text = response
             except Exception as e:
                 logger.error(f"AI screenplay error: {e}")
-                screenplay_text = f"[Concept generato automaticamente]\n\nSerie: {series['title']}\nGenere: {series.get('genre_name', series['genre'])}\nEpisodi: {series['num_episodes']}\n\nUna serie avvincente che esplora temi profondi attraverso personaggi complessi."
+                screenplay_text = f"[Concept generato automaticamente]\n\nSerie: {series['title']}\nGenere: {genre}\nEpisodi: {series.get('num_episodes', 8)}\n\nUna serie avvincente che esplora temi profondi attraverso personaggi complessi."
         else:
-            screenplay_text = f"[Concept generato automaticamente]\n\nSerie: {series['title']}\nGenere: {series.get('genre_name', series['genre'])}\nEpisodi: {series['num_episodes']}\n\nUna serie avvincente che esplora temi profondi."
+            screenplay_text = f"[Concept generato automaticamente]\n\nSerie: {series['title']}\nGenere: {genre}\nEpisodi: {series.get('num_episodes', 8)}\n\nUna serie avvincente che esplora temi profondi."
     else:
         screenplay_text = req.manual_text or "Screenplay manuale non fornita."
     

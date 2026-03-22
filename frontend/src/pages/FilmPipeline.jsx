@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
+import { TabErrorBoundary } from '../components/ErrorBoundary';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -306,7 +307,8 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
   const fetch = useCallback(async () => {
     try {
       const res = await api.get('/film-pipeline/proposals');
-      setProposals(res.data.proposals || []);
+      const safe = (res.data.proposals || []).filter(p => p && p.id && p.title);
+      setProposals(safe);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [api]);
@@ -697,7 +699,9 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const fetch = useCallback(async () => {
     try {
       const res = await api.get('/film-pipeline/casting');
-      setFilms(res.data.casting_films || []);
+      // Filter out corrupted films that could crash rendering
+      const safeFilms = (res.data.casting_films || []).filter(f => f && f.id && f.title);
+      setFilms(safeFilms);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [api]);
@@ -2723,13 +2727,13 @@ const FilmPipeline = () => {
           </p>
         )}
 
-        {/* Tab Content */}
-        {activeTab === 'creation' && <CreationTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} cachedGet={cachedGet} />}
-        {activeTab === 'proposals' && <ProposalsTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
-        {activeTab === 'casting' && <CastingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
-        {activeTab === 'screenplay' && <ScreenplayTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
-        {activeTab === 'pre_production' && <PreProductionTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
-        {activeTab === 'shooting' && <ShootingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} />}
+        {/* Tab Content - Each wrapped in TabErrorBoundary to prevent cascade crashes */}
+        {activeTab === 'creation' && <TabErrorBoundary name="creation"><CreationTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} cachedGet={cachedGet} /></TabErrorBoundary>}
+        {activeTab === 'proposals' && <TabErrorBoundary name="proposals"><ProposalsTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
+        {activeTab === 'casting' && <TabErrorBoundary name="casting"><CastingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
+        {activeTab === 'screenplay' && <TabErrorBoundary name="screenplay"><ScreenplayTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
+        {activeTab === 'pre_production' && <TabErrorBoundary name="pre_production"><PreProductionTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
+        {activeTab === 'shooting' && <TabErrorBoundary name="shooting"><ShootingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
 
         {/* Buzz Section - visible when on shooting tab */}
         {activeTab === 'shooting' && <BuzzSection api={api} refreshUser={refreshUser} />}

@@ -11516,7 +11516,8 @@ async def startup_event():
         update_leaderboard_scores,
         update_film_attendance,
         auto_release_coming_soon,
-        process_coming_soon_dynamic_events
+        process_coming_soon_dynamic_events,
+        auto_cleanup_corrupted_projects
     )
     
     # Add scheduled jobs
@@ -11615,6 +11616,14 @@ async def startup_event():
         process_coming_soon_dynamic_events,
         IntervalTrigger(minutes=20),
         id='coming_soon_dynamic_events',
+        replace_existing=True
+    )
+    
+    # Every 30 min: Auto-cleanup corrupted projects
+    scheduler.add_job(
+        auto_cleanup_corrupted_projects,
+        IntervalTrigger(minutes=30),
+        id='auto_cleanup_corrupted',
         replace_existing=True
     )
     

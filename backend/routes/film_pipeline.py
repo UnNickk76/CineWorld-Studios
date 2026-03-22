@@ -24,6 +24,31 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 router = APIRouter()
 
+# === VALID STATE TRANSITIONS ===
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned'}
+
+VALID_FILM_TRANSITIONS = {
+    'draft': {'proposed', 'discarded'},
+    'proposed': {'coming_soon', 'casting', 'discarded'},
+    'coming_soon': {'ready_for_casting', 'casting', 'completed', 'discarded'},
+    'ready_for_casting': {'casting', 'discarded'},
+    'casting': {'screenplay', 'discarded'},
+    'screenplay': {'pre_production', 'discarded'},
+    'pre_production': {'shooting', 'discarded'},
+    'shooting': {'completed', 'released', 'discarded'},
+    'completed': {'released'},
+    'released': set(),
+    'discarded': set(),
+    'abandoned': set(),
+}
+
+def validate_film_transition(current_status: str, target_status: str) -> bool:
+    """Check if a status transition is valid."""
+    if current_status not in VALID_FILM_STATUSES:
+        return False
+    allowed = VALID_FILM_TRANSITIONS.get(current_status, set())
+    return target_status in allowed
+
 # === ROLE VALUES - Impact on film quality and actor growth ===
 ROLE_VALUES = {
     'Protagonista': {'quality_weight': 1.5, 'growth_rate': 1.2, 'label': 'Protagonista'},
@@ -926,6 +951,22 @@ async def get_casting_films(user: dict = Depends(get_current_user)):
 
     now = datetime.now(timezone.utc)
 
+    # Filter out corrupted projects (missing essential casting data)
+    valid_projects = []
+    for p in projects:
+        if not p.get('cast_proposals') and not p.get('cast', {}).get('proposals'):
+            # Auto-fix: reset corrupted project to proposed
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {'status': 'proposed', 'reset_reason': 'auto_fix_missing_cast', 'updated_at': now.isoformat()}}
+            )
+            logging.getLogger(__name__).warning(f"Auto-reset corrupted film {p['id']} ({p.get('title')}) from casting to proposed")
+            continue
+        valid_projects.append(p)
+    projects = valid_projects
+
+    now = datetime.now(timezone.utc)
+
     # Collect all person IDs to enrich with latest data from people collection
     all_person_ids = set()
     for p in projects:
@@ -1283,16 +1324,24 @@ async def get_all_projects(user: dict = Depends(get_current_user)):
     ).sort('created_at', -1).to_list(50)
 
     now = datetime.now(timezone.utc)
+    safe_projects = []
     for p in projects:
-        if p.get('status') == 'casting':
-            for role, proposals in p.get('cast_proposals', {}).items():
-                for prop in proposals:
-                    if prop.get('status') == 'pending' and prop.get('available_at'):
-                        avail_at = datetime.fromisoformat(prop['available_at'].replace('Z', '+00:00'))
-                        if now >= avail_at:
-                            prop['status'] = 'available'
+        # Validate project status is known
+        if p.get('status') not in VALID_FILM_STATUSES:
+            continue
+        try:
+            if p.get('status') == 'casting':
+                for role, proposals in (p.get('cast_proposals') or {}).items():
+                    for prop in (proposals or []):
+                        if prop.get('status') == 'pending' and prop.get('available_at'):
+                            avail_at = datetime.fromisoformat(prop['available_at'].replace('Z', '+00:00'))
+                            if now >= avail_at:
+                                prop['status'] = 'available'
+            safe_projects.append(p)
+        except Exception:
+            continue
 
-    return {'projects': projects}
+    return {'projects': safe_projects}
 
 
 @router.get("/film-pipeline/marketplace")
@@ -1403,6 +1452,13 @@ async def write_screenplay(project_id: str, req: ScreenplaySubmitRequest, user: 
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato o non in fase Sceneggiatura")
 
+    # Validate required fields exist
+    genre = project.get('genre', 'Drammatico')
+    subgenre = project.get('subgenre', '')
+    pre_screenplay = project.get('pre_screenplay', project.get('plot', ''))
+    if not pre_screenplay:
+        raise HTTPException(status_code=400, detail="Manca la sinossi del film. Torna alla fase Proposte.")
+
     screenplay_text = ""
     quality_modifier = 0
 
@@ -1418,10 +1474,10 @@ async def write_screenplay(project_id: str, req: ScreenplaySubmitRequest, user: 
                     system_message="Sei uno sceneggiatore cinematografico professionista. Scrivi sceneggiature in italiano, concise ma d'impatto."
                 ).with_model("openai", "gpt-4o-mini")
 
-                prompt = f"""Scrivi una sceneggiatura breve (max 400 parole) per un film {project['genre']} ({project['subgenre']}) intitolato "{project['title']}".
+                prompt = f"""Scrivi una sceneggiatura breve (max 400 parole) per un film {genre} ({subgenre}) intitolato "{project['title']}".
 
 Basati su questa sinossi del produttore:
-"{project['pre_screenplay']}"
+"{pre_screenplay}"
 
 Location: {project.get('location', {}).get('name', 'N/A')}
 
@@ -1439,10 +1495,10 @@ Scrivi TUTTO in italiano."""
                 quality_modifier = 10  # AI bonus
             except Exception as e:
                 logging.error(f"AI screenplay error: {e}")
-                screenplay_text = f"[Sceneggiatura AI] Basata su: {project['pre_screenplay']}"
+                screenplay_text = f"[Sceneggiatura AI] Basata su: {pre_screenplay}"
                 quality_modifier = 5
         else:
-            screenplay_text = f"[Sceneggiatura AI non disponibile] Basata su: {project['pre_screenplay']}"
+            screenplay_text = f"[Sceneggiatura AI non disponibile] Basata su: {pre_screenplay}"
             quality_modifier = 5
 
         # AI screenplay costs more
@@ -1453,7 +1509,7 @@ Scrivi TUTTO in italiano."""
 
     elif req.mode == 'pre_only':
         # Keep only pre-screenplay (quality malus)
-        screenplay_text = project['pre_screenplay']
+        screenplay_text = pre_screenplay
         quality_modifier = -15  # Malus for no full screenplay
         cost = 0
 

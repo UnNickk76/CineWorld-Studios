@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
+import { TabErrorBoundary } from '../components/ErrorBoundary';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -501,6 +502,7 @@ export default function AnimePipeline() {
             )}
           </div>
         ) : (
+          <TabErrorBoundary name="anime-pipeline">
           <div className="space-y-3" data-testid="active-anime-pipeline">
             {/* Back button */}
             <button onClick={() => setActiveSeries(null)}
@@ -980,6 +982,7 @@ export default function AnimePipeline() {
               </motion.div>
             )}
           </div>
+          </TabErrorBoundary>
         )}
       </div>
 

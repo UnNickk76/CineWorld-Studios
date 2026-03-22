@@ -160,6 +160,14 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **NotificationsPage**: Added icons and smart navigation for `like` → `/films/{id}` and `private_message` → `/chat`
 - **Existing infra reused**: Bell icon + badge count + read/unread states + delete all already functional
 
+### Fix Serie TV / Anime Pipeline Alignment (2026-03-22)
+- **Priority 1 - Fix bug creazione/rilascio**: Fixed `refreshUser` not destructured in SeriesTVPipeline (caused ReferenceError on speed-up). Both create and release now properly call `refreshUser()` to update user funds/CinePass.
+- **Priority 2 - Locandina facile**: Added full poster generation to AnimePipeline (was missing): pre-release quick generate, post-release expandable section with AI Auto/Custom prompt modes. Both anime and series TV now have identical poster workflows.
+- **Priority 3 - Velocizzazione con crediti**: Added speed-up button to AnimePipeline production phase (was missing). Cost scales by episode count: ≤8 ep = 15 CP, ≤16 ep = 20 CP, >16 ep = 25 CP. System is configurable for future price adjustments.
+- **Priority 4 - Pipeline libera come film**: Refactored both pipelines: production-phase series show as compact clickable cards above create form, "Tutti i progetti" back button added, create form always accessible. User not locked into single project anymore.
+- **Cinematic Release for Anime**: Upgraded anime release modal from basic card to full cinematic 3-phase reveal with event, poster polling, and animated stats (matching SeriesTV).
+- Testing: 18/18 backend + 100% frontend (iteration 117)
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 - Like endpoint: safe handling of films without user_id (orphan films)

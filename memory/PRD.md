@@ -89,13 +89,21 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - UI: "Accelera Produzione" button with cost during active production phase
 - Reuses existing series production_duration_minutes system
 
+### Admin Panel - User & Film Management (2026-03-22)
+- Tabbed admin panel with "Gestione Utenti" and "Gestione Film" sections
+- **User Management**: List all users, search by username, select user to view/edit funds/CinePass, delete user with cascade (all associated data: films, series, infrastructure, friendships, follows, likes, ratings, notifications, poster files)
+- **Film Management**: Grid of all films with poster thumbnails, title, studio name, genre badge, quality score. Search by title. Delete individual films with cascade (likes, ratings, comments, virtual_reviews, poster_files)
+- Confirmation modal before any deletion ("Confermi eliminazione definitiva?")
+- Admin self-deletion prevention
+- Backend endpoints: DELETE /api/admin/delete-user/{user_id}, GET /api/admin/all-films, DELETE /api/admin/delete-film/{film_id}
+- Also includes automated cleanup endpoints: GET/POST /api/admin/cleanup-test-data/preview|execute
+- Testing: 19/19 backend tests + all frontend UI tests PASSED (iteration 112)
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 
 ## Backlog
 - (P1) Readable AI Screenplay (scrollable, accessible post-generation)
-- (P1) Free Visual Trailer System (storyboard-style, 3-5 key scenes as images)
-- (P1) Guest Star per puntate singole Serie TV
 - (P1) Marketplace diritti TV/Anime
 - (P2) Fix layout mobile Contest Page
 - (P2) RBAC, CinePass, Stripe, PWA, Tutorial

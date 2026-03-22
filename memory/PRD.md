@@ -26,10 +26,19 @@ Full-stack cinematic empire game where players create, produce, and release film
 - **Immediate Release**: Direct cinema/platform release with full quality calculation
 - **Coming Soon Release**: Countdown timer, hype mechanic, "Prossimamente" dashboard section
 
-### Release Strategy System (NEW - March 2026)
+### Release Strategy System (March 2026)
 - **Automatica**: System calculates optimal release time based on quality/hype/competition. +3% revenue bonus guaranteed.
-- **Manuale**: Player chooses 6h/12h/24h/48h release window. If "perfect timing" (based on hidden quality/hype/competition formulas): +8% revenue bonus.
+- **Manuale**: Player chooses 6h/12h/24h/48h release window. If "perfect timing": +8% revenue bonus.
 - Applied to all 3 pipelines (Film, TV Series, Anime)
+
+### Coming Soon Interactive System (March 2026 - NEW)
+- **Support Action**: Increases hype, small quality boost at release. 65% success, 25% neutral, 10% backfire.
+- **Boycott Action**: Decreases hype, possible quality penalty. 45% success, 30% fail, 25% backfire (Streisand effect).
+- **Limits**: Max 3 actions/player/day, costs 1 CinePass each, diminishing returns.
+- **Protection**: Max -10% penalty cap, high quality resists boycotts, high hype reduces negative effects.
+- **Auto News**: Template-based news events generated per interaction (no AI).
+- **Auto Comments**: Random audience comments generated per interaction.
+- **UI**: Expandable Coming Soon cards with hype bar, audience expectations, news feed, comments, Supporta/Boicotta buttons.
 
 ### Coming Soon Timer Fix (March 2026)
 - Scheduler uses proper datetime comparison (not string) to prevent premature releases
@@ -54,19 +63,22 @@ Full-stack cinematic empire game where players create, produce, and release film
 - Report/moderation handling
 
 ## Key API Endpoints
+- `POST /api/coming-soon/{id}/interact` - Support or boycott Coming Soon content
+- `GET /api/coming-soon/{id}/details` - Full details with news, comments, stats
+- `POST /api/coming-soon/{id}/hype` - Legacy hype endpoint
 - `POST /api/film-pipeline/{id}/choose-release-strategy` - Film release strategy
 - `POST /api/series-pipeline/{id}/choose-release-strategy` - Series/anime release strategy
-- `GET /api/coming-soon` - Public coming soon content list
-- `POST /api/coming-soon/{id}/hype` - Add hype to coming soon content
-- `POST /api/film-pipeline/{id}/schedule-release` - Legacy schedule endpoint
-- `POST /api/series-pipeline/{id}/schedule-release` - Legacy schedule endpoint
+- `GET /api/coming-soon` - Public coming soon content list (enriched)
 
 ## Key DB Collections
-- `film_projects`: Films in pipeline (fields: release_type, release_strategy, release_strategy_bonus_pct, scheduled_release_at, coming_soon_started_at)
-- `tv_series`: TV/Anime in pipeline (same new fields)
-- `films`: Released films
-- `users`: Player accounts
-- `notifications`, `reports`, `infrastructure`
+- `film_projects`: Films (fields: release_type, release_strategy, release_strategy_bonus_pct, scheduled_release_at, news_events, auto_comments, total_boycott_penalty)
+- `tv_series`: TV/Anime (same fields)
+- `coming_soon_interactions`: Tracks player interactions (user_id, content_id, action, outcome, effects)
+- `films`, `users`, `notifications`, `reports`, `infrastructure`
+
+## Constants
+- COMING_SOON_DAILY_LIMIT = 3
+- COMING_SOON_INTERACT_COST = 1 CinePass
 
 ## Known Issues
 - (P2) Contest Page mobile layout broken (recurring)

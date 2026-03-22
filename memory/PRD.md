@@ -10,64 +10,63 @@ Full-stack cinematic empire game where players create, produce, and release film
 
 ## Implemented Features
 
-### Production Pipelines - Flow (March 2026)
-**Film**: Creazione > **Locandina (obbligatoria)** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Pre-produzione > Shooting > Release
-**Serie TV/Anime**: Concept > **Locandina (obbligatoria)** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Produzione > Release
+### Production Pipelines - Flow
+**Film**: Creazione > **Locandina** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Pre-produzione > Shooting > Release
+**Serie TV/Anime**: Concept > **Locandina** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Produzione > Release
 
-### Coming Soon Interactive System (March 2026)
-- **Pre-Casting Phase**: All projects enter Coming Soon BEFORE casting (dynamic timer based on tier)
-- **Duration Tiers**: Short (2-6h), Medium (6-18h), Long (18-48h) with quality modifiers
-- **Dynamic Events**: Random events via scheduler modify timer (+/- hours)
-- **Support/Boycott**: Players can support (+hype) or boycott (-hype, penalties capped at -10%)
-- **Speed-Up**: Credit-based with caps per tier
-- **Auto News**: Template-based events generated per interaction
-- **Scheduler**: `auto_release_coming_soon` sets films to `ready_for_casting` when timer expires (NOT completed)
-- **UI**: Expandable cards with hype bar, audience expectations, news feed, Supporta/Boicotta buttons
+### Coming Soon Interactive System
+- Pre-Casting Phase with dynamic timer (Short/Medium/Long tiers)
+- Dynamic Events via scheduler, Support/Boycott, Speed-Up (credit-based with caps)
+- Auto News, Scheduler auto-releases to `ready_for_casting` (NOT completed)
 
-### Release Strategy System (March 2026)
-- **Automatica**: System calculates optimal release time. +3% revenue bonus guaranteed.
-- **Manuale**: Player chooses 6h/12h/24h/48h. Perfect timing = +8% bonus.
+### Release Strategy System
+- Automatica (+3% guaranteed) vs Manuale (perfect timing = +8%)
+
+### Dynamic Notification System (March 22 2026)
+- **Notification Engine** (`notification_engine.py`): Generates narrative-style notifications
+- **Severity Levels**: Critical (red), Important (yellow), Positive (green)
+- **Events that trigger notifications**:
+  - Coming Soon: support, boycott, time changes, completion
+  - Production: phase completed, problems
+  - Film Release: high revenue, flop warning
+  - Social: likes, messages, interactions
+- **Real-time Popup**: Polls every 15s, shows animated popups on top-right
+  - Auto-dismiss after 6 seconds
+  - Color-coded by severity
+  - Clickable (navigates to relevant page)
+- **Anti-spam**: Max 3 similar notifications/hour, grouping within 30min window
+- **NotificationsPage**: Filter tabs (Tutte/Critiche/Importanti/Positive), severity badges, colored borders
+- **Bottom Navbar**: Sfide removed, Notifiche with bell icon + unread badge
 
 ### Dashboard "Prossimamente"
-- ALWAYS visible (even with 0 items - shows placeholder)
-- Shows all Coming Soon content (pre_casting + pre_release)
-- Countdown timer, hype level, interactive support/boycott
+- Always visible with Coming Soon content, countdown, hype, interactive support/boycott
 
 ### Other Systems
-- Box office simulation, cinema/infrastructure revenue
-- Cast system with skills, fame, hiring
+- Box office, cinema/infrastructure revenue, cast system
 - Social hub: chat, private messages, notifications
-- Moderation/reporting system
-- Leaderboard, contests, daily/weekly challenges
+- Moderation, leaderboard, contests, challenges
 - CinePass currency, admin panel
 
 ## Key API Endpoints
-- `POST /api/film-pipeline/{id}/launch-coming-soon` - Launch film into Coming Soon
-- `POST /api/series-pipeline/{id}/launch-coming-soon` - Launch series/anime into Coming Soon
-- `POST /api/coming-soon/{id}/interact` - Support or boycott
-- `GET /api/coming-soon/{id}/details` - Full details
-- `GET /api/coming-soon` - Public list
-- `POST /api/film-pipeline/{id}/advance-to-casting` - Advance (accepts proposed, coming_soon, ready_for_casting)
-- `POST /api/film-pipeline/{id}/choose-release-strategy` - Release strategy (post-shooting)
-- `GET /api/film-pipeline/proposals` - Returns proposed + coming_soon + ready_for_casting films
+- `GET /api/notifications` - All notifications with severity
+- `GET /api/notifications/popup` - Unread popup notifications (marks shown_popup)
+- `GET /api/notifications/count` - Unread count
+- `POST /api/notifications/{id}/read` - Mark read
+- `POST /api/notifications/read-all` - Mark all read
+- `POST /api/film-pipeline/{id}/launch-coming-soon` - Launch Coming Soon
+- `POST /api/coming-soon/{id}/interact` - Support/boycott (triggers notification to owner)
+- `POST /api/coming-soon/{id}/speed-up` - Speed-up timer
+- `POST /api/film-pipeline/{id}/advance-to-casting` - Advance (proposed/coming_soon/ready_for_casting)
 
 ## Key DB Fields
-- `status`: 'proposed' | 'coming_soon' | 'ready_for_casting' | 'casting' | 'screenplay' | 'pre_production' | 'shooting' | 'completed' | 'discarded'
-- `coming_soon_type`: 'pre_casting' (before casting) or null (before release, legacy)
-- `coming_soon_tier`: 'short' | 'medium' | 'long'
-- `coming_soon_completed`: boolean (set when timer expires)
-- `scheduled_release_at`: ISO datetime when Coming Soon expires
-- `hype_score`, `news_events[]`, `auto_comments[]`, `total_boycott_penalty`
-- `release_strategy`: 'auto' | 'manual', `release_strategy_bonus_pct`
+- `status`: proposed | coming_soon | ready_for_casting | casting | screenplay | pre_production | shooting | completed
+- `coming_soon_type`, `coming_soon_tier`, `coming_soon_completed`, `scheduled_release_at`
+- Notifications: `severity` (critical/important/positive), `shown_popup`, `data.event_type`, `data.group_count`
 
 ## Bug Fixes (March 22 2026)
 - **CRITICAL**: Fixed scheduler auto_release_coming_soon setting pre_casting films to 'completed' instead of 'ready_for_casting'
 - Fixed advance-to-casting to accept ready_for_casting status
-- Fixed proposals endpoint to include ready_for_casting films
-- Fixed pipeline counts to include ready_for_casting
-- Fixed corrupted data (films stuck in wrong state)
-- Reset admin password
-- Applied same fixes to series/anime pipelines
+- Fixed corrupted data, reset admin password
 
 ## Known Issues
 - (P2) Contest Page mobile layout broken (recurring)
@@ -78,3 +77,4 @@ Full-stack cinematic empire game where players create, produce, and release film
 - P2: RBAC, CinePass + Stripe, PWA, Tutorial, Contest Page fix
 - P3: Scommesse sui Coming Soon
 - P3: Eventi globali
+- Future: Push notifications (mobile), guerre tra Major

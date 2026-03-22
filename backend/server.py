@@ -9529,6 +9529,81 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
     
     return {k: v for k, v in message.items() if k != '_id'}
 
+
+# ==================== CHAT IMAGE UPLOAD ====================
+from fastapi import UploadFile, File as FastAPIFile
+
+CHAT_IMAGE_MAX_SIZE = 5 * 1024 * 1024  # 5MB
+CHAT_IMAGE_ALLOWED_MIME = {'image/jpeg', 'image/png', 'image/webp'}
+CHAT_IMAGES_DIR = '/app/backend/static/chat_images'
+os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
+
+
+@api_router.post("/chat/upload-image")
+async def chat_upload_image(
+    file: UploadFile = FastAPIFile(...),
+    user: dict = Depends(get_current_user)
+):
+    """Upload an image for chat. Returns URL to use in a chat message."""
+    # Validate MIME
+    content_type = file.content_type or ''
+    if content_type not in CHAT_IMAGE_ALLOWED_MIME:
+        raise HTTPException(status_code=400, detail=f"Solo immagini JPG, PNG, WEBP. Ricevuto: {content_type}")
+
+    # Read and validate size
+    data = await file.read()
+    if len(data) > CHAT_IMAGE_MAX_SIZE:
+        raise HTTPException(status_code=400, detail=f"Immagine troppo grande (max {CHAT_IMAGE_MAX_SIZE // (1024*1024)}MB)")
+    if len(data) < 100:
+        raise HTTPException(status_code=400, detail="File troppo piccolo o vuoto")
+
+    # Generate unique filename
+    ext = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp'}.get(content_type, 'jpg')
+    filename = f"chat_{user['id'][:8]}_{uuid.uuid4().hex[:12]}.{ext}"
+
+    # Save to disk
+    filepath = os.path.join(CHAT_IMAGES_DIR, filename)
+    with open(filepath, 'wb') as f:
+        f.write(data)
+
+    # Also persist to MongoDB for cross-deployment persistence
+    await db.chat_images.insert_one({
+        'filename': filename,
+        'data': data,
+        'content_type': content_type,
+        'size': len(data),
+        'user_id': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+
+    image_url = f"/api/chat-images/{filename}"
+    return {'image_url': image_url, 'filename': filename}
+
+
+@app.get("/api/chat-images/{filename}")
+async def serve_chat_image(filename: str):
+    """Serve chat images from disk cache or MongoDB."""
+    filepath = os.path.join(CHAT_IMAGES_DIR, filename)
+    if os.path.isfile(filepath):
+        ext = filename.rsplit('.', 1)[-1].lower()
+        media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/jpeg')
+        return FileResponse(filepath, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+    # Fallback: MongoDB
+    doc = await db.chat_images.find_one({'filename': filename})
+    if doc and doc.get('data'):
+        try:
+            os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
+            with open(filepath, 'wb') as f:
+                f.write(doc['data'])
+        except Exception:
+            pass
+        return Response(content=doc['data'], media_type=doc.get('content_type', 'image/jpeg'),
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+    raise HTTPException(status_code=404, detail="Immagine non trovata")
+
+
 # AI Endpoints
 @api_router.post("/ai/screenplay")
 async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(get_current_user)):

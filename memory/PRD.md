@@ -110,9 +110,42 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Dashboard micro-copy**: Pink CTA card "Interagisci con altri player: metti like ai film per supportarli e ottenere piccoli bonus!"
 - Testing: 100% backend + 100% frontend PASSED (iteration 113). Bug fixed: KeyError on films without user_id
 
+### Chat Social System Evolution (2026-03-22)
+**Step 1 - Stanze Pubbliche + Lista Utenti:**
+- 4 stanze tematiche: Generale, Produzioni, Strategie, Off-topic (con icone e descrizioni)
+- Nuovo endpoint `GET /api/users/presence` con stato 3 livelli (online/recent/offline)
+- Lista utenti laterale scrollabile con indicatori presenza (verde/giallo/rosso)
+- Layout mobile-first con pannelli slide-in (breakpoint md: 768px)
+
+**Step 2 - Profilo Social Rapido:**
+- Nuovo endpoint leggero `GET /api/users/{user_id}/social-card` (user info + 12 film + friend status)
+- Modal con avatar, studio, livello, presenza, 3 action buttons (Messaggio/Profilo/Amicizia)
+- Griglia 6 colonne mini locandine con cuoricino Like funzionale
+- Testing: 100% PASSED (iteration 114)
+
+**Step 3 - Chat Privata 1:1:**
+- DM system (pre-existing) migliorato: sort per ultimo messaggio, timestamp visibili
+- Tab Private con badge contatore, anteprima messaggi, avatar + presenza
+- Creazione DM idempotente, messaggi persistenti e recuperabili
+- Testing: 100% PASSED (iteration 115)
+
+**Step 4 - Invio Immagini in Chat:**
+- `POST /api/chat/upload-image`: upload JPG/PNG/WEBP, max 5MB, validazione MIME
+- Storage: disk + MongoDB per persistenza cross-deployment
+- `GET /api/chat-images/{filename}`: serving con cache 7 giorni
+- Frontend: pulsante upload immagine nella input area, preview in chat, click → fullscreen viewer
+- Validazione client-side + server-side (tipo file + dimensione)
+
+**Bug Fix - Chat Mobile:**
+- Breakpoint cambiato da lg (1024px) a md (768px)
+- Pannelli laterali come overlay slide-in su mobile (max 75vw, 220px)
+- overflow-x-hidden sul container, overflow-hidden sull'area principale
+- Chat fullwidth su mobile, input sempre visibile
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 - Like endpoint: safe handling of films without user_id (orphan films)
+- Chat mobile: pannelli laterali fuori schermo su mobile (breakpoint fix)
 
 ## Backlog
 - (P1) Readable AI Screenplay (scrollable, accessible post-generation)

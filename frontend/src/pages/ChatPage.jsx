@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { toast } from 'sonner';
 import {
   Send, Users, MessageSquare, X, Heart, Film, Lightbulb, Coffee,
-  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail
+  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const ROOM_ICONS = {
   'generale': MessageSquare,
@@ -194,6 +196,18 @@ function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
 }
 
 
+/* ─── Fullscreen Image Viewer ─── */
+function ImageViewer({ src, onClose }) {
+  if (!src) return null;
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={onClose} data-testid="image-viewer">
+      <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20" onClick={onClose}><X className="w-5 h-5 text-white" /></button>
+      <img src={src} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+    </div>
+  );
+}
+
+
 /* ═══════════════ MAIN CHAT PAGE ═══════════════ */
 const ChatPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -209,6 +223,9 @@ const ChatPage = () => {
   const [activeTab, setActiveTab] = useState('public'); // public | private
   const [loadingDM, setLoadingDM] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [viewImage, setViewImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   // Auto-scroll
@@ -277,6 +294,49 @@ const ChatPage = () => {
       const r = await api.get(`/chat/rooms/${activeRoom.id}/messages`);
       setMessages(r.data);
     } catch { toast.error('Errore invio messaggio'); }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeRoom) return;
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    // Validate client-side
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Solo immagini JPG, PNG o WEBP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Immagine troppo grande (max 5MB)');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await api.post('/chat/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const imageUrl = uploadRes.data.image_url;
+
+      // Send as image message
+      await api.post('/chat/messages', {
+        room_id: activeRoom.id,
+        content: '',
+        message_type: 'image',
+        image_url: imageUrl
+      });
+      // Refresh messages
+      const r = await api.get(`/chat/rooms/${activeRoom.id}/messages`);
+      setMessages(r.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore upload immagine');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const startDM = async (targetId) => {
@@ -489,7 +549,19 @@ const ChatPage = () => {
                                 <p className="text-[9px] text-purple-300 mt-0.5">{language === 'it' ? 'Clicca per vedere' : 'Click to watch'}</p>
                               </div>
                             </div>
-                          ) : <p className="whitespace-pre-wrap">{msg.content}</p>}
+                          ) : msg.message_type === 'image' && msg.image_url ? (
+                            <div>
+                              {msg.content && <p className="whitespace-pre-wrap mb-1">{msg.content}</p>}
+                              <img
+                                src={msg.image_url.startsWith('/') ? `${BACKEND_URL}${msg.image_url}` : msg.image_url}
+                                alt=""
+                                className="max-w-[200px] max-h-[200px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={(e) => { e.stopPropagation(); setViewImage(msg.image_url.startsWith('/') ? `${BACKEND_URL}${msg.image_url}` : msg.image_url); }}
+                                loading="lazy"
+                                data-testid={`chat-image-${msg.id}`}
+                              />
+                            </div>
+                          ) : <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                           <p className={`text-[9px] mt-0.5 ${isOwn ? 'text-black/40' : 'text-gray-600'}`}>
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
@@ -502,12 +574,23 @@ const ChatPage = () => {
               </ScrollArea>
 
               {/* Input */}
-              <div className="flex gap-1.5 px-2 py-1.5 border-t border-white/5 flex-shrink-0 bg-[#0e0e10]">
+              <div className="flex items-center gap-1 px-2 py-1.5 border-t border-white/5 flex-shrink-0 bg-[#0e0e10]">
+                {/* Image upload button */}
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={handleImageUpload} data-testid="chat-file-input" />
+                <button
+                  className="flex-shrink-0 p-1.5 rounded-md text-gray-500 hover:text-yellow-400 hover:bg-white/5 transition-colors disabled:opacity-30"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || !activeRoom}
+                  data-testid="chat-upload-btn"
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                </button>
                 <Input
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                   placeholder={language === 'it' ? 'Scrivi un messaggio...' : 'Type a message...'}
-                  className="h-8 text-xs bg-black/30 border-white/10"
+                  className="h-8 text-xs bg-black/30 border-white/10 flex-1 min-w-0"
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMsg()}
                   data-testid="chat-input"
                 />
@@ -610,6 +693,9 @@ const ChatPage = () => {
         api={api}
         onStartDM={startDM}
       />
+
+      {/* Fullscreen Image Viewer */}
+      <ImageViewer src={viewImage} onClose={() => setViewImage(null)} />
     </div>
   );
 };

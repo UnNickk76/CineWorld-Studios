@@ -12133,6 +12133,12 @@ Rispondi SOLO con questo formato JSON:
         logging.warning(f"AI draft generation failed: {e}")
         title = req.title_hint or f'Bozza {genre_name}'
         synopsis = f'Una storia avvincente di genere {genre_name} ambientata nel mondo contemporaneo.'
+        # Fallback: use template-based synopsis generation
+        try:
+            from emerging_screenplays import generate_synopsis as _gen_syn
+            synopsis = _gen_syn(req.genre)
+        except Exception:
+            pass
     
     draft_id = str(uuid.uuid4())
     draft_doc = {

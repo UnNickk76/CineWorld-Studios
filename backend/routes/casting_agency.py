@@ -11,6 +11,7 @@ import hashlib
 
 from database import db
 from auth_utils import get_current_user
+from emerging_screenplays import generate_synopsis
 
 router = APIRouter()
 
@@ -1185,7 +1186,7 @@ async def get_scout_screenplays(user: dict = Depends(get_current_user)):
                 'writer_name': writer,
                 'is_famous_writer': is_famous_writer,
                 'cost': cost,
-                'synopsis': f"Una storia {GENRE_NAMES.get(genre, genre).lower()} avvincente ambientata in un mondo pieno di sorprese. Qualità stimata: {quality}/100.",
+                'synopsis': generate_synopsis(genre),
                 'purchased': False,
                 'created_at': now.isoformat(),
             }

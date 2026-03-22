@@ -956,6 +956,59 @@ async def get_production_status(series_id: str, user: dict = Depends(get_current
     }
 
 
+@router.post("/series-pipeline/{series_id}/speed-up-production")
+async def speed_up_production(series_id: str, user: dict = Depends(get_current_user)):
+    """Speed up series production with CinePass. Reduces remaining time by 30%."""
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id'], 'status': 'production'},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie in produzione non trovata")
+
+    # CinePass cost: 3 tiers based on episodes
+    num_ep = series.get('num_episodes', 10)
+    if num_ep <= 8:
+        cp_cost = 15
+    elif num_ep <= 16:
+        cp_cost = 20
+    else:
+        cp_cost = 25
+
+    if user.get('cinepass', 0) < cp_cost:
+        raise HTTPException(400, f"CinePass insufficienti. Servono {cp_cost} CP (hai {user.get('cinepass', 0)})")
+
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cp_cost}})
+
+    # Reduce remaining time by 30%
+    started = datetime.fromisoformat(series['production_started_at'])
+    total_min = series.get('production_duration_minutes', 60)
+    elapsed_min = (datetime.now(timezone.utc) - started).total_seconds() / 60
+    remaining = max(0, total_min - elapsed_min)
+    reduction = remaining * 0.30
+    new_total = total_min - reduction
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'production_duration_minutes': round(new_total, 1),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    new_remaining = max(0, new_total - elapsed_min)
+    return {
+        'success': True,
+        'message': f'Produzione accelerata! -{round(reduction)}min ({cp_cost} CP)',
+        'cp_cost': cp_cost,
+        'remaining_minutes': round(new_remaining, 1),
+        'reduction_minutes': round(reduction, 1),
+        'new_total_minutes': round(new_total, 1),
+    }
+
+
+
 @router.post("/series-pipeline/{series_id}/release")
 async def release_series(series_id: str, user: dict = Depends(get_current_user)):
     """Release the completed series."""

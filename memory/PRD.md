@@ -82,6 +82,13 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Series cards in pipeline are now clickable → navigate to /series/:id
 - Route added in App.js for /series/:id
 
+### Production Speed-Up for Series/Anime (2026-03-22)
+- POST /api/series-pipeline/{id}/speed-up-production reduces remaining time by 30%
+- Stackable (multiple clicks allowed)
+- CinePass cost: 15 CP (<=8 ep), 20 CP (<=16 ep), 25 CP (>16 ep)
+- UI: "Accelera Produzione" button with cost during active production phase
+- Reuses existing series production_duration_minutes system
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

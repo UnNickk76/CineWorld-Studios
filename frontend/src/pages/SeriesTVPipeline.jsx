@@ -886,6 +886,31 @@ export default function SeriesTVPipeline() {
                       </span>
                     </div>
                     <Progress value={prodStatus?.progress || (activeSeries.status === 'ready_to_release' ? 100 : 0)} className="h-2" />
+                    
+                    {/* Speed up button - visible during active production */}
+                    {activeSeries.status === 'production' && !prodStatus?.complete && (
+                      <Button 
+                        className="w-full bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-black text-xs font-bold h-8" 
+                        onClick={async () => {
+                          setActionLoading('speedup');
+                          try {
+                            const res = await api.post(`/series-pipeline/${activeSeries.id}/speed-up-production`, {}, { timeout: 15000 });
+                            toast.success(res.data.message);
+                            refreshUser();
+                            // Re-check production status
+                            const ps = await api.get(`/series-pipeline/${activeSeries.id}/production-status`);
+                            setProdStatus(ps.data);
+                          } catch (e) { toast.error(e.response?.data?.detail || 'Errore accelerazione'); }
+                          finally { setActionLoading(null); }
+                        }} 
+                        disabled={actionLoading}
+                        data-testid="speed-up-production-btn">
+                        {actionLoading === 'speedup' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <span className="mr-1">⚡</span>}
+                        Accelera Produzione (-30%)
+                        <span className="ml-1 text-[9px] opacity-70">({(activeSeries.num_episodes || 10) <= 8 ? 15 : (activeSeries.num_episodes || 10) <= 16 ? 20 : 25} CP)</span>
+                      </Button>
+                    )}
+
                     {(prodStatus?.complete || activeSeries.status === 'ready_to_release') && (
                       <div className="space-y-2">
                         {/* Poster generation pre-release */}

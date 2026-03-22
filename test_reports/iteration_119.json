@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 119: Tested Coming Soon creation flow integration. Backend tests: 12 passed, 1 skipped. Frontend tests: Dashboard shows Prossimamente section with 2 Coming Soon items, cards are clickable and show hype/countdown/support/boycott. Film proposals tab shows 4-step flow correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter119_coming_soon_flow.py",
+    "/app/test_reports/pytest/pytest_iter119_coming_soon_flow.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iter119_coming_soon_flow.py"
+  ],
+  "success_rate": {
+    "backend": "92% (12/13 passed, 1 skipped)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "user1": "flow_test@test.com / Test123!",
+    "user2": "test_strat2@test.com / Test123!"
+  },
+  "seed_data_creation": "Used existing test film (94e7d44a-202e-4a2a-b547-5d54e10a454d) and anime (a30221a2-442d-4349-8c01-aa4a37cafc54)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Coming Soon flow is working correctly. Test film 'Test Flow Film' has completed its Coming Soon timer and is ready for casting. The 4-step flow in proposals tab shows: needs_poster -> needs_coming_soon -> coming_soon_active -> casting_ready. Dashboard always shows Prossimamente section with placeholder when empty.",
+  "verified_features": {
+    "backend": [
+      "GET /api/coming-soon returns all coming_soon items including pre_casting films",
+      "GET /api/film-pipeline/proposals returns both 'proposed' and 'coming_soon' (pre_casting) films",
+      "POST /api/film-pipeline/{id}/launch-coming-soon requires poster (returns 400 without poster)",
+      "POST /api/film-pipeline/{id}/advance-to-casting blocked when Coming Soon timer not expired",
+      "GET /api/coming-soon/{id}/details returns full details with hype/support/boycott counts",
+      "POST /api/coming-soon/{id}/interact works for support/boycott actions",
+      "Cannot interact with own content (returns 400)"
+    ],
+    "frontend": [
+      "Dashboard always shows Prossimamente section (with placeholder when empty)",
+      "Coming Soon cards show poster/title/countdown/hype",
+      "Coming Soon cards are clickable and expand to show details",
+      "Expanded view shows hype bar, anteprima, audience expectation, support/boycott buttons",
+      "Film proposals tab shows 4-step flow: poster -> coming soon -> active -> casting ready",
+      "Test film shows 'Coming Soon completato!' and 'Prosegui al Casting' button"
+    ]
+  }
+}

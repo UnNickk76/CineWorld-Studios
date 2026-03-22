@@ -304,20 +304,27 @@ export function ComingSoonSection({ compact = false }) {
   }, [loadItems]);
 
   if (loading) return null;
-  if (items.length === 0) return null;
 
   return (
     <div className="space-y-2" data-testid="coming-soon-section">
       <div className="flex items-center gap-2">
         <Clock className="w-4 h-4 text-cyan-400" />
         <h3 className="text-sm font-bold text-white">Prossimamente</h3>
-        <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>
+        {items.length > 0 && <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>}
       </div>
-      <div className={compact ? 'space-y-2' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
-        {items.slice(0, compact ? 3 : 10).map(item => (
-          <ComingSoonCard key={item.id} item={item} api={api} onRefresh={loadItems} />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="p-4 rounded-lg border border-dashed border-gray-700/50 text-center" data-testid="coming-soon-empty">
+          <Clock className="w-6 h-6 mx-auto mb-1 text-gray-700" />
+          <p className="text-[10px] text-gray-600">Nessun contenuto in arrivo</p>
+          <p className="text-[8px] text-gray-700">I film in Coming Soon appariranno qui</p>
+        </div>
+      ) : (
+        <div className={compact ? 'space-y-2' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
+          {items.slice(0, compact ? 3 : 10).map(item => (
+            <ComingSoonCard key={item.id} item={item} api={api} onRefresh={loadItems} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

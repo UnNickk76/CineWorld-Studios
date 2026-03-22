@@ -29,7 +29,7 @@ const STEPS = [
   { id: 'completed', label: 'Completato', icon: Star, color: 'yellow' },
 ];
 
-const STATUS_TO_STEP = { concept: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
+const STATUS_TO_STEP = { concept: 0, coming_soon: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function AnimePipeline() {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -128,6 +128,17 @@ export default function AnimePipeline() {
       setTitle(''); setDescription('');
       await loadData();
       if (refreshUser) refreshUser();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(false);
+  };
+
+  const launchAnimeComingSoon = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`);
+      toast.success(res.data.message);
+      setActiveSeries(prev => ({ ...prev, status: 'coming_soon', coming_soon_type: 'pre_casting', scheduled_release_at: res.data.scheduled_release_at }));
+      loadData();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
   };
@@ -514,20 +525,73 @@ export default function AnimePipeline() {
               </CardContent>
             </Card>
 
-            {/* CONCEPT */}
-            {activeSeries.status === 'concept' && (
+            {/* CONCEPT / COMING SOON PRE-CASTING */}
+            {(activeSeries.status === 'concept' || (activeSeries.status === 'coming_soon' && activeSeries.coming_soon_type === 'pre_casting')) && (() => {
+              const hasPoster = !!activeSeries.poster_url;
+              const isComingSoon = activeSeries.status === 'coming_soon';
+              const csExpired = isComingSoon && activeSeries.scheduled_release_at && new Date(activeSeries.scheduled_release_at) <= new Date();
+              return (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="bg-[#111113] border-orange-500/10">
-                  <CardContent className="p-4 text-center space-y-3">
-                    <Sparkles className="w-10 h-10 text-orange-400 mx-auto" />
-                    <p className="text-sm text-gray-300">Il concept dell'anime è pronto! Procedi al casting.</p>
-                    <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={advanceToCasting} disabled={actionLoading} data-testid="anime-advance-casting-btn">
-                      Vai al Casting <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <div className={`h-1 flex-1 rounded-full ${!hasPoster ? 'bg-purple-500' : 'bg-purple-500/30'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${hasPoster && !isComingSoon ? 'bg-cyan-500' : isComingSoon ? 'bg-cyan-500/30' : 'bg-gray-700'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${isComingSoon && !csExpired ? 'bg-orange-500 animate-pulse' : csExpired ? 'bg-green-500' : 'bg-gray-700'}`} />
+                    </div>
+
+                    {!hasPoster && (
+                      <div className="space-y-2 text-center" data-testid="anime-poster-step">
+                        <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
+                        <p className="text-xs text-gray-300 font-semibold">Genera la locandina</p>
+                        <Button className="w-full bg-purple-700 hover:bg-purple-600 text-xs"
+                          onClick={() => generateAnimePoster(activeSeries.id)} disabled={posterLoading === activeSeries.id}
+                          data-testid="gen-anime-poster-btn">
+                          {posterLoading === activeSeries.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                          Genera Locandina
+                        </Button>
+                      </div>
+                    )}
+
+                    {hasPoster && !isComingSoon && (
+                      <div className="text-center space-y-2" data-testid="anime-launch-cs">
+                        <img src={activeSeries.poster_url?.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${activeSeries.poster_url}` : activeSeries.poster_url}
+                          alt="" className="w-24 h-36 object-cover rounded mx-auto" />
+                        <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-xs"
+                          onClick={launchAnimeComingSoon} disabled={actionLoading}
+                          data-testid="launch-anime-cs-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
+                          Lancia Coming Soon
+                        </Button>
+                        <p className="text-[8px] text-gray-600">Il pubblico vedra' il tuo anime e potra' interagire</p>
+                      </div>
+                    )}
+
+                    {isComingSoon && !csExpired && (
+                      <div className="text-center space-y-2" data-testid="anime-cs-active">
+                        <Flame className="w-8 h-8 text-orange-400 mx-auto animate-pulse" />
+                        <p className="text-sm font-bold text-orange-400">Coming Soon attivo!</p>
+                        <p className="text-[10px] text-gray-500">Il casting iniziera' dopo il Coming Soon</p>
+                        {activeSeries.hype_score > 0 && <p className="text-[10px] text-orange-400">Hype: {activeSeries.hype_score}</p>}
+                      </div>
+                    )}
+
+                    {csExpired && (
+                      <div className="text-center space-y-2" data-testid="anime-casting-ready">
+                        <div className="p-2 rounded-lg border border-green-500/20 bg-green-500/5">
+                          <p className="text-xs font-bold text-green-400">Coming Soon completato!</p>
+                          {activeSeries.hype_score > 0 && <p className="text-[9px] text-orange-400">Hype accumulato: {activeSeries.hype_score}</p>}
+                        </div>
+                        <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={advanceToCasting} disabled={actionLoading} data-testid="anime-advance-casting-btn">
+                          Vai al Casting <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
-            )}
+              );
+            })()}
 
             {/* CASTING */}
             {activeSeries.status === 'casting' && (

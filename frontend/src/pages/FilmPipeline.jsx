@@ -294,6 +294,12 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
 const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [posterLoading, setPosterLoading] = useState(null);
+  const [posterMode, setPosterMode] = useState({});
+  const [posterPrompt, setPosterPrompt] = useState({});
+  const [posterStyle, setPosterStyle] = useState({});
+  const [actionLoading, setActionLoading] = useState(null);
+  const [countdowns, setCountdowns] = useState({});
 
   const fetch = useCallback(async () => {
     try {
@@ -305,6 +311,28 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  // Countdown updater
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const cd = {};
+      proposals.forEach(p => {
+        if (p.status === 'coming_soon' && p.scheduled_release_at) {
+          const diff = new Date(p.scheduled_release_at) - now;
+          if (diff > 0) {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            cd[p.id] = `${h}h ${m}m`;
+          } else {
+            cd[p.id] = null; // Timer expired
+          }
+        }
+      });
+      setCountdowns(cd);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [proposals]);
+
   const discard = async (id) => {
     try {
       const res = await api.post(`/film-pipeline/${id}/discard`);
@@ -313,51 +341,201 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
   };
 
+  const generatePoster = async (filmId) => {
+    setPosterLoading(filmId);
+    try {
+      const pMode = posterMode[filmId] || 'ai_auto';
+      const body = { mode: pMode };
+      if (pMode === 'ai_custom') body.custom_prompt = posterPrompt[filmId] || '';
+      if (pMode === 'classic') body.classic_style = posterStyle[filmId] || 'drama';
+      const res = await api.post(`/film-pipeline/${filmId}/generate-poster`, body, { timeout: 120000 });
+      toast.success(res.data.message || 'Locandina generata!');
+      fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione locandina'); }
+    finally { setPosterLoading(null); }
+  };
+
+  const launchComingSoon = async (id) => {
+    setActionLoading(`cs-${id}`);
+    try {
+      const res = await api.post(`/film-pipeline/${id}/launch-coming-soon`);
+      toast.success(res.data.message);
+      fetch(); refreshCounts();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
   const advance = async (id) => {
+    setActionLoading(`adv-${id}`);
     try {
       const res = await api.post(`/film-pipeline/${id}/advance-to-casting`);
       toast.success(res.data.message);
       fetch(); refreshUser(); refreshCounts();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
   };
+
+  const POSTER_MODES = [
+    { id: 'ai_auto', label: 'AI Auto' },
+    { id: 'ai_custom', label: 'AI + Prompt' },
+    { id: 'classic', label: 'Stile Classico' }
+  ];
+  const CLASSIC_STYLES = [
+    { id: 'noir', label: 'Noir' }, { id: 'vintage', label: 'Vintage' },
+    { id: 'action', label: 'Action' }, { id: 'romance', label: 'Romance' },
+    { id: 'horror', label: 'Horror' }, { id: 'scifi', label: 'Sci-Fi' },
+    { id: 'comedy', label: 'Commedia' }, { id: 'drama', label: 'Dramma' }
+  ];
 
   if (loading) return <div className="text-center py-8 text-gray-500">Caricamento...</div>;
   if (!proposals.length) return <div className="text-center py-12 text-gray-500"><ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" /><p>Nessuna proposta. Crea un film nella sezione Creazione!</p></div>;
 
+  // Determine step for each proposal
+  const getStep = (p) => {
+    if (p.status === 'coming_soon') {
+      const expired = !countdowns[p.id];
+      return expired ? 'casting_ready' : 'coming_soon_active';
+    }
+    if (!p.poster_url) return 'needs_poster';
+    return 'needs_coming_soon';
+  };
+
   return (
     <div className="space-y-3">
-      {proposals.map(p => (
+      {proposals.map(p => {
+        const step = getStep(p);
+        return (
         <Card key={p.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`proposal-${p.id}`}>
           <CardContent className="p-3">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h3 className="font-semibold text-sm">{p.title}</h3>
-                <p className="text-[10px] text-gray-500">{p.genre} &bull; {p.subgenre} &bull; {p.location?.name}</p>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 text-yellow-400" />
-                  <span className={`text-lg font-bold ${p.pre_imdb_score >= 7 ? 'text-green-400' : p.pre_imdb_score >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {/* Header */}
+            <div className="flex items-start gap-3 mb-2">
+              {p.poster_url ? (
+                <img src={p.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${p.poster_url}` : p.poster_url}
+                  alt="" className="w-14 h-20 object-cover rounded flex-shrink-0" />
+              ) : (
+                <div className="w-14 h-20 rounded bg-gray-800/50 flex items-center justify-center flex-shrink-0">
+                  <Film className="w-5 h-5 text-gray-600" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm truncate">{p.title}</h3>
+                <p className="text-[9px] text-gray-500">{p.genre} &bull; {p.subgenre} &bull; {p.location?.name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Star className="w-3 h-3 text-yellow-400" />
+                  <span className={`text-sm font-bold ${p.pre_imdb_score >= 7 ? 'text-green-400' : p.pre_imdb_score >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
                     {p.pre_imdb_score}
                   </span>
+                  <span className="text-[8px] text-gray-600 ml-0.5">Pre-IMDb</span>
                 </div>
-                <p className="text-[9px] text-gray-600">Pre-IMDb</p>
+                <p className="text-[9px] text-gray-500 mt-0.5 line-clamp-1 italic">"{p.pre_screenplay}"</p>
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 mb-2 line-clamp-2 italic">"{p.pre_screenplay}"</p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="text-xs border-red-800 text-red-400 hover:bg-red-500/10"
-                onClick={() => discard(p.id)} data-testid={`discard-${p.id}`}>
-                <ThumbsDown className="w-3 h-3 mr-1" /> Scarta
-              </Button>
-              <Button size="sm" className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-xs"
-                onClick={() => advance(p.id)} data-testid={`advance-${p.id}`}>
-                <Users className="w-3 h-3 mr-1" /> Prosegui al Casting (2 CP)
-              </Button>
+
+            {/* Step indicator */}
+            <div className="flex items-center gap-1 mb-2">
+              <div className={`h-1 flex-1 rounded-full ${step === 'needs_poster' ? 'bg-purple-500' : 'bg-purple-500/30'}`} />
+              <div className={`h-1 flex-1 rounded-full ${step === 'needs_coming_soon' ? 'bg-cyan-500' : step === 'coming_soon_active' || step === 'casting_ready' ? 'bg-cyan-500/30' : 'bg-gray-700'}`} />
+              <div className={`h-1 flex-1 rounded-full ${step === 'coming_soon_active' ? 'bg-orange-500 animate-pulse' : step === 'casting_ready' ? 'bg-green-500' : 'bg-gray-700'}`} />
             </div>
+
+            {/* Step: needs poster */}
+            {step === 'needs_poster' && (
+              <div className="space-y-2 p-2 rounded-lg border border-purple-500/20 bg-purple-500/5" data-testid={`poster-step-${p.id}`}>
+                <p className="text-[10px] font-bold text-purple-400">Step 1: Genera Locandina</p>
+                <div className="flex gap-1">
+                  {POSTER_MODES.map(opt => (
+                    <button key={opt.id} onClick={() => setPosterMode(m => ({...m, [p.id]: opt.id}))}
+                      className={`flex-1 p-1.5 rounded text-[9px] text-center border transition-all ${(posterMode[p.id] || 'ai_auto') === opt.id ? 'border-purple-500 bg-purple-500/10 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {(posterMode[p.id] || 'ai_auto') === 'ai_custom' && (
+                  <input type="text" placeholder="Descrivi la locandina..."
+                    value={posterPrompt[p.id] || ''} onChange={e => setPosterPrompt(v => ({...v, [p.id]: e.target.value}))}
+                    className="w-full p-1.5 bg-black/30 border border-gray-700 rounded text-[10px] text-white" />
+                )}
+                {(posterMode[p.id] || 'ai_auto') === 'classic' && (
+                  <div className="grid grid-cols-4 gap-1">
+                    {CLASSIC_STYLES.map(s => (
+                      <button key={s.id} onClick={() => setPosterStyle(v => ({...v, [p.id]: s.id}))}
+                        className={`p-1 rounded text-[8px] text-center border transition-all ${(posterStyle[p.id] || 'drama') === s.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700'}`}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-600 text-[10px]"
+                  onClick={() => generatePoster(p.id)} disabled={posterLoading === p.id}
+                  data-testid={`gen-poster-${p.id}`}>
+                  {posterLoading === p.id ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                  Genera Locandina
+                </Button>
+              </div>
+            )}
+
+            {/* Step: needs coming soon */}
+            {step === 'needs_coming_soon' && (
+              <div className="space-y-2" data-testid={`cs-step-${p.id}`}>
+                <Button size="sm" className="w-full bg-cyan-700 hover:bg-cyan-600 text-[10px]"
+                  onClick={() => launchComingSoon(p.id)} disabled={actionLoading === `cs-${p.id}`}
+                  data-testid={`launch-cs-${p.id}`}>
+                  {actionLoading === `cs-${p.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                  Lancia Coming Soon
+                </Button>
+                <p className="text-[8px] text-gray-600 text-center">Il pubblico vedra' il tuo film e potra' interagire</p>
+              </div>
+            )}
+
+            {/* Step: coming soon active */}
+            {step === 'coming_soon_active' && (
+              <div className="p-2 rounded-lg border border-orange-500/20 bg-orange-500/5 text-center space-y-1" data-testid={`cs-active-${p.id}`}>
+                <div className="flex items-center justify-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                  <span className="text-[10px] font-bold text-orange-400">Coming Soon attivo</span>
+                </div>
+                <div className="flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3 text-cyan-400" />
+                  <span className="text-xs font-bold text-cyan-400">{countdowns[p.id] || '...'}</span>
+                </div>
+                {p.hype_score > 0 && (
+                  <div className="flex items-center justify-center gap-1">
+                    <Flame className="w-3 h-3 text-orange-400" />
+                    <span className="text-[10px] text-orange-400">Hype: {p.hype_score}</span>
+                  </div>
+                )}
+                <p className="text-[8px] text-gray-600">In attesa... il casting iniziera' dopo il Coming Soon</p>
+              </div>
+            )}
+
+            {/* Step: casting ready */}
+            {step === 'casting_ready' && (
+              <div className="space-y-2" data-testid={`casting-ready-${p.id}`}>
+                <div className="p-2 rounded-lg border border-green-500/20 bg-green-500/5 text-center">
+                  <p className="text-[10px] font-bold text-green-400">Coming Soon completato!</p>
+                  {p.hype_score > 0 && <p className="text-[9px] text-orange-400">Hype accumulato: {p.hype_score}</p>}
+                </div>
+                <Button size="sm" className="w-full bg-green-700 hover:bg-green-600 text-xs"
+                  onClick={() => advance(p.id)} disabled={actionLoading === `adv-${p.id}`}
+                  data-testid={`advance-${p.id}`}>
+                  {actionLoading === `adv-${p.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Users className="w-3 h-3 mr-1" />}
+                  Prosegui al Casting (2 CP)
+                </Button>
+              </div>
+            )}
+
+            {/* Discard button always available */}
+            {step !== 'coming_soon_active' && (
+              <div className="mt-2">
+                <Button size="sm" variant="outline" className="text-[9px] border-red-800/50 text-red-400/60 hover:bg-red-500/10 h-6 w-full"
+                  onClick={() => discard(p.id)} data-testid={`discard-${p.id}`}>
+                  <ThumbsDown className="w-2.5 h-2.5 mr-1" /> Scarta
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
-      ))}
+      )})}
     </div>
   );
 };

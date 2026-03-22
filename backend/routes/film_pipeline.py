@@ -720,12 +720,54 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
 
 @router.get("/film-pipeline/proposals")
 async def get_proposals(user: dict = Depends(get_current_user)):
-    """Step 2: Get all user's proposed films."""
+    """Step 2: Get all user's proposed films + coming_soon pre-casting films."""
     projects = await db.film_projects.find(
-        {'user_id': user['id'], 'status': 'proposed'},
+        {'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon']},
+         '$or': [
+             {'coming_soon_type': {'$exists': False}},
+             {'coming_soon_type': 'pre_casting'},
+             {'status': 'proposed'}
+         ]},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
     return {'proposals': projects}
+
+
+COMING_SOON_PRE_CASTING_HOURS = 2  # Duration of Coming Soon phase before casting
+
+
+@router.post("/film-pipeline/{project_id}/launch-coming-soon")
+async def launch_film_coming_soon(project_id: str, user: dict = Depends(get_current_user)):
+    """Launch a proposed film into Coming Soon phase. Requires poster."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'proposed'},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(404, "Film non trovato o non in fase Proposte")
+    if not project.get('poster_url'):
+        raise HTTPException(400, "Devi generare la locandina prima di lanciare il Coming Soon")
+
+    now = datetime.now(timezone.utc)
+    release_at = now + timedelta(hours=COMING_SOON_PRE_CASTING_HOURS)
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'coming_soon_type': 'pre_casting',
+            'coming_soon_started_at': now.isoformat(),
+            'scheduled_release_at': release_at.isoformat(),
+            'updated_at': now.isoformat()
+        }}
+    )
+
+    return {
+        'success': True,
+        'message': f'"{project["title"]}" e\' ora in Coming Soon! Il pubblico puo\' interagire.',
+        'scheduled_release_at': release_at.isoformat(),
+        'hours': COMING_SOON_PRE_CASTING_HOURS
+    }
 
 
 @router.post("/film-pipeline/{project_id}/discard")
@@ -764,13 +806,25 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/film-pipeline/{project_id}/advance-to-casting")
 async def advance_to_casting(project_id: str, user: dict = Depends(get_current_user)):
-    """Move a proposed film to casting phase."""
+    """Move a proposed/coming_soon film to casting phase."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'proposed'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon']}},
         {'_id': 0}
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato o non in fase Proposte")
+
+    # If coming_soon (pre_casting), check timer expired
+    if project['status'] == 'coming_soon':
+        if project.get('coming_soon_type') != 'pre_casting':
+            raise HTTPException(400, "Questo film non puo' avanzare al casting da questo stato")
+        sra = project.get('scheduled_release_at')
+        if sra:
+            release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) < release_dt:
+                raise HTTPException(400, "Il periodo Coming Soon non e' ancora terminato")
 
     # CinePass cost for casting
     from routes.cinepass import spend_cinepass
@@ -1563,8 +1617,8 @@ async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depe
     project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
-    if project['status'] != 'screenplay':
-        raise HTTPException(status_code=400, detail="La locandina si crea durante la fase sceneggiatura")
+    if project['status'] not in ('proposed', 'screenplay'):
+        raise HTTPException(status_code=400, detail="La locandina si crea durante la fase proposta o sceneggiatura")
 
     poster_url = None
     genre_name = project.get('genre', 'drama').replace('_', ' ').title()

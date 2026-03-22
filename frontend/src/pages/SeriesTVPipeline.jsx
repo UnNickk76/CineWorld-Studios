@@ -29,7 +29,7 @@ const STEPS = [
   { id: 'completed', label: 'Completata', icon: Star, color: 'yellow' },
 ];
 
-const STATUS_TO_STEP = { concept: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
+const STATUS_TO_STEP = { concept: 0, coming_soon: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function SeriesTVPipeline() {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -136,6 +136,17 @@ export default function SeriesTVPipeline() {
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella creazione');
     }
+    setActionLoading(false);
+  };
+
+  const launchSeriesComingSoon = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`);
+      toast.success(res.data.message);
+      setActiveSeries(prev => ({ ...prev, status: 'coming_soon', coming_soon_type: 'pre_casting', scheduled_release_at: res.data.scheduled_release_at }));
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
   };
 
@@ -570,21 +581,95 @@ export default function SeriesTVPipeline() {
               </CardContent>
             </Card>
 
-            {/* CONCEPT PHASE */}
-            {activeSeries.status === 'concept' && (
+            {/* CONCEPT / COMING SOON PRE-CASTING PHASE */}
+            {(activeSeries.status === 'concept' || (activeSeries.status === 'coming_soon' && activeSeries.coming_soon_type === 'pre_casting')) && (() => {
+              const hasPoster = !!activeSeries.poster_url;
+              const isComingSoon = activeSeries.status === 'coming_soon';
+              const csExpired = isComingSoon && activeSeries.scheduled_release_at && new Date(activeSeries.scheduled_release_at) <= new Date();
+              return (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="bg-[#111113] border-blue-500/10">
-                  <CardContent className="p-4 text-center space-y-3">
-                    <Tv className="w-10 h-10 text-blue-400 mx-auto" />
-                    <p className="text-sm text-gray-300">Il concept della serie è pronto! Procedi al casting per selezionare il cast.</p>
-                    <Button className="w-full bg-blue-500 hover:bg-blue-600" onClick={advanceToCasting} disabled={actionLoading} data-testid="advance-to-casting-btn">
-                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                      Vai al Casting <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
+                  <CardContent className="p-4 space-y-3">
+                    {/* Step indicator */}
+                    <div className="flex items-center gap-1 mb-1">
+                      <div className={`h-1 flex-1 rounded-full ${!hasPoster ? 'bg-purple-500' : 'bg-purple-500/30'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${hasPoster && !isComingSoon ? 'bg-cyan-500' : isComingSoon ? 'bg-cyan-500/30' : 'bg-gray-700'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${isComingSoon && !csExpired ? 'bg-orange-500 animate-pulse' : csExpired ? 'bg-green-500' : 'bg-gray-700'}`} />
+                    </div>
+
+                    {/* Step 1: Poster */}
+                    {!hasPoster && (
+                      <div className="space-y-2 text-center" data-testid="series-poster-step">
+                        <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
+                        <p className="text-xs text-gray-300 font-semibold">Genera la locandina</p>
+                        <div className="flex gap-1">
+                          {[{id:'ai_auto',l:'AI Auto'},{id:'ai_custom',l:'AI + Prompt'}].map(opt => (
+                            <button key={opt.id} onClick={() => setPosterMode(m => ({...m, [activeSeries.id]: opt.id}))}
+                              className={`flex-1 p-1.5 rounded text-[9px] border transition-all ${(posterMode[activeSeries.id] || 'ai_auto') === opt.id ? 'border-purple-500 bg-purple-500/10 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                              {opt.l}
+                            </button>
+                          ))}
+                        </div>
+                        {(posterMode[activeSeries.id]) === 'ai_custom' && (
+                          <input type="text" placeholder="Descrivi la locandina..."
+                            value={posterPrompt[activeSeries.id] || ''} onChange={e => setPosterPrompt(v => ({...v, [activeSeries.id]: e.target.value}))}
+                            className="w-full p-1.5 bg-black/30 border border-gray-700 rounded text-[10px] text-white" />
+                        )}
+                        <Button className="w-full bg-purple-700 hover:bg-purple-600 text-xs"
+                          onClick={() => generateSeriesPoster(activeSeries.id)} disabled={posterLoading === activeSeries.id}
+                          data-testid="gen-series-poster-btn">
+                          {posterLoading === activeSeries.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                          Genera Locandina
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Step 2: Launch Coming Soon */}
+                    {hasPoster && !isComingSoon && (
+                      <div className="text-center space-y-2" data-testid="series-launch-cs">
+                        {activeSeries.poster_url && (
+                          <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-24 h-36 object-cover rounded mx-auto" />
+                        )}
+                        <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-xs"
+                          onClick={launchSeriesComingSoon} disabled={actionLoading}
+                          data-testid="launch-series-cs-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
+                          Lancia Coming Soon
+                        </Button>
+                        <p className="text-[8px] text-gray-600">Il pubblico vedra' la tua serie e potra' interagire</p>
+                      </div>
+                    )}
+
+                    {/* Step 3: Coming Soon Active */}
+                    {isComingSoon && !csExpired && (
+                      <div className="text-center space-y-2" data-testid="series-cs-active">
+                        <Flame className="w-8 h-8 text-orange-400 mx-auto animate-pulse" />
+                        <p className="text-sm font-bold text-orange-400">Coming Soon attivo!</p>
+                        <p className="text-[10px] text-gray-500">Il casting iniziera' dopo il Coming Soon</p>
+                        {activeSeries.hype_score > 0 && (
+                          <p className="text-[10px] text-orange-400">Hype: {activeSeries.hype_score}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Step 4: Ready for casting */}
+                    {csExpired && (
+                      <div className="text-center space-y-2" data-testid="series-casting-ready">
+                        <div className="p-2 rounded-lg border border-green-500/20 bg-green-500/5">
+                          <p className="text-xs font-bold text-green-400">Coming Soon completato!</p>
+                          {activeSeries.hype_score > 0 && <p className="text-[9px] text-orange-400">Hype accumulato: {activeSeries.hype_score}</p>}
+                        </div>
+                        <Button className="w-full bg-blue-500 hover:bg-blue-600" onClick={advanceToCasting} disabled={actionLoading} data-testid="advance-to-casting-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                          Vai al Casting <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
-            )}
+              );
+            })()}
 
             {/* CASTING PHASE */}
             {activeSeries.status === 'casting' && (

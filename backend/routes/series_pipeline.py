@@ -458,17 +458,67 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     return {"series": series}
 
 
+COMING_SOON_PRE_CASTING_HOURS_SERIES = 2
+
+
+@router.post("/series-pipeline/{series_id}/launch-coming-soon")
+async def launch_series_coming_soon(series_id: str, user: dict = Depends(get_current_user)):
+    """Launch a concept series/anime into Coming Soon phase. Requires poster."""
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id'], 'status': 'concept'},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata o non in fase Concept")
+    if not series.get('poster_url'):
+        raise HTTPException(400, "Devi generare la locandina prima di lanciare il Coming Soon")
+
+    now = datetime.now(timezone.utc)
+    release_at = now + timedelta(hours=COMING_SOON_PRE_CASTING_HOURS_SERIES)
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'coming_soon_type': 'pre_casting',
+            'coming_soon_started_at': now.isoformat(),
+            'scheduled_release_at': release_at.isoformat(),
+            'updated_at': now.isoformat()
+        }}
+    )
+
+    type_label = "Anime" if series.get('type') == 'anime' else "Serie TV"
+    return {
+        'success': True,
+        'message': f'{type_label} "{series["title"]}" e\' ora in Coming Soon!',
+        'scheduled_release_at': release_at.isoformat(),
+        'hours': COMING_SOON_PRE_CASTING_HOURS_SERIES
+    }
+
+
 @router.post("/series-pipeline/{series_id}/advance-to-casting")
 async def advance_to_casting(series_id: str, user: dict = Depends(get_current_user)):
-    """Move series from concept to casting phase."""
+    """Move series from concept/coming_soon to casting phase."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
         {'_id': 0}
     )
     if not series:
         raise HTTPException(404, "Serie non trovata")
-    if series['status'] != 'concept':
-        raise HTTPException(400, "La serie non è nella fase di concept")
+    if series['status'] not in ('concept', 'coming_soon'):
+        raise HTTPException(400, "La serie non e' nella fase giusta")
+
+    # If coming_soon (pre_casting), check timer expired
+    if series['status'] == 'coming_soon':
+        if series.get('coming_soon_type') != 'pre_casting':
+            raise HTTPException(400, "Questa serie non puo' avanzare al casting da questo stato")
+        sra = series.get('scheduled_release_at')
+        if sra:
+            release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) < release_dt:
+                raise HTTPException(400, "Il periodo Coming Soon non e' ancora terminato")
     
     await db.tv_series.update_one(
         {'id': series_id},

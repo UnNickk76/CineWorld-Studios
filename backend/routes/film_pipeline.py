@@ -2585,6 +2585,24 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         release_outcome = 'success'
         release_image = '/assets/release/cinema_success.jpg'
 
+    # Extract screenplay scenes for visual trailer
+    screenplay_text = project.get('screenplay', project.get('pre_screenplay', ''))
+    screenplay_scenes = []
+    if screenplay_text and len(screenplay_text) > 50:
+        # Split into 3-5 meaningful segments
+        sentences = [s.strip() for s in screenplay_text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
+        if len(sentences) >= 5:
+            step = len(sentences) // 5
+            screenplay_scenes = [sentences[i * step] + '.' for i in range(5)]
+        elif len(sentences) >= 3:
+            step = max(1, len(sentences) // 3)
+            screenplay_scenes = [sentences[i * step] + '.' for i in range(min(3, len(sentences)))]
+        else:
+            screenplay_scenes = [s + '.' for s in sentences[:3]]
+
+    # Calculate hype level from buzz and other factors
+    hype_level = min(100, max(0, int(buzz_influence * 10 + (soundtrack_score or 0) * 2 + len(project.get('sponsors', [])) * 5)))
+
     return {
         'success': True,
         'film_id': film_id,
@@ -2597,6 +2615,10 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'sponsors': project.get('sponsors', []),
         'release_outcome': release_outcome,
         'release_image': release_image,
+        'screenplay_scenes': screenplay_scenes,
+        'hype_level': hype_level,
+        'opening_day_revenue': opening_day_revenue,
+        'total_revenue': film_doc.get('total_revenue', 0),
         'cost_summary': {
             'total_money': total_cost,
             'total_cinepass': total_cinepass,

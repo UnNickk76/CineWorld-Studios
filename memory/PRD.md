@@ -60,6 +60,16 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Visual effects: success=zoom+glow+warm, flop=fade+desaturated+cold, normal=static
 - Mobile-optimized with scrollable modal
 
+### Cinematic Release Experience (2026-03-22)
+- 5-phase cinematic release: Intro → Trailer → Event → Animated Numbers → Final Result
+- Phase 1 (Intro): Cinema image + "Il tuo film sta uscendo nelle sale..." with slow animation
+- Phase 2 (Visual Trailer): Slideshow of screenplay scenes (3-5 key excerpts) with fade transitions
+- Phase 3 (Event Reveal): Dynamic release event card with animations
+- Phase 4 (Animated Numbers): Quality, IMDb, Opening Revenue counting up progressively + tier badge
+- Phase 5 (Final Result): Outcome message + modifiers + costs + action buttons
+- Hype system: hype_level derived from buzz + soundtrack + sponsors, displayed during intro
+- Backend returns screenplay_scenes and hype_level in release response
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

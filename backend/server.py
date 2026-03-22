@@ -9974,6 +9974,33 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
     }
     await db.coming_soon_interactions.insert_one(interaction)
 
+    # Send notification to content owner
+    try:
+        from notification_engine import create_game_notification
+        owner_id = content.get('user_id')
+        if owner_id and owner_id != user['id']:
+            if req.action == 'support' and outcome == 'success':
+                await create_game_notification(
+                    owner_id, 'coming_soon_support', content_id, title,
+                    extra_data={'hype_change': effects['hype']},
+                    link=f'/films'
+                )
+            elif req.action == 'boycott' and outcome == 'success':
+                await create_game_notification(
+                    owner_id, 'coming_soon_boycott', content_id, title,
+                    extra_data={'hype_change': effects['hype']},
+                    link=f'/films'
+                )
+            if effects['delay_hours'] != 0:
+                delta_label = f"+{effects['delay_hours']}h" if effects['delay_hours'] > 0 else f"{effects['delay_hours']}h"
+                await create_game_notification(
+                    owner_id, 'coming_soon_time_change', content_id, title,
+                    extra_data={'delta': delta_label, 'delay_hours': effects['delay_hours']},
+                    link=f'/films'
+                )
+    except Exception as e:
+        logger.error(f"Notification error in interact_coming_soon: {e}")
+
     # Build response message
     if outcome == 'success':
         if req.action == 'support':
@@ -10177,6 +10204,9 @@ async def speed_up_coming_soon(content_id: str, user: dict = Depends(get_current
         'speedup_cap': cap,
         'message': f"Velocizzato di {reduction_hours:.1f}h per {cost} CP!"
     }
+
+
+# Hook: notification for speed-up (created inline above for minimal code)
 
 
 # ==================== CHAT IMAGE UPLOAD ====================

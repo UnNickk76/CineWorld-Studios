@@ -121,6 +121,7 @@ const TopNavbar = () => {
   const [onlineUsersList, setOnlineUsersList] = useState([]);
   const [allPlayersList, setAllPlayersList] = useState([]);
   const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
+  const [popupNotifications, setPopupNotifications] = useState([]);
 
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
@@ -189,7 +190,27 @@ const TopNavbar = () => {
     fetchFestivalNotifications();
     const festivalInterval = setInterval(fetchFestivalNotifications, 60000);
     
-    return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); };
+    // Popup notification polling - fetch unread notifications for real-time popups
+    const fetchPopupNotifications = () => {
+      api.get('/notifications/popup').then(r => {
+        const notifs = r.data?.notifications || [];
+        if (notifs.length > 0) {
+          setPopupNotifications(prev => [...notifs, ...prev].slice(0, 5));
+          // Auto-dismiss after 6 seconds per notification
+          notifs.forEach((n, i) => {
+            setTimeout(() => {
+              setPopupNotifications(prev => prev.filter(p => p.id !== n.id));
+            }, 6000 + i * 1500);
+          });
+          // Update notification count
+          api.get('/notifications/count').then(r2 => setNotificationCount(r2.data.unread_count)).catch(() => {});
+        }
+      }).catch(() => {});
+    };
+    const popupInterval = setInterval(fetchPopupNotifications, 15000);
+    setTimeout(fetchPopupNotifications, 3000); // Initial check after 3s
+    
+    return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); clearInterval(popupInterval); };
   }, [api, userTimezone, language]);
 
   // Show donate popup - once per 24h, tracked by backend (same pattern as LoginRewardPopup)
@@ -987,16 +1008,62 @@ const TopNavbar = () => {
           <Radio className="w-4 h-4" />
           <span className="text-[8px]">TV</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/challenges' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/challenges')} data-testid="bottom-nav-sfide">
-          <Swords className="w-4 h-4" />
-          <span className="text-[8px]">Sfide</span>
-        </button>
         <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
           <Bell className="w-4 h-4" />
           {notificationCount > 0 && <span className="absolute top-0 right-0 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
           <span className="text-[8px]">Notifiche</span>
         </button>
       </div>
+
+      {/* Notification Popup Toasts */}
+      <AnimatePresence>
+        {popupNotifications.map((notif, i) => {
+          const severityStyles = {
+            critical: 'border-red-500/50 bg-red-950/90',
+            important: 'border-yellow-500/50 bg-yellow-950/90',
+            positive: 'border-green-500/50 bg-green-950/90',
+          };
+          const severityIcons = {
+            critical: <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />,
+            important: <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0" />,
+            positive: <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0" />,
+          };
+          const sev = notif.severity || 'positive';
+          return (
+            <motion.div
+              key={notif.id}
+              initial={{ opacity: 0, x: 300, scale: 0.8 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 300, scale: 0.8 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300, delay: i * 0.1 }}
+              className={`fixed z-[100] right-3 cursor-pointer backdrop-blur-md border rounded-lg p-3 max-w-xs sm:max-w-sm shadow-2xl ${severityStyles[sev] || severityStyles.positive}`}
+              style={{ top: `${70 + i * 80}px` }}
+              onClick={() => {
+                setPopupNotifications(prev => prev.filter(p => p.id !== notif.id));
+                api.post(`/notifications/${notif.id}/read`).catch(() => {});
+                const navPath = notif.link || notif.data?.path;
+                if (navPath) navigate(navPath);
+                else navigate('/notifications');
+              }}
+              data-testid={`popup-notification-${notif.id}`}
+            >
+              <div className="flex items-start gap-2.5">
+                {severityIcons[sev] || severityIcons.positive}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-xs text-white leading-tight">{notif.title}</p>
+                  <p className="text-[11px] text-gray-300 mt-0.5 leading-snug line-clamp-2">{notif.message}</p>
+                </div>
+                <button
+                  className="text-gray-500 hover:text-white p-0.5 flex-shrink-0"
+                  onClick={(e) => { e.stopPropagation(); setPopupNotifications(prev => prev.filter(p => p.id !== notif.id)); }}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
 
       {/* Online Users Panel */}
       <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); setProfileGenreFilter(null); } }}>

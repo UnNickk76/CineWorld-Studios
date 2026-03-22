@@ -1,51 +1,24 @@
 // CineWorld Studio's - NotificationsPage
-// Extracted from App.js for modularity
+// Dynamic notification system with severity levels and narrative style
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
-import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
-import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext, LanguageContext } from '../contexts';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Progress } from '../components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { ScrollArea } from '../components/ui/scroll-area';
-import { Slider } from '../components/ui/slider';
-import { Textarea } from '../components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Label } from '../components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
-import { Checkbox } from '../components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
 import {
-  Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
-  Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
-  Zap, Globe, Trophy, Shield, Swords, Heart, MessageSquare, Bell, Home,
-  Plus, Minus, Search, Filter, Trash2, Edit, Save, Copy, ExternalLink,
-  Check, AlertCircle, Info, HelpCircle, Loader2, RefreshCw, Download,
-  Eye, EyeOff, Lock, Unlock, Mail, Phone, Calendar, MapPin, Building,
-  Sparkles, Flame, Target, Gamepad2, Music, Palette, Camera, Video,
-  BookOpen, Newspaper, Gift, Crown, Medal, Gem, Coins, Wallet,
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, MoreHorizontal, MoreVertical,
-  ChevronUp, ChevronsUpDown, Lightbulb, Megaphone, Share2, ThumbsUp,
-  ThumbsDown, Bookmark, Flag, AlertTriangle, XCircle, CheckCircle,
-  BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
-  Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
-  CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding,
-  GraduationCap
+  Film, Star, Award, TrendingUp, Clock, Users, Bell,
+  X, Check, Info, Loader2, RefreshCw, Trash2,
+  Heart, MessageSquare, Swords, Trophy, Target,
+  ChevronRight, AlertTriangle, AlertCircle, Sparkles,
+  Flame, Eye, Zap, UserPlus, UserCheck, Crown, GraduationCap,
+  Mail, BarChart3, CheckCircle, TrendingDown, Camera
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
-import { LoadingSpinner } from '../components/ErrorBoundary';
-
-// useTranslations imported from contexts
 
 const NotificationsPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -54,12 +27,7 @@ const NotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actorPopup, setActorPopup] = useState(null);
-  
-  const t = (key) => ({
-    notifications: language === 'it' ? 'Notifiche' : 'Notifications',
-    markAllRead: language === 'it' ? 'Segna tutto letto' : 'Mark all read',
-    noNotifications: language === 'it' ? 'Nessuna notifica' : 'No notifications'
-  }[key] || key);
+  const [filter, setFilter] = useState('all'); // all, critical, important, positive
   
   useEffect(() => {
     loadNotifications();
@@ -67,7 +35,7 @@ const NotificationsPage = () => {
   
   const loadNotifications = async () => {
     try {
-      const res = await api.get('/notifications?limit=50');
+      const res = await api.get('/notifications?limit=80');
       setNotifications(res.data.notifications);
     } catch (e) {}
     setLoading(false);
@@ -77,6 +45,7 @@ const NotificationsPage = () => {
     try {
       await api.post('/notifications/read', { notification_ids: [] });
       loadNotifications();
+      toast.success('Tutte le notifiche segnate come lette');
     } catch (e) {}
   };
   
@@ -90,7 +59,7 @@ const NotificationsPage = () => {
   const deleteNotification = async (id) => {
     try {
       await api.delete(`/notifications/${id}`);
-      loadNotifications();
+      setNotifications(prev => prev.filter(n => n.id !== id));
     } catch (e) {}
   };
   
@@ -116,111 +85,199 @@ const NotificationsPage = () => {
       creator_reply: <Mail className="w-5 h-5 text-purple-400" />,
       acting_school: <GraduationCap className="w-5 h-5 text-yellow-400" />,
       like: <Heart className="w-5 h-5 text-red-400" />,
+      like_received: <Heart className="w-5 h-5 text-red-400" />,
       private_message: <MessageSquare className="w-5 h-5 text-blue-400" />,
+      private_message_received: <MessageSquare className="w-5 h-5 text-blue-400" />,
+      coming_soon: <Clock className="w-5 h-5 text-yellow-400" />,
+      coming_soon_support: <Flame className="w-5 h-5 text-green-400" />,
+      coming_soon_boycott: <AlertTriangle className="w-5 h-5 text-red-400" />,
+      coming_soon_time_change: <Clock className="w-5 h-5 text-orange-400" />,
+      coming_soon_completed: <CheckCircle className="w-5 h-5 text-yellow-400" />,
+      phase_completed: <CheckCircle className="w-5 h-5 text-green-400" />,
+      production_problem: <AlertCircle className="w-5 h-5 text-red-400" />,
+      high_revenue: <TrendingUp className="w-5 h-5 text-green-400" />,
+      flop_warning: <TrendingDown className="w-5 h-5 text-red-400" />,
+      chart_entry: <BarChart3 className="w-5 h-5 text-green-400" />,
+      film_interaction: <Eye className="w-5 h-5 text-cyan-400" />,
+      speed_up_used: <Zap className="w-5 h-5 text-yellow-400" />,
+      film_release: <Camera className="w-5 h-5 text-yellow-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />
     };
     return icons[type] || icons.system;
   };
-  
-  if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
-  
 
-  if (loading) return <LoadingSpinner />;
+  const getSeverityBadge = (notif) => {
+    const sev = notif.severity || notif.priority;
+    if (sev === 'critical' || sev === 'high') {
+      return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] px-1.5 py-0">Critica</Badge>;
+    }
+    if (sev === 'important' || sev === 'medium') {
+      return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[9px] px-1.5 py-0">Importante</Badge>;
+    }
+    if (sev === 'positive' || sev === 'low') {
+      return <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[9px] px-1.5 py-0">Positiva</Badge>;
+    }
+    return null;
+  };
+
+  const getSeverityBorder = (notif) => {
+    const sev = notif.severity;
+    if (sev === 'critical') return 'border-l-2 border-l-red-500';
+    if (sev === 'important') return 'border-l-2 border-l-yellow-500';
+    if (sev === 'positive') return 'border-l-2 border-l-green-500';
+    return '';
+  };
+
+  const handleNotifClick = (notif) => {
+    if (!notif.read) markAsRead(notif.id);
+    if (notif.type === 'acting_school' && notif.data?.actor_name) {
+      setActorPopup(notif.data);
+      return;
+    }
+    const navPath = notif.link || notif.data?.path;
+    if (navPath) { navigate(navPath); return; }
+    const typeRoutes = {
+      'challenge_invite': notif.data?.challenge_id ? `/challenges?accept=${notif.data.challenge_id}` : '/challenges',
+      'challenge_won': '/challenges', 'challenge_lost': '/challenges',
+      'versus_result': '/challenges', 'challenge_accepted': '/challenges',
+      'challenge_completed': '/challenges', 'challenge_cancelled': '/challenges',
+      'challenge_welcome': '/challenges',
+      'offline_battle_result': '/challenges', 'offline_challenge_result': '/challenges',
+      'film_released': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+      'trailer_ready': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+      'festival_nomination': '/festivals', 'festival_award': '/festivals',
+      'friend_request': '/friends', 'friend_accepted': '/friends',
+      'major_invite': '/major',
+      'like': notif.data?.film_id ? `/films/${notif.data.film_id}` : '/social',
+      'like_received': notif.data?.content_id ? `/films` : '/social',
+      'private_message': '/chat', 'private_message_received': '/chat',
+      'coming_soon_support': '/films', 'coming_soon_boycott': '/films',
+      'coming_soon_time_change': '/films', 'coming_soon_completed': '/films',
+      'phase_completed': '/films', 'production_problem': '/films',
+      'high_revenue': notif.data?.content_id ? '/films' : '/my-films',
+      'flop_warning': notif.data?.content_id ? '/films' : '/my-films',
+      'film_interaction': '/films',
+      'system': '/release-notes', 'welcome': '/',
+    };
+    const route = typeRoutes[notif.type];
+    if (route) navigate(route);
+  };
+
+  const filteredNotifs = notifications.filter(n => {
+    if (filter === 'all') return true;
+    const sev = n.severity || (n.priority === 'high' ? 'critical' : n.priority === 'medium' ? 'important' : 'positive');
+    return sev === filter;
+  });
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const criticalCount = notifications.filter(n => !n.read && (n.severity === 'critical' || n.priority === 'high')).length;
+
+  if (loading) return <div className="pt-16 p-4 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
 
   return (
-    <div className="pt-16 pb-6 px-3 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
-          <Bell className="w-8 h-8 text-yellow-500" />
-          {t('notifications')}
-        </h1>
-        {notifications.some(n => !n.read) && (
-          <Button size="sm" variant="outline" onClick={markAllRead}>
-            <Check className="w-4 h-4 mr-1" /> {t('markAllRead')}
+    <div className="pt-16 pb-20 px-3 max-w-2xl mx-auto" data-testid="notifications-page">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Bell className="w-7 h-7 text-yellow-500" />
+          <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl">Notifiche</h1>
+          {unreadCount > 0 && (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">{unreadCount} nuove</Badge>
+          )}
+        </div>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={loadNotifications} data-testid="refresh-notifications">
+            <RefreshCw className="w-4 h-4" />
           </Button>
-        )}
+          {unreadCount > 0 && (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={markAllRead} data-testid="mark-all-read">
+              <Check className="w-3.5 h-3.5 mr-1" /> Segna tutto
+            </Button>
+          )}
+        </div>
       </div>
-      
+
+      {/* Filter Tabs */}
+      <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+        {[
+          { key: 'all', label: 'Tutte', color: 'text-white' },
+          { key: 'critical', label: 'Critiche', color: 'text-red-400', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+          { key: 'important', label: 'Importanti', color: 'text-yellow-400', icon: <Clock className="w-3.5 h-3.5" /> },
+          { key: 'positive', label: 'Positive', color: 'text-green-400', icon: <Sparkles className="w-3.5 h-3.5" /> },
+        ].map(f => (
+          <button
+            key={f.key}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+              filter === f.key 
+                ? `bg-white/15 ${f.color} border border-white/20` 
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+            onClick={() => setFilter(f.key)}
+            data-testid={`filter-${f.key}`}
+          >
+            {f.icon} {f.label}
+            {f.key === 'critical' && criticalCount > 0 && (
+              <span className="min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ml-0.5">{criticalCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Notification List */}
       <Card className="bg-[#1A1A1A] border-white/10">
-        <CardContent className="p-4">
-          {notifications.length === 0 ? (
-            <div className="text-center py-12">
-              <Bell className="w-12 h-12 mx-auto text-gray-500/50 mb-3" />
-              <p className="text-gray-400">{t('noNotifications')}</p>
+        <CardContent className="p-2 sm:p-3">
+          {filteredNotifs.length === 0 ? (
+            <div className="text-center py-10">
+              <Bell className="w-10 h-10 mx-auto text-gray-500/30 mb-2" />
+              <p className="text-gray-500 text-sm">{filter === 'all' ? 'Nessuna notifica' : `Nessuna notifica ${filter === 'critical' ? 'critica' : filter === 'important' ? 'importante' : 'positiva'}`}</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {notifications.map(notif => (
-                <div 
-                  key={notif.id} 
-                  className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${notif.read ? 'bg-white/5' : 'bg-yellow-500/10 border border-yellow-500/20'}`}
-                  onClick={() => { 
-                    if (!notif.read) markAsRead(notif.id);
-                    // Acting school notifications open popup
-                    if (notif.type === 'acting_school' && notif.data?.actor_name) {
-                      setActorPopup(notif.data);
-                      return;
-                    }
-                    // Smart navigation based on notification type
-                    const navPath = notif.link || notif.data?.path;
-                    if (navPath) {
-                      navigate(navPath);
-                    } else {
-                      // Fallback routing based on notification type
-                      const typeRoutes = {
-                        'challenge_invite': notif.data?.challenge_id ? `/challenges?accept=${notif.data.challenge_id}` : '/challenges',
-                        'challenge_won': '/challenges',
-                        'challenge_lost': '/challenges',
-                        'versus_result': '/challenges',
-                        'challenge_accepted': '/challenges',
-                        'challenge_completed': '/challenges',
-                        'challenge_cancelled': '/challenges',
-                        'challenge_welcome': '/challenges',
-                        'offline_battle_result': '/challenges',
-                        'offline_challenge_result': '/challenges',
-                        'offline_challenge_report': '/challenges',
-                        'film_released': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'trailer_ready': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'trailer_generated': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'trailer_announcement': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'trailer_error': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'festival_nomination': '/festivals',
-                        'festival_award': '/festivals',
-                        'festival_started': '/festivals',
-                        'friend_request': '/friends',
-                        'friend_accepted': '/friends',
-                        'major_invite': '/major',
-                        'review_published': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'minigame_challenge': '/games',
-                        'box_office_update': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-                        'like': notif.data?.film_id ? `/films/${notif.data.film_id}` : '/social',
-                        'private_message': '/chat',
-                        'system': '/release-notes',
-                        'welcome': '/',
-                      };
-                      const route = typeRoutes[notif.type];
-                      if (route) navigate(route);
-                    }
-                  }}
-                >
-                  <div className="flex-shrink-0 mt-0.5">
-                    {getIconForType(notif.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{notif.title}</p>
-                    <p className="text-xs text-gray-400">{notif.message}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      {new Date(notif.created_at).toLocaleDateString(language === 'it' ? 'it-IT' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400" onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                  {(notif.link || notif.data?.path || notif.data?.film_id || ['versus_result','challenge_accepted','challenge_completed','offline_battle_result','offline_challenge_result','offline_challenge_report','film_released','trailer_ready','trailer_generated','festival_nomination','festival_award','friend_request','review_published','minigame_challenge','like','private_message'].includes(notif.type)) && (
-                    <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0 self-center" />
-                  )}
-                </div>
-              ))}
+            <div className="space-y-1">
+              <AnimatePresence initial={false}>
+                {filteredNotifs.map((notif, idx) => (
+                  <motion.div
+                    key={notif.id}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, delay: idx * 0.02 }}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
+                      notif.read 
+                        ? 'bg-white/3 hover:bg-white/5' 
+                        : 'bg-white/8 hover:bg-white/12 border border-white/10'
+                    } ${getSeverityBorder(notif)}`}
+                    onClick={() => handleNotifClick(notif)}
+                    data-testid={`notification-${notif.id}`}
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      {getIconForType(notif.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className={`font-semibold text-sm leading-tight ${notif.read ? 'text-gray-300' : 'text-white'}`}>{notif.title}</p>
+                        {!notif.read && getSeverityBadge(notif)}
+                        {notif.data?.group_count > 1 && (
+                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[9px] px-1.5 py-0">x{notif.data.group_count}</Badge>
+                        )}
+                      </div>
+                      <p className={`text-xs mt-0.5 leading-snug ${notif.read ? 'text-gray-500' : 'text-gray-400'}`}>{notif.message}</p>
+                      <p className="text-[10px] text-gray-600 mt-1">
+                        {new Date(notif.created_at).toLocaleDateString('it-IT', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        className="text-gray-600 hover:text-red-400 p-1 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
+                        data-testid={`delete-notif-${notif.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </CardContent>
@@ -236,12 +293,11 @@ const NotificationsPage = () => {
             </DialogTitle>
             <DialogDescription className="text-gray-400">
               {actorPopup?.action === 'kept' 
-                ? `${actorPopup?.trainer || '?'} ${language === 'it' ? 'lo utilizzerà nei suoi film' : 'will use in their films'}`
-                : language === 'it' ? 'Disponibile per tutti i produttori!' : 'Available for all producers!'}
+                ? `${actorPopup?.trainer || '?'} lo utilizzer\u00e0 nei suoi film`
+                : 'Disponibile per tutti i produttori!'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {/* Category & Rating */}
             <div className="flex items-center gap-3">
               <Badge className={`text-xs ${
                 actorPopup?.category === 'star' ? 'bg-yellow-900/60 text-yellow-300' :
@@ -257,7 +313,6 @@ const NotificationsPage = () => {
                 </span>
               )}
             </div>
-            {/* Skills */}
             <div className="space-y-1.5">
               {actorPopup?.skills && Object.entries(actorPopup.skills).map(([key, val]) => {
                 const change = actorPopup?.skill_changes?.[key] || 0;
@@ -272,18 +327,17 @@ const NotificationsPage = () => {
                   <span className="text-[10px] font-mono text-gray-300 w-6 text-right">{val}</span>
                   {change !== 0 && (
                     <span className={`text-[10px] font-bold ${change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {change > 0 ? '▲' : '▼'}
+                      {change > 0 ? '\u25b2' : '\u25bc'}
                     </span>
                   )}
                 </div>
                 );
               })}
             </div>
-            {/* Hire button for released actors */}
             {actorPopup?.action === 'released' && actorPopup?.cost_per_film && (
               <div className="pt-2 border-t border-gray-800">
                 <p className="text-xs text-gray-400 mb-2">
-                  {language === 'it' ? 'Costo per film:' : 'Cost per film:'} <span className="text-white font-bold">${actorPopup.cost_per_film.toLocaleString()}</span>
+                  Costo per film: <span className="text-white font-bold">${actorPopup.cost_per_film.toLocaleString()}</span>
                 </p>
                 <Button 
                   className="w-full bg-cyan-700 hover:bg-cyan-800" 
@@ -291,14 +345,14 @@ const NotificationsPage = () => {
                   data-testid="hire-from-notification"
                 >
                   <Film className="w-4 h-4 mr-2" />
-                  {language === 'it' ? 'Ingaggia — Crea un Film' : 'Hire — Create a Film'}
+                  Ingaggia - Crea un Film
                 </Button>
               </div>
             )}
             {actorPopup?.action === 'kept' && (
               <div className="pt-2 border-t border-gray-800 text-center">
                 <p className="text-xs text-gray-500 italic">
-                  {language === 'it' ? 'Questo attore è nel cast privato del produttore' : 'This actor is in the producer\'s private cast'}
+                  Questo attore e' nel cast privato del produttore
                 </p>
               </div>
             )}

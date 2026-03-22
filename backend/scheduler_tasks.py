@@ -889,6 +889,24 @@ async def auto_release_coming_soon():
             )
             await scheduler_db.notifications.insert_one(notif)
             logger.info(f"Auto-released film {project['id']} ({project['title']}) with strategy bonus {strategy_bonus_pct}%")
+            
+            # Send engagement notification (high revenue or flop)
+            try:
+                from notification_engine import create_game_notification
+                if quality_score >= 70:
+                    await create_game_notification(
+                        project['user_id'], 'high_revenue', project['id'], project['title'],
+                        extra_data={'revenue': total_rev, 'quality': quality_score},
+                        link=f'/films/{project["id"]}', force=True
+                    )
+                elif quality_score < 40:
+                    await create_game_notification(
+                        project['user_id'], 'flop_warning', project['id'], project['title'],
+                        extra_data={'revenue': total_rev, 'quality': quality_score},
+                        link=f'/films/{project["id"]}', force=True
+                    )
+            except Exception as ne:
+                logger.error(f"Notification error for film release: {ne}")
         except Exception as e:
             logger.error(f"Error auto-releasing film {project['id']}: {e}")
 
@@ -1010,5 +1028,17 @@ async def process_coming_soon_dynamic_events():
                     }
                 )
                 logger.info(f"Dynamic event for {item['id']}: {event_text} ({time_label})")
+                
+                # Send notification to project owner
+                try:
+                    from notification_engine import create_game_notification
+                    await create_game_notification(
+                        item['user_id'], 'coming_soon_time_change',
+                        item['id'], item.get('title', ''),
+                        extra_data={'delta': time_label, 'delay_hours': time_change_hours, 'event_text': event_text},
+                        link='/films' if collection_name == 'film_projects' else '/series'
+                    )
+                except Exception as ne:
+                    logger.error(f"Notification error for dynamic event: {ne}")
             except Exception as e:
                 logger.error(f"Error processing dynamic event for {item.get('id')}: {e}")

@@ -24,6 +24,29 @@ async def get_notifications(
     return {'notifications': notifications, 'unread_count': unread_count}
 
 
+@router.get("/notifications/popup")
+async def get_popup_notifications(user: dict = Depends(get_current_user)):
+    """Get unread notifications that haven't been shown as popup yet."""
+    notifs = await db.notifications.find(
+        {
+            'user_id': user['id'],
+            'read': False,
+            'shown_popup': {'$ne': True},
+        },
+        {'_id': 0}
+    ).sort('created_at', -1).limit(5).to_list(5)
+    
+    # Mark as shown_popup so they don't appear again
+    if notifs:
+        ids = [n['id'] for n in notifs]
+        await db.notifications.update_many(
+            {'id': {'$in': ids}},
+            {'$set': {'shown_popup': True}}
+        )
+    
+    return {'notifications': notifs}
+
+
 @router.get("/notifications/count")
 async def get_notification_count(user: dict = Depends(get_current_user)):
     count = await db.notifications.count_documents({

@@ -142,12 +142,23 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - overflow-x-hidden sul container, overflow-hidden sull'area principale
 - Chat fullwidth su mobile, input sempre visibile
 
+### Moderation/Reporting System (2026-03-22)
+- **Backend**: POST /api/reports (create report for message/image/user), GET /api/admin/reports (admin-only, filter by status), POST /api/admin/reports/{id}/resolve (dismiss or delete_content)
+- Duplicate report prevention (same reporter + target type + target_id)
+- Snapshot of reported content stored in report document
+- Soft deletion: moderated messages get content replaced + image_url nulled
+- **Frontend ChatPage**: "Segnala" button on hover for other users' messages/images, ReportModal with reason textarea
+- **Frontend UserProfileModal**: "Segnala Utente" button for reporting users
+- **Frontend AdminPage**: New "Segnalazioni" tab with filter buttons (In attesa/Risolte/Archiviate/Tutte), report cards with type/status badges, snapshot preview, "Rimuovi Contenuto" and "Archivia" action buttons
+- Testing: 16/16 backend + 13/13 frontend tests PASSED (iteration 116)
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 - Like endpoint: safe handling of films without user_id (orphan films)
 - Chat mobile: pannelli laterali fuori schermo su mobile (breakpoint fix)
 
 ## Backlog
+- (P0) Chat Evolution Step 6: Rifinitura mobile e qualita social
 - (P1) Readable AI Screenplay (scrollable, accessible post-generation)
 - (P1) Marketplace diritti TV/Anime
 - (P2) Fix layout mobile Contest Page

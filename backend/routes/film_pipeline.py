@@ -2574,6 +2574,17 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         {'film_id': film_id, 'quality': quality_score, 'tier': tier})
     await db.notifications.insert_one(notif)
 
+    # Determine release outcome based on quality
+    if quality_score < 55:
+        release_outcome = 'flop'
+        release_image = '/assets/release/cinema_flop.jpg'
+    elif quality_score <= 75:
+        release_outcome = 'normal'
+        release_image = '/assets/release/cinema_normal.jpg'
+    else:
+        release_outcome = 'success'
+        release_image = '/assets/release/cinema_success.jpg'
+
     return {
         'success': True,
         'film_id': film_id,
@@ -2584,6 +2595,8 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         'imdb_rating': film_doc.get('imdb_rating', 0),
         'poster_url': film_doc.get('poster_url'),
         'sponsors': project.get('sponsors', []),
+        'release_outcome': release_outcome,
+        'release_image': release_image,
         'cost_summary': {
             'total_money': total_cost,
             'total_cinepass': total_cinepass,

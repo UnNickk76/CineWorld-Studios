@@ -1875,22 +1875,69 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
 
       {/* Cinematic Release Experience */}
       {releaseResult && releasePhase > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="release-result">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3" data-testid="release-result">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" 
             style={{ animation: 'fadeIn 0.5s ease-out' }}
             onClick={() => { if (releasePhase >= 3) { setReleaseResult(null); setReleasePhase(0); } }} />
 
-          <div className="relative w-full max-w-sm z-10">
-            {/* Phase 1: Title cinematic reveal */}
-            <div className="text-center mb-4" style={{ animation: 'slideUp 0.8s ease-out both' }}>
-              <p className="text-[10px] text-yellow-500/70 uppercase tracking-[0.3em] mb-1" 
-                style={{ animation: 'fadeIn 0.6s ease-out 0.3s both' }}>Un film di {releaseResult.director_name || 'CineWorld'}</p>
-              <h1 className="text-2xl font-black text-white tracking-tight"
-                style={{ animation: 'scaleIn 0.6s ease-out 0.5s both' }}>
-                {releaseResult.title}
-              </h1>
-              <p className="text-xs text-yellow-400/80 mt-1" style={{ animation: 'fadeIn 0.5s ease-out 0.8s both' }}>Al Cinema</p>
+          <div className="relative w-full max-w-sm z-10 max-h-[90vh] overflow-y-auto rounded-xl" style={{ scrollbarWidth: 'none' }}>
+            
+            {/* Release Image Header */}
+            <div className={`relative w-full aspect-[16/10] overflow-hidden rounded-t-xl ${
+              releaseResult.release_outcome === 'success' ? 'ring-2 ring-yellow-500/60' :
+              releaseResult.release_outcome === 'flop' ? '' : ''
+            }`} style={{ 
+              animation: releaseResult.release_outcome === 'success' 
+                ? 'successZoom 1.5s ease-out both' 
+                : releaseResult.release_outcome === 'flop'
+                ? 'flopFade 1.2s ease-out both'
+                : 'fadeIn 0.8s ease-out both'
+            }} data-testid="release-image-container">
+              <img 
+                src={releaseResult.release_image || '/assets/release/cinema_normal.jpg'}
+                alt="Release" 
+                className={`w-full h-full object-cover ${
+                  releaseResult.release_outcome === 'flop' ? 'saturate-[0.4] brightness-75' : 
+                  releaseResult.release_outcome === 'success' ? 'brightness-110' : ''
+                }`}
+                data-testid="release-image"
+              />
+              {/* Gradient overlay */}
+              <div className={`absolute inset-0 ${
+                releaseResult.release_outcome === 'success' 
+                  ? 'bg-gradient-to-t from-black via-black/30 to-transparent' 
+                  : releaseResult.release_outcome === 'flop'
+                  ? 'bg-gradient-to-t from-black via-black/50 to-blue-900/20'
+                  : 'bg-gradient-to-t from-black via-black/40 to-transparent'
+              }`} />
+              {/* Glow effect for success */}
+              {releaseResult.release_outcome === 'success' && (
+                <div className="absolute inset-0 pointer-events-none" 
+                  style={{ boxShadow: 'inset 0 0 60px rgba(234, 179, 8, 0.15)', animation: 'glowPulse 2s ease-in-out infinite' }} />
+              )}
+              {/* Overlay text */}
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <p className={`text-[10px] uppercase tracking-[0.3em] mb-0.5 ${
+                  releaseResult.release_outcome === 'success' ? 'text-yellow-400' :
+                  releaseResult.release_outcome === 'flop' ? 'text-blue-300/70' : 'text-gray-300/80'
+                }`} style={{ animation: 'fadeIn 0.6s ease-out 0.3s both' }}>
+                  {releaseResult.release_outcome === 'success' ? "Evento dell'anno!" :
+                   releaseResult.release_outcome === 'flop' ? "Il pubblico non ha risposto..." : "Buona accoglienza"}
+                </p>
+                <h1 className={`text-xl font-black tracking-tight leading-tight ${
+                  releaseResult.release_outcome === 'success' ? 'text-white' :
+                  releaseResult.release_outcome === 'flop' ? 'text-gray-300' : 'text-white'
+                }`} style={{ animation: 'scaleIn 0.6s ease-out 0.5s both' }}>
+                  {releaseResult.title}
+                </h1>
+                <p className={`text-[10px] mt-0.5 ${
+                  releaseResult.release_outcome === 'success' ? 'text-yellow-400/80' :
+                  releaseResult.release_outcome === 'flop' ? 'text-blue-300/50' : 'text-amber-400/70'
+                }`} style={{ animation: 'fadeIn 0.5s ease-out 0.8s both' }}>
+                  {releaseResult.director_name ? `Un film di ${releaseResult.director_name}` : 'Al Cinema'}
+                </p>
+              </div>
             </div>
 
             {/* Phase 2: Event dramatic reveal */}
@@ -1903,39 +1950,31 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
               const accentColor = evt.type === 'positive' ? 'text-emerald-400' : evt.type === 'negative' ? 'text-red-400' : 'text-amber-400';
 
               return (
-                <div className={`relative rounded-xl border-2 ${borderColor} bg-gradient-to-b ${bgGrad} p-4 shadow-lg ${glowColor} ${isRare ? 'ring-2 ring-purple-500/50' : ''}`}
+                <div className={`relative border-x-2 border-b-2 ${borderColor} bg-gradient-to-b ${bgGrad} p-4 shadow-lg ${glowColor} ${isRare ? 'ring-2 ring-purple-500/50' : ''}`}
                   style={{ animation: isRare ? 'shakeIn 0.7s ease-out both' : 'eventReveal 0.8s ease-out both' }}
                   data-testid="release-event">
                   
-                  {/* Rare event shimmer overlay */}
-                  {isRare && <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                  {isRare && <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent"
                       style={{ animation: 'shimmer 2s ease-in-out infinite' }} />
                   </div>}
 
-                  {/* Event icon */}
                   <div className="flex justify-center mb-3">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       evt.type === 'positive' ? 'bg-emerald-500/20' : evt.type === 'negative' ? 'bg-red-500/20' : 'bg-amber-500/20'
                     }`} style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
-                      <span className="text-2xl">{evt.type === 'positive' ? '⚡' : evt.type === 'negative' ? '💥' : '🔀'}</span>
+                      <span className="text-xl">{evt.type === 'positive' ? '⚡' : evt.type === 'negative' ? '💥' : '🔀'}</span>
                     </div>
                   </div>
 
-                  {/* Event name */}
                   <div className="text-center mb-2">
-                    {isRare && <Badge className="bg-purple-500/30 text-purple-300 text-[8px] mb-1 border border-purple-500/40"
-                      style={{ animation: 'fadeIn 0.4s ease-out 0.3s both' }}>EVENTO RARO</Badge>}
-                    <h3 className={`text-sm font-black ${accentColor} uppercase tracking-wider`}
-                      style={{ animation: 'fadeIn 0.4s ease-out 0.2s both' }}>{evt.name}</h3>
+                    {isRare && <Badge className="bg-purple-500/30 text-purple-300 text-[8px] mb-1 border border-purple-500/40">EVENTO RARO</Badge>}
+                    <h3 className={`text-sm font-black ${accentColor} uppercase tracking-wider`}>{evt.name}</h3>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-[11px] text-gray-300 text-center leading-relaxed mb-3"
-                    style={{ animation: 'fadeIn 0.5s ease-out 0.4s both' }}>{evt.description}</p>
+                  <p className="text-[11px] text-gray-300 text-center leading-relaxed mb-3">{evt.description}</p>
 
-                  {/* Modifiers */}
-                  <div className="flex justify-center gap-4 text-xs font-bold" style={{ animation: 'fadeIn 0.4s ease-out 0.6s both' }}>
+                  <div className="flex justify-center gap-4 text-xs font-bold">
                     {evt.quality_modifier !== 0 && (
                       <div className={`px-2.5 py-1 rounded-full ${evt.quality_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
                         Qualita {evt.quality_modifier > 0 ? '+' : ''}{evt.quality_modifier}
@@ -1953,9 +1992,11 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
 
             {/* Phase 3: Full results */}
             {releasePhase >= 3 && (
-              <div className="mt-4 space-y-2.5" style={{ animation: 'slideUp 0.6s ease-out both' }}>
-                {/* Score card */}
-                <Card className="bg-[#151517] border-yellow-600/40 overflow-hidden">
+              <div className={`space-y-2.5 ${releasePhase >= 2 && releaseResult.release_event && releaseResult.release_event.id !== 'nothing_special' ? '' : 'mt-0'}`} style={{ animation: 'slideUp 0.6s ease-out both' }}>
+                <Card className={`bg-[#151517] border-0 rounded-none rounded-b-xl overflow-hidden ${
+                  releaseResult.release_outcome === 'success' ? 'border-t-2 border-yellow-600/40' :
+                  releaseResult.release_outcome === 'flop' ? 'border-t-2 border-blue-600/30' : 'border-t-2 border-gray-600/30'
+                }`}>
                   <CardContent className="p-3 space-y-2.5">
                     <div className="flex items-center gap-3">
                       {releaseResult.poster_url && (
@@ -1963,8 +2004,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                       )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className={`text-3xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}
-                            style={{ animation: 'countUp 0.5s ease-out both' }}>
+                          <div className={`text-3xl font-black ${releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
                             {releaseResult.quality_score}
                           </div>
                           {releaseResult.imdb_rating && (
@@ -1981,7 +2021,6 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                       </div>
                     </div>
 
-                    {/* Sponsors */}
                     {releaseResult.sponsors?.length > 0 && (
                       <div className="text-[9px] text-gray-400 p-1.5 bg-cyan-500/5 rounded border border-cyan-500/20">
                         <span className="text-[10px] font-medium text-cyan-300 mr-1">Sponsor:</span>
@@ -1993,7 +2032,6 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                       </div>
                     )}
 
-                    {/* Modifiers */}
                     <div className="text-[9px] text-gray-400 p-1.5 bg-black/30 rounded space-y-0.5">
                       <p className="text-[10px] font-medium text-gray-200 mb-0.5">Modificatori</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
@@ -2004,16 +2042,18 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                       </div>
                     </div>
 
-                    {/* Costs */}
                     <div className="text-[9px] text-gray-400 p-1.5 bg-black/30 rounded">
                       <p className="text-[10px] font-medium text-gray-200 mb-0.5">Costi</p>
                       <p>Denaro: <span className="text-yellow-400">${releaseResult.cost_summary?.total_money?.toLocaleString()}</span> | CinePass: <span className="text-cyan-400">{releaseResult.cost_summary?.total_cinepass} CP</span></p>
                     </div>
 
-                    {/* Actions */}
                     <div className="flex gap-2">
                       <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); window.location.href = `/films/${releaseResult.film_id}`; }}
-                        className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-black text-xs" data-testid="release-go-film">
+                        className={`flex-1 text-xs ${
+                          releaseResult.release_outcome === 'success' ? 'bg-yellow-600 hover:bg-yellow-500 text-black' :
+                          releaseResult.release_outcome === 'flop' ? 'bg-blue-700 hover:bg-blue-600 text-white' :
+                          'bg-amber-600 hover:bg-amber-500 text-black'
+                        }`} data-testid="release-go-film">
                         <Film className="w-3 h-3 mr-1" /> Vai al Film
                       </Button>
                       <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); }} variant="outline" className="border-gray-700 text-xs" data-testid="release-close">
@@ -2046,6 +2086,19 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
             }
             @keyframes countUp { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
             @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+            @keyframes successZoom { 
+              0% { opacity: 0; transform: scale(1.15); }
+              60% { opacity: 1; transform: scale(1.02); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            @keyframes flopFade { 
+              0% { opacity: 0; transform: scale(0.98); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            @keyframes glowPulse {
+              0%, 100% { box-shadow: inset 0 0 40px rgba(234, 179, 8, 0.1); }
+              50% { box-shadow: inset 0 0 80px rgba(234, 179, 8, 0.2); }
+            }
           `}</style>
         </div>
       )}

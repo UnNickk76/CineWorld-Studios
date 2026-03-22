@@ -1,41 +1,46 @@
 <analysis>**original_problem_statement:**
-The user initially provided a set of feature requests and bug reports. Throughout the session, new requests and bugs were raised and addressed. The current high-priority task is to make the results of a film's release (event, score, revenue, etc.) persistent and viewable by any player on a dedicated film detail page.
-
-**PRODUCT REQUIREMENTS (current and upcoming):**
-1.  **Persistent Release Results (P0):** When a film is clicked on from anywhere in the app (personal library, leaderboards), it should be possible to view its original release results, including the dynamic event that occurred, final score, revenue, and other stats. This view should be public to all players.
-2.  **Readable AI Screenplay (P1):** The AI-generated screenplay in the film pipeline should be fully readable in a scrollable box, potentially in a modal, and accessible even after it's been generated.
-3.  **Free Visual Trailer System (P1):** Replace the old paid video trailer system with a free, lightweight, storyboard-style visual trailer. This should be generated from the AI screenplay (e.g., 3-5 key scenes as images) and be available during pre-production to generate hype, which should slightly influence the film's final results.
-4.  **Guest Stars for TV Series (P1):** A future feature to allow hiring famous guest stars for a limited number of episodes in a TV series.
-5.  **Contest Page Mobile Layout Bug (P2):** A low-priority, recurring visual bug where the contest page layout is broken on mobile devices.
+The user initiated a series of feature requests and bug fixes to enhance their cinematic empire game. The core objectives of this session were:
+1.  **TV System Refactor (P0):** Correct and unify the My TV system, fixing broken navigation, ensuring the TV station name persists from infrastructure purchase, and linking content capacity to the infrastructure level. The UI should be more like a modern streaming platform.
+2.  **Series/Anime Parity with Films (P0):**
+    *   Fix bugs preventing the release of Series TV and Anime.
+    *   Fix the broken poster generation for Series TV and Anime.
+    *   Implement a clickable detail page for Series and Anime, reusing the existing film detail page to save costs.
+    *   Add a production speed-up mechanism for Series/Anime using CinePass.
+3.  **Enhance Film Release Experience (P1):**
+    *   Add dynamic images (flop/normal/success) to the film release modal.
+    *   Transform the release into a multi-phase, animated cinematic experience, including a visual trailer and an 'hype' mechanic.
+4.  **Test Data Cleanup (P0 - Current Task):** Safely identify and delete test users and their associated content (films, series) that are polluting the game's leaderboards and public listings, without affecting any real player data.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game where users produce films, TV series, and anime. Key systems are in place for managing a casting agency, purchasing infrastructure, and navigating complex production pipelines. Recent work has unified UI elements, implemented a full Talent Scout system, and added a rich, narrative-driven Dynamic Release Event system for all content types, complete with a cinematic animated reveal. An admin panel for managing user currency has also been created. Numerous bugs related to infrastructure purchasing, UI navigation, and API timeouts have been resolved.
+The application is a full-stack cinematic empire game built with React, FastAPI, and MongoDB. It features complex systems for producing films, TV series, and anime, managing a casting agency, and purchasing infrastructure. In this session, the agent successfully implemented a persistent view for film release results, completely refactored the TV station system for consistency and functionality, and brought Series TV and Anime features to parity with Films (including release flow, poster generation, detail pages, and production speed-up). The film release has been enhanced with a dynamic, multi-phase cinematic experience.
 
 **Last working item**:
-- **Last item agent was working:** Implementing the user's request to make film release results persistent and publicly viewable. The agent was analyzing the existing backend (, ) and frontend () code to determine the best way to store and display this data. The agent found that the  object is already being saved to the  document in the database upon release.
+- **Last item agent was working:** The user requested a safe cleanup of test data. The agent performed a comprehensive analysis of all users, films, and series in the database. It presented a list of potential test accounts to the user, who then confirmed via annotated screenshots exactly which 19 test users and their associated content are safe to delete. The agent was preparing to create a secure admin endpoint to perform this deletion.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** both (Backend  to verify the film detail endpoint returns all necessary data; Frontend  to verify the new Release Result section on the  page.)
+- **Which testing method agent to use?** backend testing agent. The task requires creating a secure admin endpoint and performing a critical database deletion. The user explicitly requested using the testing agent to verify the logic before execution to prevent accidental deletion of real user data.
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0):** Make film release results persistent and publicly viewable.
--   **Issue 2 (P2):** Contest Page Mobile Layout Is Broken.
+- **Issue 1 (P0):** Safely clean up test data (users and their content).
+- **Issue 2 (P2):** Contest Page Mobile Layout Is Broken.
 
 **Issues Detail:**
-- **Issue 1: Make film release results persistent and publicly viewable**
-  - **Attempted fixes:** The agent has investigated the existing code and confirmed that the core data () is already being saved in the  collection. The agent was starting to plan the necessary frontend changes.
+- **Issue 1: Safely clean up test data (users and their content)**
+  - **Attempted fixes:** The analysis phase is complete. The agent identified all users and content, and the user has provided explicit, visual confirmation of exactly which records to delete. A definitive list of 19 test usernames and 2 additional test films has been established.
   - **Next debug checklist:**
-    1.  Verify the  endpoint returns the  object and all other necessary stats (final score, modifiers, revenue).
-    2.  In , create a new UI component to display the release event attractively (reusing styles from the cinematic reveal if possible).
-    3.  Render this component within the  page, likely in the right-hand column below the main stats.
-    4.  Ensure this data is loaded and displayed for any film, regardless of ownership.
-  - **Why fix this issue and what will be achieved with the fix?** To make a film's launch a memorable, persistent, and shareable milestone, adding to the game's narrative depth and social element.
+    1.  In , create a new secure admin endpoint (e.g., ).
+    2.  The endpoint logic should use a hardcoded list of the 19 confirmed test **usernames** (e.g., , , , etc.) to identify users for deletion.
+    3.  For each targeted user, the logic must delete the user document AND all associated content (films, tv_series, infrastructure, etc.).
+    4.  Add specific logic to also delete the two standalone test films confirmed by the user (, ).
+    5.  As requested by the user, call the  to create and run tests that verify the endpoint only deletes the specified records and leaves all other data untouched.
+    6.  After verification, execute the cleanup.
+  - **Why fix this issue and what will be achieved with the fix?** To remove test data that clutters the UI and skews leaderboards, improving the game experience for real players.
   - **Status:** IN PROGRESS
   - **Is recurring issue?** N
-  - **Should Test frontend/backend/both after fix?** both
+  - **Should Test frontend/backend/both after fix?** backend
   - **Blocked on other issue:** None
 
 - **Issue 2: Contest Page Mobile Layout Is Broken**
@@ -48,39 +53,31 @@ The application is a full-stack cinematic empire game where users produce films,
   - **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1: Implement Persistent & Public Film Release Results**
-  - **Where to resume:** Continue implementation in . The backend part is mostly complete as the data is already being saved and returned. The focus is now on building the UI to display it.
-  - **What will be achieved with this?** Any player will be able to click on any released film and see a summary of its launch, including the dynamic event, final score, and revenue.
+- **Task 1: Implement Secure Test Data Cleanup**
+  - **Where to resume:** Implement the admin endpoint in  using the confirmed list of test usernames.
+  - **What will be achieved with this?** A clean database free of the specified test accounts and their content, resulting in more accurate leaderboards and a better user experience.
   - **Status:** IN PROGRESS
-  - **Should Test frontend/backend/both after fix?** both
+  - **Should Test frontend/backend/both after fix?** backend
   - **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **Readable AI Screenplay:** Improve the UI to make the AI-generated screenplay fully readable and scrollable within the Film Pipeline.
-    -   (P1) **Free Visual Trailer System:** Implement a free, storyboard-style trailer generated from the screenplay, available in pre-production to create hype.
-    -   (P1) **Guest Stars for TV Series episodes:** Allow hiring famous actors for a limited number of episodes.
-    -   (P1) **Marketplace for TV/Anime rights.**
+    -   (P1) **Readable AI Screenplay:** Improve the UI to make the AI-generated screenplay fully readable and scrollable, likely within a modal.
+    -   (P1) **Marketplace for TV/Anime rights:** Create a system for players to trade the rights to their produced series and anime.
 
 -   **Future Tasks:**
-    -   (P2) Improve the in-game chat system.
-    -   (P2) Implement a formal Role-Based Access Control (RBAC) system.
-    -   (P2) Add an option to use CinePass to speed up pipeline steps.
-    -   (P2) Decompose large components.
-    -   (P2) Implement Stripe integration, PWA functionality, and a tutorial.
+    -   (P2) **Contest Page Mobile Fix:** Resolve the recurring mobile layout bug.
+    -   (P2) **RBAC:** Implement a formal Role-Based Access Control system.
+    -   (P2) **CinePass:** Add more uses for the CinePass premium currency.
+    -   (P2) **Stripe Integration, PWA, Tutorial:** Implement payment processing, progressive web app functionality, and a new user tutorial.
 
 **Completed work in this session**
--   **Talent Scout System:** Completed and verified the entire feature, including UI, backend logic, and replacement of the old Weekly Recruits system.
--   **Purchased Screenplays:** Implemented the full flow to buy, view, and use scouted screenplays in film production.
--   **Dynamic Release Events:** Implemented a narrative event system for Films, TV Series, and Anime, including a cinematic, animated, multi-phase reveal experience. All backend logic to generate and apply event modifiers is complete.
--   **Admin Panel:** Created a new, admin-only page () allowing management of user money and CinePass credits, with a user search feature.
--   **Poster Generation for Series/Anime:** Completed the backend and frontend implementation for generating posters for TV series and anime, including the ability to edit/regenerate them post-release.
--   **Release Timeout Bug Fix:** Refactored the film release endpoint to run long AI generation tasks (poster, synopsis) in the background, preventing frontend timeouts and ensuring a smooth user experience.
--   **Multiple Bug Fixes:**
-    -   Resolved an issue where unique infrastructures (TV Studio, Anime Studio) could be purchased multiple times.
-    -   Fixed a bug where the My TV dashboard card showed 0 stations.
-    -   Corrected a broken navigation link from the TV dashboard popup to the TV management page.
-    -   Improved UX for the Talent Scout tab to clarify when all talents have been recruited.
+- **Persistent Film Release Results:** Implemented a new UI section on the film detail page to display all post-release stats, visible to all players.
+- **TV System Refactor:** Overhauled the entire TV station system. Unified legacy and new systems, linked infrastructure purchases to station creation, implemented content capacity based on infra level, and fixed all associated navigation bugs.
+- **Series/Anime Release & Poster Bug Fixes:** Aligned the Series/Anime release flow to be asynchronous and non-blocking like films. Fixed the poster generation API call, making it functional for both pre- and post-release.
+- **Series/Anime Detail Page:** Created a new  route and page by reusing the  component, making series/anime viewable post-release. Enabled poster generation from the UI.
+- **Production Speed-Up (Series/Anime):** Implemented a feature for players to spend CinePass to accelerate series and anime production time.
+- **Cinematic Film Release:** Transformed the film release modal into a 5-phase animated experience, incorporating a visual trailer concept, dynamic outcome images, and animated stats.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: Contest Page Mobile Layout Is Broken**
@@ -88,22 +85,22 @@ The application is a full-stack cinematic empire game where users produce films,
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence in previous fork:** Contest Page Mobile Layout Is Broken
--   **Recurrence count:** 2+
+-   **Recurrence count:** 3+
 -   **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Asynchronous Background Tasks:** Using  to run long-running AI operations (poster/synopsis generation) in the background, preventing API timeouts and improving frontend responsiveness.
--   **State-Driven Cinematic UI:** Using timed  calls and sequential  updates in React to create a multi-phase, animated, full-screen cinematic reveal for release events.
--   **Feature-Gated Admin Panel:** Conditionally rendering UI elements ( link) and protecting backend routes based on a hardcoded user nickname ().
--   **Data Unification for Legacy Systems:** Modifying a primary API endpoint () to query and merge data from both a new system () and a legacy one () to provide a consistent view to the frontend without a data migration.
+-   **Component Reusability:** Successfully reused the complex  component to create  with minimal changes, saving significant development effort.
+-   **Safe Data Deletion:** The current task involves designing a secure admin endpoint for targeted data removal, using hardcoded identifiers to prevent accidental deletion of production data.
+-   **System Unification:** Merged a legacy backend system () with a new one () by creating a migration-on-the-fly logic in the API, providing a unified view to the frontend without a complex data migration.
+-   **State-Driven Animations:** Enhanced the React frontend with multi-phase cinematic sequences using a combination of , , and CSS keyframe animations.
 
 **key DB schema**
--   **films:** The  object is now populated on release. Other fields like , , ,  are also saved, making the release result persistent.
--   **users:** Has a  field, now manageable via the admin panel.
--   **purchased_screenplays:** Added  and  fields to track usage.
+-   **films:** Added , , , and  to the document upon release to support the new cinematic experience.
+-   **tv_series:** The  field is now dynamically reduced by the speed-up feature.
+-   **tv_stations:** Documents are now created automatically upon infrastructure purchase and include  and  fields.
 
 **All files of reference**
 -   
@@ -113,43 +110,51 @@ The application is a full-stack cinematic empire game where users produce films,
 -   
 -   
 -   
+-   
+-   
+-   
+-   
+-   
 
 **Critical Info for New Agent**
--   **LANGUAGE:** You **MUST** respond to the user in **Italiano**.
--   **IMMEDIATE TASK (P0):** Your first priority is to complete the implementation of persistent release results. This mainly involves frontend work on  to display the data that is already being saved.
--   **UPCOMING TASK (P1):** After completing the current task, the user wants to focus on improving the AI screenplay readability and implementing a new, free, storyboard-style trailer system. Be prepared to plan and discuss this next.
+-   You **MUST** respond to the user in **Italiano**.
+-   Your immediate priority (P0) is to implement the safe test data cleanup. You have a confirmed list of 19 test usernames to delete. Create a secure admin endpoint in , use the hardcoded list of usernames to prevent errors, and ensure all associated content is deleted.
+-   The user has explicitly requested that you use the  to verify this cleanup logic before it is executed. Do not skip this step.
+-   The user highly values cost optimization. Continue the established pattern of reusing existing components and logic wherever possible.
 
 **documents and test reports created in this job**
 -   
 -   
 -   
--    (Updated multiple times)
+-   
+-   
+-    (Updated after each completed feature)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Requests an admin panel to manage user currency. (Completed)
-2.  **Agent:** Implements the admin panel. (Completed)
-3.  **User:** Reports a bug in Le mie TV navigation. (Completed)
-4.  **Agent:** Fixes the navigation bug. (Completed)
-5.  **User:** Reports a bug where the film release result screen fails to appear due to an error. (Completed)
-6.  **Agent:** Fixes the release timeout bug by moving AI generation to a background task. (Completed)
-7.  **User:** Submits a large, multi-part request for improving AI screenplays and adding a free visual trailer system. (Upcoming Task)
-8.  **Agent:** Proposes a plan to tackle the user's multi-part request. (Superseded)
-9.  **User:** Interrupts and reprioritizes. Asks to first make film release results persistent and viewable by everyone. (Current Task)
-10. **Agent:** Acknowledges the new priority and begins investigating the implementation for persistent release results. (In Progress)
+1.  **Request (Completed):** User asked for a cinematic, 5-phase animated film release experience.
+2.  **Clarification (Acknowledged):** User confirmed the Guest Star feature was already implemented.
+3.  **Request (Completed):** User reported bugs with Series/Anime release and poster generation, asking to align them with the working film system.
+4.  **Request (Completed):** User requested a clickable detail page for Series/Anime, emphasizing the reuse of the film detail page.
+5.  **Request (Completed):** User requested a production speed-up feature for Series/Anime using CinePass.
+6.  **Request (In Progress):** User requested a safe cleanup of test data (users and content).
+7.  **Confirmation (In Progress):** User provided annotated screenshots confirming exactly which 19 test accounts to delete.
+8.  **Request (Completed):** User requested dynamic images (flop/normal/success) for the film release modal.
+9.  **Request (Completed):** User asked to fix broken navigation and unify the TV station system.
+10. **Info (Informational):** User reported the deployment UI was stuck on Cleaning Up... (Agent investigated and confirmed it was a UI issue and the deployment was successful).
 
 **Project Health Check:**
 -   **Broken:**
-    -   Contest Page mobile layout remains broken (low priority).
+    -   Contest Page mobile layout is still broken (low priority).
 -   **Mocked:**
     -   None.
 
 **3rd Party Integrations**
--   **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key. Used for audience comments, dynamic events, and AI synopsis.
--   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key. Used for generating film/series posters.
+-   **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
+-   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
 -   **APScheduler:** Used for backend scheduled game tasks.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES. The agent successfully used the testing agent to verify the Talent Scout System and the Dynamic Release Events system.
+-   **Testing agent used after significant changes:** YES. The agent used it successfully for the TV system refactor and for fixing the series/anime bugs. The user has also requested its use for the next task.
 -   **Troubleshoot agent used after agent stuck in loop:** NO.
 -   **Test files created:** None.
 -   **Known regressions:** None.
@@ -159,4 +164,4 @@ The application is a full-stack cinematic empire game where users produce films,
 -   **Password:** 
 
 **What agent forgot to execute**
--   Nothing. The agent correctly handled the user's reprioritization, moving the screenplay/trailer feature to the upcoming task list and focusing on the new P0 task of persistent release results.</analysis>
+-   Nothing. The agent has been diligent in tracking user requests, updating the backlog, and has correctly prioritized the current P0 task based on user instructions.</analysis>

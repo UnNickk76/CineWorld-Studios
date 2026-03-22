@@ -7074,6 +7074,156 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
 
 
 
+# ==================== ADMIN: USER & FILM MANAGEMENT ====================
+
+@api_router.delete("/admin/delete-user/{user_id}")
+async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)):
+    """Delete a user and ALL associated data (admin only). IRREVERSIBLE."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    if user_id == user.get('id'):
+        raise HTTPException(status_code=400, detail="Non puoi eliminare te stesso")
+
+    target = await db.users.find_one({'id': user_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+
+    deleted_content = {}
+    collections = await db.list_collection_names()
+    for coll_name in sorted(collections):
+        if coll_name in ('users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations'):
+            continue
+        try:
+            result = await db[coll_name].delete_many({'user_id': user_id})
+            if result.deleted_count > 0:
+                deleted_content[coll_name] = result.deleted_count
+        except Exception:
+            pass
+
+    # Also clean friendships where target is friend
+    fr_del = await db.friendships.delete_many({'$or': [{'user_id': user_id}, {'friend_id': user_id}]})
+    if fr_del.deleted_count > 0:
+        deleted_content['friendships_as_friend'] = fr_del.deleted_count
+
+    # Clean follows
+    fo_del = await db.follows.delete_many({'$or': [{'follower_id': user_id}, {'following_id': user_id}]})
+    if fo_del.deleted_count > 0:
+        deleted_content['follows_bidirectional'] = fo_del.deleted_count
+
+    # Clean likes on their films
+    user_films = await db.films.find({'user_id': user_id}, {'_id': 0, 'id': 1}).to_list(500)
+    film_ids = [f['id'] for f in user_films if 'id' in f]
+    if film_ids:
+        lk_del = await db.likes.delete_many({'film_id': {'$in': film_ids}})
+        if lk_del.deleted_count > 0:
+            deleted_content['likes_on_films'] = lk_del.deleted_count
+        fr_del2 = await db.film_ratings.delete_many({'film_id': {'$in': film_ids}})
+        if fr_del2.deleted_count > 0:
+            deleted_content['film_ratings_on_films'] = fr_del2.deleted_count
+
+    # Delete poster files
+    poster_del = await db.poster_files.delete_many({'user_id': user_id})
+    if poster_del.deleted_count > 0:
+        deleted_content['poster_files'] = poster_del.deleted_count
+
+    # Delete the user document
+    await db.users.delete_one({'id': user_id})
+
+    # Invalidate cache
+    _cache.invalidate()
+
+    return {
+        'success': True,
+        'deleted_user': target,
+        'deleted_content': deleted_content
+    }
+
+
+@api_router.get("/admin/all-films")
+async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user)):
+    """Get all films for admin management (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    query = {}
+    if q:
+        query['title'] = {'$regex': q, '$options': 'i'}
+
+    films_cursor = db.films.find(
+        query,
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'genre': 1,
+         'quality_score': 1, 'status': 1, 'created_at': 1, 'total_revenue': 1}
+    ).sort('title', 1)
+    films = await films_cursor.to_list(500)
+
+    # Enrich with studio name
+    user_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    users_map = {}
+    if user_ids:
+        users_list = await db.users.find(
+            {'id': {'$in': user_ids}},
+            {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}
+        ).to_list(500)
+        users_map = {u['id']: u for u in users_list}
+
+    for f in films:
+        owner = users_map.get(f.get('user_id'), {})
+        f['studio_name'] = owner.get('production_house_name', 'Sconosciuto')
+        f['owner_nickname'] = owner.get('nickname', '???')
+
+    return {'films': films, 'count': len(films)}
+
+
+@api_router.delete("/admin/delete-film/{film_id}")
+async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Delete a specific film and its associated data (admin only). IRREVERSIBLE."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+
+    deleted_related = {}
+
+    # Delete likes on this film
+    lk = await db.likes.delete_many({'film_id': film_id})
+    if lk.deleted_count > 0:
+        deleted_related['likes'] = lk.deleted_count
+
+    # Delete ratings
+    rt = await db.film_ratings.delete_many({'film_id': film_id})
+    if rt.deleted_count > 0:
+        deleted_related['film_ratings'] = rt.deleted_count
+
+    # Delete comments
+    cm = await db.film_comments.delete_many({'film_id': film_id})
+    if cm.deleted_count > 0:
+        deleted_related['film_comments'] = cm.deleted_count
+
+    # Delete virtual reviews
+    vr = await db.virtual_reviews.delete_many({'film_id': film_id})
+    if vr.deleted_count > 0:
+        deleted_related['virtual_reviews'] = vr.deleted_count
+
+    # Delete poster file
+    pf = await db.poster_files.delete_many({'filename': {'$regex': film_id}})
+    if pf.deleted_count > 0:
+        deleted_related['poster_files'] = pf.deleted_count
+
+    # Delete the film
+    await db.films.delete_one({'id': film_id})
+
+    # Invalidate cache
+    _cache.invalidate()
+
+    return {
+        'success': True,
+        'deleted_film': film,
+        'deleted_related': deleted_related
+    }
+
+
 # ==================== ADMIN: TEST DATA CLEANUP ====================
 
 # Hardcoded list of 19 test usernames (nicknames) confirmed by the admin via screenshots

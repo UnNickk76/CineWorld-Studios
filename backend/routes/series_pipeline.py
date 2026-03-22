@@ -188,17 +188,14 @@ async def _generate_poster_background(series_id: str, title: str, genre: str, su
         images = await img_gen.generate_images(
             prompt=prompt,
             model="gpt-image-1",
-            n=1,
-            size="1024x1536",
-            quality="low"
+            number_of_images=1
         )
 
         if images:
-            import base64
             from PIL import Image
             import io
 
-            img_data = base64.b64decode(images[0].b64_json)
+            img_data = images[0]
             img = Image.open(io.BytesIO(img_data))
             img = img.resize((400, 600), Image.LANCZOS)
 
@@ -861,17 +858,14 @@ async def generate_series_poster(series_id: str, body: PosterRequest = PosterReq
         images = await img_gen.generate_images(
             prompt=prompt,
             model="gpt-image-1",
-            n=1,
-            size="1024x1536",
-            quality="low"
+            number_of_images=1
         )
         
         if images:
-            import base64
             from PIL import Image
             import io
             
-            img_data = base64.b64decode(images[0].b64_json)
+            img_data = images[0]
             img = Image.open(io.BytesIO(img_data))
             img = img.resize((400, 600), Image.LANCZOS)
             
@@ -1020,18 +1014,6 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         episodes.append(ep)
     
     now = datetime.now(timezone.utc).isoformat()
-    
-    await db.tv_series.update_one(
-        {'id': series_id},
-        {'$set': {
-            'status': 'completed',
-            'quality_score': quality_result['score'],
-            'quality_breakdown': quality_result['breakdown'],
-            'episodes': episodes,
-            'completed_at': now,
-            'updated_at': now,
-        }}
-    )
     
     # Award XP
     xp_reward = 80 if series['type'] == 'tv_series' else 100  # Anime gives more XP

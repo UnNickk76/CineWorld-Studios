@@ -2118,12 +2118,10 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
             images = await img_gen.generate_images(
                 prompt=poster_prompt,
                 model="gpt-image-1",
-                n=1,
-                size="1024x1536",
-                quality="low"
+                number_of_images=1
             )
             if images:
-                img_data = base64.b64decode(images[0].b64_json)
+                img_data = images[0]
                 img = Image.open(io.BytesIO(img_data))
                 img = img.resize((400, 600), Image.LANCZOS)
                 buf = io.BytesIO()

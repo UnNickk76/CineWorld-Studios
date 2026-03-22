@@ -13,7 +13,7 @@ import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
-  Settings, Sparkles, Wand2, Globe, UserCheck, Minus
+  Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
@@ -381,6 +381,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
   const [selectedAgencyActors, setSelectedAgencyActors] = useState({});
   const [agencyRoles, setAgencyRoles] = useState({});
   const [expandedSkills, setExpandedSkills] = useState({});
+  const [expandedScreenplay, setExpandedScreenplay] = useState({});
 
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
 
@@ -1314,8 +1315,28 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
             {f.screenplay ? (
               <>
                 <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
-                  <p className="text-[9px] text-green-400 font-medium mb-0.5">Sceneggiatura completata ({f.screenplay_mode === 'ai' ? 'AI' : f.screenplay_mode === 'manual' ? 'Manuale' : 'Solo Pre'})</p>
-                  <p className="text-[10px] text-gray-300 line-clamp-4">{f.screenplay}</p>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-[9px] text-green-400 font-medium">Sceneggiatura completata ({f.screenplay_mode === 'ai' ? 'AI' : f.screenplay_mode === 'manual' ? 'Manuale' : 'Solo Pre'})</p>
+                    <button onClick={() => setExpandedScreenplay(p => ({...p, [f.id]: !p[f.id]}))}
+                      className="text-[8px] text-green-400/70 hover:text-green-300 transition-colors flex items-center gap-0.5"
+                      data-testid={`toggle-screenplay-${f.id}`}>
+                      {expandedScreenplay[f.id] ? 'Riduci' : 'Espandi'}
+                      <ChevronDown className={`w-2.5 h-2.5 transition-transform ${expandedScreenplay[f.id] ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  <div className={`relative ${expandedScreenplay[f.id] ? '' : 'max-h-[180px] overflow-hidden'}`}>
+                    <p className="text-[10px] text-gray-300 whitespace-pre-line leading-relaxed">{f.screenplay}</p>
+                    {!expandedScreenplay[f.id] && (
+                      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#111113] to-transparent pointer-events-none" />
+                    )}
+                  </div>
+                  {!expandedScreenplay[f.id] && (
+                    <button onClick={() => setExpandedScreenplay(p => ({...p, [f.id]: true}))}
+                      className="w-full text-center text-[8px] text-green-400/60 hover:text-green-300 mt-1 transition-colors"
+                      data-testid={`expand-screenplay-hint-${f.id}`}>
+                      Scorri per leggere tutto...
+                    </button>
+                  )}
                 </div>
 
                 {/* ====== POSTER SECTION ====== */}
@@ -1781,10 +1802,12 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [releaseResult, setReleaseResult] = useState(null);
-  const [releasePhase, setReleasePhase] = useState(0); // 0=hidden, 1=intro, 2=trailer, 3=event, 4=numbers, 5=final
+  const [releasePhase, setReleasePhase] = useState(0);
   const [trailerSlide, setTrailerSlide] = useState(0);
   const [animatedQuality, setAnimatedQuality] = useState(0);
   const [animatedRevenue, setAnimatedRevenue] = useState(0);
+  const [releaseStrategy, setReleaseStrategy] = useState({});
+  const [manualHours, setManualHours] = useState({});
 
   const fetch = useCallback(async () => {
     try { const res = await api.get('/film-pipeline/shooting'); setFilms(res.data.films || []); }
@@ -1859,6 +1882,22 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
     finally { setActionLoading(null); }
   };
 
+  const confirmStrategy = async (filmId) => {
+    const strategy = releaseStrategy[filmId];
+    if (!strategy) return;
+    const hours = strategy === 'manual' ? (manualHours[filmId] || 24) : 24;
+    setActionLoading(`strategy-${filmId}`);
+    try {
+      const res = await api.post(`/film-pipeline/${filmId}/choose-release-strategy`, { strategy, hours });
+      const d = res.data;
+      const bonusMsg = d.bonus_pct > 0 ? ` Bonus: +${d.bonus_pct}%` : '';
+      const perfectMsg = d.perfect_timing ? ' Tempismo perfetto!' : '';
+      toast.success(`Strategia confermata! Uscita tra ${d.hours_until_release}h.${bonusMsg}${perfectMsg}`);
+      refreshUser(); refreshCounts(); fetch();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
   if (loading) return <div className="text-center py-8 text-gray-500">Caricamento...</div>;
 
   return (
@@ -1896,42 +1935,70 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
               {completed ? (
                 <div className="flex gap-1.5 flex-wrap">
                   {f.release_type === 'coming_soon' ? (
-                    <div className="w-full space-y-2">
-                      <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
-                        <p className="text-[10px] text-cyan-400 font-semibold mb-1.5">Programma Coming Soon</p>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                          <select
-                            className="flex-1 bg-black/30 border border-gray-700 rounded text-xs text-white p-1"
-                            defaultValue="24"
-                            data-testid={`film-schedule-select-${f.id}`}
-                            id={`schedule-${f.id}`}>
-                            <option value="1">1 ora</option>
-                            <option value="3">3 ore</option>
-                            <option value="6">6 ore</option>
-                            <option value="12">12 ore</option>
-                            <option value="24">1 giorno</option>
-                            <option value="48">2 giorni</option>
-                            <option value="72">3 giorni</option>
-                            <option value="168">7 giorni</option>
-                          </select>
+                    <div className="w-full space-y-2" data-testid={`release-strategy-${f.id}`}>
+                      <p className="text-xs font-bold text-white">Strategia di Uscita</p>
+
+                      {/* Automatica */}
+                      <div
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                          releaseStrategy[f.id] === 'auto'
+                            ? 'border-yellow-500/60 bg-yellow-500/10'
+                            : 'border-gray-700/60 hover:border-gray-600'
+                        }`}
+                        onClick={() => setReleaseStrategy(s => ({...s, [f.id]: 'auto'}))}
+                        data-testid={`strategy-auto-${f.id}`}>
+                        <div className="flex items-start gap-2">
+                          <Zap className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-[11px] font-bold text-white">Automatica</p>
+                            <p className="text-[9px] text-gray-500">Il sistema decide il momento migliore</p>
+                            <p className="text-[9px] text-emerald-400 mt-0.5">+3% incassi garantiti</p>
+                          </div>
                         </div>
                       </div>
-                      <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
-                        disabled={actionLoading === `rel-${f.id}`}
-                        data-testid={`schedule-film-${f.id}`}
-                        onClick={async () => {
-                          setActionLoading(`rel-${f.id}`);
-                          const hours = parseInt(document.getElementById(`schedule-${f.id}`)?.value || '24');
-                          try {
-                            await api.post(`/film-pipeline/${f.id}/schedule-release`, { release_hours: hours });
-                            toast.success(`Film programmato Coming Soon!`);
-                            refreshUser(); fetch();
-                          } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-                          finally { setActionLoading(null); }
-                        }}>
-                        {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                        Programma Uscita
+
+                      {/* Manuale */}
+                      <div
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                          releaseStrategy[f.id] === 'manual'
+                            ? 'border-cyan-500/60 bg-cyan-500/10'
+                            : 'border-gray-700/60 hover:border-gray-600'
+                        }`}
+                        onClick={() => setReleaseStrategy(s => ({...s, [f.id]: 'manual'}))}
+                        data-testid={`strategy-manual-${f.id}`}>
+                        <div className="flex items-start gap-2">
+                          <Target className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-[11px] font-bold text-white">Manuale</p>
+                            <p className="text-[9px] text-gray-500">Scegli quando uscire</p>
+                            <p className="text-[9px] text-amber-400 mt-0.5">Tempismo perfetto: +8% incassi!</p>
+                          </div>
+                        </div>
+                        {releaseStrategy[f.id] === 'manual' && (
+                          <div className="mt-2 grid grid-cols-4 gap-1.5 ml-6" data-testid={`manual-hours-${f.id}`}>
+                            {[6, 12, 24, 48].map(h => (
+                              <button key={h}
+                                className={`py-1.5 rounded text-[10px] font-medium border transition-all ${
+                                  manualHours[f.id] === h
+                                    ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400'
+                                    : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                                }`}
+                                onClick={(e) => { e.stopPropagation(); setManualHours(s => ({...s, [f.id]: h})); }}
+                                data-testid={`manual-${h}h-${f.id}`}>
+                                {h}h
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        className="w-full bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white text-xs font-bold"
+                        disabled={!releaseStrategy[f.id] || (releaseStrategy[f.id] === 'manual' && !manualHours[f.id]) || actionLoading === `strategy-${f.id}`}
+                        onClick={() => confirmStrategy(f.id)}
+                        data-testid={`confirm-strategy-${f.id}`}>
+                        {actionLoading === `strategy-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        Conferma Strategia
                       </Button>
                     </div>
                   ) : (

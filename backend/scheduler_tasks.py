@@ -689,19 +689,34 @@ def run_update_leaderboard_scores():
 # ==================== COMING SOON AUTO-RELEASE ====================
 
 async def auto_release_coming_soon():
-    """Auto-release content whose scheduled_release_at has passed."""
+    """Auto-release content whose scheduled_release_at has passed.
+    Uses proper datetime comparison to ensure timers are respected."""
     now = datetime.now(timezone.utc)
     now_str = now.isoformat()
     
-    # Process series/anime coming_soon
+    # Helper: parse scheduled_release_at and compare with now
+    def is_release_due(item):
+        sra = item.get('scheduled_release_at')
+        if not sra:
+            return False
+        try:
+            release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+            return now >= release_dt
+        except Exception:
+            return False
+    
+    # Process series/anime coming_soon - fetch all, filter in Python for safety
     cursor = scheduler_db.tv_series.find({
         'status': 'coming_soon',
-        'scheduled_release_at': {'$ne': None, '$lte': now_str}
+        'scheduled_release_at': {'$ne': None}
     }, {'_id': 0})
     
     async for series in cursor:
+        if not is_release_due(series):
+            continue
         try:
-            # Calculate quality
             genre_mastery = await scheduler_db.tv_series.count_documents({
                 'user_id': series['user_id'], 'genre': series['genre'],
                 'type': series['type'], 'status': 'completed'
@@ -710,12 +725,13 @@ async def auto_release_coming_soon():
             from routes.series_pipeline import calculate_series_quality
             quality_result = calculate_series_quality(series)
             
-            # Hype boost: likes + base hype
             hype = series.get('hype_score', 0)
-            hype_boost = min(15, hype * 0.5)  # max 15% boost from hype
+            hype_boost = min(15, hype * 0.5)
             quality_result['score'] = min(98, quality_result['score'] + hype_boost)
             
-            # Generate episodes
+            # Apply release strategy bonus
+            strategy_bonus_pct = series.get('release_strategy_bonus_pct', 0)
+            
             episodes = []
             for i in range(1, series['num_episodes'] + 1):
                 ep = {
@@ -725,13 +741,12 @@ async def auto_release_coming_soon():
                 }
                 episodes.append(ep)
             
-            # Revenue calculation
             base_rev = series['num_episodes'] * random.randint(300000, 800000)
             quality_mult = quality_result['score'] / 50
             hype_revenue_mult = 1 + (hype_boost / 100)
-            total_rev = int(base_rev * quality_mult * hype_revenue_mult)
+            strategy_mult = 1 + (strategy_bonus_pct / 100)
+            total_rev = int(base_rev * quality_mult * hype_revenue_mult * strategy_mult)
             
-            # XP and fame
             xp_reward = 100 if series['type'] == 'anime' else 80
             fame_bonus = 15 if quality_result['score'] >= 70 else 5
             
@@ -750,35 +765,38 @@ async def auto_release_coming_soon():
                     'completed_at': now_str,
                     'updated_at': now_str,
                     'auto_released': True,
+                    'release_strategy_applied_bonus': strategy_bonus_pct,
                 }}
             )
             
-            # Notify user
             from social_system import create_notification
             type_label = "Anime" if series['type'] == 'anime' else "Serie TV"
+            bonus_msg = f" (Bonus strategia: +{strategy_bonus_pct}%)" if strategy_bonus_pct > 0 else ""
             notif = create_notification(
                 series['user_id'], 'film_release',
                 f'{type_label} Rilasciata!',
-                f'"{series["title"]}" è uscita! Qualità: {quality_result["score"]}/100, Incasso: ${total_rev:,}',
+                f'"{series["title"]}" e\' uscita! Qualita\': {quality_result["score"]}/100, Incasso: ${total_rev:,}{bonus_msg}',
                 data={'series_id': series['id']},
                 link=f'/series/{series["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
-            logger.info(f"Auto-released series {series['id']} ({series['title']})")
+            logger.info(f"Auto-released series {series['id']} ({series['title']}) with strategy bonus {strategy_bonus_pct}%")
         except Exception as e:
             logger.error(f"Error auto-releasing series {series['id']}: {e}")
     
     # Process films coming_soon
     film_cursor = scheduler_db.film_projects.find({
         'status': 'coming_soon',
-        'scheduled_release_at': {'$ne': None, '$lte': now_str}
+        'scheduled_release_at': {'$ne': None}
     }, {'_id': 0})
     
     async for project in film_cursor:
+        if not is_release_due(project):
+            continue
         try:
-            # Simplified auto-release for films
             hype = project.get('hype_score', 0)
             hype_boost = min(15, hype * 0.5)
+            strategy_bonus_pct = project.get('release_strategy_bonus_pct', 0)
             
             pre_imdb = project.get('pre_imdb_score', 5.0)
             base_quality = pre_imdb * 10 + random.uniform(-5, 10) + hype_boost
@@ -787,7 +805,8 @@ async def auto_release_coming_soon():
             base_rev = random.randint(5000000, 25000000)
             quality_mult = quality_score / 50
             hype_revenue_mult = 1 + (hype_boost / 100)
-            total_rev = int(base_rev * quality_mult * hype_revenue_mult)
+            strategy_mult = 1 + (strategy_bonus_pct / 100)
+            total_rev = int(base_rev * quality_mult * hype_revenue_mult * strategy_mult)
             
             xp_reward = 50
             fame_bonus = 10 if quality_score >= 70 else 3
@@ -807,18 +826,20 @@ async def auto_release_coming_soon():
                     'completed_at': now_str,
                     'updated_at': now_str,
                     'auto_released': True,
+                    'release_strategy_applied_bonus': strategy_bonus_pct,
                 }}
             )
             
             from social_system import create_notification
+            bonus_msg = f" (Bonus strategia: +{strategy_bonus_pct}%)" if strategy_bonus_pct > 0 else ""
             notif = create_notification(
                 project['user_id'], 'film_release',
                 'Film Rilasciato!',
-                f'"{project["title"]}" è uscito! Qualità: {quality_score:.0f}/100, Incasso: ${total_rev:,}',
+                f'"{project["title"]}" e\' uscito! Qualita\': {quality_score:.0f}/100, Incasso: ${total_rev:,}{bonus_msg}',
                 data={'film_id': project['id']},
                 link=f'/films/{project["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
-            logger.info(f"Auto-released film {project['id']} ({project['title']})")
+            logger.info(f"Auto-released film {project['id']} ({project['title']}) with strategy bonus {strategy_bonus_pct}%")
         except Exception as e:
             logger.error(f"Error auto-releasing film {project['id']}: {e}")

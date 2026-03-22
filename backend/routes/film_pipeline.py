@@ -2810,14 +2810,107 @@ async def buzz_vote(project_id: str, req: BuzzVoteRequest, user: dict = Depends(
     }
 
 
-# ==================== FILM COMING SOON SYSTEM ====================
+# ==================== FILM COMING SOON + RELEASE STRATEGY ====================
+
+class ReleaseStrategyRequest(BaseModel):
+    strategy: str  # 'auto' or 'manual'
+    hours: int = 24  # Only for manual: 6, 12, 24, 48
+
+@router.post("/film-pipeline/{project_id}/choose-release-strategy")
+async def choose_release_strategy(project_id: str, req: ReleaseStrategyRequest, user: dict = Depends(get_current_user)):
+    """Choose release strategy for a Coming Soon film after shooting completes."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(404, "Film non trovato")
+    if project.get('release_type') != 'coming_soon':
+        raise HTTPException(400, "Solo i film 'Coming Soon' possono usare la strategia di uscita")
+    if project['status'] not in ('shooting',):
+        raise HTTPException(400, "Il film non e' nella fase giusta")
+    # Check shooting is complete
+    if not project.get('shooting_completed'):
+        started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
+        total_days = project.get('shooting_days', 5)
+        hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600
+        if hours_elapsed < total_days:
+            raise HTTPException(400, "Le riprese non sono ancora completate")
+
+    if req.strategy not in ('auto', 'manual'):
+        raise HTTPException(400, "Strategia non valida")
+
+    now = datetime.now(timezone.utc)
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    hype = project.get('hype_score', 0)
+    competition = await db.film_projects.count_documents({'status': 'coming_soon'})
+    perfect_timing = False
+    bonus_pct = 0.0
+
+    if req.strategy == 'auto':
+        # System calculates optimal release time
+        if pre_imdb >= 7.5:
+            base_hours = 48
+        elif pre_imdb >= 5.5:
+            base_hours = 24
+        else:
+            base_hours = 12
+        if competition > 5:
+            base_hours += 12
+        if hype > 30:
+            base_hours = max(6, base_hours - 6)
+        hours = max(6, min(72, base_hours))
+        bonus_pct = 3.0
+
+    else:  # manual
+        if req.hours not in (6, 12, 24, 48):
+            raise HTTPException(400, "Durata non valida. Scegli tra 6, 12, 24, 48 ore")
+        hours = req.hours
+        # Calculate perfect timing
+        if pre_imdb >= 7.5 and hours >= 24:
+            perfect_timing = True
+        elif 5.5 <= pre_imdb < 7.5 and 12 <= hours <= 24:
+            perfect_timing = True
+        elif pre_imdb < 5.5 and hours <= 12:
+            perfect_timing = True
+        if hype > 30 and hours <= 12:
+            perfect_timing = True
+        if competition > 5 and hours >= 48:
+            perfect_timing = True
+        bonus_pct = 8.0 if perfect_timing else 0.0
+
+    release_at = now + timedelta(hours=hours)
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'release_strategy': req.strategy,
+            'release_strategy_hours': hours,
+            'release_strategy_bonus_pct': bonus_pct,
+            'release_strategy_perfect': perfect_timing,
+            'scheduled_release_at': release_at.isoformat(),
+            'coming_soon_started_at': now.isoformat(),
+            'updated_at': now.isoformat()
+        }}
+    )
+
+    return {
+        "status": "coming_soon",
+        "strategy": req.strategy,
+        "hours_until_release": hours,
+        "scheduled_release_at": release_at.isoformat(),
+        "bonus_pct": bonus_pct,
+        "perfect_timing": perfect_timing
+    }
+
 
 class ScheduleFilmReleaseRequest(BaseModel):
     release_hours: int = 24
 
 @router.post("/film-pipeline/{project_id}/schedule-release")
 async def schedule_film_release(project_id: str, req: ScheduleFilmReleaseRequest, user: dict = Depends(get_current_user)):
-    """Schedule a coming_soon film for future release."""
+    """Legacy schedule endpoint - redirects to strategy system."""
     project = await db.film_projects.find_one(
         {'id': project_id, 'user_id': user['id']},
         {'_id': 0}
@@ -2827,7 +2920,7 @@ async def schedule_film_release(project_id: str, req: ScheduleFilmReleaseRequest
     if project.get('release_type') != 'coming_soon':
         raise HTTPException(400, "Solo i film 'Coming Soon' possono essere programmati")
     if project['status'] != 'shooting':
-        raise HTTPException(400, "Il film non è pronto per la programmazione")
+        raise HTTPException(400, "Il film non e' pronto per la programmazione")
     if not project.get('shooting_completed'):
         started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
         total_days = project.get('shooting_days', 5)
@@ -2843,6 +2936,7 @@ async def schedule_film_release(project_id: str, req: ScheduleFilmReleaseRequest
         {'$set': {
             'status': 'coming_soon',
             'scheduled_release_at': release_at.isoformat(),
+            'coming_soon_started_at': datetime.now(timezone.utc).isoformat(),
             'updated_at': datetime.now(timezone.utc).isoformat()
         }}
     )

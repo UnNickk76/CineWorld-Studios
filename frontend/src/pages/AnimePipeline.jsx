@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Sparkles, ArrowRight, ArrowLeft, Users, Pen, Play, Lock, Loader2, Trash2, Check, Star, ChevronDown, ChevronUp, Film, Clock, Flame } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, Users, Pen, Play, Lock, Loader2, Trash2, Check, Star, ChevronDown, ChevronUp, Film, Clock, Flame, Target, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
@@ -52,6 +52,8 @@ export default function AnimePipeline() {
   const [agencyInfo, setAgencyInfo] = useState(null);
   const [releaseType, setReleaseType] = useState(null);
   const [scheduleHours, setScheduleHours] = useState(24);
+  const [animeReleaseStrategy, setAnimeReleaseStrategy] = useState(null);
+  const [animeManualHours, setAnimeManualHours] = useState(null);
 
   // Poster + Release states
   const [posterMode, setPosterMode] = useState({});
@@ -808,34 +810,76 @@ export default function AnimePipeline() {
                           </div>
                         )}
                         {activeSeries.release_type === 'coming_soon' ? (
-                          <div className="space-y-2">
-                            <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
-                              <p className="text-[10px] text-cyan-400 font-semibold mb-1.5">Programma uscita Coming Soon</p>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Clock className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                                <input type="range" min="1" max="168" value={scheduleHours}
-                                  onChange={e => setScheduleHours(Number(e.target.value))}
-                                  className="flex-1 h-1 accent-cyan-500"
-                                  data-testid="anime-schedule-hours-slider" />
-                                <span className="text-xs text-cyan-300 font-bold w-12 text-right">
-                                  {scheduleHours >= 24 ? `${Math.floor(scheduleHours/24)}g ${scheduleHours%24}h` : `${scheduleHours}h`}
-                                </span>
+                          <div className="space-y-2" data-testid="anime-release-strategy">
+                            <p className="text-xs font-bold text-white">Strategia di Uscita</p>
+                            <div
+                              className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                animeReleaseStrategy === 'auto' ? 'border-yellow-500/60 bg-yellow-500/10' : 'border-gray-700/60 hover:border-gray-600'
+                              }`}
+                              onClick={() => { setAnimeReleaseStrategy('auto'); setAnimeManualHours(null); }}
+                              data-testid="anime-strategy-auto">
+                              <div className="flex items-start gap-2">
+                                <Zap className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <p className="text-[11px] font-bold text-white">Automatica</p>
+                                  <p className="text-[9px] text-gray-500">Il sistema decide il momento migliore</p>
+                                  <p className="text-[9px] text-emerald-400 mt-0.5">+3% incassi garantiti</p>
+                                </div>
                               </div>
                             </div>
-                            <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                            <div
+                              className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                animeReleaseStrategy === 'manual' ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-gray-700/60 hover:border-gray-600'
+                              }`}
+                              onClick={() => setAnimeReleaseStrategy('manual')}
+                              data-testid="anime-strategy-manual">
+                              <div className="flex items-start gap-2">
+                                <Target className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-[11px] font-bold text-white">Manuale</p>
+                                  <p className="text-[9px] text-gray-500">Scegli quando uscire</p>
+                                  <p className="text-[9px] text-amber-400 mt-0.5">Tempismo perfetto: +8% incassi!</p>
+                                </div>
+                              </div>
+                              {animeReleaseStrategy === 'manual' && (
+                                <div className="mt-2 grid grid-cols-4 gap-1.5 ml-6" data-testid="anime-manual-hours">
+                                  {[6, 12, 24, 48].map(h => (
+                                    <button key={h}
+                                      className={`py-1.5 rounded text-[10px] font-medium border transition-all ${
+                                        animeManualHours === h ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                                      }`}
+                                      onClick={(e) => { e.stopPropagation(); setAnimeManualHours(h); }}
+                                      data-testid={`anime-manual-${h}h`}>
+                                      {h}h
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              className="w-full bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white font-bold"
+                              disabled={!animeReleaseStrategy || (animeReleaseStrategy === 'manual' && !animeManualHours) || actionLoading}
                               onClick={async () => {
                                 setActionLoading(true);
                                 try {
-                                  await api.post(`/series-pipeline/${activeSeries.id}/schedule-release`, { release_hours: scheduleHours });
-                                  toast.success(`Anime programmato! Uscita tra ${scheduleHours >= 24 ? `${Math.floor(scheduleHours/24)} giorni` : `${scheduleHours} ore`}`);
+                                  const res = await api.post(`/series-pipeline/${activeSeries.id}/choose-release-strategy`, {
+                                    strategy: animeReleaseStrategy,
+                                    hours: animeReleaseStrategy === 'manual' ? animeManualHours : 24
+                                  });
+                                  const d = res.data;
+                                  const bonusMsg = d.bonus_pct > 0 ? ` Bonus: +${d.bonus_pct}%` : '';
+                                  const perfectMsg = d.perfect_timing ? ' Tempismo perfetto!' : '';
+                                  toast.success(`Strategia confermata! Uscita tra ${d.hours_until_release}h.${bonusMsg}${perfectMsg}`);
                                   setActiveSeries(null);
+                                  setAnimeReleaseStrategy(null);
+                                  setAnimeManualHours(null);
                                   loadData();
                                 } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
                                 finally { setActionLoading(false); }
                               }}
-                              disabled={actionLoading} data-testid="anime-schedule-release-btn">
+                              data-testid="confirm-anime-strategy-btn">
                               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
-                              Programma Uscita Coming Soon
+                              Conferma Strategia
                             </Button>
                           </div>
                         ) : (

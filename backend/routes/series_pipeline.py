@@ -1229,11 +1229,100 @@ async def discard_series(series_id: str, user: dict = Depends(get_current_user))
 
 
 
-# ==================== COMING SOON SYSTEM ====================
+# ==================== COMING SOON + RELEASE STRATEGY ====================
+
+class SeriesReleaseStrategyRequest(BaseModel):
+    strategy: str  # 'auto' or 'manual'
+    hours: int = 24  # Only for manual: 6, 12, 24, 48
+
+@router.post("/series-pipeline/{series_id}/choose-release-strategy")
+async def choose_series_release_strategy(series_id: str, req: SeriesReleaseStrategyRequest, user: dict = Depends(get_current_user)):
+    """Choose release strategy for a Coming Soon series/anime after production completes."""
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series.get('release_type') != 'coming_soon':
+        raise HTTPException(400, "Solo le serie Coming Soon possono usare la strategia di uscita")
+    if series['status'] not in ('production', 'ready_to_release'):
+        raise HTTPException(400, "La serie non e' nella fase giusta")
+    # Check production is complete
+    if series['status'] == 'production':
+        started = datetime.fromisoformat(series['production_started_at'].replace('Z', '+00:00'))
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
+        if elapsed < series.get('production_duration_minutes', 60):
+            raise HTTPException(400, "La produzione non e' ancora completata")
+
+    if req.strategy not in ('auto', 'manual'):
+        raise HTTPException(400, "Strategia non valida")
+
+    now = datetime.now(timezone.utc)
+    hype = series.get('hype_score', 0)
+    num_eps = series.get('num_episodes', 8)
+    competition = await db.tv_series.count_documents({'status': 'coming_soon'})
+    perfect_timing = False
+    bonus_pct = 0.0
+
+    if req.strategy == 'auto':
+        if num_eps >= 12:
+            base_hours = 48
+        elif num_eps >= 8:
+            base_hours = 24
+        else:
+            base_hours = 12
+        if competition > 3:
+            base_hours += 12
+        if hype > 30:
+            base_hours = max(6, base_hours - 6)
+        hours = max(6, min(72, base_hours))
+        bonus_pct = 3.0
+    else:
+        if req.hours not in (6, 12, 24, 48):
+            raise HTTPException(400, "Durata non valida. Scegli tra 6, 12, 24, 48 ore")
+        hours = req.hours
+        if num_eps >= 12 and hours >= 24:
+            perfect_timing = True
+        elif 6 <= num_eps < 12 and 12 <= hours <= 24:
+            perfect_timing = True
+        elif num_eps < 6 and hours <= 12:
+            perfect_timing = True
+        if hype > 30 and hours <= 12:
+            perfect_timing = True
+        if competition > 3 and hours >= 48:
+            perfect_timing = True
+        bonus_pct = 8.0 if perfect_timing else 0.0
+
+    release_at = now + timedelta(hours=hours)
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'release_strategy': req.strategy,
+            'release_strategy_hours': hours,
+            'release_strategy_bonus_pct': bonus_pct,
+            'release_strategy_perfect': perfect_timing,
+            'scheduled_release_at': release_at.isoformat(),
+            'coming_soon_started_at': now.isoformat(),
+            'updated_at': now.isoformat()
+        }}
+    )
+
+    return {
+        "status": "coming_soon",
+        "strategy": req.strategy,
+        "hours_until_release": hours,
+        "scheduled_release_at": release_at.isoformat(),
+        "bonus_pct": bonus_pct,
+        "perfect_timing": perfect_timing
+    }
+
 
 @router.post("/series-pipeline/{series_id}/schedule-release")
 async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, user: dict = Depends(get_current_user)):
-    """Schedule a coming_soon series for future release."""
+    """Legacy schedule endpoint."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
         {'_id': 0}
@@ -1243,16 +1332,13 @@ async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, u
     if series.get('release_type') != 'coming_soon':
         raise HTTPException(400, "Solo le serie 'Coming Soon' possono essere programmate")
     if series['status'] not in ('production', 'ready_to_release'):
-        raise HTTPException(400, "La serie non è pronta per la programmazione")
-    
-    # Check production is complete
+        raise HTTPException(400, "La serie non e' pronta per la programmazione")
     if series['status'] == 'production':
-        started = datetime.fromisoformat(series['production_started_at'])
+        started = datetime.fromisoformat(series['production_started_at'].replace('Z', '+00:00'))
         elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
         if elapsed < series.get('production_duration_minutes', 60):
-            raise HTTPException(400, "La produzione non è ancora completata")
+            raise HTTPException(400, "La produzione non e' ancora completata")
     
-    # Validate hours (min 1h, max 168h = 7 days)
     hours = max(1, min(168, req.release_hours))
     release_at = datetime.now(timezone.utc) + timedelta(hours=hours)
     
@@ -1261,6 +1347,7 @@ async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, u
         {'$set': {
             'status': 'coming_soon',
             'scheduled_release_at': release_at.isoformat(),
+            'coming_soon_started_at': datetime.now(timezone.utc).isoformat(),
             'updated_at': datetime.now(timezone.utc).isoformat()
         }}
     )

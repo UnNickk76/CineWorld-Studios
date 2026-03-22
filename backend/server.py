@@ -9381,6 +9381,12 @@ async def get_chat_rooms(user: dict = Depends(get_current_user)):
         # Count unread (simplified - messages after last read)
         room['unread_count'] = 0
     
+    # Sort private rooms by last message date (most recent first)
+    private_rooms.sort(
+        key=lambda r: (r.get('last_message') or {}).get('created_at', ''),
+        reverse=True
+    )
+
     return {'public': public_rooms, 'private': private_rooms}
 
 @api_router.post("/chat/rooms")

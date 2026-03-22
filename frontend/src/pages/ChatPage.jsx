@@ -398,13 +398,15 @@ const ChatPage = () => {
               <div className="space-y-0.5">
                 {rooms.private.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-[10px] text-gray-600 mb-2">Nessuna chat privata</p>
-                    <Button size="sm" variant="outline" className="h-6 text-[9px] border-gray-700" onClick={() => setShowPanel('users')}>
-                      <Users className="w-3 h-3 mr-1" /> Avvia chat
-                    </Button>
+                    <Mail className="w-5 h-5 text-gray-700 mx-auto mb-1" />
+                    <p className="text-[10px] text-gray-600 mb-1">Nessuna chat privata</p>
+                    <p className="text-[8px] text-gray-700">Clicca su un giocatore per iniziare</p>
                   </div>
                 ) : rooms.private.map(room => {
                   const isActive = activeRoom?.id === room.id;
+                  const lastTime = room.last_message?.created_at
+                    ? new Date(room.last_message.created_at).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
+                    : '';
                   return (
                     <button key={room.id}
                       className={`w-full text-left px-2 py-1.5 rounded-md transition-all flex items-center gap-2 ${
@@ -413,14 +415,19 @@ const ChatPage = () => {
                       onClick={() => { setActiveRoom(room); setShowPanel(null); }}
                       data-testid={`private-room-${room.id}`}
                     >
-                      <Avatar className="w-5 h-5 flex-shrink-0">
-                        <AvatarImage src={room.other_user?.avatar_url} />
-                        <AvatarFallback className="text-[8px] bg-gray-800">{room.other_user?.nickname?.[0]}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="w-6 h-6">
+                          <AvatarImage src={room.other_user?.avatar_url} />
+                          <AvatarFallback className="text-[8px] bg-gray-800">{room.other_user?.nickname?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className={`absolute -bottom-px -right-px w-2 h-2 rounded-full border border-[#0e0e10] ${
+                          room.other_user?.is_online ? 'bg-green-500' : 'bg-red-500/50'
+                        }`} />
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <PresenceDot presence={room.other_user?.is_online ? 'online' : 'offline'} />
+                        <div className="flex items-center justify-between gap-1">
                           <span className={`text-[10px] font-semibold truncate ${isActive ? 'text-yellow-400' : 'text-gray-300'}`}>{room.other_user?.nickname}</span>
+                          {lastTime && <span className="text-[7px] text-gray-600 flex-shrink-0">{lastTime}</span>}
                         </div>
                         {room.last_message && <p className="text-[8px] text-gray-600 truncate">{room.last_message.content}</p>}
                       </div>

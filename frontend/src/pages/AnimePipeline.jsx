@@ -29,7 +29,7 @@ const STEPS = [
   { id: 'completed', label: 'Completato', icon: Star, color: 'yellow' },
 ];
 
-const STATUS_TO_STEP = { concept: 0, coming_soon: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
+const STATUS_TO_STEP = { concept: 0, coming_soon: 0, ready_for_casting: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function AnimePipeline() {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -531,10 +531,10 @@ export default function AnimePipeline() {
             </Card>
 
             {/* CONCEPT / COMING SOON PRE-CASTING */}
-            {(activeSeries.status === 'concept' || (activeSeries.status === 'coming_soon' && activeSeries.coming_soon_type === 'pre_casting')) && (() => {
+            {(activeSeries.status === 'concept' || activeSeries.status === 'ready_for_casting' || (activeSeries.status === 'coming_soon' && activeSeries.coming_soon_type === 'pre_casting')) && (() => {
               const hasPoster = !!activeSeries.poster_url;
               const isComingSoon = activeSeries.status === 'coming_soon';
-              const csExpired = isComingSoon && activeSeries.scheduled_release_at && new Date(activeSeries.scheduled_release_at) <= new Date();
+              const csExpired = activeSeries.status === 'ready_for_casting' || (isComingSoon && activeSeries.scheduled_release_at && new Date(activeSeries.scheduled_release_at) <= new Date());
               return (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="bg-[#111113] border-orange-500/10">

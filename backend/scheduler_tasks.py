@@ -717,6 +717,30 @@ async def auto_release_coming_soon():
         if not is_release_due(series):
             continue
         try:
+            # PRE_CASTING: advance to ready_for_casting, NOT to completed
+            if series.get('coming_soon_type') == 'pre_casting':
+                await scheduler_db.tv_series.update_one(
+                    {'id': series['id']},
+                    {'$set': {
+                        'status': 'ready_for_casting',
+                        'coming_soon_completed': True,
+                        'coming_soon_completed_at': now_str,
+                        'updated_at': now_str,
+                    }}
+                )
+                from social_system import create_notification
+                type_label = "Anime" if series.get('type') == 'anime' else "Serie TV"
+                notif = create_notification(
+                    series['user_id'], 'coming_soon',
+                    'Coming Soon Completato!',
+                    f'"{series["title"]}" ({type_label}) ha completato il periodo Coming Soon! Puoi ora procedere al Casting.',
+                    data={'series_id': series['id']},
+                    link='/series'
+                )
+                await scheduler_db.notifications.insert_one(notif)
+                logger.info(f"Series {series['id']} ({series['title']}) pre_casting Coming Soon completed -> ready_for_casting")
+                continue
+
             genre_mastery = await scheduler_db.tv_series.count_documents({
                 'user_id': series['user_id'], 'genre': series['genre'],
                 'type': series['type'], 'status': 'completed'
@@ -794,6 +818,30 @@ async def auto_release_coming_soon():
         if not is_release_due(project):
             continue
         try:
+            # PRE_CASTING: advance to casting, NOT to completed
+            if project.get('coming_soon_type') == 'pre_casting':
+                await scheduler_db.film_projects.update_one(
+                    {'id': project['id']},
+                    {'$set': {
+                        'status': 'ready_for_casting',
+                        'coming_soon_completed': True,
+                        'coming_soon_completed_at': now_str,
+                        'updated_at': now_str,
+                    }}
+                )
+                from social_system import create_notification
+                notif = create_notification(
+                    project['user_id'], 'coming_soon',
+                    'Coming Soon Completato!',
+                    f'"{project["title"]}" ha completato il periodo Coming Soon! Puoi ora procedere al Casting.',
+                    data={'film_id': project['id']},
+                    link='/films'
+                )
+                await scheduler_db.notifications.insert_one(notif)
+                logger.info(f"Film {project['id']} ({project['title']}) pre_casting Coming Soon completed -> ready_for_casting")
+                continue
+
+            # Legacy / pre_release: complete the film normally
             hype = project.get('hype_score', 0)
             hype_boost = min(15, hype * 0.5)
             strategy_bonus_pct = project.get('release_strategy_bonus_pct', 0)

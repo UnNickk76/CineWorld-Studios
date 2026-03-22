@@ -397,6 +397,7 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
 
   // Determine step for each proposal
   const getStep = (p) => {
+    if (p.status === 'ready_for_casting') return 'casting_ready';
     if (p.status === 'coming_soon') {
       const expired = !countdowns[p.id];
       return expired ? 'casting_ready' : 'coming_soon_active';

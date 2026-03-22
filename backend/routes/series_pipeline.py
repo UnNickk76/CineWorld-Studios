@@ -542,14 +542,14 @@ async def launch_series_coming_soon(series_id: str, req: SeriesLaunchCSRequest, 
 
 @router.post("/series-pipeline/{series_id}/advance-to-casting")
 async def advance_to_casting(series_id: str, user: dict = Depends(get_current_user)):
-    """Move series from concept/coming_soon to casting phase."""
+    """Move series from concept/coming_soon/ready_for_casting to casting phase."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id']},
         {'_id': 0}
     )
     if not series:
         raise HTTPException(404, "Serie non trovata")
-    if series['status'] not in ('concept', 'coming_soon'):
+    if series['status'] not in ('concept', 'coming_soon', 'ready_for_casting'):
         raise HTTPException(400, "La serie non e' nella fase giusta")
 
     # If coming_soon (pre_casting), check timer expired
@@ -563,6 +563,7 @@ async def advance_to_casting(series_id: str, user: dict = Depends(get_current_us
                 release_dt = release_dt.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) < release_dt:
                 raise HTTPException(400, "Il periodo Coming Soon non e' ancora terminato")
+    # ready_for_casting: timer already expired via scheduler, proceed directly
     
     await db.tv_series.update_one(
         {'id': series_id},

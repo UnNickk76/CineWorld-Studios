@@ -616,7 +616,7 @@ async def get_pipeline_counts(user: dict = Depends(get_current_user)):
 
     return {
         'creation': counts.get('draft', 0),
-        'proposed': counts.get('proposed', 0),
+        'proposed': counts.get('proposed', 0) + counts.get('coming_soon', 0) + counts.get('ready_for_casting', 0),
         'casting': counts.get('casting', 0),
         'screenplay': counts.get('screenplay', 0),
         'pre_production': counts.get('pre_production', 0),
@@ -720,13 +720,14 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
 
 @router.get("/film-pipeline/proposals")
 async def get_proposals(user: dict = Depends(get_current_user)):
-    """Step 2: Get all user's proposed films + coming_soon pre-casting films."""
+    """Step 2: Get all user's proposed films + coming_soon pre-casting + ready_for_casting films."""
     projects = await db.film_projects.find(
-        {'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon']},
+        {'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon', 'ready_for_casting']},
          '$or': [
              {'coming_soon_type': {'$exists': False}},
              {'coming_soon_type': 'pre_casting'},
-             {'status': 'proposed'}
+             {'status': 'proposed'},
+             {'status': 'ready_for_casting'}
          ]},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
@@ -862,9 +863,9 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/film-pipeline/{project_id}/advance-to-casting")
 async def advance_to_casting(project_id: str, user: dict = Depends(get_current_user)):
-    """Move a proposed/coming_soon film to casting phase."""
+    """Move a proposed/coming_soon/ready_for_casting film to casting phase."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon']}},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['proposed', 'coming_soon', 'ready_for_casting']}},
         {'_id': 0}
     )
     if not project:
@@ -881,6 +882,7 @@ async def advance_to_casting(project_id: str, user: dict = Depends(get_current_u
                 release_dt = release_dt.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) < release_dt:
                 raise HTTPException(400, "Il periodo Coming Soon non e' ancora terminato")
+    # ready_for_casting: timer already expired via scheduler, proceed directly
 
     # CinePass cost for casting
     from routes.cinepass import spend_cinepass

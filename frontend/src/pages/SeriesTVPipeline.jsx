@@ -218,7 +218,7 @@ export default function SeriesTVPipeline() {
   const releaseSeries = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/series-pipeline/${activeSeries.id}/release`);
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/release`, {}, { timeout: 60000 });
       setReleaseCard(res.data);
       setReleasePoster(null);
       setPosterPolling(true);

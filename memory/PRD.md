@@ -168,6 +168,15 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Cinematic Release for Anime**: Upgraded anime release modal from basic card to full cinematic 3-phase reveal with event, poster polling, and animated stats (matching SeriesTV).
 - Testing: 18/18 backend + 100% frontend (iteration 117)
 
+### Dual Release System: Immediato vs Coming Soon (2026-03-22)
+- **Release Mode Selector**: Reusable `ReleaseModeSelector` component with 2 cards (Rilascio Immediato / Coming Soon) shown before creation form in all 3 pipelines (Film, Serie TV, Anime)
+- **Backend**: Added `release_type` field to `CreateSeriesRequest`, `FilmProposalRequest`, stored on documents. New endpoints: `POST /series-pipeline/{id}/schedule-release`, `POST /film-pipeline/{id}/schedule-release`, `GET /coming-soon`, `POST /coming-soon/{id}/hype`
+- **Coming Soon State**: After production, `coming_soon` items show schedule-release UI (hours slider for series, dropdown for films). Scheduled items get `status: coming_soon` + `scheduled_release_at`
+- **Prossimamente Section**: New `ComingSoonSection` component on Dashboard shows poster, type badge, production house, countdown timer, hype score with interactive "Hype" button (1 vote per user)
+- **Auto-Release Scheduler**: `auto_release_coming_soon` task runs every 5 minutes, auto-releases content when `scheduled_release_at` passes, calculates quality with hype boost (max +15%), notifies user
+- **Hype System (simple)**: hype_score = number of votes, hype_boost = min(15, hype * 0.5), applied to quality and revenue multiplier. Configurable for future expansion
+- Testing: Backend 100% via curl (create, schedule, list, hype, duplicate prevention). Frontend verified via screenshots
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 - Like endpoint: safe handling of films without user_id (orphan films)

@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
+import { ComingSoonSection } from '../components/ComingSoonSection';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Slider } from '../components/ui/slider';
@@ -438,6 +439,11 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Prossimamente - Coming Soon Section */}
+      <div className="mb-4" data-testid="dashboard-coming-soon">
+        <ComingSoonSection compact />
+      </div>
 
       {/* Ultimi Aggiornamenti - Recent releases from all players */}
       {recentReleases.length > 0 && (

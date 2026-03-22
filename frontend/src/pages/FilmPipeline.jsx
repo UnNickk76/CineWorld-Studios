@@ -16,6 +16,8 @@ import {
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus
 } from 'lucide-react';
 
+import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
+
 const TABS = [
   { id: 'creation', icon: Pencil, label: 'Creazione', desc: 'Crea una nuova proposta: titolo, genere, sinossi e location' },
   { id: 'proposals', icon: ClipboardList, label: 'Proposte', desc: 'Film proposti con pre-valutazione IMDb. Scarta o prosegui al casting' },
@@ -36,7 +38,8 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
   const [genres, setGenres] = useState({});
   const [locations, setLocations] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState(1); // 1=title/genre, 2=screenplay, 3=location
+  const [step, setStep] = useState(0); // 0=release mode, 1=title/genre, 2=screenplay, 3=location
+  const [releaseType, setReleaseType] = useState(null);
   const [myScreenplays, setMyScreenplays] = useState([]);
   const [selectedScreenplay, setSelectedScreenplay] = useState(null);
 
@@ -70,12 +73,14 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
     setSubmitting(true);
     try {
       const payload = {
-        title, genre, subgenres: selectedSubgenres, pre_screenplay: preScreenplay, locations: selectedLocations
+        title, genre, subgenres: selectedSubgenres, pre_screenplay: preScreenplay, locations: selectedLocations,
+        release_type: releaseType || 'immediate'
       };
       if (selectedScreenplay) payload.purchased_screenplay_id = selectedScreenplay.id;
       const res = await api.post('/film-pipeline/create', payload);
       toast.success(res.data.message);
-      setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay(''); setSelectedLocations([]); setStep(1);
+      setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay(''); setSelectedLocations([]); setStep(0);
+      setReleaseType(null);
       setSelectedScreenplay(null);
       setMyScreenplays(prev => prev.filter(s => s.id !== selectedScreenplay?.id));
       refreshUser(); refreshCounts();
@@ -104,10 +109,30 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
         ))}
       </div>
 
+      {step === 0 && (
+        <Card className="bg-[#1A1A1B] border-gray-800">
+          <CardContent className="p-4">
+            <ReleaseModeSelector
+              selected={releaseType}
+              onSelect={(mode) => { setReleaseType(mode); setStep(1); }}
+              onContinue={() => { if (releaseType) setStep(1); }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {step === 1 && (
         <Card className="bg-[#1A1A1B] border-gray-800">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Film className="w-4 h-4 text-yellow-400" />Titolo & Genere</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2"><Film className="w-4 h-4 text-yellow-400" />Titolo & Genere</CardTitle>
+              {releaseType && (
+                <button onClick={() => setStep(0)} className="flex items-center gap-1 text-[9px] text-gray-500 hover:text-yellow-400 transition-colors" data-testid="film-change-release-mode">
+                  {releaseType === 'coming_soon' ? <Clock className="w-3 h-3 text-cyan-400" /> : <Zap className="w-3 h-3 text-yellow-400" />}
+                  {releaseType === 'coming_soon' ? 'Coming Soon' : 'Immediato'}
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Purchased screenplay selector */}
@@ -1869,12 +1894,53 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
               </div>
 
               {completed ? (
-                <div className="flex gap-1.5">
-                  <Button className="flex-1 bg-green-700 hover:bg-green-800 text-xs" disabled={actionLoading === `rel-${f.id}`}
-                    onClick={() => release(f.id)} data-testid={`release-${f.id}`}>
-                    {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Film className="w-3 h-3 mr-1" />}
-                    Rilascia al Cinema!
-                  </Button>
+                <div className="flex gap-1.5 flex-wrap">
+                  {f.release_type === 'coming_soon' ? (
+                    <div className="w-full space-y-2">
+                      <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
+                        <p className="text-[10px] text-cyan-400 font-semibold mb-1.5">Programma Coming Soon</p>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                          <select
+                            className="flex-1 bg-black/30 border border-gray-700 rounded text-xs text-white p-1"
+                            defaultValue="24"
+                            data-testid={`film-schedule-select-${f.id}`}
+                            id={`schedule-${f.id}`}>
+                            <option value="1">1 ora</option>
+                            <option value="3">3 ore</option>
+                            <option value="6">6 ore</option>
+                            <option value="12">12 ore</option>
+                            <option value="24">1 giorno</option>
+                            <option value="48">2 giorni</option>
+                            <option value="72">3 giorni</option>
+                            <option value="168">7 giorni</option>
+                          </select>
+                        </div>
+                      </div>
+                      <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
+                        disabled={actionLoading === `rel-${f.id}`}
+                        data-testid={`schedule-film-${f.id}`}
+                        onClick={async () => {
+                          setActionLoading(`rel-${f.id}`);
+                          const hours = parseInt(document.getElementById(`schedule-${f.id}`)?.value || '24');
+                          try {
+                            await api.post(`/film-pipeline/${f.id}/schedule-release`, { release_hours: hours });
+                            toast.success(`Film programmato Coming Soon!`);
+                            refreshUser(); fetch();
+                          } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                          finally { setActionLoading(null); }
+                        }}>
+                        {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        Programma Uscita
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button className="flex-1 bg-green-700 hover:bg-green-800 text-xs" disabled={actionLoading === `rel-${f.id}`}
+                      onClick={() => release(f.id)} data-testid={`release-${f.id}`}>
+                      {actionLoading === `rel-${f.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Film className="w-3 h-3 mr-1" />}
+                      Rilascia al Cinema!
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 px-2"
                     disabled={actionLoading === `discard-${f.id}`}
                     onClick={async () => {

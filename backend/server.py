@@ -9704,6 +9704,36 @@ async def admin_resolve_report(report_id: str, action: str = 'dismiss', user: di
     return result
 
 
+
+# ==================== COMING SOON HYPE SYSTEM ====================
+@api_router.post("/coming-soon/{content_id}/hype")
+async def add_hype(content_id: str, user: dict = Depends(get_current_user)):
+    """Add hype to a coming_soon content (like a 'like' for upcoming content)."""
+    # Try series first
+    series = await db.tv_series.find_one({'id': content_id, 'status': 'coming_soon'}, {'_id': 0, 'id': 1, 'hype_voters': 1, 'user_id': 1})
+    if series:
+        if user['id'] in (series.get('hype_voters') or []):
+            return {'already_hyped': True, 'message': 'Hai già aggiunto hype!'}
+        await db.tv_series.update_one(
+            {'id': content_id},
+            {'$inc': {'hype_score': 1}, '$push': {'hype_voters': user['id']}}
+        )
+        return {'success': True, 'message': 'Hype aggiunto!'}
+    
+    # Try films
+    film = await db.film_projects.find_one({'id': content_id, 'status': 'coming_soon'}, {'_id': 0, 'id': 1, 'hype_voters': 1, 'user_id': 1})
+    if film:
+        if user['id'] in (film.get('hype_voters') or []):
+            return {'already_hyped': True, 'message': 'Hai già aggiunto hype!'}
+        await db.film_projects.update_one(
+            {'id': content_id},
+            {'$inc': {'hype_score': 1}, '$push': {'hype_voters': user['id']}}
+        )
+        return {'success': True, 'message': 'Hype aggiunto!'}
+    
+    raise HTTPException(404, "Contenuto non trovato o non in Coming Soon")
+
+
 # ==================== CHAT IMAGE UPLOAD ====================
 from fastapi import UploadFile, File as FastAPIFile
 
@@ -11003,7 +11033,8 @@ async def startup_event():
         update_cinema_revenue,
         cleanup_expired_hired_stars,
         update_leaderboard_scores,
-        update_film_attendance
+        update_film_attendance,
+        auto_release_coming_soon
     )
     
     # Add scheduled jobs
@@ -11086,6 +11117,14 @@ async def startup_event():
         update_film_attendance,
         IntervalTrigger(minutes=10),
         id='update_film_attendance',
+        replace_existing=True
+    )
+    
+    # Every 5 minutes: Auto-release coming_soon content
+    scheduler.add_job(
+        auto_release_coming_soon,
+        IntervalTrigger(minutes=5),
+        id='auto_release_coming_soon',
         replace_existing=True
     )
     

@@ -685,3 +685,140 @@ def run_cleanup_expired_hired_stars():
 def run_update_leaderboard_scores():
     """Sync wrapper for update_leaderboard_scores"""
     asyncio.get_event_loop().run_until_complete(update_leaderboard_scores())
+
+# ==================== COMING SOON AUTO-RELEASE ====================
+
+async def auto_release_coming_soon():
+    """Auto-release content whose scheduled_release_at has passed."""
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
+    
+    # Process series/anime coming_soon
+    cursor = scheduler_db.tv_series.find({
+        'status': 'coming_soon',
+        'scheduled_release_at': {'$ne': None, '$lte': now_str}
+    }, {'_id': 0})
+    
+    async for series in cursor:
+        try:
+            # Calculate quality
+            genre_mastery = await scheduler_db.tv_series.count_documents({
+                'user_id': series['user_id'], 'genre': series['genre'],
+                'type': series['type'], 'status': 'completed'
+            })
+            series['_genre_mastery'] = genre_mastery
+            from routes.series_pipeline import calculate_series_quality
+            quality_result = calculate_series_quality(series)
+            
+            # Hype boost: likes + base hype
+            hype = series.get('hype_score', 0)
+            hype_boost = min(15, hype * 0.5)  # max 15% boost from hype
+            quality_result['score'] = min(98, quality_result['score'] + hype_boost)
+            
+            # Generate episodes
+            episodes = []
+            for i in range(1, series['num_episodes'] + 1):
+                ep = {
+                    'number': i, 'title': f"Episodio {i}", 'mini_plot': '',
+                    'quality_score': round(max(10, min(98, quality_result['score'] + random.gauss(0, 3))), 1),
+                    'audience': 0, 'ad_revenue': 0,
+                }
+                episodes.append(ep)
+            
+            # Revenue calculation
+            base_rev = series['num_episodes'] * random.randint(300000, 800000)
+            quality_mult = quality_result['score'] / 50
+            hype_revenue_mult = 1 + (hype_boost / 100)
+            total_rev = int(base_rev * quality_mult * hype_revenue_mult)
+            
+            # XP and fame
+            xp_reward = 100 if series['type'] == 'anime' else 80
+            fame_bonus = 15 if quality_result['score'] >= 70 else 5
+            
+            await scheduler_db.users.update_one(
+                {'id': series['user_id']},
+                {'$inc': {'total_xp': xp_reward, 'fame': fame_bonus, 'funds': total_rev}}
+            )
+            
+            await scheduler_db.tv_series.update_one(
+                {'id': series['id']},
+                {'$set': {
+                    'status': 'completed',
+                    'quality_score': quality_result['score'],
+                    'episodes': episodes,
+                    'total_revenue': total_rev,
+                    'completed_at': now_str,
+                    'updated_at': now_str,
+                    'auto_released': True,
+                }}
+            )
+            
+            # Notify user
+            from social_system import create_notification
+            type_label = "Anime" if series['type'] == 'anime' else "Serie TV"
+            notif = create_notification(
+                series['user_id'], 'film_release',
+                f'{type_label} Rilasciata!',
+                f'"{series["title"]}" è uscita! Qualità: {quality_result["score"]}/100, Incasso: ${total_rev:,}',
+                data={'series_id': series['id']},
+                link=f'/series/{series["id"]}'
+            )
+            await scheduler_db.notifications.insert_one(notif)
+            logger.info(f"Auto-released series {series['id']} ({series['title']})")
+        except Exception as e:
+            logger.error(f"Error auto-releasing series {series['id']}: {e}")
+    
+    # Process films coming_soon
+    film_cursor = scheduler_db.film_projects.find({
+        'status': 'coming_soon',
+        'scheduled_release_at': {'$ne': None, '$lte': now_str}
+    }, {'_id': 0})
+    
+    async for project in film_cursor:
+        try:
+            # Simplified auto-release for films
+            hype = project.get('hype_score', 0)
+            hype_boost = min(15, hype * 0.5)
+            
+            pre_imdb = project.get('pre_imdb_score', 5.0)
+            base_quality = pre_imdb * 10 + random.uniform(-5, 10) + hype_boost
+            quality_score = max(10, min(98, base_quality))
+            
+            base_rev = random.randint(5000000, 25000000)
+            quality_mult = quality_score / 50
+            hype_revenue_mult = 1 + (hype_boost / 100)
+            total_rev = int(base_rev * quality_mult * hype_revenue_mult)
+            
+            xp_reward = 50
+            fame_bonus = 10 if quality_score >= 70 else 3
+            
+            await scheduler_db.users.update_one(
+                {'id': project['user_id']},
+                {'$inc': {'total_xp': xp_reward, 'fame': fame_bonus, 'funds': total_rev}}
+            )
+            
+            await scheduler_db.film_projects.update_one(
+                {'id': project['id']},
+                {'$set': {
+                    'status': 'completed',
+                    'quality_score': quality_score,
+                    'total_revenue': total_rev,
+                    'audience_rating': round(quality_score / 10, 1),
+                    'completed_at': now_str,
+                    'updated_at': now_str,
+                    'auto_released': True,
+                }}
+            )
+            
+            from social_system import create_notification
+            notif = create_notification(
+                project['user_id'], 'film_release',
+                'Film Rilasciato!',
+                f'"{project["title"]}" è uscito! Qualità: {quality_score:.0f}/100, Incasso: ${total_rev:,}',
+                data={'film_id': project['id']},
+                link=f'/films/{project["id"]}'
+            )
+            await scheduler_db.notifications.insert_one(notif)
+            logger.info(f"Auto-released film {project['id']} ({project['title']})")
+        except Exception as e:
+            logger.error(f"Error auto-releasing film {project['id']}: {e}")

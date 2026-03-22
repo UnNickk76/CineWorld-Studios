@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Tv, ArrowRight, ArrowLeft, Users, Pen, Play, Film, Lock, Loader2, Trash2, Check, Star, X, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Tv, ArrowRight, ArrowLeft, Users, Pen, Play, Film, Lock, Loader2, Trash2, Check, Star, X, ChevronDown, ChevronUp, Sparkles, Clock, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -39,6 +40,8 @@ export default function SeriesTVPipeline() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [releaseType, setReleaseType] = useState(null);
+  const [scheduleHours, setScheduleHours] = useState(24);
 
   // Concept form
   const [title, setTitle] = useState('');
@@ -120,7 +123,7 @@ export default function SeriesTVPipeline() {
     try {
       const res = await api.post('/series-pipeline/create', {
         title, genre: selectedGenre, num_episodes: numEpisodes,
-        series_type: 'tv_series', description
+        series_type: 'tv_series', description, release_type: releaseType || 'immediate'
       });
       toast.success(`"${title}" creata! Costo: $${res.data.cost?.toLocaleString()}`);
       setActiveSeries(res.data.series);
@@ -362,10 +365,30 @@ export default function SeriesTVPipeline() {
         {/* No active series - show create form or completed list */}
         {!activeSeries ? (
           <div className="space-y-4">
-            {/* Create New Series */}
+            {/* Step 0: Release Mode Selection */}
+            {!releaseType && (
+              <Card className="bg-[#111113] border-blue-500/20" data-testid="series-release-mode-card">
+                <CardContent className="p-4">
+                  <ReleaseModeSelector
+                    selected={releaseType}
+                    onSelect={setReleaseType}
+                    onContinue={() => {}}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Create New Series (shown after release mode is selected) */}
+            {releaseType && (
             <Card className="bg-[#111113] border-blue-500/20" data-testid="create-series-form">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-['Bebas_Neue'] text-blue-400">Nuova Serie TV</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-['Bebas_Neue'] text-blue-400">Nuova Serie TV</CardTitle>
+                  <button onClick={() => setReleaseType(null)} className="flex items-center gap-1 text-[9px] text-gray-500 hover:text-blue-400 transition-colors" data-testid="change-release-mode-btn">
+                    {releaseType === 'coming_soon' ? <Clock className="w-3 h-3 text-cyan-400" /> : <Flame className="w-3 h-3 text-yellow-400" />}
+                    {releaseType === 'coming_soon' ? 'Coming Soon' : 'Immediato'}
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Input
@@ -432,6 +455,7 @@ export default function SeriesTVPipeline() {
                 </Button>
               </CardContent>
             </Card>
+            )}
 
             {/* Completed Series */}
             {mySeries.filter(s => s.status === 'completed').length > 0 && (
@@ -973,10 +997,43 @@ export default function SeriesTVPipeline() {
                             </button>
                           </div>
                         )}
-                        <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="release-series-btn">
-                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
-                          Rilascia Serie!
-                        </Button>
+                        {activeSeries.release_type === 'coming_soon' ? (
+                          <div className="space-y-2">
+                            <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
+                              <p className="text-[10px] text-cyan-400 font-semibold mb-1.5">Programma uscita Coming Soon</p>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                                <input type="range" min="1" max="168" value={scheduleHours}
+                                  onChange={e => setScheduleHours(Number(e.target.value))}
+                                  className="flex-1 h-1 accent-cyan-500"
+                                  data-testid="schedule-hours-slider" />
+                                <span className="text-xs text-cyan-300 font-bold w-12 text-right">
+                                  {scheduleHours >= 24 ? `${Math.floor(scheduleHours/24)}g ${scheduleHours%24}h` : `${scheduleHours}h`}
+                                </span>
+                              </div>
+                            </div>
+                            <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                              onClick={async () => {
+                                setActionLoading(true);
+                                try {
+                                  await api.post(`/series-pipeline/${activeSeries.id}/schedule-release`, { release_hours: scheduleHours });
+                                  toast.success(`Serie programmata! Uscita tra ${scheduleHours >= 24 ? `${Math.floor(scheduleHours/24)} giorni` : `${scheduleHours} ore`}`);
+                                  setActiveSeries(null);
+                                  loadData();
+                                } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                                finally { setActionLoading(false); }
+                              }}
+                              disabled={actionLoading} data-testid="schedule-release-btn">
+                              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
+                              Programma Uscita Coming Soon
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="release-series-btn">
+                            {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
+                            Rilascia Serie!
+                          </Button>
+                        )}
                       </div>
                     )}
                   </CardContent>

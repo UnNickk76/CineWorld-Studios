@@ -199,6 +199,7 @@ class FilmProposalRequest(BaseModel):
     pre_screenplay: str  # 100-500 chars
     locations: List[str]  # Multiple locations
     purchased_screenplay_id: Optional[str] = None  # If using a purchased screenplay
+    release_type: str = 'immediate'  # immediate or coming_soon
 
 class CastSpeedUpRequest(BaseModel):
     role_type: str  # director, screenwriter, actors, composer
@@ -672,6 +673,7 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'status': 'proposed',
+        'release_type': req.release_type if req.release_type in ('immediate', 'coming_soon') else 'immediate',
         'title': req.title.strip(),
         'genre': req.genre,
         'subgenres': req.subgenres,
@@ -687,6 +689,8 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
         'cast_proposals': {},
         'costs_paid': {'creation': creation_cost},
         'cinepass_paid': {'creation': cp_cost},
+        'hype_score': 0,
+        'scheduled_release_at': None,
         'created_at': datetime.now(timezone.utc).isoformat(),
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
@@ -2803,4 +2807,48 @@ async def buzz_vote(project_id: str, req: BuzzVoteRequest, user: dict = Depends(
         'success': True,
         'message': f'Voto registrato: {vote_labels[req.vote]} +{cp_reward} CP',
         'cp_reward': cp_reward
+    }
+
+
+# ==================== FILM COMING SOON SYSTEM ====================
+
+class ScheduleFilmReleaseRequest(BaseModel):
+    release_hours: int = 24
+
+@router.post("/film-pipeline/{project_id}/schedule-release")
+async def schedule_film_release(project_id: str, req: ScheduleFilmReleaseRequest, user: dict = Depends(get_current_user)):
+    """Schedule a coming_soon film for future release."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(404, "Film non trovato")
+    if project.get('release_type') != 'coming_soon':
+        raise HTTPException(400, "Solo i film 'Coming Soon' possono essere programmati")
+    if project['status'] != 'shooting':
+        raise HTTPException(400, "Il film non è pronto per la programmazione")
+    if not project.get('shooting_completed'):
+        started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
+        total_days = project.get('shooting_days', 5)
+        hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600
+        if hours_elapsed < total_days:
+            raise HTTPException(400, "Le riprese non sono ancora completate")
+    
+    hours = max(1, min(168, req.release_hours))
+    release_at = datetime.now(timezone.utc) + timedelta(hours=hours)
+    
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'scheduled_release_at': release_at.isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        "status": "coming_soon",
+        "scheduled_release_at": release_at.isoformat(),
+        "hours_until_release": hours
     }

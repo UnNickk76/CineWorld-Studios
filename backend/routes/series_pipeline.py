@@ -259,6 +259,10 @@ class CreateSeriesRequest(BaseModel):
     num_episodes: int
     series_type: str = 'tv_series'  # tv_series or anime
     description: Optional[str] = None
+    release_type: str = 'immediate'  # immediate or coming_soon
+
+class ScheduleReleaseRequest(BaseModel):
+    release_hours: int = 24  # hours from now
 
 class CastMemberRequest(BaseModel):
     actor_id: str
@@ -410,6 +414,7 @@ async def create_series(req: CreateSeriesRequest, user: dict = Depends(get_curre
         'type': series_type,
         'description': req.description or '',
         'status': 'concept',
+        'release_type': req.release_type if req.release_type in ('immediate', 'coming_soon') else 'immediate',
         'season_number': 1,
         'num_episodes': req.num_episodes,
         'cast': [],
@@ -417,6 +422,8 @@ async def create_series(req: CreateSeriesRequest, user: dict = Depends(get_curre
         'quality_score': 0,
         'poster_url': None,
         'production_cost': total_cost,
+        'hype_score': 0,
+        'scheduled_release_at': None,
         'created_at': now,
         'updated_at': now,
         'production_started_at': None,
@@ -1219,3 +1226,98 @@ async def discard_series(series_id: str, user: dict = Depends(get_current_user))
     )
     
     return {"status": "cancelled", "refund": refund}
+
+
+
+# ==================== COMING SOON SYSTEM ====================
+
+@router.post("/series-pipeline/{series_id}/schedule-release")
+async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, user: dict = Depends(get_current_user)):
+    """Schedule a coming_soon series for future release."""
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series.get('release_type') != 'coming_soon':
+        raise HTTPException(400, "Solo le serie 'Coming Soon' possono essere programmate")
+    if series['status'] not in ('production', 'ready_to_release'):
+        raise HTTPException(400, "La serie non è pronta per la programmazione")
+    
+    # Check production is complete
+    if series['status'] == 'production':
+        started = datetime.fromisoformat(series['production_started_at'])
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
+        if elapsed < series.get('production_duration_minutes', 60):
+            raise HTTPException(400, "La produzione non è ancora completata")
+    
+    # Validate hours (min 1h, max 168h = 7 days)
+    hours = max(1, min(168, req.release_hours))
+    release_at = datetime.now(timezone.utc) + timedelta(hours=hours)
+    
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'status': 'coming_soon',
+            'scheduled_release_at': release_at.isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        "status": "coming_soon",
+        "scheduled_release_at": release_at.isoformat(),
+        "hours_until_release": hours
+    }
+
+
+@router.get("/coming-soon")
+async def get_coming_soon():
+    """Get all content in coming_soon status (public endpoint)."""
+    # Series/Anime coming soon
+    series_cursor = db.tv_series.find(
+        {'status': 'coming_soon', 'scheduled_release_at': {'$ne': None}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
+         'num_episodes': 1, 'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1,
+         'created_at': 1}
+    ).sort('scheduled_release_at', 1)
+    series_items = await series_cursor.to_list(50)
+    
+    # Films coming soon
+    film_cursor = db.film_projects.find(
+        {'status': 'coming_soon', 'scheduled_release_at': {'$ne': None}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1}
+    ).sort('scheduled_release_at', 1)
+    film_items = await film_cursor.to_list(50)
+    
+    # Enrich with production house names
+    user_ids = list(set([s['user_id'] for s in series_items] + [f['user_id'] for f in film_items]))
+    users = {}
+    if user_ids:
+        users_cursor = db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'production_house_name': 1, 'nickname': 1})
+        async for u in users_cursor:
+            users[u['id']] = u
+    
+    items = []
+    for s in series_items:
+        owner = users.get(s['user_id'], {})
+        items.append({
+            **s,
+            'content_type': s['type'],
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+        })
+    for f in film_items:
+        owner = users.get(f['user_id'], {})
+        items.append({
+            **f,
+            'content_type': 'film',
+            'genre_name': f.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+        })
+    
+    # Sort by scheduled_release_at
+    items.sort(key=lambda x: x.get('scheduled_release_at', ''))
+    
+    return {"items": items}

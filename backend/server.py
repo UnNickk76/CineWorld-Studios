@@ -7074,6 +7074,148 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
 
 
 
+# ==================== ADMIN: TEST DATA CLEANUP ====================
+
+# Hardcoded list of 19 test usernames (nicknames) confirmed by the admin via screenshots
+_CLEANUP_TEST_NICKNAMES = [
+    'CastTester', 'DemoUser', 'FilmMaster2024', 'FinalTest', 'ItalianTester',
+    'LowLevelTester', 'NavTestUser', 'NewProducer', 'TestAgent', 'TestCast',
+    'TestCine', 'TestFriend', 'TestProducer', 'TestReject', 'TestUser2',
+    'TrailerTest', 'TrailerTest2', 'TSocial2', 'UITestUser'
+]
+
+# Hardcoded list of 2 standalone test film titles confirmed by the admin
+_CLEANUP_TEST_FILM_TITLES = [
+    'TEST_Role_Test_Film_1773013630.586569',
+    'Midnight Thunder'
+]
+
+
+@api_router.get("/admin/cleanup-test-data/preview")
+async def admin_cleanup_preview(user: dict = Depends(get_current_user)):
+    """Preview what test data would be deleted (admin only). DRY RUN - no data is modified."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può accedere")
+
+    report = {
+        'mode': 'PREVIEW (DRY RUN)',
+        'users_to_delete': [],
+        'orphan_films_to_delete': [],
+        'associated_content': {}
+    }
+
+    # Find test users by nickname
+    user_ids_to_delete = []
+    for nickname in _CLEANUP_TEST_NICKNAMES:
+        u = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'production_house_name': 1})
+        if u:
+            report['users_to_delete'].append(u)
+            if u.get('id'):
+                user_ids_to_delete.append(u['id'])
+
+    # Count associated content per collection for those user_ids
+    if user_ids_to_delete:
+        collections = await db.list_collection_names()
+        for coll_name in sorted(collections):
+            if coll_name in ('users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations'):
+                continue
+            try:
+                count = await db[coll_name].count_documents({'user_id': {'$in': user_ids_to_delete}})
+                if count > 0:
+                    report['associated_content'][coll_name] = count
+            except Exception:
+                pass
+
+    # Find standalone test films by exact title (case-insensitive match)
+    import re as _re
+    for title in _CLEANUP_TEST_FILM_TITLES:
+        film = await db.films.find_one(
+            {'title': {'$regex': f'^{_re.escape(title)}$', '$options': 'i'}},
+            {'_id': 0, 'title': 1, 'user_id': 1, 'film_id': 1}
+        )
+        if film:
+            # Check if this film's owner is already in the user deletion list
+            already_covered = film.get('user_id') in user_ids_to_delete
+            film['already_covered_by_user_deletion'] = already_covered
+            report['orphan_films_to_delete'].append(film)
+
+    report['summary'] = {
+        'total_users_found': len(report['users_to_delete']),
+        'total_users_expected': len(_CLEANUP_TEST_NICKNAMES),
+        'total_orphan_films_found': len(report['orphan_films_to_delete']),
+        'total_orphan_films_expected': len(_CLEANUP_TEST_FILM_TITLES),
+        'user_ids': user_ids_to_delete
+    }
+    return report
+
+
+@api_router.post("/admin/cleanup-test-data/execute")
+async def admin_cleanup_execute(user: dict = Depends(get_current_user)):
+    """Execute test data cleanup (admin only). DESTRUCTIVE - deletes data permanently."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può eseguire la pulizia")
+
+    import re as _re
+    results = {
+        'mode': 'EXECUTE',
+        'deleted_users': [],
+        'deleted_orphan_films': [],
+        'deleted_associated_content': {},
+        'errors': []
+    }
+
+    # Step 1: Find all test user IDs
+    user_ids_to_delete = []
+    for nickname in _CLEANUP_TEST_NICKNAMES:
+        u = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'id': 1, 'nickname': 1})
+        if u and u.get('id'):
+            user_ids_to_delete.append(u['id'])
+            results['deleted_users'].append({'nickname': nickname, 'id': u['id']})
+
+    # Step 2: Delete associated content from ALL collections
+    if user_ids_to_delete:
+        collections = await db.list_collection_names()
+        for coll_name in sorted(collections):
+            if coll_name in ('users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations'):
+                continue
+            try:
+                del_result = await db[coll_name].delete_many({'user_id': {'$in': user_ids_to_delete}})
+                if del_result.deleted_count > 0:
+                    results['deleted_associated_content'][coll_name] = del_result.deleted_count
+            except Exception as e:
+                results['errors'].append(f'{coll_name}: {str(e)}')
+
+    # Step 3: Delete user documents themselves
+    if user_ids_to_delete:
+        del_users = await db.users.delete_many({'id': {'$in': user_ids_to_delete}})
+        results['users_deleted_count'] = del_users.deleted_count
+
+    # Step 4: Delete standalone test films by title
+    for title in _CLEANUP_TEST_FILM_TITLES:
+        film = await db.films.find_one(
+            {'title': {'$regex': f'^{_re.escape(title)}$', '$options': 'i'}},
+            {'_id': 0, 'title': 1, 'user_id': 1, 'film_id': 1}
+        )
+        if film:
+            await db.films.delete_one({'title': {'$regex': f'^{_re.escape(title)}$', '$options': 'i'}})
+            results['deleted_orphan_films'].append(film)
+
+    # Step 5: Clean poster files for deleted films/users
+    if user_ids_to_delete:
+        poster_del = await db.poster_files.delete_many({'user_id': {'$in': user_ids_to_delete}})
+        if poster_del.deleted_count > 0:
+            results['deleted_associated_content']['poster_files_extra'] = poster_del.deleted_count
+
+    results['summary'] = {
+        'total_users_deleted': len(results['deleted_users']),
+        'total_orphan_films_deleted': len(results['deleted_orphan_films']),
+        'total_collections_cleaned': len(results['deleted_associated_content']),
+        'errors_count': len(results['errors'])
+    }
+
+    return results
+
+
 @api_router.post("/admin/repair-films")
 async def admin_repair_films(data: dict, user: dict = Depends(get_current_user)):
     """Repair films missing poster, reviews or IMDb data (admin only)."""

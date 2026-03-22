@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { AuthContext } from '../contexts';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
@@ -12,6 +12,7 @@ const API_BASE = process.env.REACT_APP_BACKEND_URL;
 const TABS = [
   { id: 'users', label: 'Gestione Utenti', icon: Users },
   { id: 'films', label: 'Gestione Film', icon: Film },
+  { id: 'reports', label: 'Segnalazioni', icon: Flag },
 ];
 
 /* ─── Confirm Modal ─── */
@@ -356,6 +357,157 @@ function FilmsTab({ api }) {
   );
 }
 
+/* ─── Reports Tab ─── */
+function ReportsTab({ api }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('pending');
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const loadReports = useCallback(async (status) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/admin/reports?status=${status}`);
+      setReports(res.data.reports || []);
+    } catch { toast.error('Errore caricamento segnalazioni'); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { loadReports(filter); }, [filter, loadReports]);
+
+  const resolveReport = async (reportId, action) => {
+    setActionLoading(reportId);
+    try {
+      await api.post(`/admin/reports/${reportId}/resolve?action=${action}`);
+      toast.success(action === 'delete_content' ? 'Contenuto rimosso e segnalazione risolta' : 'Segnalazione archiviata');
+      loadReports(filter);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const TYPE_LABELS = { message: 'Messaggio', image: 'Immagine', user: 'Utente' };
+  const TYPE_COLORS = { message: 'bg-blue-500/20 text-blue-400', image: 'bg-purple-500/20 text-purple-400', user: 'bg-orange-500/20 text-orange-400' };
+  const STATUS_COLORS = { pending: 'bg-yellow-500/20 text-yellow-400', resolved: 'bg-green-500/20 text-green-400', dismissed: 'bg-gray-500/20 text-gray-400' };
+
+  return (
+    <div className="space-y-3" data-testid="admin-reports-tab">
+      {/* Filter buttons */}
+      <div className="flex gap-1.5 flex-wrap">
+        {['pending', 'resolved', 'dismissed', 'all'].map(f => (
+          <button key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all ${
+              filter === f ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+            data-testid={`report-filter-${f}`}>
+            {f === 'pending' ? 'In attesa' : f === 'resolved' ? 'Risolte' : f === 'dismissed' ? 'Archiviate' : 'Tutte'}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-gray-500">{reports.length} segnalazioni trovate</p>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-red-400 animate-spin" /></div>
+      ) : reports.length === 0 ? (
+        <div className="text-center py-8">
+          <Flag className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+          <p className="text-xs text-gray-600">Nessuna segnalazione {filter !== 'all' ? `con stato "${filter}"` : ''}</p>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[70vh] overflow-y-auto pb-2" data-testid="admin-reports-list">
+          {reports.map(r => (
+            <Card key={r.id} className="bg-[#111113] border-white/5 hover:border-white/10 transition-all" data-testid={`report-card-${r.id}`}>
+              <CardContent className="p-3 space-y-2">
+                {/* Header row */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <Badge className={`text-[8px] h-4 ${TYPE_COLORS[r.target_type] || 'bg-gray-500/20 text-gray-400'}`}>
+                      {TYPE_LABELS[r.target_type] || r.target_type}
+                    </Badge>
+                    <Badge className={`text-[8px] h-4 ${STATUS_COLORS[r.status] || ''}`}>
+                      {r.status === 'pending' ? 'In attesa' : r.status === 'resolved' ? 'Risolta' : 'Archiviata'}
+                    </Badge>
+                  </div>
+                  <span className="text-[9px] text-gray-600">
+                    {r.created_at ? new Date(r.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+
+                {/* Reporter */}
+                <p className="text-[10px] text-gray-400">
+                  Segnalato da: <span className="text-white font-semibold">{r.reporter_nickname || '?'}</span>
+                </p>
+
+                {/* Reason */}
+                {r.reason && (
+                  <div className="bg-black/30 rounded-lg px-2.5 py-1.5">
+                    <p className="text-[10px] text-gray-300">"{r.reason}"</p>
+                  </div>
+                )}
+
+                {/* Snapshot */}
+                {r.snapshot && (
+                  <div className="bg-black/20 rounded-lg px-2.5 py-1.5 border border-white/5">
+                    {r.target_type === 'user' ? (
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-white font-semibold">{r.snapshot.nickname}</p>
+                          <p className="text-[9px] text-gray-500">{r.snapshot.email}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[9px] text-gray-500 mb-0.5">
+                          Da: <span className="text-gray-300">{r.snapshot.sender_nickname || '?'}</span>
+                          {r.snapshot.room_id && <span className="ml-1 text-gray-600">in #{r.snapshot.room_id}</span>}
+                        </p>
+                        {r.snapshot.content && (
+                          <p className="text-[10px] text-gray-300 break-words">"{r.snapshot.content}"</p>
+                        )}
+                        {r.snapshot.image_url && (
+                          <img
+                            src={r.snapshot.image_url.startsWith('/') ? `${API_BASE}${r.snapshot.image_url}` : r.snapshot.image_url}
+                            alt="" className="mt-1 max-h-24 rounded border border-white/10"
+                            onError={e => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action buttons (only for pending) */}
+                {r.status === 'pending' && (
+                  <div className="flex gap-1.5 pt-1">
+                    {r.target_type !== 'user' && (
+                      <Button size="sm" className="bg-red-600 hover:bg-red-700 text-[10px] h-6 px-2"
+                        onClick={() => resolveReport(r.id, 'delete_content')}
+                        disabled={actionLoading === r.id}
+                        data-testid={`report-delete-${r.id}`}>
+                        {actionLoading === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3 mr-0.5" />}
+                        Rimuovi Contenuto
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" className="text-[10px] h-6 px-2 border-gray-700 text-gray-400 hover:bg-white/5"
+                      onClick={() => resolveReport(r.id, 'dismiss')}
+                      disabled={actionLoading === r.id}
+                      data-testid={`report-dismiss-${r.id}`}>
+                      <XCircle className="w-3 h-3 mr-0.5" />
+                      Archivia
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -410,6 +562,7 @@ export default function AdminPage() {
         {/* Tab content */}
         {activeTab === 'users' && <UsersTab api={api} />}
         {activeTab === 'films' && <FilmsTab api={api} />}
+        {activeTab === 'reports' && <ReportsTab api={api} />}
       </div>
     </div>
   );

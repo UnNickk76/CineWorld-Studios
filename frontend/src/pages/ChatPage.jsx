@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { toast } from 'sonner';
 import {
   Send, Users, MessageSquare, X, Heart, Film, Lightbulb, Coffee,
-  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn, Trash2
+  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn, Trash2, Flag
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
 
@@ -39,7 +39,7 @@ function PresenceDot({ presence, size = 'sm' }) {
 }
 
 /* ─── User Profile Modal (Social Card with films) ─── */
-function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
+function UserProfileModal({ userId, isOpen, onClose, api, onStartDM, onReportUser }) {
   const { language } = useContext(LanguageContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -140,6 +140,14 @@ function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
                 }
               </div>
             )}
+            {/* Report user button */}
+            {!data.is_own_profile && (
+              <Button size="sm" variant="outline" className="w-full text-[10px] h-7 border-red-500/20 text-red-400 hover:bg-red-500/10"
+                onClick={() => { onClose(); onReportUser(userId, data.user?.nickname); }}
+                data-testid="social-card-report-btn">
+                <Flag className="w-3 h-3 mr-1" />Segnala Utente
+              </Button>
+            )}
 
             {/* Films section */}
             <div>
@@ -196,6 +204,49 @@ function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
 }
 
 
+/* ─── Report Modal ─── */
+function ReportModal({ isOpen, onClose, onSubmit, targetLabel }) {
+  const [reason, setReason] = useState('');
+  const [sending, setSending] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async () => {
+    setSending(true);
+    await onSubmit(reason);
+    setSending(false);
+    setReason('');
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4" onClick={onClose} data-testid="report-modal">
+      <div className="bg-[#111113] border border-red-500/30 rounded-xl max-w-sm w-full p-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <Flag className="w-4 h-4 text-red-400" />
+          <span className="text-sm font-bold text-white">Segnala {targetLabel}</span>
+        </div>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Motivo della segnalazione (opzionale)..."
+          className="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none resize-none h-20"
+          data-testid="report-reason-input"
+        />
+        <div className="flex gap-2 justify-end">
+          <Button size="sm" variant="outline" className="text-xs border-gray-700 text-gray-400" onClick={onClose} disabled={sending}>
+            Annulla
+          </Button>
+          <Button size="sm" className="bg-red-600 hover:bg-red-700 text-xs" onClick={handleSubmit} disabled={sending} data-testid="report-submit-btn">
+            {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3 mr-1" />}
+            Invia Segnalazione
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Fullscreen Image Viewer ─── */
 function ImageViewer({ src, onClose }) {
   if (!src) return null;
@@ -225,6 +276,7 @@ const ChatPage = () => {
   const [profileUserId, setProfileUserId] = useState(null);
   const [viewImage, setViewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null); // {type, id, label}
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -350,6 +402,21 @@ const ChatPage = () => {
       setShowPanel(null);
     } catch { toast.error('Impossibile avviare chat'); }
     finally { setLoadingDM(null); }
+  };
+
+  const submitReport = async (reason) => {
+    if (!reportTarget) return;
+    try {
+      await api.post('/reports', {
+        target_type: reportTarget.type,
+        target_id: reportTarget.id,
+        reason,
+      });
+      toast.success('Segnalazione inviata! Un admin la revisioner\u00e0.');
+    } catch (e) {
+      const detail = e.response?.data?.detail || 'Errore';
+      toast.error(detail);
+    }
   };
 
   const onlineCount = presenceUsers.filter(u => u.presence === 'online').length;
@@ -517,7 +584,7 @@ const ChatPage = () => {
                     const isTrailer = msg.message_type === 'trailer_announcement';
                     const isCreator = msg.type === 'creator_reply';
                     return (
-                      <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} className={`group/msg flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] sm:max-w-[70%] px-2.5 py-1.5 rounded-xl text-xs ${
                           isCreator ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-bl-sm'
                           : isTrailer ? 'bg-purple-500/15 border border-purple-500/20 rounded-bl-sm cursor-pointer hover:bg-purple-500/20'
@@ -585,6 +652,16 @@ const ChatPage = () => {
                           <p className={`text-[9px] mt-0.5 ${isOwn ? 'text-black/40' : 'text-gray-600'}`}>
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
+                          {/* Report button (visible on hover, only for others' messages) */}
+                          {!isOwn && !isBot && !msg.deleted && (
+                            <button
+                              className="opacity-0 group-hover/msg:opacity-100 transition-opacity mt-0.5 text-[8px] text-gray-600 hover:text-red-400 flex items-center gap-0.5"
+                              onClick={(e) => { e.stopPropagation(); setReportTarget({ type: msg.message_type === 'image' ? 'image' : 'message', id: msg.id, label: msg.message_type === 'image' ? 'immagine' : 'messaggio' }); }}
+                              data-testid={`report-msg-${msg.id}`}
+                            >
+                              <Flag className="w-2.5 h-2.5" />Segnala
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -712,6 +789,18 @@ const ChatPage = () => {
         onClose={() => setProfileUserId(null)}
         api={api}
         onStartDM={startDM}
+        onReportUser={(uid, nickname) => {
+          setProfileUserId(null);
+          setReportTarget({ type: 'user', id: uid, label: `utente "${nickname}"` });
+        }}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={submitReport}
+        targetLabel={reportTarget?.label || ''}
       />
 
       {/* Fullscreen Image Viewer */}

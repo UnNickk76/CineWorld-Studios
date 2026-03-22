@@ -1,7 +1,7 @@
 # CineWorld Studio's - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack cinematic empire game where players create, produce, and release films, TV series, and anime. Features include cast management, screenplay writing, production pipelines, box office simulation, social hub, moderation, contests, and strategic release mechanics.
+Full-stack cinematic empire game where players create, produce, and release films, TV series, and anime.
 
 ## Core Architecture
 - **Frontend**: React + Shadcn UI (port 3000)
@@ -11,32 +11,32 @@ Full-stack cinematic empire game where players create, produce, and release film
 ## Implemented Features
 
 ### Production Pipelines - Flow
-**Film**: Creazione > **Locandina** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Pre-produzione > Shooting > Release
-**Serie TV/Anime**: Concept > **Locandina** > **Coming Soon** > `ready_for_casting` > Casting > Sceneggiatura > Produzione > Release
+**Film**: Creazione > Locandina > Coming Soon > `ready_for_casting` > Casting > Sceneggiatura > Pre-produzione > Shooting > Release
+**Serie TV/Anime**: Concept > Locandina > Coming Soon > `ready_for_casting` > Casting > Sceneggiatura > Produzione > Release
 
 ### Coming Soon Interactive System
 - Pre-Casting Phase with dynamic timer (Short/Medium/Long tiers)
-- Dynamic Events via scheduler, Support/Boycott, Speed-Up (credit-based with caps)
-- Auto News, Scheduler auto-releases to `ready_for_casting` (NOT completed)
+- Dynamic Events via scheduler, Support/Boycott, Speed-Up (credit-based)
+- Auto News, Scheduler auto-releases to `ready_for_casting`
 
 ### Release Strategy System
 - Automatica (+3% guaranteed) vs Manuale (perfect timing = +8%)
 
 ### Dynamic Notification System (March 22 2026)
-- **Notification Engine** (`notification_engine.py`): Generates narrative-style notifications
-- **Severity Levels**: Critical (red), Important (yellow), Positive (green)
-- **Events that trigger notifications**:
-  - Coming Soon: support, boycott, time changes, completion
-  - Production: phase completed, problems
-  - Film Release: high revenue, flop warning
-  - Social: likes, messages, interactions
-- **Real-time Popup**: Polls every 15s, shows animated popups on top-right
-  - Auto-dismiss after 6 seconds
-  - Color-coded by severity
-  - Clickable (navigates to relevant page)
-- **Anti-spam**: Max 3 similar notifications/hour, grouping within 30min window
-- **NotificationsPage**: Filter tabs (Tutte/Critiche/Importanti/Positive), severity badges, colored borders
-- **Bottom Navbar**: Sfide removed, Notifiche with bell icon + unread badge
+- **Notification Engine** (`notification_engine.py`): Narrative-style notifications
+- **Severity**: Critical (red), Important (yellow), Positive (green)
+- **Events**: Coming Soon (support/boycott/timer/completion), Production, Film Release, Social
+- **Popup Priority System**:
+  - Critical (boycotts, problems) = Prominent animated popup overlay
+  - Important (phase complete, timer end) = Lightweight toast (sonner)
+  - Positive (likes, hype) = Badge count only (no popup)
+- **Anti-spam**: Max 1 popup every 7s, max 3 similar/hour, grouping within 30min
+- **Click Navigation**:
+  - In-progress films (coming_soon/casting/screenplay/production) -> `/create-film`
+  - Completed films (high_revenue/flop) -> `/films/{id}`
+  - Series -> `/create-series`
+  - Chat/messages -> `/chat`
+- **Bottom Navbar**: Sfide + TV removed, replaced with "Eventi" bell icon + badge
 
 ### Dashboard "Prossimamente"
 - Always visible with Coming Soon content, countdown, hype, interactive support/boycott
@@ -52,21 +52,17 @@ Full-stack cinematic empire game where players create, produce, and release film
 - `GET /api/notifications/popup` - Unread popup notifications (marks shown_popup)
 - `GET /api/notifications/count` - Unread count
 - `POST /api/notifications/{id}/read` - Mark read
-- `POST /api/notifications/read-all` - Mark all read
-- `POST /api/film-pipeline/{id}/launch-coming-soon` - Launch Coming Soon
-- `POST /api/coming-soon/{id}/interact` - Support/boycott (triggers notification to owner)
-- `POST /api/coming-soon/{id}/speed-up` - Speed-up timer
-- `POST /api/film-pipeline/{id}/advance-to-casting` - Advance (proposed/coming_soon/ready_for_casting)
+- `POST /api/coming-soon/{id}/interact` - Support/boycott (triggers notification)
 
 ## Key DB Fields
-- `status`: proposed | coming_soon | ready_for_casting | casting | screenplay | pre_production | shooting | completed
-- `coming_soon_type`, `coming_soon_tier`, `coming_soon_completed`, `scheduled_release_at`
-- Notifications: `severity` (critical/important/positive), `shown_popup`, `data.event_type`, `data.group_count`
+- Notifications: `severity` (critical/important/positive), `shown_popup`, `data.event_type`, `data.group_count`, `link`
+- Film: `status`, `coming_soon_type`, `coming_soon_tier`, `scheduled_release_at`
 
 ## Bug Fixes (March 22 2026)
-- **CRITICAL**: Fixed scheduler auto_release_coming_soon setting pre_casting films to 'completed' instead of 'ready_for_casting'
-- Fixed advance-to-casting to accept ready_for_casting status
-- Fixed corrupted data, reset admin password
+- Fixed scheduler auto_release_coming_soon: pre_casting -> ready_for_casting (not completed)
+- Fixed notification links: in-progress films -> /create-film, completed -> /films/{id}
+- Fixed existing DB notifications with wrong generic /films links
+- Reset admin password
 
 ## Known Issues
 - (P2) Contest Page mobile layout broken (recurring)
@@ -75,6 +71,5 @@ Full-stack cinematic empire game where players create, produce, and release film
 - P1: Chat Evolution - Step 6 (mobile refinement + social quality)
 - P1: Marketplace for TV/Anime rights
 - P2: RBAC, CinePass + Stripe, PWA, Tutorial, Contest Page fix
-- P3: Scommesse sui Coming Soon
-- P3: Eventi globali
+- P3: Scommesse sui Coming Soon, Eventi globali
 - Future: Push notifications (mobile), guerre tra Major

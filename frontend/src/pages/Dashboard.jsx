@@ -473,6 +473,23 @@ const Dashboard = () => {
         </Card>
       )}
 
+      {/* Social CTA micro-copy */}
+      <Card className="mb-4 bg-gradient-to-r from-pink-500/5 to-red-500/5 border border-pink-500/15 cursor-pointer hover:border-pink-500/30 transition-all"
+        onClick={() => navigate('/social?view=social-feed')}
+        data-testid="social-cta-card">
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <Heart className="w-5 h-5 text-pink-400 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-pink-300 font-semibold">
+              {language === 'it'
+                ? 'Interagisci con altri player: metti like ai film per supportarli e ottenere piccoli bonus!'
+                : 'Interact with other players: like films to support them and earn small bonuses!'}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-pink-400/60 flex-shrink-0" />
+        </CardContent>
+      </Card>
+
       {/* Shooting Dialog - opens from CIAK! button */}
       <Dialog open={showShootingDialog} onOpenChange={setShowShootingDialog}>
         <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md max-h-[80vh] overflow-y-auto">

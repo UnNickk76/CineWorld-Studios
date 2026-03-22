@@ -798,11 +798,16 @@ def calculate_cinema_daily_revenue(cinema: dict, films_showing: List[dict], fame
     owned_films = sum(1 for f in films_showing if f.get('is_owned', False))
     owner_bonus = 1.0 + (0.15 * owned_films / max(len(films_showing), 1)) if owned_films > 0 else 1.0
     
+    # Social like bonus: log(avg_likes + 1) % boost (small, diminishing returns)
+    import math as _math
+    avg_likes = sum(f.get('likes_count', 0) for f in films_showing) / max(len(films_showing), 1)
+    social_like_bonus = 1.0 + (_math.log(avg_likes + 1) / 100)  # tiny bonus
+    
     # Unpredictability factor (±30%)
     unpredictability = random.uniform(0.7, 1.3)
     
     # Calculate attendance per screen (with owner bonus)
-    daily_attendance = int(base_attendance * fame_mult * quality_mult * owner_bonus * unpredictability * screens)
+    daily_attendance = int(base_attendance * fame_mult * quality_mult * owner_bonus * social_like_bonus * unpredictability * screens)
     daily_attendance = min(daily_attendance, screens * seats * 4)  # Max 4 showings per screen
     
     # Revenue calculation

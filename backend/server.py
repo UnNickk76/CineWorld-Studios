@@ -8149,7 +8149,8 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Prevent liking own films
-    if film['user_id'] == user['id']:
+    film_owner_id = film.get('user_id')
+    if film_owner_id and film_owner_id == user['id']:
         raise HTTPException(status_code=400, detail="Non puoi mettere like ai tuoi film")
     
     existing_like = await db.likes.find_one({'film_id': film_id, 'user_id': user['id']})
@@ -8164,7 +8165,8 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
             }
         )
         await db.users.update_one({'id': user['id']}, {'$inc': {'total_likes_given': -1}})
-        await db.users.update_one({'id': film['user_id']}, {'$inc': {'total_likes_received': -1}})
+        if film_owner_id:
+            await db.users.update_one({'id': film_owner_id}, {'$inc': {'total_likes_received': -1}})
         
         return {'liked': False, 'likes_count': max(0, film.get('likes_count', 1) - 1)}
     
@@ -8190,10 +8192,11 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
         {'$inc': {'total_likes_given': 1, 'interaction_score': 0.5, 'total_xp': XP_REWARDS['like_given']}}
     )
     # Add XP for receiving like
-    await db.users.update_one(
-        {'id': film['user_id']}, 
-        {'$inc': {'total_likes_received': 1, 'likeability_score': 0.3, 'total_xp': XP_REWARDS['like_received']}}
-    )
+    if film_owner_id:
+        await db.users.update_one(
+            {'id': film_owner_id}, 
+            {'$inc': {'total_likes_received': 1, 'likeability_score': 0.3, 'total_xp': XP_REWARDS['like_received']}}
+        )
     
     quality_change = random.uniform(0.1, 1)
     satisfaction_change = random.uniform(0.5, 2)
@@ -8236,6 +8239,111 @@ async def get_film_likes(film_id: str, user: dict = Depends(get_current_user)):
         'total_likes': film.get('likes_count', 0),
         'likers': result
     }
+
+# ==================== SOCIAL FEED & LIKE BONUSES ====================
+import math
+
+@api_router.get("/social/feed")
+async def social_feed(page: int = 1, limit: int = 100, q: str = '', user: dict = Depends(get_current_user)):
+    """Social feed: all released films with like counts, paginated."""
+    query = {'status': {'$in': ['released', 'in_theaters', 'ended']}}
+    if q:
+        query['title'] = {'$regex': q, '$options': 'i'}
+
+    total = await db.films.count_documents(query)
+    skip = (max(1, page) - 1) * limit
+
+    films_cursor = db.films.find(
+        query,
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1,
+         'likes_count': 1, 'liked_by': 1, 'quality_score': 1, 'genre': 1,
+         'virtual_likes': 1, 'imdb_rating': 1}
+    ).sort('created_at', -1).skip(skip).limit(limit)
+    films = await films_cursor.to_list(limit)
+
+    # Batch-fetch studio names
+    user_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    users_map = {}
+    if user_ids:
+        ul = await db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'production_house_name': 1, 'nickname': 1}).to_list(500)
+        users_map = {u['id']: u for u in ul}
+
+    uid = user.get('id')
+    result = []
+    for f in films:
+        owner = users_map.get(f.get('user_id'), {})
+        liked_by = f.get('liked_by') or []
+        result.append({
+            'id': f['id'],
+            'title': f.get('title', ''),
+            'poster_url': f.get('poster_url'),
+            'studio_name': owner.get('production_house_name', owner.get('nickname', '???')),
+            'likes_count': f.get('likes_count', 0),
+            'user_liked': uid in liked_by,
+            'quality_score': f.get('quality_score'),
+            'genre': f.get('genre'),
+        })
+
+    return {'films': result, 'total': total, 'page': page, 'pages': math.ceil(total / limit) if limit else 1}
+
+
+@api_router.get("/social/top-liked")
+async def social_top_liked(user: dict = Depends(get_current_user)):
+    """Leaderboard of most liked films (top 50)."""
+    films_cursor = db.films.find(
+        {'status': {'$in': ['released', 'in_theaters', 'ended']}, 'likes_count': {'$gt': 0}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1,
+         'likes_count': 1, 'liked_by': 1, 'quality_score': 1, 'genre': 1, 'imdb_rating': 1}
+    ).sort('likes_count', -1).limit(50)
+    films = await films_cursor.to_list(50)
+
+    user_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    users_map = {}
+    if user_ids:
+        ul = await db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'production_house_name': 1, 'nickname': 1}).to_list(500)
+        users_map = {u['id']: u for u in ul}
+
+    uid = user.get('id')
+    result = []
+    for rank, f in enumerate(films, 1):
+        owner = users_map.get(f.get('user_id'), {})
+        liked_by = f.get('liked_by') or []
+        result.append({
+            'rank': rank,
+            'id': f['id'],
+            'title': f.get('title', ''),
+            'poster_url': f.get('poster_url'),
+            'studio_name': owner.get('production_house_name', owner.get('nickname', '???')),
+            'owner_nickname': owner.get('nickname', '???'),
+            'likes_count': f.get('likes_count', 0),
+            'user_liked': uid in liked_by,
+            'quality_score': f.get('quality_score'),
+            'genre': f.get('genre'),
+            'imdb_rating': f.get('imdb_rating'),
+            'like_bonus': round(math.log(f.get('likes_count', 0) + 1), 2),
+        })
+
+    return {'films': result}
+
+
+@api_router.get("/social/my-bonuses")
+async def social_my_bonuses(user: dict = Depends(get_current_user)):
+    """Get current player's social bonuses from likes given and received."""
+    likes_given = user.get('total_likes_given', 0)
+    likes_received = user.get('total_likes_received', 0)
+
+    giver_bonus = round(math.log(likes_given + 1), 2)
+    receiver_bonus = round(math.log(likes_received + 1), 2)
+
+    return {
+        'likes_given': likes_given,
+        'likes_received': likes_received,
+        'giver_bonus': giver_bonus,
+        'giver_bonus_description': f'+{giver_bonus}% affluenza globale ai tuoi film',
+        'receiver_bonus': receiver_bonus,
+        'receiver_bonus_description': f'+{receiver_bonus}% incasso base ai tuoi film',
+    }
+
 
 # ==================== VIRTUAL AUDIENCE SYSTEM ====================
 from virtual_audience import (
@@ -10479,7 +10587,7 @@ async def startup_event():
         await db.films.create_index([('status', 1), ('quality', -1)])
         await db.people.create_index('role_type')
         await db.people.create_index('id', unique=True)
-        await db.likes.create_index([('film_id', 1), ('user_id', 1)])
+        await db.likes.create_index([('film_id', 1), ('user_id', 1)], unique=True)
         await db.users.create_index('id', unique=True)
         await db.users.create_index('nickname')
         await db.users.create_index('email')

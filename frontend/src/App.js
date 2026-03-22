@@ -418,6 +418,28 @@ const TopNavbar = () => {
                     data-testid="cineboard-menu"
                   >
                     <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl space-y-1">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Social</p>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=social-feed') ? 'bg-pink-500/20 text-pink-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=social-feed'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-social"
+                      >
+                        <Heart className="w-4 h-4 text-pink-400" />
+                        <div className="text-left"><span className="block">Social</span><span className="text-[9px] opacity-50">Like e interagisci</span></div>
+                      </button>
+                      <button
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          location.search?.includes('view=top-liked') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                        onClick={() => { navigate('/social?view=top-liked'); setShowCineboardMenu(false); }}
+                        data-testid="cineboard-menu-top-liked"
+                      >
+                        <Heart className="w-4 h-4 text-red-400 fill-red-400" />
+                        <div className="text-left"><span className="block">Top Liked</span><span className="text-[9px] opacity-50">Film piu amati</span></div>
+                      </button>
+                      <div className="border-t border-white/5 my-1" />
                       <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Classifiche</p>
                       <button
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${

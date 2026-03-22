@@ -48,6 +48,11 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Station page shows level, capacity, content counts per category
 - Eliminated legacy_stations system
 
+### Series/Anime Release & Poster Bug Fixes (2026-03-22)
+- Fixed poster generation: n=1 → number_of_images=1, b64_json → raw bytes (both series and film)
+- Consolidated series release to single DB update (was two, causing inconsistency on failure)
+- Aligned series/anime release pattern with film release (immediate response, poster in background)
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

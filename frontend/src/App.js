@@ -85,6 +85,7 @@ const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
 const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays'));
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
 const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
+const SeriesDetail = React.lazy(() => import('./pages/SeriesDetail'));
 const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
@@ -1752,6 +1753,7 @@ function App() {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
+                <Route path="/series/:id" element={<ProtectedRoute><SeriesDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />

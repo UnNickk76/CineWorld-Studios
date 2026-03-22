@@ -4817,6 +4817,37 @@ async def get_my_series(user: dict = Depends(get_current_user)):
     series = await db.series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
     return {'series': series}
 
+@api_router.get("/series/{series_id}")
+async def get_series_detail(series_id: str, user: dict = Depends(get_current_user)):
+    """Get a single series/anime detail. Accessible by any authenticated user."""
+    series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Serie non trovata")
+    
+    series.setdefault('poster_url', None)
+    series.setdefault('cast', [])
+    series.setdefault('quality_score', 0)
+    series.setdefault('total_revenue', 0)
+    series.setdefault('audience', 0)
+    series.setdefault('audience_rating', 0)
+    series.setdefault('audience_comments', [])
+    series.setdefault('release_event', None)
+    series.setdefault('quality_breakdown', {})
+    series.setdefault('num_episodes', 0)
+    series.setdefault('description', '')
+    series.setdefault('genre_name', series.get('genre', ''))
+    series.setdefault('season_number', 1)
+    series.setdefault('production_cost', 0)
+    series.setdefault('cast_total_salary', 0)
+    series.setdefault('screenplay', None)
+    
+    # Get owner info
+    owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
+    series['owner'] = owner
+    
+    return series
+
+
 @api_router.get("/films/social/feed")
 async def get_social_feed(
     page: int = 1,

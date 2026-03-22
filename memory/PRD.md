@@ -73,6 +73,15 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Hype system: hype_level derived from buzz + soundtrack + sponsors, displayed during intro
 - Backend returns screenplay_scenes and hype_level in release response
 
+### Series/Anime Detail Page + Posters (2026-03-22)
+- New /series/:id detail page reusing FilmDetail structure
+- GET /api/series/{series_id} endpoint returns full series data + owner info
+- Shows: poster, title, genre, stats (quality/rating/revenue/audience), tier badge, release event, cast, quality breakdown, audience comments, production info
+- Poster pre-release: "Genera Locandina" button during production phase
+- Poster post-release: "Rigenera Locandina" button on detail page
+- Series cards in pipeline are now clickable → navigate to /series/:id
+- Route added in App.js for /series/:id
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 

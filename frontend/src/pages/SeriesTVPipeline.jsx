@@ -215,6 +215,17 @@ export default function SeriesTVPipeline() {
     finally { setPosterLoading(null); }
   };
 
+  // Quick poster generation (reuses generateSeriesPoster with auto mode)
+  const generatePoster = async (seriesId) => {
+    setPosterLoading(seriesId);
+    try {
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, { mode: 'ai' }, { timeout: 120000 });
+      toast.success(res.data.message || 'Locandina generata!');
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
+    finally { setPosterLoading(null); }
+  };
+
   const releaseSeries = async () => {
     setActionLoading(true);
     try {
@@ -394,7 +405,8 @@ export default function SeriesTVPipeline() {
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Serie Completate</h3>
                 <div className="space-y-2">
                   {mySeries.filter(s => s.status === 'completed').map(s => (
-                    <Card key={s.id} className="bg-[#111113] border-white/5" data-testid={`completed-series-${s.id}`}>
+                    <Card key={s.id} className="bg-[#111113] border-white/5 cursor-pointer hover:border-white/15 transition-colors" data-testid={`completed-series-${s.id}`}
+                      onClick={() => navigate(`/series/${s.id}`)}>
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3">
                           {s.poster_url ? (
@@ -411,7 +423,7 @@ export default function SeriesTVPipeline() {
                           <div className="flex items-center gap-2">
                             <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
                             <button
-                              onClick={() => setExpandedPoster(expandedPoster === s.id ? null : s.id)}
+                              onClick={(e) => { e.stopPropagation(); setExpandedPoster(expandedPoster === s.id ? null : s.id); }}
                               className="p-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-all"
                               data-testid={`poster-toggle-${s.id}`}>
                               <Sparkles className="w-3.5 h-3.5" />
@@ -875,10 +887,31 @@ export default function SeriesTVPipeline() {
                     </div>
                     <Progress value={prodStatus?.progress || (activeSeries.status === 'ready_to_release' ? 100 : 0)} className="h-2" />
                     {(prodStatus?.complete || activeSeries.status === 'ready_to_release') && (
-                      <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="release-series-btn">
-                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
-                        Rilascia Serie!
-                      </Button>
+                      <div className="space-y-2">
+                        {/* Poster generation pre-release */}
+                        {!activeSeries.poster_url && (
+                          <Button className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs" 
+                            onClick={() => generatePoster(activeSeries.id)} disabled={actionLoading || posterLoading === activeSeries.id}
+                            data-testid="pre-release-poster-btn">
+                            {posterLoading === activeSeries.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                            {posterLoading === activeSeries.id ? 'Generazione...' : 'Genera Locandina'}
+                          </Button>
+                        )}
+                        {activeSeries.poster_url && (
+                          <div className="flex items-center gap-2 p-2 bg-purple-500/5 rounded border border-purple-500/10">
+                            <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-8 h-12 rounded object-cover" />
+                            <span className="text-[10px] text-purple-300 flex-1">Locandina pronta</span>
+                            <button onClick={() => generatePoster(activeSeries.id)} disabled={posterLoading === activeSeries.id}
+                              className="text-[9px] text-purple-400 hover:underline">
+                              {posterLoading === activeSeries.id ? 'Generazione...' : 'Rigenera'}
+                            </button>
+                          </div>
+                        )}
+                        <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="release-series-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
+                          Rilascia Serie!
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>

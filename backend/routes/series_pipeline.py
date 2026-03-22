@@ -1367,7 +1367,8 @@ async def get_coming_soon():
         {'status': 'coming_soon', 'scheduled_release_at': {'$ne': None}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
          'num_episodes': 1, 'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1,
-         'created_at': 1}
+         'created_at': 1, 'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
+         'description': 1, 'total_boycott_penalty': 1}
     ).sort('scheduled_release_at', 1)
     series_items = await series_cursor.to_list(50)
     
@@ -1375,7 +1376,9 @@ async def get_coming_soon():
     film_cursor = db.film_projects.find(
         {'status': 'coming_soon', 'scheduled_release_at': {'$ne': None}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
-         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1}
+         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
+         'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
+         'total_boycott_penalty': 1}
     ).sort('scheduled_release_at', 1)
     film_items = await film_cursor.to_list(50)
     

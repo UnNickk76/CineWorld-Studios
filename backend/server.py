@@ -9734,6 +9734,306 @@ async def add_hype(content_id: str, user: dict = Depends(get_current_user)):
     raise HTTPException(404, "Contenuto non trovato o non in Coming Soon")
 
 
+# ==================== COMING SOON INTERACTIVE SYSTEM ====================
+
+COMING_SOON_NEWS_POSITIVE = [
+    "{title}: l'hype cresce a dismisura!",
+    "I fan stanno impazzendo per {title}!",
+    "Grande attesa per {title}, i social esplodono!",
+    "'{title}' potrebbe essere il progetto dell'anno!",
+    "Prevendite record per {title}!",
+    "Le aspettative per {title} superano ogni previsione!",
+    "{title}: gli insider parlano di capolavoro!",
+    "Il buzz intorno a {title} e' incontenibile!",
+]
+
+COMING_SOON_NEWS_NEGATIVE = [
+    "Problemi sul set di {title}",
+    "Rumors di disaccordi nella produzione di {title}",
+    "{title}: la produzione sembra in difficolta'",
+    "Dubbi crescenti sulla qualita' di {title}",
+    "Critici scettici su {title}: sara' all'altezza?",
+    "{title}: budget fuori controllo?",
+    "Insider preoccupati per la direzione di {title}",
+    "Controversie intorno a {title} dividono il pubblico",
+]
+
+COMING_SOON_NEWS_NEUTRAL = [
+    "Nuove indiscrezioni su {title}",
+    "{title}: il conto alla rovescia continua",
+    "I fan dibattono su {title}: capolavoro o flop?",
+    "Anticipazioni su {title} dividono il pubblico",
+    "{title}: cresce la curiosita' tra gli appassionati",
+    "Tutto tace dal set di {title}... troppo tace?",
+]
+
+COMING_SOON_AUTO_COMMENTS = [
+    "Non vedo l'ora!",
+    "Sembra davvero interessante",
+    "Potrebbe essere un capolavoro",
+    "Mah, non mi convince del tutto...",
+    "Il cast e' promettente!",
+    "Lo aspetto da tanto!",
+    "Speriamo bene...",
+    "Sara' all'altezza delle aspettative?",
+    "Finalmente qualcosa di nuovo!",
+    "Questo genere mi piace molto!",
+    "Sono cautamente ottimista",
+    "Troppo hype fa male, vedremo...",
+]
+
+COMING_SOON_DAILY_LIMIT = 3
+COMING_SOON_INTERACT_COST = 1  # CinePass
+
+
+class ComingSoonInteractRequest(BaseModel):
+    action: str  # 'support' or 'boycott'
+
+
+async def _find_coming_soon_content(content_id: str):
+    """Find a coming_soon item in either series or films collection."""
+    series = await db.tv_series.find_one({'id': content_id, 'status': 'coming_soon'}, {'_id': 0})
+    if series:
+        return series, 'tv_series'
+    film = await db.film_projects.find_one({'id': content_id, 'status': 'coming_soon'}, {'_id': 0})
+    if film:
+        return film, 'film_projects'
+    return None, None
+
+
+@api_router.post("/coming-soon/{content_id}/interact")
+async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, user: dict = Depends(get_current_user)):
+    """Support or boycott a Coming Soon content."""
+    if req.action not in ('support', 'boycott'):
+        raise HTTPException(400, "Azione non valida. Usa 'support' o 'boycott'.")
+
+    content, collection_name = await _find_coming_soon_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato o non in Coming Soon")
+
+    # Can't interact with own content
+    if content.get('user_id') == user['id']:
+        raise HTTPException(400, "Non puoi interagire con i tuoi contenuti!")
+
+    # Check daily limit
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_count = await db.coming_soon_interactions.count_documents({
+        'user_id': user['id'],
+        'created_at': {'$gte': today_start}
+    })
+    if today_count >= COMING_SOON_DAILY_LIMIT:
+        raise HTTPException(400, f"Hai raggiunto il limite giornaliero ({COMING_SOON_DAILY_LIMIT} azioni)")
+
+    # Check CinePass cost
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+    if (u.get('cinepass', 0) or 0) < COMING_SOON_INTERACT_COST:
+        raise HTTPException(400, f"Servono {COMING_SOON_INTERACT_COST} CinePass")
+
+    # Diminishing returns: count interactions on this content today by this user
+    same_content_today = await db.coming_soon_interactions.count_documents({
+        'user_id': user['id'],
+        'content_id': content_id,
+        'created_at': {'$gte': today_start}
+    })
+    diminish = max(0.2, 1.0 - (same_content_today * 0.4))  # 1.0, 0.6, 0.2
+
+    # Content protection factors
+    pre_imdb = content.get('pre_imdb_score', 5.0)
+    current_hype = content.get('hype_score', 0)
+    quality_shield = min(0.5, max(0, (pre_imdb - 5.0) / 5.0))  # 0-0.5 based on quality
+    hype_shield = min(0.3, max(0, current_hype / 70))  # 0-0.3 based on hype
+
+    # Calculate outcome
+    roll = random.random()
+    title = content.get('title', '???')
+    effects = {'hype': 0, 'quality_mod': 0.0, 'delay_hours': 0}
+    outcome = 'success'
+    news_text = ''
+
+    collection = db.tv_series if collection_name == 'tv_series' else db.film_projects
+
+    if req.action == 'support':
+        if roll < 0.65:  # 65% success
+            outcome = 'success'
+            effects['hype'] = max(1, int(2 * diminish))
+            news_text = random.choice(COMING_SOON_NEWS_POSITIVE).format(title=title)
+        elif roll < 0.90:  # 25% neutral
+            outcome = 'neutral'
+            effects['hype'] = max(1, int(1 * diminish))
+            news_text = random.choice(COMING_SOON_NEWS_NEUTRAL).format(title=title)
+        else:  # 10% backfire - support creates controversy
+            outcome = 'backfire'
+            effects['hype'] = -1
+            news_text = random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
+
+    elif req.action == 'boycott':
+        total_boycott_penalty = content.get('total_boycott_penalty', 0)
+        if total_boycott_penalty >= 10:
+            raise HTTPException(400, "Questo contenuto ha gia' subito il massimo dei boicottaggi")
+
+        protection = 1.0 - quality_shield - hype_shield
+        protection = max(0.2, protection)
+
+        if roll < 0.45:  # 45% success
+            outcome = 'success'
+            raw_hype_loss = int(2 * diminish * protection)
+            effects['hype'] = -max(1, raw_hype_loss)
+            # Quality penalty (capped at -10% total)
+            raw_quality = round(1.5 * diminish * protection, 1)
+            remaining_cap = 10 - total_boycott_penalty
+            effects['quality_mod'] = -min(raw_quality, remaining_cap)
+            news_text = random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
+        elif roll < 0.75:  # 30% failure
+            outcome = 'failure'
+            news_text = random.choice(COMING_SOON_NEWS_NEUTRAL).format(title=title)
+        else:  # 25% backfire - Streisand effect
+            outcome = 'backfire'
+            effects['hype'] = max(2, int(3 * diminish))
+            news_text = random.choice(COMING_SOON_NEWS_POSITIVE).format(title=title)
+
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -COMING_SOON_INTERACT_COST}})
+
+    # Apply effects
+    update_ops = {'$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
+    inc_ops = {}
+    if effects['hype'] != 0:
+        inc_ops['hype_score'] = effects['hype']
+    if effects['quality_mod'] != 0:
+        inc_ops['boycott_quality_penalty'] = abs(effects['quality_mod'])
+        inc_ops['total_boycott_penalty'] = abs(effects['quality_mod'])
+    if effects['hype'] != 0 or effects['quality_mod'] != 0:
+        update_ops['$inc'] = inc_ops
+
+    # Ensure hype doesn't go below 0
+    if effects['hype'] < 0:
+        current = content.get('hype_score', 0)
+        if current + effects['hype'] < 0:
+            inc_ops['hype_score'] = -current
+
+    if inc_ops:
+        update_ops['$inc'] = inc_ops
+
+    # Add news event to content
+    news_event = {
+        'text': news_text,
+        'type': 'positive' if outcome == 'success' and req.action == 'support' else
+                'negative' if outcome == 'success' and req.action == 'boycott' else
+                'backfire' if outcome == 'backfire' else 'neutral',
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    update_ops.setdefault('$push', {})['news_events'] = {'$each': [news_event], '$slice': -15}
+
+    # Auto-comment
+    auto_comment = {
+        'text': random.choice(COMING_SOON_AUTO_COMMENTS),
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    update_ops['$push']['auto_comments'] = {'$each': [auto_comment], '$slice': -10}
+
+    await collection.update_one({'id': content_id}, update_ops)
+
+    # Track interaction
+    interaction = {
+        'user_id': user['id'],
+        'content_id': content_id,
+        'action': req.action,
+        'outcome': outcome,
+        'effects': effects,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.coming_soon_interactions.insert_one(interaction)
+
+    # Build response message
+    if outcome == 'success':
+        if req.action == 'support':
+            msg = f"Supporto riuscito! Hype +{effects['hype']}"
+        else:
+            msg = f"Boicottaggio riuscito! Hype {effects['hype']}"
+    elif outcome == 'backfire':
+        if req.action == 'support':
+            msg = "Il tuo supporto ha creato controversia! Hype -1"
+        else:
+            msg = f"Effetto Streisand! Il boicottaggio ha aumentato l'hype di +{effects['hype']}!"
+    elif outcome == 'failure':
+        msg = "Il tentativo non ha avuto effetto."
+    else:
+        msg = "Azione completata."
+
+    return {
+        'success': True,
+        'action': req.action,
+        'outcome': outcome,
+        'effects': effects,
+        'message': msg,
+        'news_event': news_event,
+        'cost': COMING_SOON_INTERACT_COST,
+        'daily_remaining': COMING_SOON_DAILY_LIMIT - today_count - 1
+    }
+
+
+@api_router.get("/coming-soon/{content_id}/details")
+async def get_coming_soon_details(content_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed info for a Coming Soon content."""
+    content, collection_name = await _find_coming_soon_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato o non in Coming Soon")
+
+    # Owner info
+    owner = await db.users.find_one({'id': content['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+
+    # Today's actions count
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_count = await db.coming_soon_interactions.count_documents({
+        'user_id': user['id'],
+        'created_at': {'$gte': today_start}
+    })
+
+    # Interaction stats
+    support_count = await db.coming_soon_interactions.count_documents({
+        'content_id': content_id, 'action': 'support'
+    })
+    boycott_count = await db.coming_soon_interactions.count_documents({
+        'content_id': content_id, 'action': 'boycott'
+    })
+
+    # Audience expectation (based on pre_imdb/quality indicators)
+    pre_imdb = content.get('pre_imdb_score', 5.0)
+    hype = content.get('hype_score', 0)
+    if pre_imdb >= 7.5:
+        expectation = 'Altissime'
+    elif pre_imdb >= 6.0:
+        expectation = 'Alte'
+    elif pre_imdb >= 4.5:
+        expectation = 'Medie'
+    else:
+        expectation = 'Basse'
+
+    is_own = content.get('user_id') == user['id']
+
+    return {
+        'id': content_id,
+        'title': content.get('title', ''),
+        'genre': content.get('genre', content.get('genre_name', '')),
+        'pre_screenplay': content.get('pre_screenplay', content.get('description', '')),
+        'poster_url': content.get('poster_url'),
+        'content_type': content.get('type', 'film') if collection_name == 'tv_series' else 'film',
+        'production_house': (owner or {}).get('production_house_name', (owner or {}).get('nickname', '?')),
+        'scheduled_release_at': content.get('scheduled_release_at'),
+        'hype_score': hype,
+        'support_count': support_count,
+        'boycott_count': boycott_count,
+        'audience_expectation': expectation,
+        'news_events': (content.get('news_events') or [])[-8:],
+        'auto_comments': (content.get('auto_comments') or [])[-6:],
+        'daily_actions_remaining': max(0, COMING_SOON_DAILY_LIMIT - today_count),
+        'interact_cost': COMING_SOON_INTERACT_COST,
+        'is_own_content': is_own,
+        'max_boycott_reached': (content.get('total_boycott_penalty', 0) >= 10),
+        'release_strategy': content.get('release_strategy'),
+    }
+
+
 # ==================== CHAT IMAGE UPLOAD ====================
 from fastapi import UploadFile, File as FastAPIFile
 

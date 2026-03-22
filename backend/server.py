@@ -7449,6 +7449,102 @@ async def admin_repair_films(data: dict, user: dict = Depends(get_current_user))
     return {'success': True, 'repaired_count': len(repaired), 'repaired': repaired}
 
 
+VALID_FILM_STATUSES_REPAIR = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned'}
+VALID_SERIES_STATUSES_REPAIR = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
+
+
+@api_router.post("/admin/repair-database")
+async def admin_repair_database(user: dict = Depends(get_current_user)):
+    """Comprehensive database repair: fix all corrupted projects for ALL users.
+    Admin only. Run this after deploy to clean production database."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può eseguire la riparazione")
+    
+    now_str = datetime.now(timezone.utc).isoformat()
+    report = {
+        'films_invalid_status': [],
+        'films_missing_cast': [],
+        'films_missing_id_title': [],
+        'series_invalid_status': [],
+        'series_missing_cast': [],
+        'series_missing_id_title': [],
+    }
+    
+    # === FILM PROJECTS ===
+    # 1. Discard films with invalid status
+    async for f in db.film_projects.find({'status': {'$nin': list(VALID_FILM_STATUSES_REPAIR)}}):
+        await db.film_projects.update_one(
+            {'id': f['id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_invalid_status'}}
+        )
+        report['films_invalid_status'].append({'id': f.get('id'), 'title': f.get('title'), 'old_status': f.get('status')})
+    
+    # 2. Reset films in casting/screenplay/pre_production without essential cast data
+    async for f in db.film_projects.find({
+        'status': {'$in': ['casting', 'screenplay', 'pre_production']},
+    }):
+        cast = f.get('cast') or {}
+        cast_proposals = f.get('cast_proposals') or {}
+        has_cast = isinstance(cast, dict) and (cast.get('director') or cast.get('actors'))
+        has_proposals = isinstance(cast_proposals, dict) and len(cast_proposals) > 0
+        
+        if not has_cast and not has_proposals:
+            await db.film_projects.update_one(
+                {'id': f['id']},
+                {'$set': {'status': 'proposed', 'reset_reason': 'admin_repair_missing_cast', 'updated_at': now_str}}
+            )
+            report['films_missing_cast'].append({'id': f.get('id'), 'title': f.get('title'), 'old_status': f.get('status')})
+    
+    # 3. Discard films missing id or title
+    async for f in db.film_projects.find({'$or': [{'id': {'$exists': False}}, {'title': {'$exists': False}}, {'id': None}, {'title': None}]}):
+        oid = str(f.get('_id', ''))
+        await db.film_projects.update_one(
+            {'_id': f['_id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_id_title'}}
+        )
+        report['films_missing_id_title'].append({'_id': oid})
+    
+    # === TV SERIES ===
+    # 4. Discard series with invalid status
+    async for s in db.tv_series.find({'status': {'$nin': list(VALID_SERIES_STATUSES_REPAIR)}}):
+        await db.tv_series.update_one(
+            {'id': s['id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_invalid_status'}}
+        )
+        report['series_invalid_status'].append({'id': s.get('id'), 'title': s.get('title'), 'old_status': s.get('status')})
+    
+    # 5. Reset series in casting/screenplay/production without cast
+    async for s in db.tv_series.find({
+        'status': {'$in': ['casting', 'screenplay', 'production']},
+    }):
+        cast = s.get('cast')
+        has_cast = cast and ((isinstance(cast, list) and len(cast) > 0) or (isinstance(cast, dict) and bool(cast)))
+        
+        if not has_cast:
+            await db.tv_series.update_one(
+                {'id': s['id']},
+                {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_cast'}}
+            )
+            report['series_missing_cast'].append({'id': s.get('id'), 'title': s.get('title'), 'old_status': s.get('status')})
+    
+    # 6. Discard series missing id or title
+    async for s in db.tv_series.find({'$or': [{'id': {'$exists': False}}, {'title': {'$exists': False}}, {'id': None}, {'title': None}]}):
+        oid = str(s.get('_id', ''))
+        await db.tv_series.update_one(
+            {'_id': s['_id']},
+            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'admin_repair_missing_id_title'}}
+        )
+        report['series_missing_id_title'].append({'_id': oid})
+    
+    total_fixed = sum(len(v) for v in report.values())
+    return {
+        'success': True,
+        'total_fixed': total_fixed,
+        'report': report,
+        'message': f'Riparazione completata: {total_fixed} problemi risolti' if total_fixed > 0 else 'Nessun problema trovato nel database'
+    }
+
+
 @api_router.post("/admin/recalculate-imdb")
 async def admin_recalculate_imdb(data: dict, user: dict = Depends(get_current_user)):
     """Recalculate IMDb rating for all films using the updated formula (admin only)."""

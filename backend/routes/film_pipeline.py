@@ -1326,10 +1326,24 @@ async def get_all_projects(user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     safe_projects = []
     for p in projects:
+        # Skip projects missing essential fields
+        if not p.get('id') or not p.get('title'):
+            continue
         # Validate project status is known
         if p.get('status') not in VALID_FILM_STATUSES:
             continue
         try:
+            # Auto-fix casting/screenplay projects without cast data
+            status = p.get('status')
+            if status in ('casting', 'screenplay', 'pre_production'):
+                has_cast = p.get('cast') and isinstance(p['cast'], dict) and (p['cast'].get('director') or p['cast'].get('actors'))
+                has_proposals = p.get('cast_proposals') and isinstance(p['cast_proposals'], dict) and len(p['cast_proposals']) > 0
+                if not has_cast and not has_proposals:
+                    await db.film_projects.update_one(
+                        {'id': p['id']},
+                        {'$set': {'status': 'proposed', 'reset_reason': 'auto_fix_all_endpoint', 'updated_at': now.isoformat()}}
+                    )
+                    p['status'] = 'proposed'
             if p.get('status') == 'casting':
                 for role, proposals in (p.get('cast_proposals') or {}).items():
                     for prop in (proposals or []):
@@ -1438,7 +1452,26 @@ async def get_screenplay_films(user: dict = Depends(get_current_user)):
         {'user_id': user['id'], 'status': 'screenplay'},
         {'_id': 0}
     ).sort('updated_at', -1).to_list(50)
-    return {'films': projects}
+    
+    # Filter out corrupted projects missing essential data
+    now_str = datetime.now(timezone.utc).isoformat()
+    safe = []
+    for p in projects:
+        if not p.get('id') or not p.get('title'):
+            continue
+        # A screenplay-phase film must have cast data from casting phase
+        has_cast = p.get('cast') and (isinstance(p['cast'], dict) and (p['cast'].get('director') or p['cast'].get('actors')))
+        has_proposals = p.get('cast_proposals') and isinstance(p['cast_proposals'], dict) and len(p['cast_proposals']) > 0
+        if not has_cast and not has_proposals:
+            # Auto-reset corrupted project
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {'status': 'proposed', 'reset_reason': 'auto_fix_screenplay_missing_cast', 'updated_at': now_str}}
+            )
+            logging.getLogger(__name__).warning(f"Auto-reset corrupted film {p['id']} ({p.get('title')}) from screenplay to proposed")
+            continue
+        safe.append(p)
+    return {'films': safe}
 
 
 @router.post("/film-pipeline/{project_id}/write-screenplay")

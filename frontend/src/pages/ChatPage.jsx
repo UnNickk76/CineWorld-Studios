@@ -296,12 +296,12 @@ const ChatPage = () => {
   const recentCount = presenceUsers.filter(u => u.presence === 'recent').length;
 
   return (
-    <div className="pt-14 pb-16 h-screen flex flex-col bg-[#0A0A0B]" data-testid="chat-page">
+    <div className="pt-14 pb-16 h-screen flex flex-col bg-[#0A0A0B] overflow-x-hidden" data-testid="chat-page">
       {/* ─── Top bar: room name + toggles ─── */}
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-white/5 flex-shrink-0 bg-[#0e0e10]">
         {/* Rooms toggle (mobile) */}
         <button
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-white/5 hover:bg-white/10 transition-colors lg:hidden"
+          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-white/5 hover:bg-white/10 transition-colors md:hidden"
           onClick={() => setShowPanel(showPanel === 'rooms' ? null : 'rooms')}
           data-testid="toggle-rooms-btn"
         >
@@ -337,12 +337,12 @@ const ChatPage = () => {
       </div>
 
       {/* ─── Main area: panels + chat ─── */}
-      <div className="flex-1 flex min-h-0 relative">
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
 
         {/* ─── ROOMS PANEL (desktop: always visible, mobile: overlay) ─── */}
         <div className={`
-          ${showPanel === 'rooms' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          absolute lg:static inset-y-0 left-0 z-30 w-52 lg:w-44
+          ${showPanel === 'rooms' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          absolute md:static inset-y-0 left-0 z-30 w-[75vw] max-w-[220px] md:w-44
           bg-[#0e0e10] border-r border-white/5
           transition-transform duration-200 ease-out
           flex flex-col
@@ -350,7 +350,7 @@ const ChatPage = () => {
           <div className="p-2 flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Stanze</p>
-              <button className="lg:hidden" onClick={() => setShowPanel(null)}><X className="w-3.5 h-3.5 text-gray-500" /></button>
+              <button className="md:hidden" onClick={() => setShowPanel(null)}><X className="w-3.5 h-3.5 text-gray-500" /></button>
             </div>
 
             {/* Public / Private tabs */}
@@ -528,8 +528,8 @@ const ChatPage = () => {
 
         {/* ─── USERS PANEL (right side) ─── */}
         <div className={`
-          ${showPanel === 'users' ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
-          absolute lg:static inset-y-0 right-0 z-30 w-56 lg:w-48
+          ${showPanel === 'users' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+          absolute md:static inset-y-0 right-0 z-30 w-[75vw] max-w-[220px] md:w-48
           bg-[#0e0e10] border-l border-white/5
           transition-transform duration-200 ease-out
           flex flex-col
@@ -540,7 +540,7 @@ const ChatPage = () => {
               <span className="text-green-400 ml-1">{onlineCount}</span>
               {recentCount > 0 && <span className="text-yellow-400 ml-0.5">+{recentCount}</span>}
             </p>
-            <button className="lg:hidden" onClick={() => setShowPanel(null)}><X className="w-3.5 h-3.5 text-gray-500" /></button>
+            <button className="md:hidden" onClick={() => setShowPanel(null)}><X className="w-3.5 h-3.5 text-gray-500" /></button>
           </div>
 
           <ScrollArea className="flex-1 px-1 pb-2">
@@ -598,7 +598,7 @@ const ChatPage = () => {
 
         {/* Backdrop for mobile panels */}
         {showPanel && (
-          <div className="absolute inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setShowPanel(null)} />
+          <div className="absolute inset-0 bg-black/50 z-20 md:hidden" onClick={() => setShowPanel(null)} />
         )}
       </div>
 

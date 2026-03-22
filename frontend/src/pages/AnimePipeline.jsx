@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Sparkles, ArrowRight, Users, Pen, Play, Lock, Loader2, Trash2, Check, Star } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, Users, Pen, Play, Lock, Loader2, Trash2, Check, Star, ChevronDown, ChevronUp, Film } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -31,7 +31,7 @@ const STEPS = [
 const STATUS_TO_STEP = { concept: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function AnimePipeline() {
-  const { api, user } = useContext(AuthContext);
+  const { api, user, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [genres, setGenres] = useState({});
   const [mySeries, setMySeries] = useState([]);
@@ -50,6 +50,16 @@ export default function AnimePipeline() {
   const [agencyActors, setAgencyActors] = useState({ effective: [], school: [] });
   const [agencyInfo, setAgencyInfo] = useState(null);
 
+  // Poster + Release states
+  const [posterMode, setPosterMode] = useState({});
+  const [posterPrompt, setPosterPrompt] = useState({});
+  const [posterLoading, setPosterLoading] = useState(null);
+  const [expandedPoster, setExpandedPoster] = useState(null);
+  const [releaseCard, setReleaseCard] = useState(null);
+  const [releasePoster, setReleasePoster] = useState(null);
+  const [posterPolling, setPosterPolling] = useState(false);
+  const [releasePhase, setReleasePhase] = useState(0);
+
   const loadData = useCallback(async () => {
     try {
       const [genresRes, seriesRes] = await Promise.all([
@@ -57,9 +67,17 @@ export default function AnimePipeline() {
         api.get('/series-pipeline/my?series_type=anime'),
       ]);
       setGenres(genresRes.data.genres || {});
-      setMySeries(seriesRes.data.series || []);
-      const inProgress = (seriesRes.data.series || []).find(s => !['completed', 'cancelled'].includes(s.status));
-      if (inProgress) setActiveSeries(inProgress);
+      const series = seriesRes.data.series || [];
+      setMySeries(series);
+      // Auto-select only series that need interaction (not production)
+      setActiveSeries(prev => {
+        if (prev) {
+          const updated = series.find(s => s.id === prev.id);
+          return updated || null;
+        }
+        const needsAttention = series.find(s => ['concept', 'casting', 'screenplay', 'ready_to_release'].includes(s.status));
+        return needsAttention || null;
+      });
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [api]);
@@ -103,7 +121,8 @@ export default function AnimePipeline() {
       toast.success(`"${title}" creato! Costo: $${res.data.cost?.toLocaleString()}`);
       setActiveSeries(res.data.series);
       setTitle(''); setDescription('');
-      loadData();
+      await loadData();
+      if (refreshUser) refreshUser();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setActionLoading(false);
   };
@@ -176,20 +195,64 @@ export default function AnimePipeline() {
     setActionLoading(false);
   };
 
-  const [releaseCard, setReleaseCard] = useState(null);
+  const generateAnimePoster = async (seriesId) => {
+    const mode = posterMode[seriesId] || 'ai_auto';
+    setPosterLoading(seriesId);
+    try {
+      const body = { mode };
+      if (mode === 'ai_custom') body.custom_prompt = posterPrompt[seriesId] || '';
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, body, { timeout: 120000 });
+      toast.success(res.data.message || 'Locandina generata!');
+      await loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
+    finally { setPosterLoading(null); }
+  };
+
+  const generatePosterQuick = async (seriesId) => {
+    setPosterLoading(seriesId);
+    try {
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, { mode: 'ai' }, { timeout: 120000 });
+      toast.success(res.data.message || 'Locandina generata!');
+      await loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
+    finally { setPosterLoading(null); }
+  };
 
   const releaseSeries = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/series-pipeline/${activeSeries.id}/release`);
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/release`, {}, { timeout: 60000 });
       setReleaseCard(res.data);
-      toast.success('Anime completato!');
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+      setReleasePoster(null);
+      setPosterPolling(true);
+      setReleasePhase(1);
+      setTimeout(() => setReleasePhase(2), 1400);
+      setTimeout(() => setReleasePhase(3), 3000);
+      // Poll for poster
+      const seriesId = activeSeries.id;
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const posterRes = await api.get(`/series-pipeline/${seriesId}/poster-status`);
+          if (posterRes.data.ready && posterRes.data.poster_url) {
+            setReleasePoster(posterRes.data.poster_url);
+            setPosterPolling(false);
+            clearInterval(pollInterval);
+          }
+        } catch {}
+        if (attempts >= 30) { setPosterPolling(false); clearInterval(pollInterval); }
+      }, 2000);
+      if (refreshUser) refreshUser();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore nel rilascio'); }
     setActionLoading(false);
   };
 
   const closeReleaseCard = () => {
     setReleaseCard(null);
+    setReleasePoster(null);
+    setPosterPolling(false);
+    setReleasePhase(0);
     setActiveSeries(null);
     loadData();
   };
@@ -254,6 +317,29 @@ export default function AnimePipeline() {
           </div>
         )}
 
+        {/* In-production anime cards (visible when creating new ones) */}
+        {!activeSeries && mySeries.filter(s => s.status === 'production').length > 0 && (
+          <div className="space-y-2 mb-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">In Produzione</h3>
+            {mySeries.filter(s => s.status === 'production').map(s => (
+              <Card key={s.id} className="bg-[#111113] border-amber-500/10 cursor-pointer hover:border-amber-500/30 transition-colors"
+                onClick={() => setActiveSeries(s)}
+                data-testid={`production-anime-${s.id}`}>
+                <CardContent className="p-2.5 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                    <Play className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate">{s.title}</p>
+                    <p className="text-[9px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
+                  </div>
+                  <Badge className="bg-amber-500/20 text-amber-400 text-[9px] flex-shrink-0">In Produzione</Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
         {!activeSeries ? (
           <div className="space-y-4">
             <Card className="bg-[#111113] border-orange-500/20" data-testid="create-anime-form">
@@ -311,14 +397,64 @@ export default function AnimePipeline() {
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Anime Completati</h3>
                 <div className="space-y-2">
                   {mySeries.filter(s => s.status === 'completed').map(s => (
-                    <Card key={s.id} className="bg-[#111113] border-white/5" data-testid={`completed-anime-${s.id}`}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        {s.poster_url && <img src={posterSrc(s.poster_url)} alt="" className="w-12 h-16 rounded object-cover" loading="lazy" />}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate">{s.title}</p>
-                          <p className="text-[10px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
+                    <Card key={s.id} className="bg-[#111113] border-white/5 cursor-pointer hover:border-white/15 transition-colors" data-testid={`completed-anime-${s.id}`}
+                      onClick={() => navigate(`/series/${s.id}`)}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          {s.poster_url ? (
+                            <img src={posterSrc(s.poster_url)} alt="" className="w-12 h-16 rounded object-cover" loading="lazy" />
+                          ) : (
+                            <div className="w-12 h-16 rounded bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
+                              <Film className="w-5 h-5 text-orange-400/50" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{s.title}</p>
+                            <p className="text-[10px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
+                            <button onClick={(e) => { e.stopPropagation(); setExpandedPoster(expandedPoster === s.id ? null : s.id); }}
+                              className="p-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 transition-all"
+                              data-testid={`anime-poster-toggle-${s.id}`}>
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px]">{s.quality_score}/100</Badge>
+                        {/* Poster management for completed anime */}
+                        {expandedPoster === s.id && (
+                          <div className="mt-3 p-2.5 rounded-lg border border-orange-500/20 bg-orange-500/5">
+                            <p className="text-[10px] text-orange-400 font-semibold mb-2">
+                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                            </p>
+                            {s.poster_url && (
+                              <div className="flex justify-center mb-2">
+                                <img src={posterSrc(s.poster_url)} alt="" className="w-20 h-28 object-cover rounded border border-orange-500/20" />
+                              </div>
+                            )}
+                            <div className="flex gap-1 mb-2">
+                              {[{ id: 'ai_auto', label: 'AI Automatica' }, { id: 'ai_custom', label: 'AI + Prompt' }].map(opt => (
+                                <button key={opt.id} onClick={() => setPosterMode(p => ({...p, [s.id]: opt.id}))}
+                                  className={`flex-1 p-1.5 rounded text-center border transition-all text-[9px] ${(posterMode[s.id] || 'ai_auto') === opt.id ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-gray-700 text-gray-400'}`}
+                                  data-testid={`anime-poster-mode-${opt.id}-${s.id}`}>
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                            {(posterMode[s.id] || 'ai_auto') === 'ai_custom' && (
+                              <input type="text" placeholder="Descrivi la locandina che vuoi..."
+                                value={posterPrompt[s.id] || ''} onChange={e => setPosterPrompt(p => ({...p, [s.id]: e.target.value}))}
+                                className="w-full mb-2 text-[10px] bg-black/30 border border-gray-700 rounded p-1.5 text-white"
+                                data-testid={`anime-poster-prompt-${s.id}`} />
+                            )}
+                            <Button size="sm" className="w-full bg-orange-600 hover:bg-orange-700 text-[10px] h-7"
+                              onClick={() => generateAnimePoster(s.id)} disabled={posterLoading === s.id}
+                              data-testid={`anime-generate-poster-${s.id}`}>
+                              {posterLoading === s.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
@@ -328,6 +464,13 @@ export default function AnimePipeline() {
           </div>
         ) : (
           <div className="space-y-3" data-testid="active-anime-pipeline">
+            {/* Back button */}
+            <button onClick={() => setActiveSeries(null)}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-orange-400 transition-colors mb-1"
+              data-testid="anime-back-to-projects-btn">
+              <ArrowLeft className="w-3 h-3" /> Tutti i progetti
+            </button>
+
             {/* Anime Header */}
             <Card className="bg-[#111113] border-orange-500/20">
               <CardContent className="p-3 flex items-center gap-3">
@@ -598,11 +741,57 @@ export default function AnimePipeline() {
                       </span>
                     </div>
                     <Progress value={prodStatus?.progress || (activeSeries.status === 'ready_to_release' ? 100 : 0)} className="h-2" />
-                    {(prodStatus?.complete || activeSeries.status === 'ready_to_release') && (
-                      <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="anime-release-btn">
-                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
-                        Rilascia Anime!
+
+                    {/* Speed up button */}
+                    {activeSeries.status === 'production' && !prodStatus?.complete && (
+                      <Button
+                        className="w-full bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-black text-xs font-bold h-8"
+                        onClick={async () => {
+                          setActionLoading('speedup');
+                          try {
+                            const res = await api.post(`/series-pipeline/${activeSeries.id}/speed-up-production`, {}, { timeout: 15000 });
+                            toast.success(res.data.message);
+                            if (refreshUser) refreshUser();
+                            const ps = await api.get(`/series-pipeline/${activeSeries.id}/production-status`);
+                            setProdStatus(ps.data);
+                            if (ps.data.complete) setActiveSeries(prev => ({ ...prev, status: 'ready_to_release' }));
+                          } catch (e) { toast.error(e.response?.data?.detail || 'Errore accelerazione'); }
+                          finally { setActionLoading(null); }
+                        }}
+                        disabled={actionLoading}
+                        data-testid="anime-speed-up-btn">
+                        {actionLoading === 'speedup' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <span className="mr-1">⚡</span>}
+                        Accelera Produzione (-30%)
+                        <span className="ml-1 text-[9px] opacity-70">({(activeSeries.num_episodes || 12) <= 8 ? 15 : (activeSeries.num_episodes || 12) <= 16 ? 20 : 25} CP)</span>
                       </Button>
+                    )}
+
+                    {(prodStatus?.complete || activeSeries.status === 'ready_to_release') && (
+                      <div className="space-y-2">
+                        {/* Poster generation pre-release */}
+                        {!activeSeries.poster_url && (
+                          <Button className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs"
+                            onClick={() => generatePosterQuick(activeSeries.id)} disabled={actionLoading || posterLoading === activeSeries.id}
+                            data-testid="anime-pre-release-poster-btn">
+                            {posterLoading === activeSeries.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                            {posterLoading === activeSeries.id ? 'Generazione...' : 'Genera Locandina'}
+                          </Button>
+                        )}
+                        {activeSeries.poster_url && (
+                          <div className="flex items-center gap-2 p-2 bg-purple-500/5 rounded border border-purple-500/10">
+                            <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-8 h-12 rounded object-cover" />
+                            <span className="text-[10px] text-purple-300 flex-1">Locandina pronta</span>
+                            <button onClick={() => generatePosterQuick(activeSeries.id)} disabled={posterLoading === activeSeries.id}
+                              className="text-[9px] text-purple-400 hover:underline">
+                              {posterLoading === activeSeries.id ? 'Generazione...' : 'Rigenera'}
+                            </button>
+                          </div>
+                        )}
+                        <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold" onClick={releaseSeries} disabled={actionLoading} data-testid="anime-release-btn">
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Star className="w-4 h-4 mr-2" />}
+                          Rilascia Anime!
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -612,69 +801,167 @@ export default function AnimePipeline() {
         )}
       </div>
 
-    {/* Release Card Modal */}
-    {releaseCard && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="anime-release-card-modal">
-        <Card className="bg-[#0e0e10] border-pink-500/30 max-w-md w-full max-h-[85vh] overflow-y-auto">
-          <CardHeader className="pb-2 text-center">
-            <Badge className="mx-auto mb-2 bg-pink-500/20 text-pink-400 text-xs px-3 py-1">Anime Completato!</Badge>
-            <CardTitle className="text-lg text-pink-400">{releaseCard.title}</CardTitle>
-            <p className="text-[10px] text-gray-500 uppercase">{releaseCard.genre}</p>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4 pt-0">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <p className="text-lg font-bold text-yellow-400">{releaseCard.quality?.score || 0}</p>
-                <p className="text-[8px] text-gray-500">QUALITA</p>
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <p className="text-lg font-bold text-emerald-400">${(releaseCard.total_revenue || 0).toLocaleString()}</p>
-                <p className="text-[8px] text-gray-500">INCASSO</p>
-              </div>
-              <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                <p className="text-lg font-bold text-cyan-400">{releaseCard.audience_rating || 0}</p>
-                <p className="text-[8px] text-gray-500">VOTO PUBBLICO</p>
-              </div>
+    {/* Cinematic Release Experience */}
+    {releaseCard && releasePhase > 0 && (() => {
+      const evt = releaseCard.release_event;
+      const hasEvent = evt && evt.id !== 'quiet_release_series' && evt.id !== 'quiet_release_anime' && evt.id !== 'nothing_special';
+      const isRare = hasEvent && evt.rarity === 'rare';
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="anime-release-card-modal">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            style={{ animation: 'rcFadeIn 0.5s ease-out' }}
+            onClick={() => { if (releasePhase >= 3) closeReleaseCard(); }} />
+
+          <div className="relative w-full max-w-sm z-10">
+            {/* Phase 1: Title */}
+            <div className="text-center mb-4" style={{ animation: 'rcSlideUp 0.8s ease-out both' }}>
+              <Badge className="mx-auto mb-2 bg-pink-500/20 text-pink-400 text-[10px]"
+                style={{ animation: 'rcFadeIn 0.5s ease-out 0.2s both' }}>
+                Anime Completato!
+              </Badge>
+              <h1 className="text-xl font-black text-white tracking-tight"
+                style={{ animation: 'rcScaleIn 0.6s ease-out 0.4s both' }}>
+                {releaseCard.title}
+              </h1>
+              <p className="text-[10px] text-pink-400/70 uppercase mt-0.5"
+                style={{ animation: 'rcFadeIn 0.4s ease-out 0.6s both' }}>
+                {releaseCard.genre} - {releaseCard.episodes_count} episodi
+              </p>
             </div>
-            <div className="flex gap-2 justify-center">
-              <Badge className="bg-purple-500/20 text-purple-400 text-xs">+{releaseCard.xp_reward} XP</Badge>
-              <Badge className="bg-pink-500/20 text-pink-400 text-xs">+{releaseCard.fame_bonus} Fama</Badge>
-              <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">{releaseCard.episodes_count} episodi</Badge>
-            </div>
-            {releaseCard.cast?.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase mb-1">Guest Star Vocali</p>
-                <div className="flex flex-wrap gap-1">
-                  {releaseCard.cast.map((c, i) => (
-                    <Badge key={i} className="bg-white/5 text-gray-300 text-[9px]">
-                      {c.name} <span className="text-gray-500 ml-0.5">({c.role})</span>
-                    </Badge>
-                  ))}
+
+            {/* Phase 2: Event reveal */}
+            {releasePhase >= 2 && hasEvent && (() => {
+              const borderC = evt.type === 'positive' ? 'border-emerald-500' : evt.type === 'negative' ? 'border-red-500' : 'border-amber-500';
+              const bgGrad = evt.type === 'positive' ? 'from-emerald-950/80 to-[#111]' : evt.type === 'negative' ? 'from-red-950/80 to-[#111]' : 'from-amber-950/80 to-[#111]';
+              const txtC = evt.type === 'positive' ? 'text-emerald-400' : evt.type === 'negative' ? 'text-red-400' : 'text-amber-400';
+              const glowC = evt.type === 'positive' ? 'shadow-emerald-500/30' : evt.type === 'negative' ? 'shadow-red-500/30' : 'shadow-amber-500/30';
+
+              return (
+                <div className={`relative rounded-xl border-2 ${borderC} bg-gradient-to-b ${bgGrad} p-3.5 shadow-lg ${glowC} ${isRare ? 'ring-2 ring-purple-500/50' : ''}`}
+                  style={{ animation: isRare ? 'rcShakeIn 0.7s ease-out both' : 'rcEventReveal 0.7s ease-out both' }}
+                  data-testid="anime-release-event">
+                  {isRare && <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent"
+                      style={{ animation: 'rcShimmer 2s ease-in-out infinite' }} />
+                  </div>}
+                  <div className="flex justify-center mb-2">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${evt.type === 'positive' ? 'bg-emerald-500/20' : evt.type === 'negative' ? 'bg-red-500/20' : 'bg-amber-500/20'}`}
+                      style={{ animation: 'rcPulse 1.5s ease-in-out infinite' }}>
+                      <span className="text-xl">{evt.type === 'positive' ? '⚡' : evt.type === 'negative' ? '💥' : '🔀'}</span>
+                    </div>
+                  </div>
+                  <div className="text-center mb-1.5">
+                    {isRare && <Badge className="bg-purple-500/30 text-purple-300 text-[7px] mb-1 border border-purple-500/40">EVENTO RARO</Badge>}
+                    <h3 className={`text-xs font-black ${txtC} uppercase tracking-wider`}>{evt.name}</h3>
+                  </div>
+                  <p className="text-[10px] text-gray-300 text-center leading-relaxed mb-2"
+                    style={{ animation: 'rcFadeIn 0.5s ease-out 0.3s both' }}>{evt.description}</p>
+                  <div className="flex justify-center gap-3 text-[10px] font-bold" style={{ animation: 'rcFadeIn 0.4s ease-out 0.5s both' }}>
+                    {evt.quality_modifier !== 0 && (
+                      <div className={`px-2 py-0.5 rounded-full ${evt.quality_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        Qualita {evt.quality_modifier > 0 ? '+' : ''}{evt.quality_modifier}
+                      </div>
+                    )}
+                    {evt.revenue_modifier !== 0 && (
+                      <div className={`px-2 py-0.5 rounded-full ${evt.revenue_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        Incassi {evt.revenue_modifier > 0 ? '+' : ''}{evt.revenue_modifier}%
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-            {releaseCard.audience_comments?.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase mb-1">Commenti del Pubblico</p>
-                <div className="space-y-1.5">
-                  {releaseCard.audience_comments.map((c, i) => (
-                    <div key={i} className={`p-2 rounded-lg border text-[10px] ${c.sentiment === 'positive' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' : c.sentiment === 'negative' ? 'bg-red-500/5 border-red-500/20 text-red-300' : 'bg-amber-500/5 border-amber-500/20 text-amber-300'}`}>
-                      <div className="flex justify-between items-start">
-                        <span>"{c.text}"</span>
-                        <Badge className={`ml-1 text-[8px] h-4 flex-shrink-0 ${c.rating >= 7 ? 'bg-emerald-500/20 text-emerald-400' : c.rating >= 5 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{c.rating}</Badge>
+              );
+            })()}
+
+            {/* Phase 3: Full results */}
+            {releasePhase >= 3 && (
+              <div className="mt-3 space-y-2" style={{ animation: 'rcSlideUp 0.6s ease-out both' }}>
+                <Card className="bg-[#151517] border-pink-600/30 overflow-hidden">
+                  <CardContent className="p-3 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-20 flex-shrink-0">
+                        {releasePoster ? (
+                          <img src={posterSrc(releasePoster)} alt="Locandina" className="w-full h-full object-cover rounded border border-pink-500/20 shadow-lg" />
+                        ) : posterPolling ? (
+                          <div className="w-full h-full rounded bg-pink-500/5 border-pink-500/20 border flex items-center justify-center animate-pulse">
+                            <Sparkles className="w-4 h-4 text-pink-500/50" />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full rounded bg-pink-500/5 border border-white/5 flex items-center justify-center">
+                            <Film className="w-5 h-5 text-gray-600" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="p-1.5 rounded bg-pink-500/10 border border-pink-500/20">
+                            <p className={`text-lg font-black ${releaseCard.quality?.score >= 70 ? 'text-green-400' : releaseCard.quality?.score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}
+                              style={{ animation: 'rcCountUp 0.5s ease-out both' }}>
+                              {releaseCard.quality?.score || 0}
+                            </p>
+                            <p className="text-[7px] text-gray-500">QUALITA</p>
+                          </div>
+                          <div className="p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                            <p className="text-sm font-bold text-emerald-400">${((releaseCard.total_revenue || 0) / 1000000).toFixed(1)}M</p>
+                            <p className="text-[7px] text-gray-500">INCASSO</p>
+                          </div>
+                          <div className="p-1.5 rounded bg-cyan-500/10 border border-cyan-500/20">
+                            <p className="text-sm font-bold text-cyan-400">{releaseCard.audience_rating || 0}</p>
+                            <p className="text-[7px] text-gray-500">VOTO</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">+{releaseCard.xp_reward} XP</Badge>
+                      <Badge className="bg-pink-500/20 text-pink-400 text-[9px]">+{releaseCard.fame_bonus} Fama</Badge>
+                      <Badge className="bg-cyan-500/20 text-cyan-400 text-[9px]">{releaseCard.episodes_count} ep.</Badge>
+                    </div>
+                    {releaseCard.audience_comments?.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[8px] text-gray-500 uppercase">Commenti</p>
+                        {releaseCard.audience_comments.slice(0, 2).map((c, i) => (
+                          <div key={i} className={`px-2 py-1 rounded text-[9px] border ${
+                            c.sentiment === 'positive' ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-300' :
+                            c.sentiment === 'negative' ? 'bg-red-500/5 border-red-500/15 text-red-300' :
+                            'bg-amber-500/5 border-amber-500/15 text-amber-300'
+                          }`}>
+                            "{c.text}" <Badge className={`ml-1 text-[7px] h-3 ${c.rating >= 7 ? 'bg-emerald-500/20 text-emerald-400' : c.rating >= 5 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{c.rating}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Button className="w-full bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold"
+                      onClick={closeReleaseCard} data-testid="close-anime-release-card">
+                      Chiudi
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             )}
-            <Button className="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold" onClick={closeReleaseCard} data-testid="close-anime-release-card">
-              Chiudi
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )}
+          </div>
+
+          {/* CSS Animations */}
+          <style>{`
+            @keyframes rcFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes rcSlideUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes rcScaleIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+            @keyframes rcEventReveal { from { opacity: 0; transform: scale(0.9) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+            @keyframes rcShakeIn {
+              0% { opacity: 0; transform: scale(0.8); }
+              40% { opacity: 1; transform: scale(1.04); }
+              55% { transform: scale(1) rotate(-1deg); }
+              70% { transform: scale(1.02) rotate(1deg); }
+              85% { transform: scale(1) rotate(-0.5deg); }
+              100% { transform: scale(1) rotate(0); }
+            }
+            @keyframes rcShimmer { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+            @keyframes rcCountUp { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+            @keyframes rcPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+          `}</style>
+        </div>
+      );
+    })()}
     </div>
   );
 }

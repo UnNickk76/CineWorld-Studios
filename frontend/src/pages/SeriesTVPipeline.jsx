@@ -31,11 +31,12 @@ const STEPS = [
 const STATUS_TO_STEP = { concept: 0, casting: 1, screenplay: 2, production: 3, ready_to_release: 3, completed: 4 };
 
 export default function SeriesTVPipeline() {
-  const { api, user } = useContext(AuthContext);
+  const { api, user, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [genres, setGenres] = useState({});
   const [mySeries, setMySeries] = useState([]);
   const [activeSeries, setActiveSeries] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -63,11 +64,19 @@ export default function SeriesTVPipeline() {
         api.get('/series-pipeline/my?series_type=tv_series'),
       ]);
       setGenres(genresRes.data.genres || {});
-      setMySeries(seriesRes.data.series || []);
+      const series = seriesRes.data.series || [];
+      setMySeries(series);
       
-      // Auto-select active series (first in-progress)
-      const inProgress = (seriesRes.data.series || []).find(s => !['completed', 'cancelled'].includes(s.status));
-      if (inProgress) setActiveSeries(inProgress);
+      // Auto-select only if user has an active series that's NOT just in production
+      // (production runs in background - user should be free to create new projects)
+      setActiveSeries(prev => {
+        if (prev) {
+          const updated = series.find(s => s.id === prev.id);
+          return updated || null;
+        }
+        const needsAttention = series.find(s => ['concept', 'casting', 'screenplay', 'ready_to_release'].includes(s.status));
+        return needsAttention || null;
+      });
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [api]);
@@ -115,8 +124,10 @@ export default function SeriesTVPipeline() {
       });
       toast.success(`"${title}" creata! Costo: $${res.data.cost?.toLocaleString()}`);
       setActiveSeries(res.data.series);
+      setShowCreateForm(false);
       setTitle(''); setDescription('');
-      loadData();
+      await loadData();
+      if (refreshUser) refreshUser();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nella creazione');
     }
@@ -233,11 +244,10 @@ export default function SeriesTVPipeline() {
       setReleaseCard(res.data);
       setReleasePoster(null);
       setPosterPolling(true);
-      // Cinematic reveal sequence
       setReleasePhase(1);
       setTimeout(() => setReleasePhase(2), 1400);
       setTimeout(() => setReleasePhase(3), 3000);
-      // Start polling for poster
+      // Poll for poster
       const seriesId = activeSeries.id;
       let attempts = 0;
       const pollInterval = setInterval(async () => {
@@ -252,7 +262,8 @@ export default function SeriesTVPipeline() {
         } catch {}
         if (attempts >= 30) { setPosterPolling(false); clearInterval(pollInterval); }
       }, 2000);
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+      if (refreshUser) refreshUser();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore nel rilascio'); }
     setActionLoading(false);
   };
 
@@ -321,6 +332,29 @@ export default function SeriesTVPipeline() {
                 </div>
                 {i < STEPS.length - 1 && <div className={`flex-1 h-px ${i < currentStep ? 'bg-white/20' : 'bg-white/5'}`} />}
               </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* In-production series cards (visible even when creating new ones) */}
+        {!activeSeries && mySeries.filter(s => s.status === 'production').length > 0 && (
+          <div className="space-y-2 mb-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">In Produzione</h3>
+            {mySeries.filter(s => s.status === 'production').map(s => (
+              <Card key={s.id} className="bg-[#111113] border-orange-500/10 cursor-pointer hover:border-orange-500/30 transition-colors"
+                onClick={() => { setActiveSeries(s); setShowCreateForm(false); }}
+                data-testid={`production-series-${s.id}`}>
+                <CardContent className="p-2.5 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                    <Play className="w-4 h-4 text-orange-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate">{s.title}</p>
+                    <p className="text-[9px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
+                  </div>
+                  <Badge className="bg-orange-500/20 text-orange-400 text-[9px] flex-shrink-0">In Produzione</Badge>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
@@ -482,6 +516,13 @@ export default function SeriesTVPipeline() {
         ) : (
           /* Active Series Pipeline */
           <div className="space-y-3" data-testid="active-series-pipeline">
+            {/* Back / New project button */}
+            <button onClick={() => { setActiveSeries(null); setShowCreateForm(false); }} 
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 transition-colors mb-1"
+              data-testid="back-to-projects-btn">
+              <ArrowLeft className="w-3 h-3" /> Tutti i progetti
+            </button>
+
             {/* Series Header */}
             <Card className="bg-[#111113] border-blue-500/20">
               <CardContent className="p-3 flex items-center gap-3">

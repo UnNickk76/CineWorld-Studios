@@ -92,7 +92,7 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 ### Admin Panel - User & Film Management (2026-03-22)
 - Tabbed admin panel with "Gestione Utenti" and "Gestione Film" sections
 - **User Management**: List all users, search by username, select user to view/edit funds/CinePass, delete user with cascade (all associated data: films, series, infrastructure, friendships, follows, likes, ratings, notifications, poster files)
-- **Film Management**: Grid of all films with poster thumbnails, title, studio name, genre badge, quality score. Search by title. Delete individual films with cascade (likes, ratings, comments, virtual_reviews, poster_files)
+- **Film Management**: Ultra-compact grid (16/row desktop, 12 tablet, 8 mobile) with mini poster thumbnails, title, studio name, quality % badge. Search by title. Delete with trash icon + confirmation modal
 - Confirmation modal before any deletion ("Confermi eliminazione definitiva?")
 - Admin self-deletion prevention
 - Backend endpoints: DELETE /api/admin/delete-user/{user_id}, GET /api/admin/all-films, DELETE /api/admin/delete-film/{film_id}

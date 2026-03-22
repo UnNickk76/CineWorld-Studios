@@ -308,40 +308,42 @@ function FilmsTab({ api }) {
 
       <p className="text-[10px] text-gray-500">{films.length} film trovati</p>
 
-      {/* Film grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto pb-2"
+      {/* Compact film grid: 8 mobile / 12 tablet / 16 desktop */}
+      <div className="grid gap-1 max-h-[70vh] overflow-y-auto pb-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}
         data-testid="admin-film-grid">
         {films.map(f => (
-          <div key={f.id} className="group relative bg-[#111113] border border-white/5 rounded-lg overflow-hidden hover:border-red-500/30 transition-all"
+          <div key={f.id} className="group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all"
             data-testid={`admin-film-card-${f.id}`}>
-            {/* Poster */}
+            {/* Mini poster */}
             <div className="aspect-[2/3] bg-gray-900 relative">
               {f.poster_url ? (
-                <img src={`${API_BASE}${f.poster_url}`} alt={f.title}
+                <img src={`${API_BASE}${f.poster_url}`} alt={f.title} loading="lazy"
                   className="w-full h-full object-cover"
                   onError={e => { e.target.style.display='none'; }} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Film className="w-6 h-6 text-gray-700" />
+                  <Film className="w-3.5 h-3.5 text-gray-700" />
                 </div>
               )}
-              {/* Delete overlay on hover */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <Button size="sm" className="bg-red-600 hover:bg-red-700 text-[10px] h-7 px-2"
-                  onClick={() => setDeleteTarget(f)}
-                  data-testid={`admin-film-delete-${f.id}`}>
-                  <Trash2 className="w-3 h-3 mr-1" /> Elimina
-                </Button>
-              </div>
+              {/* Delete icon - always visible, top-right */}
+              <button
+                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(f); }}
+                data-testid={`admin-film-delete-${f.id}`}>
+                <Trash2 className="w-2 h-2 text-white" />
+              </button>
+              {/* Quality badge */}
+              {f.quality_score != null && (
+                <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold bg-black/70 text-yellow-400 px-0.5 rounded leading-none py-px">
+                  {Math.round(f.quality_score)}%
+                </span>
+              )}
             </div>
-            {/* Info */}
-            <div className="p-1.5">
-              <p className="text-[10px] font-semibold text-white truncate leading-tight" title={f.title}>{f.title}</p>
-              <p className="text-[8px] text-gray-500 truncate">{f.studio_name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                {f.genre && <Badge className="text-[6px] h-3 bg-gray-800 text-gray-400 px-1">{f.genre}</Badge>}
-                {f.quality_score != null && <span className="text-[8px] text-yellow-500">{Math.round(f.quality_score)}%</span>}
-              </div>
+            {/* Compact info */}
+            <div className="px-0.5 py-0.5">
+              <p className="text-[7px] font-semibold text-white truncate leading-tight" title={f.title}>{f.title}</p>
+              <p className="text-[6px] text-gray-500 truncate leading-tight">{f.studio_name}</p>
             </div>
           </div>
         ))}
@@ -376,7 +378,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] p-4 pb-24" data-testid="admin-page">
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className="max-w-[1600px] mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center gap-2.5 mb-1">
           <div className="p-2 bg-red-500/15 rounded-lg"><Shield className="w-5 h-5 text-red-400" /></div>

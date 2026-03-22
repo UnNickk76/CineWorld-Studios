@@ -458,11 +458,20 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     return {"series": series}
 
 
-COMING_SOON_PRE_CASTING_HOURS_SERIES = 2
+SERIES_CS_TIERS = {
+    'short':  {'min_h': 2, 'max_h': 6,  'speedup_cap': 0.20},
+    'medium': {'min_h': 6, 'max_h': 18, 'speedup_cap': 0.40},
+    'long':   {'min_h': 18, 'max_h': 48, 'speedup_cap': 0.60},
+}
+
+
+class SeriesLaunchCSRequest(BaseModel):
+    tier: str = 'short'
+    hours: float = 4
 
 
 @router.post("/series-pipeline/{series_id}/launch-coming-soon")
-async def launch_series_coming_soon(series_id: str, user: dict = Depends(get_current_user)):
+async def launch_series_coming_soon(series_id: str, req: SeriesLaunchCSRequest, user: dict = Depends(get_current_user)):
     """Launch a concept series/anime into Coming Soon phase. Requires poster."""
     series = await db.tv_series.find_one(
         {'id': series_id, 'user_id': user['id'], 'status': 'concept'},
@@ -473,16 +482,47 @@ async def launch_series_coming_soon(series_id: str, user: dict = Depends(get_cur
     if not series.get('poster_url'):
         raise HTTPException(400, "Devi generare la locandina prima di lanciare il Coming Soon")
 
+    tier = SERIES_CS_TIERS.get(req.tier)
+    if not tier:
+        raise HTTPException(400, "Tier non valido. Usa: short, medium, long")
+
+    base_hours = max(tier['min_h'], min(tier['max_h'], req.hours))
+    num_eps = series.get('num_episodes', 8)
+    # Quality mod based on episode count and overall quality
+    if num_eps >= 12:
+        mod = 0.15
+    elif num_eps >= 8:
+        mod = 0.05
+    else:
+        mod = -0.05
+    final_hours = round(base_hours * (1 + mod), 2)
+    final_hours = max(tier['min_h'], min(tier['max_h'] * 1.2, final_hours))
+    quality_mod_pct = round(mod * 100)
+
     now = datetime.now(timezone.utc)
-    release_at = now + timedelta(hours=COMING_SOON_PRE_CASTING_HOURS_SERIES)
+    release_at = now + timedelta(hours=final_hours)
+
+    initial_event = {
+        'text': f"Coming Soon lanciato! Durata: {final_hours:.1f}h",
+        'type': 'neutral', 'effect_hours': 0,
+        'created_at': now.isoformat()
+    }
 
     await db.tv_series.update_one(
         {'id': series_id},
         {'$set': {
             'status': 'coming_soon',
             'coming_soon_type': 'pre_casting',
+            'coming_soon_tier': req.tier,
+            'coming_soon_base_hours': base_hours,
+            'coming_soon_final_hours': final_hours,
+            'coming_soon_quality_mod_pct': quality_mod_pct,
+            'coming_soon_speedup_used': 0.0,
+            'coming_soon_speedup_cap': tier['speedup_cap'],
+            'coming_soon_min_hours': final_hours * (1 - tier['speedup_cap']),
             'coming_soon_started_at': now.isoformat(),
             'scheduled_release_at': release_at.isoformat(),
+            'news_events': [initial_event],
             'updated_at': now.isoformat()
         }}
     )
@@ -491,8 +531,12 @@ async def launch_series_coming_soon(series_id: str, user: dict = Depends(get_cur
     return {
         'success': True,
         'message': f'{type_label} "{series["title"]}" e\' ora in Coming Soon!',
+        'tier': req.tier,
+        'base_hours': base_hours,
+        'quality_mod_pct': quality_mod_pct,
+        'final_hours': final_hours,
         'scheduled_release_at': release_at.isoformat(),
-        'hours': COMING_SOON_PRE_CASTING_HOURS_SERIES
+        'speedup_cap': tier['speedup_cap']
     }
 
 

@@ -9856,6 +9856,7 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         if roll < 0.65:  # 65% success
             outcome = 'success'
             effects['hype'] = max(1, int(2 * diminish))
+            effects['delay_hours'] = -round(0.3 * diminish, 1)  # Reduce timer slightly
             news_text = random.choice(COMING_SOON_NEWS_POSITIVE).format(title=title)
         elif roll < 0.90:  # 25% neutral
             outcome = 'neutral'
@@ -9864,6 +9865,7 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         else:  # 10% backfire - support creates controversy
             outcome = 'backfire'
             effects['hype'] = -1
+            effects['delay_hours'] = round(0.2 * diminish, 1)  # Slight delay
             news_text = random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
 
     elif req.action == 'boycott':
@@ -9878,10 +9880,10 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
             outcome = 'success'
             raw_hype_loss = int(2 * diminish * protection)
             effects['hype'] = -max(1, raw_hype_loss)
-            # Quality penalty (capped at -10% total)
             raw_quality = round(1.5 * diminish * protection, 1)
             remaining_cap = 10 - total_boycott_penalty
             effects['quality_mod'] = -min(raw_quality, remaining_cap)
+            effects['delay_hours'] = round(0.5 * diminish * protection, 1)  # Add delay
             news_text = random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
         elif roll < 0.75:  # 30% failure
             outcome = 'failure'
@@ -9889,6 +9891,7 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         else:  # 25% backfire - Streisand effect
             outcome = 'backfire'
             effects['hype'] = max(2, int(3 * diminish))
+            effects['delay_hours'] = -round(0.3 * diminish, 1)  # Actually speeds up!
             news_text = random.choice(COMING_SOON_NEWS_POSITIVE).format(title=title)
 
     # Deduct CinePass
@@ -9902,8 +9905,34 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
     if effects['quality_mod'] != 0:
         inc_ops['boycott_quality_penalty'] = abs(effects['quality_mod'])
         inc_ops['total_boycott_penalty'] = abs(effects['quality_mod'])
-    if effects['hype'] != 0 or effects['quality_mod'] != 0:
-        update_ops['$inc'] = inc_ops
+
+    # Apply timer delay/acceleration
+    if effects['delay_hours'] != 0:
+        sra = content.get('scheduled_release_at')
+        if sra:
+            try:
+                release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                if release_dt.tzinfo is None:
+                    release_dt = release_dt.replace(tzinfo=timezone.utc)
+                new_release = release_dt + timedelta(hours=effects['delay_hours'])
+                # Anti-frustration: never more than 2x original duration
+                started = content.get('coming_soon_started_at')
+                final_h = content.get('coming_soon_final_hours', 4)
+                if started:
+                    start_dt = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=timezone.utc)
+                    max_release = start_dt + timedelta(hours=final_h * 2)
+                    min_release = start_dt + timedelta(hours=max(1, final_h * 0.3))
+                    new_release = max(min_release, min(max_release, new_release))
+                now_check = datetime.now(timezone.utc)
+                if new_release <= now_check:
+                    new_release = now_check + timedelta(minutes=5)
+                update_ops['$set']['scheduled_release_at'] = new_release.isoformat()
+            except Exception:
+                pass
+        delay_label = f"+{effects['delay_hours']}h" if effects['delay_hours'] > 0 else f"{effects['delay_hours']}h"
+        news_text += f" ({delay_label})"
 
     # Ensure hype doesn't go below 0
     if effects['hype'] < 0:
@@ -9920,9 +9949,10 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         'type': 'positive' if outcome == 'success' and req.action == 'support' else
                 'negative' if outcome == 'success' and req.action == 'boycott' else
                 'backfire' if outcome == 'backfire' else 'neutral',
+        'effect_hours': effects['delay_hours'],
         'created_at': datetime.now(timezone.utc).isoformat()
     }
-    update_ops.setdefault('$push', {})['news_events'] = {'$each': [news_event], '$slice': -15}
+    update_ops.setdefault('$push', {})['news_events'] = {'$each': [news_event], '$slice': -20}
 
     # Auto-comment
     auto_comment = {
@@ -10031,6 +10061,121 @@ async def get_coming_soon_details(content_id: str, user: dict = Depends(get_curr
         'is_own_content': is_own,
         'max_boycott_reached': (content.get('total_boycott_penalty', 0) >= 10),
         'release_strategy': content.get('release_strategy'),
+        'coming_soon_tier': content.get('coming_soon_tier'),
+        'coming_soon_speedup_used': content.get('coming_soon_speedup_used', 0),
+        'coming_soon_speedup_cap': content.get('coming_soon_speedup_cap', 0),
+        'coming_soon_min_hours': content.get('coming_soon_min_hours'),
+        'project_status': _calc_project_status(content),
+    }
+
+
+def _calc_project_status(content):
+    """Calculate project status label based on hype and events."""
+    hype = content.get('hype_score', 0)
+    penalty = content.get('total_boycott_penalty', 0)
+    events = content.get('news_events', [])
+    neg_count = sum(1 for e in events[-6:] if e.get('type') == 'negative')
+    pos_count = sum(1 for e in events[-6:] if e.get('type') == 'positive')
+    if hype >= 20 and neg_count <= 1:
+        return 'in_crescita'
+    elif penalty >= 5 or neg_count >= 3:
+        return 'in_crisi'
+    elif pos_count > neg_count:
+        return 'promettente'
+    return 'stabile'
+
+
+# ==================== COMING SOON SPEED-UP ====================
+
+SPEEDUP_BASE_COST = 2  # CinePass per first speed-up
+SPEEDUP_COST_MULTIPLIER = 2.0  # Each subsequent speed-up costs more
+
+
+@api_router.post("/coming-soon/{content_id}/speed-up")
+async def speed_up_coming_soon(content_id: str, user: dict = Depends(get_current_user)):
+    """Speed up Coming Soon timer by spending CinePass. Cannot exceed tier cap."""
+    content, collection_name = await _find_coming_soon_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato o non in Coming Soon")
+    if content.get('user_id') != user['id']:
+        raise HTTPException(400, "Puoi velocizzare solo i tuoi contenuti")
+
+    cap = content.get('coming_soon_speedup_cap', 0.20)
+    used = content.get('coming_soon_speedup_used', 0.0)
+    remaining_cap = cap - used
+    if remaining_cap <= 0.02:
+        raise HTTPException(400, "Hai raggiunto il limite massimo di velocizzazione per questo contenuto")
+
+    # Each speed-up reduces by 10% of original duration
+    step_pct = 0.10
+    actual_reduction = min(step_pct, remaining_cap)
+
+    # Calculate cost (exponential)
+    speedup_count = int(used / step_pct) if step_pct > 0 else 0
+    cost = int(SPEEDUP_BASE_COST * (SPEEDUP_COST_MULTIPLIER ** speedup_count))
+
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+    if (u.get('cinepass', 0) or 0) < cost:
+        raise HTTPException(400, f"Servono {cost} CinePass (hai {u.get('cinepass', 0) or 0})")
+
+    # Calculate time reduction
+    final_hours = content.get('coming_soon_final_hours', 4)
+    reduction_hours = final_hours * actual_reduction
+
+    # Parse current scheduled_release_at and subtract
+    sra = content.get('scheduled_release_at')
+    if not sra:
+        raise HTTPException(400, "Nessun timer attivo")
+    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+    if release_dt.tzinfo is None:
+        release_dt = release_dt.replace(tzinfo=timezone.utc)
+    new_release = release_dt - timedelta(hours=reduction_hours)
+
+    # Enforce minimum duration
+    started = content.get('coming_soon_started_at')
+    if started:
+        start_dt = datetime.fromisoformat(started.replace('Z', '+00:00'))
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        min_hours = content.get('coming_soon_min_hours', final_hours * 0.5)
+        min_release = start_dt + timedelta(hours=min_hours)
+        if new_release < min_release:
+            new_release = min_release
+
+    now = datetime.now(timezone.utc)
+    if new_release <= now:
+        new_release = now + timedelta(minutes=5)
+
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cost}})
+
+    collection = db.tv_series if collection_name == 'tv_series' else db.film_projects
+    event = {
+        'text': f"Velocizzazione! -{reduction_hours:.1f}h ({cost} CP)",
+        'type': 'positive',
+        'effect_hours': -round(reduction_hours, 1),
+        'created_at': now.isoformat()
+    }
+    await collection.update_one(
+        {'id': content_id},
+        {
+            '$set': {
+                'scheduled_release_at': new_release.isoformat(),
+                'coming_soon_speedup_used': round(used + actual_reduction, 2),
+                'updated_at': now.isoformat()
+            },
+            '$push': {'news_events': {'$each': [event], '$slice': -20}}
+        }
+    )
+
+    return {
+        'success': True,
+        'cost': cost,
+        'reduction_hours': round(reduction_hours, 1),
+        'new_scheduled_release_at': new_release.isoformat(),
+        'speedup_used': round(used + actual_reduction, 2),
+        'speedup_cap': cap,
+        'message': f"Velocizzato di {reduction_hours:.1f}h per {cost} CP!"
     }
 
 
@@ -11334,7 +11479,8 @@ async def startup_event():
         cleanup_expired_hired_stars,
         update_leaderboard_scores,
         update_film_attendance,
-        auto_release_coming_soon
+        auto_release_coming_soon,
+        process_coming_soon_dynamic_events
     )
     
     # Add scheduled jobs
@@ -11425,6 +11571,14 @@ async def startup_event():
         auto_release_coming_soon,
         IntervalTrigger(minutes=5),
         id='auto_release_coming_soon',
+        replace_existing=True
+    )
+    
+    # Every 20 minutes: Dynamic events for Coming Soon content
+    scheduler.add_job(
+        process_coming_soon_dynamic_events,
+        IntervalTrigger(minutes=20),
+        id='coming_soon_dynamic_events',
         replace_existing=True
     )
     

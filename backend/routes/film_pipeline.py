@@ -733,11 +733,36 @@ async def get_proposals(user: dict = Depends(get_current_user)):
     return {'proposals': projects}
 
 
-COMING_SOON_PRE_CASTING_HOURS = 2  # Duration of Coming Soon phase before casting
+COMING_SOON_TIERS = {
+    'short':  {'min_h': 2, 'max_h': 6,  'speedup_cap': 0.20, 'label': 'Breve'},
+    'medium': {'min_h': 6, 'max_h': 18, 'speedup_cap': 0.40, 'label': 'Medio'},
+    'long':   {'min_h': 18, 'max_h': 48, 'speedup_cap': 0.60, 'label': 'Lungo'},
+}
+
+
+class LaunchComingSoonRequest(BaseModel):
+    tier: str = 'short'  # short, medium, long
+    hours: float = 4     # within tier range
+
+
+def _apply_quality_modifier(hours: float, pre_imdb: float) -> tuple:
+    """Apply small quality modifier. Returns (modified_hours, modifier_pct)."""
+    if pre_imdb >= 8.0:
+        mod = 0.20
+    elif pre_imdb >= 7.0:
+        mod = 0.10
+    elif pre_imdb >= 5.0:
+        mod = 0.0
+    elif pre_imdb >= 3.5:
+        mod = -0.10
+    else:
+        mod = -0.10
+    modified = hours * (1 + mod)
+    return round(modified, 2), round(mod * 100)
 
 
 @router.post("/film-pipeline/{project_id}/launch-coming-soon")
-async def launch_film_coming_soon(project_id: str, user: dict = Depends(get_current_user)):
+async def launch_film_coming_soon(project_id: str, req: LaunchComingSoonRequest, user: dict = Depends(get_current_user)):
     """Launch a proposed film into Coming Soon phase. Requires poster."""
     project = await db.film_projects.find_one(
         {'id': project_id, 'user_id': user['id'], 'status': 'proposed'},
@@ -748,25 +773,56 @@ async def launch_film_coming_soon(project_id: str, user: dict = Depends(get_curr
     if not project.get('poster_url'):
         raise HTTPException(400, "Devi generare la locandina prima di lanciare il Coming Soon")
 
+    tier = COMING_SOON_TIERS.get(req.tier)
+    if not tier:
+        raise HTTPException(400, "Tier non valido. Usa: short, medium, long")
+
+    base_hours = max(tier['min_h'], min(tier['max_h'], req.hours))
+    pre_imdb = project.get('pre_imdb_score', 5.0)
+    final_hours, quality_mod_pct = _apply_quality_modifier(base_hours, pre_imdb)
+    final_hours = max(tier['min_h'], min(tier['max_h'] * 1.2, final_hours))
+
     now = datetime.now(timezone.utc)
-    release_at = now + timedelta(hours=COMING_SOON_PRE_CASTING_HOURS)
+    release_at = now + timedelta(hours=final_hours)
+
+    initial_event = {
+        'text': f"Coming Soon lanciato! Durata: {final_hours:.1f}h",
+        'type': 'neutral',
+        'effect_hours': 0,
+        'created_at': now.isoformat()
+    }
+    if quality_mod_pct != 0:
+        sign = '+' if quality_mod_pct > 0 else ''
+        initial_event['text'] += f" (qualita' {sign}{quality_mod_pct}%)"
 
     await db.film_projects.update_one(
         {'id': project_id},
         {'$set': {
             'status': 'coming_soon',
             'coming_soon_type': 'pre_casting',
+            'coming_soon_tier': req.tier,
+            'coming_soon_base_hours': base_hours,
+            'coming_soon_final_hours': final_hours,
+            'coming_soon_quality_mod_pct': quality_mod_pct,
+            'coming_soon_speedup_used': 0.0,
+            'coming_soon_speedup_cap': tier['speedup_cap'],
+            'coming_soon_min_hours': final_hours * (1 - tier['speedup_cap']),
             'coming_soon_started_at': now.isoformat(),
             'scheduled_release_at': release_at.isoformat(),
+            'news_events': [initial_event],
             'updated_at': now.isoformat()
         }}
     )
 
     return {
         'success': True,
-        'message': f'"{project["title"]}" e\' ora in Coming Soon! Il pubblico puo\' interagire.',
+        'message': f'"{project["title"]}" e\' ora in Coming Soon!',
+        'tier': req.tier,
+        'base_hours': base_hours,
+        'quality_mod_pct': quality_mod_pct,
+        'final_hours': final_hours,
         'scheduled_release_at': release_at.isoformat(),
-        'hours': COMING_SOON_PRE_CASTING_HOURS
+        'speedup_cap': tier['speedup_cap']
     }
 
 

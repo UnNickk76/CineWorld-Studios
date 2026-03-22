@@ -843,3 +843,124 @@ async def auto_release_coming_soon():
             logger.info(f"Auto-released film {project['id']} ({project['title']}) with strategy bonus {strategy_bonus_pct}%")
         except Exception as e:
             logger.error(f"Error auto-releasing film {project['id']}: {e}")
+
+
+
+# ==================== DYNAMIC COMING SOON EVENTS ====================
+
+DYNAMIC_EVENTS_NEGATIVE = [
+    ("Ritardi nella produzione", 0.10),
+    ("Problemi con il casting", 0.08),
+    ("Il regista ha dei dubbi", 0.05),
+    ("Budget in pericolo", 0.12),
+    ("Location non disponibile", 0.06),
+    ("Problemi tecnici sul set", 0.07),
+]
+
+DYNAMIC_EVENTS_POSITIVE = [
+    ("Hype virale sui social!", -0.10),
+    ("Trailer esplosivo!", -0.08),
+    ("Cast molto apprezzato", -0.06),
+    ("Anticipazioni entusiasmano i fan", -0.05),
+    ("Critico famoso elogia il progetto", -0.07),
+    ("Partnership pubblicitaria importante", -0.04),
+]
+
+DYNAMIC_EVENTS_RARE = [
+    ("Scandalo: attore principale lascia il progetto!", 0.30, 'negative'),
+    ("VIRAL: il progetto esplode su internet!", -0.25, 'positive'),
+    ("Controversia mediatica aumenta l'attenzione!", -0.15, 'backfire'),
+    ("Problemi legali rallentano tutto", 0.20, 'negative'),
+]
+
+
+async def process_coming_soon_dynamic_events():
+    """Generate random dynamic events for active Coming Soon content."""
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
+
+    for collection_name in ['film_projects', 'tv_series']:
+        collection = getattr(scheduler_db, collection_name)
+        cursor = collection.find({
+            'status': 'coming_soon',
+            'scheduled_release_at': {'$ne': None}
+        }, {'_id': 0})
+
+        async for item in cursor:
+            try:
+                sra = item.get('scheduled_release_at')
+                if not sra:
+                    continue
+                release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                if release_dt.tzinfo is None:
+                    release_dt = release_dt.replace(tzinfo=timezone.utc)
+                if now >= release_dt:
+                    continue  # Already past, auto_release will handle
+
+                # 35% chance of event per check (runs every 20 min)
+                if random.random() > 0.35:
+                    continue
+
+                final_h = item.get('coming_soon_final_hours', 4)
+                started = item.get('coming_soon_started_at')
+                if not started:
+                    continue
+                start_dt = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+                # Rare event? (5% chance)
+                if random.random() < 0.05:
+                    event_template = random.choice(DYNAMIC_EVENTS_RARE)
+                    event_text = event_template[0]
+                    time_mod_pct = event_template[1]
+                    event_type = event_template[2]
+                else:
+                    # 55% positive, 45% negative (slight positive bias)
+                    if random.random() < 0.55:
+                        text, time_mod_pct = random.choice(DYNAMIC_EVENTS_POSITIVE)
+                        event_type = 'positive'
+                    else:
+                        text, time_mod_pct = random.choice(DYNAMIC_EVENTS_NEGATIVE)
+                        event_type = 'negative'
+                    event_text = text
+
+                # Calculate time change
+                time_change_hours = round(final_h * time_mod_pct, 1)
+                new_release = release_dt + timedelta(hours=time_change_hours)
+
+                # Anti-frustration limits
+                max_release = start_dt + timedelta(hours=final_h * 2)
+                min_release = start_dt + timedelta(hours=max(1, final_h * 0.3))
+                new_release = max(min_release, min(max_release, new_release))
+                if new_release <= now:
+                    new_release = now + timedelta(minutes=5)
+
+                # Format visible message
+                abs_change = abs(time_change_hours)
+                if time_change_hours > 0:
+                    time_label = f"+{abs_change:.1f}h"
+                else:
+                    time_label = f"-{abs_change:.1f}h"
+
+                news_event = {
+                    'text': f"{event_text} ({time_label})",
+                    'type': event_type,
+                    'effect_hours': round(time_change_hours, 1),
+                    'created_at': now_str,
+                    'is_dynamic': True
+                }
+
+                await collection.update_one(
+                    {'id': item['id']},
+                    {
+                        '$set': {
+                            'scheduled_release_at': new_release.isoformat(),
+                            'updated_at': now_str
+                        },
+                        '$push': {'news_events': {'$each': [news_event], '$slice': -20}}
+                    }
+                )
+                logger.info(f"Dynamic event for {item['id']}: {event_text} ({time_label})")
+            except Exception as e:
+                logger.error(f"Error processing dynamic event for {item.get('id')}: {e}")

@@ -54,6 +54,8 @@ export default function AnimePipeline() {
   const [scheduleHours, setScheduleHours] = useState(24);
   const [animeReleaseStrategy, setAnimeReleaseStrategy] = useState(null);
   const [animeManualHours, setAnimeManualHours] = useState(null);
+  const [animeCsTier, setAnimeCsTier] = useState('short');
+  const [animeCsHours, setAnimeCsHours] = useState(4);
 
   // Poster + Release states
   const [posterMode, setPosterMode] = useState({});
@@ -135,8 +137,11 @@ export default function AnimePipeline() {
   const launchAnimeComingSoon = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`);
-      toast.success(res.data.message);
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`, {
+        tier: animeCsTier || 'short',
+        hours: animeCsHours || 4
+      });
+      toast.success(`${res.data.message} (${res.data.final_hours.toFixed(1)}h)`);
       setActiveSeries(prev => ({ ...prev, status: 'coming_soon', coming_soon_type: 'pre_casting', scheduled_release_at: res.data.scheduled_release_at }));
       loadData();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -554,16 +559,32 @@ export default function AnimePipeline() {
                     )}
 
                     {hasPoster && !isComingSoon && (
-                      <div className="text-center space-y-2" data-testid="anime-launch-cs">
+                      <div className="space-y-2" data-testid="anime-launch-cs">
                         <img src={activeSeries.poster_url?.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${activeSeries.poster_url}` : activeSeries.poster_url}
-                          alt="" className="w-24 h-36 object-cover rounded mx-auto" />
+                          alt="" className="w-20 h-28 object-cover rounded mx-auto" />
+                        <p className="text-[10px] font-bold text-cyan-400 text-center">Durata Coming Soon</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[{id:'short',l:'Breve',r:'2-6h'},{id:'medium',l:'Medio',r:'6-18h'},{id:'long',l:'Lungo',r:'18-48h'}].map(t => (
+                            <button key={t.id} onClick={() => { setAnimeCsTier(t.id); setAnimeCsHours(t.id === 'short' ? 4 : t.id === 'medium' ? 12 : 30); }}
+                              className={`p-1.5 rounded border text-center text-[9px] transition-all ${animeCsTier === t.id ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300' : 'border-gray-700 text-gray-500'}`}>
+                              <p className="font-bold">{t.l}</p><p className="text-[8px]">{t.r}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          {(animeCsTier === 'short' ? [2,3,4,5,6] : animeCsTier === 'medium' ? [6,8,10,12,15,18] : [18,24,30,36,42,48]).map(h => (
+                            <button key={h} onClick={() => setAnimeCsHours(h)}
+                              className={`flex-1 py-1 rounded text-[8px] border ${animeCsHours === h ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : 'border-gray-700 text-gray-500'}`}>
+                              {h}h
+                            </button>
+                          ))}
+                        </div>
                         <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-xs"
                           onClick={launchAnimeComingSoon} disabled={actionLoading}
                           data-testid="launch-anime-cs-btn">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
-                          Lancia Coming Soon
+                          Lancia Coming Soon ({animeCsHours}h)
                         </Button>
-                        <p className="text-[8px] text-gray-600">Il pubblico vedra' il tuo anime e potra' interagire</p>
                       </div>
                     )}
 

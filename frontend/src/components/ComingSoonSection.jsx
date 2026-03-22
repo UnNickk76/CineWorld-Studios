@@ -3,7 +3,7 @@ import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle } from 'lucide-react';
+import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -69,6 +69,7 @@ function ComingSoonCard({ item, api, onRefresh }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [interacting, setInteracting] = useState(null);
+  const [speedingUp, setSpeedingUp] = useState(false);
   const [localHype, setLocalHype] = useState(item.hype_score || 0);
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
@@ -112,6 +113,19 @@ function ComingSoonCard({ item, api, onRefresh }) {
       toast.error(e.response?.data?.detail || 'Errore');
     }
     finally { setInteracting(null); }
+  };
+
+  const speedUp = async () => {
+    setSpeedingUp(true);
+    try {
+      const res = await api.post(`/coming-soon/${item.id}/speed-up`);
+      toast.success(res.data.message);
+      loadDetails();
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+    finally { setSpeedingUp(false); }
   };
 
   return (
@@ -183,17 +197,31 @@ function ComingSoonCard({ item, api, onRefresh }) {
                   </div>
                 )}
 
-                {/* Audience expectation */}
+                {/* Audience expectation + Project Status */}
                 {details?.audience_expectation && (
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-3 h-3 text-blue-400" />
-                    <span className="text-[9px] text-gray-500">Aspettative pubblico:</span>
-                    <Badge className={`text-[8px] h-4 ${
-                      details.audience_expectation === 'Altissime' ? 'bg-emerald-500/15 text-emerald-400' :
-                      details.audience_expectation === 'Alte' ? 'bg-blue-500/15 text-blue-400' :
-                      details.audience_expectation === 'Medie' ? 'bg-yellow-500/15 text-yellow-400' :
-                      'bg-red-500/15 text-red-400'
-                    }`}>{details.audience_expectation}</Badge>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="w-3 h-3 text-blue-400" />
+                      <span className="text-[9px] text-gray-500">Aspettative:</span>
+                      <Badge className={`text-[8px] h-4 ${
+                        details.audience_expectation === 'Altissime' ? 'bg-emerald-500/15 text-emerald-400' :
+                        details.audience_expectation === 'Alte' ? 'bg-blue-500/15 text-blue-400' :
+                        details.audience_expectation === 'Medie' ? 'bg-yellow-500/15 text-yellow-400' :
+                        'bg-red-500/15 text-red-400'
+                      }`}>{details.audience_expectation}</Badge>
+                    </div>
+                    {details.project_status && (
+                      <Badge className={`text-[8px] h-4 ${
+                        details.project_status === 'in_crescita' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                        details.project_status === 'in_crisi' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                        details.project_status === 'promettente' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                        'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                      }`}>
+                        {details.project_status === 'in_crescita' ? 'In crescita' :
+                         details.project_status === 'in_crisi' ? 'In crisi' :
+                         details.project_status === 'promettente' ? 'Promettente' : 'Stabile'}
+                      </Badge>
+                    )}
                   </div>
                 )}
 
@@ -272,7 +300,24 @@ function ComingSoonCard({ item, api, onRefresh }) {
                 )}
 
                 {details?.is_own_content && (
-                  <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
+                    {details.coming_soon_speedup_cap > 0 && details.coming_soon_speedup_used < details.coming_soon_speedup_cap && (
+                      <Button size="sm"
+                        className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-[10px] h-7"
+                        disabled={speedingUp}
+                        onClick={speedUp}
+                        data-testid={`speedup-btn-${item.id}`}>
+                        {speedingUp ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <FastForward className="w-3 h-3 mr-1" />}
+                        Velocizza (-10%)
+                      </Button>
+                    )}
+                    {details.coming_soon_speedup_used > 0 && (
+                      <p className="text-[8px] text-gray-600 text-center">
+                        Velocizzato: {Math.round(details.coming_soon_speedup_used * 100)}% / {Math.round(details.coming_soon_speedup_cap * 100)}% max
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {details && !details.is_own_content && details.daily_actions_remaining <= 0 && (

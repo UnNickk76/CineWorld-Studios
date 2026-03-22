@@ -44,6 +44,8 @@ export default function SeriesTVPipeline() {
   const [scheduleHours, setScheduleHours] = useState(24);
   const [seriesReleaseStrategy, setSeriesReleaseStrategy] = useState(null);
   const [seriesManualHours, setSeriesManualHours] = useState(null);
+  const [seriesCsTier, setSeriesCsTier] = useState('short');
+  const [seriesCsHours, setSeriesCsHours] = useState(4);
 
   // Concept form
   const [title, setTitle] = useState('');
@@ -142,8 +144,11 @@ export default function SeriesTVPipeline() {
   const launchSeriesComingSoon = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`);
-      toast.success(res.data.message);
+      const res = await api.post(`/series-pipeline/${activeSeries.id}/launch-coming-soon`, {
+        tier: seriesCsTier || 'short',
+        hours: seriesCsHours || 4
+      });
+      toast.success(`${res.data.message} (${res.data.final_hours.toFixed(1)}h)`);
       setActiveSeries(prev => ({ ...prev, status: 'coming_soon', coming_soon_type: 'pre_casting', scheduled_release_at: res.data.scheduled_release_at }));
       loadData();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -624,19 +629,35 @@ export default function SeriesTVPipeline() {
                       </div>
                     )}
 
-                    {/* Step 2: Launch Coming Soon */}
+                    {/* Step 2: Launch Coming Soon with tier */}
                     {hasPoster && !isComingSoon && (
-                      <div className="text-center space-y-2" data-testid="series-launch-cs">
+                      <div className="space-y-2" data-testid="series-launch-cs">
                         {activeSeries.poster_url && (
-                          <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-24 h-36 object-cover rounded mx-auto" />
+                          <img src={posterSrc(activeSeries.poster_url)} alt="" className="w-20 h-28 object-cover rounded mx-auto" />
                         )}
+                        <p className="text-[10px] font-bold text-cyan-400 text-center">Durata Coming Soon</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[{id:'short',l:'Breve',r:'2-6h'},{id:'medium',l:'Medio',r:'6-18h'},{id:'long',l:'Lungo',r:'18-48h'}].map(t => (
+                            <button key={t.id} onClick={() => { setSeriesCsTier(t.id); setSeriesCsHours(t.id === 'short' ? 4 : t.id === 'medium' ? 12 : 30); }}
+                              className={`p-1.5 rounded border text-center text-[9px] transition-all ${seriesCsTier === t.id ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300' : 'border-gray-700 text-gray-500'}`}>
+                              <p className="font-bold">{t.l}</p><p className="text-[8px]">{t.r}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          {(seriesCsTier === 'short' ? [2,3,4,5,6] : seriesCsTier === 'medium' ? [6,8,10,12,15,18] : [18,24,30,36,42,48]).map(h => (
+                            <button key={h} onClick={() => setSeriesCsHours(h)}
+                              className={`flex-1 py-1 rounded text-[8px] border ${seriesCsHours === h ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : 'border-gray-700 text-gray-500'}`}>
+                              {h}h
+                            </button>
+                          ))}
+                        </div>
                         <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-xs"
                           onClick={launchSeriesComingSoon} disabled={actionLoading}
                           data-testid="launch-series-cs-btn">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
-                          Lancia Coming Soon
+                          Lancia Coming Soon ({seriesCsHours}h)
                         </Button>
-                        <p className="text-[8px] text-gray-600">Il pubblico vedra' la tua serie e potra' interagire</p>
                       </div>
                     )}
 

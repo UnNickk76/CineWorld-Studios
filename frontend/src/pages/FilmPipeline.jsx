@@ -300,6 +300,8 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
   const [posterStyle, setPosterStyle] = useState({});
   const [actionLoading, setActionLoading] = useState(null);
   const [countdowns, setCountdowns] = useState({});
+  const [csTier, setCsTier] = useState({});
+  const [csHours, setCsHours] = useState({});
 
   const fetch = useCallback(async () => {
     try {
@@ -356,10 +358,13 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
   };
 
   const launchComingSoon = async (id) => {
+    const tier = csTier[id] || 'short';
+    const hours = csHours[id] || (tier === 'short' ? 4 : tier === 'medium' ? 12 : 30);
     setActionLoading(`cs-${id}`);
     try {
-      const res = await api.post(`/film-pipeline/${id}/launch-coming-soon`);
-      toast.success(res.data.message);
+      const res = await api.post(`/film-pipeline/${id}/launch-coming-soon`, { tier, hours });
+      const d = res.data;
+      toast.success(`${d.message} (${d.final_hours.toFixed(1)}h)`);
       fetch(); refreshCounts();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setActionLoading(null); }
@@ -474,18 +479,57 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
               </div>
             )}
 
-            {/* Step: needs coming soon */}
-            {step === 'needs_coming_soon' && (
-              <div className="space-y-2" data-testid={`cs-step-${p.id}`}>
+            {/* Step: needs coming soon - DURATION SELECTOR */}
+            {step === 'needs_coming_soon' && (() => {
+              const tier = csTier[p.id] || 'short';
+              const TIERS = [
+                { id: 'short', label: 'Breve', range: '2-6h', min: 2, max: 6, icon: Zap, color: 'yellow', desc: 'Meno rischi, meno hype', steps: [2, 3, 4, 5, 6] },
+                { id: 'medium', label: 'Medio', range: '6-18h', min: 6, max: 18, icon: Film, color: 'cyan', desc: 'Equilibrio rischio/hype', steps: [6, 8, 10, 12, 15, 18] },
+                { id: 'long', label: 'Lungo', range: '18-48h', min: 18, max: 48, icon: Flame, color: 'orange', desc: 'Massimo hype, massimo rischio', steps: [18, 24, 30, 36, 42, 48] },
+              ];
+              const activeTier = TIERS.find(t => t.id === tier);
+              const hours = csHours[p.id] || activeTier.steps[Math.floor(activeTier.steps.length / 2)];
+              return (
+              <div className="space-y-2.5" data-testid={`cs-step-${p.id}`}>
+                <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Durata Coming Soon</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {TIERS.map(t => {
+                    const TIcon = t.icon;
+                    const active = tier === t.id;
+                    return (
+                    <button key={t.id} onClick={() => { setCsTier(s => ({...s, [p.id]: t.id})); setCsHours(s => ({...s, [p.id]: t.steps[Math.floor(t.steps.length / 2)]})); }}
+                      className={`p-2 rounded-lg border text-center transition-all ${active ? `border-${t.color}-500/60 bg-${t.color}-500/10` : 'border-gray-700/60 hover:border-gray-600'}`}
+                      data-testid={`tier-${t.id}-${p.id}`}>
+                      <TIcon className={`w-4 h-4 mx-auto mb-0.5 ${active ? `text-${t.color}-400` : 'text-gray-600'}`} />
+                      <p className={`text-[10px] font-bold ${active ? 'text-white' : 'text-gray-500'}`}>{t.label}</p>
+                      <p className="text-[8px] text-gray-600">{t.range}</p>
+                    </button>
+                    );
+                  })}
+                </div>
+                {/* Steps selector */}
+                <div className="flex gap-1 items-center">
+                  {activeTier.steps.map(h => (
+                    <button key={h} onClick={() => setCsHours(s => ({...s, [p.id]: h}))}
+                      className={`flex-1 py-1 rounded text-[9px] font-medium border transition-all ${hours === h ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : 'border-gray-700 text-gray-500'}`}
+                      data-testid={`hours-${h}-${p.id}`}>
+                      {h}h
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[8px] text-gray-600 space-y-0.5">
+                  <p>{tier === 'short' ? 'Meno tempo = meno eventi e meno rischi' : tier === 'medium' ? 'Equilibrio tra hype e rischio eventi' : 'Massimo hype possibile ma piu\' eventi negativi'}</p>
+                  <p className="text-gray-700">Velocizzazione max: {tier === 'short' ? '20%' : tier === 'medium' ? '40%' : '60%'}</p>
+                </div>
                 <Button size="sm" className="w-full bg-cyan-700 hover:bg-cyan-600 text-[10px]"
                   onClick={() => launchComingSoon(p.id)} disabled={actionLoading === `cs-${p.id}`}
                   data-testid={`launch-cs-${p.id}`}>
                   {actionLoading === `cs-${p.id}` ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                  Lancia Coming Soon
+                  Lancia Coming Soon ({hours}h)
                 </Button>
-                <p className="text-[8px] text-gray-600 text-center">Il pubblico vedra' il tuo film e potra' interagire</p>
               </div>
-            )}
+              );
+            })()}
 
             {/* Step: coming soon active */}
             {step === 'coming_soon_active' && (

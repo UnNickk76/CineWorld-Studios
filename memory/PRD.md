@@ -99,8 +99,20 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Also includes automated cleanup endpoints: GET/POST /api/admin/cleanup-test-data/preview|execute
 - Testing: 19/19 backend tests + all frontend UI tests PASSED (iteration 112)
 
+### CineBoard Social + Like System (2026-03-22)
+- **Social Feed** (`/social?view=social-feed`): Compact grid of ALL released films (responsive: ~9/row mobile, ~19/row desktop via CSS `min(85px, 11vw)`)
+- Each card: mini poster, studio name overlay, like counter with heart icon, quality %, clickable to film detail
+- **Like System**: One like per user per film (toggle). DB: `likes` collection with unique index `(film_id, user_id)`. Prevents self-like. Tracks `total_likes_given` and `total_likes_received` on users
+- **Gameplay Bonuses**: Film attendance bonus `log(avg_likes + 1) / 100` in cinema revenue calculation. Player bonus `log(likes_given + 1)` for global engagement
+- **Top Liked Leaderboard** (`/social?view=top-liked`): Films ranked by likes_count (top 50), shows rank badges, like bonus %
+- **My Bonuses**: `GET /api/social/my-bonuses` returns like stats and bonus percentages
+- **CineBoard Menu**: Added "Social" and "Top Liked" entries in the navbar popup under new "Social" section
+- **Dashboard micro-copy**: Pink CTA card "Interagisci con altri player: metti like ai film per supportarli e ottenere piccoli bonus!"
+- Testing: 100% backend + 100% frontend PASSED (iteration 113). Bug fixed: KeyError on films without user_id
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
+- Like endpoint: safe handling of films without user_id (orphan films)
 
 ## Backlog
 - (P1) Readable AI Screenplay (scrollable, accessible post-generation)

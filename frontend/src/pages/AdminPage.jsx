@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench } from 'lucide-react';
 import { AuthContext } from '../contexts';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
@@ -13,6 +13,7 @@ const TABS = [
   { id: 'users', label: 'Gestione Utenti', icon: Users },
   { id: 'films', label: 'Gestione Film', icon: Film },
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
+  { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
 ];
 
 /* ─── Confirm Modal ─── */
@@ -508,6 +509,89 @@ function ReportsTab({ api }) {
   );
 }
 
+/* ─── Maintenance Tab ─── */
+function MaintenanceTab({ api }) {
+  const [repairLoading, setRepairLoading] = useState(false);
+  const [repairResult, setRepairResult] = useState(null);
+
+  const repairDatabase = async () => {
+    setRepairLoading(true);
+    setRepairResult(null);
+    try {
+      const res = await api.post('/admin/repair-database');
+      setRepairResult(res.data);
+      if (res.data.total_fixed > 0) {
+        toast.success(`Riparazione completata: ${res.data.total_fixed} problemi risolti`);
+      } else {
+        toast.success('Nessun problema trovato nel database');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore durante la riparazione');
+    } finally {
+      setRepairLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="maintenance-tab">
+      <Card className="bg-[#111113] border-yellow-500/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+            <Wrench className="w-4 h-4" />
+            Riparazione Database
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Questo strumento analizza e ripara automaticamente tutti i progetti corrotti nel database:
+          </p>
+          <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
+            <li>Film/Serie in fase casting/sceneggiatura senza dati del cast → reset a "proposto"</li>
+            <li>Progetti con stati invalidi → scartati</li>
+            <li>Progetti senza ID o titolo → rimossi</li>
+          </ul>
+          <Button
+            onClick={repairDatabase}
+            disabled={repairLoading}
+            className="bg-yellow-600 hover:bg-yellow-700 text-black font-semibold w-full"
+            data-testid="repair-database-btn"
+          >
+            {repairLoading ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Riparazione in corso...</>
+            ) : (
+              <><Wrench className="w-4 h-4 mr-2" /> Ripara Database</>
+            )}
+          </Button>
+
+          {repairResult && (
+            <Card className={`border ${repairResult.total_fixed > 0 ? 'border-green-500/30 bg-green-500/5' : 'border-gray-700 bg-gray-800/30'}`}>
+              <CardContent className="p-3 space-y-2">
+                <p className="text-xs font-semibold text-white">
+                  {repairResult.total_fixed > 0
+                    ? `${repairResult.total_fixed} problemi risolti`
+                    : 'Nessun problema trovato'}
+                </p>
+                {repairResult.report && Object.entries(repairResult.report).map(([key, items]) => (
+                  items.length > 0 && (
+                    <div key={key} className="space-y-1">
+                      <p className="text-[10px] text-yellow-400 font-medium uppercase">{key.replace(/_/g, ' ')}</p>
+                      {items.map((item, i) => (
+                        <p key={i} className="text-[10px] text-gray-400">
+                          {item.title || item.id || item._id} {item.old_status ? `(${item.old_status})` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  )
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -563,6 +647,7 @@ export default function AdminPage() {
         {activeTab === 'users' && <UsersTab api={api} />}
         {activeTab === 'films' && <FilmsTab api={api} />}
         {activeTab === 'reports' && <ReportsTab api={api} />}
+        {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
       </div>
     </div>
   );

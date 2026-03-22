@@ -52,6 +52,9 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - Fixed poster generation: n=1 → number_of_images=1, b64_json → raw bytes (both series and film)
 - Consolidated series release to single DB update (was two, causing inconsistency on failure)
 - Aligned series/anime release pattern with film release (immediate response, poster in background)
+- Added 60s timeout on frontend release call
+- Verified: Series release returns complete data (quality, episodes, audience, revenue, release_event, poster_generating)
+- Verified: Poster generated in background and accessible via /api/posters/series_{id}.png
 
 ### Dynamic Release Images (2026-03-22)
 - 3 static images: cinema_flop.jpg, cinema_normal.jpg, cinema_success.jpg

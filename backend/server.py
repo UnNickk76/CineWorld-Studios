@@ -9561,6 +9561,114 @@ async def delete_chat_image(message_id: str, user: dict = Depends(get_current_us
     return {'success': True, 'message': 'Immagine eliminata'}
 
 
+# ==================== MODERATION / REPORTS ====================
+
+class ReportRequest(BaseModel):
+    target_type: str  # 'message', 'image', 'user'
+    target_id: str
+    reason: str = ''
+
+
+@api_router.post("/reports")
+async def create_report(req: ReportRequest, user: dict = Depends(get_current_user)):
+    """Report a message, image, or user."""
+    if req.target_type not in ('message', 'image', 'user'):
+        raise HTTPException(status_code=400, detail="Tipo non valido (message/image/user)")
+
+    # Prevent duplicate reports
+    existing = await db.reports.find_one({
+        'reporter_id': user['id'],
+        'target_type': req.target_type,
+        'target_id': req.target_id
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Hai gia segnalato questo contenuto")
+
+    # Build report with context snapshot
+    report = {
+        'id': str(uuid.uuid4()),
+        'reporter_id': user['id'],
+        'reporter_nickname': user.get('nickname', '?'),
+        'target_type': req.target_type,
+        'target_id': req.target_id,
+        'reason': req.reason,
+        'status': 'pending',  # pending / resolved / dismissed
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Snapshot the reported content
+    if req.target_type in ('message', 'image'):
+        msg = await db.chat_messages.find_one({'id': req.target_id}, {'_id': 0})
+        if msg:
+            report['snapshot'] = {
+                'content': msg.get('content', ''),
+                'image_url': msg.get('image_url'),
+                'message_type': msg.get('message_type'),
+                'sender_id': msg.get('sender_id'),
+                'sender_nickname': (msg.get('sender') or {}).get('nickname', '?'),
+                'room_id': msg.get('room_id'),
+                'sent_at': msg.get('created_at'),
+            }
+            # Re-fetch sender nickname if not embedded
+            if report['snapshot']['sender_nickname'] == '?':
+                sender = await db.users.find_one({'id': msg.get('sender_id')}, {'_id': 0, 'nickname': 1})
+                if sender:
+                    report['snapshot']['sender_nickname'] = sender.get('nickname', '?')
+    elif req.target_type == 'user':
+        target_user = await db.users.find_one({'id': req.target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
+        if target_user:
+            report['snapshot'] = {'nickname': target_user.get('nickname'), 'email': target_user.get('email')}
+
+    await db.reports.insert_one(report)
+    return {'success': True, 'report_id': report['id']}
+
+
+@api_router.get("/admin/reports")
+async def admin_get_reports(status: str = 'pending', user: dict = Depends(get_current_user)):
+    """Get all reports (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    query = {}
+    if status and status != 'all':
+        query['status'] = status
+
+    reports = await db.reports.find(query, {'_id': 0}).sort('created_at', -1).limit(200).to_list(200)
+    return {'reports': reports, 'count': len(reports)}
+
+
+@api_router.post("/admin/reports/{report_id}/resolve")
+async def admin_resolve_report(report_id: str, action: str = 'dismiss', user: dict = Depends(get_current_user)):
+    """Resolve a report: dismiss or delete_content."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    report = await db.reports.find_one({'id': report_id}, {'_id': 0})
+    if not report:
+        raise HTTPException(status_code=404, detail="Segnalazione non trovata")
+
+    result = {'action': action}
+
+    if action == 'delete_content':
+        # Delete the reported content
+        if report['target_type'] in ('message', 'image'):
+            await db.chat_messages.update_one(
+                {'id': report['target_id']},
+                {'$set': {'content': 'Contenuto rimosso per violazione', 'image_url': None, 'message_type': 'text', 'deleted': True, 'moderated': True}}
+            )
+            result['deleted'] = True
+        elif report['target_type'] == 'user':
+            result['note'] = 'Usa la sezione Gestione Utenti per azioni sugli utenti'
+
+    # Mark report as resolved
+    await db.reports.update_one(
+        {'id': report_id},
+        {'$set': {'status': 'resolved' if action == 'delete_content' else 'dismissed', 'resolved_at': datetime.now(timezone.utc).isoformat(), 'resolved_by': user['id']}}
+    )
+
+    return result
+
+
 # ==================== CHAT IMAGE UPLOAD ====================
 from fastapi import UploadFile, File as FastAPIFile
 

@@ -9250,6 +9250,49 @@ async def get_user_profile(user_id: str, user: dict = Depends(get_current_user))
     
     return profile
 
+@api_router.get("/users/{user_id}/social-card")
+async def get_user_social_card(user_id: str, user: dict = Depends(get_current_user)):
+    """Lightweight social card: user info + last 12 films with like status."""
+    profile = await db.users.find_one(
+        {'id': user_id},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'fame': 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+
+    uid = user.get('id')
+    is_online = user_id in online_users
+
+    # Last 12 films (most recent first) with minimal fields
+    films = await db.films.find(
+        {'user_id': user_id, 'status': {'$in': ['released', 'in_theaters', 'ended', 'producing', 'pre_production']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'likes_count': 1, 'liked_by': 1, 'quality_score': 1, 'status': 1}
+    ).sort('created_at', -1).limit(12).to_list(12)
+
+    for f in films:
+        liked_by = f.pop('liked_by', []) or []
+        f['user_liked'] = uid in liked_by
+
+    # Friendship check
+    is_friend = bool(await db.friendships.find_one({
+        '$or': [
+            {'user_id': uid, 'friend_id': user_id},
+            {'user_id': user_id, 'friend_id': uid}
+        ]
+    }))
+    pending_req = bool(await db.friend_requests.find_one({
+        'from_user_id': uid, 'to_user_id': user_id, 'status': 'pending'
+    }))
+
+    return {
+        'user': profile,
+        'is_online': is_online,
+        'is_own_profile': user_id == uid,
+        'films': films,
+        'friend_status': 'friends' if is_friend else 'pending' if pending_req else 'none'
+    }
+
+
 @api_router.get("/users/{user_id}/full-profile")
 async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_user)):
     """Get full detailed profile of a user including all stats and films."""

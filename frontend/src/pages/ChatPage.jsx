@@ -36,33 +36,30 @@ function PresenceDot({ presence, size = 'sm' }) {
   return <span className={`inline-block ${s} rounded-full ${colors[presence] || colors.offline}`} />;
 }
 
-/* ─── User Profile Modal (reused from old chat) ─── */
+/* ─── User Profile Modal (Social Card with films) ─── */
 function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
   const { language } = useContext(LanguageContext);
-  const [profile, setProfile] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [friendStatus, setFriendStatus] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
+  const [friendStatus, setFriendStatus] = useState('none');
+  const [films, setFilms] = useState([]);
   const navigate = useNavigate();
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
   useEffect(() => {
     if (isOpen && userId) {
       setLoading(true);
-      Promise.all([
-        api.get(`/users/${userId}/full-profile`),
-        api.get('/friends'),
-        api.get('/friends/requests')
-      ]).then(([profileRes, friendsRes, requestsRes]) => {
-        setProfile(profileRes.data);
-        const isFriend = friendsRes.data?.some(f => f.id === userId);
-        const hasPending = requestsRes.data?.outgoing?.some(r => r.user?.id === userId);
-        setFriendStatus(isFriend ? 'friends' : hasPending ? 'pending' : 'none');
-        setLoading(false);
-      }).catch(() => setLoading(false));
+      api.get(`/users/${userId}/social-card`)
+        .then(r => {
+          setData(r.data);
+          setFilms(r.data.films || []);
+          setFriendStatus(r.data.friend_status || 'none');
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
     }
   }, [isOpen, userId, api]);
-
-  if (!isOpen) return null;
 
   const sendFriendRequest = async () => {
     try {
@@ -74,67 +71,121 @@ function UserProfileModal({ userId, isOpen, onClose, api, onStartDM }) {
     finally { setActionLoading(null); }
   };
 
+  const handleLikeFilm = async (filmId) => {
+    try {
+      const res = await api.post(`/films/${filmId}/like`);
+      setFilms(prev => prev.map(f => f.id === filmId
+        ? { ...f, user_liked: res.data.liked, likes_count: res.data.likes_count }
+        : f
+      ));
+    } catch (e) {
+      const msg = e.response?.data?.detail || '';
+      if (msg.includes('tuoi film')) toast.error('Non puoi mettere like ai tuoi film!');
+      else toast.error(msg || 'Errore');
+    }
+  };
+
+  if (!isOpen) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-[#111113] border-white/10 max-w-md max-h-[85vh] overflow-y-auto p-0" data-testid="user-profile-modal">
         {loading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 text-yellow-500 animate-spin" /></div>
-        ) : profile ? (
+        ) : data ? (
           <div className="p-4 space-y-3">
             <DialogHeader>
               <div className="flex items-center gap-3">
-                <Avatar className="w-12 h-12">
-                  <AvatarImage src={profile.user?.avatar_url} />
-                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-lg">{profile.user?.nickname?.[0]}</AvatarFallback>
+                <Avatar className="w-11 h-11">
+                  <AvatarImage src={data.user?.avatar_url} />
+                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-lg">{data.user?.nickname?.[0]}</AvatarFallback>
                 </Avatar>
-                <div>
-                  <DialogTitle className="text-base flex items-center gap-2">
-                    {profile.user?.nickname}
-                    {profile.is_online
-                      ? <Badge className="bg-green-500/20 text-green-400 text-[9px] h-4">Online</Badge>
-                      : <Badge className="bg-gray-500/20 text-gray-400 text-[9px] h-4">Offline</Badge>}
+                <div className="flex-1 min-w-0">
+                  <DialogTitle className="text-sm flex items-center gap-1.5">
+                    {data.user?.nickname}
+                    <PresenceDot presence={data.is_online ? 'online' : 'offline'} size="md" />
                   </DialogTitle>
-                  <p className="text-xs text-gray-500">{profile.user?.production_house_name}</p>
+                  <p className="text-[10px] text-gray-500">{data.user?.production_house_name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {data.user?.level && <Badge className="h-4 text-[8px] bg-yellow-500/15 text-yellow-400">Lv.{data.user.level}</Badge>}
+                  </div>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="grid grid-cols-3 gap-1.5">
-              {[
-                { l: 'Film', v: profile.stats?.total_films, c: 'text-yellow-500' },
-                { l: 'Revenue', v: `$${((profile.stats?.total_revenue || 0) / 1e6).toFixed(1)}M`, c: 'text-green-500' },
-                { l: 'Like', v: profile.stats?.total_likes, c: 'text-pink-500' },
-                { l: 'Qualita', v: `${profile.stats?.avg_quality || 0}%`, c: 'text-blue-500' },
-                { l: 'Premi', v: profile.stats?.awards_count, c: 'text-purple-500' },
-                { l: 'Infra', v: profile.stats?.infrastructure_count, c: 'text-orange-500' },
-              ].map(s => (
-                <div key={s.l} className="bg-black/30 rounded p-1.5 text-center">
-                  <p className={`text-sm font-bold ${s.c}`}>{s.v}</p>
-                  <p className="text-[8px] text-gray-500">{s.l}</p>
-                </div>
-              ))}
-            </div>
-
-            {!profile.is_own_profile && (
-              <div className="flex gap-2">
-                <Button size="sm" className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400 text-xs h-8"
-                  onClick={() => { onClose(); onStartDM(userId); }}>
+            {/* Action buttons */}
+            {!data.is_own_profile && (
+              <div className="flex gap-1.5">
+                <Button size="sm" className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] h-7"
+                  onClick={() => { onClose(); onStartDM(userId); }}
+                  data-testid="social-card-dm-btn">
                   <MessageSquare className="w-3 h-3 mr-1" /> Messaggio
                 </Button>
-                <Button size="sm" className="flex-1 text-xs h-8" variant="outline"
-                  onClick={() => { onClose(); navigate(`/player/${userId}`); }}>
-                  Profilo Completo <ChevronRight className="w-3 h-3 ml-1" />
+                <Button size="sm" variant="outline" className="flex-1 text-[10px] h-7 border-gray-700"
+                  onClick={() => { onClose(); navigate(`/player/${userId}`); }}
+                  data-testid="social-card-profile-btn">
+                  Profilo <ChevronRight className="w-3 h-3 ml-0.5" />
                 </Button>
                 {friendStatus === 'friends'
-                  ? <Button size="sm" variant="outline" className="h-8 px-2 border-green-500/30 text-green-400" disabled><UserCheck className="w-3 h-3" /></Button>
+                  ? <Button size="sm" variant="outline" className="h-7 px-2 border-green-500/30 text-green-400" disabled><UserCheck className="w-3 h-3" /></Button>
                   : friendStatus === 'pending'
-                    ? <Button size="sm" variant="outline" className="h-8 px-2 border-yellow-500/30 text-yellow-400" disabled><Clock className="w-3 h-3" /></Button>
-                    : <Button size="sm" variant="outline" className="h-8 px-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10" onClick={sendFriendRequest} disabled={actionLoading === 'friend'}>
+                    ? <Button size="sm" variant="outline" className="h-7 px-2 border-yellow-500/30 text-yellow-400" disabled><Clock className="w-3 h-3" /></Button>
+                    : <Button size="sm" variant="outline" className="h-7 px-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                        onClick={sendFriendRequest} disabled={actionLoading === 'friend'}
+                        data-testid="social-card-friend-btn">
                         <UserPlus className="w-3 h-3" />
                       </Button>
                 }
               </div>
             )}
+
+            {/* Films section */}
+            <div>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-1.5">
+                {language === 'it' ? 'Ultimi Film' : 'Recent Films'} ({films.length})
+              </p>
+              {films.length === 0 ? (
+                <div className="text-center py-4 bg-black/20 rounded-lg">
+                  <Film className="w-5 h-5 text-gray-700 mx-auto mb-1" />
+                  <p className="text-[10px] text-gray-600">{language === 'it' ? 'Nessun film ancora' : 'No films yet'}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-6 gap-1" data-testid="social-card-films">
+                  {films.map(f => (
+                    <div key={f.id} className="group relative rounded overflow-hidden bg-[#0a0a0c] border border-white/5 hover:border-yellow-500/30 transition-all"
+                      data-testid={`social-film-${f.id}`}>
+                      {/* Poster - clickable */}
+                      <div className="aspect-[2/3] relative cursor-pointer" onClick={() => { onClose(); navigate(`/films/${f.id}`); }}>
+                        {f.poster_url ? (
+                          <img src={f.poster_url.startsWith('/') ? `${BACKEND_URL}${f.poster_url}` : f.poster_url}
+                            alt={f.title} loading="lazy" className="w-full h-full object-cover"
+                            onError={e => { e.target.style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                            <Film className="w-2.5 h-2.5 text-gray-700" />
+                          </div>
+                        )}
+                        {/* Like overlay at bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-0.5 pb-0.5 pt-1.5">
+                          <button
+                            className={`flex items-center gap-0.5 ${f.user_liked ? 'text-red-400' : 'text-white/60 hover:text-red-400'}`}
+                            onClick={(e) => { e.stopPropagation(); handleLikeFilm(f.id); }}
+                            data-testid={`social-like-${f.id}`}
+                          >
+                            <Heart className={`w-2 h-2 ${f.user_liked ? 'fill-red-400' : ''}`} />
+                            <span className="text-[6px] font-bold">{f.likes_count || 0}</span>
+                          </button>
+                        </div>
+                      </div>
+                      {/* Title */}
+                      <div className="px-0.5 py-px">
+                        <p className="text-[6px] text-white truncate leading-tight" title={f.title}>{f.title}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : <p className="text-center py-8 text-gray-500 text-sm">Utente non trovato</p>}
       </DialogContent>

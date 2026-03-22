@@ -1,0 +1,64 @@
+{
+  "summary": "Social Card feature (Step 2 of Social Chat Evolution) fully tested. Backend API GET /api/users/{user_id}/social-card returns user info, last 12 films with poster_url/likes_count/user_liked/quality_score, friend_status, is_online, and is_own_profile. Frontend modal opens when clicking non-bot users in chat sidebar, shows 6-column grid of films with mini posters, like buttons work correctly, navigation to film detail and full profile works.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_social_card.py",
+    "/app/test_reports/pytest/pytest_iter114_social_card.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_social_card.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "fandrex1@gmail.com",
+    "password": "Ciaociao1",
+    "nickname": "NeoMorpheus",
+    "user_id": "25e2aa00-d353-4ecf-9a89-b3959520ea5c"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Social Card feature fully tested. Test users with films: Emilians (7e1bb9ec-91f7-4f8e-9ff2-5f400896ba44, 5 films), mic (8bd4396f-c6dc-4bc9-9e2a-8a0ed7855ec4, 4 films). Test user without films: Benny (a0081c6d-268d-4093-b57f-2c568d8b59be). Chat page at /chat, users panel on right side, clicking non-bot user opens UserProfileModal with social card.",
+  "tests_passed": {
+    "backend": [
+      "GET /api/users/{user_id}/social-card - returns user info (nickname, avatar_url, production_house_name, level)",
+      "GET /api/users/{user_id}/social-card - returns films array with id, title, poster_url, likes_count, user_liked, quality_score",
+      "GET /api/users/{user_id}/social-card - returns max 12 films",
+      "GET /api/users/{user_id}/social-card - returns friend_status (friends/pending/none)",
+      "GET /api/users/{user_id}/social-card - returns is_online boolean",
+      "GET /api/users/{user_id}/social-card - self profile returns is_own_profile=true",
+      "GET /api/users/{user_id}/social-card - other profile returns is_own_profile=false",
+      "GET /api/users/{user_id}/social-card - non-existent user returns 404",
+      "GET /api/users/{user_id}/social-card - user with no films returns empty films array",
+      "POST /api/films/{film_id}/like - like toggle works from social card context",
+      "POST /api/films/{film_id}/like - likes_count updates correctly on toggle"
+    ],
+    "frontend": [
+      "Chat page loads at /chat with users panel on right",
+      "Clicking non-bot user in sidebar opens UserProfileModal",
+      "Modal shows user info: nickname, avatar, production house, level badge, presence status",
+      "Modal shows 'Messaggio' button that starts DM and closes modal",
+      "Modal shows 'Profilo' button that navigates to /player/{user_id}",
+      "Modal shows friend request button (UserPlus icon)",
+      "Modal shows films grid with 6-column layout (grid-cols-6)",
+      "Each film shows mini poster image",
+      "Each film shows like count with heart icon",
+      "Like button toggles correctly (heart fills/unfills, count updates)",
+      "Clicking film poster navigates to /films/{film_id}",
+      "User with no films shows 'Nessun film ancora' message"
+    ]
+  }
+}

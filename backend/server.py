@@ -9979,24 +9979,30 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         from notification_engine import create_game_notification
         owner_id = content.get('user_id')
         if owner_id and owner_id != user['id']:
+            # In-progress films -> pipeline page, completed films -> detail page
+            content_status = content.get('status', '')
+            if content_status in ('completed', 'released'):
+                film_link = f'/films/{content_id}'
+            else:
+                film_link = '/create-film'
             if req.action == 'support' and outcome == 'success':
                 await create_game_notification(
                     owner_id, 'coming_soon_support', content_id, title,
                     extra_data={'hype_change': effects['hype']},
-                    link=f'/films'
+                    link=film_link
                 )
             elif req.action == 'boycott' and outcome == 'success':
                 await create_game_notification(
                     owner_id, 'coming_soon_boycott', content_id, title,
                     extra_data={'hype_change': effects['hype']},
-                    link=f'/films'
+                    link=film_link
                 )
             if effects['delay_hours'] != 0:
                 delta_label = f"+{effects['delay_hours']}h" if effects['delay_hours'] > 0 else f"{effects['delay_hours']}h"
                 await create_game_notification(
                     owner_id, 'coming_soon_time_change', content_id, title,
                     extra_data={'delta': delta_label, 'delay_hours': effects['delay_hours']},
-                    link=f'/films'
+                    link=film_link
                 )
     except Exception as e:
         logger.error(f"Notification error in interact_coming_soon: {e}")

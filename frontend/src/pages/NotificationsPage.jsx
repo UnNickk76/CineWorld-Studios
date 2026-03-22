@@ -134,8 +134,12 @@ const NotificationsPage = () => {
       setActorPopup(notif.data);
       return;
     }
+    // Direct link - navigate there
     const navPath = notif.link || notif.data?.path;
-    if (navPath) { navigate(navPath); return; }
+    if (navPath) { 
+      navigate(navPath); return; 
+    }
+    // Fallback: type-based routing
     const typeRoutes = {
       'challenge_invite': notif.data?.challenge_id ? `/challenges?accept=${notif.data.challenge_id}` : '/challenges',
       'challenge_won': '/challenges', 'challenge_lost': '/challenges',
@@ -143,20 +147,16 @@ const NotificationsPage = () => {
       'challenge_completed': '/challenges', 'challenge_cancelled': '/challenges',
       'challenge_welcome': '/challenges',
       'offline_battle_result': '/challenges', 'offline_challenge_result': '/challenges',
-      'film_released': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
-      'trailer_ready': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+      'film_released': '/my-films', 'trailer_ready': '/my-films',
       'festival_nomination': '/festivals', 'festival_award': '/festivals',
       'friend_request': '/friends', 'friend_accepted': '/friends',
       'major_invite': '/major',
-      'like': notif.data?.film_id ? `/films/${notif.data.film_id}` : '/social',
-      'like_received': notif.data?.content_id ? `/films` : '/social',
       'private_message': '/chat', 'private_message_received': '/chat',
-      'coming_soon_support': '/films', 'coming_soon_boycott': '/films',
-      'coming_soon_time_change': '/films', 'coming_soon_completed': '/films',
-      'phase_completed': '/films', 'production_problem': '/films',
-      'high_revenue': notif.data?.content_id ? '/films' : '/my-films',
-      'flop_warning': notif.data?.content_id ? '/films' : '/my-films',
-      'film_interaction': '/films',
+      'coming_soon_support': '/create-film', 'coming_soon_boycott': '/create-film',
+      'coming_soon_time_change': '/create-film', 'coming_soon_completed': '/create-film',
+      'phase_completed': '/create-film', 'production_problem': '/create-film',
+      'high_revenue': '/films', 'flop_warning': '/films',
+      'film_interaction': '/create-film', 'like_received': '/films',
       'system': '/release-notes', 'welcome': '/',
     };
     const route = typeRoutes[notif.type];

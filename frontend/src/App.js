@@ -191,17 +191,56 @@ const TopNavbar = () => {
     const festivalInterval = setInterval(fetchFestivalNotifications, 60000);
     
     // Popup notification polling - fetch unread notifications for real-time popups
+    let lastPopupTime = 0;
+    const POPUP_THROTTLE_MS = 7000; // Max 1 popup every 7 seconds
+    
     const fetchPopupNotifications = () => {
       api.get('/notifications/popup').then(r => {
         const notifs = r.data?.notifications || [];
         if (notifs.length > 0) {
-          setPopupNotifications(prev => [...notifs, ...prev].slice(0, 5));
-          // Auto-dismiss after 6 seconds per notification
-          notifs.forEach((n, i) => {
+          const now = Date.now();
+          // Classify by severity
+          const critical = notifs.filter(n => n.severity === 'critical');
+          const medium = notifs.filter(n => n.severity === 'important');
+          const soft = notifs.filter(n => n.severity === 'positive' || !n.severity);
+          
+          // CRITICAL: Show as prominent popup (throttled)
+          if (critical.length > 0 && (now - lastPopupTime > POPUP_THROTTLE_MS)) {
+            lastPopupTime = now;
+            setPopupNotifications(prev => [...critical.slice(0, 2), ...prev].slice(0, 3));
+            critical.forEach((n, i) => {
+              setTimeout(() => {
+                setPopupNotifications(prev => prev.filter(p => p.id !== n.id));
+              }, 8000 + i * 2000);
+            });
+          }
+          
+          // MEDIUM: Show as lightweight toast (throttled, after critical)
+          if (medium.length > 0) {
+            const delay = critical.length > 0 ? POPUP_THROTTLE_MS : 0;
             setTimeout(() => {
-              setPopupNotifications(prev => prev.filter(p => p.id !== n.id));
-            }, 6000 + i * 1500);
-          });
+              if (Date.now() - lastPopupTime > POPUP_THROTTLE_MS || critical.length === 0) {
+                lastPopupTime = Date.now();
+                medium.forEach((n, i) => {
+                  setTimeout(() => {
+                    toast(n.title, { 
+                      description: n.message,
+                      duration: 5000,
+                      action: { label: 'Vai', onClick: () => {
+                        api.post(`/notifications/${n.id}/read`).catch(() => {});
+                        const path = n.link || (n.data?.content_id ? `/films/${n.data.content_id}` : '/notifications');
+                        navigate(path);
+                      }}
+                    });
+                  }, i * 1500);
+                });
+              }
+            }, delay);
+          }
+          
+          // SOFT: Only update badge count (no popup/toast)
+          // Already handled by notification count update below
+          
           // Update notification count
           api.get('/notifications/count').then(r2 => setNotificationCount(r2.data.unread_count)).catch(() => {});
         }
@@ -1004,14 +1043,10 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname.startsWith('/tv-station') ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/tv-stations')} data-testid="bottom-nav-tv">
-          <Radio className="w-4 h-4" />
-          <span className="text-[8px]">TV</span>
-        </button>
         <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
           <Bell className="w-4 h-4" />
           {notificationCount > 0 && <span className="absolute top-0 right-0 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
-          <span className="text-[8px]">Notifiche</span>
+          <span className="text-[8px]">Eventi</span>
         </button>
       </div>
 
@@ -1041,9 +1076,13 @@ const TopNavbar = () => {
               onClick={() => {
                 setPopupNotifications(prev => prev.filter(p => p.id !== notif.id));
                 api.post(`/notifications/${notif.id}/read`).catch(() => {});
-                const navPath = notif.link || notif.data?.path;
-                if (navPath) navigate(navPath);
-                else navigate('/notifications');
+                // Navigate to the link directly
+                const navPath = notif.link;
+                if (navPath) {
+                  navigate(navPath);
+                } else {
+                  navigate('/notifications');
+                }
               }}
               data-testid={`popup-notification-${notif.id}`}
             >

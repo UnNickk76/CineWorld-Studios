@@ -734,9 +734,10 @@ async def auto_release_coming_soon():
                     series['user_id'], 'coming_soon',
                     'Coming Soon Completato!',
                     f'"{series["title"]}" ({type_label}) ha completato il periodo Coming Soon! Puoi ora procedere al Casting.',
-                    data={'series_id': series['id']},
-                    link='/series'
+                    data={'series_id': series['id'], 'content_id': series['id']},
+                    link='/create-series'
                 )
+                notif['severity'] = 'important'
                 await scheduler_db.notifications.insert_one(notif)
                 logger.info(f"Series {series['id']} ({series['title']}) pre_casting Coming Soon completed -> ready_for_casting")
                 continue
@@ -834,9 +835,10 @@ async def auto_release_coming_soon():
                     project['user_id'], 'coming_soon',
                     'Coming Soon Completato!',
                     f'"{project["title"]}" ha completato il periodo Coming Soon! Puoi ora procedere al Casting.',
-                    data={'film_id': project['id']},
-                    link='/films'
+                    data={'film_id': project['id'], 'content_id': project['id']},
+                    link='/create-film'
                 )
+                notif['severity'] = 'important'
                 await scheduler_db.notifications.insert_one(notif)
                 logger.info(f"Film {project['id']} ({project['title']}) pre_casting Coming Soon completed -> ready_for_casting")
                 continue
@@ -1032,11 +1034,12 @@ async def process_coming_soon_dynamic_events():
                 # Send notification to project owner
                 try:
                     from notification_engine import create_game_notification
+                    item_link = '/create-film' if collection_name == 'film_projects' else '/create-series'
                     await create_game_notification(
                         item['user_id'], 'coming_soon_time_change',
                         item['id'], item.get('title', ''),
                         extra_data={'delta': time_label, 'delay_hours': time_change_hours, 'event_text': event_text},
-                        link='/films' if collection_name == 'film_projects' else '/series'
+                        link=item_link
                     )
                 except Exception as ne:
                     logger.error(f"Notification error for dynamic event: {ne}")

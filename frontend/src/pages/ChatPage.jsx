@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { toast } from 'sonner';
 import {
   Send, Users, MessageSquare, X, Heart, Film, Lightbulb, Coffee,
-  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn
+  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn, Trash2
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
 
@@ -560,7 +560,27 @@ const ChatPage = () => {
                                 loading="lazy"
                                 data-testid={`chat-image-${msg.id}`}
                               />
+                              {isOwn && (Date.now() - new Date(msg.created_at).getTime()) < 120000 && (
+                                <button
+                                  className="mt-1 text-[8px] text-red-400/70 hover:text-red-400 transition-colors"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await api.delete(`/chat/messages/${msg.id}/image`);
+                                      setMessages(prev => prev.map(m => m.id === msg.id
+                                        ? { ...m, message_type: 'text', content: 'Immagine eliminata', image_url: null, deleted: true }
+                                        : m
+                                      ));
+                                    } catch (err) { toast.error(err.response?.data?.detail || 'Errore'); }
+                                  }}
+                                  data-testid={`delete-image-${msg.id}`}
+                                >
+                                  <Trash2 className="w-2.5 h-2.5 inline mr-0.5" />Elimina
+                                </button>
+                              )}
                             </div>
+                          ) : msg.deleted ? (
+                            <p className="text-gray-500 italic text-[10px]">{msg.content}</p>
                           ) : <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                           <p className={`text-[9px] mt-0.5 ${isOwn ? 'text-black/40' : 'text-gray-600'}`}>
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

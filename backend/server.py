@@ -9530,6 +9530,37 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
     return {k: v for k, v in message.items() if k != '_id'}
 
 
+@api_router.delete("/chat/messages/{message_id}/image")
+async def delete_chat_image(message_id: str, user: dict = Depends(get_current_user)):
+    """Delete an image message within 2 minutes of sending. Replaces with 'Immagine eliminata'."""
+    msg = await db.chat_messages.find_one({'id': message_id})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato")
+    if msg.get('sender_id') != user.get('id'):
+        raise HTTPException(status_code=403, detail="Puoi eliminare solo i tuoi messaggi")
+    if msg.get('message_type') != 'image':
+        raise HTTPException(status_code=400, detail="Solo le immagini possono essere eliminate")
+
+    # Check 2-minute window
+    created = msg.get('created_at', '')
+    try:
+        created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Timestamp non valido")
+
+    elapsed = (datetime.now(timezone.utc) - created_dt).total_seconds()
+    if elapsed > 120:
+        raise HTTPException(status_code=400, detail="Tempo scaduto (max 2 minuti)")
+
+    # Replace image with deletion notice
+    await db.chat_messages.update_one(
+        {'id': message_id},
+        {'$set': {'message_type': 'text', 'content': 'Immagine eliminata', 'image_url': None, 'deleted': True}}
+    )
+
+    return {'success': True, 'message': 'Immagine eliminata'}
+
+
 # ==================== CHAT IMAGE UPLOAD ====================
 from fastapi import UploadFile, File as FastAPIFile
 

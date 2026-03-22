@@ -9094,6 +9094,56 @@ async def get_online_users(user: dict = Depends(get_current_user)):
     
     return active_users
 
+
+@api_router.get("/users/presence")
+async def get_users_with_presence(user: dict = Depends(get_current_user)):
+    """Get all users with 3-state presence: online (green), recent (yellow), offline (red)."""
+    now = datetime.now(timezone.utc)
+    all_users_db = await db.users.find(
+        {'id': {'$ne': user['id']}},
+        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'last_active': 1}
+    ).limit(200).to_list(200)
+
+    result = []
+    for u in all_users_db:
+        uid = u.get('id')
+        if uid in online_users:
+            last_seen_str = online_users[uid].get('last_seen', '')
+            try:
+                last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                diff = (now - last_seen).total_seconds()
+            except Exception:
+                diff = 9999
+            if diff < 300:
+                u['presence'] = 'online'
+            elif diff < 1800:
+                u['presence'] = 'recent'
+            else:
+                u['presence'] = 'offline'
+        else:
+            u['presence'] = 'offline'
+        result.append(u)
+
+    # Sort: online first, then recent, then offline
+    order = {'online': 0, 'recent': 1, 'offline': 2}
+    result.sort(key=lambda x: (order.get(x['presence'], 3), (x.get('nickname') or '').lower()))
+
+    # Add bots at top
+    bots = []
+    for bot in CHAT_BOTS:
+        bots.append({
+            'id': bot['id'],
+            'nickname': bot['nickname'],
+            'avatar_url': bot['avatar_url'],
+            'is_bot': True,
+            'is_moderator': bot.get('is_moderator', False),
+            'role': bot.get('role', 'bot'),
+            'presence': 'online',
+            'production_house_name': bot.get('role', 'Bot')
+        })
+
+    return {'users': bots + result}
+
 @api_router.get("/chat/bots")
 async def get_chat_bots():
     """Get list of chat moderator bots"""
@@ -10546,9 +10596,10 @@ async def startup_event():
         logging.warning(f"Deploy setup: {e}")
 
     default_rooms = [
-        {'id': 'general', 'name': 'General', 'is_private': False, 'participant_ids': [], 'created_by': 'system'},
-        {'id': 'producers', 'name': 'Producers Lounge', 'is_private': False, 'participant_ids': [], 'created_by': 'system'},
-        {'id': 'box-office', 'name': 'Box Office Talk', 'is_private': False, 'participant_ids': [], 'created_by': 'system'}
+        {'id': 'generale', 'name': 'Generale', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'message-square', 'description': 'Chat libera per tutti i player'},
+        {'id': 'produzioni', 'name': 'Produzioni', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'film', 'description': 'Film, serie TV e anime'},
+        {'id': 'strategie', 'name': 'Strategie', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'lightbulb', 'description': 'Consigli e trucchi di gioco'},
+        {'id': 'offtopic', 'name': 'Off-topic', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'coffee', 'description': 'Chiacchiere libere'},
     ]
     
     for room in default_rooms:
@@ -10556,6 +10607,10 @@ async def startup_event():
         if not existing:
             room['created_at'] = datetime.now(timezone.utc).isoformat()
             await db.chat_rooms.insert_one(room)
+
+    # Remove deprecated public rooms
+    old_room_ids = ['general', 'producers', 'box-office']
+    await db.chat_rooms.delete_many({'id': {'$in': old_room_ids}, 'is_private': False})
     
     # Initialize cast pool if needed (2000 members: 500 actors, 500 directors, 500 screenwriters, 500 composers)
     await initialize_cast_pool_if_needed()

@@ -235,6 +235,16 @@ NOTIFICATION_TYPES = {
         'icon': 'graduation-cap',
         'color': 'yellow',
         'priority': 'high'
+    },
+    'like': {
+        'icon': 'heart',
+        'color': 'red',
+        'priority': 'medium'
+    },
+    'private_message': {
+        'icon': 'message-square',
+        'color': 'blue',
+        'priority': 'high'
     }
 }
 

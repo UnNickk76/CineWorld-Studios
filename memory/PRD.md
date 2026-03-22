@@ -152,6 +152,14 @@ A cinematic empire game where users produce films, manage TV stations, compete i
 - **Frontend AdminPage**: New "Segnalazioni" tab with filter buttons (In attesa/Risolte/Archiviate/Tutte), report cards with type/status badges, snapshot preview, "Rimuovi Contenuto" and "Archivia" action buttons
 - Testing: 16/16 backend + 13/13 frontend tests PASSED (iteration 116)
 
+### Notification System - Like & DM (2026-03-22)
+- **Like notifications**: When a user likes another's film, owner gets notified ("X ha messo like al tuo film") with link to film detail page
+- **Private message notifications**: When a DM is sent, recipient gets notified ("Messaggio da X") with content preview and link to /chat
+- **Throttling**: Only 1 unread DM notification per sender (no spam for multiple messages)
+- **New NOTIFICATION_TYPES**: Added `like` (heart/red) and `private_message` (message-square/blue) to social_system.py
+- **NotificationsPage**: Added icons and smart navigation for `like` → `/films/{id}` and `private_message` → `/chat`
+- **Existing infra reused**: Bell icon + badge count + read/unread states + delete all already functional
+
 ### Bug Fixes
 - TV Dashboard legacy emittente_tv, Infrastructure unique_types, Scout tabs rendering
 - Like endpoint: safe handling of films without user_id (orphan films)

@@ -115,6 +115,8 @@ const NotificationsPage = () => {
       challenge_lost: <Swords className="w-5 h-5 text-red-400" />,
       creator_reply: <Mail className="w-5 h-5 text-purple-400" />,
       acting_school: <GraduationCap className="w-5 h-5 text-yellow-400" />,
+      like: <Heart className="w-5 h-5 text-red-400" />,
+      private_message: <MessageSquare className="w-5 h-5 text-blue-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />
     };
     return icons[type] || icons.system;
@@ -191,6 +193,8 @@ const NotificationsPage = () => {
                         'review_published': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
                         'minigame_challenge': '/games',
                         'box_office_update': notif.data?.film_id ? `/film/${notif.data.film_id}` : '/my-films',
+                        'like': notif.data?.film_id ? `/films/${notif.data.film_id}` : '/social',
+                        'private_message': '/chat',
                         'system': '/release-notes',
                         'welcome': '/',
                       };
@@ -212,7 +216,7 @@ const NotificationsPage = () => {
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400" onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
-                  {(notif.link || notif.data?.path || notif.data?.film_id || ['versus_result','challenge_accepted','challenge_completed','offline_battle_result','offline_challenge_result','offline_challenge_report','film_released','trailer_ready','trailer_generated','festival_nomination','festival_award','friend_request','review_published','minigame_challenge'].includes(notif.type)) && (
+                  {(notif.link || notif.data?.path || notif.data?.film_id || ['versus_result','challenge_accepted','challenge_completed','offline_battle_result','offline_challenge_result','offline_challenge_report','film_released','trailer_ready','trailer_generated','festival_nomination','festival_award','friend_request','review_published','minigame_challenge','like','private_message'].includes(notif.type)) && (
                     <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0 self-center" />
                   )}
                 </div>

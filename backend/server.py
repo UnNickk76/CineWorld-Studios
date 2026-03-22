@@ -8205,6 +8205,18 @@ async def like_film(film_id: str, user: dict = Depends(get_current_user)):
         {'$inc': {'quality_score': quality_change, 'audience_satisfaction': satisfaction_change}}
     )
     
+    # Create notification for film owner
+    if film_owner_id and film_owner_id != user['id']:
+        notif = create_notification(
+            user_id=film_owner_id,
+            notification_type='like',
+            title=f"{user.get('nickname', '?')} ha messo like al tuo film",
+            message=f'"{film.get("title", "?")}" ha ricevuto un nuovo like!',
+            data={'film_id': film_id, 'liker_id': user['id'], 'liker_nickname': user.get('nickname')},
+            link=f'/films/{film_id}'
+        )
+        await db.notifications.insert_one(notif)
+    
     return {'liked': True, 'likes_count': film.get('likes_count', 0) + 1}
 
 @api_router.get("/films/{film_id}/likes")
@@ -9478,9 +9490,32 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
         'sender': {k: v for k, v in user.items() if k not in ['password', '_id', 'email']}
     }, room=msg_data.room_id)
     
-    # Check if bot should respond (for public rooms only)
+    # Create notification for private messages
     room = await db.chat_rooms.find_one({'id': msg_data.room_id})
-    if room and not room.get('is_private', True):
+    if room and room.get('is_private'):
+        # Find the other participant
+        participants = room.get('participant_ids', room.get('participants', []))
+        recipient_id = next((p for p in participants if p != user['id']), None)
+        if recipient_id:
+            # Throttle: only notify if no unread private_message notif from this sender exists
+            existing_notif = await db.notifications.find_one({
+                'user_id': recipient_id,
+                'type': 'private_message',
+                'data.sender_id': user['id'],
+                'read': False
+            })
+            if not existing_notif:
+                content_preview = msg_data.content[:50] if msg_data.content else ('Immagine' if msg_data.message_type == 'image' else '')
+                notif = create_notification(
+                    user_id=recipient_id,
+                    notification_type='private_message',
+                    title=f"Messaggio da {user.get('nickname', '?')}",
+                    message=content_preview or 'Nuovo messaggio',
+                    data={'sender_id': user['id'], 'sender_nickname': user.get('nickname'), 'room_id': msg_data.room_id},
+                    link='/chat'
+                )
+                await db.notifications.insert_one(notif)
+    elif room and not room.get('is_private', True):
         # Bot response triggers
         content_lower = msg_data.content.lower()
         user_lang = user.get('language', 'en')

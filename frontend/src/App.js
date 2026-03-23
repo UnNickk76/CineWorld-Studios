@@ -354,7 +354,7 @@ const TopNavbar = () => {
     { path: '/hq', icon: Swords, label: language === 'it' ? 'Quartier Generale' : 'HQ' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure' },
     { path: '/acting-school', icon: GraduationCap, label: 'acting_school' },
-    { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'In pausa' },
+    { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'Marketplace (Prossimamente)' },
     { path: '/tour', icon: MapPin, label: 'tour' },
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/stars', icon: Star, label: 'discovered_stars' },

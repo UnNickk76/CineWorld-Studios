@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pvp-hq.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://festival-live-1.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "flow_test@test.com"

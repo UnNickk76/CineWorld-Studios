@@ -1,38 +1,39 @@
 <analysis>**original_problem_statement:**
-The user requested a complete overhaul of the game's Player vs. Player (PvP) mechanics, moving away from simple anonymous boycotts to a deep, strategic system based on player-built infrastructures.
+The user has provided a series of feature requests and bug reports throughout the session. The most recent and highest priority request is a complete overhaul of the in-game Festival system.
 
-**PRODUCT REQUIREMENTS:**
-1.  **Infrastructure System:** Create three new upgradeable infrastructures:
-    *   **Investigative HQ:** Allows players to investigate boycotts against them, with a chance to identify the attacker. Has daily usage limits based on its level.
-    *   **Operations Division:** Allows players to launch boycotts and counter-boycott actions. Has daily usage limits based on its level.
-    *   **Legal Department:** Allows players to take legal action against identified attackers. Requires a minimum fame level and Investigative HQ level to unlock.
-2.  **PvP Actions & Costs:**
-    *   All infrastructure upgrades cost a mix of in-game currency ($) and premium currency (CinePass).
-    *   All PvP actions (boycotting, investigating, legal action) cost CinePass.
-3.  **New PvP Loop:**
-    *   **Boycott:** An Operations action against another player.
-    *   **Investigation:** An Investigative action to identify the attacker.
-    *   **Counter-Boycott:** A new set of Operations actions. Can be defensive (reduce effects of an incoming attack, even if anonymous) or offensive (a direct counter-attack against an identified player).
-    *   **Legal Action:** A Legal action against an identified attacker, with a chance of success based on both players' Legal infrastructure levels, fame, and player level.
-        *   **Success:** Causes the target to lose currency, slows their production, and puts them in a temporary PvP cooldown.
-        *   **Failure:** The attacker loses currency and takes a small reputation and production penalty.
-4.  **UI:**
-    *   Create a new, dedicated HQ (Headquarters) page accessible from the main navigation bar to manage and upgrade these new infrastructures.
-
-This follows two major completed tasks in this session:
-1.  **Film Production UX Redesign:** Replaced the old tab-based system with a modern, film-centric popup UI.
-2.  **Notification System Overhaul:** Made notifications more narrative, showing time changes in minutes and adding descriptive titles for events and boycotts.
+**PRODUCT REQUIREMENTS (Festival System Overhaul):**
+1.  **General Structure:** Festivals should run on the 10th of each month, featuring one player-voted Oscar-style festival and two automatic, system-judged festivals.
+2.  **Player Festival (Oscar-Style):**
+    *   **Automatic Nominations:** Films are automatically nominated based on quality, rating, revenue, cast skills, and genre.
+    *   **Categories:** Best Film, Director, Actor, Actress, Screenplay, Production, and Best Surprise.
+    *   **Voting Mechanic:** Players vote using Likes, with vote weight based on player level/fame and daily voting limits to prevent abuse.
+3.  **Automatic Festivals:** Two system-run festivals based on technical scores (quality, performance, efficiency) with no player voting.
+4.  **Night of the Oscars UI (WOW Effect):**
+    *   **Pre-Event:** A dedicated page with a large countdown, animated banners, and visible nominations to build hype.
+    *   **Live Event:** A Live mode that presents awards category by category with suspenseful animations (e.g., opening an envelope), stage lighting, and cinematic sounds.
+    - **Post-Event:** A replay feature, a history of winners, and badges displayed on player profiles.
+5.  **Prizes & Motivation:**
+    *   **Standard Prizes:** In-game currency ($), XP, and premium currency (CinePass).
+    *   **Iconic Prizes:** Prestigious awards like Palma d’Oro CineWorld that grant small permanent bonuses (e.g., to future film quality/hype) and a visible badge.
+6.  **Player-Created Festivals (Endgame):**
+    *   Restore and enhance the existing system for players to create their own festivals.
+    *   High cost (money + CinePass) to create, with custom names and categories.
+    *   The creator earns a percentage of the entry fees paid by participants.
+7.  **Integration:**
+    *   A dedicated Festival section in the UI showing active events, countdowns, and history.
+    *   Player profiles should display awards.
+    *   Notifications for nominations and wins.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game. In this session, the agent completed a massive UX overhaul for the film production pipeline, replacing a tab-based system with a more immersive film card/popup design. A bug that caused the popup to break mobile layouts was also fixed. The notification system was significantly enhanced to be more narrative and descriptive. The backend now supports different boycott types, investigation, and narrative event descriptions. The agent has just begun work on the new, infrastructure-based PvP system by creating a new file for the backend routes.
+The application is a full-stack cinematic empire game built with React, FastAPI, and MongoDB. In this session, the agent successfully implemented a multi-phase PvP infrastructure system, including a new Headquarters page for management and integrating the purchase flow into the existing Infrastructures board. Several critical bugs were fixed, including one that blocked game progression ( state) and two others that broke the Fame calculation and the display of cast member skills. The UI was also enhanced with an updated tutorial, new copy on the login page, and a revised navigation bar. The agent has just begun investigating the existing codebase for the Festival system in response to a major overhaul request from the user.
 
 **Last working item**:
--   **Last item agent was working:** Setting up the backend for the new Infrastructure-based PvP system. The agent determined that the existing  was for a different system (physical buildings) and created a new, more appropriate file for the PvP logic.
+-   **Last item agent was working:** Investigating the existing Festival system to plan a complete overhaul. The agent has identified the relevant backend endpoints in  and the frontend page  and was in the process of understanding the current implementation to formulate a phased plan.
 -   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** backend testing agent
+-   **Which testing method agent to use?** both
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
@@ -40,49 +41,47 @@ The application is a full-stack cinematic empire game. In this session, the agen
 
 **Issues Detail:**
 -   **Issue 1: Contest Page Mobile Layout Is Broken**
-    -   **Attempted fixes:** None in this or recent sessions.
+    -   **Attempted fixes:** None. The user explicitly de-prioritized this fix in message #61 (No fix contest).
     -   **Next debug checklist:** Inspect the CSS for responsive design issues in .
     -   **Why fix this issue and what will be achieved with the fix?** To improve the user experience on mobile devices.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** frontend
-    -   **Blocked on other issue:** none
+    -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1: Implement PvP Infrastructure System** (P0)
-    -   **Where to resume:** The file  has just been created. The next step is to implement the data models and API endpoints inside this file for managing the three new infrastructures (Investigative, Operative, Legal) as per the user's requirements. This includes GET endpoints to view levels/costs and POST endpoints for upgrades.
-    -   **What will be achieved with this?** This will create the foundational backend for the entire new PvP system.
+-   **Task 1: Festival System Overhaul** (P0)
+    -   **Where to resume:** The agent has confirmed a substantial amount of code for the festival system already exists. The next step is to present a phased plan to the user based on their detailed WOW Effect requirements, breaking down the work into: 1. Backend logic for new nomination/voting systems, 2. Frontend Live Ceremony UI, 3. Player-created festival enhancements.
+    -   **What will be achieved with this?** This will transform a legacy feature into a core, engaging endgame event for the application.
     -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** backend
+    -   **Should Test frontend/backend/both after fix?** both
     -   **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P0) **PvP System - Phase 2 (Backend):** Implement the logic for Legal Action and Counter-Boycott in .
-    -   (P0) **PvP System - Phase 3 (Frontend):** Build the new HQ page () to display and upgrade the PvP infrastructures.
-    -   (P0) **PvP System - Phase 4 (Integration):** Integrate the new PvP actions (Investigate, Legal Action) into the UI, likely within the  and  components.
-    -   (P1) **Chat Evolution - Step 6:** Rifinitura mobile e qualità social.
     -   (P1) **Marketplace for TV/Anime rights:** Create a system for players to trade content rights.
+    -   (P1) **Chat Evolution - Step 6:** Rifinitura mobile e qualità social.
 -   **Future Tasks:**
     -   (P2) RBAC, CinePass + Stripe, PWA, Tutorial.
     -   (P3) Scommesse sui Coming Soon.
     -   (P3) Eventi globali, Push notifications, Guerre tra Major.
 
 **Completed work in this session**
--   **Film Production UX Redesign:**
-    -   Replaced the multi-tab  with a unified list of  components.
-    -   Created a central  component to manage all stages of a film's production in a single, immersive view.
-    -   Updated  so that film-related notifications navigate directly to the specific film's popup.
--   **Mobile Popup Layout Fix:**
-    -   Adjusted the CSS in  to make the popup responsive and prevent it from overflowing the screen on mobile devices.
--   **Notification & Events System Enhancement:**
-    -   Backend logic in  and  was updated to calculate time changes in minutes instead of decimal hours.
-    -    was overhauled to support richer, narrative event descriptions, boycott types, and a CineWorld News source.
-    -   A new backend endpoint  was created to support the new Investigate feature.
-    -   The frontend  and  were updated to render the new detailed, narrative-style notifications.
+-   **PvP Infrastructure System & UX Revision:** Implemented backend () and frontend () for the 3 PvP divisions. The purchase flow was moved from the HQ page to the main  to unify the user experience.
+-   **PvP Actions Integration:** Integrated PvP actions (Investigate, Defend, Counter-Attack) into the  component and updated  to route PvP-related alerts to the HQ.
+-   **CRITICAL BUG FIX: Film Progression Block:** Fixed a bug in  and  where films in the  state would get stuck. The fix included robust fallbacks for legacy data that might be missing the  field.
+-   **CRITICAL BUG FIX: Fame & Cast Skills:**
+    -   **Fame:** Fixed a bug causing Fame to display as 0. Implemented a  endpoint in  and ensured Fame is always handled as an integer across the backend.
+    -   **Cast Skills:** Restored the detailed cast skill display (including stats, stars, agency, and an expandable skill list) in the  casting step.
+-   **Tutorial V2.0:** Created a new, comprehensive  component and added a trigger button for it on the .
+-   **UI/UX Enhancements:** Updated the login page subtitle for better engagement and added a new Sfide (Challenges) icon to the mobile bottom navigation bar in .
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: ESLint Warning in NotificationsPage.jsx:** The  hook on line 34 of  has a missing dependency (). This should be fixed to prevent potential stale closures.
+-   **Issue 1: ESLint Warning in NotificationsPage.jsx**
+    -   **Debug checklist:** The  hook on line 34 of  has a missing dependency (). This should be added to the dependency array.
+    -   **Why to solve this issue and what will be achieved with this?** To prevent potential stale closures and adhere to React best practices.
+    -   **Should Test frontend/backend/both after fix:** frontend
+    -   **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence in previous fork:** Contest Page Mobile Layout Is Broken
@@ -93,56 +92,64 @@ The application is a full-stack cinematic empire game. In this session, the agen
 
 
 **Key Technical Concepts**
--   **UI/UX Overhaul:** Shifted from a page/tab-based navigation model to a centralized, component-driven popup model for the core gameplay loop.
--   **Backend Module Encapsulation:** Started moving specific game system logic (PvP) out of the monolithic  into dedicated route files like .
--   **Data-Driven Narrative:** Enhanced the notification system to use more detailed data from the backend to generate immersive, narrative-style frontend messages rather than just displaying raw data.
+-   **UX Unification:** Moving the purchase logic for a new feature (PvP Infrastructure) into an existing, familiar user flow (the main Infrastructure board) instead of keeping it on its own page.
+-   **Robust Bug Fixing:** When fixing the stuck film bug, the agent added backward-compatible logic to handle old data that was missing the  field, preventing the bug from recurring with legacy items.
+-   **Data Integrity & Recovery:** Implemented a dedicated API endpoint () to allow for on-demand correction of a critical game statistic (Fame) and integrated it into the login flow for auto-correction.
+-   **Componentization:** Created a reusable  with its own state management, allowing it to be easily integrated into the  and potentially other areas of the app in the future.
 
 **key DB schema**
--   **user_interactions:** This collection was modified to store  and  to support the new investigation mechanic.
--   **New Collection/Fields Needed:** The PvP infrastructure system will require new storage. This will likely be a new collection  or new fields added to the  collection to store the levels of the , , and  infrastructures for each user.
+-   **users:** The  field is now always stored as an integer. A  object is added upon purchasing the corresponding infrastructure to unlock features.
+-   **infrastructure:** Now stores records for , , and  types.
+-   **film_projects:** Logic now correctly handles documents that may be missing the  field.
+-   **(Existing) festivals, festival_editions, festival_votes:** These collections are part of the existing system that is the target of the new overhaul request.
 
 **All files of reference**
--    (New file for PvP logic)
--    (New core UI component)
--    (New UI component)
--    (Heavily refactored)
--    (Updated for new notification format)
--    (Refactored)
--    (Updated)
--    (Updated)
--    (Updated)
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
 
 **Areas that need refactoring**
--   The  file remains extremely large. The creation of  is a good first step, but more logic could be extracted from  into dedicated modules to improve maintainability.
+-    is still a very large file, though some logic continues to be moved into dedicated route files (). More opportunities exist for modularization.
 
 **key api endpoints**
--   **POST **: (Newly created) Endpoint to start an investigation on a boycott.
--   **POST **: (To be created) Endpoint to handle upgrading the new PvP infrastructures.
--   **GET **: (To be created) Endpoint to get the current status and levels of a player's PvP infrastructures.
--   **POST **: (To be created) Endpoint to launch a legal case against an identified player.
+-   **POST **: (New) Recalculates and updates a user's fame based on their film history.
+-   **GET **: (Modified) Now includes logic to auto-recalculate fame if it's zero.
+-   **GET **: (Modified) Now returns the three new PvP infrastructure types.
+-   **POST **: (Modified) Now handles the purchase of non-city-based PvP infrastructures and updates the user's .
+-   **GET **: (Existing) The primary endpoint for the festival system overhaul.
+-   **GET **: (Existing) Endpoint for the live show feature that needs to be enhanced.
 
 **Critical Info for New Agent**
 -   **You MUST respond in Italiano.**
--   The highest priority is to continue the implementation of the new PvP Infrastructure system.
--   You must start by populating the newly created  file with the necessary Pydantic models and FastAPI endpoints for managing the three new infrastructures (Investigative, Operative, Legal), as per the user's detailed specifications.
--   Remember that infrastructure upgrades cost both  and .
+-   The highest priority is the **Festival System Overhaul**.
+-   **Do not build from scratch.** A large, complex festival system already exists in the codebase (, ). Your task is to **understand and evolve** this existing system to meet the user's new, detailed WOW Effect requirements.
+-   You have just started the discovery phase. Your immediate next step should be to use  to present a phased plan to the user for this large feature, confirming your understanding before writing any code.
 
 **documents and test reports created in this job**
 -   
 -   
 -   
+-    (Continuously updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports the new film popup breaks the layout on mobile. (COMPLETED)
-2.  **User:** Requests a major enhancement to the notification system to make it narrative and immersive. (COMPLETED)
-3.  **Agent:** Asks for confirmation to proceed with notification enhancements.
-4.  **User:** Approves (). (HANDLED)
-5.  **Agent:** Finishes the notification system overhaul.
-6.  **User:** Proposes a new, large feature: an infrastructure-based PvP system (Investigative, Operative, Legal departments).
-7.  **Agent:** Asks clarifying questions about the new PvP system (upgrade costs, counter-boycott mechanics, UI).
-8.  **User:** Provides detailed answers: hybrid currency costs for upgrades, defensive/offensive counter-boycotts, and a new dedicated HQ page for the UI. (HANDLED)
-9.  **Agent:** Confirms understanding and plans the implementation in phases.
-10. **Agent:** Starts implementation by creating the  file.
+1.  **User (Message #451):** Submits a very large and detailed feature request to completely overhaul the in-game Festival system, focusing on an Oscar-style live event, new prize structures, and player-created festivals. (PENDING IMPLEMENTATION)
+2.  **Assistant (Message #452):** Acknowledges the large request and begins investigating the existing codebase.
+3.  **Assistant (Message #454-457):** Identifies existing backend and frontend files related to the festival system (, ).
+4.  **Assistant (Message #458):** Confirms that a large system already exists and asks the user for approval to proceed with the evolution plan.
+5.  **User (Message #460):** Approves. () (HANDLED)
+6.  **Assistant (Message #461):** Acknowledges approval and begins a deep dive into the existing backend code for the festival system.
+7.  **Assistant (Messages #462-468):** Views multiple sections of  and  to understand the data models ( dictionary), API endpoints (, , etc.), and frontend structure. (IN PROGRESS)
 
 **Project Health Check:**
 -   **Broken:** None
@@ -155,9 +162,9 @@ The application is a full-stack cinematic empire game. In this session, the agen
 -   **Framer Motion:** Used for UI animations on the frontend.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (x2). Tested the Film Popup UX redesign and the Notification System overhaul, both with 100% pass rates.
+-   **Testing agent used after significant changes:** YES. Used successfully to validate the PvP Infrastructure implementation, PvP integrations, and the major bug fixes for Fame/Casting.
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None.
+-   **Test files created:** None by the main agent.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
@@ -165,4 +172,4 @@ The application is a full-stack cinematic empire game. In this session, the agen
 -   **password:** 
 
 **What agent forgot to execute**
--   A minor ESLint warning in  (line 34,  missing dependency ) was noted but not fixed.</analysis>
+-   The minor ESLint warning in  (missing  dependency) was identified in the initial handoff and remains unfixed.</analysis>

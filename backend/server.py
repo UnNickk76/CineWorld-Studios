@@ -10056,6 +10056,17 @@ COMING_SOON_AUTO_COMMENTS = [
 COMING_SOON_DAILY_LIMIT = 3
 COMING_SOON_INTERACT_COST = 1  # CinePass
 
+BOYCOTT_TYPES = [
+    {"id": "social_campaign", "name": "Campagna social negativa", "desc": "Una campagna virale sui social sta danneggiando la reputazione del progetto."},
+    {"id": "actor_leaving", "name": "Attore convinto a lasciare", "desc": "Qualcuno ha convinto un membro del cast ad abbandonare il progetto."},
+    {"id": "fake_reviews", "name": "Recensioni pilotate", "desc": "Recensioni false stanno inquinando la percezione pubblica del film."},
+    {"id": "leaked_spoilers", "name": "Spoiler diffusi intenzionalmente", "desc": "Trame e colpi di scena sono stati diffusi online per rovinare l'attesa."},
+    {"id": "rival_sabotage", "name": "Sabotaggio da rivale", "desc": "Un produttore rivale sta lavorando nell'ombra per affossare il progetto."},
+    {"id": "media_manipulation", "name": "Manipolazione mediatica", "desc": "Articoli negativi pilotati appaiono su testate influenti del settore."},
+    {"id": "influencer_attack", "name": "Attacco di influencer", "desc": "Influencer popolari stanno criticando il progetto senza averlo visto."},
+]
+INVESTIGATE_COST = 5  # CinePass
+
 
 class ComingSoonInteractRequest(BaseModel):
     action: str  # 'support' or 'boycott'
@@ -10147,6 +10158,9 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
         protection = 1.0 - quality_shield - hype_shield
         protection = max(0.2, protection)
 
+        # Pick random boycott type
+        boycott_info = random.choice(BOYCOTT_TYPES)
+
         if roll < 0.45:  # 45% success
             outcome = 'success'
             raw_hype_loss = int(2 * diminish * protection)
@@ -10155,7 +10169,7 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
             remaining_cap = 10 - total_boycott_penalty
             effects['quality_mod'] = -min(raw_quality, remaining_cap)
             effects['delay_hours'] = round(0.5 * diminish * protection, 1)  # Add delay
-            news_text = random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
+            news_text = f"{boycott_info['name']}: " + random.choice(COMING_SOON_NEWS_NEGATIVE).format(title=title)
         elif roll < 0.75:  # 30% failure
             outcome = 'failure'
             news_text = random.choice(COMING_SOON_NEWS_NEUTRAL).format(title=title)
@@ -10202,7 +10216,7 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
                 update_ops['$set']['scheduled_release_at'] = new_release.isoformat()
             except Exception:
                 pass
-        delay_label = f"+{effects['delay_hours']}h" if effects['delay_hours'] > 0 else f"{effects['delay_hours']}h"
+        delay_label = f"+{round(abs(effects['delay_hours']) * 60)} min" if effects['delay_hours'] > 0 else f"-{round(abs(effects['delay_hours']) * 60)} min"
         news_text += f" ({delay_label})"
 
     # Ensure hype doesn't go below 0
@@ -10221,6 +10235,10 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
                 'negative' if outcome == 'success' and req.action == 'boycott' else
                 'backfire' if outcome == 'backfire' else 'neutral',
         'effect_hours': effects['delay_hours'],
+        'effect_minutes': round(abs(effects['delay_hours']) * 60) * (1 if effects['delay_hours'] > 0 else -1) if effects['delay_hours'] else 0,
+        'boycott_type': boycott_info['id'] if req.action == 'boycott' and 'boycott_info' in dir() else None,
+        'boycott_name': boycott_info['name'] if req.action == 'boycott' and 'boycott_info' in dir() else None,
+        'source': 'CineWorld News',
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     update_ops.setdefault('$push', {})['news_events'] = {'$each': [news_event], '$slice': -20}
@@ -10236,11 +10254,16 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
 
     # Track interaction
     interaction = {
+        'id': str(uuid.uuid4()),
         'user_id': user['id'],
+        'user_nickname': user.get('nickname', 'Anonimo'),
         'content_id': content_id,
         'action': req.action,
         'outcome': outcome,
         'effects': effects,
+        'boycott_type': boycott_info['id'] if req.action == 'boycott' and 'boycott_info' in dir() else None,
+        'boycott_name': boycott_info['name'] if req.action == 'boycott' and 'boycott_info' in dir() else None,
+        'investigated': False,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     await db.coming_soon_interactions.insert_one(interaction)
@@ -10259,20 +10282,36 @@ async def interact_coming_soon(content_id: str, req: ComingSoonInteractRequest, 
             if req.action == 'support' and outcome == 'success':
                 await create_game_notification(
                     owner_id, 'coming_soon_support', content_id, title,
-                    extra_data={'hype_change': effects['hype']},
+                    extra_data={'hype_change': effects['hype'], 'project_id': content_id},
                     link=film_link
                 )
             elif req.action == 'boycott' and outcome == 'success':
+                boycott_type_name = boycott_info['name'] if 'boycott_info' in dir() else 'sabotaggio anonimo'
                 await create_game_notification(
                     owner_id, 'coming_soon_boycott', content_id, title,
-                    extra_data={'hype_change': effects['hype']},
+                    extra_data={
+                        'hype_change': effects['hype'],
+                        'boycott_type': boycott_type_name,
+                        'boycott_id': boycott_info['id'] if 'boycott_info' in dir() else None,
+                        'project_id': content_id,
+                    },
                     link=film_link
                 )
             if effects['delay_hours'] != 0:
-                delta_label = f"+{effects['delay_hours']}h" if effects['delay_hours'] > 0 else f"{effects['delay_hours']}h"
+                delay_min = round(abs(effects['delay_hours']) * 60)
+                delta_label = f"+{delay_min} min" if effects['delay_hours'] > 0 else f"-{delay_min} min"
+                effect_type = 'negative' if effects['delay_hours'] > 0 else 'positive'
                 await create_game_notification(
                     owner_id, 'coming_soon_time_change', content_id, title,
-                    extra_data={'delta': delta_label, 'delay_hours': effects['delay_hours']},
+                    extra_data={
+                        'delta': delta_label,
+                        'delay_hours': effects['delay_hours'],
+                        'effect_minutes': delay_min if effects['delay_hours'] > 0 else -delay_min,
+                        'event_type': effect_type,
+                        'event_title': boycott_type_name if req.action == 'boycott' and 'boycott_info' in dir() else ('Supporto fan' if req.action == 'support' else 'Evento'),
+                        'source': 'CineWorld News',
+                        'project_id': content_id,
+                    },
                     link=film_link
                 )
     except Exception as e:
@@ -10387,6 +10426,79 @@ def _calc_project_status(content):
     elif pos_count > neg_count:
         return 'promettente'
     return 'stabile'
+
+
+@api_router.post("/coming-soon/{content_id}/investigate-boycott")
+async def investigate_boycott(content_id: str, user: dict = Depends(get_current_user)):
+    """Pay CinePass to investigate who boycotted your content."""
+    # Check ownership
+    content, collection_name = await _find_coming_soon_content(content_id)
+    if not content:
+        # Also check non-CS content
+        content = await db.film_projects.find_one({'id': content_id, 'user_id': user['id']}, {'_id': 0})
+        if not content:
+            content = await db.tv_series.find_one({'id': content_id, 'user_id': user['id']}, {'_id': 0})
+        if not content:
+            raise HTTPException(404, "Contenuto non trovato")
+    
+    if content.get('user_id') != user['id']:
+        raise HTTPException(403, "Solo il proprietario puo' investigare")
+    
+    # Check CinePass
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+    if (u.get('cinepass', 0) or 0) < INVESTIGATE_COST:
+        raise HTTPException(400, f"Servono {INVESTIGATE_COST} CinePass per investigare")
+    
+    # Find uninvestigated boycott interactions
+    boycotts = await db.coming_soon_interactions.find(
+        {'content_id': content_id, 'action': 'boycott', 'outcome': 'success', 'investigated': {'$ne': True}},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(10)
+    
+    if not boycotts:
+        raise HTTPException(400, "Nessun boicottaggio da investigare")
+    
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -INVESTIGATE_COST}})
+    
+    # Chance-based investigation (70% success)
+    success = random.random() < 0.70
+    
+    if success:
+        # Reveal the most recent boycotter
+        target = boycotts[0]
+        boycotter_id = target.get('user_id')
+        boycotter = await db.users.find_one({'id': boycotter_id}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+        
+        # Mark as investigated
+        if target.get('id'):
+            await db.coming_soon_interactions.update_one(
+                {'id': target['id']}, {'$set': {'investigated': True}}
+            )
+        
+        return {
+            'success': True,
+            'investigated': True,
+            'found': True,
+            'saboteur': {
+                'nickname': (boycotter or {}).get('nickname', 'Sconosciuto'),
+                'production_house': (boycotter or {}).get('production_house_name', ''),
+            },
+            'boycott_type': target.get('boycott_name', 'Sabotaggio'),
+            'message': f"Indagine completata! Il responsabile e' {(boycotter or {}).get('nickname', 'Sconosciuto')}.",
+            'cost': INVESTIGATE_COST,
+            'remaining_boycotts': len(boycotts) - 1,
+        }
+    else:
+        return {
+            'success': True,
+            'investigated': True,
+            'found': False,
+            'message': "L'indagine non ha portato risultati concreti. Il sabotatore resta nell'ombra.",
+            'cost': INVESTIGATE_COST,
+            'remaining_boycotts': len(boycotts),
+        }
+
 
 
 # ==================== COMING SOON SPEED-UP ====================

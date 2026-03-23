@@ -3,7 +3,7 @@ import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward } from 'lucide-react';
+import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -57,9 +57,28 @@ function NewsEvent({ event }) {
     neutral: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
   };
   const c = typeColors[event.type] || typeColors.neutral;
+  const hasTitle = event.title && event.title !== event.text;
+  const hasMinutes = event.effect_minutes != null && event.effect_minutes !== 0;
+  const isCineWorldNews = event.source === 'CineWorld News';
+
   return (
-    <div className={`px-2 py-1 rounded text-[9px] border ${c}`} data-testid="news-event">
-      {event.text}
+    <div className={`px-2 py-1.5 rounded text-[9px] border ${c}`} data-testid="news-event">
+      {isCineWorldNews && (
+        <span className="text-[7px] font-bold tracking-wider uppercase text-yellow-400/70 block mb-0.5">CineWorld News</span>
+      )}
+      {hasTitle ? (
+        <>
+          <span className="font-semibold">{event.title}</span>
+          {event.desc && <span className="block text-[8px] opacity-70 italic mt-0.5">"{event.desc}"</span>}
+          {hasMinutes && (
+            <span className={`block mt-0.5 font-bold ${event.effect_minutes > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {event.effect_minutes > 0 ? '+' : ''}{event.effect_minutes} min
+            </span>
+          )}
+        </>
+      ) : (
+        <span>{event.text}</span>
+      )}
     </div>
   );
 }
@@ -70,6 +89,7 @@ function ComingSoonCard({ item, api, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [interacting, setInteracting] = useState(null);
   const [speedingUp, setSpeedingUp] = useState(false);
+  const [investigating, setInvestigating] = useState(false);
   const [localHype, setLocalHype] = useState(item.hype_score || 0);
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
@@ -302,6 +322,31 @@ function ComingSoonCard({ item, api, onRefresh }) {
                 {details?.is_own_content && (
                   <div className="space-y-1.5">
                     <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
+                    {details.boycott_count > 0 && (
+                      <Button size="sm"
+                        className="w-full bg-amber-600/80 hover:bg-amber-600 text-white text-[10px] h-7"
+                        disabled={investigating}
+                        onClick={async () => {
+                          setInvestigating(true);
+                          try {
+                            const res = await api.post(`/coming-soon/${item.id}/investigate-boycott`);
+                            if (res.data.found) {
+                              toast.success(
+                                `Sabotatore trovato: ${res.data.saboteur.nickname}${res.data.saboteur.production_house ? ` (${res.data.saboteur.production_house})` : ''} - ${res.data.boycott_type}`,
+                                { duration: 8000 }
+                              );
+                            } else {
+                              toast.error(res.data.message, { duration: 5000 });
+                            }
+                          } catch (e) {
+                            toast.error(e.response?.data?.detail || 'Errore investigazione');
+                          } finally { setInvestigating(false); }
+                        }}
+                        data-testid={`investigate-btn-${item.id}`}>
+                        {investigating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
+                        Indaga Sabotaggio (5 CP)
+                      </Button>
+                    )}
                     {details.coming_soon_speedup_cap > 0 && details.coming_soon_speedup_used < details.coming_soon_speedup_cap && (
                       <Button size="sm"
                         className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-[10px] h-7"

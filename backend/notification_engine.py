@@ -25,29 +25,32 @@ TEMPLATES = {
         'severity': SEVERITY_POSITIVE,
         'icon': 'flame',
         'color': 'green',
+        'source': 'CineWorld News',
         'templates': [
-            '"{title}" sta attirando attenzione! Nuovo supporto ricevuto.',
-            'Il tuo progetto "{title}" sta facendo parlare tutti!',
-            'Hype in crescita per "{title}"! I fan sono entusiasti.',
+            'I fan supportano "{title}"! L\'hype e\' in crescita.',
+            'Ondata di entusiasmo per "{title}"! La community e\' con te.',
+            'Hype in crescita per "{title}"! I social parlano del tuo progetto.',
         ]
     },
     'coming_soon_boycott': {
         'severity': SEVERITY_CRITICAL,
         'icon': 'alert-triangle',
         'color': 'red',
+        'source': 'CineWorld News',
         'templates': [
-            'Problemi per "{title}": qualcuno sta boicottando il progetto!',
-            'Attenzione! "{title}" ha ricevuto un boicottaggio.',
-            'Il tuo film "{title}" e\' sotto attacco! Boicottaggio in corso.',
+            '{boycott_type} contro "{title}"! Il progetto e\' sotto attacco.',
+            'Boicottaggio in corso: {boycott_type} colpisce "{title}".',
+            'Attenzione! "{title}" subisce un {boycott_type}.',
         ]
     },
     'coming_soon_time_change': {
         'severity': SEVERITY_IMPORTANT,
         'icon': 'clock',
         'color': 'orange',
+        'source': 'CineWorld News',
         'templates': [
-            'Evento imprevisto per "{title}": il timer e\' cambiato di {delta}!',
-            'Breaking news: la data di uscita di "{title}" e\' stata modificata ({delta}).',
+            '{event_title}: la data di uscita di "{title}" cambia di {delta}.',
+            'CineWorld News: {event_title}. Timer di "{title}" modificato ({delta}).',
         ]
     },
     'coming_soon_completed': {
@@ -238,11 +241,13 @@ async def create_game_notification(
         'color': template_info['color'],
         'severity': severity,
         'priority': 'high' if severity == SEVERITY_CRITICAL else 'medium' if severity == SEVERITY_IMPORTANT else 'low',
+        'source': template_info.get('source', None),
         'data': {
             'event_type': event_type,
             'content_id': content_id or '',
             'content_title': content_title,
             'group_count': 1,
+            'project_id': (extra_data or {}).get('project_id', content_id or ''),
             **(extra_data or {})
         },
         'link': link,
@@ -273,6 +278,9 @@ def _render_template(event_type: str, title: str, data: dict = None) -> str:
         'delta': data.get('delta', ''),
         'percent': str(data.get('percent', '')),
         'cost': f"{data.get('cost', 0):,}",
+        'event_title': data.get('event_title', 'Evento imprevisto'),
+        'event_desc': data.get('event_desc', ''),
+        'boycott_type': data.get('boycott_type', 'sabotaggio anonimo'),
     }
     
     for key, val in replacements.items():
@@ -283,7 +291,7 @@ def _render_template(event_type: str, title: str, data: dict = None) -> str:
 
 def _get_critical_title(event_type: str) -> str:
     titles = {
-        'coming_soon_boycott': 'Boicottaggio!',
+        'coming_soon_boycott': 'Sabotaggio!',
         'production_problem': 'Problema Produzione!',
         'flop_warning': 'Box Office in Calo!',
     }

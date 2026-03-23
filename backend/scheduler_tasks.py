@@ -954,29 +954,36 @@ async def auto_release_coming_soon():
 
 # ==================== DYNAMIC COMING SOON EVENTS ====================
 
+# ==================== DYNAMIC COMING SOON EVENTS ====================
+
 DYNAMIC_EVENTS_NEGATIVE = [
-    ("Ritardi nella produzione", 0.10),
-    ("Problemi con il casting", 0.08),
-    ("Il regista ha dei dubbi", 0.05),
-    ("Budget in pericolo", 0.12),
-    ("Location non disponibile", 0.06),
-    ("Problemi tecnici sul set", 0.07),
+    {"title": "Ritardi nella produzione", "desc": "Problemi logistici causano ritardi imprevisti. Il team sta lavorando per recuperare.", "mod": 0.10},
+    {"title": "Problemi con il casting", "desc": "Uno degli attori potrebbe non essere disponibile. Si cercano alternative.", "mod": 0.08},
+    {"title": "Il regista ha dei dubbi", "desc": "Il regista vuole riscrivere alcune scene chiave. Servira' piu' tempo.", "mod": 0.05},
+    {"title": "Budget in pericolo", "desc": "I costi stanno superando le previsioni. La produzione deve rallentare.", "mod": 0.12},
+    {"title": "Location non disponibile", "desc": "La location principale e' stata chiusa per manutenzione. Si cerca un'alternativa.", "mod": 0.06},
+    {"title": "Problemi tecnici sul set", "desc": "Un guasto alle attrezzature rallenta le riprese. I tecnici sono al lavoro.", "mod": 0.07},
+    {"title": "Maltempo sul set", "desc": "Condizioni meteo avverse costringono a sospendere le riprese esterne.", "mod": 0.06},
+    {"title": "Sciopero dei trasporti", "desc": "Lo sciopero impedisce al cast di raggiungere il set in tempo.", "mod": 0.05},
 ]
 
 DYNAMIC_EVENTS_POSITIVE = [
-    ("Hype virale sui social!", -0.10),
-    ("Trailer esplosivo!", -0.08),
-    ("Cast molto apprezzato", -0.06),
-    ("Anticipazioni entusiasmano i fan", -0.05),
-    ("Critico famoso elogia il progetto", -0.07),
-    ("Partnership pubblicitaria importante", -0.04),
+    {"title": "Hype virale sui social!", "desc": "Un post sul film e' diventato virale! Milioni di visualizzazioni in poche ore.", "mod": -0.10},
+    {"title": "Trailer esplosivo!", "desc": "Il primo teaser ha fatto impazzire i fan. Record di visualizzazioni!", "mod": -0.08},
+    {"title": "Cast molto apprezzato", "desc": "La scelta del cast e' stata accolta con entusiasmo dalla critica specializzata.", "mod": -0.06},
+    {"title": "Anticipazioni entusiasmano i fan", "desc": "Le prime immagini dal set hanno acceso l'entusiasmo della community.", "mod": -0.05},
+    {"title": "Critico famoso elogia il progetto", "desc": "Un noto critico cinematografico ha definito il progetto 'imperdibile'.", "mod": -0.07},
+    {"title": "Partnership pubblicitaria importante", "desc": "Un grande brand vuole associarsi al film. Finanziamenti extra in arrivo!", "mod": -0.04},
+    {"title": "Location perfetta trovata!", "desc": "Una location spettacolare e' stata trovata. Le riprese saranno mozzafiato!", "mod": -0.05},
+    {"title": "Colonna sonora virale", "desc": "Il brano principale del film sta scalando le classifiche musicali!", "mod": -0.06},
 ]
 
 DYNAMIC_EVENTS_RARE = [
-    ("Scandalo: attore principale lascia il progetto!", 0.30, 'negative'),
-    ("VIRAL: il progetto esplode su internet!", -0.25, 'positive'),
-    ("Controversia mediatica aumenta l'attenzione!", -0.15, 'backfire'),
-    ("Problemi legali rallentano tutto", 0.20, 'negative'),
+    {"title": "Scandalo: attore principale lascia il progetto!", "desc": "L'attore principale ha abbandonato il set per divergenze creative. Si cerca un sostituto d'emergenza.", "mod": 0.30, "type": "negative"},
+    {"title": "VIRAL: il progetto esplode su internet!", "desc": "Un leak delle prime scene ha fatto esplodere l'hype globale. Tutti ne parlano!", "mod": -0.25, "type": "positive"},
+    {"title": "Controversia mediatica aumenta l'attenzione!", "desc": "Una polemica ha acceso i riflettori sul progetto. La pubblicita' negativa si trasforma in curiosita'.", "mod": -0.15, "type": "backfire"},
+    {"title": "Problemi legali rallentano tutto", "desc": "Una causa legale minaccia di bloccare la produzione. Gli avvocati sono al lavoro.", "mod": 0.20, "type": "negative"},
+    {"title": "Il film diventa un caso politico!", "desc": "Politici e opinionisti discutono del progetto. L'attenzione mediatica e' ai massimi.", "mod": -0.20, "type": "backfire"},
 ]
 
 
@@ -1018,21 +1025,24 @@ async def process_coming_soon_dynamic_events():
                 # Rare event? (5% chance)
                 if random.random() < 0.05:
                     event_template = random.choice(DYNAMIC_EVENTS_RARE)
-                    event_text = event_template[0]
-                    time_mod_pct = event_template[1]
-                    event_type = event_template[2]
+                    event_title = event_template['title']
+                    event_desc = event_template['desc']
+                    time_mod_pct = event_template['mod']
+                    event_type = event_template['type']
                 else:
                     # 55% positive, 45% negative (slight positive bias)
                     if random.random() < 0.55:
-                        text, time_mod_pct = random.choice(DYNAMIC_EVENTS_POSITIVE)
+                        ev = random.choice(DYNAMIC_EVENTS_POSITIVE)
                         event_type = 'positive'
                     else:
-                        text, time_mod_pct = random.choice(DYNAMIC_EVENTS_NEGATIVE)
+                        ev = random.choice(DYNAMIC_EVENTS_NEGATIVE)
                         event_type = 'negative'
-                    event_text = text
+                    event_title = ev['title']
+                    event_desc = ev['desc']
+                    time_mod_pct = ev['mod']
 
                 # Calculate time change
-                time_change_hours = round(final_h * time_mod_pct, 1)
+                time_change_hours = round(final_h * time_mod_pct, 2)
                 new_release = release_dt + timedelta(hours=time_change_hours)
 
                 # Anti-frustration limits
@@ -1042,19 +1052,27 @@ async def process_coming_soon_dynamic_events():
                 if new_release <= now:
                     new_release = now + timedelta(minutes=5)
 
-                # Format visible message
-                abs_change = abs(time_change_hours)
+                # Format visible message in MINUTES
+                time_change_minutes = round(abs(time_change_hours) * 60)
                 if time_change_hours > 0:
-                    time_label = f"+{abs_change:.1f}h"
+                    time_label = f"+{time_change_minutes} min"
+                    effect_label = 'malus'
                 else:
-                    time_label = f"-{abs_change:.1f}h"
+                    time_label = f"-{time_change_minutes} min"
+                    effect_label = 'bonus'
 
                 news_event = {
-                    'text': f"{event_text} ({time_label})",
+                    'title': event_title,
+                    'desc': event_desc,
+                    'text': f"{event_title} ({time_label})",
                     'type': event_type,
-                    'effect_hours': round(time_change_hours, 1),
+                    'effect_label': effect_label,
+                    'effect_minutes': time_change_minutes if time_change_hours > 0 else -time_change_minutes,
+                    'effect_hours': round(time_change_hours, 2),
+                    'time_label': time_label,
                     'created_at': now_str,
-                    'is_dynamic': True
+                    'is_dynamic': True,
+                    'source': 'CineWorld News'
                 }
 
                 await collection.update_one(
@@ -1067,7 +1085,7 @@ async def process_coming_soon_dynamic_events():
                         '$push': {'news_events': {'$each': [news_event], '$slice': -20}}
                     }
                 )
-                logger.info(f"Dynamic event for {item['id']}: {event_text} ({time_label})")
+                logger.info(f"Dynamic event for {item['id']}: {event_title} ({time_label})")
                 
                 # Send notification to project owner
                 try:
@@ -1076,7 +1094,16 @@ async def process_coming_soon_dynamic_events():
                     await create_game_notification(
                         item['user_id'], 'coming_soon_time_change',
                         item['id'], item.get('title', ''),
-                        extra_data={'delta': time_label, 'delay_hours': time_change_hours, 'event_text': event_text},
+                        extra_data={
+                            'delta': time_label,
+                            'delay_hours': time_change_hours,
+                            'event_title': event_title,
+                            'event_desc': event_desc,
+                            'event_type': event_type,
+                            'effect_minutes': time_change_minutes if time_change_hours > 0 else -time_change_minutes,
+                            'source': 'CineWorld News',
+                            'project_id': item['id'],
+                        },
                         link=item_link
                     )
                 except Exception as ne:

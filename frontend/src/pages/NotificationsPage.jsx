@@ -263,6 +263,12 @@ const NotificationsPage = () => {
                       {getIconForType(notif.type)}
                     </div>
                     <div className="flex-1 min-w-0">
+                      {/* CineWorld News source badge */}
+                      {notif.source === 'CineWorld News' && (
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span className="text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">CineWorld News</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className={`font-semibold text-sm leading-tight ${notif.read ? 'text-gray-300' : 'text-white'}`}>{notif.title}</p>
                         {!notif.read && getSeverityBadge(notif)}
@@ -271,6 +277,29 @@ const NotificationsPage = () => {
                         )}
                       </div>
                       <p className={`text-xs mt-0.5 leading-snug ${notif.read ? 'text-gray-500' : 'text-gray-400'}`}>{notif.message}</p>
+                      {/* Event description */}
+                      {notif.data?.event_desc && (
+                        <p className="text-[10px] text-gray-500 mt-0.5 italic leading-snug">"{notif.data.event_desc}"</p>
+                      )}
+                      {/* Effect in minutes with color */}
+                      {notif.data?.effect_minutes != null && notif.data.effect_minutes !== 0 && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Clock className="w-3 h-3 flex-shrink-0" style={{ color: notif.data.effect_minutes > 0 ? '#f87171' : '#4ade80' }} />
+                          <span className="text-[10px] font-bold" style={{ color: notif.data.effect_minutes > 0 ? '#f87171' : '#4ade80' }}>
+                            {notif.data.effect_minutes > 0 ? '+' : ''}{notif.data.effect_minutes} min
+                          </span>
+                          <span className="text-[9px] text-gray-600 ml-0.5">
+                            {notif.data.effect_minutes > 0 ? 'Tempo aumentato' : 'Tempo ridotto'}
+                          </span>
+                        </div>
+                      )}
+                      {/* Boycott type */}
+                      {notif.data?.boycott_type && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0" />
+                          <span className="text-[10px] text-red-400 font-medium">{notif.data.boycott_type}</span>
+                        </div>
+                      )}
                       <p className="text-[10px] text-gray-600 mt-1">
                         {new Date(notif.created_at).toLocaleDateString('it-IT', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>

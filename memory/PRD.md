@@ -8,76 +8,58 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 
 ## Requisiti Core Implementati
 
-### Film Production Pipeline (Completato - v2.0)
-- **Vecchia UI (rimossa):** Navigazione a schede (Creation, Proposals, Casting, etc.)
-- **Nuova UI (v2.0):** UX centrata sul singolo film con card cliccabili + popup
-  - Pagina "Produci!" mostra lista film in produzione come card
-  - Click su card → popup con header film + step bar per-film + contenuto step corrente
-  - Step bar adattiva: Immediato (5 step) vs Coming Soon (7 step)
-  - Step 1 rinominato "Proposta"
-  - Notifiche linkano direttamente al popup del film specifico (?film=id)
-  
-### Modalita' Rilascio
-- **Immediato:** Proposta → Casting → Script → Produzione → Uscita
-- **Coming Soon:** Proposta → Poster → Hype (timer) → Casting → Script → Produzione → Uscita
+### Film Production Pipeline (v2.0)
+- UX centrata sul singolo film con card cliccabili + popup
+- Pagina "Produci!" mostra lista film come card
+- Click su card → popup con header film + step bar per-film + contenuto step
+- Step bar adattiva: Immediato (5 step) vs Coming Soon (7 step)
+- Step 1 rinominato "Proposta"
+- Notifiche linkano direttamente al popup del film specifico
 
-### Altre Feature Completate
-- Login Reward System (bonus Coming Soon al login, cooldown 3h)
-- Error Boundary cinematico con effetto glitch
-- Effetti WOW (animazioni, glow, haptic feedback)
-- Sistema Buzz/Hype per film Coming Soon
-- Daily Bonus (CinePass giornaliero)
-- Acting School / Agenzia Attori
-- Sistema Sfide/Versus
-- Chat Privata
-- Festival del Cinema
-- Sistema Major
-- Marketplace Sceneggiature Emergenti
+### Sistema Notifiche v2.0
+- **Formato tempo in minuti** (+18 min / -24 min) invece di ore decimali
+- **Eventi narrativi**: titolo descrittivo, descrizione immersiva, effetto colorato
+- **CineWorld News**: badge giallo su notifiche evento per immersione
+- **Colori effetti**: verde = bonus (tempo ridotto), rosso = malus (tempo aumentato)
+- **Boicottaggi tipizzati**: 7 tipi (campagna social, attore convinto, recensioni pilotate, spoiler, sabotaggio rivale, manipolazione mediatica, attacco influencer)
+- **Boicottaggi anonimi** di default
+- **Indaga Sabotaggio**: endpoint a pagamento (5 CP) per scoprire il responsabile (70% successo)
+- **NewsEvent narrativi**: titolo + descrizione + effetto in minuti nella sezione Coming Soon
+
+### Modalita' Rilascio
+- Immediato: Proposta → Casting → Script → Produzione → Uscita
+- Coming Soon: Proposta → Poster → Hype (timer) → Casting → Script → Produzione → Uscita
+
+### Altre Feature
+- Login Reward System (bonus CS al login, cooldown 3h)
+- Error Boundary cinematico, effetti WOW, haptic feedback
+- Buzz/Hype per Coming Soon, Daily Bonus (CinePass)
+- Acting School / Agenzia Attori, Sfide/Versus, Chat, Festival, Major, Marketplace Sceneggiature
 
 ## Architettura
-
-### Frontend
-- React + Tailwind CSS + Shadcn/UI
-- Framer Motion per animazioni
-- Componenti chiave:
-  - `/pages/FilmPipeline.jsx` - Pagina principale produzione (refactored v2.0)
-  - `/components/FilmPopup.jsx` - Popup film con step bar e contenuti
-  - `/components/FilmProductionCard.jsx` - Card film per la lista
-
-### Backend
-- FastAPI + MongoDB + APScheduler
-- Route principali in `/backend/routes/`
-- Scheduler in `/backend/scheduler_tasks.py`
-
-### Integrazioni
-- OpenAI GPT-4o-mini (generazione testo) via Emergent LLM Key
-- OpenAI GPT-Image-1 (generazione locandine) via Emergent LLM Key
+- Frontend: React + Tailwind + Shadcn/UI + Framer Motion
+- Backend: FastAPI + MongoDB + APScheduler
+- Integrazioni: OpenAI GPT-4o-mini + GPT-Image-1 via Emergent LLM Key
 
 ## DB Schema Chiave
-- `users`: last_cs_reward_at (timestamp cooldown login reward)
-- `film_projects`: release_pending (boolean), status, release_type, cast, screenplay, etc.
+- users: last_cs_reward_at, cinepass
+- film_projects: release_pending, status, release_type, cast, screenplay
+- coming_soon_interactions: boycott_type, boycott_name, investigated
+- notifications: source, data.event_title, data.event_desc, data.effect_minutes, data.boycott_type
 
-## Stato Test
-- Testing Agent Iter 127: 100% backend (16/16), 100% frontend
-- Test account: test@test.com / test1234
+## Test
+- Iter 127: 100% (Film Pipeline UX redesign)
+- Iter 128: 100% (Notifiche + Eventi + Boicottaggi)
 
-## Backlog Prioritizzato
-
-### P0 - Nessuno (tutto funzionante)
+## Backlog
 
 ### P1
 - Chat Evolution Step 6: Rifinitura mobile e qualita' social
 - Marketplace per diritti TV/Anime
-- Contest Page Mobile Layout Fix (bug ricorrente)
+- Contest Page Mobile Layout Fix
 
 ### P2
-- RBAC (Role Based Access Control)
-- CinePass + Stripe (monetizzazione)
-- PWA (Progressive Web App)
-- Tutorial interattivo
+- RBAC, CinePass + Stripe, PWA, Tutorial
 
 ### P3
-- Scommesse sui Coming Soon
-- Eventi globali
-- Push notifications
-- Guerre tra Major
+- Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major

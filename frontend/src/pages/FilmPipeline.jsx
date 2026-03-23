@@ -468,9 +468,9 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Countdown updater
+  // Countdown updater - also calculate immediately on proposals change
   useEffect(() => {
-    const interval = setInterval(() => {
+    const calcCountdowns = () => {
       const now = new Date();
       const cd = {};
       proposals.forEach(p => {
@@ -486,7 +486,9 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
         }
       });
       setCountdowns(cd);
-    }, 10000);
+    };
+    calcCountdowns(); // Calculate immediately
+    const interval = setInterval(calcCountdowns, 10000);
     return () => clearInterval(interval);
   }, [proposals]);
 
@@ -554,8 +556,12 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
   const getStep = (p) => {
     if (p.status === 'ready_for_casting') return 'casting_ready';
     if (p.status === 'coming_soon') {
-      const expired = !countdowns[p.id];
-      return expired ? 'casting_ready' : 'coming_soon_active';
+      // Check actual time, not countdown state (which may be empty on first render)
+      if (p.scheduled_release_at) {
+        const diff = new Date(p.scheduled_release_at) - new Date();
+        return diff > 0 ? 'coming_soon_active' : 'casting_ready';
+      }
+      return 'coming_soon_active'; // Default to active if no release date yet
     }
     if (!p.poster_url) return 'needs_poster';
     return 'needs_coming_soon';

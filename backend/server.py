@@ -13245,7 +13245,8 @@ FESTIVALS = {
         'prestige': 3,  # Highest prestige
         'day_of_month': [10],  # Day 10 of each month
         'ceremony_time': {'hour': 21, 'minute': 30},
-        'rewards': {'xp': 500, 'fame': 50, 'money': 100000},
+        'rewards': {'xp': 500, 'fame': 50, 'money': 100000, 'cinepass': 5},
+        'has_palma_doro': True,  # Golden Stars awards the Palma d'Oro
         'names': {
             'en': 'Golden Stars Awards',
             'it': 'Premio Stelle d\'Oro',
@@ -13267,7 +13268,7 @@ FESTIVALS = {
         'prestige': 2,
         'day_of_month': [20],  # Day 20 of each month
         'ceremony_time': {'hour': 21, 'minute': 30},
-        'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
+        'rewards': {'xp': 300, 'fame': 30, 'money': 50000, 'cinepass': 2},
         'names': {
             'en': 'Spotlight Awards',
             'it': 'Premio Luci della Ribalta',
@@ -13289,7 +13290,7 @@ FESTIVALS = {
         'prestige': 2,
         'day_of_month': [30, 28],  # Day 30 (28 for February)
         'ceremony_time': {'hour': 21, 'minute': 30},
-        'rewards': {'xp': 300, 'fame': 30, 'money': 50000},
+        'rewards': {'xp': 300, 'fame': 30, 'money': 50000, 'cinepass': 2},
         'names': {
             'en': 'Cinema Excellence Awards',
             'it': 'Premio Cinema d\'Eccellenza',
@@ -13369,6 +13370,16 @@ AWARD_CATEGORIES = {
         'id': 'audience_choice',
         'type': 'film',
         'names': {'en': 'Audience Choice Award', 'it': 'Premio del Pubblico', 'es': 'Premio del Público', 'fr': 'Prix du Public', 'de': 'Publikumspreis'}
+    },
+    'best_production': {
+        'id': 'best_production',
+        'type': 'film',
+        'names': {'en': 'Best Production', 'it': 'Miglior Produzione', 'es': 'Mejor Producción', 'fr': 'Meilleure Production', 'de': 'Beste Produktion'}
+    },
+    'best_surprise': {
+        'id': 'best_surprise',
+        'type': 'film',
+        'names': {'en': 'Best Surprise', 'it': 'Miglior Sorpresa', 'es': 'Mejor Sorpresa', 'fr': 'Meilleure Surprise', 'de': 'Beste Überraschung'}
     }
 }
 
@@ -13474,98 +13485,101 @@ async def get_current_festival_edition(festival_id: str, language: str = 'en', u
     return edition
 
 async def create_festival_edition(festival_id: str, edition_id: str, date: datetime):
-    """Create a new festival edition with nominees."""
-    # Get recent films using aggregation - EXCLUDE poster_url as it may contain base64 data
-    
+    """Create a new festival edition with nominees using multi-factor scoring."""
+    # Multi-factor nomination: quality, rating, revenue, cast skills, genre diversity
     pipeline = [
         {'$match': {'status': {'$in': ['in_theaters', 'released', 'withdrawn']}}},
-        {'$sort': {'quality_score': -1}},
-        {'$limit': 10},
         {'$project': {
             '_id': 0,
-            'id': 1,
-            'title': 1,
-            'user_id': 1,
-            'quality_score': 1,
+            'id': 1, 'title': 1, 'user_id': 1,
+            'quality_score': 1, 'audience_satisfaction': 1,
+            'total_revenue': 1, 'virtual_likes': 1, 'genre': 1,
+            'budget': 1, 'expected_quality': 1,
             'director': {'id': 1, 'name': 1, 'gender': 1},
             'screenwriter': {'id': 1, 'name': 1},
             'composer': {'id': 1, 'name': 1},
-            'cast': {'$slice': ['$cast', 3]}
-        }}
+            'cast': {'$slice': ['$cast', 4]}
+        }},
+        {'$limit': 50}
     ]
-    
-    films = await db.films.aggregate(pipeline).to_list(10)
+    films = await db.films.aggregate(pipeline).to_list(50)
     
     if not films:
-        # Fallback - any films
         pipeline[0] = {'$match': {}}
         pipeline[2] = {'$limit': 5}
         films = await db.films.aggregate(pipeline).to_list(5)
+    
+    # Multi-factor nomination score
+    def calc_nomination_score(film):
+        quality = film.get('quality_score', 50)
+        satisfaction = film.get('audience_satisfaction', 50)
+        revenue = min(film.get('total_revenue', 0) / 100000, 100)  # Cap at 100
+        likes = min(film.get('virtual_likes', 0) / 50, 50)
+        cast_bonus = sum(1 for c in film.get('cast', []) if c.get('skill_total', 0) > 70) * 5
+        return quality * 0.35 + satisfaction * 0.25 + revenue * 0.15 + likes * 0.15 + cast_bonus * 0.10
+    
+    # "Best Surprise" score: high actual vs low expected
+    def calc_surprise_score(film):
+        expected = film.get('expected_quality', film.get('quality_score', 50))
+        actual = film.get('quality_score', 50) + film.get('audience_satisfaction', 50) * 0.5
+        return max(0, actual - expected) + film.get('virtual_likes', 0) * 0.1
+    
+    for f in films:
+        f['_nom_score'] = calc_nomination_score(f)
+        f['_surprise_score'] = calc_surprise_score(f)
+    
+    # Sort by nomination score for most categories
+    films_by_score = sorted(films, key=lambda x: x['_nom_score'], reverse=True)
+    # Sort by surprise for best_surprise
+    films_by_surprise = sorted(films, key=lambda x: x['_surprise_score'], reverse=True)
     
     categories = []
     
     for cat_id, cat_def in AWARD_CATEGORIES.items():
         nominees = []
+        source_films = films_by_surprise if cat_id == 'best_surprise' else films_by_score
         
         if cat_def['type'] == 'film':
-            # Nominate top films
-            for film in films[:5]:
+            for film in source_films[:5]:
                 nominees.append({
                     'id': film.get('id'),
                     'name': film.get('title'),
                     'film_id': film.get('id'),
                     'owner_id': film.get('user_id'),
                     'quality_score': film.get('quality_score', 0),
+                    'nom_score': round(film.get('_nom_score', 0), 1),
                     'votes': 0
                 })
         else:
-            # Nominate people from films
             people_seen = set()
-            for film in films:
-                # Director
+            for film in source_films:
                 if cat_def.get('role') == 'director' and film.get('director'):
                     person = film['director']
                     if person.get('id') and person['id'] not in people_seen:
                         people_seen.add(person['id'])
                         nominees.append({
-                            'id': person['id'],
-                            'name': person.get('name'),
-                            'film_title': film.get('title'),
-                            'film_id': film.get('id'),
-                            'owner_id': film.get('user_id'),
-                            'gender': person.get('gender'),
-                            'votes': 0
+                            'id': person['id'], 'name': person.get('name'),
+                            'film_title': film.get('title'), 'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'), 'gender': person.get('gender'), 'votes': 0
                         })
-                
-                # Screenwriter
                 if cat_def.get('role') == 'screenwriter' and film.get('screenwriter'):
                     person = film['screenwriter']
                     if person.get('id') and person['id'] not in people_seen:
                         people_seen.add(person['id'])
                         nominees.append({
-                            'id': person['id'],
-                            'name': person.get('name'),
-                            'film_title': film.get('title'),
-                            'film_id': film.get('id'),
-                            'owner_id': film.get('user_id'),
-                            'votes': 0
+                            'id': person['id'], 'name': person.get('name'),
+                            'film_title': film.get('title'), 'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'), 'votes': 0
                         })
-                
-                # Composer
                 if cat_def.get('role') == 'composer' and film.get('composer'):
                     person = film['composer']
                     if person.get('id') and person['id'] not in people_seen:
                         people_seen.add(person['id'])
                         nominees.append({
-                            'id': person['id'],
-                            'name': person.get('name'),
-                            'film_title': film.get('title'),
-                            'film_id': film.get('id'),
-                            'owner_id': film.get('user_id'),
-                            'votes': 0
+                            'id': person['id'], 'name': person.get('name'),
+                            'film_title': film.get('title'), 'film_id': film.get('id'),
+                            'owner_id': film.get('user_id'), 'votes': 0
                         })
-                
-                # Actors
                 if cat_def.get('role') in ['actor', 'supporting'] and film.get('cast'):
                     gender_filter = cat_def.get('gender')
                     for actor in film.get('cast', [])[:3]:
@@ -13574,16 +13588,11 @@ async def create_festival_edition(festival_id: str, edition_id: str, date: datet
                                 continue
                             people_seen.add(actor['actor_id'])
                             nominees.append({
-                                'id': actor['actor_id'],
-                                'name': actor.get('name'),
-                                'film_title': film.get('title'),
-                                'film_id': film.get('id'),
-                                'owner_id': film.get('user_id'),
-                                'gender': actor.get('gender'),
-                                'role': actor.get('role'),
-                                'votes': 0
+                                'id': actor['actor_id'], 'name': actor.get('name'),
+                                'film_title': film.get('title'), 'film_id': film.get('id'),
+                                'owner_id': film.get('user_id'), 'gender': actor.get('gender'),
+                                'role': actor.get('role'), 'votes': 0
                             })
-                
                 if len(nominees) >= 5:
                     break
         
@@ -13609,13 +13618,27 @@ async def create_festival_edition(festival_id: str, edition_id: str, date: datet
 
 @api_router.post("/festivals/vote")
 async def vote_in_festival(request: FestivalVoteRequest, user: dict = Depends(get_current_user)):
-    """Vote for a nominee in a festival category."""
+    """Vote for a nominee - weighted by player level/fame with daily limits."""
     if request.festival_id not in FESTIVALS:
         raise HTTPException(status_code=404, detail="Festival non trovato")
     
     festival = FESTIVALS[request.festival_id]
     if festival['voting_type'] != 'player':
         raise HTTPException(status_code=400, detail="Questo festival non prevede il voto dei giocatori")
+    
+    # Daily vote limit: 3 base + 1 per 5 levels (max 15)
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    user_level = level_info['level']
+    daily_limit = min(3 + user_level // 5, 15)
+    
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_votes = await db.festival_votes.count_documents({
+        'user_id': user['id'],
+        'festival_id': request.festival_id,
+        'created_at': {'$gte': today_start}
+    })
+    if today_votes >= daily_limit:
+        raise HTTPException(status_code=429, detail=f"Limite giornaliero raggiunto ({daily_limit} voti/giorno). Torna domani!")
     
     # Check edition exists
     edition = await db.festival_editions.find_one({'id': request.edition_id})
@@ -13625,17 +13648,19 @@ async def vote_in_festival(request: FestivalVoteRequest, user: dict = Depends(ge
     if edition.get('status') != 'voting':
         raise HTTPException(status_code=400, detail="Le votazioni sono chiuse")
     
-    # Check if already voted
+    # Check if already voted in this category
     existing_vote = await db.festival_votes.find_one({
         'edition_id': request.edition_id,
         'user_id': user['id'],
         'category': request.category
     })
-    
     if existing_vote:
         raise HTTPException(status_code=400, detail="Hai già votato in questa categoria")
     
-    # Record vote
+    # Calculate vote weight based on level and fame
+    user_fame = int(user.get('fame', 50))
+    vote_weight = max(1, round(1 + (user_level * 0.1) + (user_fame * 0.005), 1))
+    
     vote = {
         'id': str(uuid.uuid4()),
         'edition_id': request.edition_id,
@@ -13643,21 +13668,29 @@ async def vote_in_festival(request: FestivalVoteRequest, user: dict = Depends(ge
         'user_id': user['id'],
         'category': request.category,
         'nominee_id': request.nominee_id,
+        'vote_weight': vote_weight,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     await db.festival_votes.insert_one(vote)
     
-    # Update nominee vote count
+    # Update nominee vote count with weighted vote
     await db.festival_editions.update_one(
         {'id': request.edition_id, 'categories.category_id': request.category, 'categories.nominees.id': request.nominee_id},
-        {'$inc': {'categories.$[cat].nominees.$[nom].votes': 1}},
+        {'$inc': {'categories.$[cat].nominees.$[nom].votes': vote_weight}},
         array_filters=[{'cat.category_id': request.category}, {'nom.id': request.nominee_id}]
     )
     
     # Award XP for voting
     await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 5}})
     
-    return {'success': True, 'message': 'Voto registrato! +5 XP', 'xp_earned': 5}
+    remaining = daily_limit - today_votes - 1
+    return {
+        'success': True,
+        'message': f'Voto registrato (peso: x{vote_weight})! +5 XP',
+        'xp_earned': 5,
+        'vote_weight': vote_weight,
+        'votes_remaining_today': remaining
+    }
 
 @api_router.post("/festivals/{edition_id}/finalize")
 async def finalize_festival(edition_id: str, user: dict = Depends(get_current_user)):
@@ -13701,14 +13734,41 @@ async def finalize_festival(edition_id: str, user: dict = Depends(get_current_us
         # Award the film owner
         if winner.get('owner_id'):
             rewards = festival['rewards']
+            reward_inc = {
+                'total_xp': rewards['xp'],
+                'fame': rewards['fame'],
+                'funds': rewards['money']
+            }
+            if rewards.get('cinepass'):
+                reward_inc['cinepass'] = rewards['cinepass']
+            
             await db.users.update_one(
                 {'id': winner['owner_id']},
-                {'$inc': {
-                    'total_xp': rewards['xp'],
-                    'fame': rewards['fame'],
-                    'funds': rewards['money']
-                }}
+                {'$inc': reward_inc}
             )
+            
+            # Palma d'Oro CineWorld: awarded for Best Film at Golden Stars
+            palma_doro_awarded = False
+            if festival.get('has_palma_doro') and category['category_id'] == 'best_film':
+                palma_doro = {
+                    'id': str(uuid.uuid4()),
+                    'type': 'palma_doro',
+                    'user_id': winner['owner_id'],
+                    'film_id': winner.get('film_id'),
+                    'film_title': winner.get('film_title'),
+                    'year': edition.get('year'),
+                    'month': edition.get('month'),
+                    'bonus_quality': 2,  # +2% quality on future films
+                    'bonus_hype': 1,     # +1% hype on future films
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                }
+                await db.iconic_prizes.insert_one(palma_doro)
+                # Apply permanent bonus to user
+                await db.users.update_one(
+                    {'id': winner['owner_id']},
+                    {'$inc': {'permanent_quality_bonus': 2, 'permanent_hype_bonus': 1}}
+                )
+                palma_doro_awarded = True
             
             # Record award
             award_record = {
@@ -13730,11 +13790,13 @@ async def finalize_festival(edition_id: str, user: dict = Depends(get_current_us
             
             # Notify winner
             cat_name = AWARD_CATEGORIES.get(category['category_id'], {}).get('names', {}).get('it', category['category_id'])
+            cinepass_msg = f", +{rewards.get('cinepass', 0)} CinePass" if rewards.get('cinepass') else ""
+            palma_msg = " + PALMA D'ORO CINEWORLD! (+2% qualita' permanente)" if palma_doro_awarded else ""
             await db.notifications.insert_one({
                 'id': str(uuid.uuid4()),
                 'user_id': winner['owner_id'],
                 'type': 'festival_win',
-                'message': f"Congratulazioni! Hai vinto il premio '{cat_name}' al {festival['names']['it']}! +{rewards['xp']} XP, +{rewards['fame']} Fama, +${rewards['money']:,}",
+                'message': f"Congratulazioni! Hai vinto '{cat_name}' al {festival['names']['it']}! +{rewards['xp']} XP, +{rewards['fame']} Fama, +${rewards['money']:,}{cinepass_msg}{palma_msg}",
                 'read': False,
                 'created_at': datetime.now(timezone.utc).isoformat()
             })
@@ -13837,6 +13899,163 @@ async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_u
         stats['by_category'][cid] = stats['by_category'].get(cid, 0) + 1
     
     return {'awards': awards, 'stats': stats}
+
+@api_router.get("/festivals/countdown")
+async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_current_user)):
+    """Get countdown data for upcoming festivals with nomination previews."""
+    import calendar
+    today = datetime.now(timezone.utc)
+    current_day = today.day
+    current_month = today.month
+    current_year = today.year
+    
+    def get_festival_day_for_month(days_list, month, year):
+        last_day = calendar.monthrange(year, month)[1]
+        for d in days_list:
+            if d <= last_day:
+                return d
+        return days_list[0]
+    
+    upcoming = []
+    for fest_id, fest in FESTIVALS.items():
+        festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        
+        if festival_day > current_day:
+            target_date = datetime(current_year, current_month, festival_day, 21, 30, tzinfo=timezone.utc)
+        else:
+            next_month = current_month + 1 if current_month < 12 else 1
+            next_year = current_year if next_month > 1 else current_year + 1
+            festival_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+            target_date = datetime(next_year, next_month, festival_day, 21, 30, tzinfo=timezone.utc)
+        
+        time_until = target_date - today
+        days_until = time_until.days
+        hours_until = int((time_until.total_seconds() % 86400) / 3600)
+        
+        # Get current edition nominations preview
+        edition_id = f"{fest_id}_{target_date.year}_{target_date.month}"
+        edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0, 'categories': 1, 'status': 1})
+        
+        top_nominees = []
+        if edition:
+            for cat in edition.get('categories', [])[:3]:
+                cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+                noms = cat.get('nominees', [])[:2]
+                top_nominees.append({
+                    'category': cat_def.get('names', {}).get(language, cat['category_id']),
+                    'nominees': [{'name': n.get('name'), 'votes': n.get('votes', 0)} for n in noms]
+                })
+        
+        upcoming.append({
+            'id': fest_id,
+            'name': fest['names'].get(language, fest['names']['en']),
+            'description': fest['descriptions'].get(language, fest['descriptions']['en']),
+            'voting_type': fest['voting_type'],
+            'prestige': fest['prestige'],
+            'target_date': target_date.isoformat(),
+            'days_until': days_until,
+            'hours_until': hours_until,
+            'rewards': fest['rewards'],
+            'has_palma_doro': fest.get('has_palma_doro', False),
+            'edition_status': edition.get('status') if edition else None,
+            'top_nominees': top_nominees,
+            'is_today': days_until == 0
+        })
+    
+    upcoming.sort(key=lambda x: x['days_until'])
+    
+    return {'upcoming_festivals': upcoming, 'server_time': today.isoformat()}
+
+@api_router.get("/festivals/history")
+async def get_festival_history(language: str = 'it', limit: int = 20, user: dict = Depends(get_current_user)):
+    """Get past festival editions with winners for replay/history."""
+    editions = await db.festival_editions.find(
+        {'status': 'awarded'},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(limit).to_list(limit)
+    
+    history = []
+    for ed in editions:
+        fest = FESTIVALS.get(ed.get('festival_id'), {})
+        winners = []
+        for cat in ed.get('categories', []):
+            if cat.get('winner'):
+                cat_def = AWARD_CATEGORIES.get(cat['category_id'], {})
+                winners.append({
+                    'category': cat_def.get('names', {}).get(language, cat['category_id']),
+                    'winner_name': cat['winner'].get('name'),
+                    'film_title': cat['winner'].get('film_title'),
+                    'votes': cat['winner'].get('votes', 0)
+                })
+        history.append({
+            'edition_id': ed['id'],
+            'festival_id': ed.get('festival_id'),
+            'festival_name': fest.get('names', {}).get(language, ed.get('festival_id', '')),
+            'year': ed.get('year'),
+            'month': ed.get('month'),
+            'winners': winners,
+            'awarded_at': ed.get('awarded_at')
+        })
+    
+    return {'history': history}
+
+@api_router.get("/player/iconic-prizes")
+async def get_player_iconic_prizes(user: dict = Depends(get_current_user)):
+    """Get player's iconic prizes (Palma d'Oro etc.) and permanent bonuses."""
+    prizes = await db.iconic_prizes.find(
+        {'user_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(50)
+    
+    total_quality_bonus = sum(p.get('bonus_quality', 0) for p in prizes)
+    total_hype_bonus = sum(p.get('bonus_hype', 0) for p in prizes)
+    
+    return {
+        'prizes': prizes,
+        'total_quality_bonus': total_quality_bonus,
+        'total_hype_bonus': total_hype_bonus,
+        'palma_doro_count': sum(1 for p in prizes if p.get('type') == 'palma_doro')
+    }
+
+@api_router.get("/player/{player_id}/badges")
+async def get_player_badges(player_id: str):
+    """Get a player's festival badges and iconic prizes for profile display."""
+    awards = await db.festival_awards.find(
+        {'owner_id': player_id},
+        {'_id': 0}
+    ).sort('created_at', -1).limit(20).to_list(20)
+    
+    iconic = await db.iconic_prizes.find(
+        {'user_id': player_id},
+        {'_id': 0}
+    ).to_list(10)
+    
+    badges = []
+    for a in awards:
+        fest = FESTIVALS.get(a.get('festival_id'), {})
+        cat_def = AWARD_CATEGORIES.get(a.get('category_id'), {})
+        badges.append({
+            'type': 'award',
+            'festival_name': fest.get('names', {}).get('it', a.get('festival_id', '')),
+            'category': cat_def.get('names', {}).get('it', a.get('category_id', '')),
+            'film_title': a.get('film_title'),
+            'year': a.get('year'),
+            'month': a.get('month'),
+            'prestige': fest.get('prestige', 1)
+        })
+    
+    for p in iconic:
+        badges.append({
+            'type': p.get('type', 'iconic'),
+            'name': "Palma d'Oro CineWorld" if p.get('type') == 'palma_doro' else p.get('type'),
+            'film_title': p.get('film_title'),
+            'year': p.get('year'),
+            'month': p.get('month'),
+            'bonus_quality': p.get('bonus_quality', 0),
+            'bonus_hype': p.get('bonus_hype', 0)
+        })
+    
+    return {'badges': badges, 'palma_doro_count': len(iconic)}
 
 # ==================== TIMEZONE & CEREMONY NOTIFICATIONS ====================
 
@@ -14534,10 +14753,32 @@ async def announce_winner_with_audio(festival_id: str, category_id: str, languag
         # Give rewards
         rewards = festival.get('rewards', {})
         if winner.get('owner_id'):
+            reward_inc = {'total_xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}
+            if rewards.get('cinepass'):
+                reward_inc['cinepass'] = rewards['cinepass']
             await db.users.update_one(
                 {'id': winner['owner_id']},
-                {'$inc': {'total_xp': rewards.get('xp', 0), 'fame': rewards.get('fame', 0), 'funds': rewards.get('money', 0)}}
+                {'$inc': reward_inc}
             )
+            # Palma d'Oro CineWorld for Best Film at Golden Stars
+            if festival.get('has_palma_doro') and category_id == 'best_film':
+                palma_doro = {
+                    'id': str(uuid.uuid4()),
+                    'type': 'palma_doro',
+                    'user_id': winner['owner_id'],
+                    'film_id': winner.get('film_id'),
+                    'film_title': winner.get('film_title'),
+                    'year': edition.get('year'),
+                    'month': edition.get('month'),
+                    'bonus_quality': 2,
+                    'bonus_hype': 1,
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                }
+                await db.iconic_prizes.insert_one(palma_doro)
+                await db.users.update_one(
+                    {'id': winner['owner_id']},
+                    {'$inc': {'permanent_quality_bonus': 2, 'permanent_hype_bonus': 1}}
+                )
         
         # Generate announcement text
         announcement_texts = {
@@ -15899,6 +16140,7 @@ async def check_is_creator(user: dict = Depends(get_current_user)):
 CUSTOM_FESTIVAL_MIN_LEVEL = 1  # Nessun livello minimo - sempre possibile
 CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
 CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base (legacy, unused now)
+CUSTOM_FESTIVAL_CINEPASS_COST = 3  # CinePass richiesti per creare
 
 def calculate_custom_festival_cost(creator_level: int) -> int:
     """Costo polinomiale per creare un festival basato sul livello.
@@ -15949,6 +16191,7 @@ async def get_festival_creation_cost(user: dict = Depends(get_current_user)):
         'user_level': user_level,
         'required_level': CUSTOM_FESTIVAL_MIN_LEVEL,
         'creation_cost': cost,
+        'cinepass_cost': CUSTOM_FESTIVAL_CINEPASS_COST,
         'participation_min_level': CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL
     }
 
@@ -15990,6 +16233,11 @@ async def create_custom_festival(request: CustomFestivalCreate, background_tasks
     if user.get('funds', 0) < creation_cost:
         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Costo: ${creation_cost:,}")
     
+    # Check CinePass
+    user_cinepass = user.get('cinepass', 0)
+    if user_cinepass < CUSTOM_FESTIVAL_CINEPASS_COST:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {CUSTOM_FESTIVAL_CINEPASS_COST} CP (hai {user_cinepass})")
+    
     # Valida categorie
     valid_categories = [c for c in request.categories if c in AWARD_CATEGORIES]
     if not valid_categories:
@@ -16029,8 +16277,8 @@ async def create_custom_festival(request: CustomFestivalCreate, background_tasks
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     
-    # Deduce costo
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -creation_cost}})
+    # Deduce costo denaro + CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -creation_cost, 'cinepass': -CUSTOM_FESTIVAL_CINEPASS_COST}})
     
     # Salva festival
     await db.custom_festivals.insert_one(festival)

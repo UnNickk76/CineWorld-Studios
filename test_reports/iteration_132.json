@@ -1,0 +1,129 @@
+{
+  "summary": "Festival System Overhaul - Iteration 132. All 18 backend tests passed. Frontend verified: countdown banners with timers, Storico (History) tab, Palma d'Oro CineWorld label, CinePass rewards (+5 CP, +2 CP), weighted voting description 'Voto pesato per livello e fama'. All new endpoints working: /api/festivals/countdown, /api/festivals/history, /api/player/iconic-prizes, /api/player/{player_id}/badges.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter132_festival_overhaul.py",
+    "/app/test_reports/pytest/pytest_iter132_festival_overhaul.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py lines 13312-13384: AWARD_CATEGORIES includes best_production and best_surprise with proper translations",
+    "server.py lines 13903-13967: /api/festivals/countdown returns upcoming_festivals with has_palma_doro, top_nominees, target_date, rewards",
+    "server.py lines 13969-14000: /api/festivals/history returns past editions with winners",
+    "server.py lines 14002-14018: /api/player/iconic-prizes returns prizes, total_quality_bonus, palma_doro_count",
+    "server.py lines 14020-14058: /api/player/{player_id}/badges returns badges with festival awards and iconic prizes",
+    "server.py lines 13660-13693: Weighted voting calculates vote_weight based on level and fame, returns votes_remaining_today",
+    "server.py lines 13751-13771: Palma d'Oro awarded for Best Film at Golden Stars with +2% quality bonus",
+    "server.py lines 16180-16196: /api/custom-festivals/creation-cost returns cinepass_cost field",
+    "FestivalsPage.jsx: CountdownBanner component shows timer, has_palma_doro, top_nominees, CinePass rewards",
+    "FestivalsPage.jsx: Tabs include 'Storico' (History) with data-testid='tab-history'",
+    "FestivalsPage.jsx: EnvelopeReveal component for ceremony animation"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter132_festival_overhaul.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% - all features verified"
+  },
+  "test_credentials": {
+    "email": "test@test.com",
+    "password": "test1234"
+  },
+  "seed_data_creation": "None - used existing test user",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Festival System Overhaul fully verified. Key findings: 1) All new endpoints working (/api/festivals/countdown, /api/festivals/history, /api/player/iconic-prizes, /api/player/{player_id}/badges). 2) AWARD_CATEGORIES includes best_production and best_surprise but these won't appear in current month's editions (created before categories were added). 3) Weighted voting shows 'Voto pesato per livello e fama' in edition description. 4) CinePass rewards visible on festival cards (+5 CP for Golden Stars, +2 CP for others). 5) Palma d'Oro CineWorld label visible on golden_stars countdown banner. 6) History tab ('Storico') shows 'Nessuna cerimonia conclusa ancora' since no ceremonies have completed yet.",
+  "verified_features": {
+    "countdown_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/festivals/countdown",
+      "returns": "upcoming_festivals with id, name, target_date, days_until, hours_until, rewards, has_palma_doro, top_nominees"
+    },
+    "history_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/festivals/history",
+      "returns": "history array with edition_id, festival_name, year, month, winners"
+    },
+    "iconic_prizes_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/player/iconic-prizes",
+      "returns": "prizes, total_quality_bonus, total_hype_bonus, palma_doro_count"
+    },
+    "badges_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/player/{player_id}/badges",
+      "returns": "badges array with type, festival_name, category, film_title, prestige"
+    },
+    "vote_endpoint_weighted": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/festivals/vote",
+      "returns": "vote_weight, votes_remaining_today in response"
+    },
+    "festivals_cinepass_rewards": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/festivals",
+      "returns": "cinepass field in rewards (5 for golden_stars, 2 for others)"
+    },
+    "creation_cost_cinepass": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/custom-festivals/creation-cost",
+      "returns": "cinepass_cost field (3 CP)"
+    },
+    "award_categories_new": {
+      "status": "VERIFIED",
+      "location": "server.py AWARD_CATEGORIES",
+      "includes": "best_production, best_surprise with translations"
+    },
+    "palma_doro_implementation": {
+      "status": "VERIFIED",
+      "location": "server.py lines 13751-13771",
+      "behavior": "Awarded for Best Film at Golden Stars, +2% quality bonus, stored in iconic_prizes collection"
+    },
+    "frontend_countdown_banners": {
+      "status": "VERIFIED",
+      "location": "FestivalsPage.jsx CountdownBanner",
+      "shows": "Timer (G/O/M/S), has_palma_doro indicator, CinePass rewards"
+    },
+    "frontend_history_tab": {
+      "status": "VERIFIED",
+      "data_testid": "tab-history",
+      "label": "Storico",
+      "section_testid": "history-section"
+    },
+    "frontend_palma_doro_label": {
+      "status": "VERIFIED",
+      "text": "Palma d'Oro CineWorld - Bonus permanente +2% qualita",
+      "visible_on": "golden_stars countdown banner"
+    },
+    "frontend_cinepass_rewards": {
+      "status": "VERIFIED",
+      "shows": "+5 CP for Premio Stelle d'Oro, +2 CP for others"
+    },
+    "frontend_weighted_voting_description": {
+      "status": "VERIFIED",
+      "text": "Voto pesato per livello e fama",
+      "visible_on": "Festival edition detail page"
+    },
+    "frontend_envelope_reveal": {
+      "status": "VERIFIED (code review)",
+      "location": "FestivalsPage.jsx EnvelopeReveal component",
+      "data_testid": "envelope-reveal"
+    }
+  },
+  "frontend_ui_verification": {
+    "festivals_page": "Shows countdown banners with timers, festival cards with rewards, 5 tabs",
+    "countdown_section": "3 countdown timers visible (07:08:32:51, 18:08:32:51, 28:08:32:51)",
+    "tabs": "Festival, Player, Classifica, Premi, Storico",
+    "golden_stars_detail": "Shows 'Voto pesato per livello e fama', categories with nominees and vote buttons",
+    "history_tab": "Shows 'STORICO CERIMONIE' with 'Nessuna cerimonia conclusa ancora' message"
+  }
+}

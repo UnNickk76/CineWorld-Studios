@@ -39,12 +39,197 @@ import {
   BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
   Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, User
+  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, User, Tv
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
 
-// useTranslations imported from contexts
+// Countdown timer hook
+const useCountdown = (targetDate) => {
+  const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  React.useEffect(() => {
+    if (!targetDate) return;
+    const tick = () => {
+      const diff = new Date(targetDate) - new Date();
+      if (diff <= 0) { setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); return; }
+      setTimeLeft({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        minutes: Math.floor((diff % 3600000) / 60000),
+        seconds: Math.floor((diff % 60000) / 1000)
+      });
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+  return timeLeft;
+};
+
+// Envelope animation component for ceremony reveals
+const EnvelopeReveal = ({ isRevealing, winnerName, categoryName, onComplete }) => {
+  const [phase, setPhase] = React.useState('closed'); // closed, opening, revealed
+  
+  React.useEffect(() => {
+    if (isRevealing) {
+      setPhase('closed');
+      setTimeout(() => setPhase('opening'), 500);
+      setTimeout(() => { setPhase('revealed'); onComplete?.(); }, 2500);
+    }
+  }, [isRevealing]);
+  
+  if (!isRevealing && phase === 'closed') return null;
+  
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90" data-testid="envelope-reveal">
+      <div className="relative">
+        {/* Stage lights */}
+        <motion.div
+          className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[400px]"
+          style={{ background: 'radial-gradient(ellipse at center, rgba(255,215,0,0.3) 0%, transparent 70%)' }}
+          animate={{ opacity: [0.3, 0.7, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+        
+        {phase === 'closed' && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-64 h-40 bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-lg shadow-2xl border-2 border-yellow-500 flex items-center justify-center"
+          >
+            <div className="text-center">
+              <Award className="w-10 h-10 text-yellow-300 mx-auto mb-2" />
+              <p className="text-yellow-200 font-['Bebas_Neue'] text-lg">{categoryName}</p>
+            </div>
+          </motion.div>
+        )}
+        
+        {phase === 'opening' && (
+          <motion.div
+            initial={{ rotateX: 0 }}
+            animate={{ rotateX: [0, -30, -60, -90] }}
+            transition={{ duration: 1.5, ease: "easeInOut" }}
+            className="w-64 h-40 bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-lg shadow-2xl border-2 border-yellow-500 flex items-center justify-center"
+            style={{ transformOrigin: 'top center', perspective: 800 }}
+          >
+            <Loader2 className="w-8 h-8 text-yellow-300 animate-spin" />
+          </motion.div>
+        )}
+        
+        {phase === 'revealed' && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="text-center"
+          >
+            <motion.div
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 0.5, repeat: 2 }}
+            >
+              <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(255,215,0,0.8)]" />
+            </motion.div>
+            <motion.p
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-yellow-500 font-['Bebas_Neue'] text-xl mb-2 tracking-wider"
+            >
+              {categoryName}
+            </motion.p>
+            <motion.p
+              initial={{ y: 20, opacity: 0, scale: 0.8 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              transition={{ delay: 0.6, type: "spring" }}
+              className="text-white font-['Bebas_Neue'] text-4xl drop-shadow-[0_0_20px_rgba(255,215,0,0.5)]"
+            >
+              {winnerName}
+            </motion.p>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Countdown Banner component for pre-event hype
+const CountdownBanner = ({ festival, language, onViewFestival }) => {
+  const timeLeft = useCountdown(festival.target_date);
+  const isPalma = festival.has_palma_doro;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      data-testid={`countdown-${festival.id}`}
+    >
+      <Card className={`border-0 overflow-hidden ${isPalma 
+        ? 'bg-gradient-to-r from-yellow-900/40 via-amber-900/30 to-yellow-900/40 ring-1 ring-yellow-500/40' 
+        : 'bg-gradient-to-r from-[#1A1A1A] via-[#222] to-[#1A1A1A] ring-1 ring-white/10'}`}>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            {/* Left: Festival info */}
+            <div className="flex-1 text-center sm:text-left">
+              <div className="flex items-center gap-2 justify-center sm:justify-start mb-1">
+                {isPalma && <Gem className="w-4 h-4 text-yellow-400" />}
+                <h3 className="font-['Bebas_Neue'] text-lg text-yellow-400">{festival.name}</h3>
+                <Badge variant="outline" className={`text-[10px] ${festival.voting_type === 'player' ? 'border-purple-500 text-purple-400' : 'border-blue-500 text-blue-400'}`}>
+                  {festival.voting_type === 'player' ? 'VOTO PLAYER' : 'AI'}
+                </Badge>
+              </div>
+              {isPalma && (
+                <p className="text-[11px] text-yellow-500/80 mb-1">
+                  Palma d'Oro CineWorld - Bonus permanente +2% qualita
+                </p>
+              )}
+              {/* Nomination preview */}
+              {festival.top_nominees?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {festival.top_nominees.map((cat, i) => (
+                    <Badge key={i} className="bg-white/5 text-gray-300 text-[9px] px-1.5">
+                      {cat.category}: {cat.nominees?.[0]?.name || '?'}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Center: Countdown timer */}
+            <div className="flex gap-2" data-testid={`timer-${festival.id}`}>
+              {[
+                { val: timeLeft.days, label: 'G' },
+                { val: timeLeft.hours, label: 'O' },
+                { val: timeLeft.minutes, label: 'M' },
+                { val: timeLeft.seconds, label: 'S' }
+              ].map((t, i) => (
+                <div key={i} className="text-center">
+                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center font-['Bebas_Neue'] text-xl ${
+                    isPalma ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'bg-white/10 text-white border border-white/10'
+                  }`}>
+                    {String(t.val).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] text-gray-500 mt-0.5">{t.label}</span>
+                </div>
+              ))}
+            </div>
+            
+            {/* Right: Rewards & CTA */}
+            <div className="text-center sm:text-right">
+              <div className="flex gap-2 text-[10px] mb-2 justify-center sm:justify-end">
+                <span className="text-yellow-400">+{festival.rewards.xp} XP</span>
+                <span className="text-green-400">${(festival.rewards.money/1000).toFixed(0)}K</span>
+                {festival.rewards.cinepass > 0 && <span className="text-purple-400">+{festival.rewards.cinepass} CP</span>}
+              </div>
+              <Button size="sm" onClick={onViewFestival} className={`h-7 text-xs ${isPalma ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-white/10 hover:bg-white/20'}`}>
+                {festival.edition_status === 'voting' ? (language === 'it' ? 'Vota Ora' : 'Vote Now') : (language === 'it' ? 'Vedi' : 'View')}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
 
 const FestivalsPage = () => {
   const { api, user } = useContext(AuthContext);
@@ -74,6 +259,13 @@ const FestivalsPage = () => {
   const [sendingChat, setSendingChat] = useState(false);
   const chatRefreshInterval = useRef(null);
   const [autoOpenLiveId, setAutoOpenLiveId] = useState(null);
+  // New: Countdown, History, Envelope
+  const [countdownData, setCountdownData] = useState([]);
+  const [historyData, setHistoryData] = useState([]);
+  const [envelopeRevealing, setEnvelopeRevealing] = useState(false);
+  const [envelopeWinner, setEnvelopeWinner] = useState('');
+  const [envelopeCategory, setEnvelopeCategory] = useState('');
+  const [votesRemaining, setVotesRemaining] = useState(null);
 
   // Capture live parameter from URL immediately
   useEffect(() => {
@@ -107,6 +299,7 @@ const FestivalsPage = () => {
     loadLeaderboard();
     loadMyAwards();
     loadCreationCost();
+    loadCountdown();
   }, [language]);
 
   const loadFestivals = async () => {
@@ -131,6 +324,24 @@ const FestivalsPage = () => {
     try {
       const res = await api.get('/custom-festivals/creation-cost');
       setCreationCost(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadCountdown = async () => {
+    try {
+      const res = await api.get(`/festivals/countdown?language=${language}`);
+      setCountdownData(res.data.upcoming_festivals || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadHistory = async () => {
+    try {
+      const res = await api.get(`/festivals/history?language=${language}`);
+      setHistoryData(res.data.history || []);
     } catch (e) {
       console.error(e);
     }
@@ -211,13 +422,17 @@ const FestivalsPage = () => {
     if (!currentEdition || voting) return;
     setVoting(true);
     try {
-      await api.post('/festivals/vote', {
+      const res = await api.post('/festivals/vote', {
         festival_id: selectedFestival,
         edition_id: currentEdition.id,
         category: categoryId,
         nominee_id: nomineeId
       });
-      toast.success('+5 XP per il voto!');
+      const data = res.data;
+      const weightMsg = data.vote_weight ? ` (peso x${data.vote_weight})` : '';
+      const remainMsg = data.votes_remaining_today !== undefined ? ` | ${data.votes_remaining_today} voti rimasti oggi` : '';
+      toast.success(`+5 XP${weightMsg}${remainMsg}`);
+      setVotesRemaining(data.votes_remaining_today);
       loadFestivalEdition(selectedFestival);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore votazione');
@@ -443,24 +658,36 @@ const FestivalsPage = () => {
   const announceWinnerWithAudio = async (categoryId) => {
     if (!liveCeremony) return;
     setAnnouncingCategory(categoryId);
+    
+    // Find category name for envelope
+    const cat = liveCeremony.categories?.find(c => c.category_id === categoryId);
+    setEnvelopeCategory(cat?.category_name || categoryId);
+    setEnvelopeRevealing(true);
+    
     try {
       const res = await api.post(`/festivals/${liveCeremony.festival_id}/announce-with-audio/${categoryId}?language=${language}`);
       if (res.data.success) {
-        // Refresh ceremony data
-        loadLiveCeremony(liveCeremony.festival_id);
-        // Play audio with subtitles if available
-        if (res.data.audio?.audio_url) {
-          const announcementText = res.data.announcement_text?.[language] || res.data.announcement_text?.['en'] || '';
-          playAnnouncementAudio(
-            res.data.audio.audio_url, 
-            announcementText,
-            res.data.winner?.name || '',
-            res.data.category_name || ''
-          );
-        }
-        toast.success(`${language === 'it' ? 'Vincitore' : 'Winner'}: ${res.data.winner.name}!`);
+        setEnvelopeWinner(res.data.winner?.name || '');
+        // Wait for envelope to finish before playing audio
+        setTimeout(() => {
+          loadLiveCeremony(liveCeremony.festival_id);
+          if (res.data.audio?.audio_url) {
+            const announcementText = res.data.announcement_text?.[language] || res.data.announcement_text?.['en'] || '';
+            playAnnouncementAudio(
+              res.data.audio.audio_url, 
+              announcementText,
+              res.data.winner?.name || '',
+              res.data.category_name || ''
+            );
+          }
+          toast.success(`${language === 'it' ? 'Vincitore' : 'Winner'}: ${res.data.winner.name}!`);
+        }, 2800);
+        
+        // Close envelope after full animation
+        setTimeout(() => setEnvelopeRevealing(false), 5000);
       }
     } catch (e) {
+      setEnvelopeRevealing(false);
       toast.error(e.response?.data?.detail || 'Errore annuncio');
     } finally {
       setAnnouncingCategory(null);
@@ -537,19 +764,31 @@ const FestivalsPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 justify-center flex-wrap">
-        <Button variant={activeTab === 'festivals' ? 'default' : 'outline'} onClick={() => setActiveTab('festivals')} className={activeTab === 'festivals' ? 'bg-yellow-500 text-black' : ''}>
-          <Star className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival Ufficiali' : 'Official Festivals'}
+        <Button variant={activeTab === 'festivals' ? 'default' : 'outline'} onClick={() => setActiveTab('festivals')} className={activeTab === 'festivals' ? 'bg-yellow-500 text-black' : ''} data-testid="tab-festivals">
+          <Star className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival' : 'Festivals'}
         </Button>
-        <Button variant={activeTab === 'custom' ? 'default' : 'outline'} onClick={() => setActiveTab('custom')} className={activeTab === 'custom' ? 'bg-purple-500 text-white' : ''}>
-          <Crown className="w-4 h-4 mr-2" />{language === 'it' ? 'Festival dei Player' : 'Player Festivals'}
+        <Button variant={activeTab === 'custom' ? 'default' : 'outline'} onClick={() => setActiveTab('custom')} className={activeTab === 'custom' ? 'bg-purple-500 text-white' : ''} data-testid="tab-custom">
+          <Crown className="w-4 h-4 mr-2" />{language === 'it' ? 'Player' : 'Player'}
         </Button>
-        <Button variant={activeTab === 'leaderboard' ? 'default' : 'outline'} onClick={() => setActiveTab('leaderboard')} className={activeTab === 'leaderboard' ? 'bg-yellow-500 text-black' : ''}>
+        <Button variant={activeTab === 'leaderboard' ? 'default' : 'outline'} onClick={() => setActiveTab('leaderboard')} className={activeTab === 'leaderboard' ? 'bg-yellow-500 text-black' : ''} data-testid="tab-leaderboard">
           <Trophy className="w-4 h-4 mr-2" />{language === 'it' ? 'Classifica' : 'Leaderboard'}
         </Button>
-        <Button variant={activeTab === 'my_awards' ? 'default' : 'outline'} onClick={() => setActiveTab('my_awards')} className={activeTab === 'my_awards' ? 'bg-yellow-500 text-black' : ''}>
-          <Medal className="w-4 h-4 mr-2" />{language === 'it' ? 'I Miei Premi' : 'My Awards'}
+        <Button variant={activeTab === 'my_awards' ? 'default' : 'outline'} onClick={() => setActiveTab('my_awards')} className={activeTab === 'my_awards' ? 'bg-yellow-500 text-black' : ''} data-testid="tab-awards">
+          <Medal className="w-4 h-4 mr-2" />{language === 'it' ? 'Premi' : 'Awards'}
+        </Button>
+        <Button variant={activeTab === 'history' ? 'default' : 'outline'} onClick={() => { setActiveTab('history'); loadHistory(); }} className={activeTab === 'history' ? 'bg-amber-600 text-white' : ''} data-testid="tab-history">
+          <BookOpen className="w-4 h-4 mr-2" />{language === 'it' ? 'Storico' : 'History'}
         </Button>
       </div>
+
+      {/* Countdown Banner - Pre-Event Hype */}
+      {countdownData.length > 0 && activeTab === 'festivals' && !selectedFestival && (
+        <div className="mb-6 space-y-3" data-testid="countdown-section">
+          {countdownData.map(fest => (
+            <CountdownBanner key={fest.id} festival={fest} language={language} onViewFestival={() => loadFestivalEdition(fest.id)} />
+          ))}
+        </div>
+      )}
 
       {/* Festivals Tab */}
       {activeTab === 'festivals' && (
@@ -586,10 +825,11 @@ const FestivalsPage = () => {
                         {fest.voting_type === 'player' ? (language === 'it' ? 'Voto Giocatori' : 'Player Vote') : 'AI'}
                       </Badge>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-4 gap-2 text-center text-xs">
                       <div><p className="text-yellow-400 font-bold">+{fest.rewards.xp}</p><p className="text-gray-500">XP</p></div>
                       <div><p className="text-purple-400 font-bold">+{fest.rewards.fame}</p><p className="text-gray-500">{language === 'it' ? 'Fama' : 'Fame'}</p></div>
                       <div><p className="text-green-400 font-bold">${(fest.rewards.money/1000).toFixed(0)}K</p><p className="text-gray-500">{language === 'it' ? 'Denaro' : 'Money'}</p></div>
+                      {fest.rewards.cinepass > 0 && <div><p className="text-cyan-400 font-bold">+{fest.rewards.cinepass}</p><p className="text-gray-500">CinePass</p></div>}
                     </div>
                   </CardContent>
                 </Card>
@@ -604,10 +844,23 @@ const FestivalsPage = () => {
               <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30 mb-6">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="font-['Bebas_Neue'] text-2xl text-yellow-400">{currentEdition.festival_name}</CardTitle>
-                    {currentEdition.can_vote && <Badge className="bg-purple-500/20 text-purple-400">{language === 'it' ? 'VOTA ORA' : 'VOTE NOW'}</Badge>}
+                    <div>
+                      <CardTitle className="font-['Bebas_Neue'] text-2xl text-yellow-400">{currentEdition.festival_name}</CardTitle>
+                      {selectedFestival === 'golden_stars' && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Gem className="w-3.5 h-3.5 text-yellow-400" />
+                          <span className="text-[11px] text-yellow-500/80 font-medium">Palma d'Oro CineWorld</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {votesRemaining !== null && currentEdition.can_vote && (
+                        <Badge className="bg-blue-500/20 text-blue-400 text-xs">{votesRemaining} {language === 'it' ? 'voti rimasti' : 'votes left'}</Badge>
+                      )}
+                      {currentEdition.can_vote && <Badge className="bg-purple-500/20 text-purple-400">{language === 'it' ? 'VOTA ORA' : 'VOTE NOW'}</Badge>}
+                    </div>
                   </div>
-                  <CardDescription>{language === 'it' ? `Edizione ${currentEdition.month}/${currentEdition.year}` : `Edition ${currentEdition.month}/${currentEdition.year}`}</CardDescription>
+                  <CardDescription>{language === 'it' ? `Edizione ${currentEdition.month}/${currentEdition.year} • Voto pesato per livello e fama` : `Edition ${currentEdition.month}/${currentEdition.year} • Weighted voting by level & fame`}</CardDescription>
                 </CardHeader>
               </Card>
 
@@ -664,7 +917,7 @@ const FestivalsPage = () => {
                   <h3 className="font-['Bebas_Neue'] text-lg text-purple-400">{language === 'it' ? 'Crea il Tuo Festival' : 'Create Your Festival'}</h3>
                   <p className="text-xs text-gray-400">
                     {creationCost.can_create 
-                      ? `Costo: $${creationCost.creation_cost?.toLocaleString()} • Livello ${creationCost.user_level}`
+                      ? `Costo: $${creationCost.creation_cost?.toLocaleString()} + ${creationCost.cinepass_cost || 3} CP • Livello ${creationCost.user_level}`
                       : `Richiesto Livello ${creationCost.required_level} (sei ${creationCost.user_level})`}
                   </p>
                 </div>
@@ -839,10 +1092,14 @@ const FestivalsPage = () => {
             </div>
             {creationCost && (
               <Card className="bg-purple-500/10 border-purple-500/30">
-                <CardContent className="p-3">
+                <CardContent className="p-3 space-y-1">
                   <div className="flex justify-between items-center">
-                    <span>{language === 'it' ? 'Costo Creazione' : 'Creation Cost'}</span>
+                    <span>{language === 'it' ? 'Costo Denaro' : 'Money Cost'}</span>
                     <span className="text-purple-400 font-bold">${creationCost.creation_cost?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>{language === 'it' ? 'Costo CinePass' : 'CinePass Cost'}</span>
+                    <span className="text-cyan-400 font-bold">{creationCost.cinepass_cost || 3} CP</span>
                   </div>
                 </CardContent>
               </Card>
@@ -954,6 +1211,62 @@ const FestivalsPage = () => {
           </Card>
         </div>
       )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && (
+        <div data-testid="history-section">
+          <Card className="bg-[#1A1A1A] border-white/10">
+            <CardHeader>
+              <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-amber-500" />
+                {language === 'it' ? 'Storico Cerimonie' : 'Ceremony History'}
+              </CardTitle>
+              <CardDescription>{language === 'it' ? 'Tutte le edizioni passate e i vincitori' : 'All past editions and winners'}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {historyData.length > 0 ? (
+                <div className="space-y-4">
+                  {historyData.map(ed => (
+                    <Card key={ed.edition_id} className="bg-white/5 border-white/10">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="font-['Bebas_Neue'] text-base text-yellow-400">{ed.festival_name}</CardTitle>
+                          <Badge variant="outline" className="text-[10px]">{ed.month}/{ed.year}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        <div className="space-y-1.5">
+                          {ed.winners?.map((w, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm">
+                              <Trophy className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" />
+                              <span className="text-gray-400 text-xs w-28 truncate">{w.category}</span>
+                              <span className="font-medium text-white truncate">{w.winner_name}</span>
+                              {w.film_title && <span className="text-gray-500 text-xs truncate hidden sm:inline">({w.film_title})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-400">{language === 'it' ? 'Nessuna cerimonia conclusa ancora.' : 'No completed ceremonies yet.'}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Envelope Reveal Animation */}
+      <EnvelopeReveal 
+        isRevealing={envelopeRevealing}
+        winnerName={envelopeWinner}
+        categoryName={envelopeCategory}
+        onComplete={() => {}}
+      />
 
       {/* Live Ceremony Modal */}
       {showLiveCeremony && liveCeremony && (

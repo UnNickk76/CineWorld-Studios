@@ -43,7 +43,7 @@ import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { VelionOverlay } from './components/VelionOverlay';
-import { TutorialPopup } from './components/TutorialPopup';
+import { VelionTutorial, shouldAutoShowTutorial } from './components/VelionTutorial';
 
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
@@ -800,7 +800,21 @@ const TopNavbar = () => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-4 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-xl"
+                className="flex flex-col items-center gap-1 h-14 px-3 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-xl"
+                onClick={() => { 
+                  window.dispatchEvent(new Event('velion-show'));
+                  window.dispatchEvent(new Event('velion-tutorial-open'));
+                  setMobileMenuOpen(false); 
+                }}
+                data-testid="menu-velion-btn"
+              >
+                <Sparkles className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Velion</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex flex-col items-center gap-1 h-14 px-3 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-xl"
                 onClick={() => { navigate('/major'); setMobileMenuOpen(false); }}
               >
                 <Crown className="w-5 h-5" />
@@ -1730,6 +1744,21 @@ const ProtectedRoute = ({ children }) => {
   const [productionMenuOpen, setProductionMenuOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   
+  // Auto-show tutorial for new users
+  useEffect(() => {
+    if (user && shouldAutoShowTutorial()) {
+      const timer = setTimeout(() => setShowTutorial(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  // Listen for tutorial open event from hamburger menu
+  useEffect(() => {
+    const handler = () => setShowTutorial(true);
+    window.addEventListener('velion-tutorial-open', handler);
+    return () => window.removeEventListener('velion-tutorial-open', handler);
+  }, []);
+  
   // Check for pending challenge invites - on login + every 30s
   useEffect(() => {
     if (!user || !api) return;
@@ -1821,7 +1850,7 @@ const ProtectedRoute = ({ children }) => {
 
       {/* Velion Tutorial Overlay */}
       <VelionOverlay onClick={() => setShowTutorial(true)} />
-      <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />
+      <VelionTutorial open={showTutorial} onClose={() => setShowTutorial(false)} onNavigate={(path) => { navigate(path); setShowTutorial(false); }} />
 
     </PlayerPopupContext.Provider>
     </ProductionMenuContext.Provider>

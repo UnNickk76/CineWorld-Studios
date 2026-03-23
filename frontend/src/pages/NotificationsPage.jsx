@@ -29,17 +29,17 @@ const NotificationsPage = () => {
   const [actorPopup, setActorPopup] = useState(null);
   const [filter, setFilter] = useState('all'); // all, critical, important, positive
   
-  useEffect(() => {
-    loadNotifications();
-  }, [api]);
-  
-  const loadNotifications = async () => {
+  const loadNotifications = React.useCallback(async () => {
     try {
       const res = await api.get('/notifications?limit=80');
       setNotifications(res.data.notifications);
     } catch (e) {}
     setLoading(false);
-  };
+  }, [api]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
   
   const markAllRead = async () => {
     try {

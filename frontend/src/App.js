@@ -93,6 +93,7 @@ const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
+const HqPage = React.lazy(() => import('./pages/HqPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -350,6 +351,7 @@ const TopNavbar = () => {
     { path: '/marketplace', icon: Store, label: language === 'it' ? 'Mercato' : 'Market' },
     { path: '/emerging-screenplays', icon: Pen, label: 'screenplays', notificationCount: emergingScreenplaysCount },
     { path: '/sagas', icon: BookOpen, label: 'sagas_series' },
+    { path: '/hq', icon: Swords, label: language === 'it' ? 'Quartier Generale' : 'HQ' },
     { path: '/infrastructure', icon: Building, label: 'infrastructure' },
     { path: '/acting-school', icon: GraduationCap, label: 'acting_school' },
     { path: '/marketplace', icon: ShoppingBag, label: 'marketplace', disabled: true, pauseLabel: 'In pausa' },
@@ -1925,6 +1927,7 @@ function App() {
                 <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
+                <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />

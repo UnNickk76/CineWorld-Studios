@@ -79,6 +79,7 @@ from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
+from routes.pvp import router as pvp_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -18662,6 +18663,7 @@ app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
+app.include_router(pvp_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

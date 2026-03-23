@@ -42,6 +42,8 @@ import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTransl
 import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
+import { VelionOverlay } from './components/VelionOverlay';
+import { TutorialPopup } from './components/TutorialPopup';
 
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
@@ -1726,6 +1728,7 @@ const ProtectedRoute = ({ children }) => {
   const [popupData, setPopupData] = useState(null);
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
   const [productionMenuOpen, setProductionMenuOpen] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   
   // Check for pending challenge invites - on login + every 30s
   useEffect(() => {
@@ -1815,6 +1818,11 @@ const ProtectedRoute = ({ children }) => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Velion Tutorial Overlay */}
+      <VelionOverlay onClick={() => setShowTutorial(true)} />
+      <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />
+
     </PlayerPopupContext.Provider>
     </ProductionMenuContext.Provider>
   );

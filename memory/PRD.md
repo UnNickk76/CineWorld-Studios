@@ -94,6 +94,15 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
   - Testato E2E: film con director MA senza shooting → correttamente recuperato
   - Film legittimi con shooting → correttamente ignorati
 
+### Velion Tutorial Overlay
+- Personaggio Velion come overlay flottante bottom-right su tutte le pagine
+- Rimozione sfondo nero via CSS `mix-blend-mode: screen` + brightness/contrast boost
+- Cerchio di sfondo scuro per visibilita + glow ring animato cyan rotante
+- Pulsing dot di notifica cyan
+- Tooltip "Chiedi a Velion" su hover
+- Click apre il TutorialPopup (16 step)
+- Posizione responsive: bottom-20 right-2 (mobile sopra navbar) / bottom-6 right-5 (desktop)
+
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
 - Backend: FastAPI + MongoDB + APScheduler

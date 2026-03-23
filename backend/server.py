@@ -13425,7 +13425,7 @@ FESTIVALS = {
     },
     'cinema_excellence': {
         'id': 'cinema_excellence',
-        'voting_type': 'ai',  # AI managed
+        'voting_type': 'algorithm',  # Pure technical quality - no randomness
         'prestige': 2,
         'day_of_month': [30, 28],  # Day 30 (28 for February)
         'ceremony_time': {'hour': 21, 'minute': 30},
@@ -13438,8 +13438,8 @@ FESTIVALS = {
             'de': 'Kino-Exzellenz Preis'
         },
         'descriptions': {
-            'en': 'Honoring technical and creative achievements in filmmaking.',
-            'it': 'Onora i risultati tecnici e creativi nella produzione cinematografica.',
+            'en': 'Honoring technical and creative achievements in filmmaking. Pure algorithm-based evaluation.',
+            'it': 'Onora i risultati tecnici e creativi. Valutazione puramente algoritmica basata su qualità tecnica.',
             'es': 'Honrando logros técnicos y creativos en la cinematografía.',
             'fr': 'Honorant les réalisations techniques et créatives du cinéma.',
             'de': 'Ehrung technischer und kreativer Leistungen im Filmemachen.'
@@ -13530,27 +13530,24 @@ class FestivalVoteRequest(BaseModel):
 
 @api_router.get("/festivals")
 async def get_festivals(language: str = 'en'):
-    """Get all festival information with current/upcoming editions."""
+    """Get all festival information with current/upcoming editions and state."""
     today = datetime.now(timezone.utc)
     current_day = today.day
     current_month = today.month
     current_year = today.year
     
-    # Helper to get correct day for month (28 for February)
+    import calendar
     def get_festival_day_for_month(days_list, month, year):
-        import calendar
         last_day = calendar.monthrange(year, month)[1]
         for d in days_list:
             if d <= last_day:
                 return d
-        return days_list[0]  # Fallback
+        return days_list[0]
     
     festivals_data = []
     for fest_id, fest in FESTIVALS.items():
-        # Get the actual day for this month
         festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
         
-        # Find next occurrence
         if festival_day >= current_day:
             next_day = festival_day
             next_month = current_month
@@ -13561,12 +13558,43 @@ async def get_festivals(language: str = 'en'):
             next_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
         
         next_date = f"{next_year}-{next_month:02d}-{next_day:02d}"
-        
-        # Check if today is a festival day
-        is_active = current_day == festival_day
-        
-        # Get ceremony time
         ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+        
+        # Calculate ceremony datetime
+        try:
+            ceremony_dt = datetime(next_year, next_month, next_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+        except:
+            ceremony_dt = datetime(next_year, next_month, min(next_day, 28), ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+        
+        days_until = (ceremony_dt - today).total_seconds() / 86400
+        
+        # Determine current state
+        if days_until > 3:
+            current_state = 'upcoming'
+        elif days_until > 0:
+            current_state = 'voting'
+        elif days_until > -0.25:  # Within 6 hours after ceremony time
+            current_state = 'live'
+        else:
+            current_state = 'ended'
+        
+        # Check if there's an actual edition with override status
+        edition_id = f"{fest_id}_{next_year}_{next_month}"
+        edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0, 'status': 1})
+        if edition:
+            db_status = edition.get('status', '')
+            if db_status == 'awarded':
+                current_state = 'ended'
+            elif db_status == 'ceremony':
+                current_state = 'live'
+        
+        # State labels
+        state_labels = {
+            'upcoming': {'it': 'IN ARRIVO', 'en': 'UPCOMING'},
+            'voting': {'it': 'VOTAZIONI APERTE', 'en': 'VOTING OPEN'},
+            'live': {'it': 'IN DIRETTA', 'en': 'LIVE NOW'},
+            'ended': {'it': 'CONCLUSO', 'en': 'ENDED'}
+        }
         
         festivals_data.append({
             'id': fest_id,
@@ -13576,9 +13604,14 @@ async def get_festivals(language: str = 'en'):
             'prestige': fest['prestige'],
             'rewards': fest['rewards'],
             'next_date': next_date,
-            'is_active': is_active,
+            'is_active': current_state == 'live',
             'ceremony_day': festival_day,
             'ceremony_time': f"{ceremony_time['hour']:02d}:{ceremony_time['minute']:02d}",
+            'ceremony_datetime': ceremony_dt.isoformat(),
+            'current_state': current_state,
+            'state_label': state_labels.get(current_state, {}).get(language, current_state.upper()),
+            'days_until': round(days_until, 1),
+            'has_palma_doro': fest.get('has_palma_doro', False),
             'categories': [
                 {'id': cat_id, 'name': cat['names'].get(language, cat['names']['en'])}
                 for cat_id, cat in AWARD_CATEGORIES.items()
@@ -13589,7 +13622,7 @@ async def get_festivals(language: str = 'en'):
 
 @api_router.get("/festivals/{festival_id}/current")
 async def get_current_festival_edition(festival_id: str, language: str = 'en', user: dict = Depends(get_current_user)):
-    """Get current festival edition with nominees."""
+    """Get current festival edition with nominees and state info."""
     if festival_id not in FESTIVALS:
         raise HTTPException(status_code=404, detail="Festival non trovato")
     
@@ -13601,8 +13634,42 @@ async def get_current_festival_edition(festival_id: str, language: str = 'en', u
     edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0})
     
     if not edition:
-        # Create new edition with nominees
         edition = await create_festival_edition(festival_id, edition_id, today)
+    
+    # Auto-update status based on time
+    ceremony_dt_str = edition.get('ceremony_datetime')
+    if not ceremony_dt_str:
+        # Fallback: calculate ceremony datetime from festival definition
+        import calendar
+        fest_def = FESTIVALS.get(festival_id, {})
+        ct = fest_def.get('ceremony_time', {'hour': 21, 'minute': 30})
+        fest_day = fest_def.get('day_of_month', [10])[0]
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        fest_day = min(fest_day, last_day)
+        try:
+            ceremony_dt_str = datetime(today.year, today.month, fest_day, ct['hour'], ct['minute'], tzinfo=timezone.utc).isoformat()
+            await db.festival_editions.update_one({'id': edition_id}, {'$set': {'ceremony_datetime': ceremony_dt_str}})
+        except:
+            pass
+    
+    if ceremony_dt_str and edition.get('status') not in ['awarded', 'ended']:
+        try:
+            ceremony_dt = datetime.fromisoformat(ceremony_dt_str.replace('Z', '+00:00')) if isinstance(ceremony_dt_str, str) else ceremony_dt_str
+            days_until = (ceremony_dt - today).total_seconds() / 86400
+            
+            new_status = edition.get('status')
+            if days_until > 3:
+                new_status = 'upcoming'
+            elif days_until > 0:
+                new_status = 'voting'
+            elif days_until > -0.25:
+                new_status = 'live'
+            
+            if new_status != edition.get('status'):
+                await db.festival_editions.update_one({'id': edition_id}, {'$set': {'status': new_status}})
+                edition['status'] = new_status
+        except:
+            pass
     
     # Get user's votes for this edition
     user_votes = await db.festival_votes.find(
@@ -13619,40 +13686,76 @@ async def get_current_festival_edition(festival_id: str, language: str = 'en', u
     
     edition['festival_name'] = festival['names'].get(language, festival['names']['en'])
     edition['voting_type'] = festival['voting_type']
-    edition['can_vote'] = festival['voting_type'] == 'player'
+    edition['can_vote'] = festival['voting_type'] == 'player' and edition.get('status') == 'voting'
+    
+    # State labels
+    state_labels = {
+        'upcoming': {'it': 'IN ARRIVO', 'en': 'UPCOMING'},
+        'voting': {'it': 'VOTAZIONI APERTE', 'en': 'VOTING OPEN'},
+        'live': {'it': 'IN DIRETTA', 'en': 'LIVE NOW'},
+        'ended': {'it': 'CONCLUSO', 'en': 'ENDED'},
+        'awarded': {'it': 'CONCLUSO', 'en': 'ENDED'},
+        'ceremony': {'it': 'IN DIRETTA', 'en': 'LIVE NOW'}
+    }
+    edition['state_label'] = state_labels.get(edition.get('status', ''), {}).get(language, edition.get('status', '').upper())
     
     return edition
 
 async def create_festival_edition(festival_id: str, edition_id: str, date: datetime):
-    """Create a new festival edition with nominees using multi-factor scoring."""
-    # Multi-factor nomination: quality, rating, revenue, cast skills, genre diversity
+    """Create a new festival edition with dynamic nominations.
+    - Only films from last 14 days
+    - Max 5 candidates per category
+    - Mix: top 3 by score + 2 random from remaining pool
+    """
+    import random as rng
+    
+    # Only recent films (last 14 days)
+    cutoff_date = (date - timedelta(days=14)).isoformat()
+    
     pipeline = [
-        {'$match': {'status': {'$in': ['in_theaters', 'released', 'withdrawn']}}},
+        {'$match': {
+            'status': {'$in': ['in_theaters', 'released', 'withdrawn']},
+            '$or': [
+                {'released_at': {'$gte': cutoff_date}},
+                {'created_at': {'$gte': cutoff_date}},
+                {'status_changed_at': {'$gte': cutoff_date}}
+            ]
+        }},
         {'$project': {
             '_id': 0,
             'id': 1, 'title': 1, 'user_id': 1,
             'quality_score': 1, 'audience_satisfaction': 1,
             'total_revenue': 1, 'virtual_likes': 1, 'genre': 1,
             'budget': 1, 'expected_quality': 1,
+            'hype_score': 1, 'viral_score': 1,
             'director': {'id': 1, 'name': 1, 'gender': 1},
             'screenwriter': {'id': 1, 'name': 1},
             'composer': {'id': 1, 'name': 1},
-            'cast': {'$slice': ['$cast', 4]}
+            'cast': {'$slice': ['$cast', 4]},
+            'released_at': 1, 'created_at': 1
         }},
-        {'$limit': 50}
+        {'$limit': 80}
     ]
-    films = await db.films.aggregate(pipeline).to_list(50)
+    films = await db.films.aggregate(pipeline).to_list(80)
+    
+    # Fallback: if not enough recent films, widen to all films
+    if len(films) < 5:
+        pipeline[0] = {'$match': {'status': {'$in': ['in_theaters', 'released', 'withdrawn']}}}
+        films = await db.films.aggregate(pipeline).to_list(50)
     
     if not films:
         pipeline[0] = {'$match': {}}
         pipeline[2] = {'$limit': 5}
         films = await db.films.aggregate(pipeline).to_list(5)
     
+    festival = FESTIVALS.get(festival_id, {})
+    voting_type = festival.get('voting_type', 'player')
+    
     # Multi-factor nomination score
     def calc_nomination_score(film):
         quality = film.get('quality_score', 50)
         satisfaction = film.get('audience_satisfaction', 50)
-        revenue = min(film.get('total_revenue', 0) / 100000, 100)  # Cap at 100
+        revenue = min(film.get('total_revenue', 0) / 100000, 100)
         likes = min(film.get('virtual_likes', 0) / 50, 50)
         cast_bonus = sum(1 for c in film.get('cast', []) if c.get('skill_total', 0) > 70) * 5
         return quality * 0.35 + satisfaction * 0.25 + revenue * 0.15 + likes * 0.15 + cast_bonus * 0.10
@@ -13669,8 +13772,17 @@ async def create_festival_edition(festival_id: str, edition_id: str, date: datet
     
     # Sort by nomination score for most categories
     films_by_score = sorted(films, key=lambda x: x['_nom_score'], reverse=True)
-    # Sort by surprise for best_surprise
     films_by_surprise = sorted(films, key=lambda x: x['_surprise_score'], reverse=True)
+    
+    def pick_nominees_mix(source_films, count=5):
+        """Pick top 3 by score + up to 2 random from remaining pool."""
+        if len(source_films) <= count:
+            return source_films[:count]
+        top = source_films[:3]
+        remaining = source_films[3:]
+        random_count = min(count - len(top), len(remaining))
+        random_picks = rng.sample(remaining, random_count) if random_count > 0 else []
+        return top + random_picks
     
     categories = []
     
@@ -13679,7 +13791,8 @@ async def create_festival_edition(festival_id: str, edition_id: str, date: datet
         source_films = films_by_surprise if cat_id == 'best_surprise' else films_by_score
         
         if cat_def['type'] == 'film':
-            for film in source_films[:5]:
+            picked = pick_nominees_mix(source_films)
+            for film in picked:
                 nominees.append({
                     'id': film.get('id'),
                     'name': film.get('title'),
@@ -13740,15 +13853,44 @@ async def create_festival_edition(festival_id: str, edition_id: str, date: datet
             'nominees': nominees[:5]
         })
     
+    # Determine initial state based on festival schedule
+    import calendar
+    fest = FESTIVALS.get(festival_id, {})
+    ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
+    fest_day = date.day
+    for d in fest.get('day_of_month', [10]):
+        fest_day = d
+        break
+    
+    now = datetime.now(timezone.utc)
+    try:
+        ceremony_dt = datetime(date.year, date.month, fest_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+    except:
+        ceremony_dt = datetime(date.year, date.month, min(fest_day, 28), ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+    
+    days_until = (ceremony_dt - now).total_seconds() / 86400
+    
+    if days_until > 3:
+        initial_status = 'upcoming'
+    elif days_until > 0:
+        initial_status = 'voting'
+    else:
+        initial_status = 'voting'
+    
+    voting_opens = (ceremony_dt - timedelta(days=3)).isoformat()
+    
     edition = {
         'id': edition_id,
         'festival_id': festival_id,
         'year': date.year,
         'month': date.month,
         'categories': categories,
-        'status': 'voting',  # voting, closed, awarded
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'voting_ends': (date + timedelta(days=3)).isoformat()
+        'status': initial_status,
+        'voting_type': voting_type,
+        'ceremony_datetime': ceremony_dt.isoformat(),
+        'voting_opens': voting_opens,
+        'voting_ends': ceremony_dt.isoformat(),
+        'created_at': datetime.now(timezone.utc).isoformat()
     }
     
     await db.festival_editions.insert_one(edition)
@@ -13838,7 +13980,7 @@ async def finalize_festival(edition_id: str, user: dict = Depends(get_current_us
     if not edition:
         raise HTTPException(status_code=404, detail="Edizione non trovata")
     
-    if edition.get('status') == 'awarded':
+    if edition.get('status') in ['awarded', 'ended']:
         return {'message': 'Festival già concluso', 'winners': edition.get('winners', [])}
     
     festival = FESTIVALS.get(edition.get('festival_id'))
@@ -13943,7 +14085,7 @@ async def finalize_festival(edition_id: str, user: dict = Depends(get_current_us
     # Update edition status
     await db.festival_editions.update_one(
         {'id': edition_id},
-        {'$set': {'status': 'awarded', 'winners': winners, 'awarded_at': datetime.now(timezone.utc).isoformat()}}
+        {'$set': {'status': 'ended', 'winners': winners, 'awarded_at': datetime.now(timezone.utc).isoformat()}}
     )
     
     return {'success': True, 'winners': winners}
@@ -14041,7 +14183,7 @@ async def get_my_awards(language: str = 'en', user: dict = Depends(get_current_u
 
 @api_router.get("/festivals/countdown")
 async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_current_user)):
-    """Get countdown data for upcoming festivals with nomination previews."""
+    """Get countdown data for upcoming festivals with state and nomination previews."""
     import calendar
     today = datetime.now(timezone.utc)
     current_day = today.day
@@ -14058,22 +14200,49 @@ async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_
     upcoming = []
     for fest_id, fest in FESTIVALS.items():
         festival_day = get_festival_day_for_month(fest['day_of_month'], current_month, current_year)
+        ceremony_time = fest.get('ceremony_time', {'hour': 21, 'minute': 30})
         
         if festival_day > current_day:
-            target_date = datetime(current_year, current_month, festival_day, 21, 30, tzinfo=timezone.utc)
+            target_date = datetime(current_year, current_month, festival_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+        elif festival_day == current_day:
+            target_date = datetime(current_year, current_month, festival_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
+            if target_date < today:
+                next_month = current_month + 1 if current_month < 12 else 1
+                next_year = current_year if next_month > 1 else current_year + 1
+                festival_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
+                target_date = datetime(next_year, next_month, festival_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
         else:
             next_month = current_month + 1 if current_month < 12 else 1
             next_year = current_year if next_month > 1 else current_year + 1
             festival_day = get_festival_day_for_month(fest['day_of_month'], next_month, next_year)
-            target_date = datetime(next_year, next_month, festival_day, 21, 30, tzinfo=timezone.utc)
+            target_date = datetime(next_year, next_month, festival_day, ceremony_time['hour'], ceremony_time['minute'], tzinfo=timezone.utc)
         
         time_until = target_date - today
         days_until = time_until.days
         hours_until = int((time_until.total_seconds() % 86400) / 3600)
+        total_seconds = time_until.total_seconds()
+        total_days = total_seconds / 86400
         
-        # Get current edition nominations preview
+        # Determine state
+        if total_days > 3:
+            current_state = 'upcoming'
+        elif total_days > 0:
+            current_state = 'voting'
+        elif total_days > -0.25:
+            current_state = 'live'
+        else:
+            current_state = 'ended'
+        
+        # Check DB for override
         edition_id = f"{fest_id}_{target_date.year}_{target_date.month}"
         edition = await db.festival_editions.find_one({'id': edition_id}, {'_id': 0, 'categories': 1, 'status': 1})
+        
+        if edition:
+            db_status = edition.get('status', '')
+            if db_status in ['awarded', 'ended']:
+                current_state = 'ended'
+            elif db_status == 'ceremony':
+                current_state = 'live'
         
         top_nominees = []
         if edition:
@@ -14084,6 +14253,13 @@ async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_
                     'category': cat_def.get('names', {}).get(language, cat['category_id']),
                     'nominees': [{'name': n.get('name'), 'votes': n.get('votes', 0)} for n in noms]
                 })
+        
+        state_labels = {
+            'upcoming': {'it': 'IN ARRIVO', 'en': 'UPCOMING'},
+            'voting': {'it': 'VOTAZIONI APERTE', 'en': 'VOTING OPEN'},
+            'live': {'it': 'IN DIRETTA', 'en': 'LIVE NOW'},
+            'ended': {'it': 'CONCLUSO', 'en': 'ENDED'}
+        }
         
         upcoming.append({
             'id': fest_id,
@@ -14096,6 +14272,8 @@ async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_
             'hours_until': hours_until,
             'rewards': fest['rewards'],
             'has_palma_doro': fest.get('has_palma_doro', False),
+            'current_state': current_state,
+            'state_label': state_labels.get(current_state, {}).get(language, current_state.upper()),
             'edition_status': edition.get('status') if edition else None,
             'top_nominees': top_nominees,
             'is_today': days_until == 0
@@ -14109,7 +14287,7 @@ async def get_festival_countdown(language: str = 'it', user: dict = Depends(get_
 async def get_festival_history(language: str = 'it', limit: int = 20, user: dict = Depends(get_current_user)):
     """Get past festival editions with winners for replay/history."""
     editions = await db.festival_editions.find(
-        {'status': 'awarded'},
+        {'status': {'$in': ['awarded', 'ended']}},
         {'_id': 0}
     ).sort('created_at', -1).limit(limit).to_list(limit)
     

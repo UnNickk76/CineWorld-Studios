@@ -12190,13 +12190,13 @@ async def get_player_level_info(user: dict = Depends(get_current_user)):
             quality_scores = [f.get('quality_score', 50) for f in completed_films]
             avg_quality = sum(quality_scores) / len(quality_scores)
             # Base fame from average quality: 50 quality = 50 fame
-            recalculated = min(100, max(10, avg_quality * 0.7 + len(completed_films) * 0.5))
+            recalculated = int(min(100, max(10, avg_quality * 0.7 + len(completed_films) * 0.5)))
             await db.users.update_one({'id': user['id']}, {'$set': {'fame': recalculated}})
             fame = recalculated
 
     return {
         **level_info,
-        'fame': fame,
+        'fame': int(fame),
         'fame_tier': get_fame_tier(fame),
         'total_lifetime_revenue': user.get('total_lifetime_revenue', 0),
         'leaderboard_score': calculate_leaderboard_score(user)
@@ -12219,7 +12219,7 @@ async def recalculate_player_fame(user: dict = Depends(get_current_user)):
     
     # Ensure minimum fame based on career
     min_fame = min(100, 10 + len(completed_films) * 0.3)
-    fame = max(min_fame, fame)
+    fame = int(max(min_fame, fame))
     
     await db.users.update_one({'id': user['id']}, {'$set': {'fame': fame}})
     
@@ -17170,7 +17170,7 @@ async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_use
     
     # Apply penalties
     current_fame = user.get('fame', 50)
-    new_fame = max(0, current_fame - fame_penalty)
+    new_fame = int(max(0, current_fame - fame_penalty))
     
     await db.users.update_one(
         {'id': user['id']},

@@ -2757,7 +2757,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     fame_change = calculate_fame_change(quality_score, opening_day_revenue, current_fame)
     if agency_actors_count > 0:
         fame_change = int(fame_change * agency_fame_mult)
-    new_fame = max(0, min(100, current_fame + fame_change))
+    new_fame = int(max(0, min(100, current_fame + fame_change)))
 
     await db.users.update_one(
         {'id': user['id']},

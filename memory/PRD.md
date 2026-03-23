@@ -143,16 +143,25 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 136: 100% (Velion Phase 3 - Enhanced personality, Idle detection, Tips, Quick asks - Backend 16/16 + Frontend all)
 - Iter 137: 100% (Velion Advisor Evolution - Priority system, Login greeting, Infra upgrade - Backend 15/15 + Frontend all)
 - Iter 138: 100% (Velion ON/OFF Control - Toggle, Persistence, Visual feedback, Autonomy prompt - Backend 15/15 + Frontend all)
+- Iter 139: 100% (Velion Mobile Bubble Fix + Login Welcome Bubble - 8/8 features verified)
+
+### Velion Mobile Fix & Login Bubble (2026-03-23)
+- **Bug Fix Mobile:** Bubble z-index da z-[49] a z-[52], posizione mobile da bottom-[160px] a bottom-[180px] — nessuna sovrapposizione con avatar
+- **Login Bubble:** VelionLoginBubble.jsx con copy ufficiale, CTA "Inizia ora", chiusura X, localStorage persistence (chiave: velion_login_bubble_seen)
+- **Struttura predisposta** per eventi speciali, annunci importanti, novità gioco (riutilizzabile)
 
 ## Backlog
 
 ### P1
 - Chat Evolution Step 6: Rifinitura mobile e qualita' social
 - Marketplace per diritti TV/Anime
+- Velion Mood Indicator (indicatore visivo stato giocatore)
 
 ### P2
+- Velion Levels (Base, Advanced, OFF)
 - RBAC, CinePass + Stripe, PWA
 - Contest Page Mobile Layout Fix
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major
+- Velion AI Memory (memoria sessione per conversazioni contestuali)

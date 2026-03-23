@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import {
   Film, Flame, Users, FileText, Building, Clapperboard, Globe,
-  DollarSign, Puzzle, Swords, BarChart3, Gift, MessageCircle,
-  ChevronLeft, ChevronRight, X, Sparkles, Trophy, Zap
+  DollarSign, Puzzle, Swords, BarChart3, Home, Target,
+  ChevronLeft, ChevronRight, X, Sparkles, Trophy, Zap, Plus, Eye
 } from 'lucide-react';
 
 const LS_TUTORIAL_KEY = 'velion_tutorial_done';
@@ -13,97 +13,87 @@ const STEPS = [
   {
     icon: Sparkles, color: 'cyan',
     title: 'Benvenuto in CineWorld!',
-    text: 'Io sono Velion, il tuo assistente. Ti guidero\' passo passo nella creazione del tuo impero cinematografico.',
-    tip: 'Puoi richiamarmi in qualsiasi momento dal menu!',
+    text: 'Io sono Velion, il tuo assistente personale.\n\nDa questo momento non sei pi\u00f9 solo: costruiremo insieme il tuo impero cinematografico.\n\n\ud83c\udfac Ogni scelta conta.\n\ud83d\udd25 Ogni film pu\u00f2 diventare leggenda.\n\nPronto a iniziare?',
   },
   {
-    icon: Film, color: 'yellow',
-    title: 'Produci il Tuo Film',
-    text: 'Dalla sezione "Produci" crei i tuoi film. Scegli titolo, genere, trama e location. Il sistema calcola una qualita\' iniziale.',
-    tip: 'Clicca su "Produci" nella barra in basso per iniziare!',
+    icon: Home, color: 'yellow',
+    title: 'Dashboard',
+    text: 'Questa \u00e8 la tua base operativa.\n\nQui controlli tutto: incassi, progressi, film e opportunit\u00e0.\n\nTienila sempre d\'occhio\u2026 il successo parte da qui.',
+    page: '/',
+  },
+  {
+    icon: Clapperboard, color: 'orange',
+    title: 'Produci!',
+    text: 'Qui nasce tutto.\n\nClicca su "Produci!": \u00e8 da qui che iniziano i tuoi film.\n\nOgni grande produttore \u00e8 partito da un\'idea.',
     page: '/create-film',
   },
   {
-    icon: Flame, color: 'orange',
-    title: 'Coming Soon & Hype',
-    text: 'Puoi lanciare il film in Coming Soon: un timer durante il quale accumuli hype, ricevi supporti o boicottaggi da altri player.',
-    tip: 'Piu\' tempo = piu\' hype ma anche piu\' rischio!',
+    icon: Plus, color: 'green',
+    title: 'Nuovo Film',
+    text: '\u00c8 il momento di creare.\n\nScegli se:\n\u26a1 Produzione immediata\n\ud83d\udd25 Coming Soon (pi\u00f9 strategico)\n\nLe scelte giuste fanno la differenza.',
   },
   {
-    icon: Users, color: 'green',
+    icon: Film, color: 'blue',
+    title: 'Creazione',
+    text: 'Qui stai proponendo il tuo film.\n\nTitolo, trama, location: \u00e8 qui che nasce la magia.\n\nPi\u00f9 \u00e8 forte l\'idea\u2026 pi\u00f9 pu\u00f2 diventare un successo.',
+  },
+  {
+    icon: Eye, color: 'amber',
+    title: 'Pre-Valutazione',
+    text: 'Il sistema analizza il tuo progetto.\n\nRiceverai un punteggio iniziale.\n\nNon \u00e8 definitivo\u2026 ma \u00e8 un primo segnale.',
+  },
+  {
+    icon: Users, color: 'pink',
     title: 'Casting',
-    text: 'Dopo il Coming Soon, scegli attori, regista e crew. Piu\' sei forte, migliori talenti hai a disposizione.',
-    tip: 'Un buon cast migliora enormemente la qualita\' del film.',
+    text: 'Adesso scegli il cast.\n\nAttori, regista, sceneggiatori.\n\nRicorda:\n\u2b50 il talento costa\u2026 ma fa la differenza.',
   },
   {
-    icon: FileText, color: 'blue',
+    icon: FileText, color: 'purple',
     title: 'Sceneggiatura',
-    text: 'La sceneggiatura viene generata con AI basata sulla tua idea. Le infrastrutture la migliorano.',
-    tip: 'Investi nelle infrastrutture per sceneggiature migliori.',
+    text: 'La storia prende forma.\n\nPuoi aspettare\u2026 oppure velocizzare con i CinePass.\n\n\ud83c\udfaf Qui si decide la qualit\u00e0 del film.',
   },
   {
-    icon: Building, color: 'amber',
-    title: 'Pre-Produzione',
-    text: 'Ottimizza il film prima delle riprese: migliora qualita\', riduci costi, aumenta efficienza.',
+    icon: Clapperboard, color: 'teal',
+    title: 'Produzione',
+    text: 'Ciak\u2026 si gira!\n\nIl film entra in produzione.\n\n\u23f3 Puoi attendere oppure accelerare.',
   },
   {
-    icon: Clapperboard, color: 'pink',
-    title: 'Ciak, si Gira!',
-    text: '"Ciak, si gira!" - Il film entra in lavorazione. Attendi il completamento o accelera con CinePass.',
-    tip: 'Le riprese sono l\'ultimo passo prima della distribuzione.',
+    icon: Flame, color: 'orange',
+    title: 'Coming Soon',
+    text: 'Se hai scelto Coming Soon:\n\nIl tempo gioca a tuo favore.\n\n\ud83d\udcc8 Pi\u00f9 hype = pi\u00f9 successo.\n\nOgni accesso pu\u00f2 migliorare il risultato.',
   },
   {
-    icon: Globe, color: 'teal',
-    title: 'Distribuzione',
-    text: 'Scegli dove lanciare il tuo film: Nazionale, Continentale o Mondiale. Piu\' investi, piu\' guadagni.',
-    page: '/my-films',
+    icon: Globe, color: 'emerald',
+    title: 'Uscita',
+    text: '\u00c8 il momento della verit\u00e0.\n\nIl tuo film arriva al pubblico.\n\n\ud83c\udfac Successo o flop?\nDipende da te.',
+    page: '/films',
   },
   {
-    icon: DollarSign, color: 'emerald',
-    title: 'Incassi & Revenue',
-    text: 'I tuoi film generano entrate nel tempo. Ricorda di riscuoterle! I fondi servono per nuovi film e infrastrutture.',
+    icon: DollarSign, color: 'yellow',
+    title: 'Incassi',
+    text: 'I tuoi film generano guadagni nel tempo.\n\n\ud83d\udcb0 Ricordati di riscuotere!\n\nPi\u00f9 investi\u2026 pi\u00f9 guadagni.',
   },
   {
-    icon: Zap, color: 'purple',
-    title: 'CinePass',
-    text: 'I CinePass sono la valuta premium. Accelerano timer, sbloccano feature avanzate e sono necessari per le infrastrutture.',
-    tip: 'Ottieni CinePass dai bonus giornalieri e dai Festival!',
-  },
-  {
-    icon: Puzzle, color: 'violet',
+    icon: Building, color: 'violet',
     title: 'Infrastrutture',
-    text: 'Sblocca: Serie TV, Anime, Scuole di talenti, Emittenti TV, Divisioni PvP (Investigativa, Operativa, Legale).',
-    tip: 'Ogni livello apre nuove possibilita\' strategiche.',
+    text: 'Qui costruisci il tuo impero.\n\nCinema, studi, divisioni speciali.\n\nSbloccano nuove possibilit\u00e0.',
     page: '/infrastructure',
   },
   {
     icon: Swords, color: 'red',
-    title: 'PvP - Guerra tra Produttori',
-    text: 'Non sei solo! Indaga sui rivali, boicotta i loro film, difenditi o fai causa. Usa le Divisioni PvP.',
+    title: 'PvP / Sfide',
+    text: 'Sfida altri giocatori.\n\n\ud83c\udfaf Vinci \u2192 premi e fama\n\u26a0\ufe0f Perdi \u2192 impari e migliori\n\nQui si vede chi \u00e8 il migliore.',
     page: '/hq',
   },
   {
-    icon: Trophy, color: 'yellow',
-    title: 'Festival & Premi',
-    text: 'Ogni mese ci sono 3 Festival: 1 con voto dei player (come gli Oscar!) e 2 automatici. Vinci premi e la Palma d\'Oro!',
-    tip: 'Il tuo voto conta di piu\' se hai livello e fama alti!',
-    page: '/festivals',
+    icon: Target, color: 'sky',
+    title: 'Eventi & Boicottaggi',
+    text: 'Il mondo del cinema non \u00e8 sempre pulito\u2026\n\nEventi, aiuti, sabotaggi.\n\nSta a te reagire.',
   },
   {
-    icon: BarChart3, color: 'sky',
-    title: 'Cresci e Domina',
-    text: 'Ogni azione ti fa guadagnare XP, Livelli e Fame. Piu\' cresci, piu\' feature sblocchi.',
-  },
-  {
-    icon: Gift, color: 'yellow',
-    title: 'Bonus Giornalieri',
-    text: 'Accedi ogni giorno per CinePass gratuiti e vantaggi. Streak consecutivi moltiplicano i bonus!',
-  },
-  {
-    icon: MessageCircle, color: 'indigo',
-    title: 'Sei Pronto!',
-    text: 'Chat, vota i film degli altri, scala le classifiche. Ora sai tutto: vai e conquista CineWorld!',
-    tip: 'Buona fortuna, Produttore!',
+    icon: Trophy, color: 'cyan',
+    title: 'Conclusione',
+    text: 'Ora sai tutto quello che serve.\n\nMa ricordalo:\n\n\ud83d\udd25 Non vince il pi\u00f9 ricco.\n\ud83c\udfac Non vince il pi\u00f9 veloce.\n\nVince chi fa le scelte giuste.\n\nBenvenuto in CineWorld, produttore.',
   },
 ];
 
@@ -233,7 +223,7 @@ export function VelionTutorial({ open, onClose, onNavigate }) {
                   transition={{ duration: 0.2 }}
                   className="px-4 pb-3"
                 >
-                  <p className="text-sm text-gray-300 leading-relaxed">{current.text}</p>
+                  <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">{current.text}</p>
                   {current.tip && (
                     <div className={`mt-2 px-3 py-2 rounded-lg ${c.bg} border ${c.border}`}>
                       <p className={`text-xs ${c.text}`}>{current.tip}</p>

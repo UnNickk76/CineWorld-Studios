@@ -101,15 +101,16 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Pulsing dot di notifica cyan + Tooltip "Chiedi a Velion" su hover
 - **Dismissibile**: Bottone X per chiudere Velion (stato salvato in localStorage `velion_visible`)
 - **Richiamabile**: Bottone "Velion" (cyan, Sparkles) nel menu hamburger per riaprirlo
-- **Tutorial Interattivo**: VelionTutorial.jsx con 16 step guidati
+- **Tutorial Interattivo**: VelionTutorial.jsx con 16 step guidati (tono immersivo, stile gioco)
+  - Step: Benvenuto → Dashboard → Produci → Nuovo Film → Creazione → Pre-Valutazione → Casting → Sceneggiatura → Produzione → Coming Soon → Uscita → Incassi → Infrastrutture → PvP → Eventi → Conclusione
   - Navigazione: Avanti/Indietro/Salta/Inizia!
   - Barra progresso animata
-  - Link "Vai alla pagina →" per step con pagina associata (es. /create-film, /infrastructure)
-  - Avatar Velion, icona step, titolo, descrizione, tip box opzionale
+  - Link "Vai alla pagina →" per step con pagina associata
+  - Avatar Velion, icona step, titolo, descrizione multilinea con emoji
   - Dark overlay con backdrop-blur
 - **Auto-show**: Tutorial si apre automaticamente per nuovi utenti (1.5s delay dopo login)
 - **Persistenza**: Stato tutorial salvato in localStorage (`velion_tutorial_done`)
-- Posizione responsive: bottom-20 right-2 (mobile sopra navbar) / bottom-6 right-5 (desktop)
+- Posizione responsive: bottom-20 right-2 (mobile) / bottom-6 right-5 (desktop)
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion

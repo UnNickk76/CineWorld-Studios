@@ -144,13 +144,21 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 137: 100% (Velion Advisor Evolution - Priority system, Login greeting, Infra upgrade - Backend 15/15 + Frontend all)
 - Iter 138: 100% (Velion ON/OFF Control - Toggle, Persistence, Visual feedback, Autonomy prompt - Backend 15/15 + Frontend all)
 - Iter 139: 100% (Velion Mobile Bubble Fix + Login Welcome Bubble - 8/8 features verified)
+- Iter 140: 100% (Festival Rework Step 1-3: Dynamic Nominations + 4-State System + UI - Backend 25/25 + Frontend all)
 
-### Velion Mobile Fix & Login Bubble (2026-03-23)
-- **Bug Fix Mobile:** Bubble z-index da z-[49] a z-[52], posizione mobile da bottom-[160px] a bottom-[180px] — nessuna sovrapposizione con avatar
-- **Login Bubble:** VelionLoginBubble.jsx con copy ufficiale, CTA "Inizia ora", chiusura X, localStorage persistence (chiave: velion_login_bubble_seen)
-- **Struttura predisposta** per eventi speciali, annunci importanti, novità gioco (riutilizzabile)
+### Festival Rework Step 1-3 (2026-03-23)
+- **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random
+- **Step 2 - Sistema 4 Stati:** UPCOMING (>3gg) → VOTING (0-3gg) → LIVE (cerimonia) → ENDED. Auto-transizione
+- **Step 3 - UI Migliorata:** Countdown banner, state badges, voting type badges, card con premi, timer live
+- **Voting types:** player (Stelle d'Oro), ai (Luci della Ribalta), algorithm (Cinema d'Eccellenza)
+- **Nuovi campi API:** current_state, state_label, ceremony_datetime, days_until, voting_type, can_vote
 
 ## Backlog
+
+### P0 (Festival Rework - prossimi step)
+- **Step 4:** Sistema AI non prevedibile (fattori nascosti: hype, viralita', rumor, bias random)
+- **Step 5:** Diretta Cinematica (overlay fullscreen con 9 fasi animate: intro, presentazione, categoria, nomination, suspense, reveal, premio, transizione, finale)
+- **Step 6:** Festival Player (creazione $500K+CP, ingresso a pagamento, economia 70/30, badge vincitore, leaderboard)
 
 ### P1
 - Chat Evolution Step 6: Rifinitura mobile e qualita' social
@@ -161,6 +169,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Velion Levels (Base, Advanced, OFF)
 - RBAC, CinePass + Stripe, PWA
 - Contest Page Mobile Layout Fix
+- Sistema Previsioni Festival (scommesse sui vincitori)
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major

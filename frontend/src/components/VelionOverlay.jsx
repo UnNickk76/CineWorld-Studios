@@ -2,13 +2,16 @@ import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { AuthContext } from '../contexts';
+import { useLocation } from 'react-router-dom';
 
 const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
 const POLL_INTERVAL = 60000; // 60s
+const PAGE_HINT_DELAY = 12000; // Show page hint 12s after navigating
 
 export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   const { api, user } = useContext(AuthContext);
+  const location = useLocation();
   const [hovered, setHovered] = useState(false);
   const [visible, setVisible] = useState(() => {
     const saved = localStorage.getItem(LS_KEY);
@@ -16,6 +19,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   });
   const [bubble, setBubble] = useState(null);
   const [hasAlert, setHasAlert] = useState(false);
+  const [lastBubbleType, setLastBubbleType] = useState(null);
 
   useEffect(() => {
     localStorage.setItem(LS_KEY, String(visible));
@@ -38,21 +42,30 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   const fetchTriggers = useCallback(async () => {
     if (!api || !user) return;
     try {
-      const res = await api.get('/velion/player-status');
+      const currentPage = location.pathname;
+      const res = await api.get(`/velion/player-status?page=${encodeURIComponent(currentPage)}`);
       const triggers = res.data?.triggers || [];
+      const pageHint = res.data?.page_hint;
+
       if (triggers.length > 0) {
-        const top = triggers[0];
-        setBubble(top);
+        // Pick a trigger we haven't shown recently
+        const pick = triggers.find(t => t.type !== lastBubbleType) || triggers[0];
+        setBubble(pick);
         setHasAlert(true);
-        // Auto-hide bubble after 8s
+        setLastBubbleType(pick.type);
         setTimeout(() => setBubble(null), 8000);
+      } else if (pageHint) {
+        // Show page hint as a low-priority bubble
+        setBubble({ ...pageHint, priority: 'low' });
+        setHasAlert(false);
+        setTimeout(() => setBubble(null), 10000);
       } else {
         setHasAlert(false);
       }
     } catch {
       // silent
     }
-  }, [api, user]);
+  }, [api, user, location.pathname, lastBubbleType]);
 
   useEffect(() => {
     if (!user || !api) return;
@@ -61,6 +74,14 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     const interval = setInterval(fetchTriggers, POLL_INTERVAL);
     return () => { clearTimeout(initTimer); clearInterval(interval); };
   }, [user, api, fetchTriggers]);
+
+  // Re-fetch when page changes (with delay to let page settle)
+  useEffect(() => {
+    if (!user || !api) return;
+    setBubble(null);
+    const timer = setTimeout(fetchTriggers, PAGE_HINT_DELAY);
+    return () => clearTimeout(timer);
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBubbleClick = () => {
     const action = bubble?.action;
@@ -89,14 +110,27 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
             onClick={handleBubbleClick}
             data-testid="velion-bubble"
           >
-            <div className="bg-[#0d0d10]/95 backdrop-blur-md border border-cyan-500/30 rounded-xl px-3 py-2.5 shadow-lg shadow-cyan-500/5">
+            <div className={`backdrop-blur-md rounded-xl px-3 py-2.5 shadow-lg ${
+              bubble.priority === 'high'
+                ? 'bg-[#0d0d10]/95 border border-cyan-400/40 shadow-cyan-500/10'
+                : bubble.priority === 'low'
+                ? 'bg-[#0d0d10]/90 border border-white/10 shadow-white/5'
+                : 'bg-[#0d0d10]/95 border border-cyan-500/30 shadow-cyan-500/5'
+            }`}>
               <p className="text-[12px] text-gray-200 leading-snug">{bubble.message}</p>
               <div className="mt-1 flex items-center justify-end">
-                <span className="text-[9px] text-cyan-400/60">Tocca per dettagli</span>
+                <span className={`text-[9px] ${bubble.priority === 'low' ? 'text-gray-500' : 'text-cyan-400/60'}`}>
+                  {bubble.action ? 'Tocca per andare' : 'Tocca per dettagli'}
+                </span>
               </div>
             </div>
-            {/* Arrow pointing down-right to Velion */}
-            <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-[#0d0d10]/95 border-r border-b border-cyan-500/30 rotate-45" />
+            <div className={`absolute -bottom-1.5 right-6 w-3 h-3 rotate-45 ${
+              bubble.priority === 'high'
+                ? 'bg-[#0d0d10]/95 border-r border-b border-cyan-400/40'
+                : bubble.priority === 'low'
+                ? 'bg-[#0d0d10]/90 border-r border-b border-white/10'
+                : 'bg-[#0d0d10]/95 border-r border-b border-cyan-500/30'
+            }`} />
           </motion.div>
         )}
       </AnimatePresence>

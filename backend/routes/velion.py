@@ -5,6 +5,8 @@ import os
 import logging
 import jwt
 
+import random
+
 router = APIRouter(prefix="/api/velion", tags=["velion"])
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
@@ -96,6 +98,183 @@ def get_rule_response(text: str) -> str:
     return DEFAULT_RESPONSE
 
 
+# ==================== DYNAMIC MESSAGE VARIANTS ====================
+
+TRIGGER_VARIANTS = {
+    'revenue': [
+        'Hai ${amount} di incassi pronti. Riscuotili e reinvestili subito.',
+        'I tuoi film stanno generando. ${amount} ti aspettano... non lasciarli li.',
+        'C\'e del denaro che attende. ${amount} pronti da riscuotere.',
+        'Il botteghino parla: ${amount} da incassare. Muoviti.',
+    ],
+    'stuck_film': [
+        '"{title}" e fermo. Prosegui ora per non perdere tempo.',
+        '"{title}" attende una tua decisione. Non lasciarlo in sospeso.',
+        'Hai un progetto in pausa: "{title}". Il cinema non aspetta.',
+        '"{title}" ha bisogno di te. Ogni ora ferma e un\'opportunita persa.',
+    ],
+    'countdown': [
+        'Il tuo film sta per uscire dal Coming Soon. Preparati.',
+        'Countdown quasi finito. Il momento della verita si avvicina.',
+        'Manca poco al debutto. Assicurati che tutto sia pronto.',
+        'Sta per succedere qualcosa... il tuo Coming Soon e in scadenza.',
+    ],
+    'pvp_event': [
+        'Qualcuno potrebbe ostacolarti. Controlla le notifiche.',
+        'Attivita sospette intorno ai tuoi film. Indaga.',
+        'Il mondo del cinema non e sempre pulito. Hai notifiche PvP.',
+        'Occhi aperti: qualcuno si sta muovendo contro di te.',
+    ],
+    'no_films': [
+        'Non hai film in produzione. E il momento di crearne uno.',
+        'Lo studio e vuoto. Un grande produttore non sta mai fermo.',
+        'Nessun progetto attivo? Il pubblico aspetta il tuo prossimo capolavoro.',
+        'Il set e silenzioso. Rompi il silenzio con una nuova produzione.',
+    ],
+    'low_quality': [
+        '"{title}" ha qualita bassa. Migliora il cast per alzare il livello.',
+        '"{title}" non convince ancora. Un cast migliore puo cambiare tutto.',
+        'Il progetto "{title}" ha margine di crescita. Investi nel talento.',
+    ],
+}
+
+
+def pick_variant(trigger_type, **kwargs):
+    variants = TRIGGER_VARIANTS.get(trigger_type, [])
+    if not variants:
+        return ''
+    text = random.choice(variants)
+    for k, v in kwargs.items():
+        text = text.replace('{' + k + '}', str(v))
+    return text
+
+
+# ==================== PAGE-CONTEXTUAL SUGGESTIONS ====================
+
+PAGE_SUGGESTIONS = {
+    '/': {
+        'base': [
+            'Dalla dashboard controlli tutto. Tieni d\'occhio incassi e progressi.',
+            'La tua base operativa. Ogni decisione parte da qui.',
+        ],
+        'by_level': {
+            1: 'Sei all\'inizio. Produci il tuo primo film per entrare nel gioco.',
+            3: 'Stai crescendo. Pensa a investire nelle infrastrutture.',
+            5: 'Hai esperienza. E il momento di sfidare altri produttori nel PvP.',
+            10: 'Sei un veterano. Punta ai Festival per la gloria eterna.',
+        }
+    },
+    '/infrastructure': {
+        'base': [
+            'Le infrastrutture sono il cuore del tuo impero. Ogni upgrade conta.',
+            'Qui si costruisce il futuro. Scegli con saggezza.',
+        ],
+        'by_level': {
+            1: 'Inizia con uno Studio di base. Aumentera la qualita dei tuoi film.',
+            3: 'Sblocca la divisione Serie TV: e un nuovo flusso di entrate.',
+            5: 'Le divisioni PvP ti proteggono e ti danno potere offensivo.',
+            8: 'Investi nella Scuola Talenti per avere cast migliori a costi ridotti.',
+            10: 'Massimizza le Emittenti TV per entrate passive costanti.',
+        }
+    },
+    '/create-film': {
+        'base': [
+            'Ogni grande film parte da un\'idea forte. Scegli bene.',
+            'La produzione e dove nasce la magia. Non avere fretta.',
+        ],
+        'by_level': {
+            1: 'Per il primo film, scegli un genere che conosci. La semplicita vince.',
+            3: 'Prova il Coming Soon: accumula hype e sorprendi tutti.',
+            5: 'A questo livello, la qualita del cast fa la vera differenza.',
+            8: 'Diversifica: prova generi diversi per ampliare il tuo pubblico.',
+        }
+    },
+    '/films': {
+        'base': [
+            'Ecco i tuoi film. Ogni uno racconta una storia... anche finanziaria.',
+            'La tua filmografia. Riscuoti gli incassi e pianifica il prossimo.',
+        ],
+        'by_level': {
+            1: 'Il primo film e il piu importante. Non scoraggiarti se non spacca.',
+            5: 'Analizza i tuoi risultati: cosa ha funzionato? Cosa migliorare?',
+        }
+    },
+    '/hq': {
+        'base': [
+            'Il Quartier Generale PvP. Qui si gioca sporco... o pulito.',
+            'Sfide, indagini, sabotaggi. Scegli le tue battaglie con cura.',
+        ],
+        'by_level': {
+            1: 'Prima di attaccare, costruisci le tue difese. La pazienza paga.',
+            5: 'Indaga prima di agire. L\'informazione e potere.',
+            8: 'Le azioni legali possono essere devastanti. Usale strategicamente.',
+        }
+    },
+    '/festivals': {
+        'base': [
+            'I Festival sono la vetrina del cinema. Qui nascono le leggende.',
+            'Premi, gloria, CinePass. I Festival premiano chi produce qualita.',
+        ],
+        'by_level': {
+            1: 'Partecipa appena puoi. Anche solo osservare ti insegna molto.',
+            5: 'Il tuo voto conta nei Festival live. Usalo con saggezza.',
+            10: 'Punta alla Palma d\'Oro. E il premio supremo.',
+        }
+    },
+    '/marketplace': {
+        'base': [
+            'Il Marketplace e dove si negoziano i diritti. Compra basso, vendi alto.',
+        ],
+    },
+    '/series': {
+        'base': [
+            'Le Serie TV sono un flusso costante. Perfette per entrate stabili.',
+        ],
+        'by_level': {
+            3: 'Prima sblocca l\'infrastruttura Serie TV. Poi produci.',
+        }
+    },
+    '/anime': {
+        'base': [
+            'L\'Anime e un mercato in crescita. Chi entra prima, domina.',
+        ],
+    },
+}
+
+
+def get_page_suggestion(page: str, user_level: int) -> dict:
+    config = None
+    for route, cfg in PAGE_SUGGESTIONS.items():
+        if page.startswith(route) and (config is None or len(route) > len(config[0])):
+            config = (route, cfg)
+
+    if not config:
+        return None
+
+    _, cfg = config
+    base_msgs = cfg.get('base', [])
+    level_msgs = cfg.get('by_level', {})
+
+    # Find best level-specific message
+    level_msg = None
+    best_level = 0
+    for lvl, msg in level_msgs.items():
+        if user_level >= lvl and lvl > best_level:
+            best_level = lvl
+            level_msg = msg
+
+    message = level_msg or (random.choice(base_msgs) if base_msgs else None)
+    if not message:
+        return None
+
+    return {
+        'type': 'page_context',
+        'message': message,
+        'priority': 'low',
+        'page': page
+    }
+
+
 # ==================== AI RESPONSE ====================
 
 VELION_SYSTEM_PROMPT = """Sei Velion, l'assistente personale in CineWorld Studio's, un gioco gestionale sul cinema.
@@ -143,9 +322,10 @@ async def get_ai_response(user_text: str, player_context: str) -> str:
 
 # ==================== PLAYER STATUS ANALYSIS ====================
 
-async def analyze_player_state(user: dict) -> dict:
+async def analyze_player_state(user: dict, page: str = None) -> dict:
     uid = user['id']
     now = datetime.now(timezone.utc)
+    user_level = user.get('level', 1)
 
     import asyncio
     films, pipeline, notifications = await asyncio.gather(
@@ -180,7 +360,7 @@ async def analyze_player_state(user: dict) -> dict:
     if pending_revenue > 0:
         triggers.append({
             'type': 'revenue',
-            'message': f'Hai ${pending_revenue:,} di incassi pronti. Riscuotili e reinvestili subito.',
+            'message': pick_variant('revenue', amount=f'${pending_revenue:,}'),
             'priority': 'high',
             'action': '/'
         })
@@ -202,7 +382,7 @@ async def analyze_player_state(user: dict) -> dict:
                 if hours_idle > 2:
                     triggers.append({
                         'type': 'stuck_film',
-                        'message': f'"{p.get("title", "Il tuo film")}" e fermo. Prosegui ora per non perdere tempo.',
+                        'message': pick_variant('stuck_film', title=p.get('title', 'Il tuo film')),
                         'priority': 'medium',
                         'action': '/create-film'
                     })
@@ -228,7 +408,7 @@ async def analyze_player_state(user: dict) -> dict:
                 if 0 < remaining < 3600:
                     triggers.append({
                         'type': 'countdown',
-                        'message': 'Il tuo film sta per uscire dal Coming Soon. Preparati.',
+                        'message': pick_variant('countdown'),
                         'priority': 'high',
                         'action': '/create-film'
                     })
@@ -242,7 +422,7 @@ async def analyze_player_state(user: dict) -> dict:
     if pvp_notifs:
         triggers.append({
             'type': 'pvp_event',
-            'message': 'Qualcuno potrebbe ostacolarti. Controlla le notifiche.',
+            'message': pick_variant('pvp_event'),
             'priority': 'medium',
             'action': '/notifications'
         })
@@ -251,7 +431,7 @@ async def analyze_player_state(user: dict) -> dict:
     if not active_pipeline and not films_in_theaters:
         triggers.append({
             'type': 'no_films',
-            'message': 'Non hai film in produzione. E il momento di crearne uno.',
+            'message': pick_variant('no_films'),
             'priority': 'high',
             'action': '/create-film'
         })
@@ -261,8 +441,15 @@ async def analyze_player_state(user: dict) -> dict:
     for p in active_pipeline:
         q = p.get('quality_score', 0)
         if q > 0 and q < 40:
-            suggestions.append(f'"{p.get("title", "Il tuo progetto")}" ha qualita bassa. Migliora il cast per alzare il livello.')
+            suggestions.append(pick_variant('low_quality', title=p.get('title', 'Il tuo progetto')))
             break
+
+    # --- Page-contextual suggestion ---
+    page_hint = None
+    if page:
+        page_hint = get_page_suggestion(page, user_level)
+        if page_hint:
+            suggestions.append(page_hint['message'])
 
     # --- Build context string for AI ---
     context_parts = []
@@ -279,6 +466,7 @@ async def analyze_player_state(user: dict) -> dict:
         'triggers': triggers,
         'suggestions': suggestions,
         'player_context': player_context,
+        'page_hint': page_hint,
         'stats_summary': {
             'level': user.get('level', 1),
             'fame': user.get('fame', 0),
@@ -295,8 +483,8 @@ async def analyze_player_state(user: dict) -> dict:
 # ==================== ENDPOINTS ====================
 
 @router.get("/player-status")
-async def velion_player_status(user: dict = Depends(_get_user)):
-    result = await analyze_player_state(user)
+async def velion_player_status(page: str = None, user: dict = Depends(_get_user)):
+    result = await analyze_player_state(user, page=page)
     return result
 
 

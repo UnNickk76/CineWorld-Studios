@@ -215,13 +215,23 @@ function TutorialTab({ onClose, onNavigate }) {
 
 // ==================== CHAT TAB ====================
 
+const QUICK_ASKS = [
+  { label: 'Come guadagno?', text: 'come faccio a guadagnare?' },
+  { label: 'Prossima mossa', text: 'qual e la mia prossima mossa?' },
+  { label: 'Migliora film', text: 'come miglioro la qualita dei miei film?' },
+  { label: 'PvP', text: 'come funziona il PvP?' },
+  { label: 'Infrastrutture', text: 'cosa dovrei costruire nelle infrastrutture?' },
+];
+
 function ChatTab() {
   const { api } = useContext(AuthContext);
   const [messages, setMessages] = useState([
-    { role: 'velion', text: 'Sono Velion. Chiedimi qualsiasi cosa sul gioco.' }
+    { role: 'velion', text: 'Ogni domanda merita una risposta. Chiedimi.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tips, setTips] = useState([]);
+  const [showTips, setShowTips] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -230,8 +240,16 @@ function ChatTab() {
     }
   }, [messages]);
 
-  const handleSend = async () => {
-    const text = input.trim();
+  // Fetch tips on mount
+  useEffect(() => {
+    if (!api) return;
+    api.get('/velion/tips?category=general&count=3')
+      .then(r => setTips(r.data?.tips || []))
+      .catch(() => {});
+  }, [api]);
+
+  const handleSend = async (overrideText) => {
+    const text = (overrideText || input).trim();
     if (!text || loading) return;
 
     setInput('');
@@ -258,7 +276,7 @@ function ChatTab() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2.5" style={{ maxHeight: '280px' }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2.5" style={{ maxHeight: '240px' }}>
         {messages.map((m, i) => (
           <motion.div
             key={i}
@@ -275,6 +293,8 @@ function ChatTab() {
             <div className={`max-w-[80%] px-3 py-2 rounded-xl text-[13px] leading-relaxed ${
               m.role === 'user'
                 ? 'bg-cyan-500/20 text-cyan-100 rounded-br-sm'
+                : m.role === 'tip'
+                ? 'bg-amber-500/10 text-amber-200/80 border border-amber-500/20 rounded-bl-sm italic'
                 : 'bg-white/5 text-gray-300 border border-white/5 rounded-bl-sm'
             }`}>
               {m.text}
@@ -296,8 +316,41 @@ function ChatTab() {
         )}
       </div>
 
+      {/* Quick asks + Tips toggle */}
+      <div className="px-3 pt-1 pb-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          {QUICK_ASKS.map((q, i) => (
+            <button
+              key={i}
+              onClick={() => handleSend(q.text)}
+              disabled={loading}
+              className="flex-shrink-0 text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10 hover:bg-cyan-500/10 hover:text-cyan-400 hover:border-cyan-500/30 transition-all disabled:opacity-30"
+              data-testid={`velion-quick-${i}`}
+            >
+              {q.label}
+            </button>
+          ))}
+          <button
+            onClick={() => {
+              setShowTips(!showTips);
+              if (!showTips && tips.length > 0) {
+                setMessages(prev => [...prev, { role: 'tip', text: tips[Math.floor(Math.random() * tips.length)] }]);
+              }
+            }}
+            className={`flex-shrink-0 text-[10px] px-2.5 py-1 rounded-full border transition-all ${
+              showTips
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                : 'bg-white/5 text-gray-400 border-white/10 hover:bg-amber-500/10 hover:text-amber-400'
+            }`}
+            data-testid="velion-tips-btn"
+          >
+            Lo sapevi?
+          </button>
+        </div>
+      </div>
+
       {/* Input */}
-      <div className="px-3 py-2.5 border-t border-white/5">
+      <div className="px-3 py-2 border-t border-white/5">
         <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-1.5 border border-white/10 focus-within:border-cyan-500/40 transition-colors">
           <input
             value={input}
@@ -309,7 +362,7 @@ function ChatTab() {
             data-testid="velion-chat-input"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || loading}
             className="p-1.5 rounded-lg text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             data-testid="velion-chat-send"

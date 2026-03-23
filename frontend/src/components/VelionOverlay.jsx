@@ -8,6 +8,7 @@ const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
 const POLL_INTERVAL = 60000; // 60s
 const PAGE_HINT_DELAY = 12000; // Show page hint 12s after navigating
+const IDLE_THRESHOLD = 180000; // 3 minutes
 
 export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   const { api, user } = useContext(AuthContext);
@@ -20,6 +21,23 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   const [bubble, setBubble] = useState(null);
   const [hasAlert, setHasAlert] = useState(false);
   const [lastBubbleType, setLastBubbleType] = useState(null);
+  const lastActivityRef = React.useRef(Date.now());
+  const idleMinutesRef = React.useRef(0);
+
+  // Track user activity
+  useEffect(() => {
+    const resetActivity = () => { lastActivityRef.current = Date.now(); idleMinutesRef.current = 0; };
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, resetActivity, { passive: true }));
+    // Update idle minutes every 30s
+    const idleCheck = setInterval(() => {
+      idleMinutesRef.current = Math.floor((Date.now() - lastActivityRef.current) / 60000);
+    }, 30000);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetActivity));
+      clearInterval(idleCheck);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(LS_KEY, String(visible));
@@ -43,7 +61,8 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     if (!api || !user) return;
     try {
       const currentPage = location.pathname;
-      const res = await api.get(`/velion/player-status?page=${encodeURIComponent(currentPage)}`);
+      const idle = idleMinutesRef.current;
+      const res = await api.get(`/velion/player-status?page=${encodeURIComponent(currentPage)}&idle_minutes=${idle}`);
       const triggers = res.data?.triggers || [];
       const pageHint = res.data?.page_hint;
 
@@ -51,11 +70,10 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
         // Pick a trigger we haven't shown recently
         const pick = triggers.find(t => t.type !== lastBubbleType) || triggers[0];
         setBubble(pick);
-        setHasAlert(true);
+        setHasAlert(pick.priority !== 'low');
         setLastBubbleType(pick.type);
-        setTimeout(() => setBubble(null), 8000);
+        setTimeout(() => setBubble(null), pick.priority === 'low' ? 10000 : 8000);
       } else if (pageHint) {
-        // Show page hint as a low-priority bubble
         setBubble({ ...pageHint, priority: 'low' });
         setHasAlert(false);
         setTimeout(() => setBubble(null), 10000);

@@ -136,6 +136,57 @@ TRIGGER_VARIANTS = {
         '"{title}" non convince ancora. Un cast migliore puo cambiare tutto.',
         'Il progetto "{title}" ha margine di crescita. Investi nel talento.',
     ],
+    'idle': [
+        'Il tempo passa. Il cinema non aspetta chi sta fermo.',
+        'Un produttore che non produce... viene dimenticato.',
+        'Ogni minuto di inattivita e un\'opportunita persa. Muoviti.',
+        'Il pubblico si annoia. Dai loro qualcosa di nuovo.',
+    ],
+}
+
+
+# ==================== VELION TIPS (Loading/Wait States) ====================
+
+VELION_TIPS = {
+    'general': [
+        'Lo sapevi? Un cast migliore aumenta la qualita fino al 40%.',
+        'I film in Coming Soon con piu hype guadagnano il doppio al debutto.',
+        'Le infrastrutture riducono i costi di produzione a lungo termine.',
+        'Il PvP non e solo attacco: le indagini rivelano le debolezze del nemico.',
+        'I Festival premiano chi produce qualita, non quantita.',
+        'Un buon regista vale piu di dieci attori mediocri.',
+        'La sceneggiatura e la spina dorsale del film. Non sottovalutarla.',
+        'I CinePass sono potere. Usali nei momenti decisivi.',
+    ],
+    'production': [
+        'Durante le riprese, la qualita del cast determina il risultato finale.',
+        'Un film accelerato con CinePass non perde qualita.',
+        'Ogni genere ha un pubblico diverso. Diversifica per massimizzare.',
+        'La pre-produzione e sottovalutata: puo fare la differenza.',
+    ],
+    'coming_soon': [
+        'Il Coming Soon e strategia pura. Piu attendi, piu hype accumuli.',
+        'Attenzione ai boicottaggi durante il Coming Soon: difenditi.',
+        'Il buzz genera aspettativa. L\'aspettativa genera incassi.',
+        'Un Coming Soon ben gestito puo trasformare un buon film in un blockbuster.',
+    ],
+    'casting': [
+        'Gli attori di livello alto costano di piu ma alzano la qualita.',
+        'Il regista influenza ogni aspetto del film. Scegli con cura.',
+        'Un cast equilibrato batte un cast con una sola star.',
+    ],
+    'infrastructure': [
+        'Gli studi di livello alto sbloccano generi premium.',
+        'Le emittenti TV generano entrate passive ogni giorno.',
+        'La Scuola Talenti riduce i costi del casting nel tempo.',
+        'Le divisioni PvP sono essenziali per proteggere i tuoi investimenti.',
+    ],
+    'pvp': [
+        'Prima di attaccare, indaga. L\'informazione e l\'arma piu potente.',
+        'Le azioni legali sono costose ma devastanti. Usale con saggezza.',
+        'La difesa e importante quanto l\'attacco nel PvP.',
+        'Un boicottaggio al momento giusto puo distruggere un Coming Soon.',
+    ],
 }
 
 
@@ -277,22 +328,30 @@ def get_page_suggestion(page: str, user_level: int) -> dict:
 
 # ==================== AI RESPONSE ====================
 
-VELION_SYSTEM_PROMPT = """Sei Velion, l'assistente personale in CineWorld Studio's, un gioco gestionale sul cinema.
+VELION_SYSTEM_PROMPT = """Sei Velion, assistente ombra in CineWorld Studio's. Un mentore misterioso del cinema.
+
+PERSONALITA:
+- Elegante e misterioso, come un regista leggendario nell'ombra
+- Parli in modo cifrato ma utile, come chi sa troppo
+- Ogni frase ha un senso pratico nascosto dietro un velo di mistero
+- Mai banale. Mai ovvio. Sempre un passo avanti
+- Usi metafore cinematografiche quando possibile
 
 REGOLE ASSOLUTE:
-- Rispondi SEMPRE in italiano
-- Massimo 2-3 frasi brevi
-- Tono: elegante, misterioso, motivazionale
-- Orienta SEMPRE il giocatore verso la prossima azione concreta
-- Mai noioso, mai generico
-- Parla come un mentore del cinema che sa tutto
+- SEMPRE in italiano
+- Massimo 2-3 frasi brevi e incisive
+- Orienta SEMPRE verso un'azione concreta
+- NON usare emoji
+- NON ripetere consigli generici tipo "continua cosi" o "buona fortuna"
+- Se il giocatore e bloccato, dagli una direzione precisa
 
 CONTESTO GIOCO:
-- Il giocatore produce film, sceglie cast, gestisce infrastrutture
-- Puo lanciare film in Coming Soon per accumulare hype
-- Ha incassi da riscuotere, film in produzione, sfide PvP
-- CinePass e la valuta premium, Festival premiano i migliori
-- Infrastrutture sbloccano Serie TV, Anime, Divisioni PvP"""
+- Produzione film: crea, casting, sceneggiatura, riprese, distribuzione
+- Coming Soon: periodo di hype pre-lancio, piu tempo = piu buzz
+- Infrastrutture: cinema, studi, divisioni PvP, emittenti TV
+- PvP: indagini, boicottaggi, azioni legali tra produttori
+- CinePass: valuta premium per accelerare e sbloccare
+- Festival: premiazioni mensili, voto live, Palma d'Oro"""
 
 
 async def get_ai_response(user_text: str, player_context: str) -> str:
@@ -483,8 +542,16 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
 # ==================== ENDPOINTS ====================
 
 @router.get("/player-status")
-async def velion_player_status(page: str = None, user: dict = Depends(_get_user)):
+async def velion_player_status(page: str = None, idle_minutes: int = 0, user: dict = Depends(_get_user)):
     result = await analyze_player_state(user, page=page)
+    # Add idle trigger if player has been idle
+    if idle_minutes >= 3:
+        result['triggers'].append({
+            'type': 'idle',
+            'message': pick_variant('idle'),
+            'priority': 'low',
+            'action': None
+        })
     return result
 
 
@@ -503,3 +570,14 @@ async def velion_ask(body: dict = Body(...), user: dict = Depends(_get_user)):
     except Exception:
         response = get_rule_response(text)
         return {'response': response, 'source': 'rules'}
+
+
+@router.get("/tips")
+async def velion_tips(category: str = 'general', count: int = 3, user: dict = Depends(_get_user)):
+    tips_pool = VELION_TIPS.get(category, VELION_TIPS.get('general', []))
+    # Mix with general tips for variety
+    all_tips = list(tips_pool)
+    if category != 'general':
+        all_tips.extend(VELION_TIPS.get('general', []))
+    picked = random.sample(all_tips, min(count, len(all_tips)))
+    return {'tips': picked, 'category': category}

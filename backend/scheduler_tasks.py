@@ -835,8 +835,8 @@ async def auto_release_coming_soon():
                     project['user_id'], 'coming_soon',
                     'Coming Soon Completato!',
                     f'"{project["title"]}" ha completato il periodo Coming Soon! Puoi ora procedere al Casting.',
-                    data={'film_id': project['id'], 'content_id': project['id']},
-                    link='/create-film'
+                    data={'film_id': project['id'], 'content_id': project['id'], 'project_id': project['id']},
+                    link=f'/create-film?film={project["id"]}'
                 )
                 notif['severity'] = 'important'
                 await scheduler_db.notifications.insert_one(notif)
@@ -886,8 +886,8 @@ async def auto_release_coming_soon():
                 project['user_id'], 'film_release',
                 'Film Rilasciato!',
                 f'"{project["title"]}" e\' uscito! Qualita\': {quality_score:.0f}/100, Incasso: ${total_rev:,}{bonus_msg}',
-                data={'film_id': project['id']},
-                link=f'/films/{project["id"]}'
+                data={'film_id': project['id'], 'project_id': project['id']},
+                link=f'/create-film?film={project["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
             logger.info(f"Auto-released film {project['id']} ({project['title']}) with strategy bonus {strategy_bonus_pct}%")
@@ -942,8 +942,8 @@ async def auto_release_coming_soon():
                 project['user_id'], 'film_release',
                 'Film Rilasciato!',
                 f'"{project["title"]}" e\' ufficialmente uscito!{bonus_msg}',
-                data={'film_id': project['id']},
-                link=f'/films/{project["id"]}'
+                data={'film_id': project['id'], 'project_id': project['id']},
+                link=f'/create-film?film={project["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
             logger.info(f"Release pending completed for film {project['id']} ({project['title']}) bonus={strategy_bonus_pct}%")

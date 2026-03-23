@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Film, Clock, Flame } from 'lucide-react';
+import { Star, Film, Clock, Flame, Check } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -94,6 +94,7 @@ export function FilmProductionCard({ film, onClick, countdown }) {
     : null;
 
   const isCSActive = film.status === 'coming_soon' && countdown;
+  const isCSExpired = film.status === 'coming_soon' && !countdown && film.scheduled_release_at;
 
   return (
     <button
@@ -150,6 +151,12 @@ export function FilmProductionCard({ film, onClick, countdown }) {
               {film.hype_score > 0 && (
                 <span className="text-[9px] text-orange-400 ml-1">Hype: {film.hype_score}</span>
               )}
+            </div>
+          )}
+          {isCSExpired && (
+            <div className="flex items-center gap-1 mt-1">
+              <Check className="w-3 h-3 text-green-400" />
+              <span className="text-[10px] font-bold text-green-400">Pronto per il Casting!</span>
             </div>
           )}
         </div>

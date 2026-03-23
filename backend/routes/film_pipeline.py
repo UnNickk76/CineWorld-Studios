@@ -624,7 +624,10 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
 async def get_pipeline_counts(user: dict = Depends(get_current_user)):
     """Get film counts per pipeline phase for badge display."""
     pipeline = [
-        {'$match': {'user_id': user['id'], 'status': {'$nin': ['discarded', 'abandoned']}}},
+        {'$match': {'user_id': user['id'], '$or': [
+            {'status': {'$nin': ['discarded', 'abandoned', 'completed']}},
+            {'status': 'completed', 'release_pending': True}
+        ]}},
         {'$group': {'_id': '$status', 'count': {'$sum': 1}}}
     ]
     results = await db.film_projects.aggregate(pipeline).to_list(20)
@@ -885,6 +888,48 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
         'message': f'"{project["title"]}" scartato. Sarà disponibile per altri giocatori a ${sale_price:,}',
         'sale_price': sale_price
     }
+
+
+@router.post("/film-pipeline/{project_id}/check-coming-soon-status")
+async def check_coming_soon_status(project_id: str, user: dict = Depends(get_current_user)):
+    """Frontend calls this when Coming Soon timer hits 0 to advance the film immediately."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id'], 'status': 'coming_soon'},
+        {'_id': 0}
+    )
+    if not project:
+        return {'advanced': False, 'reason': 'not_found_or_already_advanced'}
+    
+    sra = project.get('scheduled_release_at')
+    if not sra:
+        return {'advanced': False, 'reason': 'no_scheduled_release'}
+    
+    try:
+        release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+        if release_dt.tzinfo is None:
+            release_dt = release_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return {'advanced': False, 'reason': 'invalid_date'}
+    
+    now = datetime.now(timezone.utc)
+    if now < release_dt:
+        remaining = (release_dt - now).total_seconds()
+        return {'advanced': False, 'reason': 'timer_not_expired', 'seconds_remaining': remaining}
+    
+    # Timer expired - advance to ready_for_casting
+    if project.get('coming_soon_type') == 'pre_casting':
+        await db.film_projects.update_one(
+            {'id': project_id},
+            {'$set': {
+                'status': 'ready_for_casting',
+                'coming_soon_completed': True,
+                'coming_soon_completed_at': now.isoformat(),
+                'updated_at': now.isoformat()
+            }}
+        )
+        return {'advanced': True, 'new_status': 'ready_for_casting'}
+    
+    return {'advanced': False, 'reason': 'not_pre_casting'}
 
 
 @router.post("/film-pipeline/{project_id}/advance-to-casting")
@@ -1320,7 +1365,10 @@ async def advance_to_screenplay(project_id: str, user: dict = Depends(get_curren
 async def get_all_projects(user: dict = Depends(get_current_user)):
     """Get all active film projects for this user."""
     projects = await db.film_projects.find(
-        {'user_id': user['id'], 'status': {'$nin': ['discarded', 'abandoned', 'completed']}},
+        {'user_id': user['id'], '$or': [
+            {'status': {'$nin': ['discarded', 'abandoned', 'completed']}},
+            {'status': 'completed', 'release_pending': True}
+        ]},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
 

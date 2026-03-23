@@ -72,6 +72,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Envelope Reveal animation per cerimonia live
 - Festival custom mostra costo CinePass nella creazione
 
+### CRITICAL BUG FIX: Coming Soon Film Disappearing (v3.1)
+- **Root Cause 1**: `/film-pipeline/all` excluded `completed` status, but `choose-release-strategy` sets film to `completed` + `release_pending: True` → film disappeared from pipeline
+- **Root Cause 2**: `/films/{id}` only checked `films` collection, not `film_projects` → auto-released films showed "non disponibile"
+- **Root Cause 3**: Scheduler notifications linked to `/films/{id}` instead of `/create-film?film={id}` → wrong collection lookup
+- **Root Cause 4**: Count endpoint didn't match film list filter → count/list mismatch (18 films shown in counter, 0 in list)
+- **Root Cause 5**: No auto-advance mechanism when Coming Soon timer expired on frontend → film stuck until scheduler ran
+- **Fixes**: Pipeline includes completed+release_pending, `/films/{id}` fallback to film_projects, fixed notification links, auto-advance endpoint + frontend integration, card shows "Pronto per il Casting!" on expired timer
+
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
 - Backend: FastAPI + MongoDB + APScheduler

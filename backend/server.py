@@ -5322,6 +5322,13 @@ async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
+        # Fallback: check film_projects for auto-released/completed films
+        film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
+        if film:
+            # Provide defaults for film_projects that may lack some fields
+            film.setdefault('owner_id', film.get('user_id'))
+            film.setdefault('owner_nickname', '')
+    if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
     
     # Calculate and add cineboard_score

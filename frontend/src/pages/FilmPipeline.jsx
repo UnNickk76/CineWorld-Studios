@@ -2911,6 +2911,14 @@ const FilmPipeline = () => {
             cd[f.id] = `${h}h ${m}m`;
           } else {
             cd[f.id] = null;
+            // Auto-advance: timer expired, call backend to transition
+            api.post(`/film-pipeline/${f.id}/check-coming-soon-status`).then(res => {
+              if (res.data?.advanced) {
+                loadFilms();
+                refreshCounts();
+                toast.success(`"${f.title}" - Coming Soon completato! Puoi procedere al Casting.`);
+              }
+            }).catch(() => {});
           }
         }
       });

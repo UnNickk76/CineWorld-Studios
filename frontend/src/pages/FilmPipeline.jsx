@@ -14,7 +14,7 @@ import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
-  Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target
+  Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';

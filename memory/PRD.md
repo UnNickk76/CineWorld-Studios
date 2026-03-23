@@ -72,13 +72,20 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Envelope Reveal animation per cerimonia live
 - Festival custom mostra costo CinePass nella creazione
 
-### CRITICAL BUG FIX: Coming Soon Film Disappearing (v3.1)
-- **Root Cause 1**: `/film-pipeline/all` excluded `completed` status, but `choose-release-strategy` sets film to `completed` + `release_pending: True` → film disappeared from pipeline
-- **Root Cause 2**: `/films/{id}` only checked `films` collection, not `film_projects` → auto-released films showed "non disponibile"
-- **Root Cause 3**: Scheduler notifications linked to `/films/{id}` instead of `/create-film?film={id}` → wrong collection lookup
-- **Root Cause 4**: Count endpoint didn't match film list filter → count/list mismatch (18 films shown in counter, 0 in list)
-- **Root Cause 5**: No auto-advance mechanism when Coming Soon timer expired on frontend → film stuck until scheduler ran
-- **Fixes**: Pipeline includes completed+release_pending, `/films/{id}` fallback to film_projects, fixed notification links, auto-advance endpoint + frontend integration, card shows "Pronto per il Casting!" on expired timer
+### CRITICAL BUG FIX: Coming Soon Film Disappearing (v3.1 + v3.2)
+- **Root Cause 1**: `/film-pipeline/all` excluded `completed` status → film spariva dopo auto-completion scheduler
+- **Root Cause 2**: `/films/{id}` solo collection `films`, non `film_projects` → "non disponibile"
+- **Root Cause 3**: Notification links errati → `/films/{id}` invece di `/create-film?film={id}`
+- **Root Cause 4**: Count/list mismatch
+- **Root Cause 5**: Scheduler impostava `completed` senza passare dal casting (no flag `coming_soon_type`)
+- **Fixes v3.1**: Pipeline query include tutto tranne discarded/abandoned, `/films/{id}` fallback, fix notifiche, auto-advance endpoint
+- **Fixes v3.2**: 
+  - `/film-pipeline/all` ora mostra TUTTI i film (anche `completed`)
+  - Rescue aggressivo: scansiona TUTTI i film e recupera quelli persi
+  - Auto-rescue: se pipeline vuota, chiama rescue automaticamente
+  - **Admin Panel**: sezione "Recupero Film Persi" per nickname specifico
+  - `/admin/repair-database`: aggiunto case "completed senza produzione"
+  - Scheduler riconosce pre-casting anche senza flag (controlla assenza cast/shooting)
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion

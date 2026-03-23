@@ -624,10 +624,7 @@ async def generate_cast_proposals(film_project: dict, role_type: str) -> list:
 async def get_pipeline_counts(user: dict = Depends(get_current_user)):
     """Get film counts per pipeline phase for badge display."""
     pipeline = [
-        {'$match': {'user_id': user['id'], '$or': [
-            {'status': {'$nin': ['discarded', 'abandoned', 'completed']}},
-            {'status': 'completed', 'release_pending': True}
-        ]}},
+        {'$match': {'user_id': user['id'], 'status': {'$nin': ['discarded', 'abandoned']}}},
         {'$group': {'_id': '$status', 'count': {'$sum': 1}}}
     ]
     results = await db.film_projects.aggregate(pipeline).to_list(20)
@@ -892,74 +889,78 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/film-pipeline/rescue-lost-films")
 async def rescue_lost_films(user: dict = Depends(get_current_user)):
-    """Find and recover films that were incorrectly completed by the scheduler.
-    Restores films that have status=completed but never went through casting/shooting."""
+    """Aggressively find and recover ALL films that should be visible but aren't.
+    Covers: completed-without-casting, stuck coming_soon, any unexpected state."""
     rescued = []
     
-    # Find completed films that were never properly produced (no cast, no shooting)
-    lost_films = await db.film_projects.find(
-        {'user_id': user['id'], 'status': 'completed',
-         '$or': [
-             {'cast': {'$exists': False}},
-             {'cast': None},
-             {'shooting_started_at': {'$exists': False}},
-             {'auto_released': True, 'release_pending': {'$ne': True}}
-         ]},
+    # Find ALL film_projects for this user
+    all_projects = await db.film_projects.find(
+        {'user_id': user['id']},
         {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'coming_soon_type': 1,
-         'cast': 1, 'shooting_started_at': 1, 'auto_released': 1}
-    ).to_list(50)
+         'cast': 1, 'shooting_started_at': 1, 'auto_released': 1,
+         'scheduled_release_at': 1, 'coming_soon_completed': 1,
+         'release_pending': 1, 'shooting_completed': 1}
+    ).to_list(200)
     
-    for f in lost_films:
-        has_real_cast = f.get('cast') and isinstance(f['cast'], dict) and (f['cast'].get('director') or f['cast'].get('actors'))
-        has_shooting = f.get('shooting_started_at')
+    now = datetime.now(timezone.utc)
+    
+    for f in all_projects:
+        status = f.get('status')
+        film_id = f.get('id')
+        title = f.get('title', 'Unknown')
+        needs_rescue = False
+        reason = ''
         
-        if not has_real_cast and not has_shooting:
-            # This film was completed without going through the pipeline - rescue it
+        # Has real cast data?
+        cast = f.get('cast')
+        has_director = cast and isinstance(cast, dict) and cast.get('director')
+        has_actors = cast and isinstance(cast, dict) and cast.get('actors') and len(cast['actors']) > 0
+        has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
+        
+        # Case 1: completed/released without going through production pipeline
+        if status in ('completed', 'released') and not has_director and not has_shooting:
+            needs_rescue = True
+            reason = f'auto_completed_without_production (status={status})'
+        
+        # Case 2: coming_soon with expired timer still stuck
+        if status == 'coming_soon':
+            sra = f.get('scheduled_release_at')
+            if sra:
+                try:
+                    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if now >= release_dt:
+                        needs_rescue = True
+                        reason = 'coming_soon_timer_expired_still_stuck'
+                except Exception:
+                    needs_rescue = True
+                    reason = 'coming_soon_invalid_release_date'
+        
+        # Case 3: discarded/abandoned but had coming_soon activity (unintentional discard)
+        if status in ('discarded', 'abandoned') and f.get('coming_soon_completed'):
+            if not has_director and not has_shooting:
+                needs_rescue = True
+                reason = f'discarded_after_coming_soon (status={status})'
+        
+        if needs_rescue:
+            new_status = 'ready_for_casting'
             await db.film_projects.update_one(
-                {'id': f['id']},
+                {'id': film_id},
                 {'$set': {
-                    'status': 'ready_for_casting',
+                    'status': new_status,
                     'rescued': True,
-                    'rescued_at': datetime.now(timezone.utc).isoformat(),
-                    'rescue_reason': 'auto_completed_without_production',
-                    'updated_at': datetime.now(timezone.utc).isoformat()
+                    'rescued_at': now.isoformat(),
+                    'rescue_reason': reason,
+                    'updated_at': now.isoformat()
                 }}
             )
-            rescued.append({'id': f['id'], 'title': f.get('title'), 'new_status': 'ready_for_casting'})
-    
-    # Also find discarded/abandoned films that might have been auto-discarded
-    # (only if they had coming_soon data, suggesting they were active)
-    stuck_cs = await db.film_projects.find(
-        {'user_id': user['id'], 
-         'coming_soon_completed': True,
-         'status': {'$nin': ['casting', 'screenplay', 'pre_production', 'shooting', 'proposed', 'ready_for_casting']}},
-        {'_id': 0, 'id': 1, 'title': 1, 'status': 1}
-    ).to_list(50)
-    
-    for f in stuck_cs:
-        if f['status'] in ('completed', 'discarded', 'abandoned'):
-            has_real_cast_doc = await db.film_projects.find_one(
-                {'id': f['id'], 'cast': {'$type': 'object'}},
-                {'_id': 0, 'cast': 1}
-            )
-            has_cast = has_real_cast_doc and has_real_cast_doc.get('cast', {}).get('director')
-            if not has_cast:
-                await db.film_projects.update_one(
-                    {'id': f['id']},
-                    {'$set': {
-                        'status': 'ready_for_casting',
-                        'rescued': True,
-                        'rescued_at': datetime.now(timezone.utc).isoformat(),
-                        'rescue_reason': f'stuck_after_coming_soon_{f["status"]}',
-                        'updated_at': datetime.now(timezone.utc).isoformat()
-                    }}
-                )
-                if not any(r['id'] == f['id'] for r in rescued):
-                    rescued.append({'id': f['id'], 'title': f.get('title'), 'new_status': 'ready_for_casting'})
+            rescued.append({'id': film_id, 'title': title, 'old_status': status, 'new_status': new_status, 'reason': reason})
     
     return {
         'rescued_count': len(rescued),
         'rescued_films': rescued,
+        'total_projects_scanned': len(all_projects),
         'message': f'{len(rescued)} film recuperati!' if rescued else 'Nessun film perso trovato.'
     }
 
@@ -1437,12 +1438,9 @@ async def advance_to_screenplay(project_id: str, user: dict = Depends(get_curren
 
 @router.get("/film-pipeline/all")
 async def get_all_projects(user: dict = Depends(get_current_user)):
-    """Get all active film projects for this user."""
+    """Get all active film projects for this user. Includes completed films to prevent 'lost' projects."""
     projects = await db.film_projects.find(
-        {'user_id': user['id'], '$or': [
-            {'status': {'$nin': ['discarded', 'abandoned', 'completed']}},
-            {'status': 'completed', 'release_pending': True}
-        ]},
+        {'user_id': user['id'], 'status': {'$nin': ['discarded', 'abandoned']}},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
 

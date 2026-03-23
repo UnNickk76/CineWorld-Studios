@@ -12,6 +12,8 @@ const STATUS_LABELS = {
   screenplay: 'Sceneggiatura',
   pre_production: 'Pre-Produzione',
   shooting: 'In Ripresa',
+  completed: 'Completato',
+  released: 'Rilasciato',
 };
 
 const STATUS_COLORS = {
@@ -22,6 +24,8 @@ const STATUS_COLORS = {
   screenplay: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   pre_production: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   shooting: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  completed: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  released: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
 const STEP_CONFIG_IMMEDIATE = [

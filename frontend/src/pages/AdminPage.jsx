@@ -515,6 +515,11 @@ function MaintenanceTab({ api }) {
   const [repairResult, setRepairResult] = useState(null);
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagResult, setDiagResult] = useState(null);
+  const [rescueLoading, setRescueLoading] = useState(false);
+  const [rescueResult, setRescueResult] = useState(null);
+  const [forceFixLoading, setForceFixLoading] = useState(false);
+  const [forceFixNickname, setForceFixNickname] = useState('');
+  const [forceFixResult, setForceFixResult] = useState(null);
 
   const repairDatabase = async () => {
     setRepairLoading(true);
@@ -552,7 +557,7 @@ function MaintenanceTab({ api }) {
     'proposed': 'Reset a Proposta',
     'concept': 'Reset a Concept',
     'discarded': 'Scartato',
-    'ready_for_casting': 'Sbloccato a Ready for Casting',
+    'ready_for_casting': 'Recuperato → Ready for Casting',
   };
 
   const categoryLabels = {
@@ -562,12 +567,32 @@ function MaintenanceTab({ api }) {
     'films_stuck_preproduction': 'Film - Bloccati in Pre-Produzione',
     'films_stuck_coming_soon': 'Film - Coming Soon scaduti',
     'films_missing_basics': 'Film - Dati base mancanti',
+    'films_completed_without_production': 'Film - Completati senza produzione (recuperati)',
     'series_invalid_status': 'Serie - Stato invalido',
     'series_stuck_casting': 'Serie - Bloccate in Casting',
     'series_stuck_screenplay': 'Serie - Bloccate in Sceneggiatura',
     'series_stuck_production': 'Serie - Bloccate in Produzione',
     'series_stuck_coming_soon': 'Serie - Coming Soon scaduti',
     'series_missing_basics': 'Serie - Dati base mancanti',
+  };
+
+  const rescueFilmsForUser = async () => {
+    if (!forceFixNickname.trim()) { toast.error('Inserisci nickname'); return; }
+    setForceFixLoading(true);
+    setForceFixResult(null);
+    try {
+      const res = await api.post('/admin/rescue-user-films', { nickname: forceFixNickname.trim() });
+      setForceFixResult(res.data);
+      if (res.data.rescued_count > 0) {
+        toast.success(`${res.data.rescued_count} film recuperati per ${forceFixNickname}!`);
+      } else {
+        toast.info('Nessun film perso trovato per questo utente.');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setForceFixLoading(false);
+    }
   };
 
   return (
@@ -664,6 +689,74 @@ function MaintenanceTab({ api }) {
                 </Card>
               )}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* RECUPERO FILM PERSI PER UTENTE */}
+      <Card className="bg-[#111113] border-red-500/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-red-400 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Recupero Film Persi (per Utente)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Cerca e recupera film "spariti" per un utente specifico. Trova film che sono stati <span className="text-red-400 font-semibold">completati automaticamente</span> dal scheduler senza passare dal casting/produzione, o bloccati dopo Coming Soon.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Nickname utente"
+              value={forceFixNickname}
+              onChange={e => setForceFixNickname(e.target.value)}
+              className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-500"
+              data-testid="rescue-nickname-input"
+            />
+            <Button
+              onClick={rescueFilmsForUser}
+              disabled={forceFixLoading || !forceFixNickname.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs"
+              data-testid="rescue-films-btn"
+            >
+              {forceFixLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recupera'}
+            </Button>
+          </div>
+          
+          {forceFixResult && (
+            <Card className={`border ${forceFixResult.rescued_count > 0 ? 'border-green-500/30 bg-green-500/5' : 'border-gray-700 bg-gray-800/30'}`}>
+              <CardContent className="p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div>
+                    <p className="text-lg font-black text-white">{forceFixResult.total_projects_scanned}</p>
+                    <p className="text-[9px] text-gray-500">Progetti scansionati</p>
+                  </div>
+                  <div>
+                    <p className={`text-lg font-black ${forceFixResult.rescued_count > 0 ? 'text-green-400' : 'text-gray-400'}`}>{forceFixResult.rescued_count}</p>
+                    <p className="text-[9px] text-gray-500">Film recuperati</p>
+                  </div>
+                </div>
+                {forceFixResult.rescued_films?.length > 0 && (
+                  <div className="space-y-1.5 mt-2">
+                    <p className="text-xs font-bold text-green-400">Film recuperati:</p>
+                    {forceFixResult.rescued_films.map((f, i) => (
+                      <div key={i} className="bg-black/40 rounded px-2 py-1.5">
+                        <p className="text-[10px] text-white font-medium">{f.title}</p>
+                        <p className="text-[9px] text-gray-500">{f.old_status} → {f.new_status}</p>
+                        <p className="text-[8px] text-gray-600">{f.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {forceFixResult.rescued_count === 0 && (
+                  <div className="text-center">
+                    <CheckCircle className="w-5 h-5 text-gray-500 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">Nessun film perso trovato per questo utente</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </CardContent>
       </Card>

@@ -7461,6 +7461,92 @@ VALID_FILM_STATUSES_REPAIR = {'draft', 'proposed', 'coming_soon', 'ready_for_cas
 VALID_SERIES_STATUSES_REPAIR = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
 
 
+@api_router.post("/admin/rescue-user-films")
+async def admin_rescue_user_films(request: dict = Body(...), user: dict = Depends(get_current_user)):
+    """Admin endpoint to rescue lost films for a specific user."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin puo' eseguire il recupero")
+    
+    nickname = request.get('nickname', '')
+    if not nickname:
+        raise HTTPException(status_code=400, detail="Nickname obbligatorio")
+    
+    target_user = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'id': 1, 'nickname': 1})
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
+    
+    user_id = target_user['id']
+    rescued = []
+    now = datetime.now(timezone.utc)
+    
+    # Scan ALL film_projects for this user (including completed, discarded, etc.)
+    all_projects = await db.film_projects.find(
+        {'user_id': user_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'coming_soon_type': 1,
+         'cast': 1, 'shooting_started_at': 1, 'auto_released': 1,
+         'scheduled_release_at': 1, 'coming_soon_completed': 1,
+         'release_pending': 1, 'shooting_completed': 1}
+    ).to_list(200)
+    
+    for f in all_projects:
+        status = f.get('status')
+        film_id = f.get('id')
+        title = f.get('title', 'Unknown')
+        needs_rescue = False
+        reason = ''
+        
+        cast = f.get('cast')
+        has_director = cast and isinstance(cast, dict) and cast.get('director')
+        has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
+        
+        # Case 1: completed/released without production pipeline
+        if status in ('completed', 'released') and not has_director and not has_shooting:
+            needs_rescue = True
+            reason = f'Completato senza produzione (status={status}, no regista, no riprese)'
+        
+        # Case 2: coming_soon with expired timer
+        if status == 'coming_soon':
+            sra = f.get('scheduled_release_at')
+            if sra:
+                try:
+                    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if now >= release_dt:
+                        needs_rescue = True
+                        reason = 'Coming Soon timer scaduto, film bloccato'
+                except Exception:
+                    needs_rescue = True
+                    reason = 'Coming Soon con data rilascio invalida'
+        
+        # Case 3: discarded/abandoned after coming_soon
+        if status in ('discarded', 'abandoned') and f.get('coming_soon_completed'):
+            if not has_director:
+                needs_rescue = True
+                reason = f'Scartato dopo Coming Soon senza produzione (status={status})'
+        
+        if needs_rescue:
+            new_status = 'ready_for_casting'
+            await db.film_projects.update_one(
+                {'id': film_id},
+                {'$set': {
+                    'status': new_status,
+                    'rescued': True,
+                    'rescued_at': now.isoformat(),
+                    'rescue_reason': reason,
+                    'admin_rescued_by': user.get('nickname'),
+                    'updated_at': now.isoformat()
+                }}
+            )
+            rescued.append({'id': film_id, 'title': title, 'old_status': status, 'new_status': new_status, 'reason': reason})
+    
+    return {
+        'rescued_count': len(rescued),
+        'rescued_films': rescued,
+        'total_projects_scanned': len(all_projects),
+        'message': f'{len(rescued)} film recuperati per {nickname}!' if rescued else f'Nessun film perso trovato per {nickname}.'
+    }
+
 @api_router.post("/admin/repair-database")
 async def admin_repair_database(user: dict = Depends(get_current_user)):
     """Comprehensive LOGICAL database repair for ALL users.
@@ -7479,6 +7565,7 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
         'films_stuck_preproduction': [],
         'films_stuck_coming_soon': [],
         'films_missing_basics': [],
+        'films_completed_without_production': [],
         'series_invalid_status': [],
         'series_stuck_casting': [],
         'series_stuck_screenplay': [],
@@ -7490,7 +7577,7 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
     # ============================
     # FILM PROJECTS - Full scan
     # ============================
-    async for f in db.film_projects.find({'status': {'$nin': ['discarded', 'abandoned']}}, {'_id': 0}):
+    async for f in db.film_projects.find({'status': {'$nin': ['discarded', 'abandoned']}}, {'_id': 0, 'poster_url': 0, 'screenplay': 0}):
         stats['films_analyzed'] += 1
         fid = f.get('id', '?')
         ftitle = f.get('title', '?')
@@ -7567,6 +7654,16 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
                         report['films_stuck_coming_soon'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
                 except Exception:
                     pass
+        
+        # 7. COMPLETED without going through production pipeline (auto-released by scheduler error)
+        elif fstatus == 'completed':
+            cast = f.get('cast') or {}
+            has_director = isinstance(cast, dict) and cast.get('director')
+            has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
+            if not has_director and not has_shooting:
+                action = 'ready_for_casting'
+                reason = f'Completato senza produzione (no regista, no riprese) - recuperato'
+                report['films_completed_without_production'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
         
         # Apply fix
         if action:

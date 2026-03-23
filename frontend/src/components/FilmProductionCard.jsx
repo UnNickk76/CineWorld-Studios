@@ -43,7 +43,7 @@ const STEP_CONFIG_CS = [
 ];
 
 function getStepIndex(film) {
-  const isCS = film.release_type === 'coming_soon';
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const s = film.status;
 
   if (isCS) {
@@ -58,6 +58,7 @@ function getStepIndex(film) {
     return 0;
   } else {
     if (s === 'proposed') return 0; // proposta done, needs advance
+    if (s === 'ready_for_casting') return 1;
     if (s === 'casting') return 1;
     if (s === 'screenplay') return 2;
     if (s === 'pre_production') return 3;
@@ -67,7 +68,7 @@ function getStepIndex(film) {
 }
 
 function CardMiniStepBar({ film }) {
-  const isCS = film.release_type === 'coming_soon';
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const steps = isCS ? STEP_CONFIG_CS : STEP_CONFIG_IMMEDIATE;
   const currentIdx = getStepIndex(film);
 

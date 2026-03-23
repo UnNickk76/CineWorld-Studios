@@ -41,7 +41,8 @@ const STEPS_CS = [
 
 // ─── Determine current step ID ───
 function getCurrentStepId(film) {
-  const isCS = film.release_type === 'coming_soon';
+  // Infer release_type from status if missing
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || (film.status === 'coming_soon');
   const s = film.status;
   if (isCS) {
     if (s === 'proposed' && !film.poster_url) return 'poster';
@@ -55,6 +56,7 @@ function getCurrentStepId(film) {
     return 'proposta';
   } else {
     if (s === 'proposed') return 'casting'; // proposta done, show advance UI
+    if (s === 'ready_for_casting') return 'casting';
     if (s === 'casting') return 'casting';
     if (s === 'screenplay') return 'script';
     if (s === 'pre_production') return 'produzione';
@@ -76,7 +78,7 @@ const CS_MAP = {
 
 // ─── Per-Film Step Bar ───
 function FilmStepBar({ film }) {
-  const isCS = film.release_type === 'coming_soon';
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const steps = isCS ? STEPS_CS : STEPS_IMMEDIATE;
   const currentStepId = getCurrentStepId(film);
   const currentIdx = steps.findIndex(s => s.id === currentStepId);
@@ -977,7 +979,7 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
   if (!film) return null;
 
   const currentStep = getCurrentStepId(film);
-  const isCS = film.release_type === 'coming_soon';
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const isImmediate = !isCS;
 
   // Determine which step content to show
@@ -1018,6 +1020,11 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
     // Shooting/Release step
     if (currentStep === 'uscita') {
       return <ReleaseStepContent film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    }
+
+    // Fallback: ready_for_casting ALWAYS shows advance button
+    if (film.status === 'ready_for_casting') {
+      return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
     }
 
     return <p className="text-[10px] text-gray-500 text-center py-4">Stato: {film.status}</p>;

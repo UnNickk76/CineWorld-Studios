@@ -1,0 +1,94 @@
+{
+  "summary": "Velion ON/OFF Control System - Iteration 138. Backend: 15/15 tests passed. Frontend: All core features verified. Toggle in hamburger menu works, mode persists via API, OFF mode disables bubbles/polling but keeps overlay visible and clickable, 'Velion (OFF)' tooltip shows when OFF, hint text appears when OFF.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter138_velion_onoff.py",
+    "/app/test_reports/pytest/pytest_iter138_velion_onoff.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "velion.py: GET /mode returns {mode, show_autonomy} - mode defaults to 'on' for new users",
+    "velion.py: PUT /mode validates mode is 'on' or 'off', defaults to 'on' for invalid values",
+    "velion.py: POST /dismiss-autonomy sets last_autonomy_prompt timestamp, show_autonomy becomes false",
+    "velion.py: show_autonomy logic checks account age >= 5 days AND no recent dismissal",
+    "VelionOverlay.jsx: isOff flag (mode === 'off') controls all useEffect hooks for polling/greeting/page-change",
+    "VelionOverlay.jsx: When OFF - gray glow instead of cyan, saturation 0.5, no notification dot, tooltip 'Velion (OFF)'",
+    "VelionOverlay.jsx: onClick still works when OFF to open VelionPanel",
+    "App.js: VelionMenuControl component shows toggle and 'Apri' button in hamburger menu",
+    "App.js: Toggle communicates via window events ('velion-toggle-mode', 'velion-mode-changed') and window.__velionMode global"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter138_velion_onoff.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "email": "test@test.com",
+    "password": "test1234",
+    "login_response_key": "access_token"
+  },
+  "seed_data_creation": "None - used existing test user",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Velion ON/OFF Control System fully verified. Key findings: 1) GET /api/velion/mode returns {mode: 'on'|'off', show_autonomy: boolean}. 2) PUT /api/velion/mode with {mode: 'off'} saves to velion_prefs collection. 3) POST /api/velion/dismiss-autonomy marks last_autonomy_prompt. 4) Hamburger menu (data-testid='mobile-menu-btn') shows 'Assistente Velion' section with toggle (data-testid='velion-mode-toggle') and 'Apri' button (data-testid='menu-velion-btn'). 5) When OFF: no bubble notifications, gray glow, saturation 0.5, tooltip 'Velion (OFF)', hint text 'Riattiva Velion per suggerimenti automatici'. 6) When OFF: overlay still visible and clickable, panel opens normally. 7) Autonomy prompt (show_autonomy=true) only triggers for accounts >= 5 days old without recent dismissal - test user may not trigger this.",
+  "verified_features": {
+    "get_mode_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/velion/mode",
+      "response": "{mode: 'on'|'off', show_autonomy: boolean}"
+    },
+    "put_mode_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "PUT /api/velion/mode",
+      "request": "{mode: 'on'|'off'}",
+      "persistence": "Saves to velion_prefs collection"
+    },
+    "dismiss_autonomy_endpoint": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/velion/dismiss-autonomy",
+      "response": "{ok: true}"
+    },
+    "hamburger_menu_velion_section": {
+      "status": "VERIFIED",
+      "elements": ["Assistente Velion label", "Toggle (data-testid=velion-mode-toggle)", "Apri button (data-testid=menu-velion-btn)"]
+    },
+    "toggle_functionality": {
+      "status": "VERIFIED",
+      "behavior": "Switches mode ON/OFF, persists via API, updates UI immediately"
+    },
+    "off_mode_no_bubble": {
+      "status": "VERIFIED",
+      "behavior": "No bubble notifications appear when mode is OFF"
+    },
+    "off_mode_visual_feedback": {
+      "status": "VERIFIED",
+      "elements": ["Gray glow instead of cyan", "Saturation 0.5", "No notification dot", "Tooltip 'Velion (OFF)'"]
+    },
+    "off_mode_hint_text": {
+      "status": "VERIFIED",
+      "text": "Riattiva Velion per suggerimenti automatici"
+    },
+    "off_mode_overlay_clickable": {
+      "status": "VERIFIED",
+      "behavior": "Velion overlay visible and clickable when OFF, opens VelionPanel"
+    },
+    "on_mode_regression": {
+      "status": "VERIFIED",
+      "behavior": "Bubble notifications appear normally when ON"
+    },
+    "tutorial_chat_tabs_regression": {
+      "status": "VERIFIED",
+      "behavior": "Tutorial and Chat tabs work regardless of mode"
+    }
+  }
+}

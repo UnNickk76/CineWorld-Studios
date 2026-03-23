@@ -706,3 +706,68 @@ async def velion_login_greeting(user: dict = Depends(_get_user)):
         'message': message,
         'stats': state.get('stats_summary', {})
     }
+
+
+AUTONOMY_CYCLE_DAYS = 5
+
+@router.get("/mode")
+async def velion_get_mode(user: dict = Depends(_get_user)):
+    prefs = await db.velion_prefs.find_one({'user_id': user['id']}, {'_id': 0})
+    if not prefs:
+        return {'mode': 'on', 'show_autonomy': False}
+
+    mode = prefs.get('mode', 'on')
+
+    # Check autonomy prompt cycle
+    show_autonomy = False
+    if mode == 'on':
+        last_prompt = prefs.get('last_autonomy_prompt')
+        if last_prompt:
+            try:
+                lp = datetime.fromisoformat(last_prompt.replace('Z', '+00:00'))
+                if lp.tzinfo is None:
+                    lp = lp.replace(tzinfo=timezone.utc)
+                days_since = (datetime.now(timezone.utc) - lp).days
+                show_autonomy = days_since >= AUTONOMY_CYCLE_DAYS
+            except:
+                show_autonomy = True
+        else:
+            # First time: check account age
+            created = user.get('created_at', '')
+            if created:
+                try:
+                    cr = datetime.fromisoformat(str(created).replace('Z', '+00:00'))
+                    if cr.tzinfo is None:
+                        cr = cr.replace(tzinfo=timezone.utc)
+                    account_age = (datetime.now(timezone.utc) - cr).days
+                    show_autonomy = account_age >= AUTONOMY_CYCLE_DAYS
+                except:
+                    pass
+
+    return {'mode': mode, 'show_autonomy': show_autonomy}
+
+
+@router.put("/mode")
+async def velion_set_mode(body: dict = Body(...), user: dict = Depends(_get_user)):
+    mode = body.get('mode', 'on')
+    if mode not in ('on', 'off'):
+        mode = 'on'
+
+    now_str = datetime.now(timezone.utc).isoformat()
+    await db.velion_prefs.update_one(
+        {'user_id': user['id']},
+        {'$set': {'mode': mode, 'updated_at': now_str}},
+        upsert=True
+    )
+    return {'mode': mode}
+
+
+@router.post("/dismiss-autonomy")
+async def velion_dismiss_autonomy(user: dict = Depends(_get_user)):
+    now_str = datetime.now(timezone.utc).isoformat()
+    await db.velion_prefs.update_one(
+        {'user_id': user['id']},
+        {'$set': {'last_autonomy_prompt': now_str}},
+        upsert=True
+    )
+    return {'ok': True}

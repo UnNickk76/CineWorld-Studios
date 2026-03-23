@@ -6,11 +6,9 @@ import { useLocation } from 'react-router-dom';
 
 const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
-const POLL_INTERVAL = 60000; // 60s
-const PAGE_HINT_DELAY = 12000; // Show page hint 12s after navigating
-const IDLE_THRESHOLD = 180000; // 3 minutes
+const POLL_INTERVAL = 60000;
 
-export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
+export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
   const { api, user } = useContext(AuthContext);
   const location = useLocation();
   const [hovered, setHovered] = useState(false);
@@ -23,13 +21,13 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
   const [lastBubbleType, setLastBubbleType] = useState(null);
   const lastActivityRef = React.useRef(Date.now());
   const idleMinutesRef = React.useRef(0);
+  const isOff = mode === 'off';
 
   // Track user activity
   useEffect(() => {
     const resetActivity = () => { lastActivityRef.current = Date.now(); idleMinutesRef.current = 0; };
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
     events.forEach(e => window.addEventListener(e, resetActivity, { passive: true }));
-    // Update idle minutes every 30s
     const idleCheck = setInterval(() => {
       idleMinutesRef.current = Math.floor((Date.now() - lastActivityRef.current) / 60000);
     }, 30000);
@@ -49,16 +47,15 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     onDismiss?.();
   };
 
-  // Allow parent to show again
   useEffect(() => {
     const handler = () => setVisible(true);
     window.addEventListener('velion-show', handler);
     return () => window.removeEventListener('velion-show', handler);
   }, []);
 
-  // Poll player status for triggers
+  // Poll player status (only when ON)
   const fetchTriggers = useCallback(async () => {
-    if (!api || !user) return;
+    if (!api || !user || isOff) return;
     try {
       const currentPage = location.pathname;
       const idle = idleMinutesRef.current;
@@ -67,7 +64,6 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
       const pageHint = res.data?.page_hint;
 
       if (advisor) {
-        // Show only the TOP priority suggestion
         setBubble(advisor);
         setHasAlert(advisor.priority === 'high');
         setLastBubbleType(advisor.type);
@@ -82,23 +78,21 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     } catch {
       // silent
     }
-  }, [api, user, location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, user, location.pathname, isOff]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!user || !api) return;
-    // Initial fetch with delay
+    if (!user || !api || isOff) return;
     const initTimer = setTimeout(fetchTriggers, 3000);
     const interval = setInterval(fetchTriggers, POLL_INTERVAL);
     return () => { clearTimeout(initTimer); clearInterval(interval); };
-  }, [user, api, fetchTriggers]);
+  }, [user, api, fetchTriggers, isOff]);
 
-  // Login greeting — show once per session
+  // Login greeting (only when ON)
   useEffect(() => {
-    if (!user || !api) return;
+    if (!user || !api || isOff) return;
     const sessionKey = `velion_greeted_${user.id}`;
     if (sessionStorage.getItem(sessionKey)) return;
     sessionStorage.setItem(sessionKey, 'true');
-
     const greetTimer = setTimeout(async () => {
       try {
         const res = await api.get('/velion/login-greeting');
@@ -111,16 +105,20 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
       } catch {}
     }, 4000);
     return () => clearTimeout(greetTimer);
-  }, [user, api]);
+  }, [user, api, isOff]);
 
-  // Re-fetch when page changes (quick for high-priority, delayed for context hints)
+  // Re-fetch on page change (only when ON)
   useEffect(() => {
-    if (!user || !api) return;
+    if (!user || !api || isOff) return;
     setBubble(null);
-    // Quick fetch for important triggers, page hints come after delay
     const quickTimer = setTimeout(fetchTriggers, 2000);
     return () => clearTimeout(quickTimer);
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear bubble when switching to OFF
+  useEffect(() => {
+    if (isOff) { setBubble(null); setHasAlert(false); }
+  }, [isOff]);
 
   const handleBubbleClick = () => {
     const action = bubble?.action;
@@ -207,12 +205,14 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
             className="absolute inset-0 rounded-full"
             style={{ background: 'radial-gradient(circle, rgba(0,30,60,0.9) 40%, rgba(0,20,50,0.5) 70%, transparent 100%)' }}
           />
-          {/* Glow ring - enhanced when has alert */}
+          {/* Glow ring */}
           <motion.div
             className="absolute inset-[-3px] rounded-full"
             style={{
               background: hasAlert
                 ? 'conic-gradient(from 0deg, rgba(0,255,200,0.6), rgba(0,180,255,0.2), rgba(0,255,200,0.6))'
+                : isOff
+                ? 'conic-gradient(from 0deg, rgba(100,100,120,0.3), rgba(60,60,80,0.1), rgba(100,100,120,0.3))'
                 : 'conic-gradient(from 0deg, rgba(0,180,255,0.4), rgba(0,100,255,0.1), rgba(0,180,255,0.4))',
               filter: hasAlert ? 'blur(4px)' : 'blur(3px)'
             }}
@@ -222,19 +222,24 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
           {/* Breathing animation */}
           <motion.div
             className="absolute inset-0 rounded-full"
-            animate={{ scale: [1, 1.04, 1] }}
+            animate={{ scale: isOff ? 1 : [1, 1.04, 1] }}
             transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
           >
             <img
               src="/velion.png"
               alt="Velion"
               className="w-full h-full object-contain rounded-full relative z-10 pointer-events-none"
-              style={{ mixBlendMode: 'screen', filter: 'brightness(1.4) contrast(1.3) saturate(1.2)' }}
+              style={{
+                mixBlendMode: 'screen',
+                filter: isOff
+                  ? 'brightness(1.0) contrast(1.1) saturate(0.5)'
+                  : 'brightness(1.4) contrast(1.3) saturate(1.2)'
+              }}
             />
           </motion.div>
-          {/* Notification dot */}
+          {/* Notification dot (only when ON and has alert) */}
           <AnimatePresence>
-            {(hasAlert || !hovered) && (
+            {!isOff && (hasAlert || !hovered) && (
               <motion.div
                 className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full z-20 border-2 border-[#0a0a0b]"
                 style={{ background: hasAlert ? 'linear-gradient(135deg, #00ffcc, #00ddff)' : 'linear-gradient(135deg, #00ddff, #0088ff)' }}
@@ -253,7 +258,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
                 exit={{ opacity: 0, x: 8 }}
                 className="absolute right-full mr-2 top-1/2 -translate-y-1/2 whitespace-nowrap bg-[#0d1117]/95 border border-cyan-500/40 text-cyan-300 text-[11px] px-2.5 py-1.5 rounded-lg font-['Bebas_Neue'] tracking-widest"
               >
-                Chiedi a Velion
+                {isOff ? 'Velion (OFF)' : 'Chiedi a Velion'}
               </motion.div>
             )}
           </AnimatePresence>

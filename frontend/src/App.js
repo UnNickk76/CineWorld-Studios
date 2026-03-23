@@ -102,6 +102,55 @@ const HqPage = React.lazy(() => import('./pages/HqPage'));
 // Module-level flag: prevents donate popup from re-triggering on component remounts
 let _donatePopupChecked = false;
 
+
+const VelionMenuControl = () => {
+  const [mode, setMode] = React.useState(() => window.__velionMode || 'on');
+
+  React.useEffect(() => {
+    const handler = () => setMode(window.__velionMode || 'on');
+    window.addEventListener('velion-mode-changed', handler);
+    return () => window.removeEventListener('velion-mode-changed', handler);
+  }, []);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full relative">
+            <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(0,30,60,0.9) 40%, transparent 100%)' }} />
+            <img src="/velion.png" alt="" className="w-full h-full object-contain rounded-full relative z-10" style={{ mixBlendMode: 'screen', filter: 'brightness(1.4) contrast(1.3)' }} />
+          </div>
+          <span className="text-xs text-gray-300">Assistente Velion</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { 
+              window.dispatchEvent(new Event('velion-show'));
+              window.dispatchEvent(new Event('velion-tutorial-open'));
+            }}
+            className="text-[10px] text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded-md hover:bg-cyan-500/10 transition-colors"
+            data-testid="menu-velion-btn"
+          >
+            Apri
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new Event('velion-toggle-mode'))}
+            className={`relative w-9 h-5 rounded-full transition-colors ${mode === 'on' ? 'bg-cyan-500/30' : 'bg-white/10'}`}
+            data-testid="velion-mode-toggle"
+          >
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              mode === 'on' ? 'left-[18px] bg-cyan-400' : 'left-0.5 bg-gray-500'
+            }`} />
+          </button>
+        </div>
+      </div>
+      {mode === 'off' && (
+        <p className="text-[10px] text-gray-600 mt-1 pl-8">Riattiva Velion per suggerimenti automatici</p>
+      )}
+    </div>
+  );
+};
+
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -795,22 +844,13 @@ const TopNavbar = () => {
               ))}
             </div>
             
+            {/* Velion Assistant Control */}
+            <div className="px-4 py-2.5 border-t border-white/10 bg-[#111111]">
+              <VelionMenuControl />
+            </div>
+
             {/* Mobile Quick Actions - Solid Dark */}
             <div className="flex items-center justify-around p-3 border-t border-white/10 bg-[#111111]">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-3 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-xl"
-                onClick={() => { 
-                  window.dispatchEvent(new Event('velion-show'));
-                  window.dispatchEvent(new Event('velion-tutorial-open'));
-                  setMobileMenuOpen(false); 
-                }}
-                data-testid="menu-velion-btn"
-              >
-                <Sparkles className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Velion</span>
-              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1744,14 +1784,50 @@ const ProtectedRoute = ({ children }) => {
   const [productionMenuOpen, setProductionMenuOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [velionTab, setVelionTab] = useState('tutorial');
+  const [velionMode, setVelionMode] = useState('on');
+  const [showAutonomy, setShowAutonomy] = useState(false);
   
-  // Auto-show tutorial for new users
+  // Fetch Velion mode from backend
   useEffect(() => {
-    if (user && shouldAutoShowTutorial()) {
+    if (!user || !api) return;
+    api.get('/velion/mode').then(r => {
+      const m = r.data?.mode || 'on';
+      setVelionMode(m);
+      window.__velionMode = m;
+      if (r.data?.show_autonomy) setShowAutonomy(true);
+    }).catch(() => {});
+  }, [user, api]);
+
+  const toggleVelionMode = async (newMode) => {
+    setVelionMode(newMode);
+    window.__velionMode = newMode;
+    window.dispatchEvent(new Event('velion-mode-changed'));
+    try { await api.put('/velion/mode', { mode: newMode }); } catch {}
+  };
+
+  // Listen for toggle from hamburger menu
+  useEffect(() => {
+    const handler = () => {
+      const next = velionMode === 'on' ? 'off' : 'on';
+      toggleVelionMode(next);
+    };
+    window.addEventListener('velion-toggle-mode', handler);
+    return () => window.removeEventListener('velion-toggle-mode', handler);
+  });
+
+  const dismissAutonomy = async (keepOn) => {
+    setShowAutonomy(false);
+    try { await api.post('/velion/dismiss-autonomy'); } catch {}
+    if (!keepOn) toggleVelionMode('off');
+  };
+
+  // Auto-show tutorial for new users (only when ON)
+  useEffect(() => {
+    if (user && velionMode === 'on' && shouldAutoShowTutorial()) {
       const timer = setTimeout(() => { setVelionTab('tutorial'); setShowTutorial(true); }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [user]);
+  }, [user, velionMode]);
 
   // Listen for tutorial open event from hamburger menu
   useEffect(() => {
@@ -1853,6 +1929,7 @@ const ProtectedRoute = ({ children }) => {
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}
+        mode={velionMode}
       />
       <VelionPanel
         open={showTutorial}
@@ -1860,6 +1937,48 @@ const ProtectedRoute = ({ children }) => {
         onNavigate={(path) => { navigate(path); setShowTutorial(false); }}
         defaultTab={velionTab}
       />
+
+      {/* Autonomy Prompt */}
+      <AnimatePresence>
+        {showAutonomy && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] w-[90%] max-w-sm"
+            data-testid="velion-autonomy-prompt"
+          >
+            <div className="bg-[#0d0d10]/95 backdrop-blur-md border border-cyan-500/20 rounded-2xl p-4 shadow-lg shadow-cyan-500/5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-full relative flex-shrink-0">
+                  <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(0,30,60,0.9) 40%, transparent 100%)' }} />
+                  <img src="/velion.png" alt="" className="w-full h-full object-contain rounded-full relative z-10" style={{ mixBlendMode: 'screen', filter: 'brightness(1.4) contrast(1.3)' }} />
+                </div>
+                <span className="text-[10px] text-cyan-400 font-['Bebas_Neue'] tracking-widest">VELION</span>
+              </div>
+              <p className="text-sm text-gray-300 leading-relaxed mb-3">
+                Ti senti pronto a gestire il tuo studio in autonomia?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => dismissAutonomy(true)}
+                  className="flex-1 py-2 rounded-lg bg-cyan-500/15 text-cyan-400 text-xs font-medium border border-cyan-500/30 hover:bg-cyan-500/25 transition-colors"
+                  data-testid="autonomy-keep-on"
+                >
+                  Continua con Velion
+                </button>
+                <button
+                  onClick={() => dismissAutonomy(false)}
+                  className="flex-1 py-2 rounded-lg bg-white/5 text-gray-400 text-xs font-medium border border-white/10 hover:bg-white/10 transition-colors"
+                  data-testid="autonomy-go-off"
+                >
+                  Prova senza
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </PlayerPopupContext.Provider>
     </ProductionMenuContext.Provider>

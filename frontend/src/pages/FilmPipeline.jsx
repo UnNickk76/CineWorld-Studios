@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
-import { TabErrorBoundary } from '../components/ErrorBoundary';
+import { TabErrorBoundary, MiniStepBar } from '../components/ErrorBoundary';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
+
+// Haptic feedback utility
+const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
 
 const TABS = [
   { id: 'creation', icon: Pencil, label: 'Creazione', desc: 'Crea una nuova proposta: titolo, genere, sinossi e location' },
@@ -41,26 +44,20 @@ const PIPELINE_STEPS = [
   { id: 'release', label: 'Uscita', icon: Rocket, tab: 'shooting', color: 'emerald' },
 ];
 
-// ─── Pipeline Step Bar Component ───
+// ─── Pipeline Step Bar Component (Animated) ───
 const PipelineStepBar = ({ activeTab, counts, onTabChange }) => {
   const scrollRef = React.useRef(null);
   const hasComingSoon = (counts.coming_soon || 0) > 0;
   
-  // Determine which steps are "active" based on counts
   const getStepState = (step) => {
-    const isActiveTab = step.tab === activeTab;
-    
-    // Steps completed = have films past this stage
     const tabOrder = ['creation', 'proposals', 'casting', 'screenplay', 'pre_production', 'shooting'];
     const activeIdx = tabOrder.indexOf(activeTab);
     const stepIdx = tabOrder.indexOf(step.tab);
     
-    if (isActiveTab) return 'current';
+    if (step.tab === activeTab) return 'current';
     if (stepIdx < activeIdx) return 'completed';
     
-    // Lock steps after Coming Soon when films are in coming_soon
-    if (hasComingSoon && step.id !== 'coming_soon' && ['casting', 'script', 'production', 'release'].includes(step.id)) {
-      // Only lock if there are NO films in those tabs yet
+    if (hasComingSoon && ['casting', 'script', 'production', 'release'].includes(step.id)) {
       const tabCountMap = { casting: counts.casting, script: counts.screenplay, production: counts.pre_production, release: counts.shooting };
       if (!tabCountMap[step.id]) return 'locked';
     }
@@ -68,72 +65,113 @@ const PipelineStepBar = ({ activeTab, counts, onTabChange }) => {
     return 'future';
   };
 
-  // Auto-scroll to active step
   React.useEffect(() => {
     if (scrollRef.current) {
-      const activeEl = scrollRef.current.querySelector('[data-step-active="true"]');
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-      }
+      const el = scrollRef.current.querySelector('[data-step-active="true"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
   }, [activeTab]);
 
-  const colorMap = {
-    yellow: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-400', glow: 'shadow-yellow-500/30' },
-    purple: { bg: 'bg-purple-500/20', border: 'border-purple-500/50', text: 'text-purple-400', glow: 'shadow-purple-500/30' },
-    orange: { bg: 'bg-orange-500/20', border: 'border-orange-500/50', text: 'text-orange-400', glow: 'shadow-orange-500/30' },
-    cyan: { bg: 'bg-cyan-500/20', border: 'border-cyan-500/50', text: 'text-cyan-400', glow: 'shadow-cyan-500/30' },
-    green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', glow: 'shadow-green-500/30' },
-    blue: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-400', glow: 'shadow-blue-500/30' },
-    emerald: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-400', glow: 'shadow-emerald-500/30' },
+  const glowColors = {
+    yellow: 'rgba(234,179,8,0.5)',
+    purple: 'rgba(168,85,247,0.5)',
+    orange: 'rgba(249,115,22,0.5)',
+    cyan: 'rgba(6,182,212,0.5)',
+    green: 'rgba(34,197,94,0.5)',
+    blue: 'rgba(59,130,246,0.5)',
+    emerald: 'rgba(16,185,129,0.5)',
+  };
+
+  const colorStyles = {
+    yellow: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-400', iconBg: 'bg-yellow-500/30' },
+    purple: { bg: 'bg-purple-500/20', border: 'border-purple-500/50', text: 'text-purple-400', iconBg: 'bg-purple-500/30' },
+    orange: { bg: 'bg-orange-500/20', border: 'border-orange-500/50', text: 'text-orange-400', iconBg: 'bg-orange-500/30' },
+    cyan: { bg: 'bg-cyan-500/20', border: 'border-cyan-500/50', text: 'text-cyan-400', iconBg: 'bg-cyan-500/30' },
+    green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', iconBg: 'bg-green-500/30' },
+    blue: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-400', iconBg: 'bg-blue-500/30' },
+    emerald: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-400', iconBg: 'bg-emerald-500/30' },
   };
 
   return (
-    <div className="mb-4" data-testid="pipeline-step-bar">
-      <div ref={scrollRef} className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide pb-1 px-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+    <div className="mb-3 relative" data-testid="pipeline-step-bar">
+      <div ref={scrollRef} className="flex items-center gap-0 overflow-x-auto pb-1.5 px-0.5 no-scrollbar">
         {PIPELINE_STEPS.map((step, i) => {
           const state = getStepState(step);
           const Icon = step.icon;
-          const colors = colorMap[step.color];
+          const cs = colorStyles[step.color];
           const isLocked = state === 'locked';
           const isCurrent = state === 'current';
           const isCompleted = state === 'completed';
+          const isFuture = state === 'future';
           const isComingSoonActive = step.id === 'coming_soon' && hasComingSoon;
 
           return (
             <React.Fragment key={step.id}>
+              {/* Connector line */}
               {i > 0 && (
-                <div className={`flex-shrink-0 w-3 h-[1px] ${isCompleted || isCurrent ? 'bg-yellow-500/60' : 'bg-gray-700'}`} />
+                <div className={`flex-shrink-0 w-4 h-[2px] rounded-full ${
+                  isCompleted || isCurrent
+                    ? 'connector-active'
+                    : 'bg-gray-800'
+                }`} />
               )}
+              
+              {/* Step button */}
               <button
-                onClick={() => !isLocked && onTabChange(step.tab)}
+                onClick={() => { if (!isLocked) { haptic([15]); onTabChange(step.tab); } }}
                 data-step-active={isCurrent ? 'true' : 'false'}
                 data-testid={`step-${step.id}`}
                 disabled={isLocked}
-                className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg transition-all min-w-[48px] ${
+                style={isCurrent ? { '--step-glow-color': glowColors[step.color] } : {}}
+                className={`flex-shrink-0 flex flex-col items-center gap-0.5 p-1 rounded-xl transition-all min-w-[44px] relative ${
                   isCurrent
-                    ? `${colors.bg} border ${colors.border} shadow-md ${colors.glow}`
+                    ? `${cs.bg} border ${cs.border} step-current`
                     : isCompleted
-                      ? 'bg-green-500/10 border border-green-500/20'
+                      ? 'step-completed'
                       : isLocked
-                        ? 'bg-gray-900/50 border border-gray-800/50 opacity-40 cursor-not-allowed'
-                        : 'bg-transparent border border-transparent hover:bg-white/5'
-                } ${isComingSoonActive ? 'animate-pulse' : ''}`}
+                        ? 'step-locked cursor-not-allowed'
+                        : isFuture
+                          ? 'opacity-40'
+                          : ''
+                }`}
               >
-                <div className="relative">
+                {/* Icon container */}
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                  isCurrent
+                    ? `${cs.iconBg}`
+                    : isCompleted
+                      ? 'bg-green-500/20'
+                      : isLocked
+                        ? 'bg-gray-900'
+                        : 'bg-gray-800/50'
+                }`}>
                   {isLocked ? (
-                    <Lock className="w-3.5 h-3.5 text-gray-600" />
+                    <Lock className="w-3 h-3 text-gray-700" />
                   ) : isCompleted ? (
-                    <Check className="w-3.5 h-3.5 text-green-400" />
+                    <Check className="w-3.5 h-3.5 text-green-400 step-check-icon" />
+                  ) : isComingSoonActive ? (
+                    <Icon className={`w-3.5 h-3.5 ${cs.text} cs-icon-spin`} />
                   ) : (
-                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? colors.text : 'text-gray-500'}`} />
+                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? cs.text : 'text-gray-600'}`} />
                   )}
                 </div>
-                <span className={`text-[7px] font-medium leading-none ${
-                  isCurrent ? colors.text : isCompleted ? 'text-green-400/80' : isLocked ? 'text-gray-700' : 'text-gray-500'
+                
+                {/* Label */}
+                <span className={`text-[7px] font-semibold leading-none tracking-wide ${
+                  isCurrent ? cs.text
+                  : isCompleted ? 'text-green-400/80'
+                  : isLocked ? 'text-gray-800'
+                  : 'text-gray-600'
                 }`}>
                   {step.label}
                 </span>
+
+                {/* Coming Soon countdown indicator */}
+                {isComingSoonActive && (
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-full">
+                    <div className="h-[2px] rounded-full cs-progress-bar mx-1" />
+                  </div>
+                )}
               </button>
             </React.Fragment>
           );
@@ -528,10 +566,12 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
       {proposals.map(p => {
         const step = getStep(p);
         return (
-        <Card key={p.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`proposal-${p.id}`}>
+        <Card key={p.id} className="bg-[#1A1A1B] border-gray-800 film-card-hover" data-testid={`proposal-${p.id}`}>
           <CardContent className="p-3">
+            {/* Mini Step Bar */}
+            <MiniStepBar status={p.status} />
             {/* Header */}
-            <div className="flex items-start gap-3 mb-2">
+            <div className="flex items-start gap-3 mb-2 mt-2">
               {p.poster_url ? (
                 <img src={p.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${p.poster_url}` : p.poster_url}
                   alt="" className="w-14 h-20 object-cover rounded flex-shrink-0" />
@@ -958,7 +998,7 @@ const CastingTab = ({ api, refreshUser, refreshCounts }) => {
         const castComplete = cast.director && cast.screenwriter && cast.composer && cast.actors?.length > 0;
         const isLocked = f.cast_locked === true || (f.from_emerging_screenplay && f.emerging_option === 'full_package');
         return (
-          <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`casting-film-${f.id}`}>
+          <Card key={f.id} className="bg-[#1A1A1B] border-gray-800 film-card-hover" data-testid={`casting-film-${f.id}`}>
             <CardContent className="p-3">
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -1561,7 +1601,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
         // Wrap each film in try/catch so one bad film doesn't crash the entire list
         try {
         return (
-        <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`screenplay-film-${f.id}`}>
+        <Card key={f.id} className="bg-[#1A1A1B] border-gray-800 film-card-hover" data-testid={`screenplay-film-${f.id}`}>
           <CardContent className="p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div>
@@ -1921,7 +1961,7 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
         const remasterDone = f.remaster_completed;
         const hasSetup = f.production_setup?.setup_completed;
         return (
-          <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`preprod-film-${f.id}`}>
+          <Card key={f.id} className="bg-[#1A1A1B] border-gray-800 film-card-hover" data-testid={`preprod-film-${f.id}`}>
             <CardContent className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div>

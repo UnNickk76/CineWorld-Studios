@@ -1050,50 +1050,56 @@ const TopNavbar = () => {
         </button>
       </div>
 
-      {/* Notification Popup Toasts */}
+      {/* Notification Popup Toasts - Slide from top with vibration */}
       <AnimatePresence>
         {popupNotifications.map((notif, i) => {
           const severityStyles = {
-            critical: 'border-red-500/50 bg-red-950/90',
-            important: 'border-yellow-500/50 bg-yellow-950/90',
-            positive: 'border-green-500/50 bg-green-950/90',
+            critical: 'border-red-500/40 bg-gradient-to-r from-red-950/95 to-red-900/80',
+            important: 'border-yellow-500/40 bg-gradient-to-r from-yellow-950/95 to-yellow-900/80',
+            positive: 'border-green-500/40 bg-gradient-to-r from-green-950/95 to-green-900/80',
           };
           const severityIcons = {
             critical: <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />,
             important: <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0" />,
             positive: <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0" />,
           };
+          const glowColor = {
+            critical: '0 0 20px rgba(239,68,68,0.15)',
+            important: '0 0 20px rgba(234,179,8,0.15)',
+            positive: '0 0 20px rgba(34,197,94,0.15)',
+          };
           const sev = notif.severity || 'positive';
+          // Trigger vibration on mount
+          if (i === 0 && typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate(sev === 'critical' ? [50, 50, 50] : [25]); } catch {}
+          }
           return (
             <motion.div
               key={notif.id}
-              initial={{ opacity: 0, x: 300, scale: 0.8 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 300, scale: 0.8 }}
-              transition={{ type: 'spring', damping: 20, stiffness: 300, delay: i * 0.1 }}
-              className={`fixed z-[100] right-3 cursor-pointer backdrop-blur-md border rounded-lg p-3 max-w-xs sm:max-w-sm shadow-2xl ${severityStyles[sev] || severityStyles.positive}`}
-              style={{ top: `${70 + i * 80}px` }}
+              initial={{ opacity: 0, y: -80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -60, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 350, delay: i * 0.12 }}
+              className={`fixed z-[100] left-3 right-3 sm:left-auto sm:right-3 sm:max-w-sm cursor-pointer backdrop-blur-lg border rounded-xl p-3 shadow-2xl ${severityStyles[sev] || severityStyles.positive}`}
+              style={{ top: `${64 + i * 76}px`, boxShadow: glowColor[sev] || glowColor.positive }}
               onClick={() => {
                 setPopupNotifications(prev => prev.filter(p => p.id !== notif.id));
                 api.post(`/notifications/${notif.id}/read`).catch(() => {});
-                // Navigate to the link directly
                 const navPath = notif.link;
-                if (navPath) {
-                  navigate(navPath);
-                } else {
-                  navigate('/notifications');
-                }
+                if (navPath) { navigate(navPath); } else { navigate('/notifications'); }
               }}
               data-testid={`popup-notification-${notif.id}`}
             >
               <div className="flex items-start gap-2.5">
-                {severityIcons[sev] || severityIcons.positive}
+                <div className={`p-1.5 rounded-lg ${sev === 'critical' ? 'bg-red-500/20' : sev === 'important' ? 'bg-yellow-500/20' : 'bg-green-500/20'}`}>
+                  {severityIcons[sev] || severityIcons.positive}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-xs text-white leading-tight">{notif.title}</p>
-                  <p className="text-[11px] text-gray-300 mt-0.5 leading-snug line-clamp-2">{notif.message}</p>
+                  <p className="text-[10px] text-gray-300/80 mt-0.5 leading-snug line-clamp-2">{notif.message}</p>
                 </div>
                 <button
-                  className="text-gray-500 hover:text-white p-0.5 flex-shrink-0"
+                  className="text-gray-600 hover:text-white p-0.5 flex-shrink-0 transition-colors"
                   onClick={(e) => { e.stopPropagation(); setPopupNotifications(prev => prev.filter(p => p.id !== notif.id)); }}
                 >
                   <X className="w-3.5 h-3.5" />

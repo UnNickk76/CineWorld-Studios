@@ -38,11 +38,39 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 ### Tutorial V2.0
 - TutorialPopup.jsx riutilizzabile con 16 step
 - Bottone "Come si gioca?" nella pagina login/registrazione
-- Contenuto completo: Proposta → Distribuzione → PvP → Social
+- Contenuto completo: Proposta > Distribuzione > PvP > Social
 
 ### Copy Login
 - Sottotitolo coinvolgente sotto CINEWORLD STUDIO'S
 - Marketplace label "Prossimamente" (non "In pausa")
+
+### Festival System Overhaul v3.0 (NEW)
+**Backend:**
+- Nuove categorie: Miglior Produzione, Miglior Sorpresa (Best Surprise)
+- Nomination automatica multi-fattore: qualita 35%, soddisfazione 25%, revenue 15%, likes 15%, cast skills 10%
+- "Best Surprise" score: qualita effettiva vs attesa (film sorprendenti)
+- Voto pesato per livello/fama del giocatore (1 + level*0.1 + fame*0.005)
+- Limite giornaliero voti: 3 base + 1 ogni 5 livelli (max 15)
+- Premio Palma d'Oro CineWorld: assegnato a Best Film al Golden Stars
+  - Bonus permanente: +2% qualita futuri film, +1% hype
+  - Salvato in collection iconic_prizes
+- CinePass nei premi: Golden Stars +5 CP, Spotlight +2 CP, Excellence +2 CP
+- Endpoint /api/festivals/countdown: countdown con nomination preview e Palma d'Oro flag
+- Endpoint /api/festivals/history: storico edizioni con vincitori
+- Endpoint /api/player/iconic-prizes: premi iconici e bonus permanenti
+- Endpoint /api/player/{id}/badges: badge per profilo (premi + iconici)
+- Festival custom: richiede denaro + 3 CinePass per la creazione
+
+**Frontend:**
+- Countdown banners pre-evento con timer real-time (G/O/M/S)
+- Golden Stars evidenziato con bordo dorato e label Palma d'Oro
+- Nomination preview nei countdown
+- CinePass visibile nei premi (+5 CP, +2 CP)
+- Tab "Storico" per consultare edizioni passate
+- Voto pesato: messaggio "Voto pesato per livello e fama"
+- Voti rimanenti giornalieri visibili
+- Envelope Reveal animation per cerimonia live
+- Festival custom mostra costo CinePass nella creazione
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
@@ -55,6 +83,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 129: 100% (PvP Backend + HQ - 21/21)
 - Iter 130: 100% (PvP Coming Soon Integration - 12/12)
 - Iter 131: 100% (PvP Infra UX Revision - 11/11)
+- Iter 132: 100% (Festival Overhaul Phase 1+2 - 18/18)
 
 ## Backlog
 
@@ -68,3 +97,4 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major
+- Tutorial interattivo con personaggio (attesa input utente)

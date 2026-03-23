@@ -105,12 +105,10 @@ const AuthPage = () => {
             <div className="flex justify-center">
               <img src="/cineworld-logo.jpg" alt="CineWorld Studios" className="w-24 h-24 rounded-2xl shadow-lg shadow-yellow-500/20" />
             </div>
-            <CardTitle className="font-['Bebas_Neue'] text-2xl tracking-wide">CineWorld Studio's</CardTitle>
-            <CardDescription className="text-xs">
-              {isLogin 
-                ? (language === 'it' ? 'Accedi alla tua casa di produzione' : 'Sign in to your production house')
-                : (language === 'it' ? 'Crea il tuo impero cinematografico' : 'Create your production empire')}
-            </CardDescription>
+            <CardTitle className="font-['Bebas_Neue'] text-3xl sm:text-4xl tracking-wide">CineWorld Studio's</CardTitle>
+            <p className="text-sm sm:text-base text-gray-300 leading-snug px-2">
+              Costruisci il tuo studio cinematografico e sfida altri player tra hype, sabotaggi e successo al botteghino.
+            </p>
             <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">BETA TEST</Badge>
           </CardHeader>
           <CardContent>

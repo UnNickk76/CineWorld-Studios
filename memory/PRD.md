@@ -4,62 +4,67 @@
 Full-stack cinematic empire game where players create, produce, and release films, TV series, and anime.
 
 ## Core Architecture
-- **Frontend**: React + Shadcn UI (port 3000)
+- **Frontend**: React + Shadcn UI + framer-motion (port 3000)
 - **Backend**: FastAPI + MongoDB (port 8001)
-- **Integrations**: OpenAI GPT-4o-mini (text), GPT-Image-1 (poster gen), APScheduler (background jobs)
+- **Integrations**: OpenAI GPT-4o-mini (text), GPT-Image-1 (poster), APScheduler
 
 ## Pipeline Flow (Updated March 23 2026)
-
-### Film Pipeline - Visual Step Bar
 ```
-[Idea] → [Trama] → [Location] → [Poster] → [Hype/Coming Soon] → [Casting] → [Script] → [Produzione] → [Uscita]
+[Idea] → [Trama] → [Location] → [Poster] → [Hype] → [Casting] → [Script] → [Produzione] → [Uscita]
 ```
 
-### Two Modes
-- **Immediata**: Idea → Trama → Location → Casting → Script → Produzione → Uscita (skips Poster/Hype)
-- **Coming Soon**: Idea → Trama → Location → Poster → STOP (timer) → Casting → Script → Produzione → Uscita
+### Visual Step Bar (Game Feel)
+- 9 animated steps with gold glow, breathing effects, animated connectors
+- Completed: green check + gold glow pop animation
+- Current: colored breathing glow (CSS custom property --step-glow-color)
+- Future: dimmed grey
+- Locked (Coming Soon): lock icon + blur + pulse
+- Coming Soon active: rotating icon + progress bar animation
+- Haptic feedback (navigator.vibrate) on mobile
+- Reduced motion support (@media prefers-reduced-motion)
 
-### Step Bar UI
-- Current step: colored background + glow (yellow/purple/orange/cyan/green/blue/emerald)
-- Completed steps: green checkmark
-- Future steps: grey/dimmed
-- Locked steps (during Coming Soon): lock icon + dark grey
-- Scrollable horizontally on mobile
-- Clicking a step navigates to the corresponding tab
+### Film Card Effects
+- Mini step bar (7 steps, 3px height) at top of each card
+- Hover/tap: translateY(-2px) + gold shadow glow
+- film-card-hover class applied to all pipeline cards
 
-### Coming Soon Flow Fix
+### Cinematic Error Handling
+- Main ErrorBoundary: film glitch effect with scanlines + grain
+  - "La pellicola si è inceppata!" + actual error message
+  - "Riprendi la scena" button (pill-shaped)
+- TabErrorBoundary: "Scena interrotta" with film icon
+
+### Enhanced Notifications
+- Slide from top (framer-motion spring: damping 22, stiffness 350)
+- Gradient backgrounds per severity (critical/important/positive)
+- Glow shadow matching severity color
+- Vibration patterns: critical [50,50,50], normal [25]
+
+### Coming Soon Flow (Fixed)
 - Films NO LONGER go backwards to `coming_soon` after shooting
-- `choose-release-strategy` now sets `status: completed` with `release_pending: true`
-- Scheduler handles `release_pending` films when timer expires
+- `choose-release-strategy` → `completed` + `release_pending: true`
+- Scheduler auto-releases when timer expires
 
-## Implemented Features
+## CSS Animations (index.css)
+- step-complete-pop, step-glow-gold, check-appear
+- step-breathe, step-glow-current
+- connector-wave (light wave between steps)
+- step-locked-pulse
+- cs-icon-rotate, cs-countdown-pulse, cs-progress-fill
+- card-glow, film-card-hover
+- glitch-1, glitch-scanlines, film-grain (error effects)
+- notif-slide-in, notif-exit
 
-### Production Pipelines
-- Film, TV Series, Anime production flows
-- Coming Soon Interactive System with timer tiers
-- Release Strategy System (Automatic +3% vs Manual +8%)
-- Dynamic Notification System with severity levels
-- Admin Maintenance Tool (repair + diagnose)
-
-### Other Systems
-- Box office, cinema/infrastructure revenue, cast system
-- Social hub: chat, private messages, notifications
-- Moderation, leaderboard, contests, challenges
-
-## Bug Fixes (March 23 2026)
-- **Flame icon missing import** → Added to lucide-react imports
-- **expandedScreenplay state missing** → Added to ScreenplayTab
-- **f.screenplay as object** → Defensive rendering with type check
-- **One bad film crashes list** → try/catch per film in map()
-- **ErrorBoundary** → Now shows actual error message
-- **Coming Soon backwards flow** → Films go to `completed` + `release_pending` instead of back to `coming_soon`
+## Bug Fixes
+- Flame icon missing import (March 23)
+- expandedScreenplay state missing in ScreenplayTab (March 23)
+- f.screenplay as object crash (March 23)
+- Coming Soon backwards flow (March 23)
 
 ## Known Issues
-- (P2) Contest Page mobile layout broken (recurring)
+- (P2) Contest Page mobile layout broken
 
 ## Backlog
-- P1: Chat Evolution - Step 6 (mobile refinement + social quality)
-- P1: Marketplace for TV/Anime rights
+- P1: Chat Evolution Step 6, Marketplace TV/Anime rights
 - P2: RBAC, CinePass + Stripe, PWA, Tutorial, Contest Page fix
-- P3: Scommesse sui Coming Soon, Eventi globali
-- Future: Push notifications (mobile), guerre tra Major
+- P3: Scommesse Coming Soon, Eventi globali, Push notifications

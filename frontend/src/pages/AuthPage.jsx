@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import { TutorialPopup } from '../components/TutorialPopup';
 import {
   Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
@@ -52,6 +53,7 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const { login, register } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
@@ -109,8 +111,19 @@ const AuthPage = () => {
             <p className="text-sm sm:text-base text-gray-300 leading-snug px-2">
               Costruisci il tuo studio cinematografico e sfida altri player tra hype, sabotaggi e successo al botteghino.
             </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-yellow-400 hover:bg-yellow-500/10 text-xs gap-1.5"
+              onClick={() => setShowTutorial(true)}
+              data-testid="auth-tutorial-btn"
+            >
+              <HelpCircle className="w-3.5 h-3.5" /> Come si gioca?
+            </Button>
             <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">BETA TEST</Badge>
           </CardHeader>
+
+          <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />
           <CardContent>
             {/* Download App Button */}
             <Button

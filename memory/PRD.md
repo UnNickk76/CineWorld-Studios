@@ -115,7 +115,15 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Messaggi Dinamici**: 4+ varianti per tipo (32+ totali), mai ripetitivi
 - **Suggerimenti Contestuali**: 9 pagine con messaggi per livello
 - **Bubble Non-Invasiva**: Styling per priorita, auto-hide 8-12s, cliccabile per navigazione
-- **Preparato per**: AI avanzata, memoria sessione, suggerimenti sempre piu personalizzati
+- **Controllo Utente ON/OFF (v6)**: Toggle nel menu hamburger ("Assistente Velion")
+  - ON: Tutorial + suggerimenti + interventi automatici + bubble + login greeting
+  - OFF: Nessun popup automatico, icona visibile ma desaturata, tooltip "Velion (OFF)", click apre panel manualmente
+  - Persistenza in DB (collection `velion_prefs`: user_id, mode, last_autonomy_prompt)
+  - Comunicazione TopNavbar↔ProtectedRoute via window events
+  - Hint "Riattiva Velion per suggerimenti automatici" quando OFF
+  - Visual feedback: glow grigio, saturazione 0.5, no notification dot
+  - Autonomy Prompt: dopo 5 giorni, soft popup "Ti senti pronto a gestire in autonomia?" con 2 CTA
+- **Preparato per livelli futuri**: Velion Base / Velion Avanzato / Velion OFF
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
@@ -134,6 +142,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 135: 100% (Velion Phase 2 - Dynamic variants, Page-context, Priority styling - Backend 14/14 + Frontend all)
 - Iter 136: 100% (Velion Phase 3 - Enhanced personality, Idle detection, Tips, Quick asks - Backend 16/16 + Frontend all)
 - Iter 137: 100% (Velion Advisor Evolution - Priority system, Login greeting, Infra upgrade - Backend 15/15 + Frontend all)
+- Iter 138: 100% (Velion ON/OFF Control - Toggle, Persistence, Visual feedback, Autonomy prompt - Backend 15/15 + Frontend all)
 
 ## Backlog
 

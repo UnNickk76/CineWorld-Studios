@@ -1384,6 +1384,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
   const [posterPrompt, setPosterPrompt] = useState({});
   const [posterStyle, setPosterStyle] = useState({});
   const [posterLoading, setPosterLoading] = useState(null);
+  const [expandedScreenplay, setExpandedScreenplay] = useState({});
 
   const fetch = useCallback(async () => {
     try { const res = await api.get('/film-pipeline/screenplay'); setFilms(res.data.films || []); }

@@ -27,6 +27,7 @@ export class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const errorMsg = this.state.error?.message || '';
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-4" data-testid="error-boundary">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center">
@@ -36,6 +37,11 @@ export class ErrorBoundary extends React.Component {
           <p className="text-sm text-gray-400 text-center max-w-md">
             Si è verificato un errore nel caricamento di questa sezione.
           </p>
+          {errorMsg && (
+            <p className="text-xs text-red-400/70 text-center max-w-md bg-red-500/5 p-2 rounded border border-red-500/20 font-mono">
+              {errorMsg}
+            </p>
+          )}
           <button
             onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
             className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-black rounded-lg font-medium hover:bg-yellow-400 transition-colors"
@@ -54,11 +60,11 @@ export class ErrorBoundary extends React.Component {
 export class TabErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorMsg: '' };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, errorMsg: error?.message || '' };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -72,9 +78,12 @@ export class TabErrorBoundary extends React.Component {
           <div className="w-10 h-10 mx-auto mb-2 bg-red-500/10 rounded-full flex items-center justify-center">
             <span className="text-red-400 text-sm">!</span>
           </div>
-          <p className="text-sm text-gray-400 mb-2">Errore nel caricamento di questa sezione</p>
+          <p className="text-sm text-gray-400 mb-1">Errore nel caricamento di questa sezione</p>
+          {this.state.errorMsg && (
+            <p className="text-[10px] text-red-400/60 mb-2 font-mono">{this.state.errorMsg}</p>
+          )}
           <button
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() => this.setState({ hasError: false, errorMsg: '' })}
             className="text-xs text-yellow-400 hover:text-yellow-300 underline"
           >
             Riprova

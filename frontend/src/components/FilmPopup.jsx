@@ -534,42 +534,77 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
                   const skills = person.skills || {};
                   const avgSkill = Object.values(skills).length > 0
                     ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+                  const stars = person.stars || Math.ceil(avgSkill / 20);
+                  const fameCat = person.fame_category || person.fame_badge || '';
+                  const fameLabel = fameCat === 'superstar' ? 'Superstar' : fameCat === 'famous' ? 'Famoso' : fameCat === 'rising' ? 'Emergente' : fameCat === 'unknown' ? 'Sconosciuto' : '';
+                  const isSkillExpanded = expandedSkills[prop.id];
                   return (
-                    <div key={prop.id} className="p-2 rounded-lg border border-gray-800/50 hover:border-gray-700 bg-white/[0.02]"
+                    <div key={prop.id} className="rounded-lg border border-gray-800/50 hover:border-gray-700 bg-white/[0.02] overflow-hidden"
                       data-testid={`popup-proposal-${prop.id}`}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] font-bold text-cyan-400">
-                          {person.name?.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{person.name}</p>
-                          <p className="text-[9px] text-gray-500">Skill: {avgSkill} {person.nationality ? `\u2022 ${person.nationality}` : ''}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <span className="text-[9px] text-yellow-400 font-bold">${prop.cost?.toLocaleString()}</span>
-                          {role === 'actors' && (
-                            <select value={actorRoles[prop.id] || ''} onChange={e => setActorRoles(p => ({...p, [prop.id]: e.target.value}))}
-                              onClick={e => e.stopPropagation()}
-                              className="h-5 text-[8px] bg-gray-800 border border-gray-700 rounded px-0.5 text-white">
-                              <option value="">Ruolo...</option>
-                              {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                          )}
-                          {role === 'actors' ? (
+                      <div className="p-2">
+                        <div className="flex items-start gap-2">
+                          {/* Avatar */}
+                          <div className="w-9 h-9 rounded-full bg-cyan-500/20 flex items-center justify-center text-[11px] font-bold text-cyan-400 flex-shrink-0">
+                            {person.name?.charAt(0)}
+                          </div>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-semibold truncate">{person.name}</p>
+                              {person.gender && <span className="text-[8px] text-gray-600">{person.gender === 'M' ? 'M' : person.gender === 'F' ? 'F' : ''}</span>}
+                            </div>
+                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                              {/* Stars */}
+                              <span className="text-[9px] text-yellow-500">{'★'.repeat(stars)}{'☆'.repeat(Math.max(0, 5 - stars))}</span>
+                              {fameLabel && <Badge className="text-[7px] h-3.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 px-1">{fameLabel}</Badge>}
+                            </div>
+                            <p className="text-[8px] text-gray-500 mt-0.5">
+                              {person.nationality || ''}{person.age ? ` \u2022 ${person.age}a` : ''}{' \u2022 '}Skill: <span className="text-cyan-400 font-semibold">{avgSkill}</span>
+                              {person.films_count != null ? ` \u2022 ${person.films_count} film` : ''}
+                            </p>
+                            {person.agency_name && <p className="text-[7px] text-gray-600">Agenzia: {person.agency_name}</p>}
+                          </div>
+                          {/* Cost + Actions */}
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <span className="text-[9px] text-yellow-400 font-bold">${prop.cost?.toLocaleString()}</span>
+                            {role === 'actors' && (
+                              <select value={actorRoles[prop.id] || ''} onChange={e => setActorRoles(p => ({...p, [prop.id]: e.target.value}))}
+                                onClick={e => e.stopPropagation()}
+                                className="h-5 text-[8px] bg-gray-800 border border-gray-700 rounded px-0.5 text-white">
+                                <option value="">Ruolo...</option>
+                                {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                              </select>
+                            )}
                             <Button size="sm" className="h-5 px-2 text-[9px] bg-cyan-700 hover:bg-cyan-800"
                               disabled={actionLoading === `select-${prop.id}`}
                               onClick={() => selectCast(role, prop.id)}>
                               <Check className="w-2.5 h-2.5 mr-0.5" /> Scegli
                             </Button>
-                          ) : (
-                            <Button size="sm" className="h-5 px-2 text-[9px] bg-cyan-700 hover:bg-cyan-800"
-                              disabled={actionLoading === `select-${prop.id}`}
-                              onClick={() => selectCast(role, prop.id)}>
-                              <Check className="w-2.5 h-2.5 mr-0.5" /> Scegli
-                            </Button>
-                          )}
+                          </div>
                         </div>
                       </div>
+                      {/* Mostra Skill toggle */}
+                      {Object.keys(skills).length > 0 && (
+                        <>
+                          <button
+                            className="w-full flex items-center gap-1 px-2 py-1 text-[9px] text-cyan-400 hover:bg-white/5 border-t border-gray-800/30"
+                            onClick={(e) => { e.stopPropagation(); setExpandedSkills(p => ({...p, [prop.id]: !p[prop.id]})); }}
+                            data-testid={`toggle-skills-${prop.id}`}>
+                            {isSkillExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            Mostra Skill
+                          </button>
+                          {isSkillExpanded && (
+                            <div className="px-2 pb-2 grid grid-cols-2 gap-1">
+                              {Object.entries(skills).map(([skillName, skillVal]) => (
+                                <div key={skillName} className="flex items-center justify-between bg-white/[0.03] rounded px-1.5 py-0.5">
+                                  <span className="text-[8px] text-gray-400 capitalize truncate">{skillName.replace(/_/g, ' ')}</span>
+                                  <span className={`text-[8px] font-bold ${skillVal >= 70 ? 'text-green-400' : skillVal >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{skillVal}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   );
                 })}

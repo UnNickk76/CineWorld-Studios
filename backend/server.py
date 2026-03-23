@@ -12178,12 +12178,56 @@ async def get_player_level_info(user: dict = Depends(get_current_user)):
     total_xp = user.get('total_xp', 0)
     level_info = get_level_from_xp(total_xp)
     
+    fame = user.get('fame', 50)
+    
+    # Auto-fix fame if it seems broken (fame=0 for high-level players with completed films)
+    if fame <= 0 and level_info['level'] >= 3:
+        completed_films = await db.film_projects.find(
+            {'user_id': user['id'], 'status': {'$in': ['completed', 'released']}},
+            {'_id': 0, 'quality_score': 1}
+        ).to_list(100)
+        if completed_films:
+            quality_scores = [f.get('quality_score', 50) for f in completed_films]
+            avg_quality = sum(quality_scores) / len(quality_scores)
+            # Base fame from average quality: 50 quality = 50 fame
+            recalculated = min(100, max(10, avg_quality * 0.7 + len(completed_films) * 0.5))
+            await db.users.update_one({'id': user['id']}, {'$set': {'fame': recalculated}})
+            fame = recalculated
+
     return {
         **level_info,
-        'fame': user.get('fame', 50),
-        'fame_tier': get_fame_tier(user.get('fame', 50)),
+        'fame': fame,
+        'fame_tier': get_fame_tier(fame),
         'total_lifetime_revenue': user.get('total_lifetime_revenue', 0),
         'leaderboard_score': calculate_leaderboard_score(user)
+    }
+
+@api_router.post("/player/recalculate-fame")
+async def recalculate_player_fame(user: dict = Depends(get_current_user)):
+    """Recalculate fame from complete film history."""
+    completed_films = await db.film_projects.find(
+        {'user_id': user['id'], 'status': {'$in': ['completed', 'released']}},
+        {'_id': 0, 'quality_score': 1, 'opening_day_revenue': 1}
+    ).to_list(200)
+    
+    fame = 50.0  # Start from default
+    for film in completed_films:
+        quality = film.get('quality_score', 50)
+        revenue = film.get('opening_day_revenue', 0)
+        fame_change = calculate_fame_change(quality, revenue, fame)
+        fame = max(0, min(100, fame + fame_change))
+    
+    # Ensure minimum fame based on career
+    min_fame = min(100, 10 + len(completed_films) * 0.3)
+    fame = max(min_fame, fame)
+    
+    await db.users.update_one({'id': user['id']}, {'$set': {'fame': fame}})
+    
+    return {
+        'fame': fame,
+        'fame_tier': get_fame_tier(fame),
+        'films_analyzed': len(completed_films),
+        'message': f'Fame ricalcolata: {fame:.0f}'
     }
 
 @api_router.post("/player/add-xp")

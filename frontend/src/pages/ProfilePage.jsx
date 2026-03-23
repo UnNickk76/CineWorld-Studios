@@ -225,7 +225,8 @@ const ProfilePage = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Award className="w-5 h-5 text-yellow-400" />
-                <span className="text-yellow-400 font-semibold">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
+                <span className="text-yellow-400 font-semibold" data-testid="fame-value">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
+                {levelInfo.fame_tier && <span className="text-[10px] text-gray-400">({levelInfo.fame_tier})</span>}
               </div>
             </div>
             <Progress value={levelInfo.progress_percent} className="h-2 mb-1" />

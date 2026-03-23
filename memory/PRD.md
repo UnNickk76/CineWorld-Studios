@@ -94,23 +94,18 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
   - Testato E2E: film con director MA senza shooting → correttamente recuperato
   - Film legittimi con shooting → correttamente ignorati
 
-### Velion Tutorial System (v2.0 Interactive)
-- Personaggio Velion come overlay flottante bottom-right su tutte le pagine
-- Rimozione sfondo nero via CSS `mix-blend-mode: screen` + brightness/contrast boost
-- Cerchio di sfondo scuro per visibilita + glow ring animato cyan rotante
-- Pulsing dot di notifica cyan + Tooltip "Chiedi a Velion" su hover
-- **Dismissibile**: Bottone X per chiudere Velion (stato salvato in localStorage `velion_visible`)
-- **Richiamabile**: Bottone "Velion" (cyan, Sparkles) nel menu hamburger per riaprirlo
-- **Tutorial Interattivo**: VelionTutorial.jsx con 16 step guidati (tono immersivo, stile gioco)
-  - Step: Benvenuto → Dashboard → Produci → Nuovo Film → Creazione → Pre-Valutazione → Casting → Sceneggiatura → Produzione → Coming Soon → Uscita → Incassi → Infrastrutture → PvP → Eventi → Conclusione
-  - Navigazione: Avanti/Indietro/Salta/Inizia!
-  - Barra progresso animata
-  - Link "Vai alla pagina →" per step con pagina associata
-  - Avatar Velion, icona step, titolo, descrizione multilinea con emoji
-  - Dark overlay con backdrop-blur
-- **Auto-show**: Tutorial si apre automaticamente per nuovi utenti (1.5s delay dopo login)
-- **Persistenza**: Stato tutorial salvato in localStorage (`velion_tutorial_done`)
-- Posizione responsive: bottom-20 right-2 (mobile) / bottom-6 right-5 (desktop)
+### Velion AI Assistant (v3.0 - AI Powered)
+- **Pannello con 2 Tab**: Tutorial (16 step immersivi) + "Chiedi a Velion" (chat AI)
+- **Chat AI**: GPT-4o-mini via Emergent Key, risposte in italiano (2-3 frasi max), tono elegante/misterioso/motivazionale
+- **Fallback Rule-Based**: 12 regole per keyword (guadagnare, film, pvp, cast, infrastrutture, ecc.)
+- **Player Status Analysis**: Endpoint `GET /api/velion/player-status` analizza stato giocatore in tempo reale
+  - Trigger automatici: incassi pronti, film bloccati (>2h idle), coming soon in scadenza, eventi PvP, nessun film attivo, qualita bassa
+  - Contesto giocatore passato all'AI per risposte personalizzate
+- **Bubble Notifications**: Notifica automatica vicino a Velion (fade+slide), auto-hide 8s, cliccabile per navigazione
+- **Polling**: Ogni 60s controlla stato player per nuovi trigger
+- **Animazioni**: Breathing (scale 1→1.04→1), glow potenziato (cyan→verde) quando ha alert
+- **Overlay Velion**: Dismissibile (X), richiamabile dal menu hamburger, tooltip hover
+- **Persistenza**: Stato tutorial in localStorage, chat non persistente (per design)
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
@@ -125,6 +120,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 131: 100% (PvP Infra UX Revision - 11/11)
 - Iter 132: 100% (Festival Overhaul Phase 1+2 - 18/18)
 - Iter 133: 100% (Velion Tutorial System Interactive - 12/12)
+- Iter 134: 100% (Velion AI Assistant - Backend 13/13 + Frontend all verified)
 
 ## Backlog
 

@@ -139,11 +139,11 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
       <AnimatePresence>
         {bubble && (
           <motion.div
-            initial={{ opacity: 0, x: 20, y: 10 }}
-            animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ type: 'spring', damping: 20 }}
-            className="fixed bottom-[108px] right-2 z-[49] sm:bottom-[86px] sm:right-5 max-w-[240px] cursor-pointer"
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 22 }}
+            className="fixed bottom-[180px] right-2 z-[52] sm:bottom-[96px] sm:right-5 max-w-[220px] sm:max-w-[240px] cursor-pointer"
             onClick={handleBubbleClick}
             data-testid="velion-bubble"
           >
@@ -154,13 +154,14 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
                 ? 'bg-[#0d0d10]/90 border border-white/10 shadow-white/5'
                 : 'bg-[#0d0d10]/95 border border-cyan-500/30 shadow-cyan-500/5'
             }`}>
-              <p className="text-[12px] text-gray-200 leading-snug">{bubble.message}</p>
+              <p className="text-[11px] sm:text-[12px] text-gray-200 leading-snug">{bubble.message}</p>
               <div className="mt-1 flex items-center justify-end">
                 <span className={`text-[9px] ${bubble.priority === 'low' ? 'text-gray-500' : 'text-cyan-400/60'}`}>
                   {bubble.action ? 'Tocca per andare' : 'Tocca per dettagli'}
                 </span>
               </div>
             </div>
+            {/* Arrow pointing to Velion */}
             <div className={`absolute -bottom-1.5 right-6 w-3 h-3 rotate-45 ${
               bubble.priority === 'high'
                 ? 'bg-[#0d0d10]/95 border-r border-b border-cyan-400/40'

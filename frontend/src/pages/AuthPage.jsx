@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { TutorialPopup } from '../components/TutorialPopup';
+import { VelionLoginBubble } from '../components/VelionLoginBubble';
 import {
   Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
@@ -95,6 +96,10 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4 pb-20 cinema-gradient">
+      <VelionLoginBubble onStart={() => {
+        const emailInput = document.querySelector('[data-testid="email-input"]');
+        if (emailInput) emailInput.focus();
+      }} />
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

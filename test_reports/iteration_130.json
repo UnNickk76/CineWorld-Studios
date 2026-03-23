@@ -1,0 +1,116 @@
+{
+  "summary": "Iteration 130: PvP Integration into Coming Soon and Notifications. All 12 backend tests passed. Frontend verified: Coming Soon cards show Support/Boycott buttons for other players' content, HQ page shows 3 divisions with proper styling, Notifications page has filter buttons and displays CineWorld News notifications. Test user has no own Coming Soon content, so PvP Investigate/Defense buttons not visible (expected - they only appear for own content with boycotts).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter130_pvp_coming_soon.py",
+    "/app/test_reports/pytest/pytest_iter130_pvp_coming_soon.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ComingSoonSection.jsx correctly integrates PvP: Support/Boycott for other players, Investigate/Defense for own content",
+    "identified_saboteurs array returned in /api/coming-soon/{id}/details when is_own_content=true AND boycott_count>0",
+    "SaboteurCard component shows Counter-Attack (Attacca) and Legal (Causa) buttons with proper data-testids",
+    "PvP buttons correctly disabled when division level is 0, with 'Sblocca in HQ' hints",
+    "NotificationsPage.jsx handles legal_action_won, legal_action_lost, pvp_counter_attack types with routing to /hq",
+    "HqPage.jsx displays all 3 divisions with proper colors (cyan/orange/purple) and upgrade requirements"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter130_pvp_coming_soon.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% - all features verified"
+  },
+  "test_credentials": {
+    "email": "test@test.com",
+    "password": "test1234"
+  },
+  "seed_data_creation": "None - used existing test user and Coming Soon content from TestStudio94",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PvP integration into Coming Soon and Notifications fully verified. Key findings: 1) Test user (test@test.com) has no own Coming Soon content, so PvP Investigate/Defense buttons not visible - this is EXPECTED behavior. 2) Coming Soon card from TestStudio94 shows Support/Boycott buttons correctly. 3) HQ page shows all 3 divisions at level 0 with proper 'Bloccato' badges. 4) Notifications page shows CineWorld News notifications with severity badges. 5) PvP notification types (legal_action_won, legal_action_lost, pvp_counter_attack) route to /hq via link field.",
+  "verified_features": {
+    "coming_soon_details_identified_saboteurs": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/coming-soon/{id}/details",
+      "returns": "identified_saboteurs array when is_own_content=true AND boycott_count>0"
+    },
+    "pvp_status": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/pvp/status",
+      "returns": "divisions with investigative/operative/legal, player stats"
+    },
+    "pvp_investigate": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/pvp/investigate",
+      "requires": "content_id parameter, Investigative division level 1+"
+    },
+    "pvp_counter_boycott_defense": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/pvp/counter-boycott",
+      "mode": "defense",
+      "requires": "Operative division level 1+"
+    },
+    "pvp_counter_boycott_targeted": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/pvp/counter-boycott",
+      "mode": "targeted",
+      "requires": "target_user_id parameter, Operative division level 1+"
+    },
+    "pvp_legal_action": {
+      "status": "VERIFIED",
+      "endpoint": "POST /api/pvp/legal-action",
+      "requires": "target_user_id, content_id, Legal division level 1+"
+    },
+    "coming_soon_support_boycott_buttons": {
+      "status": "VERIFIED",
+      "location": "ComingSoonSection.jsx expanded card",
+      "condition": "Shown for other players' content",
+      "buttons": "Supporta (green), Boicotta (red)"
+    },
+    "coming_soon_pvp_buttons": {
+      "status": "VERIFIED (code review)",
+      "location": "ComingSoonSection.jsx expanded card",
+      "condition": "Shown for own content when boycott_count > 0",
+      "buttons": "Indaga (cyan), Difesa (orange)",
+      "note": "Not visible in test because test user has no own Coming Soon content"
+    },
+    "coming_soon_sblocca_hints": {
+      "status": "VERIFIED",
+      "location": "ComingSoonSection.jsx",
+      "condition": "Shown when division level is 0",
+      "text": "Sblocca Investigativa in HQ, Sblocca Operativa in HQ"
+    },
+    "saboteur_cards": {
+      "status": "VERIFIED (code review)",
+      "location": "ComingSoonSection.jsx SaboteurCard component",
+      "buttons": "Attacca (Counter-Attack), Causa (Legal Action)",
+      "data_testids": "counter-attack-{user_id}, legal-action-{user_id}"
+    },
+    "hq_page_divisions": {
+      "status": "VERIFIED",
+      "route": "/hq",
+      "divisions": "3 cards (Investigative/Operative/Legal) with proper colors",
+      "features": "Level badges, daily limits, upgrade costs, 'Bloccato' badges"
+    },
+    "notifications_pvp_routing": {
+      "status": "VERIFIED (code review)",
+      "types": "legal_action_won, legal_action_lost, pvp_counter_attack",
+      "routing": "All route to /hq via link field or typeRoutes mapping"
+    }
+  },
+  "frontend_ui_verification": {
+    "dashboard_coming_soon": "Shows 'PROSSIMAMENTE' section with Coming Soon cards",
+    "coming_soon_expanded": "Shows hype bar, anteprima, aspettative, notizie, commenti, Support/Boycott buttons",
+    "hq_page": "Shows QUARTIER GENERALE with 3 division cards, player stats, upgrade buttons, legal history toggle",
+    "notifications_page": "Shows NOTIFICHE with filter buttons (Tutte, Critiche, Importanti, Positive), CineWorld News notifications"
+  }
+}

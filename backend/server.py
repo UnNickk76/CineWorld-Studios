@@ -10385,6 +10385,27 @@ async def get_coming_soon_details(content_id: str, user: dict = Depends(get_curr
 
     is_own = content.get('user_id') == user['id']
 
+    # Identified saboteurs (PvP investigation results)
+    identified_saboteurs = []
+    if is_own and boycott_count > 0:
+        revealed = await db.coming_soon_interactions.find(
+            {'content_id': content_id, 'action': 'boycott', 'outcome': 'success',
+             'investigated': True, 'revealed_to': user['id']},
+            {'_id': 0, 'user_id': 1, 'boycott_name': 1, 'boycott_type': 1}
+        ).to_list(20)
+        seen_ids = set()
+        for r in revealed:
+            uid = r.get('user_id')
+            if uid and uid not in seen_ids:
+                seen_ids.add(uid)
+                sab_user = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+                identified_saboteurs.append({
+                    'user_id': uid,
+                    'nickname': (sab_user or {}).get('nickname', 'Sconosciuto'),
+                    'production_house': (sab_user or {}).get('production_house_name', ''),
+                    'boycott_type': r.get('boycott_name') or r.get('boycott_type', 'Sabotaggio'),
+                })
+
     return {
         'id': content_id,
         'title': content.get('title', ''),
@@ -10410,6 +10431,7 @@ async def get_coming_soon_details(content_id: str, user: dict = Depends(get_curr
         'coming_soon_speedup_cap': content.get('coming_soon_speedup_cap', 0),
         'coming_soon_min_hours': content.get('coming_soon_min_hours'),
         'project_status': _calc_project_status(content),
+        'identified_saboteurs': identified_saboteurs,
     }
 
 

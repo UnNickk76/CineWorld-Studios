@@ -16,7 +16,7 @@ import {
   Heart, MessageSquare, Swords, Trophy, Target,
   ChevronRight, AlertTriangle, AlertCircle, Sparkles,
   Flame, Eye, Zap, UserPlus, UserCheck, Crown, GraduationCap,
-  Mail, BarChart3, CheckCircle, TrendingDown, Camera
+  Mail, BarChart3, CheckCircle, TrendingDown, Camera, Gavel
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 
@@ -95,6 +95,9 @@ const NotificationsPage = () => {
       coming_soon_completed: <CheckCircle className="w-5 h-5 text-yellow-400" />,
       phase_completed: <CheckCircle className="w-5 h-5 text-green-400" />,
       production_problem: <AlertCircle className="w-5 h-5 text-red-400" />,
+      legal_action_won: <Gavel className="w-5 h-5 text-green-400" />,
+      legal_action_lost: <Gavel className="w-5 h-5 text-red-400" />,
+      pvp_counter_attack: <Swords className="w-5 h-5 text-orange-400" />,
       high_revenue: <TrendingUp className="w-5 h-5 text-green-400" />,
       flop_warning: <TrendingDown className="w-5 h-5 text-red-400" />,
       chart_entry: <BarChart3 className="w-5 h-5 text-green-400" />,
@@ -134,6 +137,11 @@ const NotificationsPage = () => {
       setActorPopup(notif.data);
       return;
     }
+    // Direct link takes priority (PvP notifications set link to /hq)
+    const navPath = notif.link || notif.data?.path;
+    if (navPath) { 
+      navigate(navPath); return; 
+    }
     // Film-related notifications → open film popup
     const filmTypes = [
       'coming_soon_support', 'coming_soon_boycott', 'coming_soon_time_change',
@@ -143,11 +151,6 @@ const NotificationsPage = () => {
     if (filmTypes.includes(notif.type) && projectId) {
       navigate(`/create-film?film=${projectId}`);
       return;
-    }
-    // Direct link - navigate there
-    const navPath = notif.link || notif.data?.path;
-    if (navPath) { 
-      navigate(navPath); return; 
     }
     // Fallback: type-based routing
     const typeRoutes = {
@@ -165,6 +168,8 @@ const NotificationsPage = () => {
       'coming_soon_support': '/create-film', 'coming_soon_boycott': '/create-film',
       'coming_soon_time_change': '/create-film', 'coming_soon_completed': '/create-film',
       'phase_completed': '/create-film', 'production_problem': '/create-film',
+      'legal_action_won': '/hq', 'legal_action_lost': '/hq',
+      'pvp_counter_attack': '/hq',
       'high_revenue': '/films', 'flop_warning': '/films',
       'film_interaction': '/create-film', 'like_received': '/films',
       'system': '/release-notes', 'welcome': '/',

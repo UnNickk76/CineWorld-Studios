@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle } from 'lucide-react';
+import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -83,13 +84,72 @@ function NewsEvent({ event }) {
   );
 }
 
-function ComingSoonCard({ item, api, onRefresh }) {
+function SaboteurCard({ sab, contentId, api, onAction }) {
+  const [acting, setActing] = useState(null);
+
+  const counterAttack = async () => {
+    setActing('counter');
+    try {
+      const res = await api.post('/pvp/counter-boycott', {
+        content_id: contentId,
+        mode: 'targeted',
+        target_user_id: sab.user_id,
+      });
+      toast.success(res.data.message, { duration: 6000 });
+      if (onAction) onAction();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore contro-attacco');
+    } finally { setActing(null); }
+  };
+
+  const legalAction = async () => {
+    setActing('legal');
+    try {
+      const res = await api.post('/pvp/legal-action', {
+        target_user_id: sab.user_id,
+        content_id: contentId,
+      });
+      if (res.data.won) {
+        toast.success(res.data.message, { duration: 8000 });
+      } else {
+        toast.error(res.data.message, { duration: 6000 });
+      }
+      if (onAction) onAction();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore azione legale');
+    } finally { setActing(null); }
+  };
+
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/15" data-testid={`saboteur-${sab.user_id}`}>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-semibold text-white truncate">{sab.nickname}</p>
+        <p className="text-[8px] text-red-400">{sab.boycott_type}</p>
+      </div>
+      <div className="flex gap-1 flex-shrink-0">
+        <Button size="sm" className="h-6 px-2 text-[8px] bg-orange-600/80 hover:bg-orange-600 text-white"
+          disabled={acting !== null} onClick={counterAttack} data-testid={`counter-attack-${sab.user_id}`}>
+          {acting === 'counter' ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Swords className="w-2.5 h-2.5 mr-0.5" />}
+          Attacca
+        </Button>
+        <Button size="sm" className="h-6 px-2 text-[8px] bg-purple-600/80 hover:bg-purple-600 text-white"
+          disabled={acting !== null} onClick={legalAction} data-testid={`legal-action-${sab.user_id}`}>
+          {acting === 'legal' ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Gavel className="w-2.5 h-2.5 mr-0.5" />}
+          Causa
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [interacting, setInteracting] = useState(null);
   const [speedingUp, setSpeedingUp] = useState(false);
-  const [investigating, setInvestigating] = useState(false);
+  const [pvpActing, setPvpActing] = useState(null);
   const [localHype, setLocalHype] = useState(item.hype_score || 0);
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
@@ -97,6 +157,10 @@ function ComingSoonCard({ item, api, onRefresh }) {
   const TypeIcon = typeIcon;
   const typeLabel = item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : 'Film';
   const typeColor = item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : 'text-yellow-400 bg-yellow-500/10';
+
+  const invDiv = pvpStatus?.divisions?.investigative;
+  const opsDiv = pvpStatus?.divisions?.operative;
+  const legalDiv = pvpStatus?.divisions?.legal;
 
   const loadDetails = useCallback(async () => {
     if (!api) return;
@@ -119,14 +183,13 @@ function ComingSoonCard({ item, api, onRefresh }) {
       const res = await api.post(`/coming-soon/${item.id}/interact`, { action });
       const d = res.data;
       if (d.outcome === 'backfire') {
-        toast.info(d.message, { icon: '🔄' });
+        toast.info(d.message, { icon: '~' });
       } else if (d.outcome === 'success') {
         toast.success(d.message);
       } else {
         toast.info(d.message);
       }
       setLocalHype(prev => Math.max(0, prev + (d.effects?.hype || 0)));
-      // Refresh details
       loadDetails();
       if (onRefresh) onRefresh();
     } catch (e) {
@@ -147,6 +210,42 @@ function ComingSoonCard({ item, api, onRefresh }) {
     }
     finally { setSpeedingUp(false); }
   };
+
+  const pvpInvestigate = async () => {
+    setPvpActing('investigate');
+    try {
+      const res = await api.post('/pvp/investigate', { content_id: item.id });
+      if (res.data.found) {
+        toast.success(
+          `Sabotatore scoperto: ${res.data.saboteur.nickname} - ${res.data.boycott_type}`,
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(res.data.message, { duration: 5000 });
+      }
+      loadDetails();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore investigazione');
+    } finally { setPvpActing(null); }
+  };
+
+  const pvpDefense = async () => {
+    setPvpActing('defense');
+    try {
+      const res = await api.post('/pvp/counter-boycott', {
+        content_id: item.id,
+        mode: 'defense',
+      });
+      toast.success(res.data.message, { duration: 5000 });
+      setLocalHype(prev => prev + (res.data.hype_recovered || 0));
+      loadDetails();
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore difesa');
+    } finally { setPvpActing(null); }
+  };
+
+  const saboteurs = details?.identified_saboteurs || [];
 
   return (
     <Card className="bg-[#111113] border-white/5 hover:border-white/10 transition-all overflow-hidden"
@@ -292,7 +391,7 @@ function ComingSoonCard({ item, api, onRefresh }) {
                   </div>
                 )}
 
-                {/* Action Buttons */}
+                {/* === OTHER PLAYER'S CONTENT: Support/Boycott === */}
                 {details && !details.is_own_content && details.daily_actions_remaining > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[8px] text-gray-600">
@@ -319,34 +418,84 @@ function ComingSoonCard({ item, api, onRefresh }) {
                   </div>
                 )}
 
+                {details && !details.is_own_content && details.daily_actions_remaining <= 0 && (
+                  <p className="text-[9px] text-amber-400/70 text-center">Limite giornaliero raggiunto</p>
+                )}
+
+                {/* === OWN CONTENT: PvP Actions === */}
                 {details?.is_own_content && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
+
+                    {/* PvP Action Buttons */}
                     {details.boycott_count > 0 && (
-                      <Button size="sm"
-                        className="w-full bg-amber-600/80 hover:bg-amber-600 text-white text-[10px] h-7"
-                        disabled={investigating}
-                        onClick={async () => {
-                          setInvestigating(true);
-                          try {
-                            const res = await api.post(`/coming-soon/${item.id}/investigate-boycott`);
-                            if (res.data.found) {
-                              toast.success(
-                                `Sabotatore trovato: ${res.data.saboteur.nickname}${res.data.saboteur.production_house ? ` (${res.data.saboteur.production_house})` : ''} - ${res.data.boycott_type}`,
-                                { duration: 8000 }
-                              );
-                            } else {
-                              toast.error(res.data.message, { duration: 5000 });
-                            }
-                          } catch (e) {
-                            toast.error(e.response?.data?.detail || 'Errore investigazione');
-                          } finally { setInvestigating(false); }
-                        }}
-                        data-testid={`investigate-btn-${item.id}`}>
-                        {investigating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
-                        Indaga Sabotaggio (5 CP)
-                      </Button>
+                      <div className="space-y-2 p-2.5 rounded-lg bg-white/[0.02] border border-white/5">
+                        <div className="flex items-center gap-1.5">
+                          <Swords className="w-3 h-3 text-yellow-500" />
+                          <span className="text-[9px] font-bold text-yellow-500 uppercase tracking-wider">Azioni PvP</span>
+                        </div>
+
+                        <div className="flex gap-2">
+                          {/* Investigate */}
+                          <Button size="sm"
+                            className="flex-1 bg-cyan-600/80 hover:bg-cyan-600 text-white text-[10px] h-7"
+                            disabled={pvpActing !== null || !invDiv || invDiv.level === 0 || invDiv.daily_remaining <= 0}
+                            onClick={pvpInvestigate}
+                            data-testid={`pvp-investigate-${item.id}`}>
+                            {pvpActing === 'investigate' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
+                            Indaga
+                          </Button>
+                          {/* Defense */}
+                          <Button size="sm"
+                            className="flex-1 bg-orange-600/80 hover:bg-orange-600 text-white text-[10px] h-7"
+                            disabled={pvpActing !== null || !opsDiv || opsDiv.level === 0 || opsDiv.daily_remaining <= 0}
+                            onClick={pvpDefense}
+                            data-testid={`pvp-defense-${item.id}`}>
+                            {pvpActing === 'defense' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Shield className="w-3 h-3 mr-1" />}
+                            Difesa
+                          </Button>
+                        </div>
+
+                        {/* Division status hints */}
+                        <div className="flex flex-wrap gap-1.5 text-[8px]">
+                          {invDiv && invDiv.level > 0 ? (
+                            <span className="text-cyan-400/70">Investigativa: {invDiv.daily_remaining}/{invDiv.daily_limit}</span>
+                          ) : (
+                            <span className="text-gray-600 flex items-center gap-0.5" onClick={() => navigate('/hq')} role="button">
+                              <Search className="w-2.5 h-2.5" /> Sblocca Investigativa in HQ
+                            </span>
+                          )}
+                          {opsDiv && opsDiv.level > 0 ? (
+                            <span className="text-orange-400/70">Operativa: {opsDiv.daily_remaining}/{opsDiv.daily_limit}</span>
+                          ) : (
+                            <span className="text-gray-600 flex items-center gap-0.5" onClick={() => navigate('/hq')} role="button">
+                              <Shield className="w-2.5 h-2.5" /> Sblocca Operativa in HQ
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Identified Saboteurs */}
+                        {saboteurs.length > 0 && (
+                          <div className="space-y-1.5 mt-1">
+                            <div className="flex items-center gap-1">
+                              <Target className="w-3 h-3 text-red-400" />
+                              <span className="text-[9px] text-red-400 font-semibold">Sabotatori Identificati</span>
+                            </div>
+                            {saboteurs.map(sab => (
+                              <SaboteurCard
+                                key={sab.user_id}
+                                sab={sab}
+                                contentId={item.id}
+                                api={api}
+                                onAction={loadDetails}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
+
+                    {/* Speed Up */}
                     {details.coming_soon_speedup_cap > 0 && details.coming_soon_speedup_used < details.coming_soon_speedup_cap && (
                       <Button size="sm"
                         className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-[10px] h-7"
@@ -364,10 +513,6 @@ function ComingSoonCard({ item, api, onRefresh }) {
                     )}
                   </div>
                 )}
-
-                {details && !details.is_own_content && details.daily_actions_remaining <= 0 && (
-                  <p className="text-[9px] text-amber-400/70 text-center">Limite giornaliero raggiunto</p>
-                )}
               </>
             )}
           </div>
@@ -381,17 +526,24 @@ export function ComingSoonSection({ compact = false }) {
   const { api } = useContext(AuthContext);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pvpStatus, setPvpStatus] = useState(null);
 
   const loadItems = useCallback(() => {
     if (!api) return;
     api.get('/coming-soon').then(r => setItems(r.data.items || [])).catch(() => {}).finally(() => setLoading(false));
   }, [api]);
 
+  const loadPvpStatus = useCallback(() => {
+    if (!api) return;
+    api.get('/pvp/status').then(r => setPvpStatus(r.data)).catch(() => {});
+  }, [api]);
+
   useEffect(() => {
     loadItems();
+    loadPvpStatus();
     const interval = setInterval(loadItems, 60000);
     return () => clearInterval(interval);
-  }, [loadItems]);
+  }, [loadItems, loadPvpStatus]);
 
   if (loading) return null;
 
@@ -411,7 +563,7 @@ export function ComingSoonSection({ compact = false }) {
       ) : (
         <div className={compact ? 'space-y-2' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
           {items.slice(0, compact ? 3 : 10).map(item => (
-            <ComingSoonCard key={item.id} item={item} api={api} onRefresh={loadItems} />
+            <ComingSoonCard key={item.id} item={item} api={api} onRefresh={loadItems} pvpStatus={pvpStatus} />
           ))}
         </div>
       )}

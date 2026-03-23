@@ -25,18 +25,20 @@ Full-stack cinematic empire game where players create, produce, and release film
 ### Dynamic Notification System (March 22 2026)
 - **Notification Engine** (`notification_engine.py`): Narrative-style notifications
 - **Severity**: Critical (red), Important (yellow), Positive (green)
-- **Events**: Coming Soon (support/boycott/timer/completion), Production, Film Release, Social
-- **Popup Priority System**:
-  - Critical (boycotts, problems) = Prominent animated popup overlay
-  - Important (phase complete, timer end) = Lightweight toast (sonner)
-  - Positive (likes, hype) = Badge count only (no popup)
+- **Popup Priority System**: Critical=overlay, Important=toast, Positive=badge only
 - **Anti-spam**: Max 1 popup every 7s, max 3 similar/hour, grouping within 30min
-- **Click Navigation**:
-  - In-progress films (coming_soon/casting/screenplay/production) -> `/create-film`
-  - Completed films (high_revenue/flop) -> `/films/{id}`
-  - Series -> `/create-series`
-  - Chat/messages -> `/chat`
-- **Bottom Navbar**: Sfide + TV removed, replaced with "Eventi" bell icon + badge
+- **Click Navigation**: Context-aware links based on project status
+
+### Admin Maintenance Tool (March 23 2026)
+- **Endpoint**: `POST /api/admin/repair-database` (NeoMorpheus only)
+- **Logical flow validation**: Checks consistency of project state machine
+  - Films in casting without proposals -> reset to proposed
+  - Films in screenplay without complete cast -> reset to proposed
+  - Films in pre_production without screenplay -> reset to proposed
+  - Coming Soon with expired timer -> released to ready_for_casting
+  - Series with missing required data per status -> reset
+- **Frontend**: Admin Panel > Manutenzione tab with detailed report UI
+- **Stats**: Shows films/series analyzed, problems found, actions taken per category
 
 ### Dashboard "Prossimamente"
 - Always visible with Coming Soon content, countdown, hype, interactive support/boycott
@@ -49,19 +51,24 @@ Full-stack cinematic empire game where players create, produce, and release film
 
 ## Key API Endpoints
 - `GET /api/notifications` - All notifications with severity
-- `GET /api/notifications/popup` - Unread popup notifications (marks shown_popup)
-- `GET /api/notifications/count` - Unread count
-- `POST /api/notifications/{id}/read` - Mark read
-- `POST /api/coming-soon/{id}/interact` - Support/boycott (triggers notification)
+- `GET /api/notifications/popup` - Unread popup notifications
+- `POST /api/admin/repair-database` - Database logical repair (admin only)
+- `GET /api/film-pipeline/screenplay` - Screenplay films with auto-fix validation
+- `GET /api/film-pipeline/all` - All projects with logical validation
 
 ## Key DB Fields
-- Notifications: `severity` (critical/important/positive), `shown_popup`, `data.event_type`, `data.group_count`, `link`
-- Film: `status`, `coming_soon_type`, `coming_soon_tier`, `scheduled_release_at`
+- Notifications: `severity`, `shown_popup`, `data.event_type`, `link`
+- Film: `status`, `coming_soon_type`, `scheduled_release_at`, `cast`, `cast_proposals`, `screenplay`
+
+## Bug Fixes (March 23 2026)
+- **CRITICAL FIX**: ScreenplayTab crash - `expandedScreenplay` state was declared in CastingTab but NOT in ScreenplayTab. When rendering film with screenplay text, accessing `expandedScreenplay[f.id]` on undefined caused crash. Root cause of persistent "Qualcosa è andato storto" error.
+- Improved ErrorBoundary and TabErrorBoundary to show actual error messages
+- Added auto-fix validation to /film-pipeline/screenplay and /film-pipeline/all endpoints
+- Created comprehensive admin repair-database endpoint with logical flow validation
 
 ## Bug Fixes (March 22 2026)
-- Fixed scheduler auto_release_coming_soon: pre_casting -> ready_for_casting (not completed)
+- Fixed scheduler auto_release_coming_soon: pre_casting -> ready_for_casting
 - Fixed notification links: in-progress films -> /create-film, completed -> /films/{id}
-- Fixed existing DB notifications with wrong generic /films links
 - Reset admin password
 
 ## Known Issues

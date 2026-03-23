@@ -90,8 +90,8 @@ function FilmStepBar({ film }) {
   }, [currentStepId]);
 
   return (
-    <div className="my-3" data-testid="film-popup-step-bar">
-      <div ref={scrollRef} className="flex items-center gap-0 overflow-x-auto pb-1 px-0.5 no-scrollbar">
+    <div className="my-2" data-testid="film-popup-step-bar">
+      <div ref={scrollRef} className="flex items-center gap-0 overflow-x-auto pb-1 px-0 no-scrollbar">
         {steps.map((step, i) => {
           const Icon = step.icon;
           const cs = CS_MAP[step.color] || CS_MAP.yellow;
@@ -102,33 +102,33 @@ function FilmStepBar({ film }) {
           return (
             <React.Fragment key={step.id}>
               {i > 0 && (
-                <div className={`flex-shrink-0 w-4 h-[2px] rounded-full ${
+                <div className={`flex-shrink-0 w-2 sm:w-4 h-[2px] rounded-full ${
                   isCompleted || isCurrent ? 'connector-active' : 'bg-gray-800'
                 }`} />
               )}
               <div
                 data-step-active={isCurrent ? 'true' : 'false'}
                 style={isCurrent ? { '--step-glow-color': cs.glow } : {}}
-                className={`flex-shrink-0 flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all min-w-[48px] relative ${
+                className={`flex-shrink-0 flex flex-col items-center gap-0.5 p-1 sm:p-1.5 rounded-lg sm:rounded-xl transition-all min-w-[38px] sm:min-w-[48px] relative ${
                   isCurrent ? `${cs.bg} border ${cs.border} step-current` :
                   isCompleted ? 'step-completed' :
                   isLocked ? 'step-locked opacity-40' : ''
                 }`}
               >
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg flex items-center justify-center transition-all ${
                   isCurrent ? cs.iconBg :
                   isCompleted ? 'bg-green-500/20' :
                   'bg-gray-900'
                 }`}>
                   {isLocked ? (
-                    <Lock className="w-3 h-3 text-gray-700" />
+                    <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-700" />
                   ) : isCompleted ? (
-                    <Check className="w-3.5 h-3.5 text-green-400 step-check-icon" />
+                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-400 step-check-icon" />
                   ) : (
-                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? cs.text : 'text-gray-600'}`} />
+                    <Icon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isCurrent ? cs.text : 'text-gray-600'}`} />
                   )}
                 </div>
-                <span className={`text-[8px] font-semibold leading-none tracking-wide ${
+                <span className={`text-[7px] sm:text-[8px] font-semibold leading-none tracking-wide ${
                   isCurrent ? cs.text :
                   isCompleted ? 'text-green-400/80' :
                   'text-gray-700'
@@ -151,27 +151,27 @@ function FilmHeader({ film }) {
     : null;
 
   return (
-    <div className="flex items-start gap-3 pb-3 border-b border-white/5">
+    <div className="flex items-start gap-2.5 pb-2.5 border-b border-white/5 pr-6">
       {posterSrc ? (
-        <img src={posterSrc} alt="" className="w-16 h-24 object-cover rounded-lg flex-shrink-0 border border-white/10" />
+        <img src={posterSrc} alt="" className="w-12 h-[72px] sm:w-16 sm:h-24 object-cover rounded-lg flex-shrink-0 border border-white/10" />
       ) : (
-        <div className="w-16 h-24 rounded-lg bg-gray-800/50 flex items-center justify-center flex-shrink-0 border border-white/10">
-          <Film className="w-6 h-6 text-gray-600" />
+        <div className="w-12 h-[72px] sm:w-16 sm:h-24 rounded-lg bg-gray-800/50 flex items-center justify-center flex-shrink-0 border border-white/10">
+          <Film className="w-5 h-5 text-gray-600" />
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <h2 className="font-['Bebas_Neue'] text-xl text-white truncate">{film.title}</h2>
-        <p className="text-[10px] text-gray-500">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <h2 className="font-['Bebas_Neue'] text-lg sm:text-xl text-white truncate">{film.title}</h2>
+        <p className="text-[10px] text-gray-500 truncate">
           {film.genre} {film.subgenre ? `\u2022 ${film.subgenre}` : ''} {film.location?.name ? `\u2022 ${film.location.name}` : ''}
         </p>
         <div className="flex items-center gap-1.5 mt-1">
-          <Star className="w-3 h-3 text-yellow-400" />
+          <Star className="w-3 h-3 text-yellow-400 flex-shrink-0" />
           <span className={`text-sm font-bold ${film.pre_imdb_score >= 7 ? 'text-green-400' : film.pre_imdb_score >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
             {film.pre_imdb_score}
           </span>
           <span className="text-[8px] text-gray-600">Pre-IMDb</span>
         </div>
-        <p className="text-[9px] text-gray-500 mt-1 line-clamp-2 italic">"{film.pre_screenplay}"</p>
+        <p className="text-[9px] text-gray-500 mt-1 line-clamp-2 italic break-words">"{film.pre_screenplay}"</p>
       </div>
     </div>
   );
@@ -1025,7 +1025,7 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-[#0f0f10] border-gray-800/60 text-white max-w-md max-h-[85vh] overflow-y-auto p-4" data-testid={`film-popup-${film.id}`}>
+      <DialogContent className="bg-[#0f0f10] border-gray-800/60 text-white w-[calc(100vw-1.5rem)] max-w-md max-h-[85vh] overflow-y-auto p-3 sm:p-4 rounded-xl" data-testid={`film-popup-${film.id}`}>
         <DialogTitle className="sr-only">{film.title}</DialogTitle>
         <DialogDescription className="sr-only">Dettagli produzione di {film.title}</DialogDescription>
         {/* Film header */}

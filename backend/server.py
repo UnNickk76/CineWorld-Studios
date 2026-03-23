@@ -7527,17 +7527,32 @@ async def admin_rescue_user_films(request: dict = Body(...), user: dict = Depend
         
         if needs_rescue:
             new_status = 'ready_for_casting'
-            await db.film_projects.update_one(
-                {'id': film_id},
-                {'$set': {
-                    'status': new_status,
-                    'rescued': True,
-                    'rescued_at': now.isoformat(),
-                    'rescue_reason': reason,
-                    'admin_rescued_by': user.get('nickname'),
-                    'updated_at': now.isoformat()
-                }}
-            )
+            # Clean up auto-release fake data
+            unset_fields = {}
+            if f.get('auto_released'):
+                unset_fields = {
+                    'quality_score': '',
+                    'total_revenue': '',
+                    'audience_rating': '',
+                    'completed_at': '',
+                    'auto_released': '',
+                    'release_strategy_applied_bonus': '',
+                }
+            
+            update_set = {
+                'status': new_status,
+                'rescued': True,
+                'rescued_at': now.isoformat(),
+                'rescue_reason': reason,
+                'admin_rescued_by': user.get('nickname'),
+                'updated_at': now.isoformat()
+            }
+            
+            update_op = {'$set': update_set}
+            if unset_fields:
+                update_op['$unset'] = unset_fields
+            
+            await db.film_projects.update_one({'id': film_id}, update_op)
             rescued.append({'id': film_id, 'title': title, 'old_status': status, 'new_status': new_status, 'reason': reason})
     
     return {
@@ -7667,17 +7682,33 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
         
         # Apply fix
         if action:
-            update = {'updated_at': now_str, 'repair_reason': reason}
+            update_set = {'updated_at': now_str, 'repair_reason': reason}
+            update_unset = {}
             if action == 'discarded':
-                update['status'] = 'discarded'
-                update['discarded_at'] = now_str
-                update['discard_reason'] = f'admin_repair: {reason}'
+                update_set['status'] = 'discarded'
+                update_set['discarded_at'] = now_str
+                update_set['discard_reason'] = f'admin_repair: {reason}'
             elif action == 'proposed':
-                update['status'] = 'proposed'
-                update['reset_reason'] = f'admin_repair: {reason}'
+                update_set['status'] = 'proposed'
+                update_set['reset_reason'] = f'admin_repair: {reason}'
             elif action == 'ready_for_casting':
-                update['status'] = 'ready_for_casting'
-            await db.film_projects.update_one({'id': fid}, {'$set': update})
+                update_set['status'] = 'ready_for_casting'
+                update_set['rescued'] = True
+                # Clean up auto-release fake data if present
+                if f.get('auto_released'):
+                    update_unset = {
+                        'quality_score': '',
+                        'total_revenue': '',
+                        'audience_rating': '',
+                        'completed_at': '',
+                        'auto_released': '',
+                        'release_strategy_applied_bonus': '',
+                    }
+            
+            update_op = {'$set': update_set}
+            if update_unset:
+                update_op['$unset'] = update_unset
+            await db.film_projects.update_one({'id': fid}, update_op)
     
     # ============================
     # TV SERIES - Full scan

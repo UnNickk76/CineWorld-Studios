@@ -945,16 +945,31 @@ async def rescue_lost_films(user: dict = Depends(get_current_user)):
         
         if needs_rescue:
             new_status = 'ready_for_casting'
-            await db.film_projects.update_one(
-                {'id': film_id},
-                {'$set': {
-                    'status': new_status,
-                    'rescued': True,
-                    'rescued_at': now.isoformat(),
-                    'rescue_reason': reason,
-                    'updated_at': now.isoformat()
-                }}
-            )
+            # Clean up auto-release fake data
+            unset_fields = {}
+            if f.get('auto_released'):
+                unset_fields = {
+                    'quality_score': '',
+                    'total_revenue': '',
+                    'audience_rating': '',
+                    'completed_at': '',
+                    'auto_released': '',
+                    'release_strategy_applied_bonus': '',
+                }
+            
+            update_set = {
+                'status': new_status,
+                'rescued': True,
+                'rescued_at': now.isoformat(),
+                'rescue_reason': reason,
+                'updated_at': now.isoformat()
+            }
+            
+            update_op = {'$set': update_set}
+            if unset_fields:
+                update_op['$unset'] = unset_fields
+            
+            await db.film_projects.update_one({'id': film_id}, update_op)
             rescued.append({'id': film_id, 'title': title, 'old_status': status, 'new_status': new_status, 'reason': reason})
     
     return {

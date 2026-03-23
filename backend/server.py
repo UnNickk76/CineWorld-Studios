@@ -7668,6 +7668,58 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
     }
 
 
+@api_router.get("/admin/diagnose-screenplay")
+async def admin_diagnose_screenplay(user: dict = Depends(get_current_user)):
+    """Diagnose screenplay film data to find rendering issues. Admin only."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    
+    films = []
+    async for f in db.film_projects.find({'status': 'screenplay'}, {'_id': 0}):
+        screenplay_val = f.get('screenplay')
+        films.append({
+            'id': f.get('id'),
+            'title': f.get('title'),
+            'user_id': f.get('user_id'),
+            'genre': f.get('genre'),
+            'subgenre': f.get('subgenre'),
+            'pre_imdb_score': f.get('pre_imdb_score'),
+            'pre_screenplay_type': type(f.get('pre_screenplay')).__name__,
+            'pre_screenplay_len': len(str(f.get('pre_screenplay', ''))) if f.get('pre_screenplay') else 0,
+            'screenplay_type': type(screenplay_val).__name__,
+            'screenplay_value_preview': str(screenplay_val)[:200] if screenplay_val else None,
+            'screenplay_mode': f.get('screenplay_mode'),
+            'has_cast': bool(f.get('cast')),
+            'cast_type': type(f.get('cast')).__name__,
+            'has_cast_proposals': bool(f.get('cast_proposals')),
+            'from_emerging_screenplay': f.get('from_emerging_screenplay'),
+            'emerging_option': f.get('emerging_option'),
+            'has_poster': bool(f.get('poster_url')),
+            'all_keys': list(f.keys()),
+        })
+    
+    series = []
+    async for s in db.tv_series.find({'status': 'screenplay'}, {'_id': 0}):
+        screenplay_val = s.get('screenplay')
+        series.append({
+            'id': s.get('id'),
+            'title': s.get('title'),
+            'type': s.get('type'),
+            'screenplay_type': type(screenplay_val).__name__,
+            'screenplay_value_preview': str(screenplay_val)[:200] if screenplay_val else None,
+            'has_cast': bool(s.get('cast')),
+            'cast_type': type(s.get('cast')).__name__,
+            'all_keys': list(s.keys()),
+        })
+    
+    return {
+        'films_in_screenplay': len(films),
+        'series_in_screenplay': len(series),
+        'films': films,
+        'series': series
+    }
+
+
 @api_router.post("/admin/recalculate-imdb")
 async def admin_recalculate_imdb(data: dict, user: dict = Depends(get_current_user)):
     """Recalculate IMDb rating for all films using the updated formula (admin only)."""

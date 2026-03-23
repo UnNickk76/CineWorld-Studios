@@ -513,6 +513,8 @@ function ReportsTab({ api }) {
 function MaintenanceTab({ api }) {
   const [repairLoading, setRepairLoading] = useState(false);
   const [repairResult, setRepairResult] = useState(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagResult, setDiagResult] = useState(null);
 
   const repairDatabase = async () => {
     setRepairLoading(true);
@@ -529,6 +531,20 @@ function MaintenanceTab({ api }) {
       toast.error(e.response?.data?.detail || 'Errore durante la riparazione');
     } finally {
       setRepairLoading(false);
+    }
+  };
+
+  const diagnoseScreenplay = async () => {
+    setDiagLoading(true);
+    setDiagResult(null);
+    try {
+      const res = await api.get('/admin/diagnose-screenplay');
+      setDiagResult(res.data);
+      toast.success(`Diagnostica: ${res.data.films_in_screenplay} film, ${res.data.series_in_screenplay} serie`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore diagnostica');
+    } finally {
+      setDiagLoading(false);
     }
   };
 
@@ -647,6 +663,69 @@ function MaintenanceTab({ api }) {
                   </CardContent>
                 </Card>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* DIAGNOSTICA SCENEGGIATURA */}
+      <Card className="bg-[#111113] border-cyan-500/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-cyan-400 flex items-center gap-2">
+            <Eye className="w-4 h-4" />
+            Diagnostica Sceneggiatura
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-gray-400">Mostra tutti i dati dei film/serie in fase sceneggiatura per identificare dati corrotti o formati inattesi.</p>
+          <Button
+            onClick={diagnoseScreenplay}
+            disabled={diagLoading}
+            className="bg-cyan-600 hover:bg-cyan-700 text-black font-semibold w-full"
+            data-testid="diagnose-screenplay-btn"
+          >
+            {diagLoading ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analisi in corso...</>
+            ) : (
+              <><Eye className="w-4 h-4 mr-2" /> Analizza Film in Sceneggiatura</>
+            )}
+          </Button>
+
+          {diagResult && (
+            <div className="space-y-2">
+              <p className="text-xs text-white font-semibold">{diagResult.films_in_screenplay} film + {diagResult.series_in_screenplay} serie in sceneggiatura</p>
+              {(diagResult.films || []).map((f, i) => (
+                <Card key={i} className="border border-gray-700 bg-black/30">
+                  <CardContent className="p-2 space-y-1">
+                    <p className="text-[10px] text-white font-bold">{f.title || '?'}</p>
+                    <div className="grid grid-cols-2 gap-1 text-[9px]">
+                      <p className="text-gray-500">ID: <span className="text-gray-300">{f.id?.slice(0,8)}...</span></p>
+                      <p className="text-gray-500">Genere: <span className="text-gray-300">{f.genre || 'N/A'}</span></p>
+                      <p className="text-gray-500">screenplay_type: <span className={`font-mono ${f.screenplay_type === 'str' ? 'text-green-400' : f.screenplay_type === 'NoneType' ? 'text-yellow-400' : 'text-red-400'}`}>{f.screenplay_type}</span></p>
+                      <p className="text-gray-500">screenplay_mode: <span className="text-gray-300">{f.screenplay_mode || 'N/A'}</span></p>
+                      <p className="text-gray-500">cast_type: <span className="text-gray-300">{f.cast_type}</span></p>
+                      <p className="text-gray-500">has_cast: <span className={f.has_cast ? 'text-green-400' : 'text-red-400'}>{f.has_cast ? 'Si' : 'No'}</span></p>
+                      <p className="text-gray-500">has_poster: <span className={f.has_poster ? 'text-green-400' : 'text-yellow-400'}>{f.has_poster ? 'Si' : 'No'}</span></p>
+                      <p className="text-gray-500">emerging: <span className="text-gray-300">{f.from_emerging_screenplay ? 'Si' : 'No'}</span></p>
+                    </div>
+                    {f.screenplay_value_preview && (
+                      <p className="text-[8px] text-gray-500 bg-black/30 p-1 rounded font-mono truncate">{f.screenplay_value_preview}</p>
+                    )}
+                    <p className="text-[8px] text-gray-600">Keys: {(f.all_keys || []).join(', ')}</p>
+                  </CardContent>
+                </Card>
+              ))}
+              {(diagResult.series || []).map((s, i) => (
+                <Card key={`s-${i}`} className="border border-blue-700/30 bg-black/30">
+                  <CardContent className="p-2 space-y-1">
+                    <p className="text-[10px] text-blue-400 font-bold">[Serie] {s.title || '?'}</p>
+                    <div className="grid grid-cols-2 gap-1 text-[9px]">
+                      <p className="text-gray-500">screenplay_type: <span className={`font-mono ${s.screenplay_type === 'dict' ? 'text-green-400' : 'text-red-400'}`}>{s.screenplay_type}</span></p>
+                      <p className="text-gray-500">cast_type: <span className="text-gray-300">{s.cast_type}</span></p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </CardContent>

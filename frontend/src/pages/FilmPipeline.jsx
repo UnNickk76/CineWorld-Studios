@@ -1436,18 +1436,26 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
   return (
     <div className="space-y-3">
       {films.map(f => {
+        // Defensive: ensure screenplay is always a string for rendering
+        const screenplayText = typeof f.screenplay === 'string' ? f.screenplay 
+          : (f.screenplay && typeof f.screenplay === 'object') ? (f.screenplay.text || JSON.stringify(f.screenplay))
+          : '';
+        const hasScreenplay = !!screenplayText;
         const isFullPackage = f.from_emerging_screenplay && f.emerging_option === 'full_package';
+        
+        // Wrap each film in try/catch so one bad film doesn't crash the entire list
+        try {
         return (
         <Card key={f.id} className="bg-[#1A1A1B] border-gray-800" data-testid={`screenplay-film-${f.id}`}>
           <CardContent className="p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-sm">{f.title}</h3>
-                <p className="text-[10px] text-gray-500">{f.genre} &bull; {f.subgenre} &bull; Pre-IMDb: <span className="text-yellow-400">{f.pre_imdb_score}</span></p>
+                <h3 className="font-semibold text-sm">{f.title || 'Senza titolo'}</h3>
+                <p className="text-[10px] text-gray-500">{f.genre || '?'} &bull; {f.subgenre || ''} &bull; Pre-IMDb: <span className="text-yellow-400">{f.pre_imdb_score || '?'}</span></p>
                 {isFullPackage && <Badge className="bg-emerald-500/20 text-emerald-400 text-[9px] mt-1">Pacchetto Completo - Sceneggiatura inclusa</Badge>}
               </div>
               <div className="flex items-center gap-1.5">
-                {(f.screenplay || isFullPackage) && (
+                {(hasScreenplay || isFullPackage) && (
                   <Button size="sm" className="bg-green-700 hover:bg-green-800 text-xs" onClick={() => advance(f.id)}
                     disabled={actionLoading === `adv-${f.id}`} data-testid={`advance-preprod-${f.id}`}>
                     <ChevronRight className="w-3 h-3 mr-1" /> Pre-Produzione (3 CP)
@@ -1472,7 +1480,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
               <>
                 <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
                   <p className="text-[9px] text-green-400 font-medium mb-0.5">Sceneggiatura (Pacchetto Completo)</p>
-                  <p className="text-[10px] text-gray-300 line-clamp-6">{f.pre_screenplay}</p>
+                  <p className="text-[10px] text-gray-300 line-clamp-6">{f.pre_screenplay || ''}</p>
                 </div>
 
                 {/* Poster section for full_package */}
@@ -1537,10 +1545,10 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
             {/* Pre-screenplay (always visible, not editable) */}
             <div className="p-2 bg-yellow-500/5 rounded border border-yellow-500/20">
               <p className="text-[9px] text-yellow-400 font-medium mb-0.5">Pre-Sceneggiatura (originale)</p>
-              <p className="text-[10px] text-gray-400 italic">"{f.pre_screenplay}"</p>
+              <p className="text-[10px] text-gray-400 italic">"{f.pre_screenplay || ''}"</p>
             </div>
 
-            {f.screenplay ? (
+            {hasScreenplay ? (
               <>
                 <div className="p-2 bg-green-500/5 rounded border border-green-500/20">
                   <div className="flex items-center justify-between mb-0.5">
@@ -1553,7 +1561,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
                     </button>
                   </div>
                   <div className={`relative ${expandedScreenplay[f.id] ? '' : 'max-h-[180px] overflow-hidden'}`}>
-                    <p className="text-[10px] text-gray-300 whitespace-pre-line leading-relaxed">{f.screenplay}</p>
+                    <p className="text-[10px] text-gray-300 whitespace-pre-line leading-relaxed">{screenplayText}</p>
                     {!expandedScreenplay[f.id] && (
                       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#111113] to-transparent pointer-events-none" />
                     )}
@@ -1662,6 +1670,25 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
           </CardContent>
         </Card>
       );
+        } catch (renderError) {
+          // If ANY rendering error occurs for this film, show a safe fallback
+          return (
+            <Card key={f.id || Math.random()} className="bg-[#1A1A1B] border-red-800/30">
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-red-400">Errore nel rendering del film "{f.title || '?'}"</p>
+                <p className="text-[9px] text-gray-500 mt-1">{String(renderError?.message || renderError)}</p>
+                <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 mt-2"
+                  onClick={async () => {
+                    setActionLoading(`discard-${f.id}`);
+                    try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
+                    catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
+                  }}>
+                  <ThumbsDown className="w-3 h-3 mr-1" /> Scarta questo progetto
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        }
       })}
     </div>
   );

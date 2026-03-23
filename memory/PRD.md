@@ -23,22 +23,12 @@ Full-stack cinematic empire game where players create, produce, and release film
 - Automatica (+3% guaranteed) vs Manuale (perfect timing = +8%)
 
 ### Dynamic Notification System (March 22 2026)
-- **Notification Engine** (`notification_engine.py`): Narrative-style notifications
-- **Severity**: Critical (red), Important (yellow), Positive (green)
-- **Popup Priority System**: Critical=overlay, Important=toast, Positive=badge only
-- **Anti-spam**: Max 1 popup every 7s, max 3 similar/hour, grouping within 30min
-- **Click Navigation**: Context-aware links based on project status
+- Notification Engine, Severity Levels, Popup Priority System, Anti-spam, Click Navigation
 
 ### Admin Maintenance Tool (March 23 2026)
-- **Endpoint**: `POST /api/admin/repair-database` (NeoMorpheus only)
-- **Logical flow validation**: Checks consistency of project state machine
-  - Films in casting without proposals -> reset to proposed
-  - Films in screenplay without complete cast -> reset to proposed
-  - Films in pre_production without screenplay -> reset to proposed
-  - Coming Soon with expired timer -> released to ready_for_casting
-  - Series with missing required data per status -> reset
-- **Frontend**: Admin Panel > Manutenzione tab with detailed report UI
-- **Stats**: Shows films/series analyzed, problems found, actions taken per category
+- **Repair Database**: Logical flow validation + data cleanup (admin only)
+- **Diagnose Screenplay**: Shows data types and fields for all screenplay films (debug tool)
+- Tab "Manutenzione" in Admin Panel
 
 ### Dashboard "Prossimamente"
 - Always visible with Coming Soon content, countdown, hype, interactive support/boycott
@@ -47,29 +37,24 @@ Full-stack cinematic empire game where players create, produce, and release film
 - Box office, cinema/infrastructure revenue, cast system
 - Social hub: chat, private messages, notifications
 - Moderation, leaderboard, contests, challenges
-- CinePass currency, admin panel
 
-## Key API Endpoints
-- `GET /api/notifications` - All notifications with severity
-- `GET /api/notifications/popup` - Unread popup notifications
-- `POST /api/admin/repair-database` - Database logical repair (admin only)
-- `GET /api/film-pipeline/screenplay` - Screenplay films with auto-fix validation
-- `GET /api/film-pipeline/all` - All projects with logical validation
+## Critical Bug Fixes (March 23 2026)
 
-## Key DB Fields
-- Notifications: `severity`, `shown_popup`, `data.event_type`, `link`
-- Film: `status`, `coming_soon_type`, `scheduled_release_at`, `cast`, `cast_proposals`, `screenplay`
+### BUG 1: `expandedScreenplay` state missing (ROOT CAUSE of "Qualcosa è andato storto")
+- **Problem**: `expandedScreenplay` state was declared in CastingTab but NOT in ScreenplayTab. When rendering film with screenplay text, accessing `expandedScreenplay[f.id]` on undefined caused crash.
+- **Fix**: Added `const [expandedScreenplay, setExpandedScreenplay] = useState({})` to ScreenplayTab
 
-## Bug Fixes (March 23 2026)
-- **CRITICAL FIX**: ScreenplayTab crash - `expandedScreenplay` state was declared in CastingTab but NOT in ScreenplayTab. When rendering film with screenplay text, accessing `expandedScreenplay[f.id]` on undefined caused crash. Root cause of persistent "Qualcosa è andato storto" error.
-- Improved ErrorBoundary and TabErrorBoundary to show actual error messages
-- Added auto-fix validation to /film-pipeline/screenplay and /film-pipeline/all endpoints
-- Created comprehensive admin repair-database endpoint with logical flow validation
+### BUG 2: `f.screenplay` might be an object instead of string  
+- **Problem**: If screenplay stored as `{text: "...", generated_at: "..."}` (like series format), React throws "Objects are not valid as a React child"
+- **Fix**: Defensive rendering: `typeof f.screenplay === 'string' ? f.screenplay : f.screenplay?.text || JSON.stringify(f.screenplay)`
 
-## Bug Fixes (March 22 2026)
-- Fixed scheduler auto_release_coming_soon: pre_casting -> ready_for_casting
-- Fixed notification links: in-progress films -> /create-film, completed -> /films/{id}
-- Reset admin password
+### BUG 3: One bad film crashes entire list
+- **Problem**: A single film with corrupt data in the map() crashes the entire ScreenplayTab
+- **Fix**: try/catch around each film rendering, with fallback Card showing error + "Scarta" button
+
+### Improved ErrorBoundary
+- Now shows actual error message (not just "Qualcosa è andato storto")
+- TabErrorBoundary also shows error details
 
 ## Known Issues
 - (P2) Contest Page mobile layout broken (recurring)

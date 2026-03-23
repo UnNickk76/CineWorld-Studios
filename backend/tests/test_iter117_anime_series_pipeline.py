@@ -13,7 +13,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://screenwrite-blocker.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://coming-soon-bonus.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "testmod99@test.com"

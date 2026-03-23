@@ -218,6 +218,123 @@ async def claim_login_reward(user: dict = Depends(get_current_user)):
     }
 
 
+# ===== Login Reward - Coming Soon Bonus =====
+LOGIN_CS_COOLDOWN_HOURS = 3
+
+LOGIN_CS_BONUSES = [
+    {'type': 'time', 'value': -2, 'unit': '%', 'label': 'Riduzione tempo Coming Soon', 'desc': 'Il team ha lavorato sodo! Tempo ridotto del 2%'},
+    {'type': 'time', 'value': -5, 'unit': '%', 'label': 'Sprint di produzione!', 'desc': 'Una folata di energia! Tempo ridotto del 5%'},
+    {'type': 'hype', 'value': 1, 'unit': 'pt', 'label': 'Buzz positivo', 'desc': 'Il pubblico parla bene del tuo progetto! +1 Hype'},
+    {'type': 'hype', 'value': 2, 'unit': 'pt', 'label': 'Ondata di hype!', 'desc': 'I fan sono in fermento! +2 Hype'},
+    {'type': 'quality', 'value': 0.5, 'unit': 'pt', 'label': 'Ispirazione creativa', 'desc': 'Un lampo di genio migliora il progetto! +0.5 Qualità'},
+    {'type': 'quality', 'value': 1.0, 'unit': 'pt', 'label': 'Visione artistica!', 'desc': 'Il regista ha avuto un\'intuizione brillante! +1 Qualità'},
+]
+
+
+@router.post("/login-reward-cs")
+async def claim_login_cs_reward(user: dict = Depends(get_current_user)):
+    """Claim Coming Soon bonus on login. Cooldown: 3 hours."""
+    now = datetime.now(timezone.utc)
+    
+    # Check cooldown
+    last_cs_reward = user.get('last_cs_login_reward')
+    if last_cs_reward:
+        last_dt = datetime.fromisoformat(last_cs_reward.replace('Z', '+00:00')) if isinstance(last_cs_reward, str) else last_cs_reward
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        diff_hours = (now - last_dt).total_seconds() / 3600
+        if diff_hours < LOGIN_CS_COOLDOWN_HOURS:
+            remaining_mins = int((LOGIN_CS_COOLDOWN_HOURS - diff_hours) * 60)
+            return {
+                'rewarded': False,
+                'cooldown': True,
+                'remaining_minutes': remaining_mins,
+                'message': f'Prossimo bonus disponibile tra {remaining_mins} minuti'
+            }
+    
+    # Find Coming Soon films for this user
+    cs_films = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'coming_soon'},
+        {'_id': 0}
+    ).to_list(50)
+    
+    # Also check TV series in coming_soon
+    cs_series = await db.tv_series.find(
+        {'user_id': user['id'], 'status': 'coming_soon'},
+        {'_id': 0}
+    ).to_list(50)
+    
+    all_cs = [{'collection': 'film_projects', **f} for f in cs_films] + [{'collection': 'tv_series', **s} for s in cs_series]
+    
+    if not all_cs:
+        return {
+            'rewarded': False,
+            'no_coming_soon': True,
+            'message': 'Nessun progetto in Coming Soon al momento'
+        }
+    
+    # Pick a random project and bonus
+    target = random.choice(all_cs)
+    bonus = random.choice(LOGIN_CS_BONUSES)
+    collection = target['collection']
+    project_id = target['id']
+    project_title = target.get('title', '?')
+    
+    update = {'updated_at': now.isoformat()}
+    bonus_detail = {}
+    
+    if bonus['type'] == 'time':
+        # Reduce Coming Soon timer by percentage
+        sra = target.get('scheduled_release_at')
+        if sra:
+            release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+            remaining = (release_dt - now).total_seconds()
+            if remaining > 0:
+                reduction = remaining * abs(bonus['value']) / 100
+                new_release = release_dt - timedelta(seconds=reduction)
+                update['scheduled_release_at'] = new_release.isoformat()
+                saved_mins = int(reduction / 60)
+                bonus_detail = {'saved_minutes': saved_mins, 'new_release_at': new_release.isoformat()}
+    
+    elif bonus['type'] == 'hype':
+        update['coming_soon_hype'] = (target.get('coming_soon_hype', 0) + bonus['value'])
+        bonus_detail = {'new_hype': update['coming_soon_hype']}
+    
+    elif bonus['type'] == 'quality':
+        current_score = target.get('pre_imdb_score', 5.0) or 5.0
+        new_score = min(10.0, current_score + bonus['value'])
+        update['pre_imdb_score'] = round(new_score, 1)
+        bonus_detail = {'old_score': current_score, 'new_score': new_score}
+    
+    # Apply bonus to project
+    coll = db.film_projects if collection == 'film_projects' else db.tv_series
+    await coll.update_one({'id': project_id}, {'$set': update})
+    
+    # Update user cooldown
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'last_cs_login_reward': now.isoformat()}}
+    )
+    
+    return {
+        'rewarded': True,
+        'project_id': project_id,
+        'project_title': project_title,
+        'project_type': 'film' if collection == 'film_projects' else 'serie',
+        'bonus': {
+            'type': bonus['type'],
+            'value': bonus['value'],
+            'label': bonus['label'],
+            'desc': bonus['desc'],
+        },
+        'detail': bonus_detail,
+        'message': bonus['desc']
+    }
+
+
+
 # ===== Contest Endpoints =====
 
 @router.get("/contests")

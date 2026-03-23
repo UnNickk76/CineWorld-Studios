@@ -150,6 +150,7 @@ const TopNavbar = () => {
   const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showCineboardMenu, setShowCineboardMenu] = useState(false);
   const [showFilmsMenu, setShowFilmsMenu] = useState(false);
+  const [loginReward, setLoginReward] = useState(null); // Login Coming Soon reward popup
 
   // Core data - fetch once on mount + poll
   useEffect(() => {

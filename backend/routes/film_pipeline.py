@@ -890,6 +890,80 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
     }
 
 
+@router.post("/film-pipeline/rescue-lost-films")
+async def rescue_lost_films(user: dict = Depends(get_current_user)):
+    """Find and recover films that were incorrectly completed by the scheduler.
+    Restores films that have status=completed but never went through casting/shooting."""
+    rescued = []
+    
+    # Find completed films that were never properly produced (no cast, no shooting)
+    lost_films = await db.film_projects.find(
+        {'user_id': user['id'], 'status': 'completed',
+         '$or': [
+             {'cast': {'$exists': False}},
+             {'cast': None},
+             {'shooting_started_at': {'$exists': False}},
+             {'auto_released': True, 'release_pending': {'$ne': True}}
+         ]},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'coming_soon_type': 1,
+         'cast': 1, 'shooting_started_at': 1, 'auto_released': 1}
+    ).to_list(50)
+    
+    for f in lost_films:
+        has_real_cast = f.get('cast') and isinstance(f['cast'], dict) and (f['cast'].get('director') or f['cast'].get('actors'))
+        has_shooting = f.get('shooting_started_at')
+        
+        if not has_real_cast and not has_shooting:
+            # This film was completed without going through the pipeline - rescue it
+            await db.film_projects.update_one(
+                {'id': f['id']},
+                {'$set': {
+                    'status': 'ready_for_casting',
+                    'rescued': True,
+                    'rescued_at': datetime.now(timezone.utc).isoformat(),
+                    'rescue_reason': 'auto_completed_without_production',
+                    'updated_at': datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            rescued.append({'id': f['id'], 'title': f.get('title'), 'new_status': 'ready_for_casting'})
+    
+    # Also find discarded/abandoned films that might have been auto-discarded
+    # (only if they had coming_soon data, suggesting they were active)
+    stuck_cs = await db.film_projects.find(
+        {'user_id': user['id'], 
+         'coming_soon_completed': True,
+         'status': {'$nin': ['casting', 'screenplay', 'pre_production', 'shooting', 'proposed', 'ready_for_casting']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1}
+    ).to_list(50)
+    
+    for f in stuck_cs:
+        if f['status'] in ('completed', 'discarded', 'abandoned'):
+            has_real_cast_doc = await db.film_projects.find_one(
+                {'id': f['id'], 'cast': {'$type': 'object'}},
+                {'_id': 0, 'cast': 1}
+            )
+            has_cast = has_real_cast_doc and has_real_cast_doc.get('cast', {}).get('director')
+            if not has_cast:
+                await db.film_projects.update_one(
+                    {'id': f['id']},
+                    {'$set': {
+                        'status': 'ready_for_casting',
+                        'rescued': True,
+                        'rescued_at': datetime.now(timezone.utc).isoformat(),
+                        'rescue_reason': f'stuck_after_coming_soon_{f["status"]}',
+                        'updated_at': datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                if not any(r['id'] == f['id'] for r in rescued):
+                    rescued.append({'id': f['id'], 'title': f.get('title'), 'new_status': 'ready_for_casting'})
+    
+    return {
+        'rescued_count': len(rescued),
+        'rescued_films': rescued,
+        'message': f'{len(rescued)} film recuperati!' if rescued else 'Nessun film perso trovato.'
+    }
+
+
 @router.post("/film-pipeline/{project_id}/check-coming-soon-status")
 async def check_coming_soon_status(project_id: str, user: dict = Depends(get_current_user)):
     """Frontend calls this when Coming Soon timer hits 0 to advance the film immediately."""

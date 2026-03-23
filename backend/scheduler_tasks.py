@@ -819,8 +819,14 @@ async def auto_release_coming_soon():
         if not is_release_due(project):
             continue
         try:
-            # PRE_CASTING: advance to casting, NOT to completed
-            if project.get('coming_soon_type') == 'pre_casting':
+            # Detect pre-casting films: explicit flag OR no cast data (never went through casting)
+            is_pre_casting = (
+                project.get('coming_soon_type') == 'pre_casting' or
+                (not project.get('cast') and project.get('status') == 'coming_soon' and
+                 not project.get('shooting_started_at') and not project.get('shooting_completed'))
+            )
+            
+            if is_pre_casting:
                 await scheduler_db.film_projects.update_one(
                     {'id': project['id']},
                     {'$set': {
@@ -840,7 +846,7 @@ async def auto_release_coming_soon():
                 )
                 notif['severity'] = 'important'
                 await scheduler_db.notifications.insert_one(notif)
-                logger.info(f"Film {project['id']} ({project['title']}) pre_casting Coming Soon completed -> ready_for_casting")
+                logger.info(f"Film {project['id']} ({project['title']}) Coming Soon completed -> ready_for_casting (pre_casting={project.get('coming_soon_type')})")
                 continue
 
             # Legacy / pre_release: complete the film normally

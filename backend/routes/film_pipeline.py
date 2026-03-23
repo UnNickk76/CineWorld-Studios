@@ -642,6 +642,7 @@ async def get_pipeline_counts(user: dict = Depends(get_current_user)):
     return {
         'creation': counts.get('draft', 0),
         'proposed': counts.get('proposed', 0) + counts.get('coming_soon', 0) + counts.get('ready_for_casting', 0),
+        'coming_soon': counts.get('coming_soon', 0),
         'casting': counts.get('casting', 0),
         'screenplay': counts.get('screenplay', 0),
         'pre_production': counts.get('pre_production', 0),
@@ -3085,19 +3086,21 @@ async def choose_release_strategy(project_id: str, req: ReleaseStrategyRequest, 
     await db.film_projects.update_one(
         {'id': project_id},
         {'$set': {
-            'status': 'coming_soon',
+            'status': 'completed',
+            'release_pending': True,
             'release_strategy': req.strategy,
             'release_strategy_hours': hours,
             'release_strategy_bonus_pct': bonus_pct,
             'release_strategy_perfect': perfect_timing,
             'scheduled_release_at': release_at.isoformat(),
-            'coming_soon_started_at': now.isoformat(),
+            'completed_at': now.isoformat(),
             'updated_at': now.isoformat()
         }}
     )
 
     return {
-        "status": "coming_soon",
+        "status": "completed",
+        "release_pending": True,
         "strategy": req.strategy,
         "hours_until_release": hours,
         "scheduled_release_at": release_at.isoformat(),

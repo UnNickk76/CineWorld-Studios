@@ -913,6 +913,44 @@ async def auto_release_coming_soon():
             logger.error(f"Error auto-releasing film {project['id']}: {e}")
 
 
+    # Process films with release_pending (post-shooting timed release)
+    pending_cursor = scheduler_db.film_projects.find({
+        'status': 'completed',
+        'release_pending': True,
+        'scheduled_release_at': {'$ne': None}
+    }, {'_id': 0})
+    
+    async for project in pending_cursor:
+        if not is_release_due(project):
+            continue
+        try:
+            strategy_bonus_pct = project.get('release_strategy_bonus_pct', 0)
+            
+            await scheduler_db.film_projects.update_one(
+                {'id': project['id']},
+                {'$set': {
+                    'release_pending': False,
+                    'released_at': now_str,
+                    'updated_at': now_str,
+                    'release_strategy_applied_bonus': strategy_bonus_pct,
+                }}
+            )
+            
+            from social_system import create_notification
+            bonus_msg = f" (Bonus strategia: +{strategy_bonus_pct}%)" if strategy_bonus_pct > 0 else ""
+            notif = create_notification(
+                project['user_id'], 'film_release',
+                'Film Rilasciato!',
+                f'"{project["title"]}" e\' ufficialmente uscito!{bonus_msg}',
+                data={'film_id': project['id']},
+                link=f'/films/{project["id"]}'
+            )
+            await scheduler_db.notifications.insert_one(notif)
+            logger.info(f"Release pending completed for film {project['id']} ({project['title']}) bonus={strategy_bonus_pct}%")
+        except Exception as e:
+            logger.error(f"Error releasing pending film {project['id']}: {e}")
+
+
 
 # ==================== DYNAMIC COMING SOON EVENTS ====================
 

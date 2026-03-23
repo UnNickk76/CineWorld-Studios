@@ -14,7 +14,8 @@ import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
-  Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame
+  Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame,
+  Lock, Rocket, Palette, Lightbulb, FileText
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
@@ -27,6 +28,120 @@ const TABS = [
   { id: 'pre_production', icon: Clapperboard, label: 'Pre-Produzione', desc: 'Film pronti per le riprese. Rimasterizza o lancia il Ciak! (Fase 2)' },
   { id: 'shooting', icon: Play, label: 'Ciak! Si Gira!', desc: 'Film in fase di ripresa. Velocizza o attendi il completamento (Fase 2)' },
 ];
+
+const PIPELINE_STEPS = [
+  { id: 'idea', label: 'Idea', icon: Lightbulb, tab: 'creation', color: 'yellow' },
+  { id: 'trama', label: 'Trama', icon: FileText, tab: 'creation', color: 'yellow' },
+  { id: 'location', label: 'Location', icon: MapPin, tab: 'creation', color: 'yellow' },
+  { id: 'poster', label: 'Poster', icon: Palette, tab: 'proposals', color: 'purple' },
+  { id: 'coming_soon', label: 'Hype', icon: Flame, tab: 'proposals', color: 'orange' },
+  { id: 'casting', label: 'Casting', icon: Users, tab: 'casting', color: 'cyan' },
+  { id: 'script', label: 'Script', icon: BookOpen, tab: 'screenplay', color: 'green' },
+  { id: 'production', label: 'Produzione', icon: Clapperboard, tab: 'pre_production', color: 'blue' },
+  { id: 'release', label: 'Uscita', icon: Rocket, tab: 'shooting', color: 'emerald' },
+];
+
+// ─── Pipeline Step Bar Component ───
+const PipelineStepBar = ({ activeTab, counts, onTabChange }) => {
+  const scrollRef = React.useRef(null);
+  const hasComingSoon = (counts.coming_soon || 0) > 0;
+  
+  // Determine which steps are "active" based on counts
+  const getStepState = (step) => {
+    const isActiveTab = step.tab === activeTab;
+    
+    // Steps completed = have films past this stage
+    const tabOrder = ['creation', 'proposals', 'casting', 'screenplay', 'pre_production', 'shooting'];
+    const activeIdx = tabOrder.indexOf(activeTab);
+    const stepIdx = tabOrder.indexOf(step.tab);
+    
+    if (isActiveTab) return 'current';
+    if (stepIdx < activeIdx) return 'completed';
+    
+    // Lock steps after Coming Soon when films are in coming_soon
+    if (hasComingSoon && step.id !== 'coming_soon' && ['casting', 'script', 'production', 'release'].includes(step.id)) {
+      // Only lock if there are NO films in those tabs yet
+      const tabCountMap = { casting: counts.casting, script: counts.screenplay, production: counts.pre_production, release: counts.shooting };
+      if (!tabCountMap[step.id]) return 'locked';
+    }
+    
+    return 'future';
+  };
+
+  // Auto-scroll to active step
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      const activeEl = scrollRef.current.querySelector('[data-step-active="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }
+  }, [activeTab]);
+
+  const colorMap = {
+    yellow: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-400', glow: 'shadow-yellow-500/30' },
+    purple: { bg: 'bg-purple-500/20', border: 'border-purple-500/50', text: 'text-purple-400', glow: 'shadow-purple-500/30' },
+    orange: { bg: 'bg-orange-500/20', border: 'border-orange-500/50', text: 'text-orange-400', glow: 'shadow-orange-500/30' },
+    cyan: { bg: 'bg-cyan-500/20', border: 'border-cyan-500/50', text: 'text-cyan-400', glow: 'shadow-cyan-500/30' },
+    green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', glow: 'shadow-green-500/30' },
+    blue: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-400', glow: 'shadow-blue-500/30' },
+    emerald: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-400', glow: 'shadow-emerald-500/30' },
+  };
+
+  return (
+    <div className="mb-4" data-testid="pipeline-step-bar">
+      <div ref={scrollRef} className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide pb-1 px-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {PIPELINE_STEPS.map((step, i) => {
+          const state = getStepState(step);
+          const Icon = step.icon;
+          const colors = colorMap[step.color];
+          const isLocked = state === 'locked';
+          const isCurrent = state === 'current';
+          const isCompleted = state === 'completed';
+          const isComingSoonActive = step.id === 'coming_soon' && hasComingSoon;
+
+          return (
+            <React.Fragment key={step.id}>
+              {i > 0 && (
+                <div className={`flex-shrink-0 w-3 h-[1px] ${isCompleted || isCurrent ? 'bg-yellow-500/60' : 'bg-gray-700'}`} />
+              )}
+              <button
+                onClick={() => !isLocked && onTabChange(step.tab)}
+                data-step-active={isCurrent ? 'true' : 'false'}
+                data-testid={`step-${step.id}`}
+                disabled={isLocked}
+                className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg transition-all min-w-[48px] ${
+                  isCurrent
+                    ? `${colors.bg} border ${colors.border} shadow-md ${colors.glow}`
+                    : isCompleted
+                      ? 'bg-green-500/10 border border-green-500/20'
+                      : isLocked
+                        ? 'bg-gray-900/50 border border-gray-800/50 opacity-40 cursor-not-allowed'
+                        : 'bg-transparent border border-transparent hover:bg-white/5'
+                } ${isComingSoonActive ? 'animate-pulse' : ''}`}
+              >
+                <div className="relative">
+                  {isLocked ? (
+                    <Lock className="w-3.5 h-3.5 text-gray-600" />
+                  ) : isCompleted ? (
+                    <Check className="w-3.5 h-3.5 text-green-400" />
+                  ) : (
+                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? colors.text : 'text-gray-500'}`} />
+                  )}
+                </div>
+                <span className={`text-[7px] font-medium leading-none ${
+                  isCurrent ? colors.text : isCompleted ? 'text-green-400/80' : isLocked ? 'text-gray-700' : 'text-gray-500'
+                }`}>
+                  {step.label}
+                </span>
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // ============ CREATION TAB ============
 const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
@@ -2721,20 +2836,23 @@ const FilmPipeline = () => {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white p-4 pt-16 pb-20">
       <div className="max-w-lg mx-auto">
-        {/* Top Icon Bar */}
-        <div className="flex items-center justify-center gap-1 mb-4 bg-[#111] rounded-lg p-1.5 border border-gray-800" data-testid="pipeline-tabs">
+        {/* Pipeline Step Bar - Visual flow indicator */}
+        <PipelineStepBar activeTab={activeTab} counts={counts} onTabChange={setActiveTab} />
+
+        {/* Tab Icon Bar (compact) */}
+        <div className="flex items-center justify-center gap-1 mb-3 bg-[#111] rounded-lg p-1 border border-gray-800" data-testid="pipeline-tabs">
           {TABS.map(tab => {
             const count = getCount(tab.id);
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                className={`relative flex items-center justify-center w-9 h-9 rounded-md transition-all ${
                   isActive ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/40' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`} data-testid={`tab-${tab.id}`}>
-                <Icon className="w-4.5 h-4.5" />
+                <Icon className="w-4 h-4" />
                 {count > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-[8px] text-white flex items-center justify-center font-bold">
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[7px] text-white flex items-center justify-center font-bold">
                     {count}
                   </span>
                 )}
@@ -2742,9 +2860,9 @@ const FilmPipeline = () => {
             );
           })}
           <button onClick={() => setShowInfo(true)}
-            className="flex items-center justify-center w-10 h-10 rounded-lg text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-all"
+            className="flex items-center justify-center w-9 h-9 rounded-md text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-all"
             data-testid="info-btn">
-            <HelpCircle className="w-4.5 h-4.5" />
+            <HelpCircle className="w-4 h-4" />
           </button>
         </div>
 

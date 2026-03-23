@@ -8,53 +8,51 @@ Full-stack cinematic empire game where players create, produce, and release film
 - **Backend**: FastAPI + MongoDB (port 8001)
 - **Integrations**: OpenAI GPT-4o-mini (text), GPT-Image-1 (poster gen), APScheduler (background jobs)
 
+## Pipeline Flow (Updated March 23 2026)
+
+### Film Pipeline - Visual Step Bar
+```
+[Idea] → [Trama] → [Location] → [Poster] → [Hype/Coming Soon] → [Casting] → [Script] → [Produzione] → [Uscita]
+```
+
+### Two Modes
+- **Immediata**: Idea → Trama → Location → Casting → Script → Produzione → Uscita (skips Poster/Hype)
+- **Coming Soon**: Idea → Trama → Location → Poster → STOP (timer) → Casting → Script → Produzione → Uscita
+
+### Step Bar UI
+- Current step: colored background + glow (yellow/purple/orange/cyan/green/blue/emerald)
+- Completed steps: green checkmark
+- Future steps: grey/dimmed
+- Locked steps (during Coming Soon): lock icon + dark grey
+- Scrollable horizontally on mobile
+- Clicking a step navigates to the corresponding tab
+
+### Coming Soon Flow Fix
+- Films NO LONGER go backwards to `coming_soon` after shooting
+- `choose-release-strategy` now sets `status: completed` with `release_pending: true`
+- Scheduler handles `release_pending` films when timer expires
+
 ## Implemented Features
 
-### Production Pipelines - Flow
-**Film**: Creazione > Locandina > Coming Soon > `ready_for_casting` > Casting > Sceneggiatura > Pre-produzione > Shooting > Release
-**Serie TV/Anime**: Concept > Locandina > Coming Soon > `ready_for_casting` > Casting > Sceneggiatura > Produzione > Release
-
-### Coming Soon Interactive System
-- Pre-Casting Phase with dynamic timer (Short/Medium/Long tiers)
-- Dynamic Events via scheduler, Support/Boycott, Speed-Up (credit-based)
-- Auto News, Scheduler auto-releases to `ready_for_casting`
-
-### Release Strategy System
-- Automatica (+3% guaranteed) vs Manuale (perfect timing = +8%)
-
-### Dynamic Notification System (March 22 2026)
-- Notification Engine, Severity Levels, Popup Priority System, Anti-spam, Click Navigation
-
-### Admin Maintenance Tool (March 23 2026)
-- **Repair Database**: Logical flow validation + data cleanup (admin only)
-- **Diagnose Screenplay**: Shows data types and fields for all screenplay films (debug tool)
-- Tab "Manutenzione" in Admin Panel
-
-### Dashboard "Prossimamente"
-- Always visible with Coming Soon content, countdown, hype, interactive support/boycott
+### Production Pipelines
+- Film, TV Series, Anime production flows
+- Coming Soon Interactive System with timer tiers
+- Release Strategy System (Automatic +3% vs Manual +8%)
+- Dynamic Notification System with severity levels
+- Admin Maintenance Tool (repair + diagnose)
 
 ### Other Systems
 - Box office, cinema/infrastructure revenue, cast system
 - Social hub: chat, private messages, notifications
 - Moderation, leaderboard, contests, challenges
 
-## Critical Bug Fixes (March 23 2026)
-
-### BUG 1: `expandedScreenplay` state missing (ROOT CAUSE of "Qualcosa è andato storto")
-- **Problem**: `expandedScreenplay` state was declared in CastingTab but NOT in ScreenplayTab. When rendering film with screenplay text, accessing `expandedScreenplay[f.id]` on undefined caused crash.
-- **Fix**: Added `const [expandedScreenplay, setExpandedScreenplay] = useState({})` to ScreenplayTab
-
-### BUG 2: `f.screenplay` might be an object instead of string  
-- **Problem**: If screenplay stored as `{text: "...", generated_at: "..."}` (like series format), React throws "Objects are not valid as a React child"
-- **Fix**: Defensive rendering: `typeof f.screenplay === 'string' ? f.screenplay : f.screenplay?.text || JSON.stringify(f.screenplay)`
-
-### BUG 3: One bad film crashes entire list
-- **Problem**: A single film with corrupt data in the map() crashes the entire ScreenplayTab
-- **Fix**: try/catch around each film rendering, with fallback Card showing error + "Scarta" button
-
-### Improved ErrorBoundary
-- Now shows actual error message (not just "Qualcosa è andato storto")
-- TabErrorBoundary also shows error details
+## Bug Fixes (March 23 2026)
+- **Flame icon missing import** → Added to lucide-react imports
+- **expandedScreenplay state missing** → Added to ScreenplayTab
+- **f.screenplay as object** → Defensive rendering with type check
+- **One bad film crashes list** → try/catch per film in map()
+- **ErrorBoundary** → Now shows actual error message
+- **Coming Soon backwards flow** → Films go to `completed` + `release_pending` instead of back to `coming_soon`
 
 ## Known Issues
 - (P2) Contest Page mobile layout broken (recurring)

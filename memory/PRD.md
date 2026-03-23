@@ -94,13 +94,21 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
   - Testato E2E: film con director MA senza shooting → correttamente recuperato
   - Film legittimi con shooting → correttamente ignorati
 
-### Velion Tutorial Overlay
+### Velion Tutorial System (v2.0 Interactive)
 - Personaggio Velion come overlay flottante bottom-right su tutte le pagine
 - Rimozione sfondo nero via CSS `mix-blend-mode: screen` + brightness/contrast boost
 - Cerchio di sfondo scuro per visibilita + glow ring animato cyan rotante
-- Pulsing dot di notifica cyan
-- Tooltip "Chiedi a Velion" su hover
-- Click apre il TutorialPopup (16 step)
+- Pulsing dot di notifica cyan + Tooltip "Chiedi a Velion" su hover
+- **Dismissibile**: Bottone X per chiudere Velion (stato salvato in localStorage `velion_visible`)
+- **Richiamabile**: Bottone "Velion" (cyan, Sparkles) nel menu hamburger per riaprirlo
+- **Tutorial Interattivo**: VelionTutorial.jsx con 16 step guidati
+  - Navigazione: Avanti/Indietro/Salta/Inizia!
+  - Barra progresso animata
+  - Link "Vai alla pagina →" per step con pagina associata (es. /create-film, /infrastructure)
+  - Avatar Velion, icona step, titolo, descrizione, tip box opzionale
+  - Dark overlay con backdrop-blur
+- **Auto-show**: Tutorial si apre automaticamente per nuovi utenti (1.5s delay dopo login)
+- **Persistenza**: Stato tutorial salvato in localStorage (`velion_tutorial_done`)
 - Posizione responsive: bottom-20 right-2 (mobile sopra navbar) / bottom-6 right-5 (desktop)
 
 ## Architettura
@@ -115,6 +123,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 130: 100% (PvP Coming Soon Integration - 12/12)
 - Iter 131: 100% (PvP Infra UX Revision - 11/11)
 - Iter 132: 100% (Festival Overhaul Phase 1+2 - 18/18)
+- Iter 133: 100% (Velion Tutorial System Interactive - 12/12)
 
 ## Backlog
 
@@ -128,4 +137,3 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major
-- Tutorial interattivo con personaggio (attesa input utente)

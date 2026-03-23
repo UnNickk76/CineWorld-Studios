@@ -2868,18 +2868,16 @@ const FilmPipeline = () => {
       const safe = (res.data.projects || []).filter(p => p && p.id && p.title);
       setFilms(safe);
       
-      // Auto-rescue: if no films but count says there should be, try rescue
-      if (safe.length === 0) {
-        try {
-          const rescueRes = await api.post('/film-pipeline/rescue-lost-films');
-          if (rescueRes.data?.rescued_count > 0) {
-            toast.success(`${rescueRes.data.rescued_count} film recuperati!`);
-            const res2 = await api.get('/film-pipeline/all');
-            const safe2 = (res2.data.projects || []).filter(p => p && p.id && p.title);
-            setFilms(safe2);
-          }
-        } catch (e) { /* rescue is best-effort */ }
-      }
+      // Auto-rescue: find and restore incorrectly completed films
+      try {
+        const rescueRes = await api.post('/film-pipeline/rescue-lost-films');
+        if (rescueRes.data?.rescued_count > 0) {
+          toast.success(`${rescueRes.data.rescued_count} film recuperati!`);
+          const res2 = await api.get('/film-pipeline/all');
+          const safe2 = (res2.data.projects || []).filter(p => p && p.id && p.title);
+          setFilms(safe2);
+        }
+      } catch (e) { /* rescue is best-effort */ }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [api]);

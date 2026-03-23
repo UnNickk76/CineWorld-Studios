@@ -86,6 +86,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
   - **Admin Panel**: sezione "Recupero Film Persi" per nickname specifico
   - `/admin/repair-database`: aggiunto case "completed senza produzione"
   - Scheduler riconosce pre-casting anche senza flag (controlla assenza cast/shooting)
+- **Fixes v3.4 (DEFINITIVO)**:
+  - Logica rescue riscritta: condizione chiave = `completed SENZA shooting_started_at` (non piu basata su director)
+  - Cattura anche `auto_released: True` (scheduler) indipendentemente dalla presenza cast
+  - Pulizia dati fake: `$unset` di quality_score, total_revenue, audience_rating, auto_released, release_pending
+  - Auto-rescue su OGNI caricamento di "Produci" (non solo quando lista vuota)
+  - Testato E2E: film con director MA senza shooting → correttamente recuperato
+  - Film legittimi con shooting → correttamente ignorati
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion

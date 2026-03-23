@@ -7495,16 +7495,20 @@ async def admin_rescue_user_films(request: dict = Body(...), user: dict = Depend
         needs_rescue = False
         reason = ''
         
-        cast = f.get('cast')
-        has_director = cast and isinstance(cast, dict) and cast.get('director')
         has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
+        is_auto_released = f.get('auto_released', False)
         
-        # Case 1: completed/released without production pipeline
-        if status in ('completed', 'released') and not has_director and not has_shooting:
+        # Case 1: completed/released WITHOUT shooting = never went through full pipeline
+        if status in ('completed', 'released') and not has_shooting:
             needs_rescue = True
-            reason = f'Completato senza produzione (status={status}, no regista, no riprese)'
+            reason = f'Completato senza riprese (status={status}, auto_released={is_auto_released})'
         
-        # Case 2: coming_soon with expired timer
+        # Case 2: completed with auto_released flag = scheduler did it
+        if status == 'completed' and is_auto_released:
+            needs_rescue = True
+            reason = f'Auto-rilasciato dal scheduler (mai completato dal giocatore)'
+        
+        # Case 3: coming_soon with expired timer
         if status == 'coming_soon':
             sra = f.get('scheduled_release_at')
             if sra:
@@ -7519,17 +7523,16 @@ async def admin_rescue_user_films(request: dict = Body(...), user: dict = Depend
                     needs_rescue = True
                     reason = 'Coming Soon con data rilascio invalida'
         
-        # Case 3: discarded/abandoned after coming_soon
-        if status in ('discarded', 'abandoned') and f.get('coming_soon_completed'):
-            if not has_director:
-                needs_rescue = True
-                reason = f'Scartato dopo Coming Soon senza produzione (status={status})'
+        # Case 4: discarded/abandoned after coming_soon
+        if status in ('discarded', 'abandoned') and (f.get('coming_soon_completed') or f.get('coming_soon_type')):
+            needs_rescue = True
+            reason = f'Scartato dopo Coming Soon (status={status})'
         
         if needs_rescue:
             new_status = 'ready_for_casting'
-            # Clean up auto-release fake data
+            # Always clean auto-release fake data when rescuing from completed
             unset_fields = {}
-            if f.get('auto_released'):
+            if status in ('completed', 'released'):
                 unset_fields = {
                     'quality_score': '',
                     'total_revenue': '',
@@ -7537,6 +7540,7 @@ async def admin_rescue_user_films(request: dict = Body(...), user: dict = Depend
                     'completed_at': '',
                     'auto_released': '',
                     'release_strategy_applied_bonus': '',
+                    'release_pending': '',
                 }
             
             update_set = {
@@ -7672,12 +7676,11 @@ async def admin_repair_database(user: dict = Depends(get_current_user)):
         
         # 7. COMPLETED without going through production pipeline (auto-released by scheduler error)
         elif fstatus == 'completed':
-            cast = f.get('cast') or {}
-            has_director = isinstance(cast, dict) and cast.get('director')
             has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
-            if not has_director and not has_shooting:
+            is_auto_released = f.get('auto_released', False)
+            if not has_shooting or is_auto_released:
                 action = 'ready_for_casting'
-                reason = f'Completato senza produzione (no regista, no riprese) - recuperato'
+                reason = f'Completato senza riprese o auto-rilasciato (shooting={bool(has_shooting)}, auto={is_auto_released})'
                 report['films_completed_without_production'].append({'id': fid, 'title': ftitle, 'old_status': fstatus, 'action': action, 'reason': reason})
         
         # Apply fix

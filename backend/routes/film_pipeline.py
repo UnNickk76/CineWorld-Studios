@@ -911,18 +911,22 @@ async def rescue_lost_films(user: dict = Depends(get_current_user)):
         needs_rescue = False
         reason = ''
         
-        # Has real cast data?
-        cast = f.get('cast')
-        has_director = cast and isinstance(cast, dict) and cast.get('director')
-        has_actors = cast and isinstance(cast, dict) and cast.get('actors') and len(cast['actors']) > 0
+        # Key indicators
         has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
+        is_auto_released = f.get('auto_released', False)
         
-        # Case 1: completed/released without going through production pipeline
-        if status in ('completed', 'released') and not has_director and not has_shooting:
+        # Case 1: completed/released WITHOUT shooting = NEVER went through full pipeline
+        # This is the MAIN case: scheduler auto-completed the film incorrectly
+        if status in ('completed', 'released') and not has_shooting:
             needs_rescue = True
-            reason = f'auto_completed_without_production (status={status})'
+            reason = f'Completato senza riprese (status={status}, auto_released={is_auto_released})'
         
-        # Case 2: coming_soon with expired timer still stuck
+        # Case 2: completed with auto_released flag = scheduler did it, not the player
+        if status == 'completed' and is_auto_released:
+            needs_rescue = True
+            reason = f'Auto-rilasciato dal scheduler (mai completato dal giocatore)'
+        
+        # Case 3: coming_soon with expired timer still stuck
         if status == 'coming_soon':
             sra = f.get('scheduled_release_at')
             if sra:
@@ -932,22 +936,21 @@ async def rescue_lost_films(user: dict = Depends(get_current_user)):
                         release_dt = release_dt.replace(tzinfo=timezone.utc)
                     if now >= release_dt:
                         needs_rescue = True
-                        reason = 'coming_soon_timer_expired_still_stuck'
+                        reason = 'Coming Soon timer scaduto, film bloccato'
                 except Exception:
                     needs_rescue = True
-                    reason = 'coming_soon_invalid_release_date'
+                    reason = 'Coming Soon con data rilascio invalida'
         
-        # Case 3: discarded/abandoned but had coming_soon activity (unintentional discard)
-        if status in ('discarded', 'abandoned') and f.get('coming_soon_completed'):
-            if not has_director and not has_shooting:
-                needs_rescue = True
-                reason = f'discarded_after_coming_soon (status={status})'
+        # Case 4: discarded/abandoned after coming_soon activity
+        if status in ('discarded', 'abandoned') and (f.get('coming_soon_completed') or f.get('coming_soon_type')):
+            needs_rescue = True
+            reason = f'Scartato dopo Coming Soon (status={status})'
         
         if needs_rescue:
             new_status = 'ready_for_casting'
-            # Clean up auto-release fake data
+            # Always clean auto-release fake data when rescuing from completed
             unset_fields = {}
-            if f.get('auto_released'):
+            if status in ('completed', 'released'):
                 unset_fields = {
                     'quality_score': '',
                     'total_revenue': '',
@@ -955,6 +958,7 @@ async def rescue_lost_films(user: dict = Depends(get_current_user)):
                     'completed_at': '',
                     'auto_released': '',
                     'release_strategy_applied_bonus': '',
+                    'release_pending': '',
                 }
             
             update_set = {

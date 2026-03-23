@@ -1,70 +1,83 @@
-# CineWorld Studio's - Product Requirements Document
+# CineWorld Studio's - PRD
 
-## Original Problem Statement
-Full-stack cinematic empire game where players create, produce, and release films, TV series, and anime.
+## Problema Originale
+Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + MongoDB.
 
-## Core Architecture
-- **Frontend**: React + Shadcn UI + framer-motion (port 3000)
-- **Backend**: FastAPI + MongoDB (port 8001)
-- **Integrations**: OpenAI GPT-4o-mini (text), GPT-Image-1 (poster), APScheduler
+## Utenti
+- Produttori cinematografici (giocatori) che creano e gestiscono film virtuali
 
-## Pipeline Flow (Updated March 23 2026)
-```
-[Idea] → [Trama] → [Location] → [Poster] → [Hype] → [Casting] → [Script] → [Produzione] → [Uscita]
-```
+## Requisiti Core Implementati
 
-### Visual Step Bar (Game Feel)
-- 9 animated steps with gold glow, breathing effects, animated connectors
-- Completed: green check + gold glow pop animation
-- Current: colored breathing glow (CSS custom property --step-glow-color)
-- Future: dimmed grey
-- Locked (Coming Soon): lock icon + blur + pulse
-- Coming Soon active: rotating icon + progress bar animation
-- Haptic feedback (navigator.vibrate) on mobile
-- Reduced motion support (@media prefers-reduced-motion)
+### Film Production Pipeline (Completato - v2.0)
+- **Vecchia UI (rimossa):** Navigazione a schede (Creation, Proposals, Casting, etc.)
+- **Nuova UI (v2.0):** UX centrata sul singolo film con card cliccabili + popup
+  - Pagina "Produci!" mostra lista film in produzione come card
+  - Click su card → popup con header film + step bar per-film + contenuto step corrente
+  - Step bar adattiva: Immediato (5 step) vs Coming Soon (7 step)
+  - Step 1 rinominato "Proposta"
+  - Notifiche linkano direttamente al popup del film specifico (?film=id)
+  
+### Modalita' Rilascio
+- **Immediato:** Proposta → Casting → Script → Produzione → Uscita
+- **Coming Soon:** Proposta → Poster → Hype (timer) → Casting → Script → Produzione → Uscita
 
-### Film Card Effects
-- Mini step bar (7 steps, 3px height) at top of each card
-- Hover/tap: translateY(-2px) + gold shadow glow
-- film-card-hover class applied to all pipeline cards
+### Altre Feature Completate
+- Login Reward System (bonus Coming Soon al login, cooldown 3h)
+- Error Boundary cinematico con effetto glitch
+- Effetti WOW (animazioni, glow, haptic feedback)
+- Sistema Buzz/Hype per film Coming Soon
+- Daily Bonus (CinePass giornaliero)
+- Acting School / Agenzia Attori
+- Sistema Sfide/Versus
+- Chat Privata
+- Festival del Cinema
+- Sistema Major
+- Marketplace Sceneggiature Emergenti
 
-### Cinematic Error Handling
-- Main ErrorBoundary: film glitch effect with scanlines + grain
-  - "La pellicola si è inceppata!" + actual error message
-  - "Riprendi la scena" button (pill-shaped)
-- TabErrorBoundary: "Scena interrotta" with film icon
+## Architettura
 
-### Enhanced Notifications
-- Slide from top (framer-motion spring: damping 22, stiffness 350)
-- Gradient backgrounds per severity (critical/important/positive)
-- Glow shadow matching severity color
-- Vibration patterns: critical [50,50,50], normal [25]
+### Frontend
+- React + Tailwind CSS + Shadcn/UI
+- Framer Motion per animazioni
+- Componenti chiave:
+  - `/pages/FilmPipeline.jsx` - Pagina principale produzione (refactored v2.0)
+  - `/components/FilmPopup.jsx` - Popup film con step bar e contenuti
+  - `/components/FilmProductionCard.jsx` - Card film per la lista
 
-### Coming Soon Flow (Fixed)
-- Films NO LONGER go backwards to `coming_soon` after shooting
-- `choose-release-strategy` → `completed` + `release_pending: true`
-- Scheduler auto-releases when timer expires
+### Backend
+- FastAPI + MongoDB + APScheduler
+- Route principali in `/backend/routes/`
+- Scheduler in `/backend/scheduler_tasks.py`
 
-## CSS Animations (index.css)
-- step-complete-pop, step-glow-gold, check-appear
-- step-breathe, step-glow-current
-- connector-wave (light wave between steps)
-- step-locked-pulse
-- cs-icon-rotate, cs-countdown-pulse, cs-progress-fill
-- card-glow, film-card-hover
-- glitch-1, glitch-scanlines, film-grain (error effects)
-- notif-slide-in, notif-exit
+### Integrazioni
+- OpenAI GPT-4o-mini (generazione testo) via Emergent LLM Key
+- OpenAI GPT-Image-1 (generazione locandine) via Emergent LLM Key
 
-## Bug Fixes
-- Flame icon missing import (March 23)
-- expandedScreenplay state missing in ScreenplayTab (March 23)
-- f.screenplay as object crash (March 23)
-- Coming Soon backwards flow (March 23)
+## DB Schema Chiave
+- `users`: last_cs_reward_at (timestamp cooldown login reward)
+- `film_projects`: release_pending (boolean), status, release_type, cast, screenplay, etc.
 
-## Known Issues
-- (P2) Contest Page mobile layout broken
+## Stato Test
+- Testing Agent Iter 127: 100% backend (16/16), 100% frontend
+- Test account: test@test.com / test1234
 
-## Backlog
-- P1: Chat Evolution Step 6, Marketplace TV/Anime rights
-- P2: RBAC, CinePass + Stripe, PWA, Tutorial, Contest Page fix
-- P3: Scommesse Coming Soon, Eventi globali, Push notifications
+## Backlog Prioritizzato
+
+### P0 - Nessuno (tutto funzionante)
+
+### P1
+- Chat Evolution Step 6: Rifinitura mobile e qualita' social
+- Marketplace per diritti TV/Anime
+- Contest Page Mobile Layout Fix (bug ricorrente)
+
+### P2
+- RBAC (Role Based Access Control)
+- CinePass + Stripe (monetizzazione)
+- PWA (Progressive Web App)
+- Tutorial interattivo
+
+### P3
+- Scommesse sui Coming Soon
+- Eventi globali
+- Push notifications
+- Guerre tra Major

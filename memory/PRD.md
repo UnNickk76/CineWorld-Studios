@@ -94,21 +94,28 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
   - Testato E2E: film con director MA senza shooting → correttamente recuperato
   - Film legittimi con shooting → correttamente ignorati
 
-### Velion AI Assistant (v4.0 - Full Intelligence)
+### Velion AI Assistant (v5.0 - Smart Advisor)
 - **Pannello con 2 Tab**: Tutorial (16 step immersivi) + "Chiedi a Velion" (chat AI)
-- **Chat AI**: GPT-4o-mini via Emergent Key, personalita evoluta (misterioso, elegante, cifrato ma utile), metafore cinematografiche, no emoji, 2-3 frasi
-- **Quick Ask Chips**: 5 domande rapide pre-configurate (Come guadagno?, Prossima mossa, Migliora film, PvP, Infrastrutture)
-- **"Lo sapevi?" Tips**: Bottone che mostra curiosita/consigli sul gioco in stile amber/italic nella chat
-- **Velion Tips Endpoint**: `GET /api/velion/tips?category=X&count=N` con 6 categorie (general, production, coming_soon, casting, infrastructure, pvp) - 27+ tips totali
-- **Fallback Rule-Based**: 12 regole per keyword
-- **Player Status Analysis**: `GET /api/velion/player-status?page=X&idle_minutes=N`
-  - Trigger automatici: incassi, film bloccati, coming soon, PvP, nessun film, qualita bassa, IDLE (>3min)
-  - Contesto giocatore passato all'AI per risposte personalizzate
-- **Messaggi Dinamici**: 4+ varianti per ogni tipo di trigger + varianti idle
-- **Suggerimenti Contestuali**: 9 pagine supportate con messaggi per livello
-- **Idle Detection**: Tracking attivita utente (mousedown/keydown/touch/scroll), trigger dopo 3+ min inattivita
-- **Bubble Notifications**: Styling per priorita, auto-hide 8-10s, page-aware polling 60s + 12s su navigazione
-- **Animazioni**: Breathing, glow potenziato, notifica pulsante
+- **Chat AI**: GPT-4o-mini, personalita misterioso/cifrato, metafore cinematografiche, 2-3 frasi
+- **Quick Ask Chips**: 5 domande rapide + "Lo sapevi?" tips button
+- **ADVISOR SINGOLO (v5)**: Un solo suggerimento alla volta, il piu importante, secondo priorita:
+  1. Film bloccati/incompleti (stuck_film)
+  2. Coming Soon imminente < 10 min (countdown_imminent)
+  3. Coming Soon < 60 min (countdown)
+  4. Incassi da riscuotere (revenue)
+  5. Nessun film attivo (no_films)
+  6. Upgrade infrastrutture disponibile (infrastructure_upgrade)
+  7. Eventi PvP (pvp_event)
+  8. Social hint (social_hint)
+  9. Qualita bassa (low_quality)
+  10. Idle player (idle)
+- **Login Greeting**: `GET /api/velion/login-greeting` saluto + advisor combinati, 1x per sessione (sessionStorage)
+- **Infrastructure Upgrade Detection**: Controlla fondi vs costo upgrade, suggerisce se disponibile
+- **Trigger Automatici**: Login, cambio pagina (2s), polling 60s, idle detection 3+ min
+- **Messaggi Dinamici**: 4+ varianti per tipo (32+ totali), mai ripetitivi
+- **Suggerimenti Contestuali**: 9 pagine con messaggi per livello
+- **Bubble Non-Invasiva**: Styling per priorita, auto-hide 8-12s, cliccabile per navigazione
+- **Preparato per**: AI avanzata, memoria sessione, suggerimenti sempre piu personalizzati
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
@@ -126,6 +133,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 134: 100% (Velion AI Assistant - Backend 13/13 + Frontend all verified)
 - Iter 135: 100% (Velion Phase 2 - Dynamic variants, Page-context, Priority styling - Backend 14/14 + Frontend all)
 - Iter 136: 100% (Velion Phase 3 - Enhanced personality, Idle detection, Tips, Quick asks - Backend 16/16 + Frontend all)
+- Iter 137: 100% (Velion Advisor Evolution - Priority system, Login greeting, Infra upgrade - Backend 15/15 + Frontend all)
 
 ## Backlog
 

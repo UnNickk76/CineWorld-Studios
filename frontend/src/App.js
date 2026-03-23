@@ -43,7 +43,7 @@ import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { VelionOverlay } from './components/VelionOverlay';
-import { VelionTutorial, shouldAutoShowTutorial } from './components/VelionTutorial';
+import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
@@ -1743,18 +1743,19 @@ const ProtectedRoute = ({ children }) => {
   const [pendingChallengePopup, setPendingChallengePopup] = useState(null);
   const [productionMenuOpen, setProductionMenuOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [velionTab, setVelionTab] = useState('tutorial');
   
   // Auto-show tutorial for new users
   useEffect(() => {
     if (user && shouldAutoShowTutorial()) {
-      const timer = setTimeout(() => setShowTutorial(true), 1500);
+      const timer = setTimeout(() => { setVelionTab('tutorial'); setShowTutorial(true); }, 1500);
       return () => clearTimeout(timer);
     }
   }, [user]);
 
   // Listen for tutorial open event from hamburger menu
   useEffect(() => {
-    const handler = () => setShowTutorial(true);
+    const handler = () => { setVelionTab('tutorial'); setShowTutorial(true); };
     window.addEventListener('velion-tutorial-open', handler);
     return () => window.removeEventListener('velion-tutorial-open', handler);
   }, []);
@@ -1848,9 +1849,17 @@ const ProtectedRoute = ({ children }) => {
         </Dialog>
       )}
 
-      {/* Velion Tutorial Overlay */}
-      <VelionOverlay onClick={() => setShowTutorial(true)} />
-      <VelionTutorial open={showTutorial} onClose={() => setShowTutorial(false)} onNavigate={(path) => { navigate(path); setShowTutorial(false); }} />
+      {/* Velion AI Assistant */}
+      <VelionOverlay
+        onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
+        onBubbleClick={(action) => { navigate(action); }}
+      />
+      <VelionPanel
+        open={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        onNavigate={(path) => { navigate(path); setShowTutorial(false); }}
+        defaultTab={velionTab}
+      />
 
     </PlayerPopupContext.Provider>
     </ProductionMenuContext.Provider>

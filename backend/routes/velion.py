@@ -142,6 +142,30 @@ TRIGGER_VARIANTS = {
         'Ogni minuto di inattivita e un\'opportunita persa. Muoviti.',
         'Il pubblico si annoia. Dai loro qualcosa di nuovo.',
     ],
+    'countdown_imminent': [
+        'Mancano pochi minuti! Il tuo film sta per uscire dal Coming Soon.',
+        'Ci siamo quasi. Preparati al debutto imminente.',
+        'Il conto alla rovescia e quasi finito. Ora o mai piu.',
+        'Ultimi istanti di attesa. Il tuo film sta per incontrare il pubblico.',
+    ],
+    'infrastructure_upgrade': [
+        'Puoi sbloccare nuove funzionalita. Le infrastrutture ti aspettano.',
+        'Hai i fondi per un upgrade. Investi nel tuo impero.',
+        'Il tuo studio puo crescere. Costruisci qualcosa di grande.',
+        'Nuove possibilita ti attendono. Dai un\'occhiata alle infrastrutture.',
+    ],
+    'social_hint': [
+        'Non sei solo in questo gioco. Sfida qualcuno nel PvP.',
+        'Il PvP e dove nascono le rivalita leggendarie. Sei pronto?',
+        'Interagisci con gli altri produttori. Il cinema e competizione.',
+        'Hai costruito abbastanza. Ora mostra chi comanda.',
+    ],
+    'login_greeting': [
+        'Bentornato, produttore. Il set ti aspettava.',
+        'Sei tornato. Vediamo cosa e successo mentre eri via.',
+        'Il cinema non dorme. E nemmeno le opportunita.',
+        'Bentornato nel gioco. Hai lavoro da fare.',
+    ],
 }
 
 
@@ -381,21 +405,102 @@ async def get_ai_response(user_text: str, player_context: str) -> str:
 
 # ==================== PLAYER STATUS ANALYSIS ====================
 
+# Priority levels (lower number = higher priority)
+PRIORITY_ORDER = {
+    'stuck_film': 1,
+    'countdown_imminent': 2,
+    'countdown': 3,
+    'revenue': 4,
+    'no_films': 5,
+    'infrastructure_upgrade': 6,
+    'pvp_event': 7,
+    'social_hint': 8,
+    'low_quality': 9,
+    'idle': 10,
+    'page_context': 11,
+}
+
+
 async def analyze_player_state(user: dict, page: str = None) -> dict:
     uid = user['id']
     now = datetime.now(timezone.utc)
     user_level = user.get('level', 1)
+    user_funds = user.get('funds', 0)
 
     import asyncio
-    films, pipeline, notifications = await asyncio.gather(
+    films, pipeline, notifications, infra = await asyncio.gather(
         db.films.find({'user_id': uid}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'quality_score': 1, 'total_revenue': 1, 'last_revenue_collected': 1, 'release_date': 1, 'opening_day_revenue': 1, 'current_week': 1}).to_list(100),
         db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned']}}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'quality_score': 1, 'coming_soon_end': 1, 'updated_at': 1, 'created_at': 1}).to_list(50),
-        db.notifications.find({'user_id': uid, 'read': False}, {'_id': 0, 'type': 1, 'message': 1}).sort('created_at', -1).to_list(10)
+        db.notifications.find({'user_id': uid, 'read': False}, {'_id': 0, 'type': 1, 'message': 1}).sort('created_at', -1).to_list(10),
+        db.infrastructures.find_one({'user_id': uid}, {'_id': 0}) or {}
     )
+    infra = infra or {}
 
-    triggers = []
+    all_triggers = []
 
-    # --- Check pending revenue ---
+    # --- 1. Stuck / blocked pipeline films (PRIORITY 1) ---
+    active_pipeline = [p for p in pipeline if p.get('status') not in ['completed', 'discarded', 'abandoned']]
+    for p in active_pipeline:
+        updated = p.get('updated_at') or p.get('created_at', '')
+        if updated:
+            try:
+                updated_str = updated if isinstance(updated, str) else updated.isoformat()
+                updated_str = updated_str.replace('Z', '+00:00')
+                if '+' not in updated_str and '-' not in updated_str[-6:]:
+                    updated_str += '+00:00'
+                last_update = datetime.fromisoformat(updated_str)
+                if last_update.tzinfo is None:
+                    last_update = last_update.replace(tzinfo=timezone.utc)
+                hours_idle = (now - last_update).total_seconds() / 3600
+                if hours_idle > 2:
+                    all_triggers.append({
+                        'type': 'stuck_film',
+                        'message': pick_variant('stuck_film', title=p.get('title', 'Il tuo film')),
+                        'priority': 'high',
+                        'action': '/create-film',
+                        '_sort': PRIORITY_ORDER['stuck_film']
+                    })
+                    break
+            except:
+                pass
+
+    # --- 2. Coming Soon imminent (< 10 min) or soon (< 60 min) ---
+    for p in active_pipeline:
+        if p.get('status') == 'coming_soon' and p.get('coming_soon_end'):
+            try:
+                end_str = p['coming_soon_end']
+                if isinstance(end_str, str):
+                    end_str = end_str.replace('Z', '+00:00')
+                    if '+' not in end_str and '-' not in end_str[-6:]:
+                        end_str += '+00:00'
+                    end = datetime.fromisoformat(end_str)
+                else:
+                    end = end_str
+                if end.tzinfo is None:
+                    end = end.replace(tzinfo=timezone.utc)
+                remaining = (end - now).total_seconds()
+                if 0 < remaining < 600:  # < 10 min
+                    all_triggers.append({
+                        'type': 'countdown_imminent',
+                        'message': pick_variant('countdown_imminent'),
+                        'priority': 'high',
+                        'action': '/create-film',
+                        '_sort': PRIORITY_ORDER['countdown_imminent']
+                    })
+                    break
+                elif 0 < remaining < 3600:  # < 60 min
+                    all_triggers.append({
+                        'type': 'countdown',
+                        'message': pick_variant('countdown'),
+                        'priority': 'high',
+                        'action': '/create-film',
+                        '_sort': PRIORITY_ORDER['countdown']
+                    })
+                    break
+            except:
+                pass
+
+    # --- 3. Pending revenue ---
     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
     pending_revenue = 0
     for f in films_in_theaters:
@@ -417,124 +522,125 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
             pass
 
     if pending_revenue > 0:
-        triggers.append({
+        all_triggers.append({
             'type': 'revenue',
             'message': pick_variant('revenue', amount=f'${pending_revenue:,}'),
             'priority': 'high',
-            'action': '/'
+            'action': '/',
+            '_sort': PRIORITY_ORDER['revenue']
         })
 
-    # --- Check stuck pipeline films ---
-    active_pipeline = [p for p in pipeline if p.get('status') not in ['completed', 'discarded', 'abandoned']]
-    for p in active_pipeline:
-        updated = p.get('updated_at') or p.get('created_at', '')
-        if updated:
-            try:
-                updated_str = updated if isinstance(updated, str) else updated.isoformat()
-                updated_str = updated_str.replace('Z', '+00:00')
-                if '+' not in updated_str and '-' not in updated_str[-6:]:
-                    updated_str += '+00:00'
-                last_update = datetime.fromisoformat(updated_str)
-                if last_update.tzinfo is None:
-                    last_update = last_update.replace(tzinfo=timezone.utc)
-                hours_idle = (now - last_update).total_seconds() / 3600
-                if hours_idle > 2:
-                    triggers.append({
-                        'type': 'stuck_film',
-                        'message': pick_variant('stuck_film', title=p.get('title', 'Il tuo film')),
-                        'priority': 'medium',
-                        'action': '/create-film'
-                    })
-                    break
-            except:
-                pass
-
-    # --- Check coming soon countdown ---
-    for p in active_pipeline:
-        if p.get('status') == 'coming_soon' and p.get('coming_soon_end'):
-            try:
-                end_str = p['coming_soon_end']
-                if isinstance(end_str, str):
-                    end_str = end_str.replace('Z', '+00:00')
-                    if '+' not in end_str and '-' not in end_str[-6:]:
-                        end_str += '+00:00'
-                    end = datetime.fromisoformat(end_str)
-                else:
-                    end = end_str
-                if end.tzinfo is None:
-                    end = end.replace(tzinfo=timezone.utc)
-                remaining = (end - now).total_seconds()
-                if 0 < remaining < 3600:
-                    triggers.append({
-                        'type': 'countdown',
-                        'message': pick_variant('countdown'),
-                        'priority': 'high',
-                        'action': '/create-film'
-                    })
-                    break
-            except:
-                pass
-
-    # --- Check PvP notifications ---
-    pvp_types = ['pvp_attack', 'pvp_boycott', 'legal_action', 'investigation']
-    pvp_notifs = [n for n in notifications if n.get('type') in pvp_types]
-    if pvp_notifs:
-        triggers.append({
-            'type': 'pvp_event',
-            'message': pick_variant('pvp_event'),
-            'priority': 'medium',
-            'action': '/notifications'
-        })
-
-    # --- No active films ---
+    # --- 4. No active films ---
     if not active_pipeline and not films_in_theaters:
-        triggers.append({
+        all_triggers.append({
             'type': 'no_films',
             'message': pick_variant('no_films'),
             'priority': 'high',
-            'action': '/create-film'
+            'action': '/create-film',
+            '_sort': PRIORITY_ORDER['no_films']
         })
 
-    # --- Low quality film ---
-    suggestions = []
+    # --- 5. Infrastructure upgrade available ---
+    infra_level = infra.get('studio_level', 0)
+    can_upgrade = False
+    if infra_level == 0 and user_funds >= 500000:
+        can_upgrade = True
+    elif infra_level >= 1 and user_funds >= (infra_level + 1) * 1000000:
+        can_upgrade = True
+    if can_upgrade:
+        all_triggers.append({
+            'type': 'infrastructure_upgrade',
+            'message': pick_variant('infrastructure_upgrade'),
+            'priority': 'medium',
+            'action': '/infrastructure',
+            '_sort': PRIORITY_ORDER['infrastructure_upgrade']
+        })
+
+    # --- 6. PvP events ---
+    pvp_types = ['pvp_attack', 'pvp_boycott', 'legal_action', 'investigation']
+    pvp_notifs = [n for n in notifications if n.get('type') in pvp_types]
+    if pvp_notifs:
+        all_triggers.append({
+            'type': 'pvp_event',
+            'message': pick_variant('pvp_event'),
+            'priority': 'medium',
+            'action': '/notifications',
+            '_sort': PRIORITY_ORDER['pvp_event']
+        })
+
+    # --- 7. Low quality film ---
     for p in active_pipeline:
         q = p.get('quality_score', 0)
         if q > 0 and q < 40:
-            suggestions.append(pick_variant('low_quality', title=p.get('title', 'Il tuo progetto')))
+            all_triggers.append({
+                'type': 'low_quality',
+                'message': pick_variant('low_quality', title=p.get('title', 'Il tuo progetto')),
+                'priority': 'low',
+                'action': '/create-film',
+                '_sort': PRIORITY_ORDER['low_quality']
+            })
             break
 
-    # --- Page-contextual suggestion ---
+    # --- 8. Social hint (if no other high-priority triggers) ---
+    if len(all_triggers) == 0 or all(t['_sort'] >= 8 for t in all_triggers):
+        total_films = len(films)
+        if total_films >= 3 and user_level >= 3:
+            all_triggers.append({
+                'type': 'social_hint',
+                'message': pick_variant('social_hint'),
+                'priority': 'low',
+                'action': '/hq',
+                '_sort': PRIORITY_ORDER['social_hint']
+            })
+
+    # Sort by priority and pick the TOP suggestion
+    all_triggers.sort(key=lambda t: t['_sort'])
+    advisor = None
+    if all_triggers:
+        advisor = all_triggers[0]
+        advisor.pop('_sort', None)
+
+    # Clean _sort from all triggers
+    for t in all_triggers:
+        t.pop('_sort', None)
+
+    # Page-contextual suggestion (only if no high-priority advisor)
     page_hint = None
+    suggestions = []
     if page:
         page_hint = get_page_suggestion(page, user_level)
         if page_hint:
             suggestions.append(page_hint['message'])
 
-    # --- Build context string for AI ---
+    # Build context string for AI
     context_parts = []
-    context_parts.append(f"Livello: {user.get('level', 1)}, Fama: {user.get('fame', 0)}, Fondi: ${user.get('funds', 0):,.0f}")
+    context_parts.append(f"Livello: {user_level}, Fama: {user.get('fame', 0)}, Fondi: ${user_funds:,.0f}")
     context_parts.append(f"Film completati: {len(films)}, In pipeline: {len(active_pipeline)}, In sala: {len(films_in_theaters)}")
     if pending_revenue > 0:
         context_parts.append(f"Incassi da riscuotere: ${pending_revenue:,}")
     if active_pipeline:
         statuses = [p.get('status', '?') for p in active_pipeline[:3]]
         context_parts.append(f"Pipeline: {', '.join(statuses)}")
+    if can_upgrade:
+        context_parts.append("Puo comprare upgrade infrastrutture")
     player_context = '. '.join(context_parts)
 
     return {
-        'triggers': triggers,
+        'advisor': advisor,
+        'triggers': all_triggers,
         'suggestions': suggestions,
         'player_context': player_context,
         'page_hint': page_hint,
         'stats_summary': {
-            'level': user.get('level', 1),
+            'level': user_level,
             'fame': user.get('fame', 0),
-            'funds': user.get('funds', 0),
+            'funds': user_funds,
             'total_films': len(films),
             'active_pipeline': len(active_pipeline),
             'films_in_theaters': len(films_in_theaters),
             'pending_revenue': pending_revenue,
-            'has_unread_pvp': len(pvp_notifs) > 0
+            'has_unread_pvp': len(pvp_notifs) > 0,
+            'can_upgrade_infra': can_upgrade
         }
     }
 
@@ -581,3 +687,22 @@ async def velion_tips(category: str = 'general', count: int = 3, user: dict = De
         all_tips.extend(VELION_TIPS.get('general', []))
     picked = random.sample(all_tips, min(count, len(all_tips)))
     return {'tips': picked, 'category': category}
+
+
+@router.get("/login-greeting")
+async def velion_login_greeting(user: dict = Depends(_get_user)):
+    state = await analyze_player_state(user)
+    advisor = state.get('advisor')
+    greeting = pick_variant('login_greeting')
+
+    # Combine greeting with top advisor suggestion
+    message = greeting
+    if advisor:
+        message = f"{greeting} {advisor['message']}"
+
+    return {
+        'greeting': greeting,
+        'advisor': advisor,
+        'message': message,
+        'stats': state.get('stats_summary', {})
+    }

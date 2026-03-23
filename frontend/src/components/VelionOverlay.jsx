@@ -63,16 +63,15 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
       const currentPage = location.pathname;
       const idle = idleMinutesRef.current;
       const res = await api.get(`/velion/player-status?page=${encodeURIComponent(currentPage)}&idle_minutes=${idle}`);
-      const triggers = res.data?.triggers || [];
+      const advisor = res.data?.advisor;
       const pageHint = res.data?.page_hint;
 
-      if (triggers.length > 0) {
-        // Pick a trigger we haven't shown recently
-        const pick = triggers.find(t => t.type !== lastBubbleType) || triggers[0];
-        setBubble(pick);
-        setHasAlert(pick.priority !== 'low');
-        setLastBubbleType(pick.type);
-        setTimeout(() => setBubble(null), pick.priority === 'low' ? 10000 : 8000);
+      if (advisor) {
+        // Show only the TOP priority suggestion
+        setBubble(advisor);
+        setHasAlert(advisor.priority === 'high');
+        setLastBubbleType(advisor.type);
+        setTimeout(() => setBubble(null), advisor.priority === 'high' ? 10000 : 8000);
       } else if (pageHint) {
         setBubble({ ...pageHint, priority: 'low' });
         setHasAlert(false);
@@ -83,7 +82,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     } catch {
       // silent
     }
-  }, [api, user, location.pathname, lastBubbleType]);
+  }, [api, user, location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user || !api) return;
@@ -93,12 +92,34 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick }) => {
     return () => { clearTimeout(initTimer); clearInterval(interval); };
   }, [user, api, fetchTriggers]);
 
-  // Re-fetch when page changes (with delay to let page settle)
+  // Login greeting — show once per session
+  useEffect(() => {
+    if (!user || !api) return;
+    const sessionKey = `velion_greeted_${user.id}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, 'true');
+
+    const greetTimer = setTimeout(async () => {
+      try {
+        const res = await api.get('/velion/login-greeting');
+        const msg = res.data?.message;
+        if (msg) {
+          setBubble({ type: 'login_greeting', message: msg, priority: 'high', action: null });
+          setHasAlert(true);
+          setTimeout(() => setBubble(null), 12000);
+        }
+      } catch {}
+    }, 4000);
+    return () => clearTimeout(greetTimer);
+  }, [user, api]);
+
+  // Re-fetch when page changes (quick for high-priority, delayed for context hints)
   useEffect(() => {
     if (!user || !api) return;
     setBubble(null);
-    const timer = setTimeout(fetchTriggers, PAGE_HINT_DELAY);
-    return () => clearTimeout(timer);
+    // Quick fetch for important triggers, page hints come after delay
+    const quickTimer = setTimeout(fetchTriggers, 2000);
+    return () => clearTimeout(quickTimer);
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBubbleClick = () => {

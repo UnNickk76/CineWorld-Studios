@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
+import { FilmProductionCard } from '../components/FilmProductionCard';
+import FilmPopup from '../components/FilmPopup';
 
 // Haptic feedback utility
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
@@ -2849,14 +2851,25 @@ const PlaceholderTab = ({ icon: Icon, name }) => (
   </div>
 );
 
-// ============ MAIN PAGE ============
+// ============ MAIN PAGE (NEW FILM-CENTRIC UX) ============
 const FilmPipeline = () => {
   const { api, refreshUser, cachedGet } = useContext(AuthContext);
-  const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'creation';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [films, setFilms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFilm, setSelectedFilm] = useState(null);
+  const [countdowns, setCountdowns] = useState({});
   const [counts, setCounts] = useState({});
-  const [showInfo, setShowInfo] = useState(false);
+  const [showCreation, setShowCreation] = useState(false);
+
+  const loadFilms = useCallback(async () => {
+    try {
+      const res = await api.get('/film-pipeline/all');
+      const safe = (res.data.projects || []).filter(p => p && p.id && p.title);
+      setFilms(safe);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [api]);
 
   const refreshCounts = useCallback(async () => {
     try {
@@ -2865,95 +2878,165 @@ const FilmPipeline = () => {
     } catch (e) { console.error(e); }
   }, [api]);
 
-  useEffect(() => { refreshCounts(); }, [refreshCounts]);
+  useEffect(() => {
+    loadFilms();
+    refreshCounts();
+    const interval = setInterval(loadFilms, 30000);
+    return () => clearInterval(interval);
+  }, [loadFilms, refreshCounts]);
 
-  const getCount = (tab) => {
-    const map = {
-      creation: counts.creation || 0,
-      proposals: counts.proposed || 0,
-      casting: counts.casting || 0,
-      screenplay: counts.screenplay || 0,
-      pre_production: counts.pre_production || 0,
-      shooting: counts.shooting || 0
+  // Handle ?film=xxx from notifications
+  useEffect(() => {
+    const filmId = searchParams.get('film');
+    if (filmId && films.length > 0) {
+      const f = films.find(p => p.id === filmId);
+      if (f) {
+        setSelectedFilm(f);
+        setSearchParams({}, { replace: true }); // Clean URL
+      }
+    }
+  }, [searchParams, films, setSearchParams]);
+
+  // Countdown timer for coming soon films
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const cd = {};
+      films.forEach(f => {
+        if (f.status === 'coming_soon' && f.scheduled_release_at) {
+          const diff = new Date(f.scheduled_release_at) - now;
+          if (diff > 0) {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            cd[f.id] = `${h}h ${m}m`;
+          } else {
+            cd[f.id] = null;
+          }
+        }
+      });
+      setCountdowns(cd);
     };
-    return map[tab] || 0;
+    update();
+    const i = setInterval(update, 10000);
+    return () => clearInterval(i);
+  }, [films]);
+
+  const handleRefresh = () => {
+    loadFilms().then(() => {
+      // Update the selectedFilm data if popup is open
+      if (selectedFilm) {
+        setSelectedFilm(prev => {
+          if (!prev) return null;
+          return null; // Close popup to refresh, re-open handled in next render
+        });
+      }
+    });
+    refreshCounts();
+  };
+
+  // Re-open popup after refresh if the film still exists
+  const handlePopupRefresh = async () => {
+    try {
+      const res = await api.get('/film-pipeline/all');
+      const safe = (res.data.projects || []).filter(p => p && p.id && p.title);
+      setFilms(safe);
+      if (selectedFilm) {
+        const updated = safe.find(f => f.id === selectedFilm.id);
+        if (updated) setSelectedFilm(updated);
+        else setSelectedFilm(null); // Film was discarded or completed
+      }
+    } catch (e) { console.error(e); }
+    refreshCounts();
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white p-4 pt-16 pb-20">
+    <div className="min-h-screen bg-[#0A0A0B] text-white p-4 pt-16 pb-20" data-testid="film-pipeline-page">
       <div className="max-w-lg mx-auto">
-        {/* Pipeline Step Bar - Visual flow indicator */}
-        <PipelineStepBar activeTab={activeTab} counts={counts} onTabChange={setActiveTab} />
-
-        {/* Tab Icon Bar (compact) */}
-        <div className="flex items-center justify-center gap-1 mb-3 bg-[#111] rounded-lg p-1 border border-gray-800" data-testid="pipeline-tabs">
-          {TABS.map(tab => {
-            const count = getCount(tab.id);
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center justify-center w-9 h-9 rounded-md transition-all ${
-                  isActive ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/40' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                }`} data-testid={`tab-${tab.id}`}>
-                <Icon className="w-4 h-4" />
-                {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[7px] text-white flex items-center justify-center font-bold">
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <button onClick={() => setShowInfo(true)}
-            className="flex items-center justify-center w-9 h-9 rounded-md text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-all"
-            data-testid="info-btn">
-            <HelpCircle className="w-4 h-4" />
-          </button>
+        {/* Page Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl text-white">Produci!</h1>
+            <p className="text-[10px] text-gray-500">
+              Film attivi: {counts.total_active || 0}/{counts.max_simultaneous || 2}
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowCreation(!showCreation)}
+            className={`h-9 px-4 text-xs font-bold transition-all ${
+              showCreation
+                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                : 'bg-yellow-600 hover:bg-yellow-500 text-black'
+            }`}
+            data-testid="toggle-creation-btn"
+          >
+            {showCreation ? (
+              <><X className="w-3.5 h-3.5 mr-1" /> Chiudi</>
+            ) : (
+              <><Pencil className="w-3.5 h-3.5 mr-1" /> Nuovo Film</>
+            )}
+          </Button>
         </div>
 
-        {/* Max films info */}
-        {counts.max_simultaneous && (
-          <p className="text-[10px] text-gray-600 text-center mb-3">
-            Film attivi: {counts.total_active || 0}/{counts.max_simultaneous}
-          </p>
+        {/* Creation Form (collapsible) */}
+        {showCreation && (
+          <div className="mb-4">
+            <TabErrorBoundary name="creation">
+              <CreationTab api={api} refreshUser={refreshUser} refreshCounts={() => { handleRefresh(); setShowCreation(false); }} cachedGet={cachedGet} />
+            </TabErrorBoundary>
+          </div>
         )}
 
-        {/* Tab Content - Each wrapped in TabErrorBoundary to prevent cascade crashes */}
-        {activeTab === 'creation' && <TabErrorBoundary name="creation"><CreationTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} cachedGet={cachedGet} /></TabErrorBoundary>}
-        {activeTab === 'proposals' && <TabErrorBoundary name="proposals"><ProposalsTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
-        {activeTab === 'casting' && <TabErrorBoundary name="casting"><CastingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
-        {activeTab === 'screenplay' && <TabErrorBoundary name="screenplay"><ScreenplayTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
-        {activeTab === 'pre_production' && <TabErrorBoundary name="pre_production"><PreProductionTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
-        {activeTab === 'shooting' && <TabErrorBoundary name="shooting"><ShootingTab api={api} refreshUser={refreshUser} refreshCounts={refreshCounts} /></TabErrorBoundary>}
+        {/* Film Production List */}
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-yellow-500/50" />
+            <p className="text-xs">Caricamento produzioni...</p>
+          </div>
+        ) : films.length === 0 ? (
+          <div className="text-center py-16">
+            <Film className="w-12 h-12 mx-auto mb-3 text-gray-700" />
+            <p className="text-sm text-gray-500 mb-1">Nessun film in produzione</p>
+            <p className="text-[10px] text-gray-600 mb-4">Crea il tuo primo film per iniziare!</p>
+            {!showCreation && (
+              <Button onClick={() => setShowCreation(true)} className="bg-yellow-600 hover:bg-yellow-500 text-black text-xs"
+                data-testid="create-first-film-btn">
+                <Pencil className="w-3.5 h-3.5 mr-1" /> Crea il tuo primo film
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2" data-testid="film-list">
+            <div className="flex items-center gap-2 mb-2">
+              <Film className="w-4 h-4 text-yellow-500" />
+              <h2 className="font-['Bebas_Neue'] text-lg text-gray-300">I tuoi Film</h2>
+              <Badge className="bg-yellow-500/15 text-yellow-400 text-[9px] h-5">{films.length}</Badge>
+            </div>
+            {films.map(f => (
+              <FilmProductionCard
+                key={f.id}
+                film={f}
+                countdown={countdowns[f.id]}
+                onClick={() => {
+                  setSelectedFilm(f);
+                  haptic([15]);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* Buzz Section - visible when on shooting tab */}
-        {activeTab === 'shooting' && <BuzzSection api={api} refreshUser={refreshUser} />}
+        {/* Buzz Section */}
+        <BuzzSection api={api} refreshUser={refreshUser} />
       </div>
 
-      {/* Info Dialog */}
-      <Dialog open={showInfo} onOpenChange={setShowInfo}>
-        <DialogContent className="bg-[#1A1A1B] border-gray-800 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Guida alla Produzione</DialogTitle>
-            <DialogDescription className="text-gray-400">Le fasi per creare il tuo film</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            {TABS.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <div key={tab.id} className="flex items-start gap-3 p-2 rounded bg-black/20">
-                  <Icon className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium">{tab.label}</p>
-                    <p className="text-[10px] text-gray-500">{tab.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Film Popup */}
+      <FilmPopup
+        film={selectedFilm}
+        open={!!selectedFilm}
+        onClose={() => setSelectedFilm(null)}
+        onRefresh={handlePopupRefresh}
+        countdown={selectedFilm ? countdowns[selectedFilm.id] : null}
+      />
     </div>
   );
 };

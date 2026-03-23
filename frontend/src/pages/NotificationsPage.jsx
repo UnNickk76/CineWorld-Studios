@@ -134,6 +134,16 @@ const NotificationsPage = () => {
       setActorPopup(notif.data);
       return;
     }
+    // Film-related notifications → open film popup
+    const filmTypes = [
+      'coming_soon_support', 'coming_soon_boycott', 'coming_soon_time_change',
+      'coming_soon_completed', 'phase_completed', 'production_problem', 'film_interaction'
+    ];
+    const projectId = notif.data?.project_id || notif.data?.film_project_id;
+    if (filmTypes.includes(notif.type) && projectId) {
+      navigate(`/create-film?film=${projectId}`);
+      return;
+    }
     // Direct link - navigate there
     const navPath = notif.link || notif.data?.path;
     if (navPath) { 

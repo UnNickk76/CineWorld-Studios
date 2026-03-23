@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Shield, Gavel, ArrowUp, Lock, Zap, DollarSign, Loader2,
-  ChevronRight, AlertTriangle, CheckCircle, Star, Swords, Clock, History
+  ChevronRight, AlertTriangle, CheckCircle, Star, Swords, Clock, History, Building
 } from 'lucide-react';
 
 const DIVISION_ICONS = {
@@ -24,7 +24,7 @@ const DIVISION_COLORS = {
   legal: { bg: 'from-purple-500/20 to-purple-900/10', border: 'border-purple-500/30', text: 'text-purple-400', badge: 'bg-purple-500/15 text-purple-400 border-purple-500/30', glow: 'shadow-purple-500/20' },
 };
 
-const DivisionCard = ({ divId, data, onUpgrade, upgrading, playerFunds, playerCp }) => {
+const DivisionCard = ({ divId, data, onUpgrade, upgrading, playerFunds, playerCp, navigate }) => {
   const colors = DIVISION_COLORS[divId];
   const Icon = DIVISION_ICONS[divId];
   const config = data.config;
@@ -80,8 +80,23 @@ const DivisionCard = ({ divId, data, onUpgrade, upgrading, playerFunds, playerCp
             </div>
           </div>
 
-          {/* Upgrade Section */}
-          {data.next_level ? (
+          {/* Upgrade / Purchase Section */}
+          {level === 0 ? (
+            /* NOT purchased yet - redirect to Infrastructure board */
+            <div className="bg-black/30 rounded-lg p-3 space-y-2 border border-dashed border-white/10 text-center">
+              <Lock className={`w-5 h-5 mx-auto ${colors.text} opacity-50`} />
+              <p className="text-xs text-gray-400">Non ancora acquistata</p>
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs bg-yellow-600/80 hover:bg-yellow-600 text-white font-bold"
+                onClick={() => navigate('/infrastructure')}
+                data-testid={`buy-from-infra-${divId}`}
+              >
+                <Building className="w-3.5 h-3.5 mr-1.5" />
+                Acquista da Infrastrutture
+              </Button>
+            </div>
+          ) : data.next_level ? (
             <div className="bg-black/30 rounded-lg p-3 space-y-3 border border-white/5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400 flex items-center gap-1.5">
@@ -288,6 +303,7 @@ const HqPage = () => {
               upgrading={upgrading === divId}
               playerFunds={status.funds || 0}
               playerCp={status.cinepass || 0}
+              navigate={navigate}
             />
           ))}
         </div>

@@ -38,7 +38,7 @@ async def get_infrastructure_types(user: dict = Depends(get_current_user)):
     fame = user.get('fame', 50)
     
     # Check which unique types are already owned
-    unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters']
+    unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters', 'pvp_investigative', 'pvp_operative', 'pvp_legal']
     owned_unique = set()
     for ut in unique_types:
         count = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': ut})
@@ -110,6 +110,66 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     if fame < infra_type['fame_required']:
         raise HTTPException(status_code=400, detail=f"Fame {infra_type['fame_required']} required")
     
+    # PvP infrastructure: no city required, activate pvp division
+    is_pvp = infra_type.get('is_pvp', False)
+    pvp_division = infra_type.get('pvp_division')
+
+    if is_pvp:
+        # PvP infra: use base_cost directly, no city needed
+        cost = infra_type['base_cost']
+        cp_cost_pvp = {'pvp_investigative': 5, 'pvp_operative': 3, 'pvp_legal': 10}.get(request.type, 5)
+        from routes.cinepass import spend_cinepass
+        await spend_cinepass(user['id'], cp_cost_pvp, user.get('cinepass', 100))
+
+        if user.get('funds', 0) < cost:
+            raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+
+        # Check legal requires investigative
+        if request.type == 'pvp_legal':
+            divs = user.get('pvp_divisions', {})
+            inv_level = divs.get('investigative', {}).get('level', 0)
+            if inv_level < 1:
+                raise HTTPException(status_code=400, detail="Richiesta Divisione Investigativa (Lv 1) per acquistare la Divisione Legale")
+
+        new_infra = {
+            'id': str(uuid.uuid4()),
+            'owner_id': user['id'],
+            'type': request.type,
+            'custom_name': infra_type['name_it'],
+            'city': {'name': 'HQ', 'country': 'Strategico'},
+            'country': 'Strategico',
+            'level': 1,
+            'purchase_cost': cost,
+            'purchase_date': datetime.now(timezone.utc).isoformat(),
+            'prices': {},
+            'films_showing': [],
+            'total_revenue': 0,
+            'daily_revenues': [],
+            'pending_revenue': 0,
+            'last_revenue_update': datetime.now(timezone.utc).isoformat(),
+            'last_collection': datetime.now(timezone.utc).isoformat()
+        }
+        await db.infrastructure.insert_one(new_infra)
+
+        # Activate pvp division to level 1
+        new_funds = user['funds'] - cost
+        new_xp = user.get('total_xp', 0) + XP_REWARDS['infrastructure_purchase']
+        update_ops = {'$set': {'funds': new_funds, 'total_xp': new_xp}}
+        if pvp_division:
+            update_ops['$set'][f'pvp_divisions.{pvp_division}.level'] = 1
+            update_ops['$set'][f'pvp_divisions.{pvp_division}.daily_used'] = 0
+            update_ops['$set'][f'pvp_divisions.{pvp_division}.last_reset'] = datetime.now(timezone.utc).isoformat()
+
+        await db.users.update_one({'id': user['id']}, update_ops)
+
+        return {
+            'infrastructure': {k: v for k, v in new_infra.items() if k != '_id'},
+            'cost': cost,
+            'new_funds': new_funds,
+            'xp_gained': XP_REWARDS['infrastructure_purchase'],
+            'pvp_division_activated': pvp_division
+        }
+
     # Find city
     cities = WORLD_CITIES.get(request.country, [])
     city = next((c for c in cities if c['name'] == request.city_name), None)
@@ -124,9 +184,9 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
             raise HTTPException(status_code=400, detail=f"First cinema must be in {language_country}")
     
     # Block duplicate purchase for unique infrastructure types
-    unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters']
+    unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters', 'pvp_investigative', 'pvp_operative', 'pvp_legal']
     if request.type in unique_types and existing > 0:
-        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Talent Scout Attori', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori'}
+        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Talent Scout Attori', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori', 'pvp_investigative': 'Divisione Investigativa', 'pvp_operative': 'Divisione Operativa', 'pvp_legal': 'Divisione Legale'}
         raise HTTPException(status_code=400, detail=f"Possiedi già una {names.get(request.type, request.type)}! Puoi averne solo una.")
     
     # Exponential scaling for emittente_tv (multiple purchases allowed)

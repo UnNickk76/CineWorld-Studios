@@ -48,7 +48,8 @@ import { SKILL_TRANSLATIONS } from '../constants';
 const INFRA_CINEPASS = {
   cinema: 10, drive_in_cinema: 8, multiplex: 15, cinema_school: 12,
   vip_cinema: 15, production_studio: 20, imax: 18,
-  centro_commerciale_piccolo: 10, centro_commerciale_medio: 14, centro_commerciale_grande: 18
+  centro_commerciale_piccolo: 10, centro_commerciale_medio: 14, centro_commerciale_grande: 18,
+  pvp_investigative: 5, pvp_operative: 3, pvp_legal: 10
 };
 import { LoadingSpinner } from '../components/ErrorBoundary';
 
@@ -119,18 +120,21 @@ const InfrastructurePage = () => {
   };
 
   const handlePurchase = async () => {
-    if (!selectedType || !selectedCountry || !selectedCity) return;
+    if (!selectedType) return;
+    const isPvp = selectedType.is_pvp;
+    if (!isPvp && (!selectedCountry || !selectedCity)) return;
     setPurchasing(true);
     try {
-      const res = await api.post('/infrastructure/purchase', {
+      const payload = {
         type: selectedType.id,
-        city_name: selectedCity,
-        country: selectedCountry,
+        city_name: isPvp ? 'HQ' : selectedCity,
+        country: isPvp ? 'Strategico' : selectedCountry,
         custom_name: customName || null
-      });
+      };
+      const res = await api.post('/infrastructure/purchase', payload);
       toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
       setShowPurchaseDialog(false);
-      // Refresh
+      if (refreshUser) refreshUser();
       const my = await api.get('/infrastructure/my');
       setMyInfra(my.data);
     } catch (e) {
@@ -500,6 +504,27 @@ const InfrastructurePage = () => {
               <Label className="text-xs">Nome personalizzato</Label>
               <Input value={customName} onChange={e => setCustomName(e.target.value)} placeholder={`${user?.nickname}'s ${selectedType?.name}`} className="h-9 bg-black/20 border-white/10" />
             </div>
+            {selectedType?.is_pvp ? (
+              /* PvP infrastructure: no city needed */
+              <div className="p-3 bg-red-500/10 rounded border border-red-500/20">
+                <p className="text-xs text-gray-400 mb-2">Struttura strategica (PvP) - non richiede posizione</p>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm">Costo:</span>
+                  <span className="text-yellow-500 font-bold">${selectedType?.base_cost?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>I tuoi fondi:</span>
+                  <span className={user?.funds >= (selectedType?.base_cost || 0) ? 'text-green-400' : 'text-red-400'}>${user?.funds?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span className="flex items-center gap-1"><Ticket className="w-3 h-3 text-cyan-400" /> CinePass:</span>
+                  <span className={user?.cinepass >= (INFRA_CINEPASS[selectedType?.id] || 5) ? 'text-green-400' : 'text-red-400'}>
+                    {INFRA_CINEPASS[selectedType?.id] || 5} richiesti ({user?.cinepass ?? 100} disponibili)
+                  </span>
+                </div>
+              </div>
+            ) : (
+            <>
             <div>
               <Label className="text-xs">Paese</Label>
               <Select value={selectedCountry} onValueChange={v => { setSelectedCountry(v); setSelectedCity(''); }}>
@@ -544,10 +569,12 @@ const InfrastructurePage = () => {
                 </div>
               </div>
             )}
+            </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPurchaseDialog(false)}>Annulla</Button>
-            <Button onClick={handlePurchase} disabled={purchasing || !selectedCity || user?.funds < getCityPrice()} className="bg-yellow-500 text-black">
+            <Button onClick={handlePurchase} disabled={purchasing || (!selectedType?.is_pvp && (!selectedCity || user?.funds < getCityPrice())) || (selectedType?.is_pvp && user?.funds < (selectedType?.base_cost || 0))} className="bg-yellow-500 text-black">
               {purchasing ? 'Acquistando...' : 'Conferma Acquisto'}
             </Button>
           </DialogFooter>

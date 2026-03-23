@@ -657,6 +657,57 @@ INFRASTRUCTURE_TYPES = {
         'revenue_multiplier': 0,
         'max_level': 5,
         'icon': 'pen-tool'
+    },
+    'pvp_investigative': {
+        'id': 'pvp_investigative',
+        'name': 'Investigative HQ',
+        'name_it': 'Divisione Investigativa',
+        'description': 'Investigate boycotts to discover who sabotaged your films',
+        'description_it': 'Indaga sui boicottaggi ricevuti per scoprire il responsabile. Struttura strategica, non genera introiti.',
+        'level_required': 3,
+        'fame_required': 0,
+        'base_cost': 500000,
+        'screens': 0,
+        'seats_per_screen': 0,
+        'daily_maintenance': 0,
+        'revenue_multiplier': 0,
+        'is_pvp': True,
+        'pvp_division': 'investigative',
+        'icon': 'search'
+    },
+    'pvp_operative': {
+        'id': 'pvp_operative',
+        'name': 'Operations Division',
+        'name_it': 'Divisione Operativa',
+        'description': 'Execute boycotts and counter-boycotts against rivals',
+        'description_it': 'Esegui boicottaggi difensivi e contro-attacchi mirati ai sabotatori. Struttura strategica, non genera introiti.',
+        'level_required': 2,
+        'fame_required': 0,
+        'base_cost': 300000,
+        'screens': 0,
+        'seats_per_screen': 0,
+        'daily_maintenance': 0,
+        'revenue_multiplier': 0,
+        'is_pvp': True,
+        'pvp_division': 'operative',
+        'icon': 'shield'
+    },
+    'pvp_legal': {
+        'id': 'pvp_legal',
+        'name': 'Legal Department',
+        'name_it': 'Divisione Legale',
+        'description': 'Take legal action against identified saboteurs',
+        'description_it': 'Avvia azioni legali contro sabotatori identificati. Richiede Divisione Investigativa. Struttura strategica.',
+        'level_required': 5,
+        'fame_required': 60,
+        'base_cost': 1000000,
+        'screens': 0,
+        'seats_per_screen': 0,
+        'daily_maintenance': 0,
+        'revenue_multiplier': 0,
+        'is_pvp': True,
+        'pvp_division': 'legal',
+        'icon': 'gavel'
     }
 }
 

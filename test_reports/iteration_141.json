@@ -1,0 +1,85 @@
+{
+  "summary": "Festival System Steps 4-5-6 Testing Complete - Iteration 141. All features verified: Unpredictable AI system for non-player festivals (hidden factors), Cinematic Live Ceremony component with 9 animated phases, Enhanced Player Festivals with max_participants, winner badges, and custom festival leaderboard. Fixed route ordering bug for /custom-festivals/leaderboard endpoint.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter141_festival_steps456.py",
+    "/app/test_reports/pytest/pytest_iter141_festival_steps456.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED: Route ordering bug - /custom-festivals/leaderboard was defined after /custom-festivals/{festival_id}, causing 'leaderboard' to be matched as festival_id. Moved leaderboard route before the parameterized route.",
+    "Step 4 (AI System): announce_winner endpoint correctly implements 3 voting types: player (50% votes + 50% virtual audience), algorithm (pure quality: 50% quality + 35% satisfaction + 15% budget efficiency), ai (hidden factors: hype, viral, rumor, critic bias, random events)",
+    "Step 5 (Cinematic Ceremony): CinematicCeremony component exists with 9 phases (intro, presentation, category, nomination, suspense, reveal, prize, transition, finale), framer-motion animations, CSS keyframes injection, chat sidebar",
+    "Step 6 (Enhanced Player Festivals): CustomFestivalCreate model includes max_participants (5-50), festival_badges collection for winner badges, leaderboard endpoint returns top_creators and top_winners"
+  ],
+  "updated_files": [
+    "/app/backend/server.py (moved leaderboard route before {festival_id} route)",
+    "/app/backend/tests/test_iter141_festival_steps456.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 passed, 1 skipped)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "test_credentials": {
+    "email": "test@test.com",
+    "password": "test1234"
+  },
+  "seed_data_creation": "None - used existing test user and festival data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Festival System Steps 4-5-6 fully verified. Key findings: 1) 3 official festivals with different voting types: golden_stars (player), spotlight_awards (ai), cinema_excellence (algorithm). 2) announce_winner endpoint has 3 different winner selection algorithms based on voting_type. 3) CinematicCeremony component has 9 animated phases with framer-motion. 4) Custom festivals support max_participants (5-50) and winner badges stored in festival_badges collection. 5) Leaderboard endpoint returns top_creators and top_winners arrays. 6) All 5 tabs working: Festival, Player, Classifica, Premi, Storico. 7) Mobile view (390x844) works correctly.",
+  "verified_features": {
+    "step_4_ai_system": {
+      "player_voting": "50% player votes + 50% virtual audience (virtual_likes/10)",
+      "algorithm_voting": "Pure technical quality: quality*0.50 + satisfaction*0.35 + budget_efficiency*0.15",
+      "ai_voting": "Hidden factors: hype_factor (gauss 0,15), viral_factor (-10,20), rumor_factor (choice), critic_bias (gauss 0,8), event_factor (choice)",
+      "status": "VERIFIED"
+    },
+    "step_5_cinematic_ceremony": {
+      "component": "CinematicCeremony.jsx",
+      "phases": ["intro", "presentation", "category", "nomination", "suspense", "reveal", "prize", "transition", "finale"],
+      "features": ["framer-motion animations", "CSS keyframes injection", "chat sidebar", "skip button", "progress bar"],
+      "status": "VERIFIED"
+    },
+    "step_6_enhanced_player_festivals": {
+      "max_participants": "5-50 (configurable)",
+      "winner_badges": "Stored in festival_badges collection",
+      "leaderboard": "GET /api/custom-festivals/leaderboard returns top_creators and top_winners",
+      "status": "VERIFIED"
+    },
+    "endpoints_tested": {
+      "GET /api/festivals?language=it": "Returns 3 festivals with voting_type (player/ai/algorithm)",
+      "GET /api/festivals/countdown?language=it": "Returns current_state and state_label for each festival",
+      "GET /api/festivals/{festival_id}/current?language=it": "Returns edition with categories and nominees (max 5 per category)",
+      "POST /api/festivals/vote": "Works for player festivals, returns vote_weight and votes_remaining_today",
+      "POST /api/festivals/{festival_id}/start-ceremony": "Changes status to ceremony",
+      "POST /api/festivals/{festival_id}/announce-winner/{category_id}": "Uses different logic per voting_type",
+      "GET /api/custom-festivals": "Returns list of custom festivals",
+      "GET /api/custom-festivals/leaderboard": "Returns top_creators and top_winners arrays",
+      "GET /api/users/{user_id}/badges": "Returns badges array",
+      "GET /api/custom-festivals/creation-cost": "Returns creation cost info"
+    },
+    "ui_features_tested": {
+      "5_tabs": "Festival, Player, Classifica, Premi, Storico - VERIFIED",
+      "countdown_banners": "State badges and voting type badges - VERIFIED",
+      "festival_cards": "Rewards preview (XP, Fame, Money, CinePass) - VERIFIED",
+      "festival_detail": "Categories with nominees and vote buttons - VERIFIED",
+      "player_tab": "'Crea il Tuo Festival' card with creation cost - VERIFIED",
+      "mobile_view": "390x844 viewport works correctly - VERIFIED"
+    }
+  },
+  "bug_fixed": {
+    "issue": "GET /api/custom-festivals/leaderboard returning 404 'Festival non trovato'",
+    "root_cause": "Route ordering - /custom-festivals/leaderboard was defined at line 16958, after /custom-festivals/{festival_id} at line 16548. FastAPI matches routes in order, so 'leaderboard' was being treated as a festival_id parameter.",
+    "fix": "Moved leaderboard route definition before the {festival_id} parameterized route",
+    "file": "/app/backend/server.py"
+  }
+}

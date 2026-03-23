@@ -30,6 +30,7 @@ import {
   Tv, User, Wand2
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
+import { CinematicCeremony } from '../components/CinematicCeremony';
 
 // ═══════════════════════════════════════════════════
 // HOOKS
@@ -976,105 +977,35 @@ const FestivalsPage = () => {
         </div>
       )}
 
-      {/* ═══ LIVE CEREMONY OVERLAY ═══ */}
+      {/* ═══ LIVE CEREMONY OVERLAY (CINEMATIC) ═══ */}
       {showLiveCeremony && liveCeremony && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex flex-col" onClick={closeLiveCeremony}>
-          <div className="flex-1 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex-1 p-3 sm:p-4 overflow-y-auto min-h-0">
-              <div className="max-w-4xl mx-auto">
-                <div className="flex items-start justify-between mb-4 gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h1 className="font-['Bebas_Neue'] text-xl sm:text-3xl text-yellow-400 flex items-center gap-2 truncate">
-                      <Tv className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-                      <span className="truncate">{liveCeremony.festival_name}</span>
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-400 mt-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        LIVE | {liveCeremony.viewers_count} spettatori
-                      </span>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={closeLiveCeremony} className="bg-red-500/10 border-red-500/50 hover:bg-red-500 hover:text-white h-8 px-2 sm:px-3 flex-shrink-0">
-                    <X className="w-4 h-4" /><span className="hidden sm:inline ml-1">Chiudi</span>
-                  </Button>
-                </div>
-
-                <div className="space-y-3">
-                  {liveCeremony.categories?.map(cat => (
-                    <Card key={cat.category_id} className={`bg-[#141416] border-white/10 ${cat.is_announced ? 'border-yellow-500/50' : ''}`}>
-                      <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <CardTitle className="font-['Bebas_Neue'] text-base sm:text-lg flex items-center gap-2">
-                            <Award className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
-                            {cat.category_name}
-                          </CardTitle>
-                          {cat.is_announced ? (
-                            <Badge className="bg-yellow-500 text-black text-[10px] sm:text-xs">VINCITORE</Badge>
-                          ) : cat.favorite && (
-                            <Badge className="bg-purple-500/20 text-purple-400 text-[10px] sm:text-xs">
-                              Papabile: {cat.favorite.name?.split(' ')[0]} ({cat.favorite.win_probability}%)
-                            </Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-                        <div className="grid gap-1.5 sm:gap-2">
-                          {cat.nominees?.map(nom => (
-                            <div key={nom.id} className={`flex items-center gap-2 p-1.5 sm:p-2 rounded transition-all ${cat.winner?.id === nom.id ? 'bg-yellow-500/20 border border-yellow-500' : 'bg-white/5'}`}>
-                              <div className="flex-1 min-w-0">
-                                <p className={`font-medium text-xs sm:text-sm truncate ${cat.winner?.id === nom.id ? 'text-yellow-400' : ''}`}>
-                                  {nom.name}
-                                  {cat.winner?.id === nom.id && <Trophy className="w-3 h-3 inline ml-1 text-yellow-500" />}
-                                </p>
-                                {nom.film_title && <p className="text-[9px] sm:text-xs text-gray-400 truncate">{nom.film_title}</p>}
-                              </div>
-                              <div className="text-right flex-shrink-0 min-w-[40px]">
-                                <div className="text-xs font-bold" style={{ color: `hsl(${(nom.win_probability || 20) * 1.2}, 70%, 50%)` }}>
-                                  {nom.win_probability || 0}%
-                                </div>
-                                <div className="text-[8px] text-gray-500">{nom.votes}v</div>
-                              </div>
-                              <div className="w-12 sm:w-20 h-1.5 bg-white/10 rounded-full overflow-hidden flex-shrink-0">
-                                <div className="h-full bg-gradient-to-r from-purple-500 to-yellow-500 transition-all" style={{ width: `${nom.win_probability || 0}%` }} />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Chat sidebar */}
-            <div className="w-full md:w-80 bg-[#0D0D0D] border-t md:border-t-0 md:border-l border-white/10 flex flex-col max-h-[40vh] md:max-h-none">
-              <div className="p-3 border-b border-white/10 flex items-center justify-between">
-                <h3 className="font-semibold text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Chat Live</h3>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[100px]">
-                {liveCeremony.chat_messages?.map(msg => (
-                  <div key={msg.id} className="text-sm">
-                    <span className="font-semibold text-yellow-400">{msg.nickname}:</span>
-                    <span className="text-gray-300 ml-1">{msg.message}</span>
-                  </div>
-                ))}
-                {(!liveCeremony.chat_messages || liveCeremony.chat_messages.length === 0) && (
-                  <p className="text-gray-500 text-center text-sm">Nessun messaggio ancora</p>
-                )}
-              </div>
-              <div className="p-2 md:p-3 border-t border-white/10">
-                <div className="flex gap-2">
-                  <Input value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder="Scrivi..." className="flex-1 bg-white/5 border-white/10 text-sm h-9" maxLength={200} onKeyDown={e => e.key === 'Enter' && sendChatMessage()} />
-                  <Button size="sm" onClick={sendChatMessage} disabled={sendingChat || !chatMessage.trim()} className="bg-yellow-500 text-black h-9 px-3">
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CinematicCeremony
+          festivalId={liveCeremony.festival_id}
+          festivalName={liveCeremony.festival_name}
+          edition={liveCeremony}
+          rewards={liveCeremony.rewards}
+          categories={liveCeremony.categories}
+          chatMessages={liveCeremony.chat_messages}
+          viewersCount={liveCeremony.viewers_count}
+          onClose={closeLiveCeremony}
+          onSendChat={async (message) => {
+            try {
+              await api.post('/festivals/ceremony/chat', { festival_id: liveCeremony.festival_id, edition_id: liveCeremony.edition_id, message });
+              loadLiveCeremony(liveCeremony.festival_id);
+            } catch (e) { toast.error(e.response?.data?.detail || 'Errore invio'); }
+          }}
+          sendingChat={sendingChat}
+          onAnnounceWinner={async (categoryId) => {
+            try {
+              const res = await api.post(`/festivals/${liveCeremony.festival_id}/announce-winner/${categoryId}?language=it`);
+              loadLiveCeremony(liveCeremony.festival_id);
+              return res.data;
+            } catch (e) {
+              toast.error(e.response?.data?.detail || 'Errore annuncio');
+              return null;
+            }
+          }}
+        />
       )}
     </div>
   );

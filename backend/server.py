@@ -14741,36 +14741,68 @@ async def announce_winner(festival_id: str, category_id: str, language: str = 'e
         # Player festival: 50% player votes, 50% virtual audience
         for nom in nominees:
             player_votes = nom.get('votes', 0)
-            # Get virtual audience votes for this film
             if nom.get('film_id'):
                 film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1})
                 virtual_votes = (film.get('virtual_likes', 0) // 10) if film else 0
             else:
-                virtual_votes = nom.get('quality_score', 50) * 2  # For non-film nominees (people)
-            
-            # Combined score: 50% player + 50% virtual
+                virtual_votes = nom.get('quality_score', 50) * 2
             nom['combined_score'] = (player_votes * 0.5) + (virtual_votes * 0.5)
         
         winner = max(nominees, key=lambda n: n.get('combined_score', n.get('votes', 0)))
-    else:
-        # Other festivals: 100% virtual audience determines winners
+    
+    elif festival.get('voting_type') == 'algorithm':
+        # Algorithm: Pure technical quality + minor noise
         for nom in nominees:
             if nom.get('film_id'):
-                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1, 'quality_score': 1, 'audience_satisfaction': 1})
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'quality_score': 1, 'audience_satisfaction': 1, 'budget': 1})
                 if film:
-                    virtual_likes = film.get('virtual_likes', 0)
                     quality = film.get('quality_score', 50)
                     satisfaction = film.get('audience_satisfaction', 50)
-                    # Virtual audience score based on likes + quality metrics
-                    nom['audience_score'] = virtual_likes + (quality * 50) + (satisfaction * 30)
+                    budget_efficiency = min(quality / max(film.get('budget', 100000) / 100000, 0.1), 100)
+                    nom['algo_score'] = quality * 0.50 + satisfaction * 0.35 + budget_efficiency * 0.15
                 else:
-                    nom['audience_score'] = nom.get('quality_score', 50) * 100
+                    nom['algo_score'] = nom.get('quality_score', 50)
             else:
-                # For people nominees (director, actor, etc.)
-                nom['audience_score'] = nom.get('quality_score', 50) * 100 + random.randint(0, 500)
+                nom['algo_score'] = nom.get('quality_score', 50) + random.uniform(-3, 3)
         
-        # Winner determined by virtual audience with some randomness
-        weights = [max(1, n.get('audience_score', 100)) for n in nominees]
+        # Deterministic: highest score wins (minor noise only for ties)
+        max_score = max(n.get('algo_score', 0) for n in nominees)
+        top_nominees_list = [n for n in nominees if abs(n.get('algo_score', 0) - max_score) < 2]
+        winner = random.choice(top_nominees_list) if len(top_nominees_list) > 1 else max(nominees, key=lambda n: n.get('algo_score', 0))
+    
+    else:
+        # AI festival: UNPREDICTABLE hidden factors system
+        import hashlib
+        hidden_seed = hashlib.md5(f"{edition_id}_{category_id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}".encode()).hexdigest()
+        rng_state = random.Random(int(hidden_seed[:8], 16))
+        
+        for nom in nominees:
+            base_score = 0
+            if nom.get('film_id'):
+                film = await db.films.find_one({'id': nom['film_id']}, {'_id': 0, 'virtual_likes': 1, 'quality_score': 1, 'audience_satisfaction': 1, 'total_revenue': 1, 'hype_score': 1})
+                if film:
+                    base_score = film.get('quality_score', 50)
+                    satisfaction = film.get('audience_satisfaction', 50)
+                    likes = min(film.get('virtual_likes', 0) / 20, 50)
+                    revenue = min(film.get('total_revenue', 0) / 50000, 40)
+                    hype = film.get('hype_score', 0) * 0.5
+                    base_score = base_score * 0.25 + satisfaction * 0.20 + likes * 0.15 + revenue * 0.10 + hype * 0.10
+                else:
+                    base_score = nom.get('quality_score', 50)
+            else:
+                base_score = nom.get('quality_score', 50) * 0.5
+            
+            # Hidden factors (player CANNOT predict these)
+            hype_factor = rng_state.gauss(0, 15)          # Random hype swing
+            viral_factor = rng_state.uniform(-10, 20)      # Viral momentum
+            rumor_factor = rng_state.choice([-8, -3, 0, 5, 12, 18])  # Industry rumors
+            critic_bias = rng_state.gauss(0, 8)            # Critic bias
+            event_factor = rng_state.choice([0, 0, 0, 10, -5, 25]) # Random event (scandal, hype, leak)
+            
+            nom['hidden_score'] = max(1, base_score + hype_factor + viral_factor + rumor_factor + critic_bias + event_factor)
+        
+        # Weighted random: higher hidden_score = higher probability, but NOT deterministic
+        weights = [max(1, n.get('hidden_score', 10)) ** 1.3 for n in nominees]
         winner = random.choices(nominees, weights=weights, k=1)[0]
     
     # Update edition
@@ -16472,11 +16504,12 @@ class CustomFestivalCreate(BaseModel):
     name: str
     description: str
     poster_prompt: Optional[str] = None
-    categories: List[str]  # Lista di category_id da AWARD_CATEGORIES
-    base_participation_cost: int = 10000  # Costo base per partecipare con 1 film
+    categories: List[str]
+    base_participation_cost: int = 10000
     max_films_per_participant: int = 10
-    duration_days: int = 7  # Durata del festival
-    prize_pool_percentage: int = 70  # % del montepremi che va ai vincitori (resto al creatore)
+    max_participants: int = 50
+    duration_days: int = 7
+    prize_pool_percentage: int = 70
 
 class CustomFestivalParticipate(BaseModel):
     festival_id: str
@@ -16511,6 +16544,47 @@ async def get_festival_creation_cost(user: dict = Depends(get_current_user)):
         'cinepass_cost': CUSTOM_FESTIVAL_CINEPASS_COST,
         'participation_min_level': CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL
     }
+
+@api_router.get("/custom-festivals/leaderboard")
+async def get_custom_festival_leaderboard(user: dict = Depends(get_current_user)):
+    """Leaderboard dei migliori creatori e vincitori di festival player."""
+    # Top creators by earnings and festivals created
+    creators_pipeline = [
+        {'$match': {'status': 'completed'}},
+        {'$group': {
+            '_id': '$creator_id',
+            'festivals_created': {'$sum': 1},
+            'total_earnings': {'$sum': '$creator_earnings'},
+            'total_prize_pool': {'$sum': '$prize_pool'},
+            'creator_name': {'$first': '$creator_name'}
+        }},
+        {'$sort': {'total_earnings': -1}},
+        {'$limit': 20}
+    ]
+    top_creators = await db.custom_festivals.aggregate(creators_pipeline).to_list(20)
+    for c in top_creators:
+        c['user_id'] = c.pop('_id')
+    
+    # Top winners by badges earned
+    badges_pipeline = [
+        {'$match': {'type': 'custom_festival_winner'}},
+        {'$group': {
+            '_id': '$user_id',
+            'wins': {'$sum': 1},
+            'festivals': {'$push': '$festival_name'}
+        }},
+        {'$sort': {'wins': -1}},
+        {'$limit': 20}
+    ]
+    top_winners = await db.festival_badges.aggregate(badges_pipeline).to_list(20)
+    for w in top_winners:
+        w['user_id'] = w.pop('_id')
+        u = await db.users.find_one({'id': w['user_id']}, {'_id': 0, 'nickname': 1, 'avatar_url': 1})
+        if u:
+            w['nickname'] = u.get('nickname', 'Anonimo')
+            w['avatar_url'] = u.get('avatar_url')
+    
+    return {'top_creators': top_creators, 'top_winners': top_winners}
 
 @api_router.get("/custom-festivals/{festival_id}")
 async def get_custom_festival(festival_id: str, user: dict = Depends(get_current_user)):
@@ -16585,6 +16659,7 @@ async def create_custom_festival(request: CustomFestivalCreate, background_tasks
         'categories': [{'id': c, 'name': AWARD_CATEGORIES[c]['names'].get('it', c)} for c in valid_categories],
         'base_participation_cost': request.base_participation_cost,
         'max_films_per_participant': min(request.max_films_per_participant, 10),
+        'max_participants': min(max(request.max_participants, 5), 50),
         'prize_pool_percentage': min(max(request.prize_pool_percentage, 50), 90),
         'creation_cost': creation_cost,
         'prize_pool': 0,
@@ -16643,6 +16718,12 @@ async def participate_in_custom_festival(request: CustomFestivalParticipate, use
     
     if festival.get('status') != 'open':
         raise HTTPException(status_code=400, detail="Il festival non accetta più iscrizioni")
+    
+    # Check max participants
+    current_entries = await db.custom_festival_entries.count_documents({'festival_id': request.festival_id})
+    max_p = festival.get('max_participants', 50)
+    if current_entries >= max_p:
+        raise HTTPException(status_code=400, detail=f"Festival pieno! Max {max_p} partecipanti")
     
     # Verifica livello
     level_info = get_level_from_xp(user.get('total_xp', 0))
@@ -16865,6 +16946,21 @@ async def award_custom_festival_winners(festival_id: str, user: dict = Depends(g
             'read': False,
             'created_at': datetime.now(timezone.utc).isoformat()
         })
+        
+        # Award exclusive badge to the winner (1st place only)
+        if i == 0:
+            badge = {
+                'id': str(uuid.uuid4()),
+                'user_id': entry['user_id'],
+                'type': 'custom_festival_winner',
+                'festival_id': festival_id,
+                'festival_name': festival.get('name'),
+                'icon': 'crown',
+                'label': f"Vincitore: {festival.get('name')}",
+                'rarity': 'epic',
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.festival_badges.insert_one(badge)
     
     # Il resto del prize pool va al creatore
     creator_bonus = prize_pool - total_prizes
@@ -16894,16 +16990,20 @@ async def award_custom_festival_winners(festival_id: str, user: dict = Depends(g
 @api_router.get("/ceremonies/active")
 async def get_active_ceremonies(user: dict = Depends(get_current_user)):
     """Ottieni cerimonie live attive."""
-    # Festival ufficiali in premiazione
-    now = datetime.now(timezone.utc)
-    
-    # Custom festivals con cerimonia live
     live_customs = await db.custom_festivals.find(
         {'status': 'live'},
         {'_id': 0}
     ).to_list(10)
-    
     return {'ceremonies': live_customs}
+
+@api_router.get("/users/{user_id}/badges")
+async def get_user_badges(user_id: str, user: dict = Depends(get_current_user)):
+    """Get all festival badges for a user."""
+    badges = await db.festival_badges.find(
+        {'user_id': user_id},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(50)
+    return {'badges': badges}
 
 @api_router.get("/leaderboard/global")
 async def get_global_leaderboard(limit: int = 50):

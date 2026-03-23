@@ -71,7 +71,7 @@
     "url_parameter_film_popup": {
       "status": "VERIFIED",
       "details": "?film=<id> URL parameter auto-opens specific film popup",
-      "tested_url": "/create-film?film=7a50f140-5f11-408c-aa95-78de752b6d57"
+      "tested_url": "/create-film?film=pvp-hq"
     },
     "nuovo_film_button": {
       "status": "VERIFIED",

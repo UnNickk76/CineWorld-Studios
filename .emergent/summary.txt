@@ -1,162 +1,168 @@
 <analysis>**original_problem_statement:**
-The user is reporting a persistent, critical, game-breaking bug in the deployed application. When a user tries to enter the AI screenwriting step of the production pipeline, the UI crashes with a Qualcosa è andato storto error. This blocks all game progression for multiple users. The user has also pointed out that the agent was working in the wrong environment (preview), and the deployed application has outdated code and a separate, corrupted database.
+The user requested a complete overhaul of the game's Player vs. Player (PvP) mechanics, moving away from simple anonymous boycotts to a deep, strategic system based on player-built infrastructures.
 
 **PRODUCT REQUIREMENTS:**
-1.  **(BLOCKER)** Fix the Qualcosa è andato storto error on the **DEPLOYED** application.
-2.  Identify and delete or reset all corrupted projects in the **PRODUCTION** database that are causing the crash.
-3.  Implement robust, permanent backend and frontend protections to prevent future data corruption from blocking the UI.
-4.  Ensure all fixes are applied to the production environment, not just the preview environment.
+1.  **Infrastructure System:** Create three new upgradeable infrastructures:
+    *   **Investigative HQ:** Allows players to investigate boycotts against them, with a chance to identify the attacker. Has daily usage limits based on its level.
+    *   **Operations Division:** Allows players to launch boycotts and counter-boycott actions. Has daily usage limits based on its level.
+    *   **Legal Department:** Allows players to take legal action against identified attackers. Requires a minimum fame level and Investigative HQ level to unlock.
+2.  **PvP Actions & Costs:**
+    *   All infrastructure upgrades cost a mix of in-game currency ($) and premium currency (CinePass).
+    *   All PvP actions (boycotting, investigating, legal action) cost CinePass.
+3.  **New PvP Loop:**
+    *   **Boycott:** An Operations action against another player.
+    *   **Investigation:** An Investigative action to identify the attacker.
+    *   **Counter-Boycott:** A new set of Operations actions. Can be defensive (reduce effects of an incoming attack, even if anonymous) or offensive (a direct counter-attack against an identified player).
+    *   **Legal Action:** A Legal action against an identified attacker, with a chance of success based on both players' Legal infrastructure levels, fame, and player level.
+        *   **Success:** Causes the target to lose currency, slows their production, and puts them in a temporary PvP cooldown.
+        *   **Failure:** The attacker loses currency and takes a small reputation and production penalty.
+4.  **UI:**
+    *   Create a new, dedicated HQ (Headquarters) page accessible from the main navigation bar to manage and upgrade these new infrastructures.
+
+This follows two major completed tasks in this session:
+1.  **Film Production UX Redesign:** Replaced the old tab-based system with a modern, film-centric popup UI.
+2.  **Notification System Overhaul:** Made notifications more narrative, showing time changes in minutes and adding descriptive titles for events and boycotts.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The application is a full-stack cinematic empire game. A critical bug in the deployed (production) version of the application is blocking the core gameplay loop. The production environment is running outdated code and has a separate database containing corrupted projects (e.g., projects in  or  status but missing essential data like ). This data corruption causes the frontend to crash when rendering the production pipeline pages. While extensive fixes have been implemented in the preview environment (including backend data validation and frontend error boundaries), they have not been deployed to production.
+The application is a full-stack cinematic empire game. In this session, the agent completed a massive UX overhaul for the film production pipeline, replacing a tab-based system with a more immersive film card/popup design. A bug that caused the popup to break mobile layouts was also fixed. The notification system was significantly enhanced to be more narrative and descriptive. The backend now supports different boycott types, investigation, and narrative event descriptions. The agent has just begun work on the new, infrastructure-based PvP system by creating a new file for the backend routes.
 
 **Last working item**:
-- **Last item agent was working:** The agent was trying to debug the persistent Qualcosa è andato storto error. It correctly identified that the root cause was a combination of outdated code on the deployment and corrupted data in the separate production database. The agent's previous fixes in the preview environment were not effective as they weren't deployed.
-- **Status:** BLOCKED
-- **Agent Testing Done:** N (Testing was done on the *preview* environment, not the *production* environment where the bug exists).
-- **Which testing method agent to use?** The agent cannot directly access the production environment. The next agent must guide the user to deploy the latest code. Afterward, the agent should create a secure, admin-only API endpoint to trigger a data cleanup script on the production database. Testing will rely on user verification.
-- **User Testing Done:** N (The user is reporting the bug, confirming the issue is not resolved in their environment).
+-   **Last item agent was working:** Setting up the backend for the new Infrastructure-based PvP system. The agent determined that the existing  was for a different system (physical buildings) and created a new, more appropriate file for the PvP logic.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** backend testing agent
+-   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0 - BLOCKER):** Qualcosa è andato storto error in the screenwriting pipeline on the DEPLOYED application.
--   **Issue 2 (P2):** Contest Page Mobile Layout Is Broken.
+-   **Issue 1 (P2):** Contest Page Mobile Layout Is Broken.
 
 **Issues Detail:**
--   **Issue 1: Qualcosa è andato storto error in the screenwriting pipeline on the DEPLOYED application**
-    -   **Attempted fixes:** The agent implemented comprehensive fixes in the **preview environment**, which are currently not in production. These include:
-        -   Backend data validation in API endpoints (, ) to filter out corrupted projects.
-        -   Hardening the AI screenplay generation logic () against missing data.
-        -   Implementing a  component in the frontend to prevent a single crashing tab from taking down the entire page.
-        -   Creating a database cleanup script () and an auto-cleanup scheduler job.
-        -   **Why it didn't work:** These fixes were applied only to the preview environment's code and database. The user is on a separate production environment with outdated code and its own corrupted database.
-    -   **Next debug checklist:**
-        1.  **Instruct the user to re-deploy the application.** This is the most critical step to get all the code-level fixes (backend validation, frontend ) into the production environment.
-        2.  **Create a secure, admin-only API endpoint.** This endpoint should trigger the database cleanup logic (similar to ) to run against the **production** database. This avoids asking the user for credentials.
-        3.  Guide the user (as an admin) to call this new endpoint **once** after the deployment is complete.
-        4.  Ask the user to test the screenwriting flow again on the deployed application.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a game-breaking bug that makes the core production pipeline unusable for all players. Fixing it is essential for the game to be playable.
-    -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** Both. The backend API endpoint for cleanup needs to be tested via curl (in preview first), and the final fix on production must be verified by the user.
-    -   **Blocked on other issue:** Blocked on user action (re-deploying the application).
-
--   **Issue 2: Contest Page Mobile Layout Is Broken**
-    -   **Attempted fixes:** None in this session.
-    -   **Next debug checklist:** Inspect CSS in .
-    -   **Why fix this issue and what will be achieved with the fix?** To improve UX on mobile devices.
+-   **Issue 1: Contest Page Mobile Layout Is Broken**
+    -   **Attempted fixes:** None in this or recent sessions.
+    -   **Next debug checklist:** Inspect the CSS for responsive design issues in .
+    -   **Why fix this issue and what will be achieved with the fix?** To improve the user experience on mobile devices.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** frontend
-    -   **Blocked on other issue:** None
+    -   **Blocked on other issue:** none
 
 **In progress Task List**:
-- None. The sole focus is the P0 blocker.
+-   **Task 1: Implement PvP Infrastructure System** (P0)
+    -   **Where to resume:** The file  has just been created. The next step is to implement the data models and API endpoints inside this file for managing the three new infrastructures (Investigative, Operative, Legal) as per the user's requirements. This includes GET endpoints to view levels/costs and POST endpoints for upgrades.
+    -   **What will be achieved with this?** This will create the foundational backend for the entire new PvP system.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** backend
+    -   **Blocked on something:** None
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks:**
-    - (P1) **Chat Evolution - Step 6:** Rifinitura mobile e qualità social.
-    - (P1) **Marketplace for TV/Anime rights:** Create a system for players to trade content rights.
-- **Future Tasks:**
-    - (P2) RBAC, CinePass, Stripe, PWA, Tutorial.
-    - (P3) Scommesse sui Coming Soon.
-    - (P3) Eventi globali, Push notifications, Guerre tra Major.
+-   **Upcoming Tasks:**
+    -   (P0) **PvP System - Phase 2 (Backend):** Implement the logic for Legal Action and Counter-Boycott in .
+    -   (P0) **PvP System - Phase 3 (Frontend):** Build the new HQ page () to display and upgrade the PvP infrastructures.
+    -   (P0) **PvP System - Phase 4 (Integration):** Integrate the new PvP actions (Investigate, Legal Action) into the UI, likely within the  and  components.
+    -   (P1) **Chat Evolution - Step 6:** Rifinitura mobile e qualità social.
+    -   (P1) **Marketplace for TV/Anime rights:** Create a system for players to trade content rights.
+-   **Future Tasks:**
+    -   (P2) RBAC, CinePass + Stripe, PWA, Tutorial.
+    -   (P3) Scommesse sui Coming Soon.
+    -   (P3) Eventi globali, Push notifications, Guerre tra Major.
 
 **Completed work in this session**
-- **Implemented Dynamic Notification System:**
-    - **Backend:** Created  to generate narrative-style notifications with severity levels (Critical, Important, Positive). Hooked this into all major game events (Coming Soon interactions, production milestones, scheduler events).
-    - **Frontend:** Implemented a real-time notification popup system in  with priority handling (modals for critical, toasts for important). Replaced the Sfide icon with a Notifiche icon in the mobile bottom navbar.
-- **Fixed Notification Click-Through Logic:**
-    - Resolved a bug where notifications linked to generic pages. Updated backend link generation and frontend click handlers to navigate to the correct context-aware page ( for in-production projects,  for completed ones).
-- **Implemented Structural Bug Fixes (in Preview Environment):**
-    - **Backend Hardening:** Added robust data validation to  and  to filter out corrupted projects and prevent crashes.
-    - **Frontend Resilience:** Created and implemented a  in all pipeline pages (, etc.) to isolate component crashes and keep the UI functional.
-    - **Data Cleanup:** Created a script () and a recurring scheduler job to identify and soft-delete/reset corrupted projects.
+-   **Film Production UX Redesign:**
+    -   Replaced the multi-tab  with a unified list of  components.
+    -   Created a central  component to manage all stages of a film's production in a single, immersive view.
+    -   Updated  so that film-related notifications navigate directly to the specific film's popup.
+-   **Mobile Popup Layout Fix:**
+    -   Adjusted the CSS in  to make the popup responsive and prevent it from overflowing the screen on mobile devices.
+-   **Notification & Events System Enhancement:**
+    -   Backend logic in  and  was updated to calculate time changes in minutes instead of decimal hours.
+    -    was overhauled to support richer, narrative event descriptions, boycott types, and a CineWorld News source.
+    -   A new backend endpoint  was created to support the new Investigate feature.
+    -   The frontend  and  were updated to render the new detailed, narrative-style notifications.
 
 **Earlier issues found/mentioned but not fixed**
-- **Issue 1: Contest Page Mobile Layout Is Broken:** A recurring visual bug that needs CSS adjustments for mobile viewports.
+-   **Issue 1: ESLint Warning in NotificationsPage.jsx:** The  hook on line 34 of  has a missing dependency (). This should be fixed to prevent potential stale closures.
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence in previous fork:** Contest Page Mobile Layout Is Broken
--   **Recurrence count:** 5+
+-   **Recurrence count:** 7+
 -   **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Environment Mismatch (Preview vs. Deploy):** The critical realization that the development/preview environment is isolated from the user's production/deploy environment, including separate code versions and databases. Fixes must be explicitly deployed.
-- **Data Integrity and Resilience:** Corrupted data (e.g., a project in  status without a  array) can crash rendering logic. The fix requires both backend validation (don't send bad data) and frontend resilience (don't crash if bad data is received).
-- **Tab-Level Error Boundaries:** A key architectural pattern implemented in React () to prevent a single failing component (a tab) from crashing an entire page, improving application stability.
-- **Dynamic Notification Engine:** A centralized backend module () for generating user-facing, narrative-style notifications with different priority levels, decoupled from the core game logic that triggers them.
+-   **UI/UX Overhaul:** Shifted from a page/tab-based navigation model to a centralized, component-driven popup model for the core gameplay loop.
+-   **Backend Module Encapsulation:** Started moving specific game system logic (PvP) out of the monolithic  into dedicated route files like .
+-   **Data-Driven Narrative:** Enhanced the notification system to use more detailed data from the backend to generate immersive, narrative-style frontend messages rather than just displaying raw data.
 
 **key DB schema**
--   **film_projects, tv_series:** Added  status to the state machine. Logic now heavily relies on the presence and integrity of fields like  and  for projects in  and  statuses.
--   **notifications:** The  field logic was updated to be context-aware (pointing to  or  based on project status). The  field (, , ) is now central to the UI/UX.
+-   **user_interactions:** This collection was modified to store  and  to support the new investigation mechanic.
+-   **New Collection/Fields Needed:** The PvP infrastructure system will require new storage. This will likely be a new collection  or new fields added to the  collection to store the levels of the , , and  infrastructures for each user.
 
 **All files of reference**
--   
--   
--   
--   
--    (New)
--   
--   
--   
--   
--   
--   
+-    (New file for PvP logic)
+-    (New core UI component)
+-    (New UI component)
+-    (Heavily refactored)
+-    (Updated for new notification format)
+-    (Refactored)
+-    (Updated)
+-    (Updated)
+-    (Updated)
+
+**Areas that need refactoring**
+-   The  file remains extremely large. The creation of  is a good first step, but more logic could be extracted from  into dedicated modules to improve maintainability.
+
+**key api endpoints**
+-   **POST **: (Newly created) Endpoint to start an investigation on a boycott.
+-   **POST **: (To be created) Endpoint to handle upgrading the new PvP infrastructures.
+-   **GET **: (To be created) Endpoint to get the current status and levels of a player's PvP infrastructures.
+-   **POST **: (To be created) Endpoint to launch a legal case against an identified player.
 
 **Critical Info for New Agent**
 -   **You MUST respond in Italiano.**
--   **CRITICAL BLOCKER:** The user is stuck due to a bug in the **DEPLOYED** application. Your primary goal is to resolve this.
--   **ENVIRONMENT MISMATCH:** The previous agent's fixes are in the **preview environment** and have **NOT** been deployed. The production database is separate and still contains corrupted data.
--   **THE PLAN:**
-    1.  **Do not work on new features.** Focus solely on fixing the production bug.
-    2.  **Instruct the user to DEPLOY the latest code.** This is the #1 priority, as it will push all the backend/frontend resilience fixes to their environment.
-    3.  **Create a secure, admin-only API endpoint.** This endpoint will execute a data cleanup script on the production database to fix the corrupted projects that are causing the crash. Guide the user to call this endpoint once after deployment. **Do not ask for credentials.**
-    4.  Verify with the user that the Qualcosa è andato storto error is gone after deployment and data cleanup.
+-   The highest priority is to continue the implementation of the new PvP Infrastructure system.
+-   You must start by populating the newly created  file with the necessary Pydantic models and FastAPI endpoints for managing the three new infrastructures (Investigative, Operative, Legal), as per the user's detailed specifications.
+-   Remember that infrastructure upgrades cost both  and .
 
 **documents and test reports created in this job**
--    (Updated with latest completed features)
 -   
 -   
 -   
--    (Incomplete report)
--    (Incomplete report)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Shared screenshots of the production UI, showing the Qualcosa è andato storto error and the outdated bottom navbar (with Sfide icon). (PENDING)
-2.  **User:** Confirmed they have already deployed the code (this might be incorrect, as UI is outdated). (HANDLED)
-3.  **User:** Stated the problem persists after the agent's fixes. (HANDLED)
-4.  **User:** Instructed the agent to stop working on the preview environment and focus only on the deploy/production environment, as that's where the problem is. (HANDLED)
-5.  **User:** Reported the bug is not solved and affects multiple users, calling it a structural problem. (HANDLED)
-6.  **User:** Reported projects are blocked and causing errors in the production section. (HANDLED)
-7.  **User:** Requested refinement of the notification system (priority popups, correct click-through links). (COMPLETED in preview)
-8.  **User:** Started a new task for a dynamic notification system. (COMPLETED in preview)
-9.  **User:** Reported a critical bug in the screenwriting flow after the Coming Soon phase was introduced. (ATTEMPTED FIX in preview)
-10. **User:** Stated that the deploy is failing and authentication is not working. (ATTEMPTED FIX in preview)
+1.  **User:** Reports the new film popup breaks the layout on mobile. (COMPLETED)
+2.  **User:** Requests a major enhancement to the notification system to make it narrative and immersive. (COMPLETED)
+3.  **Agent:** Asks for confirmation to proceed with notification enhancements.
+4.  **User:** Approves (). (HANDLED)
+5.  **Agent:** Finishes the notification system overhaul.
+6.  **User:** Proposes a new, large feature: an infrastructure-based PvP system (Investigative, Operative, Legal departments).
+7.  **Agent:** Asks clarifying questions about the new PvP system (upgrade costs, counter-boycott mechanics, UI).
+8.  **User:** Provides detailed answers: hybrid currency costs for upgrades, defensive/offensive counter-boycotts, and a new dedicated HQ page for the UI. (HANDLED)
+9.  **Agent:** Confirms understanding and plans the implementation in phases.
+10. **Agent:** Starts implementation by creating the  file.
 
 **Project Health Check:**
--   **Broken:**
-    -   The entire production/screenwriting flow on the **deployed** application. This is a critical, game-breaking blocker.
--   **Mocked:**
-    -   None.
+-   **Broken:** None
+-   **Mocked:** None
 
 **3rd Party Integrations**
 -   **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key.
 -   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key.
 -   **APScheduler:** Used for backend scheduled game tasks.
+-   **Framer Motion:** Used for UI animations on the frontend.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES, but only on the preview environment. The results are not valid for the production bug.
--   **Troubleshoot agent used after agent stuck in loop:** NO.
+-   **Testing agent used after significant changes:** YES (x2). Tested the Film Popup UX redesign and the Notification System overhaul, both with 100% pass rates.
+-   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
--   **Known regressions:** The core screenwriting flow is broken in production.
+-   **Known regressions:** None.
 
 **Credentials to test flow:**
--   **Admin User (NeoMorpheus):** . The password was reset to  in the *preview* database, but the production password is unknown and failing. Do not attempt to use it.
+-   **email:** 
+-   **password:** 
 
 **What agent forgot to execute**
--   The agent failed to recognize the distinction between the preview and production environments for a significant portion of the session. It applied many correct fixes but to the wrong environment, leading to user frustration as the bug persisted on their end. It did not verify deployment status before claiming fixes were complete.</analysis>
+-   A minor ESLint warning in  (line 34,  missing dependency ) was noted but not fixed.</analysis>

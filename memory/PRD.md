@@ -151,6 +151,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 145: 100% (Fix Regressione Rilascio Film + Produci - 4 fix: colonna sonora, animazione, velocita, filtro)
 - Iter 146: Profile Page crash (React Error #31) - Root cause: fame_tier object rendered as React child. Fixed + Error Boundary added.
 - Iter 147: Preload Pages - Background prefetch di 5 endpoint chiave al login, pagine usano cachedGet con TTL 2min e deduplication.
+- Iter 148: 100% Draft/Autosave System - 7 fix: salvataggio step-by-step, autosave 4s, recupero bozza, draft in Produci, cleanup su create, no count limit.
 
 ### Festival Rework Step 1-3 (2026-03-23)
 - **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random

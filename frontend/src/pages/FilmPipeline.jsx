@@ -2984,6 +2984,12 @@ const FilmPipeline = () => {
   const [countdowns, setCountdowns] = useState({});
   const [counts, setCounts] = useState({});
   const [showCreation, setShowCreation] = useState(false);
+  const [badges, setBadges] = useState({});
+
+  // Load badges
+  useEffect(() => {
+    api.get('/film-pipeline/badges').then(r => setBadges(r.data.badges || {})).catch(() => {});
+  }, [api]);
 
   const loadFilms = useCallback(async () => {
     try {
@@ -3153,6 +3159,31 @@ const FilmPipeline = () => {
               <h2 className="font-['Bebas_Neue'] text-lg text-gray-300">I tuoi Film</h2>
               <Badge className="bg-yellow-500/15 text-yellow-400 text-[9px] h-5">{films.length}</Badge>
             </div>
+            {/* Smart Badges per categoria */}
+            {Object.values(badges).some(v => v > 0) && (
+              <div className="flex flex-wrap gap-1.5 mb-2" data-testid="smart-badges">
+                {[
+                  { key: 'film', label: 'Film', color: 'yellow' },
+                  { key: 'sequel', label: 'Sequel', color: 'blue' },
+                  { key: 'serie_tv', label: 'Serie TV', color: 'purple' },
+                  { key: 'anime', label: 'Anime', color: 'pink' },
+                  { key: 'agenzia', label: 'Agenzia', color: 'cyan' },
+                ].map(cat => badges[cat.key] > 0 && (
+                  <div key={cat.key} className={`relative flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium border
+                    ${cat.color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                      cat.color === 'blue' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                      cat.color === 'purple' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                      cat.color === 'pink' ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' :
+                      'bg-cyan-500/10 border-cyan-500/20 text-cyan-400'
+                    }`}>
+                    {cat.label}
+                    <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[7px] font-bold">
+                      {badges[cat.key]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             {films.map(f => (
               <FilmProductionCard
                 key={f.id}

@@ -135,15 +135,24 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
 
   return (
     <>
-      {/* Bubble notification */}
+      {/* Bubble notification - swipeable */}
       <AnimatePresence>
         {bubble && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+            exit={{ opacity: 0, x: 200, scale: 0.9 }}
             transition={{ type: 'spring', damping: 22 }}
-            className="fixed bottom-[180px] right-2 z-[52] sm:bottom-[96px] sm:right-5 max-w-[220px] sm:max-w-[240px] cursor-pointer"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.3}
+            onDragEnd={(e, info) => {
+              if (info.offset.x > 80) {
+                setBubble(null);
+                setHasAlert(false);
+              }
+            }}
+            className="fixed bottom-[180px] right-2 z-[52] sm:bottom-[96px] sm:right-5 max-w-[220px] sm:max-w-[240px] cursor-pointer touch-pan-y"
             onClick={handleBubbleClick}
             data-testid="velion-bubble"
           >
@@ -155,7 +164,8 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
                 : 'bg-[#0d0d10]/95 border border-cyan-500/30 shadow-cyan-500/5'
             }`}>
               <p className="text-[11px] sm:text-[12px] text-gray-200 leading-snug">{bubble.message}</p>
-              <div className="mt-1 flex items-center justify-end">
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-[8px] text-gray-600">Swipe per eliminare</span>
                 <span className={`text-[9px] ${bubble.priority === 'low' ? 'text-gray-500' : 'text-cyan-400/60'}`}>
                   {bubble.action ? 'Tocca per andare' : 'Tocca per dettagli'}
                 </span>

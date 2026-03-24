@@ -581,6 +581,63 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
             })
             break
 
+    # --- 7b. Stagnant film (not advancing) ---
+    for p in active_pipeline:
+        updated = p.get('updated_at', '')
+        if updated:
+            try:
+                last = datetime.fromisoformat(updated.replace('Z', '+00:00')) if isinstance(updated, str) else updated
+                if hasattr(last, 'tzinfo') and not last.tzinfo:
+                    last = last.replace(tzinfo=timezone.utc)
+                hours_stale = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+                if hours_stale > 24:
+                    all_triggers.append({
+                        'type': 'stagnant_film',
+                        'message': f'"{p.get("title", "Un film")}" e fermo da ore... il cinema non aspetta!',
+                        'priority': 'medium',
+                        'action': '/create-film',
+                        '_sort': 5
+                    })
+                    break
+            except Exception:
+                pass
+
+    # --- 7c. Weak cast suggestion ---
+    for p in active_pipeline:
+        if p.get('status') in ('casting', 'screenplay', 'pre_production'):
+            actors = p.get('cast', {}).get('actors', [])
+            if 0 < len(actors) < 3:
+                all_triggers.append({
+                    'type': 'weak_cast',
+                    'message': f'Il cast di "{p.get("title", "il film")}" e debole. Investi per migliorarlo!',
+                    'priority': 'medium',
+                    'action': '/create-film',
+                    '_sort': 6
+                })
+                break
+
+    # --- 7d. Low hype for coming soon ---
+    for p in active_pipeline:
+        if p.get('status') == 'coming_soon' and p.get('hype_score', 0) < 25:
+            all_triggers.append({
+                'type': 'low_hype',
+                'message': f'"{p.get("title", "Il film")}" ha hype basso. Lancia una campagna marketing!',
+                'priority': 'medium',
+                'action': '/create-film',
+                '_sort': 5
+            })
+            break
+
+    # --- 7e. Reinvest suggestion ---
+    if pending_revenue > 200000 and len(active_pipeline) == 0:
+        all_triggers.append({
+            'type': 'reinvest',
+            'message': f'Hai ${pending_revenue:,.0f} di incassi pronti. Reinvestili in un nuovo film!',
+            'priority': 'medium',
+            'action': '/films',
+            '_sort': 4
+        })
+
     # --- 8. Social hint (if no other high-priority triggers) ---
     if len(all_triggers) == 0 or all(t['_sort'] >= 8 for t in all_triggers):
         total_films = len(films)

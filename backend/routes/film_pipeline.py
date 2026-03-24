@@ -1416,6 +1416,259 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
 
 
 
+# ==================== FILM IMPROVEMENT SYSTEM ====================
+
+IMPROVEMENT_OPTIONS = {
+    'screenplay': {
+        'name': 'Migliora Sceneggiatura',
+        'icon': 'FileText',
+        'cost_money': 80000,
+        'cost_cp': 3,
+        'quality_bonus': (3, 7),
+        'description': 'Riscrivi le scene deboli per un impatto emotivo maggiore',
+        'applicable': ['proposed', 'casting', 'screenplay', 'pre_production', 'coming_soon'],
+    },
+    'cast_upgrade': {
+        'name': 'Potenzia il Cast',
+        'icon': 'Users',
+        'cost_money': 120000,
+        'cost_cp': 4,
+        'quality_bonus': (2, 6),
+        'description': 'Aggiungi coaching e sessioni di preparazione per il cast',
+        'applicable': ['proposed', 'casting', 'screenplay', 'pre_production', 'coming_soon'],
+    },
+    'marketing': {
+        'name': 'Campagna Marketing',
+        'icon': 'TrendingUp',
+        'cost_money': 60000,
+        'cost_cp': 2,
+        'quality_bonus': (0, 2),
+        'hype_bonus': (10, 25),
+        'description': 'Lancia trailer, interviste e social buzz per aumentare l\'hype',
+        'applicable': ['coming_soon', 'shooting', 'pre_production'],
+    },
+    'soundtrack': {
+        'name': 'Migliora Colonna Sonora',
+        'icon': 'Sparkles',
+        'cost_money': 50000,
+        'cost_cp': 2,
+        'quality_bonus': (2, 5),
+        'description': 'Ingaggia un arrangiatore top per una colonna sonora memorabile',
+        'applicable': ['pre_production', 'shooting', 'coming_soon', 'screenplay'],
+    },
+    'plot_twist': {
+        'name': 'Ritocca la Trama',
+        'icon': 'Lightbulb',
+        'cost_money': 40000,
+        'cost_cp': 1,
+        'quality_bonus': (1, 4),
+        'description': 'Aggiungi un colpo di scena per sorprendere il pubblico',
+        'applicable': ['proposed', 'casting', 'screenplay', 'coming_soon'],
+    },
+}
+
+
+@router.get("/film-pipeline/{project_id}/suggestions")
+async def get_film_suggestions(project_id: str, user: dict = Depends(get_current_user)):
+    """Get Velion's improvement suggestions for a film in production."""
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+
+    status = project.get('status', '')
+    cast = project.get('cast', {})
+    genre = project.get('genre', 'drama')
+    improvements_applied = project.get('improvements_applied', [])
+    suggestions = []
+
+    # Analyze film weaknesses
+    actors = cast.get('actors', [])
+    has_director = bool(cast.get('director'))
+    has_composer = bool(cast.get('composer'))
+    has_screenplay = bool(project.get('screenplay'))
+    hype = project.get('hype_score', 0)
+
+    # 1. Weak cast
+    if len(actors) < 3 and 'cast_upgrade' not in improvements_applied and status in IMPROVEMENT_OPTIONS['cast_upgrade']['applicable']:
+        suggestions.append({
+            'type': 'cast_upgrade',
+            'message': f'Il cast di "{project["title"]}" e debole. Investi nel coaching attori!',
+            'priority': 'high',
+            **IMPROVEMENT_OPTIONS['cast_upgrade']
+        })
+
+    # 2. Low hype for coming soon
+    if status == 'coming_soon' and hype < 30 and 'marketing' not in improvements_applied:
+        suggestions.append({
+            'type': 'marketing',
+            'message': f'L\'hype di "{project["title"]}" e basso ({hype}%). Una campagna marketing farebbe miracoli!',
+            'priority': 'high',
+            **IMPROVEMENT_OPTIONS['marketing']
+        })
+
+    # 3. Screenplay improvements
+    if has_screenplay and 'screenplay' not in improvements_applied and status in IMPROVEMENT_OPTIONS['screenplay']['applicable']:
+        suggestions.append({
+            'type': 'screenplay',
+            'message': 'La sceneggiatura potrebbe essere piu avvincente. Vuoi riscrivere le scene chiave?',
+            'priority': 'medium',
+            **IMPROVEMENT_OPTIONS['screenplay']
+        })
+
+    # 4. Soundtrack
+    if has_composer and 'soundtrack' not in improvements_applied and status in IMPROVEMENT_OPTIONS['soundtrack']['applicable']:
+        suggestions.append({
+            'type': 'soundtrack',
+            'message': 'La colonna sonora e nella media. Un arrangiatore top la renderebbe memorabile!',
+            'priority': 'medium',
+            **IMPROVEMENT_OPTIONS['soundtrack']
+        })
+
+    # 5. Plot twist
+    if 'plot_twist' not in improvements_applied and status in IMPROVEMENT_OPTIONS['plot_twist']['applicable']:
+        suggestions.append({
+            'type': 'plot_twist',
+            'message': 'Aggiungi un colpo di scena per sorprendere il pubblico e i critici!',
+            'priority': 'low',
+            **IMPROVEMENT_OPTIONS['plot_twist']
+        })
+
+    # Filter by applicable status
+    suggestions = [s for s in suggestions if status in s.get('applicable', [])]
+
+    # Build Velion summary message
+    if not suggestions:
+        velion_msg = f'"{project["title"]}" e in ottima forma! Nessun miglioramento necessario.'
+    elif len(suggestions) >= 3:
+        velion_msg = f'"{project["title"]}" ha margini di miglioramento. Ti consiglio di investire!'
+    else:
+        velion_msg = suggestions[0]['message']
+
+    return {
+        'suggestions': suggestions,
+        'velion_message': velion_msg,
+        'improvements_applied': improvements_applied,
+        'film_status': status,
+    }
+
+
+class ImproveRequest(BaseModel):
+    improvement_type: str
+
+
+@router.post("/film-pipeline/{project_id}/improve")
+async def improve_film(project_id: str, req: ImproveRequest, user: dict = Depends(get_current_user)):
+    """Apply an improvement to a film in production."""
+    if req.improvement_type not in IMPROVEMENT_OPTIONS:
+        raise HTTPException(status_code=400, detail="Tipo miglioramento non valido")
+
+    option = IMPROVEMENT_OPTIONS[req.improvement_type]
+    project = await db.film_projects.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+
+    status = project.get('status', '')
+    if status not in option['applicable']:
+        raise HTTPException(status_code=400, detail=f"Non applicabile in fase {status}")
+
+    # Check if already applied
+    improvements = project.get('improvements_applied', [])
+    if req.improvement_type in improvements:
+        raise HTTPException(status_code=400, detail="Miglioramento gia applicato a questo film")
+
+    # Check funds
+    user_fresh = await db.users.find_one({'id': user['id']}, {'_id': 0})
+    funds = user_fresh.get('funds', 0)
+    cp = user_fresh.get('cinepass', 0)
+    cost_money = option['cost_money']
+    cost_cp = option['cost_cp']
+
+    if funds < cost_money:
+        raise HTTPException(status_code=400, detail=f"Fondi insufficienti (servono ${cost_money:,})")
+    if cp < cost_cp:
+        raise HTTPException(status_code=400, detail=f"CinePass insufficienti (servono {cost_cp} CP)")
+
+    # Calculate bonus
+    q_min, q_max = option['quality_bonus']
+    quality_bonus = round(random.uniform(q_min, q_max), 1)
+    hype_bonus = 0
+    if 'hype_bonus' in option:
+        h_min, h_max = option['hype_bonus']
+        hype_bonus = random.randint(h_min, h_max)
+
+    # Apply improvement
+    update = {
+        '$push': {'improvements_applied': req.improvement_type},
+        '$inc': {'improvement_quality_bonus': quality_bonus},
+        '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}
+    }
+    if hype_bonus > 0:
+        update['$inc']['hype_score'] = hype_bonus
+
+    await db.film_projects.update_one({'id': project_id}, update)
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost_money, 'cinepass': -cost_cp}})
+
+    result_msg = f'{option["name"]} applicato! +{quality_bonus} qualita'
+    if hype_bonus > 0:
+        result_msg += f', +{hype_bonus}% hype'
+
+    return {
+        'success': True,
+        'message': result_msg,
+        'quality_bonus': quality_bonus,
+        'hype_bonus': hype_bonus,
+        'cost_money': cost_money,
+        'cost_cp': cost_cp,
+        'velion_message': f'Ottima scelta! {option["name"]} fara la differenza per "{project["title"]}"!'
+    }
+
+
+# ==================== BADGES SYSTEM ====================
+
+@router.get("/film-pipeline/badges")
+async def get_pipeline_badges(user: dict = Depends(get_current_user)):
+    """Get badge counts for each sub-category in Produci."""
+    uid = user['id']
+    active_statuses = {'draft', 'proposed', 'casting', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'ready_for_casting', 'pending_release'}
+
+    projects = await db.film_projects.find(
+        {'user_id': uid, 'status': {'$in': list(active_statuses)}},
+        {'_id': 0, 'id': 1, 'status': 1, 'content_type': 1, 'is_sequel': 1}
+    ).to_list(100)
+
+    badges = {'film': 0, 'sequel': 0, 'serie_tv': 0, 'anime': 0, 'agenzia': 0}
+
+    for p in projects:
+        ct = p.get('content_type', 'film')
+        is_sequel = p.get('is_sequel', False)
+        if is_sequel:
+            badges['sequel'] += 1
+        elif ct == 'anime':
+            badges['anime'] += 1
+        elif ct == 'serie_tv':
+            badges['serie_tv'] += 1
+        else:
+            badges['film'] += 1
+
+    # Agency badge: check for pending agency actions
+    agency = await db.agencies.find_one({'user_id': uid}, {'_id': 0, 'id': 1})
+    if agency:
+        pending_actors = await db.agency_actors.count_documents({
+            'agency_id': agency.get('id'), 'status': 'training'
+        })
+        if pending_actors > 0:
+            badges['agenzia'] = pending_actors
+
+    return {'badges': badges, 'total': sum(badges.values())}
+
+
+
 # ==================== FAIL-SAFE CAST SYSTEM ====================
 
 ACTOR_ROLES_LIST = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo']
@@ -3055,6 +3308,13 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         immediate_penalty = -2
         quality_score += immediate_penalty
         advanced_factors['rilascio_immediato'] = f'{immediate_penalty} (Nessun hype pre-lancio)'
+
+    # 9. FILM IMPROVEMENTS BONUS
+    improvement_bonus = project.get('improvement_quality_bonus', 0)
+    if improvement_bonus > 0:
+        quality_score += improvement_bonus
+        improvements = project.get('improvements_applied', [])
+        advanced_factors['miglioramenti'] = f'+{improvement_bonus:.1f} ({", ".join(improvements)})'
 
     # Final clamp
     quality_score = max(10, min(100, quality_score))

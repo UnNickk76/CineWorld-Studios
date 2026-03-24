@@ -12,7 +12,7 @@ import {
   FileText, MapPin, Users, BookOpen, Clapperboard, Play, Sparkles, Zap,
   ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, Settings,
   DollarSign, Target, Globe, UserCheck, Minus, TrendingUp, TrendingDown,
-  HelpCircle, Wand2
+  HelpCircle, Wand2, ArrowUp
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -21,6 +21,79 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
 
 // Sub-component for agency actor cards (uses useState for skill expansion)
+// ─── Improvement Panel ───
+function ImprovementPanel({ film, api, onRefresh, refreshUser }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [velionMsg, setVelionMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(null);
+
+  useEffect(() => {
+    api.get(`/film-pipeline/${film.id}/suggestions`).then(r => {
+      setSuggestions(r.data.suggestions || []);
+      setVelionMsg(r.data.velion_message || '');
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [api, film.id]);
+
+  const apply = async (type) => {
+    setApplying(type);
+    try {
+      const r = await api.post(`/film-pipeline/${film.id}/improve`, { improvement_type: type });
+      if (r.data.success) {
+        toast.success(r.data.velion_message || r.data.message);
+        haptic([10, 30, 10]);
+        setSuggestions(prev => prev.filter(s => s.type !== type));
+        refreshUser(); onRefresh();
+      }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setApplying(null); }
+  };
+
+  if (loading) return <div className="text-center text-[10px] text-gray-500 py-2">Analisi in corso...</div>;
+  if (suggestions.length === 0) return null;
+
+  const priorityColor = { high: 'border-red-500/30 bg-red-500/5', medium: 'border-yellow-500/20 bg-yellow-500/5', low: 'border-gray-700 bg-gray-800/50' };
+  const priorityBadge = { high: 'bg-red-500/20 text-red-400', medium: 'bg-yellow-500/20 text-yellow-400', low: 'bg-gray-600/20 text-gray-400' };
+
+  return (
+    <div className="space-y-1.5 mt-2" data-testid="improvement-panel">
+      {velionMsg && (
+        <div className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+          <Wand2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+          <p className="text-[10px] text-purple-300">{velionMsg}</p>
+        </div>
+      )}
+      {suggestions.map(s => (
+        <div key={s.type} className={`p-2 rounded-lg border ${priorityColor[s.priority] || priorityColor.low}`}>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <ArrowUp className="w-3 h-3 text-emerald-400" />
+              <span className="text-[10px] font-bold text-white">{s.name}</span>
+            </div>
+            <Badge className={`text-[7px] ${priorityBadge[s.priority] || priorityBadge.low}`}>
+              {s.priority === 'high' ? 'Urgente' : s.priority === 'medium' ? 'Consigliato' : 'Opzionale'}
+            </Badge>
+          </div>
+          <p className="text-[9px] text-gray-400 mb-1.5">{s.description}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2 text-[8px] text-gray-500">
+              <span>${s.cost_money?.toLocaleString()}</span>
+              <span>{s.cost_cp} CP</span>
+              <span className="text-emerald-400">+{s.quality_bonus?.[0]}-{s.quality_bonus?.[1]} qualita</span>
+              {s.hype_bonus && <span className="text-cyan-400">+{s.hype_bonus[0]}-{s.hype_bonus[1]}% hype</span>}
+            </div>
+            <Button size="sm" className="h-5 text-[8px] bg-emerald-700 hover:bg-emerald-600 px-2"
+              disabled={applying === s.type} onClick={() => apply(s.type)}
+              data-testid={`improve-${s.type}`}>
+              {applying === s.type ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : 'Migliora'}
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const AgencyActorCardPopup = ({ actor, isSelected, onToggle, roleValue, onRoleChange, ACTOR_ROLES }) => {
   const [skillExpanded, setSkillExpanded] = React.useState(false);
   const skills = actor.skills || {};
@@ -1653,6 +1726,11 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
         <div className="mt-1">
           {renderStepContent()}
         </div>
+
+        {/* Improvement Panel - shows for films in production */}
+        {['casting', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
+          <ImprovementPanel film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />
+        )}
 
         {/* Discard */}
         <DiscardButton film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />

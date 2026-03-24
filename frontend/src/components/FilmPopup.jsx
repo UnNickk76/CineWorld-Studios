@@ -467,6 +467,8 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
   const [agencyActors, setAgencyActors] = useState({ effective: [], school: [] });
   const [selectedAgencyActors, setSelectedAgencyActors] = useState({});
   const [agencyRoles, setAgencyRoles] = useState({});
+  const [showAutoComplete, setShowAutoComplete] = useState(false);
+  const [velionMessage, setVelionMessage] = useState(null);
   const ACTOR_ROLES = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo'];
   const roleLabels = { directors: 'Regista', screenwriters: 'Sceneggiatore', actors: 'Attori', composers: 'Compositore' };
 
@@ -476,8 +478,14 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
     }).catch(() => {});
   }, [api]);
 
+  // Show auto-complete button after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setShowAutoComplete(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const cast = film.cast || {};
-  const castComplete = cast.director && cast.screenwriter && cast.composer && cast.actors?.length > 0;
+  const castComplete = cast.director && cast.screenwriter && cast.composer && (cast.actors?.length || 0) >= 2;
   const isLocked = film.cast_locked === true || (film.from_emerging_screenplay && film.emerging_option === 'full_package');
 
   const speedUp = async (roleType) => {
@@ -490,9 +498,9 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
     finally { setActionLoading(null); }
   };
 
-  const selectCast = async (roleType, proposalId) => {
+  // FAIL-SAFE: selectCast with retry and fallback
+  const selectCast = async (roleType, proposalId, retryCount = 0) => {
     if (roleType === 'actors' && !actorRoles[proposalId]) {
-      // Auto-assign default role instead of blocking
       setActorRoles(p => ({...p, [proposalId]: 'Supporto'}));
     }
     const finalRole = roleType === 'actors' ? (actorRoles[proposalId] || 'Supporto') : null;
@@ -505,12 +513,69 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
       if (res.data.accepted) {
         toast.success(res.data.message);
         haptic([10, 50, 10]);
-        if (res.data.casting_complete) toast.success('Casting completo!');
+        if (res.data.casting_complete) toast.success('Casting completo! Puoi proseguire.');
       } else {
         toast.error(res.data.message || 'Attore non disponibile');
       }
       refreshUser(); onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore selezione attore'); }
+    } catch (e) {
+      // FAIL-SAFE: retry once, then fallback to auto-complete
+      if (retryCount < 1) {
+        await selectCast(roleType, proposalId, retryCount + 1);
+        return;
+      }
+      toast.error('Errore selezione. Usa "Completa Cast" per proseguire.');
+    }
+    finally { setActionLoading(null); }
+  };
+
+  // FAIL-SAFE: Auto-complete cast
+  const autoCompleteCast = async () => {
+    setActionLoading('auto-complete');
+    try {
+      const res = await api.post(`/film-pipeline/${film.id}/auto-complete-cast`);
+      if (res.data.success) {
+        if (res.data.already_complete) {
+          toast.success('Il cast è già completo!');
+        } else {
+          toast.success(res.data.velion_message || res.data.message);
+          setVelionMessage(res.data.velion_message || 'Velion ha completato il casting!');
+          setTimeout(() => setVelionMessage(null), 6000);
+        }
+        refreshUser(); onRefresh();
+      } else {
+        toast.error(res.data.message || 'Errore');
+      }
+    } catch (e) {
+      toast.error('Errore nel completamento automatico');
+    }
+    finally { setActionLoading(null); }
+  };
+
+  // FAIL-SAFE: advanceToScreenplay with auto-complete fallback
+  const advanceToScreenplay = async () => {
+    setActionLoading('adv-screenplay');
+    try {
+      const res = await api.post(`/film-pipeline/${film.id}/advance-to-screenplay`);
+      toast.success(res.data.message);
+      refreshUser(); onRefresh();
+    } catch (e) {
+      // FAIL-SAFE: if advance fails, try auto-complete then retry
+      try {
+        const autoRes = await api.post(`/film-pipeline/${film.id}/auto-complete-cast`);
+        if (autoRes.data.success) {
+          setVelionMessage(autoRes.data.velion_message || 'Velion ha completato il casting!');
+          setTimeout(() => setVelionMessage(null), 6000);
+          const retryRes = await api.post(`/film-pipeline/${film.id}/advance-to-screenplay`);
+          toast.success(retryRes.data.message);
+          refreshUser(); onRefresh();
+        } else {
+          toast.error('Impossibile completare il cast automaticamente');
+        }
+      } catch (e2) {
+        toast.error('Errore avanzamento. Riprova tra poco.');
+      }
+    }
     finally { setActionLoading(null); }
   };
 
@@ -523,16 +588,6 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
       });
       if (res.data.accepted) { toast.success(res.data.message); }
       else { toast.error(res.data.message); }
-      refreshUser(); onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-    finally { setActionLoading(null); }
-  };
-
-  const advanceToScreenplay = async () => {
-    setActionLoading('adv-screenplay');
-    try {
-      const res = await api.post(`/film-pipeline/${film.id}/advance-to-screenplay`);
-      toast.success(res.data.message);
       refreshUser(); onRefresh();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setActionLoading(null); }
@@ -559,6 +614,18 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
 
   return (
     <div className="space-y-2" data-testid={`popup-casting-${film.id}`}>
+      {/* Velion auto-complete message */}
+      {velionMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20"
+          data-testid="velion-cast-message">
+          <Wand2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+          <p className="text-[11px] text-purple-300">{velionMessage}</p>
+        </motion.div>
+      )}
+
+      {/* Advance button - always visible, fail-safe handles incomplete cast */}
       {(castComplete || isLocked) && (
         <Button className="w-full bg-green-700 hover:bg-green-800 text-xs mb-2"
           onClick={advanceToScreenplay} disabled={actionLoading === 'adv-screenplay'}
@@ -566,6 +633,23 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
           {actionLoading === 'adv-screenplay' ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
           Prosegui alla Sceneggiatura (2 CP)
         </Button>
+      )}
+
+      {/* FAIL-SAFE: Auto-complete cast button */}
+      {showAutoComplete && !castComplete && !isLocked && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+          <Button
+            className="w-full bg-purple-700/80 hover:bg-purple-700 text-xs mb-2 border border-purple-500/30"
+            onClick={autoCompleteCast}
+            disabled={actionLoading === 'auto-complete'}
+            data-testid={`popup-auto-complete-cast-${film.id}`}>
+            {actionLoading === 'auto-complete'
+              ? <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+              : <Wand2 className="w-3 h-3 mr-1" />}
+            Completa Cast Automaticamente (50% costo)
+          </Button>
+          <p className="text-[9px] text-gray-500 text-center -mt-1 mb-1">Velion assegnerà i ruoli mancanti con attori adatti al genere</p>
+        </motion.div>
       )}
 
       {/* Cast proposals per role */}

@@ -1289,14 +1289,14 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
             }}
         )
 
-    # Check if casting is complete
+    # Check if casting is complete (minimum: director + screenwriter + composer + 2 actors)
     updated = await db.film_projects.find_one({'id': project_id}, {'_id': 0, 'cast': 1})
     cast = updated.get('cast', {})
     casting_complete = (
         cast.get('director') is not None and
         cast.get('screenwriter') is not None and
         cast.get('composer') is not None and
-        len(cast.get('actors', [])) >= 1
+        len(cast.get('actors', [])) >= 2
     )
 
     return {
@@ -1306,6 +1306,220 @@ async def select_cast_member(project_id: str, req: SelectCastRequest, user: dict
         'cost': cost,
         'casting_complete': casting_complete
     }
+
+
+
+# ==================== FAIL-SAFE CAST SYSTEM ====================
+
+ACTOR_ROLES_LIST = ['Protagonista', 'Co-Protagonista', 'Antagonista', 'Supporto', 'Cameo']
+
+async def _auto_fill_cast(project: dict, user: dict) -> dict:
+    """Auto-fill missing cast roles with genre-appropriate members.
+    Returns dict with filled roles and total cost.
+    """
+    from cast_system import generate_cast_member_v2, GENRE_SKILL_MAPPING
+    
+    cast = project.get('cast', {})
+    genre = project.get('genre', 'drama')
+    filled = []
+    total_cost = 0
+    genre_skills = GENRE_SKILL_MAPPING.get(genre, ['drama'])
+    
+    # Helper: pick from available proposals or generate new
+    async def pick_or_generate(role_type, person_type):
+        proposals = project.get('cast_proposals', {}).get(role_type, [])
+        available = [p for p in proposals if p.get('status') == 'available']
+        
+        if available:
+            # Pick best available (first = highest fame/quality)
+            chosen = available[0]
+            chosen['status'] = 'accepted'
+            # Mark others as passed for non-actor roles
+            if role_type != 'actors':
+                for p in proposals:
+                    if p['id'] != chosen['id'] and p.get('status') not in ('accepted', 'rejected'):
+                        p['status'] = 'passed'
+            await db.film_projects.update_one(
+                {'id': project['id']},
+                {'$set': {f'cast_proposals.{role_type}': proposals}}
+            )
+            person = chosen['person']
+            cost = int(chosen.get('cost', 0) * 0.5)  # 50% discount for auto-fill
+            return person, cost
+        else:
+            # Generate a new cast member suited to genre
+            member = generate_cast_member_v2(person_type, category='known', ensure_skills=genre_skills[:2])
+            cost = int(member.get('cost_per_film', 30000) * 0.5)
+            return member, cost
+    
+    # 1. Auto-fill director
+    if not cast.get('director'):
+        person, cost = await pick_or_generate('directors', 'director')
+        cast['director'] = person
+        total_cost += cost
+        filled.append(f"Regista: {person['name']}")
+    
+    # 2. Auto-fill screenwriter
+    if not cast.get('screenwriter'):
+        person, cost = await pick_or_generate('screenwriters', 'screenwriter')
+        cast['screenwriter'] = person
+        total_cost += cost
+        filled.append(f"Sceneggiatore: {person['name']}")
+    
+    # 3. Auto-fill composer
+    if not cast.get('composer'):
+        person, cost = await pick_or_generate('composers', 'composer')
+        cast['composer'] = person
+        total_cost += cost
+        filled.append(f"Compositore: {person['name']}")
+    
+    # 4. Auto-fill actors (need 2-5 suited to genre)
+    actors = cast.get('actors', [])
+    min_actors = 2
+    max_actors = 5
+    target_actors = max(min_actors, min(max_actors, random.randint(2, 4)))
+    
+    roles_to_assign = list(ACTOR_ROLES_LIST)  # Protagonista first, then others
+    role_idx = 0
+    
+    while len(actors) < target_actors:
+        # Try to pick from available actor proposals
+        proposals = project.get('cast_proposals', {}).get('actors', [])
+        available = [p for p in proposals if p.get('status') == 'available']
+        
+        if available:
+            # Prefer actors with matching genre skills
+            def genre_score(p):
+                skills = p.get('person', {}).get('skills', {})
+                return sum(skills.get(s, 0) for s in genre_skills)
+            available.sort(key=genre_score, reverse=True)
+            chosen = available[0]
+            chosen['status'] = 'accepted'
+            await db.film_projects.update_one(
+                {'id': project['id']},
+                {'$set': {'cast_proposals.actors': proposals}}
+            )
+            person = chosen['person']
+            cost = int(chosen.get('cost', 0) * 0.5)
+        else:
+            person = generate_cast_member_v2('actor', category='emerging', ensure_skills=genre_skills[:2])
+            cost = int(person.get('cost_per_film', 20000) * 0.5)
+        
+        # Assign role
+        role = roles_to_assign[role_idx % len(roles_to_assign)]
+        role_idx += 1
+        person_with_role = {**person, 'role_in_film': role}
+        actors.append(person_with_role)
+        total_cost += cost
+        filled.append(f"Attore ({role}): {person['name']}")
+    
+    cast['actors'] = actors
+    
+    # Deduct cost (or skip if insufficient funds - never block)
+    user_funds = user.get('funds', 0)
+    actual_cost = min(total_cost, user_funds)
+    if actual_cost > 0:
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -actual_cost}})
+    
+    # Save updated cast
+    await db.film_projects.update_one(
+        {'id': project['id']},
+        {'$set': {
+            'cast': cast,
+            'cast_auto_completed': True,
+            'cast_auto_completed_at': datetime.now(timezone.utc).isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        'filled': filled,
+        'total_cost': actual_cost,
+        'discount_applied': total_cost - actual_cost,
+        'cast': cast
+    }
+
+
+@router.post("/film-pipeline/{project_id}/auto-complete-cast")
+async def auto_complete_cast(project_id: str, user: dict = Depends(get_current_user)):
+    """Fail-safe: auto-complete missing cast roles with genre-appropriate members at 50% cost."""
+    try:
+        project = await db.film_projects.find_one(
+            {'id': project_id, 'user_id': user['id'], 'status': 'casting'},
+            {'_id': 0}
+        )
+        if not project:
+            raise HTTPException(status_code=404, detail="Progetto non trovato")
+        
+        cast = project.get('cast', {})
+        actors = cast.get('actors', [])
+        is_complete = (
+            cast.get('director') and cast.get('screenwriter') and
+            cast.get('composer') and len(actors) >= 2
+        )
+        
+        if is_complete:
+            return {
+                'success': True,
+                'message': 'Il cast è già completo!',
+                'already_complete': True,
+                'filled': [],
+                'total_cost': 0
+            }
+        
+        result = await _auto_fill_cast(project, user)
+        
+        filled_msg = ", ".join(result['filled']) if result['filled'] else "Nessun ruolo da completare"
+        
+        return {
+            'success': True,
+            'message': f"Velion ha completato il casting! {filled_msg}",
+            'already_complete': False,
+            'filled': result['filled'],
+            'total_cost': result['total_cost'],
+            'velion_message': "Ho completato il casting per non fermare la produzione. Il team è pronto!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Auto-complete cast error for {project_id}: {e}")
+        # FAIL-SAFE: even if auto-complete fails, try to generate minimal cast
+        try:
+            from cast_system import generate_cast_member_v2
+            minimal_cast = {
+                'director': generate_cast_member_v2('director', 'emerging'),
+                'screenwriter': generate_cast_member_v2('screenwriter', 'emerging'),
+                'composer': generate_cast_member_v2('composer', 'emerging'),
+                'actors': [
+                    {**generate_cast_member_v2('actor', 'emerging'), 'role_in_film': 'Protagonista'},
+                    {**generate_cast_member_v2('actor', 'emerging'), 'role_in_film': 'Supporto'},
+                ]
+            }
+            await db.film_projects.update_one(
+                {'id': project_id},
+                {'$set': {
+                    'cast': minimal_cast,
+                    'cast_auto_completed': True,
+                    'cast_emergency_mode': True,
+                    'updated_at': datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            return {
+                'success': True,
+                'message': "Velion ha assemblato un cast d'emergenza. La produzione continua!",
+                'already_complete': False,
+                'filled': ['Cast d\'emergenza generato'],
+                'total_cost': 0,
+                'velion_message': "Ho dovuto improvvisare... ma il cast è pronto!"
+            }
+        except Exception as e2:
+            logging.error(f"Emergency cast generation also failed for {project_id}: {e2}")
+            return {
+                'success': False,
+                'message': "Errore nel completamento automatico. Riprova.",
+                'filled': [],
+                'total_cost': 0
+            }
 
 
 class RenegotiateRequest(BaseModel):
@@ -1399,7 +1613,7 @@ async def renegotiate_cast(project_id: str, req: RenegotiateRequest, user: dict 
         cast.get('director') is not None and
         cast.get('screenwriter') is not None and
         cast.get('composer') is not None and
-        len(cast.get('actors', [])) >= 1
+        len(cast.get('actors', [])) >= 2
     )
 
     return {
@@ -1424,13 +1638,31 @@ async def advance_to_screenplay(project_id: str, user: dict = Depends(get_curren
     cast = project.get('cast', {})
     is_full_package = project.get('from_emerging_screenplay') and project.get('emerging_option') == 'full_package'
     
-    # Full package films have pre-filled cast, relaxed validation
+    # FAIL-SAFE: Auto-complete cast instead of blocking
+    actors = cast.get('actors', [])
+    cast_incomplete = (
+        not cast.get('director') or not cast.get('screenwriter') or
+        not cast.get('composer') or len(actors) < 2
+    )
+    
     if is_full_package:
         if not cast.get('director'):
-            raise HTTPException(status_code=400, detail="Il cast del pacchetto non include un regista")
-    else:
-        if not cast.get('director') or not cast.get('screenwriter') or not cast.get('composer') or not cast.get('actors'):
-            raise HTTPException(status_code=400, detail="Devi completare il casting prima di procedere")
+            # Even full package: auto-fill director
+            try:
+                user_fresh = await db.users.find_one({'id': user['id']}, {'_id': 0})
+                await _auto_fill_cast(project, user_fresh or user)
+                project = await db.film_projects.find_one({'id': project_id}, {'_id': 0})
+            except Exception as e:
+                logging.error(f"Fail-safe auto-fill in advance-to-screenplay (full_package): {e}")
+    elif cast_incomplete:
+        # FAIL-SAFE: auto-complete missing roles instead of blocking
+        try:
+            user_fresh = await db.users.find_one({'id': user['id']}, {'_id': 0})
+            result = await _auto_fill_cast(project, user_fresh or user)
+            project = await db.film_projects.find_one({'id': project_id}, {'_id': 0})
+            logging.info(f"Fail-safe auto-completed cast for {project_id}: {result['filled']}")
+        except Exception as e:
+            logging.error(f"Fail-safe auto-fill in advance-to-screenplay: {e}")
 
     from routes.cinepass import spend_cinepass
     cp_cost = STEP_CINEPASS['screenplay']

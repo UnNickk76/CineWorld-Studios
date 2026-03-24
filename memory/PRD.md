@@ -180,6 +180,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
 - **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
 
+### Ottimizzazione Performance - Navigazione Istantanea (2026-03-24)
+- **GameStore SWR:** `contexts/GameStore.jsx` - Store globale con stale-while-revalidate (30s stale, 5min max). Dati persistenti tra navigazioni, aggiornamento background senza blocco UI.
+- **Prefetch intelligente:** Wave-based dopo login (wave1: dashboard+pipeline, wave2: films+arena, wave3: level+genres). Prefetch on-hover sui link della bottom navbar.
+- **Pagine migrate:** Dashboard (`useSWR('/dashboard/batch')`), FilmPipeline (`useSWR('/film-pipeline/all')`), PvPArena (`useSWR('/pvp-cinema/arena')`), MyFilms (`useSWR('/films/my')`)
+- **Riduzione API:** Cache elimina fetch duplicati, SWR mostra dati cached istantaneamente + revalidazione background
+- **Mobile performance:** Zero blocchi UI, dati visibili subito su ogni pagina
+- **Test:** Iter 149 - 100% frontend, 0 errori console, navigazione istantanea verificata
+
 ### Bug Fix UX Mobile Chat (2026-03-24)
 - **Banner donazione:** Nascosto su `/chat` (`location.pathname !== '/chat'`)
 - **Velion avatar:** Nascosto su `/chat` (rimosso VelionOverlay quando chat attiva)

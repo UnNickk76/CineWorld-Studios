@@ -189,6 +189,17 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Smart Badges:** Badge conteggi nella pagina Produci per categorie film
 - **Test:** Iter 148 - 100% backend (13/13) + 100% frontend
 
+### Sistema PvP Cinematografico (2026-03-24)
+- **Guerra al Box Office:** Auto-trigger quando film dello stesso genere escono nello stesso periodo (48h). Marketing boost (4 tipi: Social, Premiere, Critici, Billboard). Premi: fondi, fama, revenue bonus al vincitore. Penalita revenue al perdente.
+- **Testa a Testa:** Sfide manuali tra film in sala. 24h durata, score basato su qualita, audience, revenue, IMDb, likes + fattore fortuna. Premi: $250K + 5 fama + 5 CP. Costo: $100K + 3 CP.
+- **Classifica PvP:** Leaderboard basata su vittorie totali nelle sfide.
+- **Scheduler:** `resolve_pvp_cinema_events` ogni 10min risolve guerre e sfide scadute.
+- **Integrazione rilascio:** Al rilascio di un film, auto-check per guerre al box office con film dello stesso genere.
+- **Navigazione:** Icona Target rossa nella top bar + route `/pvp-arena`
+- **Backend:** `routes/pvp_cinema.py` con 8 endpoint
+- **Frontend:** `pages/PvPArenaPage.jsx` con 3 tab (Box Office, Testa a Testa, Classifica)
+- **Test:** Backend 8/8 API verificate via curl + risoluzione challenge/war manuale + frontend verificato via screenshot
+
 ## Backlog
 
 ### P1

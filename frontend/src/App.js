@@ -96,6 +96,7 @@ const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
+const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -646,6 +647,18 @@ const TopNavbar = () => {
             title="Sfide"
           >
             <Swords className="w-4 h-4" />
+          </Button>
+
+          {/* PvP Arena */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+            onClick={() => navigate('/pvp-arena')}
+            data-testid="pvp-arena-nav-btn"
+            title="Arena PvP"
+          >
+            <Target className="w-4 h-4" />
           </Button>
           
           {/* Chat */}
@@ -2097,6 +2110,7 @@ function App() {
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
                 <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
+                <Route path="/pvp-arena" element={<ProtectedRoute><PvPArenaPage /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />

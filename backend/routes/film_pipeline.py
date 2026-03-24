@@ -3499,6 +3499,16 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     await db.films.insert_one(film_doc)
     film_doc.pop('_id', None)
 
+    # Check for Box Office War (PvP Cinema)
+    try:
+        from routes.pvp_cinema import check_and_create_box_office_war
+        war_id = await check_and_create_box_office_war(film_doc, user['id'])
+        if war_id:
+            film_doc['active_war_id'] = war_id
+            logging.info(f"Film {film_id} entered box office war {war_id}")
+    except Exception as e:
+        logging.warning(f"Box office war check failed: {e}")
+
     # Launch AI tasks in background (synopsis + poster) - non-blocking
     asyncio.create_task(_generate_film_ai_content(
         film_id, project['title'], genre_name, director_name,

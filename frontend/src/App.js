@@ -62,6 +62,7 @@ const CinemaTourPage = React.lazy(() => import('./pages/CinemaTourPage'));
 const CreatorBoard = React.lazy(() => import('./pages/CreatorBoard'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const DiscoveredStars = React.lazy(() => import('./pages/DiscoveredStars'));
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -1903,6 +1904,7 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
+      <PWAInstallBanner />
       <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <AnimatePresence>
         <PageTransition key={location.pathname}>

@@ -250,6 +250,15 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Prossimamente in Arena:** Nuova sezione con scroll orizzontale, mini locandine, click apre popup con supporto/boicotto.
 - **UI Mobile:** Aggiunto `safe-area-inset-bottom` padding ad Arena page e dialog popup per evitare sovrapposizione navbar Safari.
 
+### PWA Pro-Level (2026-03-24)
+- **Manifest:** display:standalone, theme_color:#FFD700, bg:#000, orientation:portrait, 10 icone (72-512px) con maskable
+- **Service Worker Avanzato:** Cache-First per asset statici (JS/CSS/images/fonts), Network-First per API (cache solo fallback offline), Navigation fallback a index.html per SPA
+- **PWA Install Banner:** Componente `PWAInstallBanner.jsx` con prompt nativo Android + guida custom iOS (bottom sheet con 3 step). Rileva standalone per nascondersi se già installato. Dismiss con timer 24h.
+- **Download Page:** Riscritta `DownloadAppPage.jsx` con fix import (Smartphone/QrCode), istruzioni iOS, Android e Desktop
+- **Apple Meta Tags:** apple-mobile-web-app-capable, black-translucent status bar, apple-touch-icon 192px
+- **Safe Area:** Padding bottom dinamico per Safari toolbar su tutte le pagine principali
+- **Test:** SW active, manifest verificato, download page funzionante. Banner PWA si attiva solo su dispositivi reali (iOS/Android).
+
 ## Backlog
 
 ### P1

@@ -250,6 +250,19 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Prossimamente in Arena:** Nuova sezione con scroll orizzontale, mini locandine, click apre popup con supporto/boicotto.
 - **UI Mobile:** Aggiunto `safe-area-inset-bottom` padding ad Arena page e dialog popup per evitare sovrapposizione navbar Safari.
 
+### Bug Fix - Film Scomparso dopo Rilancio (2026-03-24)
+**Root cause:** Tre bug correlati:
+1. `remastering` non presente in `VALID_FILM_STATUSES` → auto_cleanup_corrupted_projects ogni 30 min scartava i film in rimasterizzazione
+2. `auto_release_coming_soon` settava status `completed` in `film_projects` SENZA creare l'entry nella collection `films` → film "fantasma"
+3. `release_film()` accettava solo status `shooting` → film in `pending_release` non potevano essere rilasciati
+
+**Fix:**
+- Aggiunto `remastering` e `pending_release` a VALID_FILM_STATUSES in scheduler_tasks.py e film_pipeline.py
+- Auto-release ora setta `pending_release` (non `completed`) → utente deve completare il release manualmente → release popup + eventi triggerati
+- `release_film()` ora accetta anche `pending_release`
+- Aggiunti status `pending_release` e `remastering` al frontend FilmProductionCard
+- Aggiunto logging su release_film per tracciare cambi di stato
+
 ### PWA Pro-Level (2026-03-24)
 - **Manifest:** display:standalone, theme_color:#FFD700, bg:#000, orientation:portrait, 10 icone (72-512px) con maskable
 - **Service Worker Avanzato:** Cache-First per asset statici (JS/CSS/images/fonts), Network-First per API (cache solo fallback offline), Navigation fallback a index.html per SPA

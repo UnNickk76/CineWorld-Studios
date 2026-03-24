@@ -25,7 +25,7 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 router = APIRouter()
 
 # === VALID STATE TRANSITIONS ===
-VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned'}
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 
 VALID_FILM_TRANSITIONS = {
     'draft': {'proposed', 'discarded'},
@@ -3099,14 +3099,14 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
 async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     """Release a completed film to theaters. Shows cost summary."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'shooting'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['shooting', 'pending_release']}},
         {'_id': 0}
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
 
-    # Check shooting is complete
-    if not project.get('shooting_completed'):
+    # Check shooting is complete (skip for pending_release - already past shooting)
+    if project.get('status') == 'shooting' and not project.get('shooting_completed'):
         started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
         total_days = project.get('shooting_days', 5)
         hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600
@@ -3506,6 +3506,7 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     ))
 
     # Update project status
+    logging.info(f"[RELEASE] Film '{project.get('title')}' (id={project_id}) released to theaters. Status: {project.get('status')} -> completed. Film ID: {film_id}")
     await db.film_projects.update_one(
         {'id': project_id},
         {'$set': {

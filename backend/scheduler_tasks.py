@@ -849,39 +849,20 @@ async def auto_release_coming_soon():
                 logger.info(f"Film {project['id']} ({project['title']}) Coming Soon completed -> ready_for_casting (pre_casting={project.get('coming_soon_type')})")
                 continue
 
-            # Legacy / pre_release: complete the film normally
+            # Legacy / pre_release: mark film as pending_release so user can release it properly
+            # DO NOT auto-complete - the normal release flow creates the films collection entry
             hype = project.get('hype_score', 0)
             hype_boost = min(15, hype * 0.5)
             strategy_bonus_pct = project.get('release_strategy_bonus_pct', 0)
             
-            pre_imdb = project.get('pre_imdb_score', 5.0)
-            base_quality = pre_imdb * 10 + random.uniform(-5, 10) + hype_boost
-            quality_score = max(10, min(98, base_quality))
-            
-            base_rev = random.randint(5000000, 25000000)
-            quality_mult = quality_score / 50
-            hype_revenue_mult = 1 + (hype_boost / 100)
-            strategy_mult = 1 + (strategy_bonus_pct / 100)
-            total_rev = int(base_rev * quality_mult * hype_revenue_mult * strategy_mult)
-            
-            xp_reward = 50
-            fame_bonus = 10 if quality_score >= 70 else 3
-            
-            await scheduler_db.users.update_one(
-                {'id': project['user_id']},
-                {'$inc': {'total_xp': xp_reward, 'fame': fame_bonus, 'funds': total_rev}}
-            )
-            
             await scheduler_db.film_projects.update_one(
                 {'id': project['id']},
                 {'$set': {
-                    'status': 'completed',
-                    'quality_score': quality_score,
-                    'total_revenue': total_rev,
-                    'audience_rating': round(quality_score / 10, 1),
-                    'completed_at': now_str,
+                    'status': 'pending_release',
+                    'coming_soon_completed': True,
+                    'coming_soon_completed_at': now_str,
                     'updated_at': now_str,
-                    'auto_released': True,
+                    'hype_boost_applied': hype_boost,
                     'release_strategy_applied_bonus': strategy_bonus_pct,
                 }}
             )
@@ -890,31 +871,14 @@ async def auto_release_coming_soon():
             bonus_msg = f" (Bonus strategia: +{strategy_bonus_pct}%)" if strategy_bonus_pct > 0 else ""
             notif = create_notification(
                 project['user_id'], 'film_release',
-                'Film Rilasciato!',
-                f'"{project["title"]}" e\' uscito! Qualita\': {quality_score:.0f}/100, Incasso: ${total_rev:,}{bonus_msg}',
+                'Film Pronto per il Rilascio!',
+                f'"{project["title"]}" e\' pronto! Vai alla pipeline per rilasciarlo e vedere gli eventi.{bonus_msg}',
                 data={'film_id': project['id'], 'project_id': project['id']},
                 link=f'/create-film?film={project["id"]}'
             )
+            notif['severity'] = 'important'
             await scheduler_db.notifications.insert_one(notif)
-            logger.info(f"Auto-released film {project['id']} ({project['title']}) with strategy bonus {strategy_bonus_pct}%")
-            
-            # Send engagement notification (high revenue or flop)
-            try:
-                from notification_engine import create_game_notification
-                if quality_score >= 70:
-                    await create_game_notification(
-                        project['user_id'], 'high_revenue', project['id'], project['title'],
-                        extra_data={'revenue': total_rev, 'quality': quality_score},
-                        link=f'/films/{project["id"]}', force=True
-                    )
-                elif quality_score < 40:
-                    await create_game_notification(
-                        project['user_id'], 'flop_warning', project['id'], project['title'],
-                        extra_data={'revenue': total_rev, 'quality': quality_score},
-                        link=f'/films/{project["id"]}', force=True
-                    )
-            except Exception as ne:
-                logger.error(f"Notification error for film release: {ne}")
+            logger.info(f"Film {project['id']} ({project['title']}) marked pending_release (was coming_soon)")
         except Exception as e:
             logger.error(f"Error auto-releasing film {project['id']}: {e}")
 
@@ -1120,7 +1084,7 @@ async def process_coming_soon_dynamic_events():
 
 
 # === AUTO-CLEANUP CORRUPTED PROJECTS ===
-VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned'}
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
 
 async def auto_cleanup_corrupted_projects():

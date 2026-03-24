@@ -1505,9 +1505,17 @@ async def get_coming_soon():
          'total_boycott_penalty': 1}
     ).sort('scheduled_release_at', 1)
     film_items = await film_cursor.to_list(50)
+
+    # Films in remastering
+    remaster_cursor = db.film_projects.find(
+        {'status': 'remastering'},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
+         'user_id': 1, 'hype_score': 1, 'created_at': 1, 'remaster_end': 1}
+    )
+    remaster_items = await remaster_cursor.to_list(50)
     
     # Enrich with production house names
-    user_ids = list(set([s['user_id'] for s in series_items] + [f['user_id'] for f in film_items]))
+    user_ids = list(set([s['user_id'] for s in series_items] + [f['user_id'] for f in film_items] + [r['user_id'] for r in remaster_items]))
     users = {}
     if user_ids:
         users_cursor = db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'production_house_name': 1, 'nickname': 1})
@@ -1529,6 +1537,16 @@ async def get_coming_soon():
             'content_type': 'film',
             'genre_name': f.get('genre', ''),
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+        })
+    for r in remaster_items:
+        owner = users.get(r['user_id'], {})
+        items.append({
+            **r,
+            'content_type': 'film',
+            'genre_name': r.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'is_remastering': True,
+            'scheduled_release_at': r.get('remaster_end', r.get('created_at', '')),
         })
     
     # Sort by scheduled_release_at

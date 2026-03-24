@@ -153,10 +153,11 @@ function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
   const [localHype, setLocalHype] = useState(item.hype_score || 0);
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
+  const isRemastering = item.is_remastering;
   const typeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
   const TypeIcon = typeIcon;
-  const typeLabel = item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : 'Film';
-  const typeColor = item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : 'text-yellow-400 bg-yellow-500/10';
+  const typeLabel = isRemastering ? 'In Aggiornamento' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : 'Film';
+  const typeColor = isRemastering ? 'text-amber-400 bg-amber-500/10' : item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : 'text-yellow-400 bg-yellow-500/10';
 
   const invDiv = pvpStatus?.divisions?.investigative;
   const opsDiv = pvpStatus?.divisions?.operative;

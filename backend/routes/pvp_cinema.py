@@ -199,11 +199,11 @@ async def get_arena(user: dict = Depends(get_current_user)):
          'hype_score': 1, 'poster_url': 1, 'scheduled_release_at': 1}
     ).to_list(50)
 
-    # 3. Shooting / pre_production (anteprima)
+    # 3. Shooting / pre_production / remastering (anteprima)
     anteprima = await db.film_projects.find(
-        {'status': {'$in': ['shooting', 'pre_production']}},
+        {'status': {'$in': ['shooting', 'pre_production', 'remastering']}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
-         'poster_url': 1, 'hype_score': 1}
+         'poster_url': 1, 'hype_score': 1, 'status': 1}
     ).to_list(50)
 
     # Enrich with user info
@@ -249,7 +249,7 @@ async def get_arena(user: dict = Depends(get_current_user)):
         genre_sections[gid]['films'].append(f)
 
     for f in anteprima:
-        f['film_status'] = 'anteprima'
+        f['film_status'] = 'in_aggiornamento' if f.get('status') == 'remastering' else 'anteprima'
         f['source'] = 'projects'
         f['quality_score'] = f.get('pre_imdb_score', 5) * 10
         gid = _find_group(f.get('genre', ''))
@@ -320,6 +320,7 @@ async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_u
         'coming_soon': 'coming_soon',
         'shooting': 'anteprima',
         'pre_production': 'anteprima',
+        'remastering': 'in_aggiornamento',
     }
 
     return {
@@ -354,19 +355,21 @@ class ArenaActionRequest(BaseModel):
 
 @router.post("/pvp-cinema/support")
 async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_current_user)):
-    """Apply a support action to your own film. Always beneficial."""
+    """Apply a support action to ANY film. Always beneficial."""
     config = SUPPORT_ACTIONS.get(req.action_id)
     if not config:
         raise HTTPException(400, "Azione supporto non valida")
 
-    # Find film (must be mine)
-    film = await db.films.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1})
+    # Find film (any film, not just own)
+    film = await db.films.find_one({'id': req.film_id}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'user_id': 1})
     source = 'films'
     if not film:
-        film = await db.film_projects.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1})
+        film = await db.film_projects.find_one({'id': req.film_id}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'user_id': 1})
         source = 'projects'
     if not film:
-        raise HTTPException(400, "Film non trovato o non e' tuo")
+        raise HTTPException(400, "Film non trovato")
+
+    is_own = film.get('user_id') == user['id']
 
     # Rate limit
     now = datetime.now(timezone.utc)
@@ -403,7 +406,7 @@ async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_curren
     bonus_pct = random.uniform(config['base_bonus_min'], config['base_bonus_max'])
     bonus_pct = round(bonus_pct, 1)
 
-    # Apply to film
+    # Apply bonus to target film
     coll = db.films if source == 'films' else db.film_projects
     if source == 'films':
         await coll.update_one(
@@ -416,18 +419,36 @@ async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_curren
             {'$inc': {'hype_score': int(bonus_pct)}}
         )
 
+    # If supporting someone else's film, also give a small bonus to own random film
+    own_bonus = 0
+    own_bonus_film = None
+    if not is_own:
+        own_bonus = round(random.uniform(1, 2), 1)
+        my_film = await db.films.find_one(
+            {'user_id': user['id'], 'status': 'in_theaters'},
+            {'_id': 0, 'id': 1, 'title': 1}
+        )
+        if my_film:
+            await db.films.update_one(
+                {'id': my_film['id']},
+                {'$inc': {'pvp_revenue_modifier': own_bonus}}
+            )
+            own_bonus_film = my_film.get('title')
+
     # Record action
     action_doc = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'target_film_id': req.film_id,
         'target_film_title': film.get('title', ''),
-        'target_user_id': user['id'],
+        'target_user_id': film.get('user_id'),
         'action_id': req.action_id,
         'action_name': config['name'],
         'category': 'support',
         'success': True,
         'effect_pct': bonus_pct,
+        'own_bonus_pct': own_bonus,
+        'own_bonus_film': own_bonus_film,
         'cost_funds': config['cost_funds'],
         'cost_cp': config['cost_cp'],
         'film_source': source,
@@ -436,12 +457,18 @@ async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_curren
     }
     await db.pvp_arena_actions.insert_one(action_doc)
 
+    msg = f"{config['name']}: +{bonus_pct}% per \"{film['title']}\"!"
+    if own_bonus_film:
+        msg += f" +{own_bonus}% bonus per \"{own_bonus_film}\"."
+
     return {
         'success': True,
         'action': config['name'],
         'film_title': film.get('title', ''),
         'bonus_pct': bonus_pct,
-        'message': f"{config['name']}: +{bonus_pct}% per \"{film['title']}\"!",
+        'own_bonus_pct': own_bonus,
+        'own_bonus_film': own_bonus_film,
+        'message': msg,
         'cost_funds': config['cost_funds'],
         'cost_cp': config['cost_cp'],
     }

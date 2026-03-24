@@ -243,6 +243,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Velion Integration:** Dopo 5s, se incassi pendenti e sezione chiusa, Velion mostra bubble "Hai incassi pronti da riscuotere!". Click su bubble → apre sezione + scroll automatico a "Riscuoti Tutto".
 - **Test:** Screenshot mobile 390x844 - toggle, red dot, apertura/chiusura, Velion bubble tutti verificati.
 
+### Fix Pre-PWA (2026-03-24)
+- **Supporto Film PvP:** Rimossa restrizione "solo propri film". Ora supporto su QUALSIASI film con bonus al film target + piccolo bonus a un proprio film random.
+- **Azioni Arena:** Rimossa logica `is_mine` per tab support/boycott. Entrambe le opzioni disponibili per ogni film. Aggiunto loading spinner e feedback visivo (+X% applicato).
+- **Film "Rimasterizza":** Aggiunti in Arena con status "In Aggiornamento" e in Dashboard Prossimamente con badge. Backend: aggiunto 'remastering' a query arena e coming-soon endpoint.
+- **Prossimamente in Arena:** Nuova sezione con scroll orizzontale, mini locandine, click apre popup con supporto/boicotto.
+- **UI Mobile:** Aggiunto `safe-area-inset-bottom` padding ad Arena page e dialog popup per evitare sovrapposizione navbar Safari.
+
 ## Backlog
 
 ### P1

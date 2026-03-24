@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { AuthContext } from '../contexts';
 import { useSWR, useGameStore } from '../contexts/GameStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Shield, Heart, Bomb, TrendingUp, Clock, Film, Share2, Users, Award, ThumbsDown, Eye, Newspaper, Sparkles, Flame, Skull, ChevronRight, BarChart3, History, X, Check, AlertTriangle, Target, PartyPopper, Laugh, Star } from 'lucide-react';
+import { Swords, Shield, Heart, Bomb, TrendingUp, Clock, Film, Share2, Users, Award, ThumbsDown, Eye, Newspaper, Sparkles, Flame, Skull, ChevronRight, BarChart3, History, X, Check, AlertTriangle, Target, PartyPopper, Laugh, Star, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
@@ -15,6 +15,7 @@ const STATUS_LABELS = {
   'in_sala': { label: 'In Sala', color: 'text-green-400 bg-green-500/15' },
   'coming_soon': { label: 'Coming Soon', color: 'text-yellow-400 bg-yellow-500/15' },
   'anteprima': { label: 'Anteprima', color: 'text-cyan-400 bg-cyan-500/15' },
+  'in_aggiornamento': { label: 'In Aggiornamento', color: 'text-amber-400 bg-amber-500/15' },
 };
 
 const GROUP_COLORS = {
@@ -106,7 +107,7 @@ export default function PvPArenaPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] pb-24" data-testid="pvp-arena-page">
+    <div className="min-h-screen bg-[#0A0A0B]" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }} data-testid="pvp-arena-page">
       {/* Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-red-950/40 via-transparent to-transparent" />
@@ -158,6 +159,26 @@ export default function PvPArenaPage() {
         {/* ARENA TAB */}
         {tab === 'arena' && arenaData && (
           <div className="space-y-4">
+            {/* Prossimamente Section */}
+            {(() => {
+              const upcoming = Object.values(arenaData.genre_sections).flatMap(s => s.films.filter(f => f.film_status === 'coming_soon' || f.film_status === 'in_aggiornamento' || f.film_status === 'anteprima'));
+              if (upcoming.length === 0) return null;
+              return (
+                <div data-testid="arena-prossimamente">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs font-bold text-yellow-400">Prossimamente</span>
+                    <span className="text-[9px] text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">{upcoming.length}</span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                    {upcoming.map(film => (
+                      <FilmMiniCard key={film.id} film={film} onClick={() => openFilm(film.id)} userId={user?.id} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {Object.entries(arenaData.genre_sections).map(([gid, section]) => {
               if (section.films.length === 0) return null;
               const colors = GROUP_COLORS[section.color] || GROUP_COLORS.red;
@@ -233,7 +254,7 @@ export default function PvPArenaPage() {
 
       {/* Film Detail + Action Modal */}
       <Dialog open={!!selectedFilm} onOpenChange={() => { setSelectedFilm(null); setFilmDetail(null); setActionResult(null); }}>
-        <DialogContent className="bg-[#111113] border-white/10 max-w-md max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="bg-[#111113] border-white/10 max-w-md max-h-[85vh] overflow-y-auto p-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {filmDetail && (
             <FilmActionPanel
               film={filmDetail}
@@ -320,7 +341,7 @@ function FilmMiniCard({ film, onClick, userId }) {
 
 /* ============ FILM ACTION PANEL ============ */
 function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onDefend, onClose }) {
-  const [actionTab, setActionTab] = useState(film.is_mine ? 'support' : 'boycott');
+  const [actionTab, setActionTab] = useState('support');
   const st = STATUS_LABELS[film.film_status] || STATUS_LABELS.in_sala;
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -406,32 +427,20 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
 
         {/* Action Tabs */}
         <div className="flex gap-1 mb-3">
-          {film.is_mine ? (
-            <button
-              onClick={() => setActionTab('support')}
-              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'support' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-500'}`}
-              data-testid="support-tab"
-            >
-              <Heart className="w-3 h-3 inline mr-1" />Supporto
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => setActionTab('boycott')}
-                className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'boycott' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-500'}`}
-                data-testid="boycott-tab"
-              >
-                <Bomb className="w-3 h-3 inline mr-1" />Boicotta
-              </button>
-              <button
-                onClick={() => setActionTab('support')}
-                className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'support' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-500'}`}
-                data-testid="support-tab-opp"
-              >
-                <Heart className="w-3 h-3 inline mr-1" />Supporto
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => setActionTab('boycott')}
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'boycott' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-500'}`}
+            data-testid="boycott-tab"
+          >
+            <Bomb className="w-3 h-3 inline mr-1" />Boicotta
+          </button>
+          <button
+            onClick={() => setActionTab('support')}
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'support' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-500'}`}
+            data-testid="support-tab"
+          >
+            <Heart className="w-3 h-3 inline mr-1" />Supporto
+          </button>
         </div>
 
         {/* Action List */}
@@ -442,14 +451,14 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
             return (
               <button
                 key={aid}
-                onClick={() => !onCooldown && !loading && film.is_mine && onAction('support', aid)}
-                disabled={onCooldown || loading || !film.is_mine}
-                className={`w-full p-2.5 rounded-xl text-left border transition-all ${onCooldown ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-emerald-500/5 border-emerald-500/15 hover:bg-emerald-500/10'}`}
+                onClick={() => !onCooldown && !loading && onAction('support', aid)}
+                disabled={onCooldown || loading}
+                className={`w-full p-2.5 rounded-xl text-left border transition-all ${onCooldown ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-emerald-500/5 border-emerald-500/15 hover:bg-emerald-500/10 active:scale-[0.98]'}`}
                 data-testid={`action-${aid}`}
               >
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-                    <ActionIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    {loading ? <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> : <ActionIcon className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-semibold text-white">{cfg.name}</p>
@@ -501,9 +510,6 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
             );
           })}
 
-          {actionTab === 'support' && !film.is_mine && (
-            <p className="text-[10px] text-gray-600 text-center py-3">Puoi supportare solo i tuoi film</p>
-          )}
         </div>
 
         {/* Recent Actions on this film */}

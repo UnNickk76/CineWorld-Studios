@@ -147,6 +147,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 140: 100% (Festival Rework Step 1-3: Dynamic Nominations + 4-State System + UI - Backend 25/25 + Frontend all)
 - Iter 141: 100% (Festival Rework Step 4-5-6: AI Unpredictable + Cinematic Ceremony + Player Festivals - Backend 21/21 + Frontend all)
 - Iter 143: 100% (Bug Fix "Scegli" Button - Casting actor selection verified working - Backend 5/5 + Frontend 9/9)
+- Iter 144: 100% (Fail-Safe Cast System - 4 livelli sicurezza - Backend 8/8 + Frontend all verified)
 
 ### Festival Rework Step 1-3 (2026-03-23)
 - **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random
@@ -157,6 +158,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Step 4 - AI Non Prevedibile:** 3 sistemi winner: player (50% voti + 50% audience), algorithm (qualita' tecnica pura), AI (fattori nascosti: hype, viral, rumor, critic bias, eventi random)
 - **Step 5 - Diretta Cinematica:** CinematicCeremony.jsx con 9 fasi animate (intro, presentazione, categoria, nomination, suspense, reveal, premio, transizione, finale), particelle, heartbeat, chat live, skip
 - **Step 6 - Festival Player Migliorato:** max_participants (5-50), badge vincitore (festival_badges collection), leaderboard custom festivals (top creators + top winners)
+
+### Fail-Safe Cast System (2026-03-24)
+- **Livello 1 - Fallback Automatico:** Endpoint `POST /api/film-pipeline/{id}/auto-complete-cast` riempie ruoli mancanti da proposte disponibili o genera nuovi membri, 50% costo ridotto
+- **Livello 2 - Auto-Complete in advance-to-screenplay:** Se cast incompleto, auto-fill prima di avanzare (MAI blocca con errore 400)
+- **Livello 3 - Cast Minimo Garantito:** Regista + Sceneggiatore + Compositore + 2-5 attori adatti al genere del film
+- **Livello 4 - Safe Mode Frontend:** Retry automatico su errore selectCast, fallback auto-complete, pulsante "Completa Cast Automaticamente" dopo 5s, messaggio Velion purple banner
+- **Emergency Mode:** Se tutto fallisce, genera cast d'emergenza minimo (2 attori) senza costo
 
 ## Backlog
 

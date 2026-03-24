@@ -229,6 +229,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Frontend:** `pages/PvPArenaPage.jsx` con 3 tab (Box Office, Testa a Testa, Classifica)
 - **Test:** Backend 8/8 API verificate via curl + risoluzione challenge/war manuale + frontend verificato via screenshot
 
+### Fix UI Mobile + Migliorie Dashboard (2026-03-24)
+- **Navbar Safe Area:** Aggiunto `paddingTop: env(safe-area-inset-top)` al navbar e wrapper contenuto in ProtectedRoute per evitare sovrapposizione titoli pagina su mobile (specialmente iOS con notch/dynamic island)
+- **Bottom Nav Safe Area:** Aggiunto `paddingBottom: env(safe-area-inset-bottom)` al bottom mobile nav per dispositivi con home indicator
+- **Sezione "Ciak!" sostituita con "Arena":** Card "shooting-shortcut" rimossa dal Dashboard, sostituita con card "arena-shortcut" che mostra statistiche PvP e linka a /pvp-arena. Usa hook useSWR('/pvp-cinema/stats') dal GameStore.
+- **Bilancio Finanziario Collassabile:** Sezione resa collapsabile con Framer Motion AnimatePresence. Mostra Profitto/Perdita nel header quando chiuso. Default chiuso (financeOpen=false).
+- **Test:** Iter 150 - 100% frontend (6/6)
+
 ## Backlog
 
 ### P1
@@ -241,6 +248,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Velion Levels (Base, Advanced, OFF)
 - RBAC, CinePass + Stripe, PWA
 - Contest Page Mobile Layout Fix (ricorrente)
+- ESLint / Python linting cleanup
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major

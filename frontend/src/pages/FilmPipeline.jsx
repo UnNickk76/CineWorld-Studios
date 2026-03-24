@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
+import { useSWR, useGameStore } from '../contexts/GameStore';
 import { TabErrorBoundary, MiniStepBar } from '../components/ErrorBoundary';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -2986,15 +2987,19 @@ const FilmPipeline = () => {
   const [showCreation, setShowCreation] = useState(false);
   const [badges, setBadges] = useState({});
 
-  // Load badges
+  // SWR: instant load from cache
+  const { data: pipelineData, mutate: refreshPipeline } = useSWR('/film-pipeline/all');
+  const { data: badgesData } = useSWR('/film-pipeline/badges');
+  
   useEffect(() => {
-    api.get('/film-pipeline/badges').then(r => setBadges(r.data.badges || {})).catch(() => {});
-  }, [api]);
+    if (badgesData?.badges) setBadges(badgesData.badges);
+  }, [badgesData]);
 
   const loadFilms = useCallback(async () => {
     try {
-      const res = await cachedGet('/film-pipeline/all');
-      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
+      // Use SWR cached data first
+      const data = pipelineData || (await api.get('/film-pipeline/all')).data;
+      const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
       setFilms(safe);
       
       // Auto-rescue: find and restore incorrectly completed films
@@ -3002,14 +3007,12 @@ const FilmPipeline = () => {
         const rescueRes = await api.post('/film-pipeline/rescue-lost-films');
         if (rescueRes.data?.rescued_count > 0) {
           toast.success(`${rescueRes.data.rescued_count} film recuperati!`);
-          const res2 = await api.get('/film-pipeline/all');
-          const safe2 = (res2.data.projects || []).filter(p => p && p.id && p.title);
-          setFilms(safe2);
+          refreshPipeline();
         }
       } catch (e) { /* rescue is best-effort */ }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [api, cachedGet]);
+  }, [api, pipelineData, refreshPipeline]);
 
   const refreshCounts = useCallback(async () => {
     try {
@@ -3085,6 +3088,7 @@ const FilmPipeline = () => {
   // Re-open popup after refresh if the film still exists
   const handlePopupRefresh = async () => {
     try {
+      refreshPipeline();
       const res = await api.get('/film-pipeline/all');
       const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
       setFilms(safe);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { AuthContext } from '../contexts';
+import { useSWR, useGameStore } from '../contexts/GameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Swords, Shield, Heart, Bomb, TrendingUp, Clock, Film, Share2, Users, Award, ThumbsDown, Eye, Newspaper, Sparkles, Flame, Skull, ChevronRight, BarChart3, History, X, Check, AlertTriangle, Target, PartyPopper, Laugh, Star } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -35,18 +36,17 @@ export default function PvPArenaPage() {
   const [actionResult, setActionResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const loadArena = useCallback(async () => {
-    try {
-      const [arenaRes, statsRes] = await Promise.all([
-        api.get('/pvp-cinema/arena'),
-        api.get('/pvp-cinema/stats'),
-      ]);
-      setArenaData(arenaRes.data);
-      setStats(statsRes.data);
-    } catch (e) { console.error('Arena load failed', e); }
-  }, [api]);
+  // SWR: instant data from cache, revalidate in background
+  const { data: arenaRaw, mutate: refreshArena } = useSWR('/pvp-cinema/arena');
+  const { data: statsRaw, mutate: refreshStats } = useSWR('/pvp-cinema/stats');
 
-  useEffect(() => { loadArena(); }, [loadArena]);
+  useEffect(() => { if (arenaRaw) setArenaData(arenaRaw); }, [arenaRaw]);
+  useEffect(() => { if (statsRaw) setStats(statsRaw); }, [statsRaw]);
+
+  const loadArena = useCallback(() => {
+    refreshArena();
+    refreshStats();
+  }, [refreshArena, refreshStats]);
 
   const loadHistory = async () => {
     try {

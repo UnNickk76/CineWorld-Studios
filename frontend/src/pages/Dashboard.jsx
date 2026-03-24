@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations, API, useProductionMenu } from '../contexts';
+import { useSWR, useGameStore } from '../contexts/GameStore';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -202,10 +203,32 @@ const Dashboard = () => {
     }
   };
 
+  // SWR: show cached data instantly, revalidate in background
+  const { data: batchData, mutate: refreshBatch } = useSWR('/dashboard/batch');
+  const gameStore = useGameStore();
+
+  // Apply batch data to local states when it arrives/updates
   useEffect(() => {
-    const fetchData = async () => {
+    if (!batchData) return;
+    const d = batchData;
+    setStats(d.stats);
+    setFilms(Array.from(new Map((d.featured_films || []).map(f => [f.id, f])).values()));
+    setMySeries(d.my_series || []);
+    setMyAnime(d.my_anime || []);
+    setRecentReleases(d.recent_releases || []);
+    setChallenges(d.challenges || []);
+    setPendingRevenue(d.pending_revenue || {});
+    setPendingFilms(d.pending_films || []);
+    setEmergingCount(d.emerging_count || 0);
+    setHasStudio(d.has_studio || false);
+    setShootingFilms(d.shooting_films || []);
+    setPipelineCount(d.pipeline_total || 0);
+  }, [batchData]);
+
+  useEffect(() => {
+    const fetchExtra = async () => {
       try {
-        // First, process offline catch-up
+        // Process offline catch-up
         const catchupRes = await api.post('/catchup/process');
         if (catchupRes.data.catchup_revenue > 0) {
           setCatchupData(catchupRes.data);
@@ -217,40 +240,19 @@ const Dashboard = () => {
           );
           refreshUser();
         }
-        
-        // Single batch call replaces 13+ separate API calls
-        const batchRes = await cachedGet('/dashboard/batch');
-        const d = batchRes.data;
-        setStats(d.stats);
-        setFilms(Array.from(new Map((d.featured_films || []).map(f => [f.id, f])).values()));
-        setMySeries(d.my_series || []);
-        setMyAnime(d.my_anime || []);
-        setRecentReleases(d.recent_releases || []);
-        setChallenges(d.challenges || []);
-        setPendingRevenue(d.pending_revenue || {});
-        setPendingFilms(d.pending_films || []);
-        setEmergingCount(d.emerging_count || 0);
-        setHasStudio(d.has_studio || false);
-        setShootingFilms(d.shooting_films || []);
-        setPipelineCount(d.pipeline_total || 0);
-        
         // Load TV stations
         try {
           const tvRes = await api.get('/tv-stations/my');
-          const allStations = tvRes.data.stations || [];
-          setMyTVStations(allStations);
+          setMyTVStations(tvRes.data.stations || []);
           setHasEmittenteTV(tvRes.data.has_emittente_tv || false);
-        } catch {
-          setHasEmittenteTV(false);
-        }
-        
-        // Contests still separate (different API structure)
+        } catch { setHasEmittenteTV(false); }
+        // Contests
         try {
           const contestsRes = await api.get('/cinepass/contests');
           const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
           setAvailableContests(available);
         } catch {}
-        // Shooting config still separate
+        // Shooting config
         try {
           const configRes = await api.get('/films/shooting/config');
           setShootingConfig(configRes.data);
@@ -259,7 +261,7 @@ const Dashboard = () => {
         console.error(err);
       }
     };
-    fetchData();
+    fetchExtra();
     
     // Setup heartbeat to track activity (every 5 minutes)
     const heartbeatInterval = setInterval(() => {

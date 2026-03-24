@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
+import { useSWR } from '../contexts/GameStore';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -67,9 +68,12 @@ const MyFilms = () => {
   const [regenLoading, setRegenLoading] = useState(null);
   const navigate = useNavigate();
 
+  // SWR for films - instant load from cache
+  const { data: filmsData, mutate: refreshFilms } = useSWR(currentView === 'film' ? '/films/my' : null);
+  useEffect(() => { if (filmsData) setFilms(filmsData); }, [filmsData]);
+
   useEffect(() => { 
     if (currentView === 'film') {
-      cachedGet('/films/my').then(r=>setFilms(r.data)).catch(()=>{}); 
       api.get('/advertising/platforms').then(r=>setAdPlatforms(r.data)).catch(()=>{});
     } else {
       const sType = currentView === 'anime' ? 'anime' : 'tv_series';

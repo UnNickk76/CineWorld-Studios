@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, toast } from 'sonner';
@@ -42,6 +42,7 @@ import { AuthContext, LanguageContext, AuthProvider, LanguageProvider, useTransl
 import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
+import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 
@@ -167,6 +168,21 @@ const TopNavbar = () => {
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [systemNotesCount, setSystemNotesCount] = useState(0);
   const [emergingScreenplaysCount, setEmergingScreenplaysCount] = useState(0);
+
+  // Prefetch data on hover for instant navigation
+  const gameStore = useGameStore();
+  const handleNavHover = useCallback((path) => {
+    if (!gameStore) return;
+    const map = {
+      '/dashboard': ['/dashboard/batch', '/films/my/featured?limit=9'],
+      '/produce': ['/film-pipeline/all', '/film-pipeline/badges'],
+      '/pvp-arena': ['/pvp-cinema/arena', '/pvp-cinema/stats'],
+      '/my-films': ['/films/my'],
+      '/marketplace': ['/marketplace/listings'],
+    };
+    const urls = map[path];
+    if (urls) gameStore.prefetch(urls);
+  }, [gameStore]);
   const [majorInfo, setMajorInfo] = useState(null);
   const [festivalNotifications, setFestivalNotifications] = useState([]);
   const [showOnlineUsersPanel, setShowOnlineUsersPanel] = useState(false);
@@ -1089,11 +1105,11 @@ const TopNavbar = () => {
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} data-testid="bottom-nav-home">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} onMouseEnter={() => handleNavHover('/dashboard')} onTouchStart={() => handleNavHover('/dashboard')} data-testid="bottom-nav-home">
           <Clapperboard className="w-4 h-4" />
           <span className="text-[8px]">Home</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : showFilmsMenu ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => setShowFilmsMenu(!showFilmsMenu)} data-testid="bottom-nav-films">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : showFilmsMenu ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => setShowFilmsMenu(!showFilmsMenu)} onMouseEnter={() => handleNavHover('/my-films')} onTouchStart={() => handleNavHover('/my-films')} data-testid="bottom-nav-films">
           <Film className="w-4 h-4" />
           <span className="text-[8px]">I Miei</span>
         </button>
@@ -1107,7 +1123,7 @@ const TopNavbar = () => {
           {showProductionMenu ? <X className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
           <span className="text-[9px] font-bold">Produci!</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/marketplace' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/marketplace')} data-testid="bottom-nav-mercato">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/marketplace' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/marketplace')} onMouseEnter={() => handleNavHover('/marketplace')} data-testid="bottom-nav-mercato">
           <Store className="w-4 h-4" />
           <span className="text-[8px]">Mercato</span>
         </button>
@@ -1115,7 +1131,7 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} data-testid="bottom-nav-arena">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} onMouseEnter={() => handleNavHover('/pvp-arena')} data-testid="bottom-nav-arena">
           <Swords className="w-4 h-4" />
           <span className="text-[8px]">Arena</span>
         </button>
@@ -2063,6 +2079,7 @@ function App() {
       <div className="relative z-10">
       <BrowserRouter>
         <AuthProvider>
+          <GameStoreProvider>
           <LanguageProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" />
@@ -2122,6 +2139,7 @@ function App() {
               </Routes>
             </UrlManager>
           </LanguageProvider>
+          </GameStoreProvider>
         </AuthProvider>
       </BrowserRouter>
       </div>

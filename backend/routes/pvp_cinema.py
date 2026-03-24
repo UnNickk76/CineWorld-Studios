@@ -1,763 +1,778 @@
-# CineWorld Studio's - PvP Cinematografico System
-# Box Office Wars, Testa a Testa, Festival PvP
+# CineWorld Studio's - Arena PvP Cinematografica
+# Support & Boycott actions on films
 
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 import uuid
 import random
 import logging
+import math
 
 from database import db
 from auth_utils import get_current_user
 from pydantic import BaseModel
+from game_systems import get_level_from_xp
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# ==================== CONFIG ====================
+# ==================== GENRE GROUPS ====================
 
-BOX_OFFICE_WAR_DURATION_HOURS = 48
-TESTA_A_TESTA_DURATION_HOURS = 24
+GENRE_GROUPS = {
+    'azione_thriller': {
+        'name': 'Azione & Thriller',
+        'genres': ['action', 'thriller'],
+        'icon': 'Flame',
+        'color': 'red',
+    },
+    'dramma_romance': {
+        'name': 'Dramma & Romance',
+        'genres': ['drama', 'romance', 'noir'],
+        'icon': 'Heart',
+        'color': 'pink',
+    },
+    'commedia_animazione': {
+        'name': 'Commedia & Animazione',
+        'genres': ['comedy', 'animation'],
+        'icon': 'Laugh',
+        'color': 'yellow',
+    },
+    'fantasy_scifi': {
+        'name': 'Fantasy & Sci-Fi',
+        'genres': ['fantasy', 'sci_fi', 'adventure'],
+        'icon': 'Sparkles',
+        'color': 'purple',
+    },
+    'horror_mistero': {
+        'name': 'Horror & Mistero',
+        'genres': ['horror', 'mystery', 'supernatural'],
+        'icon': 'Skull',
+        'color': 'green',
+    },
+}
 
-MARKETING_BOOST_OPTIONS = {
-    'social_campaign': {
+# ==================== ACTION TYPES ====================
+
+SUPPORT_ACTIONS = {
+    'campagna_social': {
         'name': 'Campagna Social',
-        'cost_funds': 50_000,
-        'cost_cp': 1,
-        'revenue_boost_pct': 8,
-        'hype_boost': 5,
-        'description': 'Lancia una campagna virale sui social media',
+        'desc': 'Lancia una campagna virale sui social media per il tuo film',
+        'icon': 'Share2',
+        'base_bonus_min': 2, 'base_bonus_max': 5,
+        'cost_funds': 30_000, 'cost_cp': 1,
+        'cooldown_minutes': 30,
+        'duration_minutes': 15,
     },
-    'premiere_event': {
-        'name': 'Evento Premiere',
-        'cost_funds': 150_000,
-        'cost_cp': 3,
-        'revenue_boost_pct': 15,
-        'hype_boost': 10,
-        'description': 'Organizza una premiere esclusiva con red carpet',
+    'influencer': {
+        'name': 'Influencer Partnership',
+        'desc': 'Coinvolgi influencer per promuovere il film',
+        'icon': 'Users',
+        'base_bonus_min': 3, 'base_bonus_max': 6,
+        'cost_funds': 60_000, 'cost_cp': 2,
+        'cooldown_minutes': 45,
+        'duration_minutes': 20,
     },
-    'critic_screening': {
-        'name': 'Proiezione per Critici',
-        'cost_funds': 80_000,
-        'cost_cp': 2,
-        'revenue_boost_pct': 12,
-        'hype_boost': 7,
-        'description': 'Invita i migliori critici a una proiezione privata',
+    'evento_promo': {
+        'name': 'Evento Promozionale',
+        'desc': 'Organizza un evento esclusivo con il cast del film',
+        'icon': 'PartyPopper',
+        'base_bonus_min': 4, 'base_bonus_max': 7,
+        'cost_funds': 100_000, 'cost_cp': 3,
+        'cooldown_minutes': 60,
+        'duration_minutes': 30,
     },
-    'billboard_blitz': {
-        'name': 'Blitz Pubblicitario',
-        'cost_funds': 200_000,
-        'cost_cp': 4,
-        'revenue_boost_pct': 20,
-        'hype_boost': 15,
-        'description': 'Cartelloni in tutte le citta principali del paese',
+    'premi_pilotati': {
+        'name': 'Premi Pilotati',
+        'desc': 'Fai lobbying presso critici e giurie per ottenere riconoscimenti',
+        'icon': 'Award',
+        'base_bonus_min': 5, 'base_bonus_max': 8,
+        'cost_funds': 150_000, 'cost_cp': 4,
+        'cooldown_minutes': 90,
+        'duration_minutes': 45,
     },
 }
 
-CHALLENGE_COSTS = {
-    'funds': 100_000,
-    'cp': 3,
+BOYCOTT_ACTIONS = {
+    'scandalo_mediatico': {
+        'name': 'Scandalo Mediatico',
+        'desc': 'Diffondi voci di uno scandalo legato alla produzione nemica',
+        'icon': 'Newspaper',
+        'base_damage_min': 3, 'base_damage_max': 8,
+        'backfire_min': 2, 'backfire_max': 5,
+        'success_base': 55,
+        'cost_funds': 50_000, 'cost_cp': 2,
+        'cooldown_minutes': 45,
+        'duration_minutes': 20,
+    },
+    'critica_negativa': {
+        'name': 'Critica Negativa Pilotata',
+        'desc': 'Paga critici influenti per stroncature mirate',
+        'icon': 'ThumbsDown',
+        'base_damage_min': 4, 'base_damage_max': 10,
+        'backfire_min': 3, 'backfire_max': 6,
+        'success_base': 50,
+        'cost_funds': 80_000, 'cost_cp': 3,
+        'cooldown_minutes': 60,
+        'duration_minutes': 25,
+    },
+    'leak_produzione': {
+        'name': 'Leak di Produzione',
+        'desc': 'Fai trapelare contenuti riservati che rovinano la sorpresa del film',
+        'icon': 'Eye',
+        'base_damage_min': 5, 'base_damage_max': 10,
+        'backfire_min': 2, 'backfire_max': 4,
+        'success_base': 45,
+        'cost_funds': 70_000, 'cost_cp': 2,
+        'cooldown_minutes': 60,
+        'duration_minutes': 15,
+    },
+    'sabotaggio_evento': {
+        'name': 'Sabotaggio Evento',
+        'desc': 'Sabota un evento promozionale del film nemico',
+        'icon': 'Bomb',
+        'base_damage_min': 6, 'base_damage_max': 10,
+        'backfire_min': 4, 'backfire_max': 8,
+        'success_base': 40,
+        'cost_funds': 120_000, 'cost_cp': 4,
+        'cooldown_minutes': 90,
+        'duration_minutes': 30,
+    },
 }
 
-CHALLENGE_PRIZES = {
-    'winner_funds': 250_000,
-    'winner_fame': 5,
-    'winner_cp': 5,
-    'loser_fame': -2,
-}
+MAX_ACTIONS_PER_HOUR = 5
 
 
 # ==================== HELPERS ====================
 
-def _calc_film_war_score(film: dict, boosts: list) -> dict:
-    """Calculate a film's competitive score in a box office war."""
-    quality = film.get('quality_score', 50)
-    audience = film.get('audience_satisfaction', 50)
-    revenue = film.get('opening_day_revenue', 0)
-    cast_fame = 0
-    for a in film.get('cast', []):
-        cast_fame += a.get('fame', 0)
-    director = film.get('director', {})
-    cast_fame += director.get('fame', 0) if director else 0
+def _calc_success_rate(user: dict, action_config: dict) -> float:
+    """Calculate success rate for a boycott action."""
+    base = action_config.get('success_base', 50)
+    level_info = get_level_from_xp(user.get('total_xp', 0))
+    fame = user.get('fame', 0)
 
-    # Marketing boosts
-    total_revenue_boost = sum(b.get('revenue_boost_pct', 0) for b in boosts)
-    total_hype_boost = sum(b.get('hype_boost', 0) for b in boosts)
+    # Infrastructure bonus
+    pvp_divs = user.get('pvp_divisions', {})
+    operative_lv = pvp_divs.get('operative', {}).get('level', 0)
+    investigative_lv = pvp_divs.get('investigative', {}).get('level', 0)
+    infra_bonus = (operative_lv * 5) + (investigative_lv * 3)
 
-    # War score formula
-    base_score = (quality * 3) + (audience * 2) + (cast_fame * 0.5) + (revenue / 10000)
-    marketing_bonus = base_score * (total_revenue_boost / 100)
-    random_factor = random.uniform(0.85, 1.15)
+    # Fame bonus (capped at +15)
+    fame_bonus = min(15, fame * 0.1)
 
-    final_score = round((base_score + marketing_bonus + total_hype_boost) * random_factor, 1)
-    return {
-        'base_score': round(base_score, 1),
-        'marketing_bonus': round(marketing_bonus, 1),
-        'hype_boost': total_hype_boost,
-        'random_factor': round(random_factor, 2),
-        'final_score': final_score,
-    }
+    # Level bonus (capped at +10)
+    level_bonus = min(10, level_info['level'] * 1.5)
+
+    # Random variance ±5
+    variance = random.uniform(-5, 5)
+
+    total = base + infra_bonus + fame_bonus + level_bonus + variance
+    return max(15, min(85, total))
 
 
-def _calc_challenge_score(film: dict) -> dict:
-    """Calculate a film's score for Testa a Testa."""
-    quality = film.get('quality_score', 50)
-    audience = film.get('audience_satisfaction', 50)
-    imdb = film.get('imdb_rating', 5.0)
-    revenue = film.get('total_revenue', 0) or film.get('opening_day_revenue', 0)
-    likes = film.get('likes_count', 0) + film.get('virtual_likes', 0)
-
-    # Weighted score
-    score = (quality * 2.5) + (audience * 1.5) + (imdb * 10) + (revenue / 50000) + (likes * 0.01)
-    # Add a bit of luck
-    luck = random.uniform(0.9, 1.1)
-    final = round(score * luck, 1)
-
-    return {
-        'quality_pts': round(quality * 2.5, 1),
-        'audience_pts': round(audience * 1.5, 1),
-        'imdb_pts': round(imdb * 10, 1),
-        'revenue_pts': round(revenue / 50000, 1),
-        'popularity_pts': round(likes * 0.01, 1),
-        'luck_factor': round(luck, 2),
-        'total': final,
-    }
+def _apply_revenue_modifier(film_id: str, pct: float, collection):
+    """Returns the update query for revenue modification."""
+    return collection.update_one(
+        {'id': film_id},
+        {'$inc': {'pvp_revenue_modifier': pct}}
+    )
 
 
-# ==================== BOX OFFICE WARS ====================
+# ==================== ARENA ENDPOINT ====================
 
-async def check_and_create_box_office_war(film_doc: dict, user_id: str):
-    """Called when a film is released. Checks for competing films and creates a war if found."""
+@router.get("/pvp-cinema/arena")
+async def get_arena(user: dict = Depends(get_current_user)):
+    """Get all films organized by genre groups for the arena."""
+
+    # 1. Films in theaters (from films collection)
+    in_theaters = await db.films.find(
+        {'status': 'in_theaters'},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'quality_score': 1,
+         'opening_day_revenue': 1, 'total_revenue': 1, 'poster_url': 1, 'tier': 1,
+         'imdb_rating': 1, 'audience_satisfaction': 1, 'pvp_revenue_modifier': 1,
+         'likes_count': 1, 'virtual_likes': 1, 'released_at': 1}
+    ).to_list(100)
+
+    # 2. Coming Soon films (from film_projects)
+    coming_soon = await db.film_projects.find(
+        {'status': 'coming_soon'},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
+         'hype_score': 1, 'poster_url': 1, 'scheduled_release_at': 1}
+    ).to_list(50)
+
+    # 3. Shooting / pre_production (anteprima)
+    anteprima = await db.film_projects.find(
+        {'status': {'$in': ['shooting', 'pre_production']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
+         'poster_url': 1, 'hype_score': 1}
+    ).to_list(50)
+
+    # Enrich with user info
+    user_cache = {}
+    all_films = in_theaters + coming_soon + anteprima
+    for f in all_films:
+        uid = f.get('user_id')
+        if uid and uid not in user_cache:
+            u = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+            user_cache[uid] = u or {}
+        cached = user_cache.get(uid, {})
+        f['nickname'] = cached.get('nickname', '?')
+        f['studio'] = cached.get('production_house_name', '')
+        f['is_mine'] = uid == user['id']
+
+    # Organize by genre group
+    genre_sections = {}
+    for gid, gconfig in GENRE_GROUPS.items():
+        genre_sections[gid] = {
+            'name': gconfig['name'],
+            'icon': gconfig['icon'],
+            'color': gconfig['color'],
+            'films': [],
+        }
+
+    def _find_group(genre):
+        for gid, gc in GENRE_GROUPS.items():
+            if genre in gc['genres']:
+                return gid
+        return 'azione_thriller'  # default
+
+    for f in in_theaters:
+        f['film_status'] = 'in_sala'
+        f['source'] = 'films'
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    for f in coming_soon:
+        f['film_status'] = 'coming_soon'
+        f['source'] = 'projects'
+        f['quality_score'] = f.get('pre_imdb_score', 5) * 10
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    for f in anteprima:
+        f['film_status'] = 'anteprima'
+        f['source'] = 'projects'
+        f['quality_score'] = f.get('pre_imdb_score', 5) * 10
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    # Sort each section by quality
+    for gid in genre_sections:
+        genre_sections[gid]['films'].sort(key=lambda x: x.get('quality_score', 0), reverse=True)
+
+    # Get user action stats
     now = datetime.now(timezone.utc)
-    window_start = (now - timedelta(hours=BOX_OFFICE_WAR_DURATION_HOURS)).isoformat()
-    genre = film_doc.get('genre', '')
-
-    # Find competing films released recently (same genre, different owner)
-    competitors = await db.films.find({
-        'genre': genre,
-        'user_id': {'$ne': user_id},
-        'released_at': {'$gte': window_start},
-        'status': 'in_theaters',
-    }, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'quality_score': 1,
-        'audience_satisfaction': 1, 'opening_day_revenue': 1, 'cast': 1,
-        'director': 1, 'genre': 1, 'tier': 1}).to_list(5)
-
-    if not competitors:
-        return None
-
-    # Check if these films are already in an active war
-    for comp in competitors:
-        existing = await db.box_office_wars.find_one({
-            'status': 'active',
-            'films.film_id': comp['id'],
-        })
-        if existing:
-            # Add our film to the existing war
-            await db.box_office_wars.update_one(
-                {'id': existing['id']},
-                {'$push': {'films': {
-                    'film_id': film_doc['id'],
-                    'user_id': user_id,
-                    'title': film_doc.get('title', ''),
-                    'quality_score': film_doc.get('quality_score', 50),
-                    'genre': genre,
-                    'marketing_boosts': [],
-                    'joined_at': now.isoformat(),
-                }}}
-            )
-            return existing['id']
-
-    # Create new war
-    war_id = str(uuid.uuid4())
-    war_films = [{
-        'film_id': film_doc['id'],
-        'user_id': user_id,
-        'title': film_doc.get('title', ''),
-        'quality_score': film_doc.get('quality_score', 50),
-        'genre': genre,
-        'marketing_boosts': [],
-        'joined_at': now.isoformat(),
-    }]
-
-    # Add the first competitor found
-    best_comp = max(competitors, key=lambda c: c.get('quality_score', 0))
-    war_films.append({
-        'film_id': best_comp['id'],
-        'user_id': best_comp['user_id'],
-        'title': best_comp.get('title', ''),
-        'quality_score': best_comp.get('quality_score', 50),
-        'genre': genre,
-        'marketing_boosts': [],
-        'joined_at': now.isoformat(),
+    hour_ago = (now - timedelta(hours=1)).isoformat()
+    actions_last_hour = await db.pvp_arena_actions.count_documents({
+        'user_id': user['id'],
+        'created_at': {'$gte': hour_ago},
     })
 
-    war_doc = {
-        'id': war_id,
-        'genre': genre,
-        'films': war_films,
-        'status': 'active',
-        'started_at': now.isoformat(),
-        'ends_at': (now + timedelta(hours=BOX_OFFICE_WAR_DURATION_HOURS)).isoformat(),
-        'results': None,
-        'created_at': now.isoformat(),
+    return {
+        'genre_sections': genre_sections,
+        'actions_remaining': max(0, MAX_ACTIONS_PER_HOUR - actions_last_hour),
+        'max_actions_per_hour': MAX_ACTIONS_PER_HOUR,
+        'support_types': {k: {**v, 'type': 'support'} for k, v in SUPPORT_ACTIONS.items()},
+        'boycott_types': {k: {**v, 'type': 'boycott'} for k, v in BOYCOTT_ACTIONS.items()},
     }
-    await db.box_office_wars.insert_one(war_doc)
 
-    # Notify all participants
-    try:
-        from notification_engine import create_game_notification
-        titles = [f['title'] for f in war_films]
-        for wf in war_films:
-            others = [t for t in titles if t != wf['title']]
+
+# ==================== FILM DETAIL ====================
+
+@router.get("/pvp-cinema/film/{film_id}")
+async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed info about a film in the arena."""
+    # Try films collection first
+    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    source = 'films'
+    if not film:
+        film = await db.film_projects.find_one({'id': film_id}, {'_id': 0})
+        source = 'projects'
+    if not film:
+        raise HTTPException(404, "Film non trovato")
+
+    uid = film.get('user_id')
+    owner = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1}) if uid else {}
+
+    # Recent PvP actions on this film
+    recent_actions = await db.pvp_arena_actions.find(
+        {'target_film_id': film_id},
+        {'_id': 0, 'action_type': 1, 'action_name': 1, 'category': 1, 'success': 1, 'effect_pct': 1, 'created_at': 1}
+    ).sort('created_at', -1).to_list(5)
+
+    # Check cooldowns for user against this film
+    now = datetime.now(timezone.utc)
+    cooldowns = {}
+    all_actions = {**SUPPORT_ACTIONS, **BOYCOTT_ACTIONS}
+    for action_id, config in all_actions.items():
+        cd_minutes = config.get('cooldown_minutes', 30)
+        cutoff = (now - timedelta(minutes=cd_minutes)).isoformat()
+        recent = await db.pvp_arena_actions.find_one({
+            'user_id': user['id'],
+            'target_film_id': film_id,
+            'action_id': action_id,
+            'created_at': {'$gte': cutoff},
+        })
+        cooldowns[action_id] = recent is not None
+
+    is_mine = uid == user['id']
+    status_map = {
+        'in_theaters': 'in_sala',
+        'coming_soon': 'coming_soon',
+        'shooting': 'anteprima',
+        'pre_production': 'anteprima',
+    }
+
+    return {
+        'id': film_id,
+        'title': film.get('title', ''),
+        'genre': film.get('genre', ''),
+        'poster_url': film.get('poster_url'),
+        'quality_score': film.get('quality_score', film.get('pre_imdb_score', 5) * 10),
+        'hype_score': film.get('hype_score', 0),
+        'opening_day_revenue': film.get('opening_day_revenue', 0),
+        'total_revenue': film.get('total_revenue', 0),
+        'audience_satisfaction': film.get('audience_satisfaction', 0),
+        'imdb_rating': film.get('imdb_rating', 0),
+        'tier': film.get('tier', ''),
+        'pvp_revenue_modifier': film.get('pvp_revenue_modifier', 0),
+        'film_status': status_map.get(film.get('status', ''), 'in_sala'),
+        'source': source,
+        'is_mine': is_mine,
+        'owner_nickname': (owner or {}).get('nickname', '?'),
+        'owner_studio': (owner or {}).get('production_house_name', ''),
+        'recent_actions': recent_actions,
+        'cooldowns': cooldowns,
+    }
+
+
+# ==================== SUPPORT ACTION ====================
+
+class ArenaActionRequest(BaseModel):
+    film_id: str
+    action_id: str
+
+
+@router.post("/pvp-cinema/support")
+async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_current_user)):
+    """Apply a support action to your own film. Always beneficial."""
+    config = SUPPORT_ACTIONS.get(req.action_id)
+    if not config:
+        raise HTTPException(400, "Azione supporto non valida")
+
+    # Find film (must be mine)
+    film = await db.films.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1})
+    source = 'films'
+    if not film:
+        film = await db.film_projects.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1, 'status': 1})
+        source = 'projects'
+    if not film:
+        raise HTTPException(400, "Film non trovato o non e' tuo")
+
+    # Rate limit
+    now = datetime.now(timezone.utc)
+    hour_ago = (now - timedelta(hours=1)).isoformat()
+    actions_count = await db.pvp_arena_actions.count_documents({
+        'user_id': user['id'], 'created_at': {'$gte': hour_ago}
+    })
+    if actions_count >= MAX_ACTIONS_PER_HOUR:
+        raise HTTPException(400, f"Limite azioni raggiunto ({MAX_ACTIONS_PER_HOUR}/ora)")
+
+    # Cooldown check
+    cd_minutes = config.get('cooldown_minutes', 30)
+    cd_cutoff = (now - timedelta(minutes=cd_minutes)).isoformat()
+    recent = await db.pvp_arena_actions.find_one({
+        'user_id': user['id'], 'target_film_id': req.film_id,
+        'action_id': req.action_id, 'created_at': {'$gte': cd_cutoff}
+    })
+    if recent:
+        raise HTTPException(400, f"Cooldown attivo per questa azione ({cd_minutes} min)")
+
+    # Cost check
+    if user.get('funds', 0) < config['cost_funds']:
+        raise HTTPException(400, f"Fondi insufficienti (${config['cost_funds']:,})")
+    if user.get('cinepass', 0) < config['cost_cp']:
+        raise HTTPException(400, f"CinePass insufficienti ({config['cost_cp']} CP)")
+
+    # Deduct costs
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -config['cost_funds'], 'cinepass': -config['cost_cp']}}
+    )
+
+    # Support ALWAYS works
+    bonus_pct = random.uniform(config['base_bonus_min'], config['base_bonus_max'])
+    bonus_pct = round(bonus_pct, 1)
+
+    # Apply to film
+    coll = db.films if source == 'films' else db.film_projects
+    if source == 'films':
+        await coll.update_one(
+            {'id': req.film_id},
+            {'$inc': {'pvp_revenue_modifier': bonus_pct, 'total_revenue': int(bonus_pct * 10000)}}
+        )
+    else:
+        await coll.update_one(
+            {'id': req.film_id},
+            {'$inc': {'hype_score': int(bonus_pct)}}
+        )
+
+    # Record action
+    action_doc = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'target_film_id': req.film_id,
+        'target_film_title': film.get('title', ''),
+        'target_user_id': user['id'],
+        'action_id': req.action_id,
+        'action_name': config['name'],
+        'category': 'support',
+        'success': True,
+        'effect_pct': bonus_pct,
+        'cost_funds': config['cost_funds'],
+        'cost_cp': config['cost_cp'],
+        'film_source': source,
+        'created_at': now.isoformat(),
+        'expires_at': (now + timedelta(minutes=config['duration_minutes'])).isoformat(),
+    }
+    await db.pvp_arena_actions.insert_one(action_doc)
+
+    return {
+        'success': True,
+        'action': config['name'],
+        'film_title': film.get('title', ''),
+        'bonus_pct': bonus_pct,
+        'message': f"{config['name']}: +{bonus_pct}% per \"{film['title']}\"!",
+        'cost_funds': config['cost_funds'],
+        'cost_cp': config['cost_cp'],
+    }
+
+
+# ==================== BOYCOTT ACTION ====================
+
+@router.post("/pvp-cinema/boycott")
+async def arena_boycott(req: ArenaActionRequest, user: dict = Depends(get_current_user)):
+    """Apply a boycott action to an opponent's film. Can fail or backfire."""
+    config = BOYCOTT_ACTIONS.get(req.action_id)
+    if not config:
+        raise HTTPException(400, "Azione boicottaggio non valida")
+
+    # Find film (must NOT be mine)
+    film = await db.films.find_one({'id': req.film_id, 'user_id': {'$ne': user['id']}}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'status': 1})
+    source = 'films'
+    if not film:
+        film = await db.film_projects.find_one({'id': req.film_id, 'user_id': {'$ne': user['id']}}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'status': 1})
+        source = 'projects'
+    if not film:
+        raise HTTPException(400, "Film non trovato o e' il tuo (non puoi boicottare te stesso)")
+
+    # Rate limit
+    now = datetime.now(timezone.utc)
+    hour_ago = (now - timedelta(hours=1)).isoformat()
+    actions_count = await db.pvp_arena_actions.count_documents({
+        'user_id': user['id'], 'created_at': {'$gte': hour_ago}
+    })
+    if actions_count >= MAX_ACTIONS_PER_HOUR:
+        raise HTTPException(400, f"Limite azioni raggiunto ({MAX_ACTIONS_PER_HOUR}/ora)")
+
+    # Cooldown
+    cd_minutes = config.get('cooldown_minutes', 45)
+    cd_cutoff = (now - timedelta(minutes=cd_minutes)).isoformat()
+    recent = await db.pvp_arena_actions.find_one({
+        'user_id': user['id'], 'target_film_id': req.film_id,
+        'action_id': req.action_id, 'created_at': {'$gte': cd_cutoff}
+    })
+    if recent:
+        raise HTTPException(400, f"Cooldown attivo ({cd_minutes} min)")
+
+    # Cost check
+    if user.get('funds', 0) < config['cost_funds']:
+        raise HTTPException(400, f"Fondi insufficienti (${config['cost_funds']:,})")
+    if user.get('cinepass', 0) < config['cost_cp']:
+        raise HTTPException(400, f"CinePass insufficienti ({config['cost_cp']} CP)")
+
+    # Deduct costs
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -config['cost_funds'], 'cinepass': -config['cost_cp']}}
+    )
+
+    # Calculate success
+    success_rate = _calc_success_rate(user, config)
+    roll = random.uniform(0, 100)
+    is_success = roll < success_rate
+
+    if is_success:
+        # Boycott succeeds: damage target + small bonus to own films
+        damage_pct = round(random.uniform(config['base_damage_min'], config['base_damage_max']), 1)
+
+        coll = db.films if source == 'films' else db.film_projects
+        if source == 'films':
+            await coll.update_one(
+                {'id': req.film_id},
+                {'$inc': {'pvp_revenue_modifier': -damage_pct, 'total_revenue': -int(damage_pct * 8000)}}
+            )
+        else:
+            await coll.update_one(
+                {'id': req.film_id},
+                {'$inc': {'hype_score': -int(damage_pct)}}
+            )
+
+        # Small bonus to own random film
+        own_bonus = round(random.uniform(1, 3), 1)
+        my_film = await db.films.find_one(
+            {'user_id': user['id'], 'status': 'in_theaters'},
+            {'_id': 0, 'id': 1, 'title': 1}
+        )
+        bonus_film_title = None
+        if my_film:
+            await db.films.update_one(
+                {'id': my_film['id']},
+                {'$inc': {'pvp_revenue_modifier': own_bonus}}
+            )
+            bonus_film_title = my_film.get('title')
+
+        # Record action
+        action_doc = {
+            'id': str(uuid.uuid4()),
+            'user_id': user['id'],
+            'target_film_id': req.film_id,
+            'target_film_title': film.get('title', ''),
+            'target_user_id': film.get('user_id'),
+            'action_id': req.action_id,
+            'action_name': config['name'],
+            'category': 'boycott',
+            'success': True,
+            'effect_pct': -damage_pct,
+            'own_bonus_pct': own_bonus,
+            'own_bonus_film': bonus_film_title,
+            'cost_funds': config['cost_funds'],
+            'cost_cp': config['cost_cp'],
+            'success_rate': round(success_rate),
+            'roll': round(roll),
+            'film_source': source,
+            'created_at': now.isoformat(),
+            'expires_at': (now + timedelta(minutes=config['duration_minutes'])).isoformat(),
+        }
+        await db.pvp_arena_actions.insert_one(action_doc)
+
+        # Notify target
+        try:
+            from notification_engine import create_game_notification
             await create_game_notification(
-                wf['user_id'], 'production_problem', wf['film_id'],
-                f"Guerra al Box Office!",
+                film['user_id'], 'coming_soon_boycott', req.film_id,
+                f"Il tuo film ha subito un attacco!",
                 extra_data={
-                    'event_title': 'Guerra al Box Office!',
-                    'event_desc': f'Il tuo film "{wf["title"]}" compete contro {", ".join(others)}! Usa il marketing per vincere!',
-                    'source': 'CineWorld News',
+                    'event_title': f'{config["name"]}!',
+                    'event_desc': f'"{film["title"]}" ha subito un {config["name"].lower()}. Incassi -{damage_pct}%!',
+                    'source': 'Arena PvP',
                 },
                 link='/pvp-arena'
             )
-    except Exception as e:
-        logger.warning(f"Failed to send war notifications: {e}")
+        except Exception:
+            pass
 
-    return war_id
+        msg = f'{config["name"]} riuscito! "{film["title"]}" subisce -{damage_pct}% incassi.'
+        if bonus_film_title:
+            msg += f' +{own_bonus}% per "{bonus_film_title}".'
 
+        return {
+            'success': True,
+            'boycott_success': True,
+            'action': config['name'],
+            'film_title': film.get('title', ''),
+            'damage_pct': damage_pct,
+            'own_bonus_pct': own_bonus,
+            'own_bonus_film': bonus_film_title,
+            'success_rate': round(success_rate),
+            'message': msg,
+        }
 
-@router.get("/pvp-cinema/wars")
-async def get_active_wars(user: dict = Depends(get_current_user)):
-    """Get all box office wars involving the player."""
-    now = datetime.now(timezone.utc).isoformat()
+    else:
+        # Boycott FAILS: backfire on own films
+        backfire_pct = round(random.uniform(config['backfire_min'], config['backfire_max']), 1)
 
-    # Active wars
-    active = await db.box_office_wars.find({
-        'films.user_id': user['id'],
-        'status': 'active',
-    }, {'_id': 0}).sort('created_at', -1).to_list(10)
+        my_film = await db.films.find_one(
+            {'user_id': user['id'], 'status': 'in_theaters'},
+            {'_id': 0, 'id': 1, 'title': 1}
+        )
+        backfire_film_title = None
+        if my_film:
+            await db.films.update_one(
+                {'id': my_film['id']},
+                {'$inc': {'pvp_revenue_modifier': -backfire_pct, 'total_revenue': -int(backfire_pct * 5000)}}
+            )
+            backfire_film_title = my_film.get('title')
 
-    # Recent completed wars
-    completed = await db.box_office_wars.find({
-        'films.user_id': user['id'],
-        'status': 'completed',
-    }, {'_id': 0}).sort('ended_at', -1).to_list(5)
-
-    # Enrich with user nicknames
-    for war in active + completed:
-        for f in war.get('films', []):
-            u = await db.users.find_one({'id': f['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-            f['nickname'] = (u or {}).get('nickname', 'Sconosciuto')
-            f['studio'] = (u or {}).get('production_house_name', '')
-
-    return {'active': active, 'completed': completed}
-
-
-@router.get("/pvp-cinema/war/{war_id}")
-async def get_war_detail(war_id: str, user: dict = Depends(get_current_user)):
-    """Get detail of a specific box office war."""
-    war = await db.box_office_wars.find_one({'id': war_id}, {'_id': 0})
-    if not war:
-        raise HTTPException(404, "Guerra non trovata")
-
-    # Enrich films with full data
-    for f in war.get('films', []):
-        film = await db.films.find_one({'id': f['film_id']}, {
-            '_id': 0, 'id': 1, 'title': 1, 'quality_score': 1, 'audience_satisfaction': 1,
-            'opening_day_revenue': 1, 'total_revenue': 1, 'imdb_rating': 1,
-            'likes_count': 1, 'virtual_likes': 1, 'tier': 1, 'poster_url': 1,
-        })
-        if film:
-            f.update(film)
-        u = await db.users.find_one({'id': f['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-        f['nickname'] = (u or {}).get('nickname', 'Sconosciuto')
-        f['studio'] = (u or {}).get('production_house_name', '')
-
-    return war
-
-
-class MarketingBoostRequest(BaseModel):
-    war_id: str
-    film_id: str
-    boost_type: str
-
-
-@router.post("/pvp-cinema/marketing-boost")
-async def apply_marketing_boost(req: MarketingBoostRequest, user: dict = Depends(get_current_user)):
-    """Apply a marketing boost to your film in a box office war."""
-    boost_config = MARKETING_BOOST_OPTIONS.get(req.boost_type)
-    if not boost_config:
-        raise HTTPException(400, "Tipo di boost non valido")
-
-    war = await db.box_office_wars.find_one({'id': req.war_id, 'status': 'active'}, {'_id': 0})
-    if not war:
-        raise HTTPException(404, "Guerra non trovata o gia terminata")
-
-    # Check user's film is in this war
-    user_film = None
-    for f in war.get('films', []):
-        if f['film_id'] == req.film_id and f['user_id'] == user['id']:
-            user_film = f
-            break
-    if not user_film:
-        raise HTTPException(400, "Il tuo film non partecipa a questa guerra")
-
-    # Check max 3 boosts per war
-    existing_boosts = user_film.get('marketing_boosts', [])
-    if len(existing_boosts) >= 3:
-        raise HTTPException(400, "Massimo 3 boost marketing per guerra")
-
-    # Check same boost not already applied
-    if req.boost_type in [b.get('type') for b in existing_boosts]:
-        raise HTTPException(400, "Questo boost e' gia attivo")
-
-    # Check funds & CP
-    if user.get('funds', 0) < boost_config['cost_funds']:
-        raise HTTPException(400, f"Fondi insufficienti (${boost_config['cost_funds']:,})")
-    if user.get('cinepass', 0) < boost_config['cost_cp']:
-        raise HTTPException(400, f"CinePass insufficienti ({boost_config['cost_cp']} CP)")
-
-    # Deduct costs
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'funds': -boost_config['cost_funds'], 'cinepass': -boost_config['cost_cp']}}
-    )
-
-    # Apply boost
-    boost_entry = {
-        'type': req.boost_type,
-        'name': boost_config['name'],
-        'revenue_boost_pct': boost_config['revenue_boost_pct'],
-        'hype_boost': boost_config['hype_boost'],
-        'applied_at': datetime.now(timezone.utc).isoformat(),
-    }
-
-    await db.box_office_wars.update_one(
-        {'id': req.war_id, 'films.film_id': req.film_id},
-        {'$push': {'films.$.marketing_boosts': boost_entry}}
-    )
-
-    return {
-        'success': True,
-        'boost': boost_config['name'],
-        'revenue_boost': boost_config['revenue_boost_pct'],
-        'hype_boost': boost_config['hype_boost'],
-        'cost_funds': boost_config['cost_funds'],
-        'cost_cp': boost_config['cost_cp'],
-        'message': f"{boost_config['name']} attivato! Revenue +{boost_config['revenue_boost_pct']}%, Hype +{boost_config['hype_boost']}",
-    }
-
-
-@router.get("/pvp-cinema/marketing-options")
-async def get_marketing_options(user: dict = Depends(get_current_user)):
-    """Get available marketing boost options."""
-    options = []
-    for key, config in MARKETING_BOOST_OPTIONS.items():
-        options.append({
-            'id': key,
-            'name': config['name'],
-            'description': config['description'],
+        action_doc = {
+            'id': str(uuid.uuid4()),
+            'user_id': user['id'],
+            'target_film_id': req.film_id,
+            'target_film_title': film.get('title', ''),
+            'target_user_id': film.get('user_id'),
+            'action_id': req.action_id,
+            'action_name': config['name'],
+            'category': 'boycott',
+            'success': False,
+            'effect_pct': 0,
+            'backfire_pct': -backfire_pct,
+            'backfire_film': backfire_film_title,
             'cost_funds': config['cost_funds'],
             'cost_cp': config['cost_cp'],
-            'revenue_boost_pct': config['revenue_boost_pct'],
-            'hype_boost': config['hype_boost'],
-            'can_afford': user.get('funds', 0) >= config['cost_funds'] and user.get('cinepass', 0) >= config['cost_cp'],
-        })
-    return {'options': options}
+            'success_rate': round(success_rate),
+            'roll': round(roll),
+            'film_source': source,
+            'created_at': now.isoformat(),
+        }
+        await db.pvp_arena_actions.insert_one(action_doc)
+
+        msg = f'{config["name"]} FALLITO! Il boicottaggio si ritorce contro di te.'
+        if backfire_film_title:
+            msg += f' "{backfire_film_title}" subisce -{backfire_pct}%.'
+
+        return {
+            'success': True,
+            'boycott_success': False,
+            'action': config['name'],
+            'film_title': film.get('title', ''),
+            'backfire_pct': backfire_pct,
+            'backfire_film': backfire_film_title,
+            'success_rate': round(success_rate),
+            'message': msg,
+        }
 
 
-async def resolve_box_office_war(war_id: str):
-    """Resolve a completed box office war. Called by scheduler."""
-    war = await db.box_office_wars.find_one({'id': war_id, 'status': 'active'}, {'_id': 0})
-    if not war:
-        return
+# ==================== DEFEND ACTION ====================
 
-    results = []
-    for wf in war.get('films', []):
-        film = await db.films.find_one({'id': wf['film_id']}, {'_id': 0})
-        if not film:
-            continue
-        boosts = wf.get('marketing_boosts', [])
-        score_data = _calc_film_war_score(film, boosts)
-        results.append({
-            'film_id': wf['film_id'],
-            'user_id': wf['user_id'],
-            'title': wf.get('title', film.get('title', '')),
-            'scores': score_data,
-            'final_score': score_data['final_score'],
-        })
-
-    # Rank by final_score
-    results.sort(key=lambda x: x['final_score'], reverse=True)
-
-    # Award prizes
-    for i, r in enumerate(results):
-        rank = i + 1
-        r['rank'] = rank
-        if rank == 1:
-            # Winner: revenue boost + fame + funds
-            revenue_bonus = int(results[-1]['final_score'] * 50)  # based on gap
-            fame_bonus = 5
-            funds_bonus = 200_000
-            await db.users.update_one(
-                {'id': r['user_id']},
-                {'$inc': {'funds': funds_bonus, 'fame': fame_bonus}}
-            )
-            # Boost film revenue
-            await db.films.update_one(
-                {'id': r['film_id']},
-                {'$inc': {'total_revenue': revenue_bonus, 'opening_day_revenue': int(revenue_bonus * 0.3)}}
-            )
-            r['prizes'] = {
-                'funds': funds_bonus,
-                'fame': fame_bonus,
-                'revenue_bonus': revenue_bonus,
-            }
-        else:
-            # Loser: slight revenue penalty
-            penalty_pct = min(0.1, 0.05 * rank)
-            film_data = await db.films.find_one({'id': r['film_id']}, {'_id': 0, 'total_revenue': 1})
-            rev = (film_data or {}).get('total_revenue', 0)
-            penalty = int(rev * penalty_pct) if rev > 0 else 0
-            if penalty > 0:
-                await db.films.update_one(
-                    {'id': r['film_id']},
-                    {'$inc': {'total_revenue': -penalty}}
-                )
-            r['prizes'] = {'revenue_penalty': -penalty}
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    await db.box_office_wars.update_one(
-        {'id': war_id},
-        {'$set': {
-            'status': 'completed',
-            'results': results,
-            'ended_at': now_iso,
-        }}
-    )
-
-    # Notify participants
-    try:
-        from notification_engine import create_game_notification
-        winner = results[0] if results else None
-        for r in results:
-            if r['rank'] == 1:
-                msg = f'"{r["title"]}" ha VINTO la Guerra al Box Office! +${r["prizes"]["funds"]:,} e +{r["prizes"]["fame"]} fama!'
-            else:
-                msg = f'"{r["title"]}" ha perso la Guerra al Box Office contro "{winner["title"]}".'
-            await create_game_notification(
-                r['user_id'], 'production_problem', r['film_id'],
-                msg, extra_data={'event_title': 'Guerra al Box Office - Risultati', 'event_desc': msg, 'source': 'CineWorld News'},
-                link='/pvp-arena'
-            )
-    except Exception as e:
-        logger.warning(f"Failed to send war result notifications: {e}")
-
-    return results
+class DefendRequest(BaseModel):
+    film_id: str
+    action_id: str  # The boycott action_id to defend against
 
 
-# ==================== TESTA A TESTA ====================
+@router.post("/pvp-cinema/defend")
+async def arena_defend(req: DefendRequest, user: dict = Depends(get_current_user)):
+    """Defend your film against a recent boycott. Partially reverses damage."""
+    # Find recent boycott against this film
+    recent_boycott = await db.pvp_arena_actions.find_one({
+        'target_film_id': req.film_id,
+        'target_user_id': user['id'],
+        'category': 'boycott',
+        'success': True,
+        'defended': {'$ne': True},
+    }, {'_id': 0}, sort=[('created_at', -1)])
 
-@router.get("/pvp-cinema/challengeable-films")
-async def get_challengeable_films(user: dict = Depends(get_current_user)):
-    """Get films from other players that can be challenged."""
-    # Get user's released films
-    my_films = await db.films.find(
-        {'user_id': user['id'], 'status': 'in_theaters'},
-        {'_id': 0, 'id': 1, 'title': 1, 'quality_score': 1, 'genre': 1, 'tier': 1, 'poster_url': 1}
-    ).to_list(20)
+    if not recent_boycott:
+        raise HTTPException(400, "Nessun boicottaggio recente da cui difendersi")
 
-    # Get opponent films (in_theaters, recent, not mine)
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
-    opponent_films = await db.films.find(
-        {'user_id': {'$ne': user['id']}, 'status': 'in_theaters', 'released_at': {'$gte': cutoff}},
-        {'_id': 0, 'id': 1, 'title': 1, 'quality_score': 1, 'genre': 1, 'tier': 1,
-         'user_id': 1, 'poster_url': 1, 'imdb_rating': 1}
-    ).sort('quality_score', -1).to_list(20)
+    # Defense cost: 2 CP
+    if user.get('cinepass', 0) < 2:
+        raise HTTPException(400, "Servono 2 CinePass per difenderti")
 
-    # Enrich with owner nicknames
-    for f in opponent_films:
-        uid = f.get('user_id')
-        if not uid:
-            continue
-        u = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-        f['nickname'] = (u or {}).get('nickname', 'Sconosciuto')
-        f['studio'] = (u or {}).get('production_house_name', '')
-    
-    # Filter out films without user_id
-    opponent_films = [f for f in opponent_films if f.get('user_id')]
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -2}})
 
-    # Check active challenges (can't challenge same user twice in 24h)
-    active_challenges = await db.pvp_challenges.find(
-        {'challenger_id': user['id'], 'status': {'$in': ['pending', 'active']}},
-        {'_id': 0, 'defender_id': 1}
-    ).to_list(10)
-    blocked_users = {c['defender_id'] for c in active_challenges}
+    # Recover 40-70% of damage
+    original_damage = abs(recent_boycott.get('effect_pct', 5))
+    recovery_pct = round(original_damage * random.uniform(0.4, 0.7), 1)
 
-    return {
-        'my_films': my_films,
-        'opponent_films': [f for f in opponent_films if f['user_id'] not in blocked_users],
-        'challenge_cost': CHALLENGE_COSTS,
-        'prizes': CHALLENGE_PRIZES,
-    }
+    # Apply recovery
+    film = await db.films.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+    source = 'films'
+    if not film:
+        film = await db.film_projects.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+        source = 'projects'
+    if not film:
+        raise HTTPException(400, "Film non trovato")
 
-
-class ChallengeRequest(BaseModel):
-    my_film_id: str
-    opponent_film_id: str
-
-
-@router.post("/pvp-cinema/challenge")
-async def create_challenge(req: ChallengeRequest, user: dict = Depends(get_current_user)):
-    """Challenge another player's film to a Testa a Testa."""
-    # Verify my film
-    my_film = await db.films.find_one(
-        {'id': req.my_film_id, 'user_id': user['id'], 'status': 'in_theaters'},
-        {'_id': 0}
-    )
-    if not my_film:
-        raise HTTPException(400, "Il tuo film non e' in sala")
-
-    # Verify opponent film
-    opp_film = await db.films.find_one(
-        {'id': req.opponent_film_id, 'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
-        {'_id': 0}
-    )
-    if not opp_film:
-        raise HTTPException(400, "Il film avversario non e' disponibile")
-
-    # Check costs
-    if user.get('funds', 0) < CHALLENGE_COSTS['funds']:
-        raise HTTPException(400, f"Fondi insufficienti (${CHALLENGE_COSTS['funds']:,})")
-    if user.get('cinepass', 0) < CHALLENGE_COSTS['cp']:
-        raise HTTPException(400, f"CinePass insufficienti ({CHALLENGE_COSTS['cp']} CP)")
-
-    # Check cooldown (max 1 challenge vs same user per 24h)
-    existing = await db.pvp_challenges.find_one({
-        'challenger_id': user['id'],
-        'defender_id': opp_film['user_id'],
-        'status': {'$in': ['pending', 'active']},
-    })
-    if existing:
-        raise HTTPException(400, "Hai gia una sfida attiva contro questo giocatore")
-
-    # Deduct costs
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'funds': -CHALLENGE_COSTS['funds'], 'cinepass': -CHALLENGE_COSTS['cp']}}
-    )
-
-    now = datetime.now(timezone.utc)
-    challenge_id = str(uuid.uuid4())
-
-    challenge_doc = {
-        'id': challenge_id,
-        'challenger_id': user['id'],
-        'challenger_film_id': req.my_film_id,
-        'challenger_film_title': my_film.get('title', ''),
-        'defender_id': opp_film['user_id'],
-        'defender_film_id': req.opponent_film_id,
-        'defender_film_title': opp_film.get('title', ''),
-        'status': 'active',  # Starts immediately - no accept needed
-        'started_at': now.isoformat(),
-        'ends_at': (now + timedelta(hours=TESTA_A_TESTA_DURATION_HOURS)).isoformat(),
-        'results': None,
-        'created_at': now.isoformat(),
-    }
-    await db.pvp_challenges.insert_one(challenge_doc)
-
-    # Notify defender
-    try:
-        from notification_engine import create_game_notification
-        await create_game_notification(
-            opp_film['user_id'], 'production_problem', challenge_id,
-            f'Testa a Testa!',
-            extra_data={
-                'event_title': 'Sfida Testa a Testa!',
-                'event_desc': f'"{my_film["title"]}" di {user.get("nickname", "?")} sfida il tuo "{opp_film["title"]}"! La sfida dura 24h.',
-                'source': 'CineWorld News',
-            },
-            link='/pvp-arena'
+    coll = db.films if source == 'films' else db.film_projects
+    if source == 'films':
+        await coll.update_one(
+            {'id': req.film_id},
+            {'$inc': {'pvp_revenue_modifier': recovery_pct, 'total_revenue': int(recovery_pct * 8000)}}
         )
-    except Exception as e:
-        logger.warning(f"Challenge notification failed: {e}")
+    else:
+        await coll.update_one(
+            {'id': req.film_id},
+            {'$inc': {'hype_score': int(recovery_pct)}}
+        )
+
+    # Mark boycott as defended
+    await db.pvp_arena_actions.update_one(
+        {'id': recent_boycott.get('id')},
+        {'$set': {'defended': True}}
+    )
 
     return {
         'success': True,
-        'challenge_id': challenge_id,
-        'my_film': my_film.get('title'),
-        'opponent_film': opp_film.get('title'),
-        'ends_at': challenge_doc['ends_at'],
-        'cost_funds': CHALLENGE_COSTS['funds'],
-        'cost_cp': CHALLENGE_COSTS['cp'],
-        'message': f'Sfida lanciata! "{my_film["title"]}" vs "{opp_film["title"]}" - 24h di battaglia!',
+        'film_title': film.get('title', ''),
+        'recovery_pct': recovery_pct,
+        'original_damage': original_damage,
+        'cost_cp': 2,
+        'message': f'Difesa attivata! Recuperato +{recovery_pct}% per "{film["title"]}".',
     }
 
 
-@router.get("/pvp-cinema/challenges")
-async def get_challenges(user: dict = Depends(get_current_user)):
-    """Get all challenges for the player (as challenger or defender)."""
-    active = await db.pvp_challenges.find({
-        '$or': [{'challenger_id': user['id']}, {'defender_id': user['id']}],
-        'status': 'active',
-    }, {'_id': 0}).sort('created_at', -1).to_list(10)
+# ==================== HISTORY / REPORT ====================
 
-    completed = await db.pvp_challenges.find({
-        '$or': [{'challenger_id': user['id']}, {'defender_id': user['id']}],
-        'status': 'completed',
-    }, {'_id': 0}).sort('ended_at', -1).to_list(10)
+@router.get("/pvp-cinema/history")
+async def get_arena_history(user: dict = Depends(get_current_user)):
+    """Get PvP arena action history."""
+    # My actions
+    my_actions = await db.pvp_arena_actions.find(
+        {'user_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(30)
 
-    # Enrich
-    for c in active + completed:
-        for role in ['challenger', 'defender']:
-            uid = c.get(f'{role}_id')
-            u = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-            c[f'{role}_nickname'] = (u or {}).get('nickname', 'Sconosciuto')
-            c[f'{role}_studio'] = (u or {}).get('production_house_name', '')
-        c['is_challenger'] = c['challenger_id'] == user['id']
+    # Actions against me
+    against_me = await db.pvp_arena_actions.find(
+        {'target_user_id': user['id'], 'user_id': {'$ne': user['id']}},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
 
-    return {'active': active, 'completed': completed}
+    # Enrich with user nicknames
+    for a in against_me:
+        u = await db.users.find_one({'id': a.get('user_id')}, {'_id': 0, 'nickname': 1})
+        a['attacker_nickname'] = (u or {}).get('nickname', '?')
 
+    # Stats
+    total_support = sum(1 for a in my_actions if a.get('category') == 'support')
+    total_boycott = sum(1 for a in my_actions if a.get('category') == 'boycott')
+    boycott_success = sum(1 for a in my_actions if a.get('category') == 'boycott' and a.get('success'))
+    total_damage = sum(abs(a.get('effect_pct', 0)) for a in my_actions if a.get('category') == 'boycott' and a.get('success'))
+    total_bonus = sum(a.get('effect_pct', 0) for a in my_actions if a.get('category') == 'support')
 
-async def resolve_challenge(challenge_id: str):
-    """Resolve a completed Testa a Testa challenge."""
-    challenge = await db.pvp_challenges.find_one({'id': challenge_id, 'status': 'active'}, {'_id': 0})
-    if not challenge:
-        return
-
-    # Get both films
-    c_film = await db.films.find_one({'id': challenge['challenger_film_id']}, {'_id': 0})
-    d_film = await db.films.find_one({'id': challenge['defender_film_id']}, {'_id': 0})
-
-    if not c_film or not d_film:
-        await db.pvp_challenges.update_one({'id': challenge_id}, {'$set': {'status': 'cancelled'}})
-        return
-
-    c_score = _calc_challenge_score(c_film)
-    d_score = _calc_challenge_score(d_film)
-
-    winner_id = challenge['challenger_id'] if c_score['total'] >= d_score['total'] else challenge['defender_id']
-    loser_id = challenge['defender_id'] if winner_id == challenge['challenger_id'] else challenge['challenger_id']
-    winner_film_title = challenge['challenger_film_title'] if winner_id == challenge['challenger_id'] else challenge['defender_film_title']
-
-    # Award prizes
-    await db.users.update_one(
-        {'id': winner_id},
-        {'$inc': {
-            'funds': CHALLENGE_PRIZES['winner_funds'],
-            'fame': CHALLENGE_PRIZES['winner_fame'],
-            'cinepass': CHALLENGE_PRIZES['winner_cp'],
-        }}
-    )
-    if CHALLENGE_PRIZES['loser_fame'] < 0:
-        await db.users.update_one(
-            {'id': loser_id},
-            {'$inc': {'fame': CHALLENGE_PRIZES['loser_fame']}}
-        )
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    results = {
-        'winner_id': winner_id,
-        'loser_id': loser_id,
-        'winner_film_title': winner_film_title,
-        'challenger_scores': c_score,
-        'defender_scores': d_score,
-        'prizes': CHALLENGE_PRIZES,
+    return {
+        'my_actions': my_actions,
+        'against_me': against_me,
+        'stats': {
+            'total_support': total_support,
+            'total_boycott': total_boycott,
+            'boycott_success_rate': round(boycott_success / max(1, total_boycott) * 100),
+            'total_damage_dealt': round(total_damage, 1),
+            'total_bonus_given': round(total_bonus, 1),
+        },
     }
 
-    await db.pvp_challenges.update_one(
-        {'id': challenge_id},
-        {'$set': {'status': 'completed', 'results': results, 'ended_at': now_iso}}
-    )
 
-    # Notify both
-    try:
-        from notification_engine import create_game_notification
-        for uid in [challenge['challenger_id'], challenge['defender_id']]:
-            won = uid == winner_id
-            msg = f'Hai {"VINTO" if won else "PERSO"} il Testa a Testa! {"+" if won else ""}{CHALLENGE_PRIZES["winner_funds"] if won else 0}$ e {"+" if won else ""}{CHALLENGE_PRIZES["winner_fame"] if won else CHALLENGE_PRIZES["loser_fame"]} fama.'
-            await create_game_notification(
-                uid, 'production_problem', challenge_id, msg,
-                extra_data={'event_title': 'Testa a Testa - Risultato', 'event_desc': msg, 'source': 'CineWorld News'},
-                link='/pvp-arena'
-            )
-    except Exception as e:
-        logger.warning(f"Challenge result notification failed: {e}")
-
-    return results
-
-
-# ==================== PVP STATS & LEADERBOARD ====================
+# ==================== STATS ====================
 
 @router.get("/pvp-cinema/stats")
 async def get_pvp_stats(user: dict = Depends(get_current_user)):
     """Get PvP cinema stats for the player."""
-    wars_won = await db.box_office_wars.count_documents({
-        'status': 'completed',
-        'results.0.user_id': user['id'],
-    })
-    wars_total = await db.box_office_wars.count_documents({
-        'films.user_id': user['id'],
-    })
+    now = datetime.now(timezone.utc)
+    hour_ago = (now - timedelta(hours=1)).isoformat()
 
-    challenges_won = await db.pvp_challenges.count_documents({
-        'status': 'completed',
-        'results.winner_id': user['id'],
-    })
-    challenges_total = await db.pvp_challenges.count_documents({
-        '$or': [{'challenger_id': user['id']}, {'defender_id': user['id']}],
-        'status': 'completed',
-    })
-
-    active_wars = await db.box_office_wars.count_documents({
-        'films.user_id': user['id'],
-        'status': 'active',
-    })
-    active_challenges = await db.pvp_challenges.count_documents({
-        '$or': [{'challenger_id': user['id']}, {'defender_id': user['id']}],
-        'status': 'active',
-    })
+    total_actions = await db.pvp_arena_actions.count_documents({'user_id': user['id']})
+    total_support = await db.pvp_arena_actions.count_documents({'user_id': user['id'], 'category': 'support'})
+    total_boycott = await db.pvp_arena_actions.count_documents({'user_id': user['id'], 'category': 'boycott'})
+    boycott_success = await db.pvp_arena_actions.count_documents({'user_id': user['id'], 'category': 'boycott', 'success': True})
+    actions_last_hour = await db.pvp_arena_actions.count_documents({'user_id': user['id'], 'created_at': {'$gte': hour_ago}})
+    attacks_received = await db.pvp_arena_actions.count_documents({'target_user_id': user['id'], 'category': 'boycott', 'success': True, 'user_id': {'$ne': user['id']}})
 
     return {
-        'wars_won': wars_won,
-        'wars_total': wars_total,
-        'wars_win_rate': round(wars_won / max(1, wars_total) * 100),
-        'challenges_won': challenges_won,
-        'challenges_total': challenges_total,
-        'challenges_win_rate': round(challenges_won / max(1, challenges_total) * 100),
-        'active_wars': active_wars,
-        'active_challenges': active_challenges,
+        'total_actions': total_actions,
+        'total_support': total_support,
+        'total_boycott': total_boycott,
+        'boycott_success_rate': round(boycott_success / max(1, total_boycott) * 100),
+        'actions_remaining': max(0, MAX_ACTIONS_PER_HOUR - actions_last_hour),
+        'max_actions_per_hour': MAX_ACTIONS_PER_HOUR,
+        'attacks_received': attacks_received,
     }
-
-
-@router.get("/pvp-cinema/leaderboard")
-async def get_pvp_leaderboard(user: dict = Depends(get_current_user)):
-    """Get PvP cinema leaderboard."""
-    # Aggregate wins from challenges
-    pipeline = [
-        {'$match': {'status': 'completed'}},
-        {'$group': {
-            '_id': '$results.winner_id',
-            'wins': {'$sum': 1},
-        }},
-        {'$sort': {'wins': -1}},
-        {'$limit': 20},
-    ]
-    challenge_leaders = await db.pvp_challenges.aggregate(pipeline).to_list(20)
-
-    leaderboard = []
-    for entry in challenge_leaders:
-        uid = entry['_id']
-        if not uid:
-            continue
-        u = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'fame': 1})
-        if u:
-            leaderboard.append({
-                'user_id': uid,
-                'nickname': u.get('nickname', '?'),
-                'studio': u.get('production_house_name', ''),
-                'fame': u.get('fame', 0),
-                'wins': entry['wins'],
-            })
-
-    return {'leaderboard': leaderboard}

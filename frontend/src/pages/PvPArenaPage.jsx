@@ -1,158 +1,151 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { AuthContext, API } from '../contexts';
+import { AuthContext } from '../contexts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Trophy, TrendingUp, Shield, Zap, DollarSign, Star, Clock, ChevronRight, Megaphone, Target, Users, Crown, BarChart3, Film, ArrowRight, Check, X, Sparkles } from 'lucide-react';
+import { Swords, Shield, Heart, Bomb, TrendingUp, Clock, Film, Share2, Users, Award, ThumbsDown, Eye, Newspaper, Sparkles, Flame, Skull, ChevronRight, BarChart3, History, X, Check, AlertTriangle, Target, PartyPopper, Laugh, Star } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
-export default function PvPArenaPage() {
-  const { user, api } = useContext(AuthContext);
-  const [tab, setTab] = useState('wars');
-  const [stats, setStats] = useState(null);
-  const [wars, setWars] = useState({ active: [], completed: [] });
-  const [challenges, setChallenges] = useState({ active: [], completed: [] });
-  const [challengeData, setChallengeData] = useState(null);
-  const [showChallengeModal, setShowChallengeModal] = useState(false);
-  const [selectedMyFilm, setSelectedMyFilm] = useState(null);
-  const [selectedOppFilm, setSelectedOppFilm] = useState(null);
-  const [marketingOptions, setMarketingOptions] = useState([]);
-  const [showMarketingModal, setShowMarketingModal] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [leaderboard, setLeaderboard] = useState([]);
+const ICON_MAP = {
+  Share2, Users, PartyPopper, Award, Newspaper, ThumbsDown, Eye, Bomb,
+  Flame, Heart, Laugh, Sparkles, Skull,
+};
 
-  const loadData = useCallback(async () => {
+const STATUS_LABELS = {
+  'in_sala': { label: 'In Sala', color: 'text-green-400 bg-green-500/15' },
+  'coming_soon': { label: 'Coming Soon', color: 'text-yellow-400 bg-yellow-500/15' },
+  'anteprima': { label: 'Anteprima', color: 'text-cyan-400 bg-cyan-500/15' },
+};
+
+const GROUP_COLORS = {
+  red: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', accent: 'from-red-600 to-orange-600' },
+  pink: { bg: 'bg-pink-500/10', border: 'border-pink-500/20', text: 'text-pink-400', accent: 'from-pink-600 to-rose-600' },
+  yellow: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-400', accent: 'from-yellow-600 to-amber-600' },
+  purple: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400', accent: 'from-purple-600 to-indigo-600' },
+  green: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', accent: 'from-emerald-600 to-teal-600' },
+};
+
+export default function PvPArenaPage() {
+  const { user, api, refreshUser } = useContext(AuthContext);
+  const [tab, setTab] = useState('arena');
+  const [arenaData, setArenaData] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [history, setHistory] = useState(null);
+  const [selectedFilm, setSelectedFilm] = useState(null);
+  const [filmDetail, setFilmDetail] = useState(null);
+  const [actionResult, setActionResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadArena = useCallback(async () => {
     try {
-      const [statsRes, warsRes, challengesRes] = await Promise.all([
+      const [arenaRes, statsRes] = await Promise.all([
+        api.get('/pvp-cinema/arena'),
         api.get('/pvp-cinema/stats'),
-        api.get('/pvp-cinema/wars'),
-        api.get('/pvp-cinema/challenges'),
       ]);
+      setArenaData(arenaRes.data);
       setStats(statsRes.data);
-      setWars(warsRes.data);
-      setChallenges(challengesRes.data);
-    } catch (e) {
-      console.error('Failed to load PvP data', e);
-    }
+    } catch (e) { console.error('Arena load failed', e); }
   }, [api]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadArena(); }, [loadArena]);
 
-  const openChallengeModal = async () => {
+  const loadHistory = async () => {
     try {
-      const r = await api.get('/pvp-cinema/challengeable-films');
-      setChallengeData(r.data);
-      setShowChallengeModal(true);
-    } catch (e) {
-      console.error('Failed to load challengeable films', e);
-    }
+      const r = await api.get('/pvp-cinema/history');
+      setHistory(r.data);
+    } catch (e) { console.error(e); }
   };
 
-  const launchChallenge = async () => {
-    if (!selectedMyFilm || !selectedOppFilm) return;
-    setLoading(true);
+  useEffect(() => { if (tab === 'report') loadHistory(); }, [tab]);
+
+  const openFilm = async (filmId) => {
+    setSelectedFilm(filmId);
+    setActionResult(null);
     try {
-      await api.post('/pvp-cinema/challenge', {
-        my_film_id: selectedMyFilm,
-        opponent_film_id: selectedOppFilm,
-      });
-      setShowChallengeModal(false);
-      setSelectedMyFilm(null);
-      setSelectedOppFilm(null);
-      loadData();
+      const r = await api.get(`/pvp-cinema/film/${filmId}`);
+      setFilmDetail(r.data);
+    } catch (e) { console.error(e); }
+  };
+
+  const executeAction = async (category, actionId) => {
+    if (!filmDetail) return;
+    setLoading(true);
+    setActionResult(null);
+    try {
+      const endpoint = category === 'support' ? '/pvp-cinema/support' : '/pvp-cinema/boycott';
+      const r = await api.post(endpoint, { film_id: filmDetail.id, action_id: actionId });
+      setActionResult(r.data);
+      refreshUser();
+      loadArena();
+      // Refresh film detail
+      const fd = await api.get(`/pvp-cinema/film/${filmDetail.id}`);
+      setFilmDetail(fd.data);
     } catch (e) {
-      alert(e.response?.data?.detail || 'Errore');
+      setActionResult({ success: false, message: e.response?.data?.detail || 'Errore' });
     }
     setLoading(false);
   };
 
-  const openMarketing = async (warId, filmId) => {
-    try {
-      const r = await api.get('/pvp-cinema/marketing-options');
-      setMarketingOptions(r.data.options);
-      setShowMarketingModal({ warId, filmId });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const applyBoost = async (boostType) => {
-    if (!showMarketingModal) return;
+  const executeDefend = async () => {
+    if (!filmDetail) return;
     setLoading(true);
     try {
-      await api.post('/pvp-cinema/marketing-boost', {
-        war_id: showMarketingModal.warId,
-        film_id: showMarketingModal.filmId,
-        boost_type: boostType,
-      });
-      setShowMarketingModal(null);
-      loadData();
+      const r = await api.post('/pvp-cinema/defend', { film_id: filmDetail.id, action_id: 'defend' });
+      setActionResult(r.data);
+      refreshUser();
+      const fd = await api.get(`/pvp-cinema/film/${filmDetail.id}`);
+      setFilmDetail(fd.data);
     } catch (e) {
-      alert(e.response?.data?.detail || 'Errore');
+      setActionResult({ success: false, message: e.response?.data?.detail || 'Errore' });
     }
     setLoading(false);
   };
-
-  const loadLeaderboard = async () => {
-    try {
-      const r = await api.get('/pvp-cinema/leaderboard');
-      setLeaderboard(r.data.leaderboard);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => { if (tab === 'leaderboard') loadLeaderboard(); }, [tab]);
 
   const tabs = [
-    { id: 'wars', label: 'Box Office', icon: TrendingUp },
-    { id: 'challenges', label: 'Testa a Testa', icon: Swords },
-    { id: 'leaderboard', label: 'Classifica', icon: Trophy },
+    { id: 'arena', label: 'Arena', icon: Swords },
+    { id: 'report', label: 'Report', icon: History },
   ];
 
-  const remainingTime = (endsAt) => {
-    if (!endsAt) return '';
-    const diff = new Date(endsAt) - new Date();
-    if (diff <= 0) return 'Scaduto';
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    return `${h}h ${m}m`;
-  };
-
   return (
-    <div className="min-h-screen bg-[#0A0A0B] pb-20" data-testid="pvp-arena-page">
+    <div className="min-h-screen bg-[#0A0A0B] pb-24" data-testid="pvp-arena-page">
       {/* Header */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-red-950/30 via-orange-950/15 to-transparent" />
-        <div className="relative px-4 pt-6 pb-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-              <Swords className="w-5 h-5 text-white" />
+        <div className="absolute inset-0 bg-gradient-to-b from-red-950/40 via-transparent to-transparent" />
+        <div className="relative px-4 pt-5 pb-3">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/20">
+              <Swords className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Arena PvP</h1>
-              <p className="text-xs text-gray-400">Combatti per il dominio del Box Office</p>
+              <h1 className="text-lg font-bold text-white tracking-tight">Arena PvP</h1>
+              <p className="text-[10px] text-gray-500">Supporta i tuoi film, boicotta i nemici</p>
             </div>
+            {stats && (
+              <div className="ml-auto flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+                <Flame className="w-3 h-3 text-orange-400" />
+                <span className="text-xs font-bold text-white">{stats.actions_remaining}</span>
+                <span className="text-[9px] text-gray-500">/{stats.max_actions_per_hour}</span>
+              </div>
+            )}
           </div>
 
-          {/* Stats Bar */}
           {stats && (
-            <div className="grid grid-cols-4 gap-2" data-testid="pvp-stats-bar">
-              <StatCard icon={<TrendingUp className="w-3.5 h-3.5" />} label="Guerre" value={stats.wars_won} sub={`/${stats.wars_total}`} color="orange" />
-              <StatCard icon={<Swords className="w-3.5 h-3.5" />} label="Sfide" value={stats.challenges_won} sub={`/${stats.challenges_total}`} color="red" />
-              <StatCard icon={<Zap className="w-3.5 h-3.5" />} label="Attive" value={stats.active_wars + stats.active_challenges} color="yellow" />
-              <StatCard icon={<BarChart3 className="w-3.5 h-3.5" />} label="Win%" value={`${stats.challenges_win_rate}`} color="green" />
+            <div className="flex gap-2" data-testid="pvp-stats-bar">
+              <MiniStat icon={<Heart className="w-3 h-3" />} value={stats.total_support} label="Supporto" c="emerald" />
+              <MiniStat icon={<Bomb className="w-3 h-3" />} value={stats.total_boycott} label="Boicotto" c="red" />
+              <MiniStat icon={<Target className="w-3 h-3" />} value={`${stats.boycott_success_rate}%`} label="Successo" c="orange" />
+              <MiniStat icon={<Shield className="w-3 h-3" />} value={stats.attacks_received} label="Subiti" c="purple" />
             </div>
           )}
         </div>
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 px-4 mb-4">
+      <div className="flex gap-1.5 px-4 mb-3">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${tab === t.id ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-500 border border-transparent'}`}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${tab === t.id ? 'bg-red-500/15 text-red-400 border border-red-500/25' : 'bg-white/5 text-gray-500 border border-transparent'}`}
             data-testid={`pvp-tab-${t.id}`}
           >
             <t.icon className="w-3.5 h-3.5" />
@@ -161,344 +154,411 @@ export default function PvPArenaPage() {
         ))}
       </div>
 
-      <div className="px-4 space-y-4">
-        {/* BOX OFFICE WARS TAB */}
-        {tab === 'wars' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-            <p className="text-xs text-gray-500">Le guerre si attivano automaticamente quando film dello stesso genere escono nello stesso periodo.</p>
-            
-            {wars.active.length === 0 && wars.completed.length === 0 && (
-              <div className="text-center py-12 text-gray-600">
-                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Nessuna guerra al box office attiva</p>
-                <p className="text-xs text-gray-700 mt-1">Rilascia un film per competere!</p>
+      <div className="px-4">
+        {/* ARENA TAB */}
+        {tab === 'arena' && arenaData && (
+          <div className="space-y-4">
+            {Object.entries(arenaData.genre_sections).map(([gid, section]) => {
+              if (section.films.length === 0) return null;
+              const colors = GROUP_COLORS[section.color] || GROUP_COLORS.red;
+              const GroupIcon = ICON_MAP[section.icon] || Flame;
+              return (
+                <div key={gid} data-testid={`genre-section-${gid}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-6 h-6 rounded-md ${colors.bg} flex items-center justify-center`}>
+                      <GroupIcon className={`w-3.5 h-3.5 ${colors.text}`} />
+                    </div>
+                    <span className={`text-xs font-bold ${colors.text}`}>{section.name}</span>
+                    <span className="text-[9px] text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">{section.films.length}</span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                    {section.films.map(film => (
+                      <FilmMiniCard key={film.id} film={film} onClick={() => openFilm(film.id)} userId={user?.id} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {Object.values(arenaData.genre_sections).every(s => s.films.length === 0) && (
+              <div className="text-center py-16 text-gray-600">
+                <Swords className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">L'arena e' vuota</p>
+                <p className="text-[11px] text-gray-700 mt-1">Rilascia un film per iniziare!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* REPORT TAB */}
+        {tab === 'report' && (
+          <div className="space-y-3">
+            {history?.stats && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="bg-emerald-500/10 border border-emerald-500/15 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-emerald-400">+{history.stats.total_bonus_given}%</p>
+                  <p className="text-[9px] text-gray-500">Bonus dati</p>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/15 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-red-400">-{history.stats.total_damage_dealt}%</p>
+                  <p className="text-[9px] text-gray-500">Danni inflitti</p>
+                </div>
+                <div className="bg-orange-500/10 border border-orange-500/15 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-orange-400">{history.stats.boycott_success_rate}%</p>
+                  <p className="text-[9px] text-gray-500">% Successo</p>
+                </div>
               </div>
             )}
 
-            {wars.active.map(war => (
-              <WarCard key={war.id} war={war} userId={user?.id} remainingTime={remainingTime} onMarketing={openMarketing} />
-            ))}
-
-            {wars.completed.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Guerre Concluse</h3>
-                {wars.completed.map(war => (
-                  <WarCard key={war.id} war={war} userId={user?.id} completed />
+            {history?.against_me?.length > 0 && (
+              <div>
+                <h3 className="text-[11px] font-bold text-red-400 uppercase mb-2">Attacchi Subiti</h3>
+                {history.against_me.slice(0, 5).map((a, i) => (
+                  <ActionHistoryRow key={a.id || i} action={a} isIncoming />
                 ))}
               </div>
             )}
-          </motion.div>
-        )}
 
-        {/* TESTA A TESTA TAB */}
-        {tab === 'challenges' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-            <Button
-              onClick={openChallengeModal}
-              className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white py-3 rounded-xl font-semibold"
-              data-testid="launch-challenge-btn"
-            >
-              <Swords className="w-4 h-4 mr-2" /> Lancia Sfida Testa a Testa
-            </Button>
-
-            {challenges.active.length === 0 && challenges.completed.length === 0 && (
-              <div className="text-center py-10 text-gray-600">
-                <Swords className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Nessuna sfida attiva</p>
-                <p className="text-xs text-gray-700 mt-1">Sfida un altro produttore!</p>
-              </div>
-            )}
-
-            {challenges.active.map(c => (
-              <ChallengeCard key={c.id} challenge={c} userId={user?.id} remainingTime={remainingTime} />
-            ))}
-
-            {challenges.completed.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Sfide Concluse</h3>
-                {challenges.completed.map(c => (
-                  <ChallengeCard key={c.id} challenge={c} userId={user?.id} completed />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* LEADERBOARD TAB */}
-        {tab === 'leaderboard' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
-            {leaderboard.length === 0 && (
-              <div className="text-center py-12 text-gray-600">
-                <Trophy className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Nessun dato nella classifica</p>
-              </div>
-            )}
-            {leaderboard.map((entry, i) => (
-              <div key={entry.user_id} className={`flex items-center gap-3 p-3 rounded-xl border ${i === 0 ? 'bg-yellow-500/10 border-yellow-500/20' : i === 1 ? 'bg-gray-400/10 border-gray-400/20' : i === 2 ? 'bg-orange-500/10 border-orange-500/20' : 'bg-white/5 border-white/5'}`} data-testid={`leaderboard-entry-${i}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${i === 0 ? 'bg-yellow-500 text-black' : i === 1 ? 'bg-gray-400 text-black' : i === 2 ? 'bg-orange-500 text-black' : 'bg-white/10 text-gray-400'}`}>
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{entry.nickname}</p>
-                  {entry.studio && <p className="text-[10px] text-gray-500 truncate">{entry.studio}</p>}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-red-400">{entry.wins} <span className="text-[10px] text-gray-500">vittorie</span></p>
-                </div>
-              </div>
-            ))}
-          </motion.div>
+            <div>
+              <h3 className="text-[11px] font-bold text-gray-400 uppercase mb-2">Le Tue Azioni</h3>
+              {(!history?.my_actions || history.my_actions.length === 0) && (
+                <p className="text-xs text-gray-600 text-center py-6">Nessuna azione ancora</p>
+              )}
+              {history?.my_actions?.map((a, i) => (
+                <ActionHistoryRow key={a.id || i} action={a} />
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Challenge Modal */}
-      <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
-        <DialogContent className="bg-[#141416] border-white/10 max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Swords className="w-5 h-5 text-red-400" /> Lancia Sfida
-            </DialogTitle>
-          </DialogHeader>
-          {challengeData && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs text-gray-400 mb-2 font-semibold uppercase">Il tuo film</p>
-                {challengeData.my_films.length === 0 ? (
-                  <p className="text-xs text-gray-600">Nessun film in sala. Rilascia un film prima!</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {challengeData.my_films.map(f => (
-                      <button
-                        key={f.id}
-                        onClick={() => setSelectedMyFilm(f.id)}
-                        className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-all ${selectedMyFilm === f.id ? 'bg-red-500/20 border border-red-500/40' : 'bg-white/5 border border-transparent hover:border-white/10'}`}
-                        data-testid={`my-film-${f.id}`}
-                      >
-                        <Film className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{f.title}</p>
-                          <p className="text-[10px] text-gray-500">{f.genre} &middot; Q:{f.quality_score}</p>
-                        </div>
-                        {selectedMyFilm === f.id && <Check className="w-4 h-4 text-red-400" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 mb-2 font-semibold uppercase">Film avversario</p>
-                {challengeData.opponent_films.length === 0 ? (
-                  <p className="text-xs text-gray-600">Nessun film avversario disponibile.</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {challengeData.opponent_films.map(f => (
-                      <button
-                        key={f.id}
-                        onClick={() => setSelectedOppFilm(f.id)}
-                        className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-all ${selectedOppFilm === f.id ? 'bg-orange-500/20 border border-orange-500/40' : 'bg-white/5 border border-transparent hover:border-white/10'}`}
-                        data-testid={`opp-film-${f.id}`}
-                      >
-                        <Target className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{f.title}</p>
-                          <p className="text-[10px] text-gray-500">{f.nickname} &middot; {f.genre} &middot; Q:{f.quality_score}</p>
-                        </div>
-                        {selectedOppFilm === f.id && <Check className="w-4 h-4 text-orange-400" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white/5 p-3 rounded-lg border border-white/10 text-xs text-gray-400 space-y-1">
-                <p className="text-white font-semibold">Costo e Premi</p>
-                <div className="flex justify-between"><span>Costo sfida:</span><span className="text-yellow-400">${challengeData.challenge_cost.funds?.toLocaleString()} + {challengeData.challenge_cost.cp} CP</span></div>
-                <div className="flex justify-between"><span>Premio vincitore:</span><span className="text-green-400">${challengeData.prizes.winner_funds?.toLocaleString()} + {challengeData.prizes.winner_fame} Fama + {challengeData.prizes.winner_cp} CP</span></div>
-                <div className="flex justify-between"><span>Penalita sconfitto:</span><span className="text-red-400">{challengeData.prizes.loser_fame} Fama</span></div>
-              </div>
-
-              <Button
-                onClick={launchChallenge}
-                disabled={!selectedMyFilm || !selectedOppFilm || loading}
-                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-30"
-                data-testid="confirm-challenge-btn"
-              >
-                {loading ? 'Lancio...' : 'Lancia Sfida!'}
-              </Button>
-            </div>
+      {/* Film Detail + Action Modal */}
+      <Dialog open={!!selectedFilm} onOpenChange={() => { setSelectedFilm(null); setFilmDetail(null); setActionResult(null); }}>
+        <DialogContent className="bg-[#111113] border-white/10 max-w-md max-h-[90vh] overflow-y-auto p-0">
+          {filmDetail && (
+            <FilmActionPanel
+              film={filmDetail}
+              arenaData={arenaData}
+              actionResult={actionResult}
+              loading={loading}
+              onAction={executeAction}
+              onDefend={executeDefend}
+              onClose={() => { setSelectedFilm(null); setFilmDetail(null); setActionResult(null); }}
+            />
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Marketing Boost Modal */}
-      <Dialog open={!!showMarketingModal} onOpenChange={() => setShowMarketingModal(null)}>
-        <DialogContent className="bg-[#141416] border-white/10 max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Megaphone className="w-5 h-5 text-orange-400" /> Marketing Boost
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            {marketingOptions.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => applyBoost(opt.id)}
-                disabled={!opt.can_afford || loading}
-                className={`w-full p-3 rounded-lg text-left transition-all border ${opt.can_afford ? 'bg-white/5 border-white/10 hover:border-orange-500/30' : 'bg-white/[0.02] border-white/5 opacity-40'}`}
-                data-testid={`boost-${opt.id}`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold text-white">{opt.name}</p>
-                  <span className="text-[10px] text-green-400">+{opt.revenue_boost_pct}% Revenue</span>
-                </div>
-                <p className="text-[11px] text-gray-500 mb-1.5">{opt.description}</p>
-                <div className="flex gap-3 text-[10px]">
-                  <span className="text-yellow-400">${opt.cost_funds?.toLocaleString()}</span>
-                  <span className="text-cyan-400">{opt.cost_cp} CP</span>
-                  <span className="text-orange-400">Hype +{opt.hype_boost}</span>
-                </div>
-              </button>
-            ))}
-          </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function StatCard({ icon, label, value, sub, color }) {
-  const colors = {
-    orange: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
-    red: 'text-red-400 bg-red-500/10 border-red-500/20',
-    yellow: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
-    green: 'text-green-400 bg-green-500/10 border-green-500/20',
+/* ============ MINI STAT ============ */
+function MiniStat({ icon, value, label, c }) {
+  const cls = {
+    emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/15',
+    red: 'text-red-400 bg-red-500/10 border-red-500/15',
+    orange: 'text-orange-400 bg-orange-500/10 border-orange-500/15',
+    purple: 'text-purple-400 bg-purple-500/10 border-purple-500/15',
   };
   return (
-    <div className={`p-2 rounded-lg border ${colors[color]}`}>
-      <div className="flex items-center gap-1 mb-0.5">{icon}<span className="text-[9px] text-gray-500">{label}</span></div>
-      <p className="text-base font-bold">{value}<span className="text-[10px] text-gray-600">{sub}</span></p>
+    <div className={`flex-1 p-1.5 rounded-lg border ${cls[c]}`}>
+      <div className="flex items-center gap-1">{icon}<span className="text-[8px] text-gray-500">{label}</span></div>
+      <p className="text-sm font-bold">{value}</p>
     </div>
   );
 }
 
-function WarCard({ war, userId, remainingTime, onMarketing, completed }) {
-  const myFilm = war.films?.find(f => f.user_id === userId);
-  const opponents = war.films?.filter(f => f.user_id !== userId) || [];
-  const winner = completed && war.results?.length > 0 ? war.results[0] : null;
-  const iWon = winner?.user_id === userId;
+/* ============ FILM MINI CARD ============ */
+function FilmMiniCard({ film, onClick, userId }) {
+  const isMine = film.user_id === userId;
+  const st = STATUS_LABELS[film.film_status] || STATUS_LABELS.in_sala;
+  const API_URL = process.env.REACT_APP_BACKEND_URL;
 
   return (
-    <div className={`p-3 rounded-xl border ${completed ? (iWon ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20') : 'bg-orange-500/5 border-orange-500/20'}`} data-testid={`war-${war.id}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <TrendingUp className={`w-4 h-4 ${completed ? (iWon ? 'text-green-400' : 'text-red-400') : 'text-orange-400'}`} />
-          <span className="text-xs font-bold text-white">Guerra al Box Office</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">{war.genre}</span>
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className={`flex-shrink-0 w-[100px] rounded-xl overflow-hidden border transition-all ${isMine ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-white/8 bg-white/[0.03]'} hover:border-white/20`}
+      data-testid={`arena-film-${film.id}`}
+    >
+      {/* Poster */}
+      <div className="relative w-full h-[130px] bg-gray-900">
+        {film.poster_url ? (
+          <img
+            src={film.poster_url?.startsWith('http') ? film.poster_url : `${API_URL}${film.poster_url}`}
+            alt={film.title}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Film className="w-6 h-6 text-gray-700" />
+          </div>
+        )}
+        {/* Status badge */}
+        <div className={`absolute top-1 left-1 px-1 py-0.5 rounded text-[7px] font-bold ${st.color}`}>
+          {st.label}
         </div>
-        {!completed && <span className="text-[10px] text-orange-400 font-mono"><Clock className="w-3 h-3 inline mr-0.5" />{remainingTime(war.ends_at)}</span>}
-        {completed && <span className={`text-[10px] font-bold ${iWon ? 'text-green-400' : 'text-red-400'}`}>{iWon ? 'VITTORIA' : 'SCONFITTA'}</span>}
+        {isMine && (
+          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-yellow-500/90 flex items-center justify-center">
+            <Star className="w-2.5 h-2.5 text-black" />
+          </div>
+        )}
+        {/* PvP modifier */}
+        {film.pvp_revenue_modifier && film.pvp_revenue_modifier !== 0 && (
+          <div className={`absolute bottom-1 right-1 px-1 py-0.5 rounded text-[7px] font-bold ${film.pvp_revenue_modifier > 0 ? 'bg-green-500/80 text-white' : 'bg-red-500/80 text-white'}`}>
+            {film.pvp_revenue_modifier > 0 ? '+' : ''}{film.pvp_revenue_modifier.toFixed(1)}%
+          </div>
+        )}
+      </div>
+      <div className="p-1.5">
+        <p className="text-[10px] font-semibold text-white truncate leading-tight">{film.title}</p>
+        <p className="text-[8px] text-gray-500 truncate">{isMine ? 'Il tuo' : film.nickname}</p>
+      </div>
+    </motion.button>
+  );
+}
+
+/* ============ FILM ACTION PANEL ============ */
+function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onDefend, onClose }) {
+  const [actionTab, setActionTab] = useState(film.is_mine ? 'support' : 'boycott');
+  const st = STATUS_LABELS[film.film_status] || STATUS_LABELS.in_sala;
+  const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+  const supportTypes = arenaData?.support_types || {};
+  const boycottTypes = arenaData?.boycott_types || {};
+
+  // Check if there are undefended boycotts against this film
+  const hasUndefendedAttack = film.is_mine && film.recent_actions?.some(a => a.category === 'boycott' && a.success);
+
+  return (
+    <div data-testid="film-action-panel">
+      {/* Header with poster */}
+      <div className="relative h-48 overflow-hidden">
+        {film.poster_url ? (
+          <img
+            src={film.poster_url?.startsWith('http') ? film.poster_url : `${API_URL}${film.poster_url}`}
+            alt={film.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-b from-gray-800 to-gray-900 flex items-center justify-center">
+            <Film className="w-12 h-12 text-gray-700" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#111113] via-[#111113]/60 to-transparent" />
+        <div className="absolute bottom-3 left-4 right-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${st.color}`}>{st.label}</span>
+            {film.is_mine && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-yellow-400 bg-yellow-500/15">IL TUO</span>}
+          </div>
+          <h2 className="text-base font-bold text-white leading-tight">{film.title}</h2>
+          <p className="text-[10px] text-gray-400">{film.owner_nickname} {film.owner_studio ? `- ${film.owner_studio}` : ''}</p>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        {war.films?.map((f, i) => {
-          const isMine = f.user_id === userId;
-          const result = completed ? war.results?.find(r => r.film_id === f.film_id) : null;
-          return (
-            <div key={f.film_id || i} className={`flex items-center gap-2 p-2 rounded-lg ${isMine ? 'bg-yellow-500/10 border border-yellow-500/15' : 'bg-white/5 border border-white/5'}`}>
-              <Film className={`w-3.5 h-3.5 flex-shrink-0 ${isMine ? 'text-yellow-400' : 'text-gray-500'}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{f.title}</p>
-                <p className="text-[10px] text-gray-500">{isMine ? 'Il tuo film' : f.nickname || 'Avversario'}</p>
+      <div className="px-4 pb-4">
+        {/* Film Stats */}
+        <div className="grid grid-cols-4 gap-1.5 my-3">
+          <FilmStatBox label="Qualita" value={film.quality_score?.toFixed(0) || '?'} color="text-cyan-400" />
+          <FilmStatBox label="Hype" value={film.hype_score || '0'} color="text-orange-400" />
+          <FilmStatBox label="Incassi" value={film.total_revenue ? `$${(film.total_revenue / 1000000).toFixed(1)}M` : (film.opening_day_revenue ? `$${(film.opening_day_revenue / 1000000).toFixed(1)}M` : '-')} color="text-green-400" />
+          <FilmStatBox label="PvP" value={`${(film.pvp_revenue_modifier || 0) >= 0 ? '+' : ''}${(film.pvp_revenue_modifier || 0).toFixed(1)}%`} color={film.pvp_revenue_modifier >= 0 ? 'text-green-400' : 'text-red-400'} />
+        </div>
+
+        {/* Action Result */}
+        <AnimatePresence>
+          {actionResult && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className={`p-3 rounded-xl mb-3 border ${actionResult.boycott_success === false ? 'bg-red-500/10 border-red-500/20' : actionResult.boycott_success === true ? 'bg-orange-500/10 border-orange-500/20' : actionResult.success ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}
+              data-testid="action-result"
+            >
+              <div className="flex items-start gap-2">
+                {actionResult.boycott_success === false ? (
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                ) : actionResult.success ? (
+                  <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <X className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                )}
+                <p className="text-xs text-gray-300 leading-relaxed">{actionResult.message}</p>
               </div>
-              {f.marketing_boosts?.length > 0 && (
-                <div className="flex gap-0.5">
-                  {f.marketing_boosts.map((b, bi) => (
-                    <span key={bi} className="text-[8px] px-1 py-0.5 bg-orange-500/20 text-orange-400 rounded">{b.name?.slice(0, 3)}</span>
-                  ))}
-                </div>
+              {actionResult.success_rate && (
+                <p className="text-[9px] text-gray-500 mt-1 ml-6">Probabilita successo: {actionResult.success_rate}%</p>
               )}
-              {result && <span className="text-xs font-bold text-gray-300">#{result.rank}</span>}
-              <span className="text-[10px] text-gray-500">Q:{f.quality_score}</span>
-            </div>
-          );
-        })}
-      </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {!completed && myFilm && onMarketing && (
-        <Button
-          size="sm"
-          onClick={() => onMarketing(war.id, myFilm.film_id)}
-          className="mt-2 w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/20 text-xs"
-          data-testid={`marketing-btn-${war.id}`}
-        >
-          <Megaphone className="w-3.5 h-3.5 mr-1.5" /> Boost Marketing
-        </Button>
-      )}
+        {/* Defend Button */}
+        {hasUndefendedAttack && (
+          <Button
+            onClick={onDefend}
+            disabled={loading}
+            className="w-full mb-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white"
+            data-testid="defend-btn"
+          >
+            <Shield className="w-4 h-4 mr-2" /> Difendi Film (2 CP)
+          </Button>
+        )}
 
-      {completed && winner && (
-        <div className="mt-2 p-2 rounded-lg bg-white/5 text-[10px] text-gray-400">
-          <span className="text-white font-semibold">{winner.title}</span> ha vinto!
-          {iWon && winner.prizes && (
-            <span className="text-green-400 ml-1">+${winner.prizes.funds?.toLocaleString()} +{winner.prizes.fame} Fama</span>
+        {/* Action Tabs */}
+        <div className="flex gap-1 mb-3">
+          {film.is_mine ? (
+            <button
+              onClick={() => setActionTab('support')}
+              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'support' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-500'}`}
+              data-testid="support-tab"
+            >
+              <Heart className="w-3 h-3 inline mr-1" />Supporto
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setActionTab('boycott')}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'boycott' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-500'}`}
+                data-testid="boycott-tab"
+              >
+                <Bomb className="w-3 h-3 inline mr-1" />Boicotta
+              </button>
+              <button
+                onClick={() => setActionTab('support')}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${actionTab === 'support' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-500'}`}
+                data-testid="support-tab-opp"
+              >
+                <Heart className="w-3 h-3 inline mr-1" />Supporto
+              </button>
+            </>
           )}
         </div>
-      )}
+
+        {/* Action List */}
+        <div className="space-y-2">
+          {actionTab === 'support' && Object.entries(supportTypes).map(([aid, cfg]) => {
+            const onCooldown = film.cooldowns?.[aid];
+            const ActionIcon = ICON_MAP[cfg.icon] || Heart;
+            return (
+              <button
+                key={aid}
+                onClick={() => !onCooldown && !loading && film.is_mine && onAction('support', aid)}
+                disabled={onCooldown || loading || !film.is_mine}
+                className={`w-full p-2.5 rounded-xl text-left border transition-all ${onCooldown ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-emerald-500/5 border-emerald-500/15 hover:bg-emerald-500/10'}`}
+                data-testid={`action-${aid}`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                    <ActionIcon className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-white">{cfg.name}</p>
+                    <p className="text-[9px] text-gray-500 truncate">{cfg.desc}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[9px] text-emerald-400 font-bold">+{cfg.base_bonus_min}-{cfg.base_bonus_max}%</p>
+                    <p className="text-[8px] text-gray-600">${(cfg.cost_funds/1000).toFixed(0)}K + {cfg.cost_cp}CP</p>
+                  </div>
+                </div>
+                {onCooldown && <p className="text-[8px] text-gray-600 mt-1 ml-9">Cooldown attivo ({cfg.cooldown_minutes}min)</p>}
+              </button>
+            );
+          })}
+
+          {actionTab === 'boycott' && Object.entries(boycottTypes).map(([aid, cfg]) => {
+            const onCooldown = film.cooldowns?.[aid];
+            const ActionIcon = ICON_MAP[cfg.icon] || Bomb;
+            return (
+              <button
+                key={aid}
+                onClick={() => !onCooldown && !loading && !film.is_mine && onAction('boycott', aid)}
+                disabled={onCooldown || loading || film.is_mine}
+                className={`w-full p-2.5 rounded-xl text-left border transition-all ${onCooldown ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-red-500/5 border-red-500/15 hover:bg-red-500/10'}`}
+                data-testid={`action-${aid}`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center flex-shrink-0">
+                    <ActionIcon className="w-3.5 h-3.5 text-red-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-white">{cfg.name}</p>
+                    <p className="text-[9px] text-gray-500 truncate">{cfg.desc}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[9px] text-red-400 font-bold">-{cfg.base_damage_min}-{cfg.base_damage_max}%</p>
+                    <p className="text-[8px] text-yellow-500/70">Successo ~{cfg.success_base}%</p>
+                    <p className="text-[8px] text-gray-600">${(cfg.cost_funds/1000).toFixed(0)}K + {cfg.cost_cp}CP</p>
+                  </div>
+                </div>
+                {onCooldown && <p className="text-[8px] text-gray-600 mt-1 ml-9">Cooldown attivo ({cfg.cooldown_minutes}min)</p>}
+                {!onCooldown && !film.is_mine && (
+                  <div className="flex items-center gap-1 mt-1 ml-9">
+                    <AlertTriangle className="w-2.5 h-2.5 text-yellow-500/50" />
+                    <p className="text-[8px] text-yellow-500/50">Ritorsione: -{cfg.backfire_min}-{cfg.backfire_max}% sui tuoi film</p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+
+          {actionTab === 'support' && !film.is_mine && (
+            <p className="text-[10px] text-gray-600 text-center py-3">Puoi supportare solo i tuoi film</p>
+          )}
+        </div>
+
+        {/* Recent Actions on this film */}
+        {film.recent_actions?.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-1.5">Azioni recenti su questo film</h4>
+            {film.recent_actions.map((a, i) => (
+              <div key={i} className={`flex items-center gap-2 py-1.5 border-b border-white/5 ${a.success ? (a.category === 'support' ? 'text-emerald-400' : 'text-red-400') : 'text-gray-500'}`}>
+                {a.category === 'support' ? <Heart className="w-3 h-3" /> : <Bomb className="w-3 h-3" />}
+                <span className="text-[10px] flex-1">{a.action_name}</span>
+                <span className="text-[9px]">{a.success ? `${a.effect_pct > 0 ? '+' : ''}${a.effect_pct?.toFixed(1)}%` : 'Fallito'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function ChallengeCard({ challenge, userId, remainingTime, completed }) {
-  const iAmChallenger = challenge.challenger_id === userId;
-  const myTitle = iAmChallenger ? challenge.challenger_film_title : challenge.defender_film_title;
-  const oppTitle = iAmChallenger ? challenge.defender_film_title : challenge.challenger_film_title;
-  const oppNick = iAmChallenger ? challenge.defender_nickname : challenge.challenger_nickname;
-  const iWon = completed && challenge.results?.winner_id === userId;
+function FilmStatBox({ label, value, color }) {
+  return (
+    <div className="bg-white/5 rounded-lg p-1.5 text-center border border-white/5">
+      <p className={`text-sm font-bold ${color}`}>{value}</p>
+      <p className="text-[8px] text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function ActionHistoryRow({ action, isIncoming }) {
+  const isSupport = action.category === 'support';
+  const isSuccess = action.success;
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const d = (Date.now() - new Date(ts).getTime()) / 60000;
+    if (d < 60) return `${Math.round(d)}m fa`;
+    if (d < 1440) return `${Math.round(d/60)}h fa`;
+    return `${Math.round(d/1440)}g fa`;
+  };
 
   return (
-    <div className={`p-3 rounded-xl border ${completed ? (iWon ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20') : 'bg-red-500/5 border-red-500/20'}`} data-testid={`challenge-${challenge.id}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Swords className={`w-4 h-4 ${completed ? (iWon ? 'text-green-400' : 'text-red-400') : 'text-red-400'}`} />
-          <span className="text-xs font-bold text-white">Testa a Testa</span>
-        </div>
-        {!completed && <span className="text-[10px] text-red-400 font-mono"><Clock className="w-3 h-3 inline mr-0.5" />{remainingTime(challenge.ends_at)}</span>}
-        {completed && <span className={`text-[10px] font-bold ${iWon ? 'text-green-400' : 'text-red-400'}`}>{iWon ? 'VITTORIA' : 'SCONFITTA'}</span>}
+    <div className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 border ${isIncoming ? 'bg-red-500/5 border-red-500/10' : isSupport ? 'bg-emerald-500/5 border-emerald-500/10' : (isSuccess ? 'bg-orange-500/5 border-orange-500/10' : 'bg-gray-500/5 border-gray-500/10')}`}>
+      {isSupport ? <Heart className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> : isSuccess ? <Bomb className="w-3.5 h-3.5 text-red-400 flex-shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-semibold text-white truncate">
+          {isIncoming ? `${action.attacker_nickname || '?'} -> ` : ''}{action.action_name}
+        </p>
+        <p className="text-[9px] text-gray-500 truncate">{action.target_film_title}</p>
       </div>
-
-      <div className="flex items-center gap-2">
-        <div className="flex-1 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/15 text-center">
-          <Film className="w-3.5 h-3.5 text-yellow-400 mx-auto mb-0.5" />
-          <p className="text-[11px] font-semibold text-white truncate">{myTitle}</p>
-          <p className="text-[9px] text-gray-500">Il tuo film</p>
-        </div>
-        <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
-            <span className="text-red-400 font-bold text-xs">VS</span>
-          </div>
-        </div>
-        <div className="flex-1 p-2 rounded-lg bg-white/5 border border-white/10 text-center">
-          <Target className="w-3.5 h-3.5 text-orange-400 mx-auto mb-0.5" />
-          <p className="text-[11px] font-semibold text-white truncate">{oppTitle}</p>
-          <p className="text-[9px] text-gray-500">{oppNick}</p>
-        </div>
+      <div className="text-right flex-shrink-0">
+        <p className={`text-[10px] font-bold ${isSuccess ? (isSupport ? 'text-emerald-400' : 'text-red-400') : 'text-gray-500'}`}>
+          {isSuccess ? `${action.effect_pct > 0 ? '+' : ''}${action.effect_pct?.toFixed(1)}%` : 'Fallito'}
+        </p>
+        <p className="text-[8px] text-gray-600">{timeAgo(action.created_at)}</p>
       </div>
-
-      {completed && challenge.results && (
-        <div className="mt-2 p-2 rounded-lg bg-white/5 text-[10px] space-y-0.5">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Tuo punteggio:</span>
-            <span className="text-white font-mono">{(iAmChallenger ? challenge.results.challenger_scores?.total : challenge.results.defender_scores?.total)?.toFixed(1)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Avversario:</span>
-            <span className="text-white font-mono">{(iAmChallenger ? challenge.results.defender_scores?.total : challenge.results.challenger_scores?.total)?.toFixed(1)}</span>
-          </div>
-          {iWon && (
-            <p className="text-green-400 text-center pt-1">+$250K +5 Fama +5 CP</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -180,6 +180,19 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
 - **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
 
+### Arena PvP Cinematografica - Rework Completo (2026-03-24)
+- **Arena Film per Genere:** 5 sezioni (Azione&Thriller, Dramma&Romance, Commedia&Animazione, Fantasy&SciFi, Horror&Mistero) con mini locandine portrait, badge status (In Sala/Coming Soon/Anteprima), stella film propri
+- **Azioni Supporto (4):** Campagna Social (+2-5%), Influencer (+3-6%), Evento Promo (+4-7%), Premi Pilotati (+5-8%). Sempre positive per i propri film.
+- **Azioni Boicottaggio (4):** Scandalo Mediatico (-3-8%, 55% base), Critica Negativa (-4-10%, 50%), Leak Produzione (-5-10%, 45%), Sabotaggio Evento (-6-10%, 40%). Possono fallire e ritorcersi.
+- **Calcolo successo:** random + livello infrastrutture + fama + livello strategico
+- **Cooldown:** 30-90 min per azione, max 5 azioni/ora
+- **Difesa:** Recupera 40-70% danni da boicottaggio (2 CP)
+- **Report:** Storico azioni, successo/fallimento, stats aggregate
+- **Navbar:** "Arena" (Swords) aggiunta alla bottom navbar, sostituisce "Sfide"
+- **Backend:** `routes/pvp_cinema.py` - 8 endpoint (arena, film detail, support, boycott, defend, history, stats, marketing)
+- **Frontend:** `pages/PvPArenaPage.jsx` - 2 tab (Arena, Report), popup film con azioni
+- **Test:** Backend 8/8 API verificate via curl (support, boycott, defend, history, stats tutti OK)
+
 ### Sistema "Migliora Film" + Velion UI (2026-03-24)
 - **Bug Fix P0:** Aggiunto `'proposed'` alla lista stati applicabili di `cast_upgrade` in IMPROVEMENT_OPTIONS
 - **Improvement Suggestions:** GET `/api/film-pipeline/{id}/suggestions` ritorna suggerimenti dinamici basati su stato film, cast, hype

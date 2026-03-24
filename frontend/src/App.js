@@ -1115,9 +1115,9 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/hq' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/hq')} data-testid="bottom-nav-sfide">
-          <Target className="w-4 h-4" />
-          <span className="text-[8px]">Sfide</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} data-testid="bottom-nav-arena">
+          <Swords className="w-4 h-4" />
+          <span className="text-[8px]">Arena</span>
         </button>
         <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
           <Bell className="w-4 h-4" />

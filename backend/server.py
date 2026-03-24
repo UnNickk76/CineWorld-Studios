@@ -80,7 +80,7 @@ from routes.tv_stations import router as tv_stations_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from routes.pvp import router as pvp_router
-from routes.pvp_cinema import router as pvp_cinema_router, resolve_box_office_war, resolve_challenge
+from routes.pvp_cinema import router as pvp_cinema_router
 from routes.velion import router as velion_router, init as velion_init
 import poster_storage
 from cast_system import (
@@ -12094,30 +12094,6 @@ async def startup_event():
         process_coming_soon_dynamic_events,
         auto_cleanup_corrupted_projects
     )
-
-    async def resolve_pvp_cinema_events():
-        """Resolve expired box office wars and testa a testa challenges."""
-        now_iso = datetime.now(timezone.utc).isoformat()
-        try:
-            # Resolve expired wars
-            expired_wars = await db.box_office_wars.find(
-                {'status': 'active', 'ends_at': {'$lte': now_iso}},
-                {'_id': 0, 'id': 1}
-            ).to_list(20)
-            for war in expired_wars:
-                await resolve_box_office_war(war['id'])
-                logging.info(f"Resolved box office war {war['id']}")
-
-            # Resolve expired challenges
-            expired_challenges = await db.pvp_challenges.find(
-                {'status': 'active', 'ends_at': {'$lte': now_iso}},
-                {'_id': 0, 'id': 1}
-            ).to_list(20)
-            for ch in expired_challenges:
-                await resolve_challenge(ch['id'])
-                logging.info(f"Resolved challenge {ch['id']}")
-        except Exception as e:
-            logging.error(f"Error resolving PvP cinema events: {e}")
     
     # Add scheduled jobs
     
@@ -12264,14 +12240,6 @@ async def startup_event():
         replace_existing=True
     )
 
-    # PvP Cinema: resolve expired box office wars and challenges
-    scheduler.add_job(
-        resolve_pvp_cinema_events,
-        IntervalTrigger(minutes=10),
-        id='resolve_pvp_cinema',
-        replace_existing=True
-    )
-    
     # Start the scheduler
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")

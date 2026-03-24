@@ -92,6 +92,10 @@ const Dashboard = () => {
   const [showShootingDialog, setShowShootingDialog] = useState(false);
   // Collapsible financial balance
   const [financeOpen, setFinanceOpen] = useState(false);
+  // Collapsible studio section
+  const [studioOpen, setStudioOpen] = useState(false);
+  const studioRef = useRef(null);
+  const collectRef = useRef(null);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -270,15 +274,42 @@ const Dashboard = () => {
     const heartbeatInterval = setInterval(() => {
       api.post('/activity/heartbeat').catch(() => {});
     }, 5 * 60 * 1000);
-
-    // Refresh pending revenue every minute
-    const revenueInterval = setInterval(loadPendingRevenue, 60000);
     
     return () => {
       clearInterval(heartbeatInterval);
-      clearInterval(revenueInterval);
     };
   }, [api]);
+
+  // Revenue polling only when studio section is open
+  useEffect(() => {
+    if (!studioOpen) return;
+    loadPendingRevenue();
+    const revenueInterval = setInterval(loadPendingRevenue, 60000);
+    return () => clearInterval(revenueInterval);
+  }, [studioOpen]);
+
+  // Velion event: open studio section and scroll to collect
+  useEffect(() => {
+    const handler = () => {
+      setStudioOpen(true);
+      setTimeout(() => {
+        collectRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 350);
+    };
+    window.addEventListener('velion-open-studio', handler);
+    return () => window.removeEventListener('velion-open-studio', handler);
+  }, []);
+
+  // Velion: notify about pending revenue when studio closed
+  useEffect(() => {
+    if (studioOpen || !pendingRevenue?.can_collect) return;
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('velion-revenue-notify', {
+        detail: { message: language === 'it' ? 'Hai incassi pronti da riscuotere! Tocca per aprire.' : 'You have revenue ready to collect! Tap to open.' }
+      }));
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [pendingRevenue?.can_collect, studioOpen, language]);
 
   const openReleasePopup = async (film) => {
     setReleasePopup(film);
@@ -372,78 +403,109 @@ const Dashboard = () => {
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
-        <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
-          {t('welcome')}, <span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
-        </h1>
-        <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
+      {/* Studio Header - Collapsible trigger */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4" ref={studioRef}>
+        <button
+          className="w-full text-left flex items-center justify-between group"
+          onClick={() => setStudioOpen(prev => !prev)}
+          data-testid="studio-toggle-btn"
+        >
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
+              {t('welcome')}, <span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
+            </h1>
+            <div className="flex items-center gap-2">
+              <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
+              {!studioOpen && pendingRevenue?.can_collect && (
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" data-testid="studio-red-dot" />
+              )}
+            </div>
+          </div>
+          <motion.div animate={{ rotate: studioOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+          </motion.div>
+        </button>
       </motion.div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-        {[
-          { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow', statType: 'films' },
-          { label: 'Incassi', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
-          { label: 'Like', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
-          { label: 'Qualità', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
-        ].map((stat, i) => (
-          <Card 
-            key={stat.label} 
-            className="bg-[#1A1A1A] border-white/5 cursor-pointer hover:border-white/20 transition-colors"
-            onClick={() => openStatDetail(stat.statType)}
-            data-testid={`stat-card-${stat.statType}`}
+      {/* Collapsible Studio Data */}
+      <AnimatePresence initial={false}>
+        {studioOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="overflow-hidden"
+            data-testid="studio-section"
           >
-            <CardContent className="p-2 sm:p-2.5 flex items-center gap-2">
-              <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
-              <div>
-                <p className="text-lg font-bold">{stat.value}</p>
-                <p className="text-xs text-gray-400">{stat.label}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 ml-auto" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Collect All Revenue Card */}
-      {pendingRevenue && (
-        <Card className={`mb-4 border ${pendingRevenue.can_collect ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${pendingRevenue.can_collect ? 'bg-green-500' : 'bg-gray-600'}`}>
-                  <Wallet className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-['Bebas_Neue'] text-lg">
-                    {language === 'it' ? 'INCASSI DA RISCUOTERE' : 'PENDING REVENUE'}
-                  </h3>
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <span>🎬 Film: ${(pendingRevenue.film_pending || 0).toLocaleString()}</span>
-                    <span>🏢 Infra: ${(pendingRevenue.infra_pending || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className={`text-xl font-bold ${pendingRevenue.can_collect ? 'text-green-400' : 'text-gray-500'}`}>
-                  ${(pendingRevenue.total_pending || 0).toLocaleString()}
-                </p>
-                <Button 
-                  size="sm"
-                  disabled={!pendingRevenue.can_collect || collecting}
-                  onClick={handleCollectAll}
-                  className={pendingRevenue.can_collect 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'bg-gray-700 text-gray-400'
-                  }
-                  data-testid="collect-all-btn"
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+              {[
+                { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow', statType: 'films' },
+                { label: 'Incassi', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
+                { label: 'Like', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
+                { label: 'Qualità', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
+              ].map((stat, i) => (
+                <Card 
+                  key={stat.label} 
+                  className="bg-[#1A1A1A] border-white/5 cursor-pointer hover:border-white/20 transition-colors"
+                  onClick={() => openStatDetail(stat.statType)}
+                  data-testid={`stat-card-${stat.statType}`}
                 >
-                  {collecting ? '...' : (language === 'it' ? 'Riscuoti Tutto' : 'Collect All')}
-                </Button>
-              </div>
+                  <CardContent className="p-2 sm:p-2.5 flex items-center gap-2">
+                    <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
+                    <div>
+                      <p className="text-lg font-bold">{stat.value}</p>
+                      <p className="text-xs text-gray-400">{stat.label}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-500 ml-auto" />
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+
+            {/* Collect All Revenue Card */}
+            {pendingRevenue && (
+              <Card ref={collectRef} className={`mb-4 border ${pendingRevenue.can_collect ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`} data-testid="collect-revenue-card">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${pendingRevenue.can_collect ? 'bg-green-500' : 'bg-gray-600'}`}>
+                        <Wallet className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-['Bebas_Neue'] text-lg">
+                          {language === 'it' ? 'INCASSI DA RISCUOTERE' : 'PENDING REVENUE'}
+                        </h3>
+                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                          <span>Film: ${(pendingRevenue.film_pending || 0).toLocaleString()}</span>
+                          <span>Infra: ${(pendingRevenue.infra_pending || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-xl font-bold ${pendingRevenue.can_collect ? 'text-green-400' : 'text-gray-500'}`}>
+                        ${(pendingRevenue.total_pending || 0).toLocaleString()}
+                      </p>
+                      <Button 
+                        size="sm"
+                        disabled={!pendingRevenue.can_collect || collecting}
+                        onClick={handleCollectAll}
+                        className={pendingRevenue.can_collect 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
+                          : 'bg-gray-700 text-gray-400'
+                        }
+                        data-testid="collect-all-btn"
+                      >
+                        {collecting ? '...' : (language === 'it' ? 'Riscuoti Tutto' : 'Collect All')}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Prossimamente - Coming Soon Section */}
       <div className="mb-4" data-testid="dashboard-coming-soon">

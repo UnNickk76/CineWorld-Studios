@@ -236,6 +236,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Bilancio Finanziario Collassabile:** Sezione resa collapsabile con Framer Motion AnimatePresence. Mostra Profitto/Perdita nel header quando chiuso. Default chiuso (financeOpen=false).
 - **Test:** Iter 150 - 100% frontend (6/6)
 
+### Sezione Studio Collassabile + Performance (2026-03-24)
+- **Collapsible Studio:** Click su nome studio (es. "Anacapito Studio's") apre/chiude la sezione con dati (film, incassi, like, qualità, incassi da riscuotere). Default: chiuso. Animazione Framer Motion.
+- **Pallino Rosso:** Indicatore rosso pulsante accanto al nome studio quando ci sono incassi da riscuotere, scompare quando riscossi o sezione aperta.
+- **Performance:** Revenue polling (setInterval 60s) attivo SOLO quando sezione aperta. Nessun polling a sezione chiusa.
+- **Velion Integration:** Dopo 5s, se incassi pendenti e sezione chiusa, Velion mostra bubble "Hai incassi pronti da riscuotere!". Click su bubble → apre sezione + scroll automatico a "Riscuoti Tutto".
+- **Test:** Screenshot mobile 390x844 - toggle, red dot, apertura/chiusura, Velion bubble tutti verificati.
+
 ## Backlog
 
 ### P1

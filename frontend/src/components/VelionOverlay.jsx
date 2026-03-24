@@ -124,12 +124,27 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
     const action = bubble?.action;
     setBubble(null);
     setHasAlert(false);
-    if (onBubbleClick && action) {
+    if (action === 'open-studio') {
+      window.dispatchEvent(new Event('velion-open-studio'));
+    } else if (onBubbleClick && action) {
       onBubbleClick(action);
     } else {
       onClick?.();
     }
   };
+
+  // Listen for frontend-triggered revenue notification
+  useEffect(() => {
+    const handler = (e) => {
+      if (isOff) return;
+      const msg = e.detail?.message || 'Hai incassi da riscuotere! Apri lo studio.';
+      setBubble({ type: 'revenue_alert', message: msg, priority: 'high', action: 'open-studio' });
+      setHasAlert(true);
+      setTimeout(() => setBubble(null), 10000);
+    };
+    window.addEventListener('velion-revenue-notify', handler);
+    return () => window.removeEventListener('velion-revenue-notify', handler);
+  }, [isOff]);
 
   if (!visible) return null;
 

@@ -2879,7 +2879,7 @@ const FilmPipeline = () => {
 
   const loadFilms = useCallback(async () => {
     try {
-      const res = await api.get('/film-pipeline/all');
+      const res = await cachedGet('/film-pipeline/all');
       const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
       setFilms(safe);
       
@@ -2895,7 +2895,7 @@ const FilmPipeline = () => {
       } catch (e) { /* rescue is best-effort */ }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [api]);
+  }, [api, cachedGet]);
 
   const refreshCounts = useCallback(async () => {
     try {

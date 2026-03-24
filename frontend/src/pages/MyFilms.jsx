@@ -53,7 +53,7 @@ import { SKILL_TRANSLATIONS } from '../constants';
 // useTranslations imported from contexts
 
 const MyFilms = () => {
-  const { api, user } = useContext(AuthContext);
+  const { api, user, cachedGet } = useContext(AuthContext);
   const { t } = useTranslations();
   const [searchParams] = useSearchParams();
   const currentView = searchParams.get('view') || 'film';
@@ -69,7 +69,7 @@ const MyFilms = () => {
 
   useEffect(() => { 
     if (currentView === 'film') {
-      api.get('/films/my').then(r=>setFilms(r.data)).catch(()=>{}); 
+      cachedGet('/films/my').then(r=>setFilms(r.data)).catch(()=>{}); 
       api.get('/advertising/platforms').then(r=>setAdPlatforms(r.data)).catch(()=>{});
     } else {
       const sType = currentView === 'anime' ? 'anime' : 'tv_series';

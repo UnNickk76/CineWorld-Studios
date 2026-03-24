@@ -156,7 +156,7 @@ class ProfileErrorBoundary extends React.Component {
 }
 
 const ProfilePage = () => {
-  const { api, user, refreshUser, logout } = useContext(AuthContext);
+  const { api, user, refreshUser, cachedGet } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
   const navigate = useNavigate();
@@ -172,8 +172,8 @@ const ProfilePage = () => {
   const [studioCountry, setStudioCountry] = useState(user?.studio_country || 'IT');
 
   useEffect(() => { 
-    api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {}); 
-  }, [api]);
+    cachedGet('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {}); 
+  }, [cachedGet]);
 
   const saveProfile = async () => {
     setSaving(true);

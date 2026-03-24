@@ -55,7 +55,7 @@ import { LoadingSpinner } from '../components/ErrorBoundary';
 // useTranslations imported from contexts
 
 const Dashboard = () => {
-  const { user, api, refreshUser, updateUser } = useContext(AuthContext);
+  const { user, api, refreshUser, updateUser, cachedGet } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const { setIsOpen: openProductionMenu } = useProductionMenu();
   const [stats, setStats] = useState(null);
@@ -219,7 +219,7 @@ const Dashboard = () => {
         }
         
         // Single batch call replaces 13+ separate API calls
-        const batchRes = await api.get('/dashboard/batch');
+        const batchRes = await cachedGet('/dashboard/batch');
         const d = batchRes.data;
         setStats(d.stats);
         setFilms(Array.from(new Map((d.featured_films || []).map(f => [f.id, f])).values()));

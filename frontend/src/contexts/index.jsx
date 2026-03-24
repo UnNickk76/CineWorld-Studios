@@ -215,6 +215,30 @@ export const AuthProvider = ({ children }) => {
     return promise;
   }, [api]);
 
+  // Preload key pages data in background after login
+  const preloadPages = useCallback(() => {
+    if (!tokenRef.current) return;
+    const endpoints = [
+      '/film-pipeline/all',
+      '/films/my',
+      '/player/level-info',
+      '/dashboard/batch',
+      '/films/my/featured?limit=9',
+    ];
+    endpoints.forEach(url => {
+      if (!getCached(url)) {
+        api.get(url).then(res => setCache(url, res.data)).catch(() => {});
+      }
+    });
+  }, [api]);
+
+  // Trigger preload after user is loaded
+  useEffect(() => {
+    if (user && tokenRef.current) {
+      preloadPages();
+    }
+  }, [user, preloadPages]);
+
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>
       {children}

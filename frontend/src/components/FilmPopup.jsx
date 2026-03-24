@@ -492,23 +492,25 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
 
   const selectCast = async (roleType, proposalId) => {
     if (roleType === 'actors' && !actorRoles[proposalId]) {
-      toast.error('Seleziona il ruolo per questo attore');
-      return;
+      // Auto-assign default role instead of blocking
+      setActorRoles(p => ({...p, [proposalId]: 'Supporto'}));
     }
+    const finalRole = roleType === 'actors' ? (actorRoles[proposalId] || 'Supporto') : null;
     setActionLoading(`select-${proposalId}`);
     try {
       const res = await api.post(`/film-pipeline/${film.id}/select-cast`, {
         role_type: roleType, proposal_id: proposalId,
-        actor_role: roleType === 'actors' ? (actorRoles[proposalId] || 'Supporto') : null
+        actor_role: finalRole
       });
       if (res.data.accepted) {
         toast.success(res.data.message);
+        haptic([10, 50, 10]);
         if (res.data.casting_complete) toast.success('Casting completo!');
       } else {
-        toast.error(res.data.message);
+        toast.error(res.data.message || 'Attore non disponibile');
       }
       refreshUser(); onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore selezione attore'); }
     finally { setActionLoading(null); }
   };
 

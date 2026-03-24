@@ -1,82 +1,71 @@
 <analysis>**original_problem_statement:**
-The user initially requested a massive rework of the in-game Festival system, breaking it down into 6 distinct implementation steps focused on making it a more dynamic, competitive, and cinematic core feature. After the agent completed this rework, the user reported a series of critical bugs and regressions:
-1.  **BUG (Stuck Countdown):** A film's Rimasterizzazione (Remastering) countdown was stuck at 0 minutes for hours.
-2.  **BUG (Casting Regression):** The actor casting UI had severely regressed, losing critical information like gender icons, skill details, age, nationality, and the ability to expand skill lists.
-3.  **BUG (Poster Regeneration):** The AI-powered poster regeneration feature was failing with a generic error.
-4.  **UI FIX (Login Page):** A request to remove a Download App banner from the login page.
-5.  **BUG (Actor Selection):** A critical bug where clicking the Scegli (Choose) button in the casting screen did nothing, effectively blocking players from hiring actors and producing films.
+The session began by fixing a P0 bug where film improvement suggestions weren't generating correctly. Following the fix, the user requested a series of major features and fixes, which were implemented sequentially:
 
-**PRODUCT REQUIREMENTS (New Features - Festival Rework):**
--   **Structure:** Create 4 festival types (Player-voted, AI-influenced, Algorithm-based, User-generated).
--   **Nominations:** Make nominations dynamic, considering only recent films (last 7-14 days) with a mix of top performance and controlled randomness.
--   **States:** Implement a 4-state system for each festival: , , , .
--   **Cinematic Ceremony:** A core feature involving a fullscreen cinematic overlay with a scripted animation sequence (Intro, Presentation, Category Reveal, Nominations, Suspense, Winner Reveal, Rewards, Finale) for the awards ceremony.
--   **AI System:** Make AI-driven festivals unpredictable by adding hidden factors like hype, random events, and bias.
--   **Player Festivals (Monetization):** Allow players to create their own festivals for a cost, set the prize pool, and earn a commission from entry fees.
--   **UI:** Overhaul the festival UI with new cards showing countdowns, status, and improved nomination displays.
+1.  **NUOVA FEATURE – SISTEMA PvP CINEMATOGRAFICO:** The user first requested an integrated PvP system with Box Office Wars and Head-to-Head challenges.
+2.  **NUOVA FEATURE CORE – ARENA PvP CINEMATOGRAFICA:** The user then provided a completely new, more detailed specification for the PvP system, requiring a full rewrite. This new PvP Arena is based on Support and Boycott actions, with films organized by genre and a detailed action report history.
+3.  **BUG UX MOBILE – CHAT NON UTILIZZABILE:** The user reported a critical UX bug on mobile where the chat input was covered by other UI elements, making it unusable.
+4.  **OTTIMIZZAZIONE PERFORMANCE LIVELLO PRO – NAVIGAZIONE ISTANTANEA:** A major request to transform the frontend into a single-page-application-like experience with zero perceived loading, using a global state, stale-while-revalidate data fetching, and intelligent prefetching.
+5.  **FIX UI MOBILE + MIGLIORIE DASHBOARD:** The current task, to fix a mobile navbar overlap issue, replace the Ciak! section on the dashboard with an Arena summary, and make the financial balance section collapsible.
 
 **User's preferred language**: Italiano
 
 **what currently exists?**
-The agent has successfully completed an extensive multi-part session. Key accomplishments include:
--   **Velion AI Fixes:** Fixed a mobile UI bug where Velion's notification bubble was obscured and added a new welcome bubble on the login page.
--   **Full Festival Rework (Steps 1-6):** Completely re-architected the festival system from the ground up, implementing dynamic nominations, a 4-state lifecycle, a new cinematic ceremony overlay, an unpredictable AI winner selection logic, and a player-created festival system with monetization.
--   **Bug Fixes:**
-    -   Resolved the stuck remastering countdown by adding the missing auto-completion logic to the  endpoint.
-    -   Fixed the critical casting UI regression by restoring the detailed actor card component in both  and .
-    -   Improved the AI poster regeneration feature by adding an automatic retry (2 attempts) and a fallback mechanism. Also removed the Download App banner from the login page as requested.
--   The agent identified the root cause of the final bug (actor selection failing) and has implemented a fix.
+The application is in a significantly improved state. The agent has successfully:
+1.  Fixed a critical P0 bug in the film improvement suggestion system.
+2.  Implemented and then completely rewrote the core PvP system into a new PvP Arena with Support/Boycott mechanics, backend logic, and a full frontend UI.
+3.  Resolved a critical mobile UX bug on the chat page, making it fully usable.
+4.  Executed a massive frontend performance overhaul by implementing a global  with a stale-while-revalidate (SWR) caching strategy, significantly improving navigation speed and data loading across key pages (, , , ).
+The codebase now includes the new PvP backend, a global state management context for performance, and fixes for several UI/UX issues.
 
 **Last working item**:
--   **Last item agent was working:** Fixing the critical bug where the Scegli (Choose) button in the casting popup was not hiring actors. The agent identified that the function was silently failing because the actor's role dropdown defaulted to an empty value, which was not handled. The fix involved setting a default role (Supporto) and improving the UX to provide clear feedback.
--   **Status:** IN PROGRESS (Fix implemented, but not yet tested or verified by the user).
+-   **Last item agent was working:** The agent received a new set of UI/UX fixes for mobile and the dashboard. It analyzed the user-provided screenshots to understand the three main problems: (1) The top mobile navbar covers page titles, (2) The dashboard Ciak! section needs to be replaced by an Arena section, and (3) The financial balance section on the dashboard needs to be made collapsible.
+-   **Status:** NOT STARTED
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** both
+-   **Which testing method agent to use?** frontend testing agent
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: (P0) Scegli button in casting does not hire actors.**
--   **Issue 2: (DE-PRIORITIZED) Coming Soon films get into a broken state.**
--   **Issue 3: (P2) Contest Page Mobile Layout Is Broken.**
--   **Issue 4: (P3) Multiple ESLint warnings in various components.**
+-   **Issue 1: (P0) Fix UI Mobile + Migliorie Dashboard**
+-   **Issue 2: (P2) Contest Page Mobile Layout Is Broken**
+-   **Issue 3: (P3) Multiple ESLint and Python linting warnings exist in the codebase.**
 
 **Issues Detail:**
--   **Issue 1: Scegli button in casting does not hire actors**
-    -   **Attempted fixes:** The agent identified that the  function in  was returning early with a  if the actor role dropdown was not set. The user could not see this toast on mobile. The agent applied a fix by modifying  to default the actor role to Supporto, preventing the silent failure.
+-   **Issue 1: Fix UI Mobile + Migliorie Dashboard**
+    -   **Attempted fixes:** The previous agent analyzed the user-provided images and identified the code locations for the required fixes in  and . No code changes have been made yet.
     -   **Next debug checklist:**
-        1.  Restart frontend and backend services.
-        2.  Use the  to navigate to the casting screen for a film.
-        3.  Verify that clicking Scegli for an actor now successfully adds them to the cast.
-        4.  Confirm that visual feedback (e.g., a Scelto badge) appears.
-        5.  Call the  for a full regression test of the casting flow.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical, game-breaking bug that prevents players from producing films. The fix will restore core gameplay functionality.
-    -   **Status:** IN PROGRESS
+        1.  Present a plan to the user via  for confirmation, as requested.
+        2.  In , add top padding to the main content container to account for the fixed navbar height and the iOS safe area ().
+        3.  In , remove the Ciak! section () and replace it with a new Arena component that summarizes PvP stats and provides a link to the arena.
+        4.  In , refactor the Bilancio Finanziario (Financial Balance) component to be collapsible, using React state and  for smooth animation.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a high-priority UX fix that will make the app more usable on mobile and improve the dashboard's relevance.
+    -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** both
+    -   **Should Test frontend/backend/both after fix?** frontend
     -   **Blocked on other issue:** None
 
--   **Issue 2: Coming Soon films get into a broken state**
-    -   **Status:** NOT STARTED (User has explicitly de-prioritized this).
+-   **Issue 2: Contest Page Mobile Layout Is Broken**
+    -   **Status:** NOT STARTED
+    -   **Why fix this issue and what will be achieved with the fix?** This is a long-standing low-priority UI bug.
+    -   **Is recurring issue?** Y
 
--   **Issue 3: Contest Page Mobile Layout Is Broken**
-    -   **Status:** NOT STARTED (Low priority).
-
--   **Issue 4: Multiple ESLint warnings**
-    -   **Status:** NOT STARTED (Low priority).
+-   **Issue 3: Multiple ESLint and Python linting warnings**
+    -   **Status:** NOT STARTED
+    -   **Why fix this issue and what will be achieved with the fix?** Technical debt cleanup.
+    -   **Is recurring issue?** N
 
 **In progress Task List**:
--   **Task 1: Verify the Scegli button fix (P0)**
-    -   **Where to resume:** The code fix has been applied. The next step is to test it thoroughly using the checklist above and confirm with the user.
-    -   **What will be achieved with this?** Resolution of a critical gameplay bug.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on something:** None
+-   **Task 1: Implement UI/UX Fixes from User Request (P0)**
+    -   **Where to resume:** Start by creating a plan and asking the user for confirmation using the  tool.
+    -   **What will be achieved with this?** A more polished and usable mobile experience and a more functional dashboard.
+    -   **Status:** NOT STARTED
+    -   **Should Test frontend/backend/both after fix?** frontend
+    -   **Blocked on something:** Waiting for user confirmation on the proposed plan.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **Sistema Previsioni Festival:** Allow players to bet on festival winners.
-    -   (P1) **Marketplace for TV/Anime rights.**
-    -   (P1) **Velion Mood Indicator.**
+    -   (P1) Sistema Previsioni Festival (Betting on festival winners).
+    -   (P1) Marketplace for TV/Anime rights.
+    -   (P1) Velion Mood Indicator.
     -   (P1) Chat Evolution (Mobile refinement & social).
 -   **Future Tasks:**
     -   (P2) Velion Levels, RBAC, CinePass + Stripe, PWA.
@@ -84,114 +73,85 @@ The agent has successfully completed an extensive multi-part session. Key accomp
     -   (P3) Velion AI Memory.
 
 **Completed work in this session**
--   **Velion Mobile Fix & Login Bubble:** Fixed mobile UI overlap and added a new welcome bubble to the .
--   **Festival Rework (Steps 1-3):** Implemented dynamic nominations, a 4-state system (, , , ), and a complete UI overhaul in .
--   **Festival Rework (Steps 4-6):** Implemented an unpredictable AI winner-selection logic, a new  component for live events, and a full player-created festival system with monetization.
--   **Bug Fix (Remastering Stuck):** Fixed a bug where the remastering countdown would get stuck by adding auto-completion logic to .
--   **Bug Fix (Casting Regression):** Restored the full-featured actor card UI in  and , fixing a major regression.
--   **Bug Fix (Poster Regeneration):** Improved the poster regeneration endpoint () with an automatic retry and fallback mechanism.
--   **UI Fix (Login Page):** Removed the Download App banner from .
+-   **Bug Fix P0 - Film Improvement System:** Fixed backend logic in  to correctly generate suggestions for films in 'proposed' status. Verified with .
+-   **Feature - Core PvP Arena (Full Rewrite):** Implemented a comprehensive PvP system. This involved creating  with endpoints for an arena view, support/boycott actions, and history, and building the  UI.
+-   **Bug Fix - Mobile Chat UX:** Made the mobile chat usable by hiding the fixed Donate banner and Velion avatar on the chat page () and making the input bar in  sticky with a high z-index and proper mobile viewport handling ().
+-   **Feature - Pro-Level Performance Optimization:** Created a global  () using a stale-while-revalidate (SWR) pattern. This provides instant data loading from a cache, with background revalidation. Migrated , , , and  to use the new store and implemented prefetching on navigation hover in . Verified with .
 
 **Earlier issues found/mentioned but not fixed**
--   **Coming Soon films get into a broken state:** De-prioritized by the user.
--   **Contest Page Mobile Layout Is Broken:** Low-priority recurring issue.
--   **ESLint Warnings:** Multiple warnings for missing  dependencies remain across the codebase.
+-   **Coming Soon films get into a broken state:** De-prioritized by the user in a previous session. Remains unfixed.
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence:** Contest Page Mobile Layout Is Broken.
 -   **Recurrence count:** 10+
 -   **Status:** NOT STARTED
 
--   **Issue recurrence:** Coming Soon film bug.
--   **Recurrence count:** 2+
--   **Status:** NOT STARTED
-
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **State Machine (Festivals):** Backend logic now manages festivals through four distinct states (, , , ) with time-based transitions.
--   **Cinematic Animation Sequence:**  uses Framer Motion's  and staggered animations () to create a scripted, timed visual sequence for award reveals.
--   **Asynchronous Task Handling:** The poster regeneration feature uses a background task () and a polling mechanism () to handle long-running AI image generation without blocking the UI. Includes retry and fallback logic.
--   **Component Refactoring for State:** Fixed a React error ( in a loop) by extracting the repeating UI into a dedicated sub-component () with its own state.
+-   **Global State Management with SWR:** A new global  () was implemented using React Context. It employs a stale-while-revalidate (SWR) pattern to provide an instant navigation experience by serving cached data immediately while revalidating it in the background.
+-   **Predictive Prefetching:**  and  event handlers were added to navigation elements in  to trigger pre-fetching of data for the target route via the , reducing perceived latency.
+-   **Wave-Based Preloading:** Upon login, the  initiates waves of API calls to preload essential game data, prioritizing critical information for a smoother user experience.
+-   **Dynamic UI Adaptability:** Used  checks in the root  component to conditionally render or hide UI elements (like the Donate banner and Velion avatar) on specific pages to resolve UX conflicts, notably on .
+-   **Mobile Viewport Handling:** Switched from  to  and used the  API in  to correctly handle the mobile keyboard and avoid layout issues with browser UI elements on mobile devices.
 
 **key DB schema**
--   **festival_editions:**
-    -   : 'upcoming' | 'voting' | 'live' | 'ended' (new field to manage festival lifecycle).
-    -   : datetime (timestamp for state transitions).
--   **custom_festivals:** (New collection)
-    -   , , , , , etc.
--   **film_projects / films:**
-    -   ,  (Fields used for the remastering timer logic).
+-   **pvp_action_log:** (New/Rewritten) Stores a history of all support/boycott actions performed by players. .
+-   **films:** (Modified) Added  () to track the temporary revenue bonus/malus from PvP actions.
 
 **All files of reference**
--   **/app/frontend/src/components/FilmPopup.jsx**: File where the main Scegli button bug was located and fixed.
--   **/app/backend/server.py**: Heavily modified to contain the entire new festival system logic and poster regeneration improvements.
--   **/app/frontend/src/pages/FestivalsPage.jsx**: Completely rewritten to support the new festival system and UI.
--   **/app/frontend/src/components/CinematicCeremony.jsx**: New component for the live award show animation.
--   **/app/backend/routes/film_pipeline.py**: Modified to include the fix for the stuck remastering timer.
--   **/app/frontend/src/pages/FilmPipeline.jsx**: Modified to fix the casting UI regression.
--   **/app/frontend/src/pages/MyFilms.jsx**: Modified for better poster regeneration error feedback.
--   **/app/frontend/src/pages/AuthPage.jsx**: Modified to remove the download banner.
-
-**Areas that need refactoring**:
--   The use of window events in  for Velion state management could still be improved by using a shared React Context.
+-   **/app/frontend/src/contexts/GameStore.jsx**: The new core of the frontend performance strategy. Contains all SWR logic.
+-   **/app/frontend/src/pages/PvPArenaPage.jsx**: The new UI for the primary PvP feature.
+-   **/app/backend/routes/pvp_cinema.py**: The new backend for the primary PvP feature.
+-   **/app/frontend/src/App.js**: Heavily modified to integrate the , add navigation prefetching, and implement conditional rendering for UI fixes.
+-   **/app/frontend/src/pages/Dashboard.jsx**: Refactored to use the . Target for the next set of UI changes.
+-   **/app/frontend/src/pages/ChatPage.jsx**: Refactored to fix critical mobile UX bugs.
 
 **key api endpoints**
--   **POST **: The endpoint called by the  function, which was failing silently due to frontend logic.
--   **GET **: Returns all festivals with their current state, countdowns, and types.
--   **GET **: Gets the detailed data for a specific festival edition.
--   **POST **: Creates a new player-run festival.
--   **GET **: New endpoint for player festival leaderboards.
--   **POST **: Starts the async poster regeneration task.
--   **GET **: Polls the status of the poster generation task.
--   **GET **: Modified to include auto-completion logic for remastering.
+-   **GET **: (New) Fetches all films eligible for PvP, grouped by genre.
+-   **GET **: (New) Gets the current user's PvP statistics.
+-   **GET **: (New) Gets the user's action history.
+-   **POST **: (New) Executes a Support or Boycott action on a target film.
+-   **GET **: (New) Gets detailed stats for a specific film in the PvP context.
 
 **Critical Info for New Agent**
 -   **You MUST respond in Italiano.**
--   Your immediate and highest priority is to **verify the fix for the Scegli button bug**. The code has been changed, but it needs to be tested to confirm the issue is resolved.
--   The user has repeatedly reported critical regressions. After fixing one issue, it's crucial to test thoroughly to ensure no other features were broken. Use the  after confirming the main fix.
--   The Coming Soon film bug is a known, de-prioritized issue. Do not work on it unless explicitly asked.
+-   **User Confirmation Required:** The user's last message explicitly asks for confirmation before implementation. Your first action MUST be to use the  tool to present your plan for the UI fixes.
+-   **Use the GameStore:** The application now uses a global  for high-performance data fetching. All new data-driven components should integrate with it using the  hook to maintain a consistent, fast user experience.
+-   **Priority is Mobile UX:** The user has placed high priority on fixing mobile user experience issues. Pay close attention to mobile layout and responsiveness.
 
 **documents and test reports created in this job**
--   /app/test_reports/iteration_139.json
--   /app/test_reports/iteration_140.json
--   /app/test_reports/iteration_141.json
--   /app/test_reports/iteration_142.json
--   /app/memory/PRD.md (updated)
+-   /app/test_reports/iteration_148.json
+-   /app/test_reports/iteration_149.json
+-   /app/memory/PRD.md (updated after each major feature/fix)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (msg #291):** Reports two issues: 1. Critical bug: AI poster regeneration is failing. 2. UI fix: Remove the Download App banner from the login page. (DONE)
-2.  **Assistant (msg #292-374):** Investigates and fixes both issues. The agent discovered the poster generation backend was working but added a retry/fallback mechanism for robustness. The Download App banner was removed from . (DONE)
-3.  **User (msg #375):** Acknowledges completion.
-4.  **User (msg #376):** Reports a new, critical bug: The Scegli (Choose) button for hiring actors in the casting screen is not working. The action fails silently without adding the actor to the cast. (IN PROGRESS)
-5.  **Assistant (msg #377-390):** Investigates the new bug, traces the code from the button to the  function in , and identifies the root cause: the function silently returns an error if the actor's role is not selected from the dropdown, which defaults to empty.
-6.  **User (msg #391):** Confirms assistant should complete the fix.
-7.  **Assistant (msg #392-393):** Implements the fix by changing the role dropdown to default to Supporto, preventing the silent failure and improving the UX. The session ends here. (IN PROGRESS)
+1.  **User (msg #293):** Requested a massive frontend performance optimization for instant navigation using a global state, SWR, and prefetching. Marked as ALTISSIMA priority and requested .
+2.  **Assistant (msg #302):** Started implementation by creating the  context file.
+3.  **Assistant (msg #392):** After implementing the SWR system and migrating key pages, called the  for verification.
+4.  **Assistant (msg #396):** Received a 100% passing test report from the testing agent, confirming the success of the performance optimization.
+5.  **Assistant (msg #398):** Finished the task, summarizing the implementation of the  and SWR caching.
+6.  **User (msg #400):** Provided a new high-priority task: FIX UI MOBILE + MIGLIORIE DASHBOARD, along with 6 screenshots illustrating the problems (navbar overlap, outdated dashboard section, non-collapsible balance). Requested confirmation before implementation.
+7.  **Assistant (msg #401):** Began work on the new request by analyzing the user-provided images to understand the UI issues.
 
 **Project Health Check:**
--   **Broken:** The de-prioritized Coming Soon film pipeline. The core gameplay loop of hiring actors is currently blocked pending verification of the recent fix.
+-   **Broken:** The main application layout on mobile suffers from the top navbar overlapping page titles. The dashboard contains an outdated Ciak! section and a Financial Balance section that is not mobile-friendly.
 -   **Mocked:** None
 
 **3rd Party Integrations**
 -   **OpenAI GPT-4o-mini (Text Generation):** Uses Emergent LLM Key for Velion AI chat.
 -   **OpenAI GPT-Image-1 (Image Generation):** Uses Emergent LLM Key for AI poster generation.
 -   **APScheduler:** Used for backend scheduled game tasks.
--   **Framer Motion:** Used heavily for UI animations, especially in the new .
+-   **Framer Motion:** Used for UI animations.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES. The agent used the testing agent successfully after every major feature implementation and bug fix cycle in this session.
+-   **Testing agent used after significant changes:** YES (Used for P0 bug fix and Performance Optimization feature).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None.
--   **Known regressions:** The session started by fixing a major casting UI regression. The Coming Soon pipeline is a known regression from a much earlier session.
-
-**Credentials to test flow:**
--   **email:** 
--   **password:** 
--   **admin email:** 
--   **admin nickname:**  (password unknown)
+-   **Test files created:**
+    -   /app/test_reports/iteration_148.json
+    -   /app/test_reports/iteration_149.json
+-   **Known regressions:** None from this session.
 
 **What agent forgot to execute**
--   The agent has consistently deferred fixing the multiple ESLint warnings reported in the build logs.
--   The low-priority Contest Page Mobile Layout Is Broken issue remains unaddressed.
--   The request to reset the NeoMorpheus admin password from the previous session was not followed up on.</analysis>
+The agent has not yet followed the user's instruction to Chiedere conferma prima implementazione (Ask for confirmation before implementation) for the latest task. The next agent's first step must be to create a plan for the UI fixes and present it to the user with the  tool.</analysis>

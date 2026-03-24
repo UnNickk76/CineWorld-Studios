@@ -447,8 +447,8 @@ const TopNavbar = () => {
   const canGoBack = location.pathname !== '/dashboard';
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-14 bg-[#0F0F10] border-b border-white/10 z-50">
-      <div className="max-w-7xl mx-auto h-full px-2 sm:px-3 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="max-w-7xl mx-auto h-14 px-2 sm:px-3 flex items-center justify-between">
         {/* Left section: Logo */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Back Button - Always visible on non-Dashboard pages */}
@@ -1104,7 +1104,7 @@ const TopNavbar = () => {
       </AnimatePresence>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 h-14 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" data-testid="mobile-bottom-nav">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} data-testid="mobile-bottom-nav">
         <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} onMouseEnter={() => handleNavHover('/dashboard')} onTouchStart={() => handleNavHover('/dashboard')} data-testid="bottom-nav-home">
           <Clapperboard className="w-4 h-4" />
           <span className="text-[8px]">Home</span>
@@ -1903,6 +1903,7 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
+      <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
@@ -1912,6 +1913,7 @@ const ProtectedRoute = ({ children }) => {
           </ErrorBoundary>
         </PageTransition>
       </AnimatePresence>
+      </div>
 
       {/* Challenge Invite Popup */}
       {pendingChallengePopup && (

@@ -148,6 +148,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 141: 100% (Festival Rework Step 4-5-6: AI Unpredictable + Cinematic Ceremony + Player Festivals - Backend 21/21 + Frontend all)
 - Iter 143: 100% (Bug Fix "Scegli" Button - Casting actor selection verified working - Backend 5/5 + Frontend 9/9)
 - Iter 144: 100% (Fail-Safe Cast System - 4 livelli sicurezza - Backend 8/8 + Frontend all verified)
+- Iter 145: 100% (Fix Regressione Rilascio Film + Produci - 4 fix: colonna sonora, animazione, velocita, filtro)
 
 ### Festival Rework Step 1-3 (2026-03-23)
 - **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random
@@ -165,6 +166,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Livello 3 - Cast Minimo Garantito:** Regista + Sceneggiatore + Compositore + 2-5 attori adatti al genere del film
 - **Livello 4 - Safe Mode Frontend:** Retry automatico su errore selectCast, fallback auto-complete, pulsante "Completa Cast Automaticamente" dopo 5s, messaggio Velion purple banner
 - **Emergency Mode:** Se tutto fallisce, genera cast d'emergenza minimo (2 attori) senza costo
+
+### Fix Regressione Rilascio Film + Produci (2026-03-24)
+- **Colonna Sonora:** Aggiunto `soundtrack_rating` e `modifiers.soundtrack` nella response del rilascio. UI mostra punteggio con highlight viola in Phase 5
+- **Animazione Cinematica Rilascio:** Portata animazione completa a 5 fasi da FilmPipeline.jsx a FilmPopup.jsx (intro cinema, trailer sceneggiatura, evento, numeri animati, risultato finale)
+- **Velocita Rilascio:** Loading immediato con fasi animate sequenziali, nessun blocco UI
+- **Filtro Produci:** Frontend ora esclude film con status `completed` e `released` dalla sezione Produci
+- **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
+- **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
 
 ## Backlog
 

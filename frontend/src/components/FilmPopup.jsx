@@ -20,6 +20,75 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 // ─── Haptic feedback ───
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
 
+// Sub-component for agency actor cards (uses useState for skill expansion)
+const AgencyActorCardPopup = ({ actor, isSelected, onToggle, roleValue, onRoleChange, ACTOR_ROLES }) => {
+  const [skillExpanded, setSkillExpanded] = React.useState(false);
+  const skills = actor.skills || {};
+  const avgSkill = Object.values(skills).length > 0
+    ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length) : 0;
+
+  return (
+    <div className={`p-2 rounded-lg transition-all border ${
+      isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-purple-500/10'
+    }`}>
+      <div className="flex items-center gap-2 cursor-pointer" onClick={onToggle}>
+        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] font-bold text-purple-400 flex-shrink-0">
+          {actor.name?.charAt(0)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[11px] font-medium truncate">{actor.name}</span>
+            <span className={`text-[10px] font-bold ${actor.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>
+              {actor.gender === 'female' ? '♀' : '♂'}
+            </span>
+            {[...Array(actor.stars || 2)].map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-500 fill-yellow-500" />)}
+          </div>
+          <p className="text-[9px] text-gray-500">
+            {actor.nationality} &bull; {actor.age}a &bull; Skill: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>
+            &bull; {actor.films_count || 0} film
+          </p>
+          <div className="flex flex-wrap gap-0.5 mt-0.5">
+            {(actor.strong_genres_names || actor.strong_genres || []).map((g, i) => (
+              <span key={i} className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-800/40">{g}</span>
+            ))}
+            {(actor.adaptable_genre_name || actor.adaptable_genre) && (
+              <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-800/40">~ {actor.adaptable_genre_name || actor.adaptable_genre}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button className="text-[8px] text-gray-400 hover:text-white flex items-center gap-0.5"
+            onClick={e => { e.stopPropagation(); setSkillExpanded(!skillExpanded); }}>
+            {skillExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />} Skill
+          </button>
+          {isSelected && (
+            <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
+              value={roleValue} onClick={e => e.stopPropagation()}
+              onChange={e => onRoleChange(e.target.value)}>
+              {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+        </div>
+        {isSelected && <Check className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />}
+      </div>
+      {skillExpanded && Object.keys(skills).length > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-white/5 space-y-0.5">
+          {Object.entries(skills).map(([name, value]) => (
+            <div key={name} className="flex items-center gap-1.5 text-[9px]">
+              <span className="w-20 text-gray-500 truncate">{name}</span>
+              <div className="flex-1 h-1 bg-gray-800 rounded-full">
+                <div className={`h-full rounded-full ${value >= 80 ? 'bg-emerald-500' : value >= 60 ? 'bg-cyan-500' : value >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                  style={{ width: `${Math.min(100, value)}%` }} />
+              </div>
+              <span className="w-5 text-right font-mono text-gray-400">{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Pipeline Steps Config ───
 const STEPS_IMMEDIATE = [
   { id: 'proposta', label: 'Proposta', icon: Lightbulb, color: 'yellow' },
@@ -551,18 +620,27 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-xs font-semibold truncate">{person.name}</p>
-                              {person.gender && <span className="text-[8px] text-gray-600">{person.gender === 'M' ? 'M' : person.gender === 'F' ? 'F' : ''}</span>}
-                            </div>
-                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                              {/* Stars */}
-                              <span className="text-[9px] text-yellow-500">{'★'.repeat(stars)}{'☆'.repeat(Math.max(0, 5 - stars))}</span>
+                              {person.gender && (
+                                <span className={`text-[10px] font-bold ${person.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>
+                                  {person.gender === 'female' ? '♀' : '♂'}
+                                </span>
+                              )}
+                              {[...Array(stars)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />)}
                               {fameLabel && <Badge className="text-[7px] h-3.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 px-1">{fameLabel}</Badge>}
                             </div>
                             <p className="text-[8px] text-gray-500 mt-0.5">
-                              {person.nationality || ''}{person.age ? ` \u2022 ${person.age}a` : ''}{' \u2022 '}Skill: <span className="text-cyan-400 font-semibold">{avgSkill}</span>
+                              {person.nationality || ''}{person.age ? ` \u2022 ${person.age}a` : ''}{' \u2022 '}Skill: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>
                               {person.films_count != null ? ` \u2022 ${person.films_count} film` : ''}
                             </p>
-                            {person.agency_name && <p className="text-[7px] text-gray-600">Agenzia: {person.agency_name}</p>}
+                            <div className="flex flex-wrap gap-0.5 mt-0.5">
+                              {(person.strong_genres_names || []).map((g, i) => (
+                                <span key={i} className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-800/40">{g}</span>
+                              ))}
+                              {person.adaptable_genre_name && (
+                                <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-800/40">~ {person.adaptable_genre_name}</span>
+                              )}
+                            </div>
+                            {person.agency_name && <p className="text-[7px] text-gray-600 mt-0.5">Agenzia: {person.agency_name}</p>}
                           </div>
                           {/* Cost + Actions */}
                           <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -643,30 +721,15 @@ function CastingStepContent({ film, api, onRefresh, refreshUser }) {
           <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1">
             <Users className="w-3 h-3" /> I tuoi Attori (Agenzia)
           </p>
-          <div className="space-y-1 max-h-36 overflow-y-auto">
-            {[...agencyActors.effective, ...agencyActors.school].map(actor => {
-              const isSelected = selectedAgencyActors[actor.id];
-              return (
-                <div key={actor.id} className={`flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer border ${
-                  isSelected ? 'bg-purple-500/15 border-purple-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-purple-500/10'
-                }`} onClick={() => setSelectedAgencyActors(p => ({ ...p, [actor.id]: !p[actor.id] }))}>
-                  <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] font-bold text-purple-400">
-                    {actor.name?.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-medium truncate">{actor.name}</p>
-                  </div>
-                  {isSelected && (
-                    <select className="bg-[#1a1a1a] text-[9px] rounded px-1 py-0.5 border border-white/10 text-white"
-                      value={agencyRoles[actor.id] || 'Supporto'} onClick={e => e.stopPropagation()}
-                      onChange={e => setAgencyRoles(p => ({...p, [actor.id]: e.target.value}))}>
-                      {ACTOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  )}
-                  {isSelected && <Check className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />}
-                </div>
-              );
-            })}
+          <div className="space-y-1.5 max-h-60 overflow-y-auto">
+            {[...agencyActors.effective, ...agencyActors.school].map(actor => (
+              <AgencyActorCardPopup key={actor.id} actor={actor}
+                isSelected={!!selectedAgencyActors[actor.id]}
+                onToggle={() => setSelectedAgencyActors(p => ({ ...p, [actor.id]: !p[actor.id] }))}
+                roleValue={agencyRoles[actor.id] || 'Supporto'}
+                onRoleChange={val => setAgencyRoles(p => ({...p, [actor.id]: val}))}
+                ACTOR_ROLES={ACTOR_ROLES} />
+            ))}
           </div>
           {Object.values(selectedAgencyActors).some(Boolean) && (
             <Button size="sm" className="w-full bg-purple-500 hover:bg-purple-600 text-white text-xs"

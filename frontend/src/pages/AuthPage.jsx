@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { TutorialPopup } from '../components/TutorialPopup';
 import { VelionLoginBubble } from '../components/VelionLoginBubble';
+import { PWAInstallBanner } from '../components/PWAInstallBanner';
 import {
   Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
@@ -330,6 +331,8 @@ const AuthPage = () => {
             </div>
           </CardContent>
         </Card>
+        {/* PWA Install inline banner for login page */}
+        <PWAInstallBanner />
       </motion.div>
     </div>
   );

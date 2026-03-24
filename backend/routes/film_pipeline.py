@@ -652,6 +652,110 @@ async def get_pipeline_counts(user: dict = Depends(get_current_user)):
     }
 
 
+
+# ==================== DRAFT / AUTOSAVE SYSTEM ====================
+
+class DraftSaveRequest(BaseModel):
+    draft_id: str = None
+    step: int = 0
+    release_type: str = None
+    title: str = None
+    genre: str = None
+    subgenres: list = []
+    pre_screenplay: str = None
+    locations: list = []
+    purchased_screenplay_id: str = None
+
+
+@router.post("/film-pipeline/draft")
+async def save_draft(req: DraftSaveRequest, user: dict = Depends(get_current_user)):
+    """Auto-save film creation progress. Creates or updates a draft."""
+    now = datetime.now(timezone.utc).isoformat()
+
+    if req.draft_id:
+        # Update existing draft
+        existing = await db.film_projects.find_one(
+            {'id': req.draft_id, 'user_id': user['id'], 'status': 'draft'},
+            {'_id': 0}
+        )
+        if existing:
+            update = {'updated_at': now, 'draft_step': req.step}
+            if req.release_type: update['release_type'] = req.release_type
+            if req.title is not None: update['title'] = req.title.strip() or existing.get('title', 'Senza Titolo')
+            if req.genre: update['genre'] = req.genre
+            if req.subgenres: update['subgenres'] = req.subgenres
+            if req.pre_screenplay is not None: update['pre_screenplay'] = req.pre_screenplay.strip()
+            if req.locations: update['locations_names'] = req.locations
+
+            await db.film_projects.update_one(
+                {'id': req.draft_id},
+                {'$set': update}
+            )
+            return {'success': True, 'draft_id': req.draft_id, 'message': 'Bozza aggiornata'}
+
+    # Create new draft
+    draft_id = str(uuid.uuid4())
+    draft = {
+        'id': draft_id,
+        'user_id': user['id'],
+        'status': 'draft',
+        'draft_step': req.step,
+        'release_type': req.release_type or 'immediate',
+        'title': (req.title or '').strip() or 'Nuovo Film',
+        'genre': req.genre or '',
+        'subgenres': req.subgenres or [],
+        'pre_screenplay': (req.pre_screenplay or '').strip(),
+        'locations_names': req.locations or [],
+        'locations': [],
+        'cast': {'director': None, 'screenwriter': None, 'actors': [], 'composer': None},
+        'cast_proposals': {},
+        'costs_paid': {},
+        'cinepass_paid': {},
+        'hype_score': 0,
+        'created_at': now,
+        'updated_at': now
+    }
+    if req.purchased_screenplay_id:
+        draft['purchased_screenplay_id'] = req.purchased_screenplay_id
+
+    await db.film_projects.insert_one(draft)
+    return {'success': True, 'draft_id': draft_id, 'message': 'Bozza creata'}
+
+
+@router.get("/film-pipeline/draft")
+async def get_draft(user: dict = Depends(get_current_user)):
+    """Get the most recent draft for this user, if any."""
+    draft = await db.film_projects.find_one(
+        {'user_id': user['id'], 'status': 'draft'},
+        {'_id': 0}
+    )
+    if not draft:
+        return {'has_draft': False, 'draft': None}
+
+    return {
+        'has_draft': True,
+        'draft': {
+            'id': draft['id'],
+            'step': draft.get('draft_step', 0),
+            'release_type': draft.get('release_type'),
+            'title': draft.get('title', ''),
+            'genre': draft.get('genre', ''),
+            'subgenres': draft.get('subgenres', []),
+            'pre_screenplay': draft.get('pre_screenplay', ''),
+            'locations': draft.get('locations_names', []),
+            'purchased_screenplay_id': draft.get('purchased_screenplay_id'),
+            'created_at': draft.get('created_at'),
+        }
+    }
+
+
+@router.delete("/film-pipeline/draft/{draft_id}")
+async def delete_draft(draft_id: str, user: dict = Depends(get_current_user)):
+    """Discard a draft."""
+    await db.film_projects.delete_one({'id': draft_id, 'user_id': user['id'], 'status': 'draft'})
+    return {'success': True, 'message': 'Bozza eliminata'}
+
+
 @router.post("/film-pipeline/create")
 async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(get_current_user)):
     """Step 1: Create a film proposal with title, genre, subgenre, pre-screenplay, location."""
@@ -669,7 +773,7 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
     max_films = get_max_films(level)
     active = await db.film_projects.count_documents({
         'user_id': user['id'],
-        'status': {'$nin': ['discarded', 'abandoned', 'completed']}
+        'status': {'$nin': ['discarded', 'abandoned', 'completed', 'draft']}
     })
     if active >= max_films:
         raise HTTPException(status_code=400, detail=f"Puoi avere massimo {max_films} film in lavorazione (livello {level})")
@@ -736,6 +840,9 @@ async def create_film_proposal(req: FilmProposalRequest, user: dict = Depends(ge
 
     await db.film_projects.insert_one(project)
     project.pop('_id', None)
+
+    # Clean up any draft for this user
+    await db.film_projects.delete_many({'user_id': user['id'], 'status': 'draft'})
 
     return {
         'success': True,

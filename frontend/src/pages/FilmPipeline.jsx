@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuthContext, useTranslations } from '../contexts';
 import { TabErrorBoundary, MiniStepBar } from '../components/ErrorBoundary';
@@ -15,7 +15,7 @@ import {
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame,
-  Lock, Rocket, Palette, Lightbulb, FileText
+  Lock, Rocket, Palette, Lightbulb, FileText, Save
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
@@ -183,7 +183,7 @@ const PipelineStepBar = ({ activeTab, counts, onTabChange }) => {
   );
 };
 
-// ============ CREATION TAB ============
+// ============ CREATION TAB with AUTOSAVE ============
 const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
@@ -198,12 +198,88 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
   const [releaseType, setReleaseType] = useState(null);
   const [myScreenplays, setMyScreenplays] = useState([]);
   const [selectedScreenplay, setSelectedScreenplay] = useState(null);
+  const [draftId, setDraftId] = useState(null);
+  const [showDraftRecovery, setShowDraftRecovery] = useState(false);
+  const [recoveredDraft, setRecoveredDraft] = useState(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const autoSaveTimerRef = useRef(null);
 
   useEffect(() => {
     cachedGet('/genres').then(r => setGenres(r.data || {})).catch(() => {});
     cachedGet('/locations').then(r => setLocations(r.data || [])).catch(() => {});
     api.get('/agency/my-screenplays').then(r => setMyScreenplays(r.data.screenplays || [])).catch(() => {});
+    // Check for existing draft
+    api.get('/film-pipeline/draft').then(r => {
+      if (r.data.has_draft && r.data.draft) {
+        setRecoveredDraft(r.data.draft);
+        setShowDraftRecovery(true);
+      }
+    }).catch(() => {});
   }, [cachedGet, api]);
+
+  // Autosave every 4 seconds when user is actively editing (step >= 1)
+  useEffect(() => {
+    if (step < 1) return;
+    if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setInterval(() => {
+      if (title.trim() || genre || preScreenplay.trim()) {
+        setAutoSaving(true);
+        api.post('/film-pipeline/draft', {
+          draft_id: draftId || undefined,
+          step, release_type: releaseType, title, genre,
+          subgenres: selectedSubgenres, pre_screenplay: preScreenplay,
+          locations: selectedLocations,
+          purchased_screenplay_id: selectedScreenplay?.id
+        }).then(r => {
+          if (r.data.draft_id && !draftId) setDraftId(r.data.draft_id);
+          setTimeout(() => setAutoSaving(false), 500);
+        }).catch(() => setAutoSaving(false));
+      }
+    }, 4000);
+    return () => { if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current); };
+  }, [step, title, genre, selectedSubgenres, preScreenplay, selectedLocations, releaseType, draftId, api, selectedScreenplay]);
+
+  // Save draft immediately on step change
+  const saveDraftNow = useCallback(async (nextStep) => {
+    if (!title.trim() && !genre && !preScreenplay.trim()) return;
+    try {
+      const r = await api.post('/film-pipeline/draft', {
+        draft_id: draftId || undefined,
+        step: nextStep, release_type: releaseType, title, genre,
+        subgenres: selectedSubgenres, pre_screenplay: preScreenplay,
+        locations: selectedLocations,
+        purchased_screenplay_id: selectedScreenplay?.id
+      });
+      if (r.data.draft_id && !draftId) setDraftId(r.data.draft_id);
+    } catch {}
+  }, [api, draftId, title, genre, selectedSubgenres, preScreenplay, selectedLocations, releaseType, selectedScreenplay]);
+
+  const recoverDraft = () => {
+    if (!recoveredDraft) return;
+    setDraftId(recoveredDraft.id);
+    setStep(recoveredDraft.step || 1);
+    setReleaseType(recoveredDraft.release_type);
+    setTitle(recoveredDraft.title || '');
+    setGenre(recoveredDraft.genre || '');
+    setSelectedSubgenres(recoveredDraft.subgenres || []);
+    setPreScreenplay(recoveredDraft.pre_screenplay || '');
+    setSelectedLocations(recoveredDraft.locations || []);
+    setShowDraftRecovery(false);
+    toast.success('Bozza recuperata!');
+  };
+
+  const discardDraft = () => {
+    if (recoveredDraft?.id) {
+      api.delete(`/film-pipeline/draft/${recoveredDraft.id}`).catch(() => {});
+    }
+    setShowDraftRecovery(false);
+    setRecoveredDraft(null);
+  };
+
+  const goToStep = (nextStep) => {
+    saveDraftNow(nextStep);
+    setStep(nextStep);
+  };
 
   const toggleSubgenre = (sg) => {
     if (selectedSubgenres.includes(sg)) {
@@ -238,6 +314,7 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
       setTitle(''); setGenre(''); setSelectedSubgenres([]); setPreScreenplay(''); setSelectedLocations([]); setStep(0);
       setReleaseType(null);
       setSelectedScreenplay(null);
+      setDraftId(null);
       setMyScreenplays(prev => prev.filter(s => s.id !== selectedScreenplay?.id));
       refreshUser(); refreshCounts();
     } catch (e) {
@@ -255,6 +332,37 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
 
   return (
     <div className="space-y-4">
+      {/* Draft Recovery Popup */}
+      {showDraftRecovery && recoveredDraft && (
+        <Card className="bg-[#1A1A1B] border-purple-500/30 border-2" data-testid="draft-recovery-popup">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Save className="w-4 h-4 text-purple-400" />
+              <p className="text-xs font-bold text-purple-300">Bozza trovata!</p>
+            </div>
+            <p className="text-[10px] text-gray-400 mb-2">
+              Hai un film in bozza: <span className="text-white font-medium">&quot;{recoveredDraft.title || 'Senza Titolo'}&quot;</span>
+              {recoveredDraft.genre && <> ({recoveredDraft.genre})</>}
+            </p>
+            <div className="flex gap-2">
+              <Button className="flex-1 bg-purple-700 hover:bg-purple-600 text-xs" onClick={recoverDraft} data-testid="draft-recover-btn">
+                Continua il film
+              </Button>
+              <Button variant="outline" className="border-gray-700 text-xs text-gray-400" onClick={discardDraft} data-testid="draft-discard-btn">
+                Scarta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Autosave indicator */}
+      {autoSaving && step >= 1 && (
+        <div className="flex items-center justify-center gap-1 text-[9px] text-gray-500">
+          <Save className="w-2.5 h-2.5 animate-pulse" /> Salvataggio automatico...
+        </div>
+      )}
+
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
         {['Titolo & Genere', 'Pre-Sceneggiatura', 'Location'].map((s, i) => (
@@ -270,8 +378,8 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
           <CardContent className="p-4">
             <ReleaseModeSelector
               selected={releaseType}
-              onSelect={(mode) => { setReleaseType(mode); setStep(1); }}
-              onContinue={() => { if (releaseType) setStep(1); }}
+              onSelect={(mode) => { setReleaseType(mode); goToStep(1); }}
+              onContinue={() => { if (releaseType) goToStep(1); }}
             />
           </CardContent>
         </Card>
@@ -360,7 +468,7 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
                 )}
               </div>
             )}
-            <Button disabled={!title.trim() || !genre || selectedSubgenres.length === 0} onClick={() => setStep(2)}
+            <Button disabled={!title.trim() || !genre || selectedSubgenres.length === 0} onClick={() => goToStep(2)}
               className="w-full bg-yellow-600 hover:bg-yellow-700" data-testid="step1-next">
               Avanti <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
@@ -389,8 +497,8 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(1)} className="border-gray-700 text-gray-400">Indietro</Button>
-              <Button disabled={preScreenplay.length < 100} onClick={() => setStep(3)}
+              <Button variant="outline" onClick={() => goToStep(1)} className="border-gray-700 text-gray-400">Indietro</Button>
+              <Button disabled={preScreenplay.length < 100} onClick={() => goToStep(3)}
                 className="flex-1 bg-cyan-600 hover:bg-cyan-700" data-testid="step2-next">
                 Avanti <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
@@ -432,7 +540,7 @@ const CreationTab = ({ api, refreshUser, refreshCounts, cachedGet }) => {
               ))}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(2)} className="border-gray-700 text-gray-400">Indietro</Button>
+              <Button variant="outline" onClick={() => goToStep(2)} className="border-gray-700 text-gray-400">Indietro</Button>
               <Button disabled={selectedLocations.length === 0 || submitting} onClick={handleSubmit}
                 className="flex-1 bg-green-600 hover:bg-green-700" data-testid="submit-proposal">
                 {submitting ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <Star className="w-4 h-4 mr-1" />}

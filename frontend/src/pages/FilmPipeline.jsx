@@ -2880,7 +2880,7 @@ const FilmPipeline = () => {
   const loadFilms = useCallback(async () => {
     try {
       const res = await api.get('/film-pipeline/all');
-      const safe = (res.data.projects || []).filter(p => p && p.id && p.title);
+      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
       setFilms(safe);
       
       // Auto-rescue: find and restore incorrectly completed films
@@ -2972,7 +2972,7 @@ const FilmPipeline = () => {
   const handlePopupRefresh = async () => {
     try {
       const res = await api.get('/film-pipeline/all');
-      const safe = (res.data.projects || []).filter(p => p && p.id && p.title);
+      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
       setFilms(safe);
       if (selectedFilm) {
         const updated = safe.find(f => f.id === selectedFilm.id);

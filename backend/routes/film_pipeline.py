@@ -3239,6 +3239,9 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         },
         'xp_gained': xp_gain,
         'release_event': release_event,
+        'critic_reviews': film_doc.get('critic_reviews', [])[:3],
+        'audience_satisfaction': audience_satisfaction,
+        'soundtrack_rating': film_doc.get('soundtrack_rating', 0),
     }
 
 

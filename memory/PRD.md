@@ -146,6 +146,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 139: 100% (Velion Mobile Bubble Fix + Login Welcome Bubble - 8/8 features verified)
 - Iter 140: 100% (Festival Rework Step 1-3: Dynamic Nominations + 4-State System + UI - Backend 25/25 + Frontend all)
 - Iter 141: 100% (Festival Rework Step 4-5-6: AI Unpredictable + Cinematic Ceremony + Player Festivals - Backend 21/21 + Frontend all)
+- Iter 143: 100% (Bug Fix "Scegli" Button - Casting actor selection verified working - Backend 5/5 + Frontend 9/9)
 
 ### Festival Rework Step 1-3 (2026-03-23)
 - **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random

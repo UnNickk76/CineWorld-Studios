@@ -180,18 +180,27 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
 - **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
 
+### Sistema "Migliora Film" + Velion UI (2026-03-24)
+- **Bug Fix P0:** Aggiunto `'proposed'` alla lista stati applicabili di `cast_upgrade` in IMPROVEMENT_OPTIONS
+- **Improvement Suggestions:** GET `/api/film-pipeline/{id}/suggestions` ritorna suggerimenti dinamici basati su stato film, cast, hype
+- **Apply Improvement:** POST `/api/film-pipeline/{id}/improve` applica miglioramento con costo fondi+CP, bonus qualita random
+- **ImprovementPanel:** Componente in FilmPopup.jsx con suggerimenti prioritizzati, Velion message, pulsante "Migliora"
+- **Swipe-to-Dismiss:** VelionOverlay.jsx con Framer Motion drag gesture per eliminare notifiche
+- **Smart Badges:** Badge conteggi nella pagina Produci per categorie film
+- **Test:** Iter 148 - 100% backend (13/13) + 100% frontend
+
 ## Backlog
 
 ### P1
-- Chat Evolution Step 6: Rifinitura mobile e qualita' social
+- Sistema "Previsioni Festival" (scommesse sui vincitori)
 - Marketplace per diritti TV/Anime
 - Velion Mood Indicator (indicatore visivo stato giocatore)
+- Chat Evolution (mobile + social)
 
 ### P2
 - Velion Levels (Base, Advanced, OFF)
 - RBAC, CinePass + Stripe, PWA
-- Contest Page Mobile Layout Fix
-- Sistema Previsioni Festival (scommesse sui vincitori)
+- Contest Page Mobile Layout Fix (ricorrente)
 
 ### P3
 - Scommesse Coming Soon, Eventi globali, Push notifications, Guerre tra Major

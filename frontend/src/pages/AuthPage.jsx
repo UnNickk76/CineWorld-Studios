@@ -88,7 +88,19 @@ const AuthPage = () => {
       toast.success(isLogin ? 'Bentornato!' : 'Account creato!');
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Authentication failed');
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
+      if (status === 401) {
+        toast.error(detail || 'Email o password non validi');
+      } else if (status === 500) {
+        toast.error('Errore server. Riprova tra qualche secondo.');
+      } else if (!err.response) {
+        toast.error('Connessione al server non riuscita. Verifica la tua connessione.');
+      } else {
+        toast.error(detail || 'Sessione scaduta, effettua nuovamente l\'accesso');
+      }
+      // Clear any stale tokens
+      localStorage.removeItem('cineworld_token');
     } finally {
       setLoading(false);
     }

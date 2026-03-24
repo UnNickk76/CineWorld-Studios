@@ -141,6 +141,7 @@ export const AuthProvider = ({ children }) => {
           if (err.response?.status === 401) {
             localStorage.removeItem('cineworld_token');
             setToken(null);
+            setUser(null);
           }
           // For other errors, keep token and user null - they can retry
         })

@@ -109,19 +109,69 @@ async def register(user_data: UserCreate):
     return TokenResponse(access_token=token, user=UserResponse(**user_response))
 
 
-@router.post("/auth/login", response_model=TokenResponse)
+@router.post("/auth/login")
 async def login(credentials: UserLogin):
-    user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
-    if not user or not verify_password(credentials.password, user['password']):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Update last_active timestamp
-    await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
-    
-    user_response = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
-    token = create_token(user['id'], remember_me=credentials.remember_me)
-    
-    return TokenResponse(access_token=token, user=UserResponse(**user_response))
+    try:
+        user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
+        if not user:
+            logging.warning(f"Login failed: user not found for email {credentials.email}")
+            raise HTTPException(status_code=401, detail="Email o password non validi")
+        
+        if not verify_password(credentials.password, user['password']):
+            logging.warning(f"Login failed: wrong password for {credentials.email}")
+            raise HTTPException(status_code=401, detail="Email o password non validi")
+        
+        # Update last_active timestamp
+        await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
+        
+        # Build safe user response - ensure all required fields have defaults
+        safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
+        # Ensure critical fields exist with defaults
+        safe_fields.setdefault('production_house_name', 'My Studio')
+        safe_fields.setdefault('owner_name', user.get('nickname', 'Player'))
+        safe_fields.setdefault('language', 'it')
+        safe_fields.setdefault('age', 18)
+        safe_fields.setdefault('gender', 'other')
+        safe_fields.setdefault('funds', 0.0)
+        safe_fields.setdefault('created_at', datetime.now(timezone.utc).isoformat())
+        safe_fields.setdefault('likeability_score', 50.0)
+        safe_fields.setdefault('interaction_score', 50.0)
+        safe_fields.setdefault('character_score', 50.0)
+        safe_fields.setdefault('total_xp', 0)
+        safe_fields.setdefault('level', 0)
+        safe_fields.setdefault('fame', 50.0)
+        safe_fields.setdefault('total_lifetime_revenue', 0.0)
+        safe_fields.setdefault('leaderboard_score', 0.0)
+        safe_fields.setdefault('cinepass', 100)
+        safe_fields.setdefault('login_streak', 0)
+        safe_fields.setdefault('studio_country', 'IT')
+        # Convert non-serializable types
+        for k, v in list(safe_fields.items()):
+            if hasattr(v, 'isoformat') and not isinstance(v, str):
+                safe_fields[k] = v.isoformat()
+        
+        token = create_token(user['id'], remember_me=credentials.remember_me)
+        
+        try:
+            user_resp = UserResponse(**safe_fields)
+        except Exception as model_err:
+            logging.error(f"UserResponse validation failed for {credentials.email}: {model_err}")
+            # Fallback: return minimal user data
+            user_resp = UserResponse(
+                id=user['id'], email=user['email'], nickname=user.get('nickname', 'Player'),
+                production_house_name=safe_fields.get('production_house_name', 'My Studio'),
+                owner_name=safe_fields.get('owner_name', 'Player'),
+                language='it', funds=float(safe_fields.get('funds', 0)),
+                created_at=safe_fields.get('created_at', datetime.now(timezone.utc).isoformat()),
+                cinepass=int(safe_fields.get('cinepass', 100))
+            )
+        
+        return {"access_token": token, "token_type": "bearer", "user": user_resp.model_dump()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Login error for {credentials.email}: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Errore server durante il login. Riprova.")
 
 
 # ==================== RECOVERY ====================
@@ -220,33 +270,65 @@ async def verify_recovery_token(token: str):
 
 # ==================== PROFILE & ME ====================
 
-@router.get("/auth/me", response_model=UserResponse)
+@router.get("/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
-    now = datetime.now(timezone.utc)
-    last_active = user.get('last_active')
-    
-    # +1 CinePass if more than 1 hour since last activity
-    cinepass_bonus = 0
-    if last_active:
-        if isinstance(last_active, str):
-            last_active_dt = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+    try:
+        now = datetime.now(timezone.utc)
+        last_active = user.get('last_active')
+        
+        # +1 CinePass if more than 1 hour since last activity
+        cinepass_bonus = 0
+        if last_active:
+            try:
+                if isinstance(last_active, str):
+                    last_active_dt = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+                elif hasattr(last_active, 'tzinfo'):
+                    last_active_dt = last_active if last_active.tzinfo else last_active.replace(tzinfo=timezone.utc)
+                else:
+                    last_active_dt = now
+                hours_since = (now - last_active_dt).total_seconds() / 3600
+                if hours_since >= 1:
+                    cinepass_bonus = 1
+            except Exception:
+                cinepass_bonus = 1
         else:
-            last_active_dt = last_active if last_active.tzinfo else last_active.replace(tzinfo=timezone.utc)
-        hours_since = (now - last_active_dt).total_seconds() / 3600
-        if hours_since >= 1:
-            cinepass_bonus = 1
-    else:
-        cinepass_bonus = 1  # First time
-    
-    update = {'$set': {'last_active': now.isoformat()}}
-    if cinepass_bonus > 0:
-        update['$inc'] = {'cinepass': cinepass_bonus}
-    await db.users.update_one({'id': user['id']}, update)
-    
-    if cinepass_bonus > 0:
-        user['cinepass'] = user.get('cinepass', 0) + cinepass_bonus
-    
-    return UserResponse(**{k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']})
+            cinepass_bonus = 1  # First time
+        
+        update = {'$set': {'last_active': now.isoformat()}}
+        if cinepass_bonus > 0:
+            update['$inc'] = {'cinepass': cinepass_bonus}
+        await db.users.update_one({'id': user['id']}, update)
+        
+        if cinepass_bonus > 0:
+            user['cinepass'] = user.get('cinepass', 0) + cinepass_bonus
+        
+        safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
+        safe_fields.setdefault('production_house_name', 'My Studio')
+        safe_fields.setdefault('owner_name', user.get('nickname', 'Player'))
+        safe_fields.setdefault('language', 'it')
+        safe_fields.setdefault('funds', 0.0)
+        safe_fields.setdefault('created_at', now.isoformat())
+        safe_fields.setdefault('cinepass', 100)
+        # Convert non-serializable types
+        for k, v in list(safe_fields.items()):
+            if hasattr(v, 'isoformat') and not isinstance(v, str):
+                safe_fields[k] = v.isoformat()
+        
+        try:
+            return UserResponse(**safe_fields).model_dump()
+        except Exception as e:
+            logging.error(f"UserResponse validation in /me for {user.get('email')}: {e}")
+            return UserResponse(
+                id=user['id'], email=user.get('email', ''), nickname=user.get('nickname', 'Player'),
+                production_house_name=safe_fields.get('production_house_name', 'My Studio'),
+                owner_name=safe_fields.get('owner_name', 'Player'),
+                language='it', funds=float(safe_fields.get('funds', 0)),
+                created_at=safe_fields.get('created_at', now.isoformat()),
+                cinepass=int(safe_fields.get('cinepass', 100))
+            ).model_dump()
+    except Exception as e:
+        logging.error(f"Error in /auth/me: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Errore nel caricamento profilo")
 
 
 @router.put("/auth/profile")

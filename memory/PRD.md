@@ -153,6 +153,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Iter 147: Preload Pages - Background prefetch di 5 endpoint chiave al login, pagine usano cachedGet con TTL 2min e deduplication.
 - Iter 148: 100% Draft/Autosave System - 7 fix: salvataggio step-by-step, autosave 4s, recupero bozza, draft in Produci, cleanup su create, no count limit.
 - Iter 149: 100% Step Navigation + Release Balancing - Step bar cliccabili per tornare indietro, rilascio immediato -2 qualita/-10% incassi, Coming Soon +3~11 qualita/+15~40% incassi.
+- Iter 150: Auth Fix - Login robusto con safe field defaults, Pydantic validation fallback, messaggio errore italiano, auto-logout su 401, password admin resettata.
 
 ### Festival Rework Step 1-3 (2026-03-23)
 - **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random

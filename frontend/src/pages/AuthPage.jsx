@@ -130,15 +130,6 @@ const AuthPage = () => {
 
           <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />
           <CardContent>
-            {/* Download App Button */}
-            <Button
-              variant="outline"
-              className="w-full mb-4 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
-              onClick={() => navigate('/download')}
-            >
-              <Smartphone className="w-4 h-4 mr-2" />
-              {language === 'it' ? 'Scarica App per iPhone/Android' : 'Download App for iPhone/Android'}
-            </Button>
             <form onSubmit={handleSubmit} className="space-y-2.5">
               <div className="space-y-1">
                 <Label className="text-xs">Email</Label>

@@ -4483,16 +4483,45 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
                 style='cinematic', cast_names=cast_names,
                 production_house_name=prod_house, force_fallback=False
             )
-            result = await generate_poster(poster_req, user)
-            new_url = result.get('poster_url', '')
+            
+            # Attempt 1: AI generation
+            result = None
+            for attempt in range(2):
+                try:
+                    result = await generate_poster(poster_req, user)
+                    if result and result.get('poster_url'):
+                        break
+                    logging.warning(f"Poster gen attempt {attempt+1} returned empty, retrying...")
+                except Exception as retry_err:
+                    logging.warning(f"Poster gen attempt {attempt+1} failed: {retry_err}")
+                    if attempt == 0:
+                        await asyncio.sleep(2)
+            
+            new_url = result.get('poster_url', '') if result else ''
+            
+            # Attempt 2: Fallback if AI failed
+            if not new_url:
+                logging.info("AI poster failed, using fallback...")
+                try:
+                    poster_req_fallback = PosterRequest(
+                        title=title, genre=genre, description=plot_summary,
+                        style='cinematic', cast_names=cast_names,
+                        production_house_name=prod_house, force_fallback=True
+                    )
+                    fallback_result = await generate_poster(poster_req_fallback, user)
+                    new_url = fallback_result.get('poster_url', '') if fallback_result else ''
+                except Exception as fb_err:
+                    logging.error(f"Fallback poster also failed: {fb_err}")
+            
             if new_url:
                 await db.films.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
                 await db.film_projects.update_one({'id': film_id}, {'$set': {'poster_url': new_url}})
                 poster_tasks[task_id] = {'status': 'done', 'poster_url': new_url, 'error': '', 'film_id': film_id}
                 await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'done', 'poster_url': new_url}})
             else:
-                poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': 'Generazione fallita', 'film_id': film_id}
-                await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'error', 'error': 'Generazione fallita'}})
+                err_msg = 'Generazione fallita dopo retry + fallback'
+                poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': err_msg, 'film_id': film_id}
+                await db.regen_tasks.update_one({'task_id': task_id}, {'$set': {'status': 'error', 'error': err_msg}})
         except Exception as e:
             logging.error(f"Regenerate poster error: {e}")
             poster_tasks[task_id] = {'status': 'error', 'poster_url': '', 'error': str(e), 'film_id': film_id}

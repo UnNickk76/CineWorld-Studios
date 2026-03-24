@@ -133,7 +133,9 @@ const MyFilms = () => {
       }
       toast.error('Timeout generazione locandina');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Errore rigenerazione locandina');
+      const detail = err.response?.data?.detail || err.response?.data?.error || err.message || 'Errore rigenerazione locandina';
+      toast.error(`Errore: ${detail}`);
+      console.error('Regenerate poster error:', err.response?.data || err.message);
     } finally {
       setRegenLoading(null);
     }

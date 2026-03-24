@@ -3039,6 +3039,23 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         quality_score += release_event['quality_modifier']
         advanced_factors['evento_rilascio'] = f"{release_event['quality_modifier']:+} ({release_event['name']})"
 
+    # 8. RELEASE MODE BALANCING
+    release_type = project.get('release_type', 'immediate')
+    hype_score = project.get('hype_score', 0)
+
+    if release_type == 'coming_soon':
+        # Coming Soon: bonus from hype buildup
+        hype_bonus = min(hype_score * 0.05, 8)  # max +8 from hype
+        cs_base_bonus = 3  # inherent bonus for choosing the harder path
+        cs_total = round(hype_bonus + cs_base_bonus, 1)
+        quality_score += cs_total
+        advanced_factors['strategia_coming_soon'] = f'+{cs_total} (Hype pre-lancio: {hype_score})'
+    else:
+        # Immediate: slight penalty for skipping hype phase
+        immediate_penalty = -2
+        quality_score += immediate_penalty
+        advanced_factors['rilascio_immediato'] = f'{immediate_penalty} (Nessun hype pre-lancio)'
+
     # Final clamp
     quality_score = max(10, min(100, quality_score))
     quality_score = round(quality_score, 1)
@@ -3077,6 +3094,12 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Apply sponsor attendance boost (up to 30%)
     sponsor_boost = project.get('sponsor_attendance_boost_pct', 0) / 100
     opening_day_revenue = int(opening_day_revenue * (1 + sponsor_boost))
+    # Apply release mode revenue modifier
+    if release_type == 'coming_soon':
+        cs_revenue_bonus = 1.15 + min(hype_score * 0.002, 0.25)  # +15% base + up to +25% from hype
+        opening_day_revenue = int(opening_day_revenue * cs_revenue_bonus)
+    else:
+        opening_day_revenue = int(opening_day_revenue * 0.90)  # -10% for immediate release
     # Apply release event revenue modifier
     if release_event and release_event.get('revenue_modifier', 0) != 0:
         opening_day_revenue = int(opening_day_revenue * (1 + release_event['revenue_modifier'] / 100))

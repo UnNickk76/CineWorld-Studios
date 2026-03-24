@@ -12,17 +12,21 @@ export function ReleaseModeSelector({ selected, onSelect, onContinue }) {
       color: 'yellow',
       title: 'Rilascio Immediato',
       pros: ['Uscita subito', 'Velocizzabile con crediti', 'Guadagni immediati'],
-      cons: ['Nessun hype'],
-      tag: 'Gameplay veloce',
+      cons: ['Nessun hype pre-lancio', '-2 qualita', '-10% incassi apertura'],
+      tag: 'Veloce ma meno impatto',
+      impact: '-2 Qualita / -10% Incassi',
+      impactColor: 'text-orange-400',
     },
     {
       id: 'coming_soon',
       icon: Clock,
       color: 'cyan',
       title: 'Coming Soon',
-      pros: ['Genera hype pre-lancio', 'Più potenziale incasso', 'Sezione "Prossimamente"'],
-      cons: ['Non velocizzabile', 'Più rischio'],
-      tag: 'Cinematografico',
+      pros: ['Genera hype pre-lancio', '+3 a +11 qualita', '+15% a +40% incassi', 'Locandina + attesa'],
+      cons: ['Richiede attesa'],
+      tag: 'Piu attesa, piu successo',
+      impact: '+3~11 Qualita / +15~40% Incassi',
+      impactColor: 'text-emerald-400',
     },
   ];
 
@@ -81,6 +85,16 @@ export function ReleaseModeSelector({ selected, onSelect, onContinue }) {
                     </div>
                   ))}
                 </div>
+
+                {/* Impact badge */}
+                {m.impact && (
+                  <div className={`text-[9px] font-bold text-center p-1 rounded ${
+                    m.id === 'coming_soon' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-orange-500/10 border border-orange-500/20'
+                  } ${m.impactColor}`}>
+                    <TrendingUp className="w-2.5 h-2.5 inline mr-0.5" />
+                    {m.impact}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

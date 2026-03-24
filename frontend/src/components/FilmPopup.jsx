@@ -145,13 +145,18 @@ const CS_MAP = {
   green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', iconBg: 'bg-green-500/30', glow: 'rgba(34,197,94,0.4)' },
 };
 
-// ─── Per-Film Step Bar ───
-function FilmStepBar({ film }) {
+// ─── Per-Film Step Bar (with navigation) ───
+function FilmStepBar({ film, stepOverride, onStepClick }) {
   const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const steps = isCS ? STEPS_CS : STEPS_IMMEDIATE;
-  const currentStepId = getCurrentStepId(film);
+  const currentStepId = stepOverride || getCurrentStepId(film);
+  const naturalStepId = getCurrentStepId(film);
+  const naturalIdx = steps.findIndex(s => s.id === naturalStepId);
   const currentIdx = steps.findIndex(s => s.id === currentStepId);
   const scrollRef = React.useRef(null);
+
+  // Can go back to completed steps ONLY if not launched yet
+  const isLaunched = ['casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -169,6 +174,7 @@ function FilmStepBar({ film }) {
           const isCompleted = i < currentIdx;
           const isCurrent = i === currentIdx;
           const isLocked = i > currentIdx;
+          const canNavigate = !isLaunched && i <= naturalIdx && i !== currentIdx && onStepClick;
 
           return (
             <React.Fragment key={step.id}>
@@ -180,7 +186,10 @@ function FilmStepBar({ film }) {
               <div
                 data-step-active={isCurrent ? 'true' : 'false'}
                 style={isCurrent ? { '--step-glow-color': cs.glow } : {}}
+                onClick={canNavigate ? () => onStepClick(step.id) : undefined}
                 className={`flex-shrink-0 flex flex-col items-center gap-0.5 p-1 sm:p-1.5 rounded-lg sm:rounded-xl transition-all min-w-[38px] sm:min-w-[48px] relative ${
+                  canNavigate ? 'cursor-pointer hover:scale-105' : ''
+                } ${
                   isCurrent ? `${cs.bg} border ${cs.border} step-current` :
                   isCompleted ? 'step-completed' :
                   isLocked ? 'step-locked opacity-40' : ''
@@ -206,11 +215,17 @@ function FilmStepBar({ film }) {
                 }`}>
                   {step.label}
                 </span>
+                {canNavigate && (
+                  <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                )}
               </div>
             </React.Fragment>
           );
         })}
       </div>
+      {!isLaunched && naturalIdx > 0 && (
+        <p className="text-[7px] text-gray-600 text-center mt-0.5">Clicca sugli step completati per modificarli</p>
+      )}
     </div>
   );
 }
@@ -1530,15 +1545,43 @@ function DiscardButton({ film, api, onRefresh, refreshUser }) {
 // ═══════════════════════════════════════════
 export default function FilmPopup({ film, open, onClose, onRefresh, countdown }) {
   const { api, refreshUser } = useContext(AuthContext);
+  const [stepOverride, setStepOverride] = useState(null);
+
+  // Reset step override when film changes
+  useEffect(() => { setStepOverride(null); }, [film?.id, film?.status]);
 
   if (!film) return null;
 
-  const currentStep = getCurrentStepId(film);
+  const naturalStep = getCurrentStepId(film);
+  const currentStep = stepOverride || naturalStep;
   const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const isImmediate = !isCS;
+  const isLaunched = ['casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
+
+  const handleStepClick = (stepId) => {
+    if (isLaunched) {
+      toast.error('Non puoi modificare un film gia in produzione.');
+      return;
+    }
+    setStepOverride(stepId === naturalStep ? null : stepId);
+  };
 
   // Determine which step content to show
   const renderStepContent = () => {
+    // If step override is active and user went back
+    if (stepOverride && stepOverride !== naturalStep) {
+      // Show read-only or editable content for the overridden step
+      if (stepOverride === 'proposta') {
+        return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} isReview={true} />;
+      }
+      if (stepOverride === 'poster') {
+        return <PosterStep film={film} api={api} onRefresh={onRefresh} />;
+      }
+      if (stepOverride === 'hype') {
+        return <HypeStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} countdown={countdown} />;
+      }
+    }
+
     // For immediate mode: proposed films need to advance to casting
     if (isImmediate && film.status === 'proposed') {
       return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
@@ -1593,8 +1636,18 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
         {/* Film header */}
         <FilmHeader film={film} />
 
-        {/* Per-film step bar */}
-        <FilmStepBar film={film} />
+        {/* Per-film step bar (with navigation) */}
+        <FilmStepBar film={film} stepOverride={stepOverride} onStepClick={handleStepClick} />
+
+        {/* Back to current step button when navigating back */}
+        {stepOverride && stepOverride !== naturalStep && (
+          <div className="flex justify-center mb-1">
+            <Button variant="outline" size="sm" className="text-[9px] border-yellow-700/50 text-yellow-400 h-6"
+              onClick={() => setStepOverride(null)} data-testid="back-to-current-step">
+              <ChevronRight className="w-2.5 h-2.5 mr-0.5" /> Torna allo step attuale
+            </Button>
+          </div>
+        )}
 
         {/* Step content */}
         <div className="mt-1">

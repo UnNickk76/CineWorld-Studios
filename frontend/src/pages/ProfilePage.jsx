@@ -131,6 +131,30 @@ const STUDIO_COUNTRIES = [
   ['PE', 'Peru'], ['UA', 'Ucraina'], ['HR', 'Croazia']
 ];
 
+// Error boundary for safe rendering
+class ProfileErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error, info) { console.error('ProfilePage crash:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="pt-16 pb-20 px-4 max-w-2xl mx-auto text-center">
+          <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+            <h2 className="text-lg font-bold text-red-400 mb-1">Errore nel Profilo</h2>
+            <p className="text-sm text-gray-400 mb-3">Si e verificato un errore. Riprova.</p>
+            <Button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }} className="bg-red-500 hover:bg-red-600">
+              Ricarica Pagina
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ProfilePage = () => {
   const { api, user, refreshUser, logout } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
@@ -226,7 +250,7 @@ const ProfilePage = () => {
               <div className="flex items-center gap-2">
                 <Award className="w-5 h-5 text-yellow-400" />
                 <span className="text-yellow-400 font-semibold" data-testid="fame-value">Fame: {levelInfo.fame ?? 50}</span>
-                {levelInfo.fame_tier && <span className="text-[10px] text-gray-400">({levelInfo.fame_tier})</span>}
+                {levelInfo.fame_tier && <span className="text-[10px] text-gray-400">({typeof levelInfo.fame_tier === 'object' ? (levelInfo.fame_tier.name_it || levelInfo.fame_tier.name || '') : levelInfo.fame_tier})</span>}
               </div>
             </div>
             <Progress value={levelInfo.progress_percent} className="h-2 mb-1" />
@@ -256,9 +280,9 @@ const ProfilePage = () => {
           
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.likeability_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Like</p></div>
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.interaction_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Social</p></div>
-            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{Number(user?.likeability_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Like</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{Number(user?.interaction_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Social</p></div>
+            <div className="text-center p-2 rounded bg-white/5"><p className="text-base sm:text-lg font-bold">{Number(user?.character_score || 50).toFixed(0)}</p><p className="text-[10px] sm:text-xs text-gray-400">Char</p></div>
           </div>
           
           {/* Studio Country */}
@@ -426,4 +450,10 @@ const ProfilePage = () => {
 
 // Infrastructure Page
 
-export default ProfilePage;
+const ProfilePageWithBoundary = () => (
+  <ProfileErrorBoundary>
+    <ProfilePage />
+  </ProfileErrorBoundary>
+);
+
+export default ProfilePageWithBoundary;

@@ -1473,6 +1473,27 @@ async def get_all_projects(user: dict = Depends(get_current_user)):
         if p.get('status') not in VALID_FILM_STATUSES:
             continue
         try:
+            # Auto-complete expired remasters
+            if p.get('remaster_started_at') and not p.get('remaster_completed'):
+                started = datetime.fromisoformat(p['remaster_started_at'].replace('Z', '+00:00'))
+                duration = p.get('remaster_duration_minutes', 30)
+                end_time = started + timedelta(minutes=duration)
+                if now >= end_time:
+                    boost = p.get('remaster_boost', get_remaster_boost())
+                    await db.film_projects.update_one(
+                        {'id': p['id']},
+                        {'$set': {
+                            'remaster_completed': True,
+                            'remaster_quality_boost': boost,
+                            'updated_at': now.isoformat()
+                        }}
+                    )
+                    p['remaster_completed'] = True
+                    p['remaster_quality_boost'] = boost
+                else:
+                    remaining = (end_time - now).total_seconds() / 60
+                    p['remaster_remaining_minutes'] = round(remaining, 1)
+
             # Auto-fix casting/screenplay projects without cast data
             status = p.get('status')
             if status in ('casting', 'screenplay', 'pre_production'):
@@ -2029,7 +2050,7 @@ async def get_preproduction_films(user: dict = Depends(get_current_user)):
         if p.get('remaster_started_at') and not p.get('remaster_completed'):
             started = datetime.fromisoformat(p['remaster_started_at'].replace('Z', '+00:00'))
             duration = p.get('remaster_duration_minutes', 30)
-            end_time = started + __import__('datetime').timedelta(minutes=duration)
+            end_time = started + timedelta(minutes=duration)
             if now >= end_time:
                 # Auto-complete remaster
                 boost = p.get('remaster_boost', get_remaster_boost())

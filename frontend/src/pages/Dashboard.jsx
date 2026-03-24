@@ -503,6 +503,92 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Financial Overview Card - inside studio */}
+            {stats && (
+              <Card className="mb-4 bg-[#1A1A1A] border-white/5" data-testid="financial-overview-card">
+                <CardContent className="p-3">
+                  <button
+                    className="w-full flex items-center justify-between"
+                    onClick={() => setFinanceOpen(prev => !prev)}
+                    data-testid="financial-toggle-btn"
+                  >
+                    <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-cyan-400" />
+                      {language === 'it' ? 'BILANCIO FINANZIARIO' : 'FINANCIAL OVERVIEW'}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold ${(stats.profit_loss || 0) >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                        {(stats.profit_loss || 0) >= 0 ? '+' : ''}${((stats.profit_loss || 0) / 1000000).toFixed(2)}M
+                      </span>
+                      <motion.div animate={{ rotate: financeOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                      </motion.div>
+                    </div>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {financeOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeInOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-3 gap-3 mt-3">
+                          <div className="text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                            <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Speso' : 'Spent'}</p>
+                            <p className="font-bold text-red-400">${((stats.total_spent || 0) / 1000000).toFixed(2)}M</p>
+                            <div className="text-[10px] text-gray-500 mt-1">
+                              <div>Film: ${((stats.total_film_costs || 0) / 1000000).toFixed(1)}M</div>
+                              <div>Infra: ${((stats.total_infra_costs || 0) / 1000000).toFixed(1)}M</div>
+                            </div>
+                          </div>
+                          <div className="text-center p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                            <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Guadagnato' : 'Earned'}</p>
+                            <p className="font-bold text-green-400">${((stats.total_earned || 0) / 1000000).toFixed(2)}M</p>
+                            <div className="text-[10px] text-gray-500 mt-1">
+                              <div>Film: ${((stats.total_revenue || 0) / 1000000).toFixed(1)}M</div>
+                              <div>Infra: ${((stats.total_infra_revenue || 0) / 1000000).toFixed(1)}M</div>
+                            </div>
+                          </div>
+                          <div className={`text-center p-2 rounded-lg border ${(stats.profit_loss || 0) >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
+                            <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Profitto/Perdita' : 'Profit/Loss'}</p>
+                            <p className={`font-bold ${(stats.profit_loss || 0) >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                              {(stats.profit_loss || 0) >= 0 ? '+' : ''}${((stats.profit_loss || 0) / 1000000).toFixed(2)}M
+                            </p>
+                            <div className="text-[10px] text-gray-500 mt-1 flex items-center justify-center gap-1">
+                              {(stats.profit_loss || 0) >= 0 ? (
+                                <><TrendingUp className="w-3 h-3 text-emerald-400" /> {language === 'it' ? 'In Profitto' : 'Profitable'}</>
+                              ) : (
+                                <><TrendingDown className="w-3 h-3 text-orange-400" /> {language === 'it' ? 'In Perdita' : 'In Loss'}</>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Like/Social/Char scores */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[
+                { label: 'Like', value: (stats?.likeability_score || 50).toFixed(0), icon: Heart, color: 'pink' },
+                { label: 'Social', value: (stats?.interaction_score || 50).toFixed(0), icon: Users, color: 'blue' },
+                { label: 'Char', value: (stats?.character_score || 50).toFixed(0), icon: Star, color: 'yellow' }
+              ].map(s => (
+                <Card key={s.label} className="bg-[#1A1A1A] border-white/5">
+                  <CardContent className="p-2 text-center">
+                    <s.icon className={`w-4 h-4 mx-auto mb-1 text-${s.color}-500`} />
+                    <p className="text-base font-bold">{s.value}</p>
+                    <p className="text-xs text-gray-400">{s.label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -894,95 +980,6 @@ const Dashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Financial Overview Card - Collapsible */}
-      {stats && (
-        <Card className="mb-4 bg-[#1A1A1A] border-white/5" data-testid="financial-overview-card">
-          <CardContent className="p-3">
-            <button
-              className="w-full flex items-center justify-between"
-              onClick={() => setFinanceOpen(prev => !prev)}
-              data-testid="financial-toggle-btn"
-            >
-              <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-cyan-400" />
-                {language === 'it' ? 'BILANCIO FINANZIARIO' : 'FINANCIAL OVERVIEW'}
-              </h3>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${(stats.profit_loss || 0) >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                  {(stats.profit_loss || 0) >= 0 ? '+' : ''}${((stats.profit_loss || 0) / 1000000).toFixed(2)}M
-                </span>
-                <motion.div animate={{ rotate: financeOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                </motion.div>
-              </div>
-            </button>
-            <AnimatePresence initial={false}>
-              {financeOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="overflow-hidden"
-                >
-                  <div className="grid grid-cols-3 gap-3 mt-3">
-                    <div className="text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20">
-                      <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Speso' : 'Spent'}</p>
-                      <p className="font-bold text-red-400">
-                        ${((stats.total_spent || 0) / 1000000).toFixed(2)}M
-                      </p>
-                      <div className="text-[10px] text-gray-500 mt-1">
-                        <div>Film: ${((stats.total_film_costs || 0) / 1000000).toFixed(1)}M</div>
-                        <div>Infra: ${((stats.total_infra_costs || 0) / 1000000).toFixed(1)}M</div>
-                      </div>
-                    </div>
-                    <div className="text-center p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-                      <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Guadagnato' : 'Earned'}</p>
-                      <p className="font-bold text-green-400">
-                        ${((stats.total_earned || 0) / 1000000).toFixed(2)}M
-                      </p>
-                      <div className="text-[10px] text-gray-500 mt-1">
-                        <div>Film: ${((stats.total_revenue || 0) / 1000000).toFixed(1)}M</div>
-                        <div>Infra: ${((stats.total_infra_revenue || 0) / 1000000).toFixed(1)}M</div>
-                      </div>
-                    </div>
-                    <div className={`text-center p-2 rounded-lg border ${(stats.profit_loss || 0) >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
-                      <p className="text-xs text-gray-400 mb-1">{language === 'it' ? 'Profitto/Perdita' : 'Profit/Loss'}</p>
-                      <p className={`font-bold ${(stats.profit_loss || 0) >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                        {(stats.profit_loss || 0) >= 0 ? '+' : ''}${((stats.profit_loss || 0) / 1000000).toFixed(2)}M
-                      </p>
-                      <div className="text-[10px] text-gray-500 mt-1 flex items-center justify-center gap-1">
-                        {(stats.profit_loss || 0) >= 0 ? (
-                          <><TrendingUp className="w-3 h-3 text-emerald-400" /> {language === 'it' ? 'In Profitto' : 'Profitable'}</>
-                        ) : (
-                          <><TrendingDown className="w-3 h-3 text-orange-400" /> {language === 'it' ? 'In Perdita' : 'In Loss'}</>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {[
-          { label: 'Like', value: (stats?.likeability_score || 50).toFixed(0), icon: Heart, color: 'pink' },
-          { label: 'Social', value: (stats?.interaction_score || 50).toFixed(0), icon: Users, color: 'blue' },
-          { label: 'Char', value: (stats?.character_score || 50).toFixed(0), icon: Star, color: 'yellow' }
-        ].map(s => (
-          <Card key={s.label} className="bg-[#1A1A1A] border-white/5">
-            <CardContent className="p-2 text-center">
-              <s.icon className={`w-4 h-4 mx-auto mb-1 text-${s.color}-500`} />
-              <p className="text-base font-bold">{s.value}</p>
-              <p className="text-xs text-gray-400">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 mb-4">
         {/* PRODUCI! - Double width */}

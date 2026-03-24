@@ -277,8 +277,35 @@ const ChatPage = () => {
   const [viewImage, setViewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [reportTarget, setReportTarget] = useState(null); // {type, id, label}
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Auto-scroll
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // Mobile keyboard detection via visualViewport API
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const isKb = vv.height < window.innerHeight * 0.75;
+      setKeyboardOpen(isKb);
+      if (isKb && chatContainerRef.current) {
+        chatContainerRef.current.style.height = `${vv.height}px`;
+      } else if (chatContainerRef.current) {
+        chatContainerRef.current.style.height = '';
+      }
+      // Scroll input into view when keyboard opens
+      if (isKb) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   // Auto-scroll
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -423,7 +450,7 @@ const ChatPage = () => {
   const recentCount = presenceUsers.filter(u => u.presence === 'recent').length;
 
   return (
-    <div className="pt-14 pb-16 h-screen flex flex-col bg-[#0A0A0B] overflow-x-hidden" data-testid="chat-page">
+    <div ref={chatContainerRef} className={`pt-14 ${keyboardOpen ? 'pb-0' : 'pb-16'} h-[100dvh] flex flex-col bg-[#0A0A0B] overflow-x-hidden`} data-testid="chat-page">
       {/* ─── Top bar: room name + toggles ─── */}
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-white/5 flex-shrink-0 bg-[#0e0e10]">
         {/* Rooms toggle (mobile) */}
@@ -670,8 +697,8 @@ const ChatPage = () => {
                 </div>
               </ScrollArea>
 
-              {/* Input */}
-              <div className="flex items-center gap-1 px-2 py-1.5 border-t border-white/5 flex-shrink-0 bg-[#0e0e10]">
+              {/* Input - sticky bottom with high z-index */}
+              <div className="flex items-center gap-1 px-2 py-1.5 border-t border-white/5 flex-shrink-0 bg-[#0e0e10] sticky bottom-0 z-50">
                 {/* Image upload button */}
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
                   onChange={handleImageUpload} data-testid="chat-file-input" />
@@ -684,11 +711,13 @@ const ChatPage = () => {
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
                 </button>
                 <Input
+                  ref={inputRef}
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                   placeholder={language === 'it' ? 'Scrivi un messaggio...' : 'Type a message...'}
                   className="h-8 text-xs bg-black/30 border-white/10 flex-1 min-w-0"
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMsg()}
+                  onFocus={() => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)}
                   data-testid="chat-input"
                 />
                 <Button onClick={sendMsg} size="sm" className="bg-yellow-500 text-black h-8 w-8 p-0" data-testid="send-message-btn">

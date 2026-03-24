@@ -917,8 +917,8 @@ const TopNavbar = () => {
         )}
       </AnimatePresence>
 
-      {/* Donate Fixed Button - Above bottom nav */}
-      {donationsEnabled && (
+      {/* Donate Fixed Button - Above bottom nav - HIDDEN on chat page */}
+      {donationsEnabled && location.pathname !== '/chat' && (
       <button
         className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all"
         onClick={() => setShowDonateDialog(true)}
@@ -1938,12 +1938,14 @@ const ProtectedRoute = ({ children }) => {
         </Dialog>
       )}
 
-      {/* Velion AI Assistant */}
+      {/* Velion AI Assistant - hidden on chat page on mobile */}
+      {location.pathname !== '/chat' && (
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}
         mode={velionMode}
       />
+      )}
       <VelionPanel
         open={showTutorial}
         onClose={() => setShowTutorial(false)}

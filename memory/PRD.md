@@ -180,6 +180,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
 - **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
 
+### Bug Fix UX Mobile Chat (2026-03-24)
+- **Banner donazione:** Nascosto su `/chat` (`location.pathname !== '/chat'`)
+- **Velion avatar:** Nascosto su `/chat` (rimosso VelionOverlay quando chat attiva)
+- **Input sticky z-50:** Input chat con `sticky bottom-0 z-50`, sempre visibile sopra tutto
+- **Keyboard mobile:** `visualViewport` API per adattare altezza dinamicamente quando tastiera aperta
+- **100dvh:** Sostituito `h-screen` con `h-[100dvh]` per gestione corretta viewport mobile iOS/Android
+- **Auto-scroll:** `onFocus` dell'input scrolla messaggi in basso quando tastiera si apre
+
 ### Arena PvP Cinematografica - Rework Completo (2026-03-24)
 - **Arena Film per Genere:** 5 sezioni (Azione&Thriller, Dramma&Romance, Commedia&Animazione, Fantasy&SciFi, Horror&Mistero) con mini locandine portrait, badge status (In Sala/Coming Soon/Anteprima), stella film propri
 - **Azioni Supporto (4):** Campagna Social (+2-5%), Influencer (+3-6%), Evento Promo (+4-7%), Premi Pilotati (+5-8%). Sempre positive per i propri film.

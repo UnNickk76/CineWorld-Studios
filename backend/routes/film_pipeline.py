@@ -2749,11 +2749,27 @@ async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depe
     if req.mode == 'ai_auto':
         # Generate from screenplay automatically
         screenplay = project.get('screenplay', project.get('pre_screenplay', ''))
-        prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. {screenplay[:200]}. Dramatic lighting, high quality, no text. Style: modern Hollywood movie poster."
+        if project.get('is_sequel') and project.get('sequel_number'):
+            parent_title = project.get('sequel_parent_title', project['title'].split(':')[0].strip())
+            sub = project.get('subtitle', '')
+            prompt = (
+                f"Professional cinematic movie poster for a {genre_name} sequel film. "
+                f"This is Chapter {project['sequel_number']} of the \"{parent_title}\" saga. "
+                f"The poster MUST include \"{parent_title.upper()}\" as large stylized text, "
+                f"the number \"{project['sequel_number']}\" prominently displayed, "
+                f"and subtitle \"{sub.upper()}\" below. "
+                f"Scene: {screenplay[:150]}. "
+                f"Keep consistent saga branding. Dramatic lighting, high quality."
+            )
+        else:
+            prompt = f"Professional cinematic movie poster for '{project['title']}', a {genre_name} film. {screenplay[:200]}. Dramatic lighting, high quality, no text. Style: modern Hollywood movie poster."
     elif req.mode == 'ai_custom':
         if not req.custom_prompt:
             raise HTTPException(status_code=400, detail="Scrivi un prompt personalizzato")
-        prompt = f"Professional cinematic movie poster: {req.custom_prompt}. Title: '{project['title']}'. No text overlay. High quality."
+        sequel_ctx = ''
+        if project.get('is_sequel') and project.get('sequel_number'):
+            sequel_ctx = f" This is Chapter {project['sequel_number']} of a saga. Include number {project['sequel_number']} in the design."
+        prompt = f"Professional cinematic movie poster: {req.custom_prompt}.{sequel_ctx} Title: '{project['title']}'. No text overlay. High quality."
     elif req.mode == 'classic':
         style = CLASSIC_POSTER_STYLES.get(req.classic_style, CLASSIC_POSTER_STYLES['drama'])
         prompt = f"{style}. Movie title: '{project['title']}', genre: {genre_name}. No text overlay on image. High quality cinematic poster."

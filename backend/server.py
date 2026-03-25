@@ -1376,6 +1376,10 @@ class PosterRequest(BaseModel):
     cast_names: Optional[List[str]] = None
     force_fallback: Optional[bool] = False
     production_house_name: Optional[str] = None
+    is_sequel: Optional[bool] = False
+    sequel_number: Optional[int] = None
+    sequel_subtitle: Optional[str] = None
+    sequel_parent_title: Optional[str] = None
 
 class TranslationRequest(BaseModel):
     text: str
@@ -4487,7 +4491,11 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
             poster_req = PosterRequest(
                 title=title, genre=genre, description=plot_summary,
                 style='cinematic', cast_names=cast_names,
-                production_house_name=prod_house, force_fallback=False
+                production_house_name=prod_house, force_fallback=False,
+                is_sequel=film.get('is_sequel', False),
+                sequel_number=film.get('sequel_number'),
+                sequel_subtitle=film.get('subtitle', ''),
+                sequel_parent_title=film.get('sequel_parent_title', ''),
             )
             
             # Attempt 1: AI generation
@@ -4512,7 +4520,11 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
                     poster_req_fallback = PosterRequest(
                         title=title, genre=genre, description=plot_summary,
                         style='cinematic', cast_names=cast_names,
-                        production_house_name=prod_house, force_fallback=True
+                        production_house_name=prod_house, force_fallback=True,
+                        is_sequel=film.get('is_sequel', False),
+                        sequel_number=film.get('sequel_number'),
+                        sequel_subtitle=film.get('subtitle', ''),
+                        sequel_parent_title=film.get('sequel_parent_title', ''),
                     )
                     fallback_result = await generate_poster(poster_req_fallback, user)
                     new_url = fallback_result.get('poster_url', '') if fallback_result else ''
@@ -10877,13 +10889,27 @@ async def start_poster_generation(request: PosterRequest, user: dict = Depends(g
             try:
                 from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
                 user_desc = request.description or request.title
-                prompt = (
-                    f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
-                    f"Description: {user_desc}. "
-                    f"The poster MUST include the film title \"{request.title.upper()}\" as large, stylized text integrated into the design. "
-                    f"Include a genre subtitle like \"A {request.genre.upper()} FILM\" in smaller text at the bottom. "
-                    f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, professional movie poster layout with typography."
-                )
+                if request.is_sequel and request.sequel_number:
+                    parent = request.sequel_parent_title or request.title.split(':')[0].strip()
+                    sub = request.sequel_subtitle or ''
+                    prompt = (
+                        f"Professional cinematic movie poster for a {request.genre} sequel film. "
+                        f"This is Chapter {request.sequel_number} of the \"{parent}\" saga. "
+                        f"Description: {user_desc}. "
+                        f"The poster MUST include the title \"{parent.upper()}\" as large stylized text at the top, "
+                        f"with the number \"{request.sequel_number}\" prominently displayed, "
+                        f"and the subtitle \"{sub.upper()}\" in slightly smaller text below. "
+                        f"Keep the same visual style and color palette as the original film but with a slightly different scene composition. "
+                        f"Style: {request.style or 'cinematic'}, dramatic lighting, sequel movie poster, consistent saga branding."
+                    )
+                else:
+                    prompt = (
+                        f"Professional cinematic movie poster for a {request.genre} film titled \"{request.title}\". "
+                        f"Description: {user_desc}. "
+                        f"The poster MUST include the film title \"{request.title.upper()}\" as large, stylized text integrated into the design. "
+                        f"Include a genre subtitle like \"A {request.genre.upper()} FILM\" in smaller text at the bottom. "
+                        f"Style: {request.style or 'cinematic'}, dramatic lighting, high quality, professional movie poster layout with typography."
+                    )
                 image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
                 images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1, quality="low")
                 if images and len(images) > 0:

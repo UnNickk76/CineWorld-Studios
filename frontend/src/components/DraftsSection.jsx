@@ -66,22 +66,19 @@ export function DraftsSection({ api, onResume, onRefresh }) {
       const data = res.data;
       const breakdown = data.status_breakdown || {};
       const limbo = data.limbo_count || 0;
+      const ghosts = data.ghost_count || 0;
       
       const statusParts = Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(', ');
       
-      if (limbo > 0) {
-        toast.error(
-          `${limbo} film nel LIMBO! Completati ma mai rilasciati in "I Miei". Clicca "Recupera Film Persi" per ripristinarli! [${statusParts}]`, 
-          { duration: 10000 }
-        );
-      } else if (data.active_in_pipeline === 0 && data.completed_count > 0) {
-        toast.warning(
-          `${data.completed_count} completati, ${data.total_released_films} in "I Miei". Pipeline vuota. [${statusParts}]`, 
-          { duration: 8000 }
-        );
+      if (limbo > 0 || ghosts > 0) {
+        let msg = '';
+        if (limbo > 0) msg += `${limbo} film nel LIMBO (completati ma mai in "I Miei"). `;
+        if (ghosts > 0) msg += `${ghosts} FANTASMI (in pipeline ma gia rilasciati). `;
+        msg += `Clicca "Recupera" per fixare! [${statusParts}]`;
+        toast.error(msg, { duration: 10000 });
       } else {
         toast.success(
-          `${data.total_projects} progetti, ${data.active_in_pipeline} in pipeline, ${data.total_released_films} rilasciati.`, 
+          `Tutto OK! ${data.total_projects} progetti, ${data.active_in_pipeline} in pipeline, ${data.total_released_films} rilasciati.`, 
           { duration: 5000 }
         );
       }
@@ -95,12 +92,16 @@ export function DraftsSection({ api, onResume, onRefresh }) {
   const handleRecoverAll = async () => {
     try {
       const res = await api.post('/film-pipeline/admin/recover-all');
-      if (res.data.recovered_count > 0) {
-        toast.success(`${res.data.recovered_count} film recuperati!`);
+      const { recovered_count, cleaned_count } = res.data;
+      if (recovered_count > 0 || cleaned_count > 0) {
+        let msg = '';
+        if (recovered_count > 0) msg += `${recovered_count} film recuperati dal limbo! `;
+        if (cleaned_count > 0) msg += `${cleaned_count} duplicati fantasma puliti!`;
+        toast.success(msg, { duration: 8000 });
         loadDrafts();
         onRefresh?.();
       } else {
-        toast.success('Nessun film perso trovato.');
+        toast.success('Nessun problema trovato. Tutti i film sono coerenti.');
       }
     } catch (e) {
       toast.error('Errore recupero');

@@ -799,54 +799,86 @@ async def get_all_drafts(user: dict = Depends(get_current_user)):
 
 @router.get("/film-pipeline/diagnose")
 async def diagnose_lost_films(user: dict = Depends(get_current_user)):
-    """Diagnostic: find ALL films for this user across both collections, show their status."""
+    """Diagnostic: find ALL films for this user across both collections, full status breakdown."""
     # Films in film_projects
     projects = await db.film_projects.find(
         {'user_id': user['id']},
         {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'release_type': 1,
-         'scheduled_release_at': 1, 'coming_soon_type': 1,
-         'created_at': 1, 'updated_at': 1, 'rescued': 1}
+         'scheduled_release_at': 1, 'coming_soon_type': 1, 'auto_released': 1,
+         'shooting_completed': 1, 'shooting_started_at': 1, 'release_pending': 1,
+         'created_at': 1, 'updated_at': 1, 'rescued': 1, 'quality_score': 1}
     ).sort('created_at', -1).to_list(200)
 
-    # Films in films collection
+    # Films in films collection (released)
     films = await db.films.find(
         {'$or': [{'user_id': user['id']}, {'owner_id': user['id']}]},
         {'_id': 0, 'id': 1, 'title': 1, 'status': 1,
          'created_at': 1, 'updated_at': 1}
     ).sort('created_at', -1).to_list(200)
 
-    # Visible states
-    visible_states = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
-                      'screenplay', 'pre_production', 'shooting', 'pending_release', 'remastering'}
-    invisible = [p for p in projects if p.get('status') not in visible_states and p.get('status') not in ('released', 'completed')]
+    # Status breakdown
+    status_counts = {}
+    for p in projects:
+        s = p.get('status', 'unknown')
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    # Active pipeline states
+    active_states = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
+                     'screenplay', 'pre_production', 'shooting', 'pending_release', 'remastering'}
+    active_projects = [p for p in projects if p.get('status') in active_states]
+    completed_projects = [p for p in projects if p.get('status') in ('completed', 'released')]
+    other_projects = [p for p in projects if p.get('status') not in active_states and p.get('status') not in ('completed', 'released')]
+
+    # Suspicious completed films (might have been auto-released incorrectly)
+    suspicious = []
+    for p in completed_projects:
+        flags = []
+        if p.get('auto_released'):
+            flags.append('auto_released')
+        if p.get('coming_soon_type'):
+            flags.append(f'coming_soon_type={p["coming_soon_type"]}')
+        if p.get('release_type') == 'coming_soon':
+            flags.append('release_type=coming_soon')
+        if p.get('release_pending'):
+            flags.append('release_pending=true')
+        if flags:
+            suspicious.append({**p, 'flags': flags})
 
     return {
         'total_projects': len(projects),
         'total_released_films': len(films),
-        'projects_by_status': {},
-        'invisible_projects': invisible,
-        'all_projects': projects,
-        'all_films': films
+        'status_breakdown': status_counts,
+        'active_in_pipeline': len(active_projects),
+        'completed_count': len(completed_projects),
+        'suspicious_completed': suspicious,
+        'other_status': other_projects,
+        'all_projects': [{
+            'id': p['id'], 'title': p.get('title', '?'), 'status': p.get('status'),
+            'release_type': p.get('release_type'), 'auto_released': p.get('auto_released', False),
+            'coming_soon_type': p.get('coming_soon_type'), 'quality': p.get('quality_score'),
+            'created_at': p.get('created_at'), 'updated_at': p.get('updated_at'),
+        } for p in projects],
     }
 
 
 @router.post("/film-pipeline/admin/recover-all")
 async def admin_recover_all_films(user: dict = Depends(get_current_user)):
     """Admin endpoint: scan ALL users' films and recover lost ones.
-    Only recovers films that are in invisible/broken states."""
+    Aggressively recovers films that were incorrectly completed/released."""
     recovered = []
     now = datetime.now(timezone.utc)
 
-    # Find ALL film_projects with potentially lost states
+    # Find ALL film_projects
     all_projects = await db.film_projects.find(
         {},
         {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'status': 1,
          'release_type': 1, 'scheduled_release_at': 1, 'coming_soon_type': 1,
          'shooting_started_at': 1, 'shooting_completed': 1, 'auto_released': 1,
-         'coming_soon_completed': 1, 'cast': 1, 'created_at': 1, 'updated_at': 1}
+         'coming_soon_completed': 1, 'release_pending': 1,
+         'cast': 1, 'created_at': 1, 'updated_at': 1}
     ).to_list(5000)
 
-    # Get user nicknames for the report
+    # Get user nicknames
     user_ids = list(set(p.get('user_id') for p in all_projects if p.get('user_id')))
     users_map = {}
     if user_ids:
@@ -868,17 +900,29 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
         # Case 1: completed/released WITHOUT shooting = never went through full pipeline
         if status in ('completed', 'released') and not has_shooting:
             needs_rescue = True
-            reason = f'Completato senza riprese (auto_released={f.get("auto_released", False)})'
+            reason = f'Completato senza riprese'
             target_status = 'ready_for_casting' if has_cast else 'proposed'
 
         # Case 2: completed with auto_released flag
-        if status == 'completed' and f.get('auto_released', False):
+        elif status == 'completed' and f.get('auto_released', False):
             needs_rescue = True
             reason = 'Auto-rilasciato dal scheduler'
-            target_status = 'ready_for_casting' if has_cast else 'proposed'
+            target_status = 'pending_release' if has_shooting else ('ready_for_casting' if has_cast else 'proposed')
 
-        # Case 3: coming_soon with expired timer but stuck
-        if status == 'coming_soon':
+        # Case 3: completed but was in coming_soon pipeline (incorrectly completed)
+        elif status == 'completed' and f.get('coming_soon_type') == 'pre_release':
+            needs_rescue = True
+            reason = 'Completato durante Coming Soon pre-release (bug scheduler)'
+            target_status = 'pending_release'
+
+        # Case 4: completed with release_type=coming_soon but release_pending still true
+        elif status == 'completed' and f.get('release_type') == 'coming_soon' and f.get('release_pending'):
+            needs_rescue = True
+            reason = 'Completato con rilascio ancora pending'
+            target_status = 'pending_release'
+
+        # Case 5: coming_soon with expired timer but stuck
+        elif status == 'coming_soon':
             sra = f.get('scheduled_release_at')
             if sra:
                 try:
@@ -899,11 +943,17 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
                     needs_rescue = True
                     reason = 'Coming Soon con data rilascio invalida'
 
-        # Case 4: discarded/abandoned with coming_soon activity
-        if status in ('discarded', 'abandoned') and (f.get('coming_soon_completed') or f.get('coming_soon_type')):
+        # Case 6: discarded/abandoned after coming_soon
+        elif status in ('discarded', 'abandoned') and (f.get('coming_soon_completed') or f.get('coming_soon_type')):
             needs_rescue = True
             reason = f'Scartato dopo Coming Soon (status={status})'
             target_status = 'ready_for_casting' if has_cast else 'proposed'
+
+        # Case 7: completed with release_type=coming_soon (general catch)
+        elif status == 'completed' and f.get('release_type') == 'coming_soon':
+            needs_rescue = True
+            reason = 'Film coming_soon completato prematuramente'
+            target_status = 'pending_release' if has_shooting else ('ready_for_casting' if has_cast else 'proposed')
 
         if needs_rescue:
             update_set = {

@@ -63,11 +63,26 @@ export function DraftsSection({ api, onResume, onRefresh }) {
     setDiagnosing(true);
     try {
       const res = await api.get('/film-pipeline/diagnose');
-      const invisible = res.data.invisible_projects || [];
-      if (invisible.length > 0) {
-        toast.error(`Trovati ${invisible.length} film invisibili!`);
+      const data = res.data;
+      const breakdown = data.status_breakdown || {};
+      const suspicious = data.suspicious_completed || [];
+      
+      let msg = `Film totali: ${data.total_projects}\n`;
+      msg += `In pipeline: ${data.active_in_pipeline}\n`;
+      msg += `Completati: ${data.completed_count}\n`;
+      if (suspicious.length > 0) {
+        msg += `SOSPETTI: ${suspicious.length} film completati con anomalie!`;
+      }
+      
+      // Show detailed breakdown
+      const statusParts = Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(', ');
+      
+      if (suspicious.length > 0) {
+        toast.error(`${suspicious.length} film sospetti trovati! [${statusParts}]`, { duration: 8000 });
+      } else if (data.active_in_pipeline === 0 && data.completed_count > 0) {
+        toast.warning(`Tutti i ${data.completed_count} film sono completati. Nessuno in produzione. [${statusParts}]`, { duration: 8000 });
       } else {
-        toast.success(`Tutti i ${res.data.total_projects} film sono visibili.`);
+        toast.success(`${data.total_projects} film OK. Pipeline: ${data.active_in_pipeline}, Completati: ${data.completed_count}`, { duration: 5000 });
       }
     } catch (e) {
       toast.error('Errore diagnostica');

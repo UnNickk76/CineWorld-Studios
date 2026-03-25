@@ -767,7 +767,8 @@ async def get_all_drafts(user: dict = Depends(get_current_user)):
 
     # Also find films stuck in intermediate states (not visible elsewhere)
     stuck_films = await db.film_projects.find(
-        {'user_id': user['id'], 'status': {'$in': ['proposed', 'ready_for_casting', 'pending_release']}},
+        {'user_id': user['id'], 'status': {'$in': ['proposed', 'ready_for_casting', 'pending_release']},
+         'film_id': {'$exists': False}},
         {'_id': 0}
     ).sort('updated_at', -1).to_list(50)
 
@@ -1181,11 +1182,21 @@ async def discard_film(project_id: str, user: dict = Depends(get_current_user)):
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
-    if project['status'] in ('completed', 'discarded'):
-        raise HTTPException(status_code=400, detail="Non puoi scartare questo film")
+    
+    # Block discard for released/completed films or films that already have a released version
+    blocked_statuses = ('completed', 'released', 'discarded')
+    if project['status'] in blocked_statuses:
+        raise HTTPException(status_code=400, detail="Non puoi scartare un film gia rilasciato o completato")
+    if project.get('film_id'):
+        raise HTTPException(status_code=400, detail="Non puoi scartare un film gia rilasciato")
 
-    total_spent = sum(project.get('costs_paid', {}).values())
-    sale_price = int(total_spent * 0.7)
+    total_spent = sum(project.get('costs_paid', {}).values()) if isinstance(project.get('costs_paid'), dict) else 0
+    quality = project.get('quality_score', 50)
+    # Price: base on costs + quality bonus, with reasonable cap
+    base_price = int(total_spent * 0.5)
+    quality_bonus = int(base_price * (quality / 100) * 0.3)
+    sale_price = min(base_price + quality_bonus, 5000000)  # Cap at $5M
+    sale_price = max(sale_price, 10000)  # Min $10K
 
     await db.film_projects.update_one(
         {'id': project_id},

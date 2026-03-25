@@ -3000,7 +3000,7 @@ const FilmPipeline = () => {
     try {
       // Use SWR cached data first
       const data = pipelineData || (await api.get('/film-pipeline/all')).data;
-      const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
+      const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
       setFilms(safe);
       
       // Auto-rescue: find and restore incorrectly completed films
@@ -3091,7 +3091,7 @@ const FilmPipeline = () => {
     try {
       refreshPipeline();
       const res = await api.get('/film-pipeline/all');
-      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status));
+      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
       setFilms(safe);
       if (selectedFilm) {
         const updated = safe.find(f => f.id === selectedFilm.id);

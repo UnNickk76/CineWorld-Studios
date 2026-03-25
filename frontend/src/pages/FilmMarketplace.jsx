@@ -192,7 +192,7 @@ const FilmMarketplace = () => {
 
         {/* Detail Dialog */}
         <Dialog open={!!selectedFilm} onOpenChange={() => setSelectedFilm(null)}>
-          <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md">
+          <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-md max-h-[85vh] overflow-y-auto">
             {selectedFilm && (
               <>
                 <DialogHeader>

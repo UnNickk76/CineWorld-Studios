@@ -4,7 +4,8 @@ import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target } from 'lucide-react';
+import { Dialog, DialogContent } from './ui/dialog';
+import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronRight, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -142,11 +143,58 @@ function SaboteurCard({ sab, contentId, api, onAction }) {
   );
 }
 
-function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
+// Compact horizontal card (poster + title + type + countdown)
+function ComingSoonThumb({ item, onClick }) {
+  const countdown = useCountdown(item.scheduled_release_at);
+  const poster = posterSrc(item.poster_url);
+  const isRemastering = item.is_remastering;
+  const TypeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
+  const typeLabel = isRemastering ? 'Remaster' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie' : 'Film';
+  const typeColor = isRemastering ? 'text-amber-400' : item.content_type === 'anime' ? 'text-pink-400' : item.content_type === 'tv_series' ? 'text-blue-400' : 'text-yellow-400';
+
+  return (
+    <div className="flex-shrink-0 w-[100px] cursor-pointer group" onClick={onClick}
+      data-testid={`coming-soon-thumb-${item.id}`}>
+      <div className="aspect-[2/3] relative rounded-lg overflow-hidden bg-gradient-to-br from-gray-900 to-black">
+        {poster ? (
+          <img src={poster} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <TypeIcon className={`w-8 h-8 ${typeColor} opacity-20`} />
+          </div>
+        )}
+        {/* Countdown overlay */}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-4">
+          <div className="flex items-center gap-0.5">
+            <Clock className="w-2.5 h-2.5 text-cyan-400" />
+            <span className="text-[9px] font-bold text-cyan-300">{countdown}</span>
+          </div>
+        </div>
+        {/* Type badge */}
+        <div className="absolute top-1 right-1">
+          <Badge className={`text-[6px] h-3 px-1 bg-black/70 ${typeColor} border-0`}>
+            {typeLabel}
+          </Badge>
+        </div>
+        {/* Hype indicator */}
+        {(item.hype_score || 0) > 0 && (
+          <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-black/70 rounded px-1 py-0.5">
+            <Flame className="w-2 h-2 text-orange-400" />
+            <span className="text-[7px] font-bold text-orange-300">{item.hype_score}</span>
+          </div>
+        )}
+      </div>
+      <p className="text-[8px] font-semibold truncate mt-1 group-hover:text-cyan-400 transition-colors">{item.title}</p>
+      <p className="text-[7px] text-gray-600 truncate">{item.production_house}</p>
+    </div>
+  );
+}
+
+// Full detail dialog content
+function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
   const [details, setDetails] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [interacting, setInteracting] = useState(null);
   const [speedingUp, setSpeedingUp] = useState(false);
   const [pvpActing, setPvpActing] = useState(null);
@@ -154,14 +202,12 @@ function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
   const isRemastering = item.is_remastering;
-  const typeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
-  const TypeIcon = typeIcon;
+  const TypeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
   const typeLabel = isRemastering ? 'In Aggiornamento' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : 'Film';
   const typeColor = isRemastering ? 'text-amber-400 bg-amber-500/10' : item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : 'text-yellow-400 bg-yellow-500/10';
 
   const invDiv = pvpStatus?.divisions?.investigative;
   const opsDiv = pvpStatus?.divisions?.operative;
-  const legalDiv = pvpStatus?.divisions?.legal;
 
   const loadDetails = useCallback(async () => {
     if (!api) return;
@@ -174,28 +220,20 @@ function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
     finally { setLoading(false); }
   }, [api, item.id]);
 
-  useEffect(() => {
-    if (expanded && !details) loadDetails();
-  }, [expanded, details, loadDetails]);
+  useEffect(() => { loadDetails(); }, [loadDetails]);
 
   const interact = async (action) => {
     setInteracting(action);
     try {
       const res = await api.post(`/coming-soon/${item.id}/interact`, { action });
       const d = res.data;
-      if (d.outcome === 'backfire') {
-        toast.info(d.message, { icon: '~' });
-      } else if (d.outcome === 'success') {
-        toast.success(d.message);
-      } else {
-        toast.info(d.message);
-      }
+      if (d.outcome === 'backfire') toast.info(d.message, { icon: '~' });
+      else if (d.outcome === 'success') toast.success(d.message);
+      else toast.info(d.message);
       setLocalHype(prev => Math.max(0, prev + (d.effects?.hype || 0)));
       loadDetails();
       if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setInteracting(null); }
   };
 
@@ -206,9 +244,7 @@ function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
       toast.success(res.data.message);
       loadDetails();
       if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setSpeedingUp(false); }
   };
 
@@ -216,310 +252,247 @@ function ComingSoonCard({ item, api, onRefresh, pvpStatus }) {
     setPvpActing('investigate');
     try {
       const res = await api.post('/pvp/investigate', { content_id: item.id });
-      if (res.data.found) {
-        toast.success(
-          `Sabotatore scoperto: ${res.data.saboteur.nickname} - ${res.data.boycott_type}`,
-          { duration: 8000 }
-        );
-      } else {
-        toast.error(res.data.message, { duration: 5000 });
-      }
+      if (res.data.found) toast.success(`Sabotatore scoperto: ${res.data.saboteur.nickname} - ${res.data.boycott_type}`, { duration: 8000 });
+      else toast.error(res.data.message, { duration: 5000 });
       loadDetails();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore investigazione');
-    } finally { setPvpActing(null); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore investigazione'); }
+    finally { setPvpActing(null); }
   };
 
   const pvpDefense = async () => {
     setPvpActing('defense');
     try {
-      const res = await api.post('/pvp/counter-boycott', {
-        content_id: item.id,
-        mode: 'defense',
-      });
+      const res = await api.post('/pvp/counter-boycott', { content_id: item.id, mode: 'defense' });
       toast.success(res.data.message, { duration: 5000 });
       setLocalHype(prev => prev + (res.data.hype_recovered || 0));
       loadDetails();
       if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore difesa');
-    } finally { setPvpActing(null); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore difesa'); }
+    finally { setPvpActing(null); }
   };
 
   const saboteurs = details?.identified_saboteurs || [];
 
   return (
-    <Card className="bg-[#111113] border-white/5 hover:border-white/10 transition-all overflow-hidden"
-      data-testid={`coming-soon-card-${item.id}`}>
-      <CardContent className="p-0">
-        {/* Compact header - always visible */}
-        <div className="flex gap-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-          {/* Poster */}
-          <div className="w-20 h-28 flex-shrink-0 bg-gradient-to-br from-gray-900 to-black relative">
-            {poster ? (
-              <img src={poster} alt="" className="w-full h-full object-cover" loading="lazy" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <TypeIcon className={`w-6 h-6 ${typeColor.split(' ')[0]} opacity-30`} />
-              </div>
-            )}
+    <div className="space-y-3" data-testid={`coming-soon-detail-${item.id}`}>
+      {/* Header with poster */}
+      <div className="flex gap-3">
+        <div className="w-24 h-36 flex-shrink-0 rounded-lg overflow-hidden bg-gray-900">
+          {poster ? <img src={poster} alt="" className="w-full h-full object-cover" /> :
+            <div className="w-full h-full flex items-center justify-center"><TypeIcon className="w-8 h-8 text-gray-700" /></div>}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Badge className={`text-[7px] h-3.5 px-1.5 ${typeColor}`}><TypeIcon className="w-2 h-2 mr-0.5" />{typeLabel}</Badge>
+            {item.genre_name && <Badge className="text-[7px] h-3.5 bg-white/5 text-gray-500">{item.genre_name}</Badge>}
           </div>
-
-          {/* Info */}
-          <div className="flex-1 p-2.5 min-w-0 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Badge className={`text-[7px] h-3.5 px-1.5 ${typeColor}`}>
-                  <TypeIcon className="w-2 h-2 mr-0.5" />{typeLabel}
-                </Badge>
-                {item.genre_name && <Badge className="text-[7px] h-3.5 bg-white/5 text-gray-500">{item.genre_name}</Badge>}
-              </div>
-              <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
-              <p className="text-[9px] text-gray-600 truncate">{item.production_house}</p>
+          <h3 className="text-sm font-bold text-white mb-0.5">{item.title}</h3>
+          <p className="text-[10px] text-gray-500">{item.production_house}</p>
+          <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-bold text-cyan-400">{countdown}</span>
             </div>
-
-            <div className="flex items-center justify-between mt-1.5">
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3 text-cyan-400" />
-                <span className="text-[10px] font-bold text-cyan-400">{countdown}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-0.5">
-                  <Flame className="w-3 h-3 text-orange-400" />
-                  <span className="text-[10px] font-bold text-orange-400">{localHype}</span>
-                </div>
-                {expanded ?
-                  <ChevronUp className="w-3 h-3 text-gray-500" /> :
-                  <ChevronDown className="w-3 h-3 text-gray-500" />
-                }
-              </div>
+            <div className="flex items-center gap-1">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span className="text-xs font-bold text-orange-400">{localHype}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Expanded section */}
-        {expanded && (
-          <div className="border-t border-white/5 p-3 space-y-3" data-testid={`coming-soon-expanded-${item.id}`}>
-            {loading && !details ? (
-              <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-gray-500" /></div>
-            ) : (
-              <>
-                {/* Hype Bar */}
-                <HypeBar score={localHype} />
+      {loading && !details ? (
+        <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-500" /></div>
+      ) : (
+        <>
+          {/* Hype Bar */}
+          <HypeBar score={localHype} />
 
-                {/* Pre-trama */}
-                {(details?.pre_screenplay || item.pre_screenplay) && (
-                  <div className="p-2 rounded bg-white/[0.02] border border-white/5">
-                    <p className="text-[9px] text-gray-500 mb-0.5 uppercase tracking-wider">Anteprima</p>
-                    <p className="text-[10px] text-gray-400 italic leading-relaxed line-clamp-3">
-                      "{details?.pre_screenplay || item.pre_screenplay}"
-                    </p>
+          {/* Anteprima */}
+          {(details?.pre_screenplay || item.pre_screenplay) && (
+            <div className="p-2 rounded bg-white/[0.02] border border-white/5">
+              <p className="text-[9px] text-gray-500 mb-0.5 uppercase tracking-wider">Anteprima</p>
+              <p className="text-[10px] text-gray-400 italic leading-relaxed line-clamp-4">
+                "{details?.pre_screenplay || item.pre_screenplay}"
+              </p>
+            </div>
+          )}
+
+          {/* Audience expectation + Status */}
+          {details?.audience_expectation && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Shield className="w-3 h-3 text-blue-400" />
+                <span className="text-[9px] text-gray-500">Aspettative:</span>
+                <Badge className={`text-[8px] h-4 ${
+                  details.audience_expectation === 'Altissime' ? 'bg-emerald-500/15 text-emerald-400' :
+                  details.audience_expectation === 'Alte' ? 'bg-blue-500/15 text-blue-400' :
+                  details.audience_expectation === 'Medie' ? 'bg-yellow-500/15 text-yellow-400' :
+                  'bg-red-500/15 text-red-400'
+                }`}>{details.audience_expectation}</Badge>
+              </div>
+              {details.project_status && (
+                <Badge className={`text-[8px] h-4 ${
+                  details.project_status === 'in_crescita' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                  details.project_status === 'in_crisi' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                  details.project_status === 'promettente' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                  'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                }`}>
+                  {details.project_status === 'in_crescita' ? 'In crescita' :
+                   details.project_status === 'in_crisi' ? 'In crisi' :
+                   details.project_status === 'promettente' ? 'Promettente' : 'Stabile'}
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {/* News Events */}
+          {details?.news_events?.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1">
+                <Newspaper className="w-3 h-3 text-gray-500" />
+                <span className="text-[9px] text-gray-500 uppercase tracking-wider">Notizie</span>
+              </div>
+              <div className="space-y-1 max-h-[120px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                {details.news_events.slice(-4).reverse().map((evt, i) => (
+                  <NewsEvent key={i} event={evt} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Comments */}
+          {details?.auto_comments?.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <MessageCircle className="w-3 h-3 text-gray-500" />
+                <span className="text-[9px] text-gray-500 uppercase tracking-wider">Commenti</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {details.auto_comments.slice(-4).map((c, i) => (
+                  <span key={i} className="text-[8px] text-gray-500 bg-white/[0.03] px-1.5 py-0.5 rounded-full border border-white/5">
+                    "{c.text}"
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Interaction Stats */}
+          {details && (
+            <div className="flex items-center gap-3 text-[9px]">
+              <div className="flex items-center gap-1 text-emerald-400">
+                <ThumbsUp className="w-3 h-3" />{details.support_count}
+              </div>
+              <div className="flex items-center gap-1 text-red-400">
+                <ThumbsDown className="w-3 h-3" />{details.boycott_count}
+              </div>
+              {details.max_boycott_reached && (
+                <Badge className="text-[7px] bg-red-500/10 text-red-400 border border-red-500/20">Max boicottaggi</Badge>
+              )}
+            </div>
+          )}
+
+          {/* OTHER PLAYER: Support/Boycott */}
+          {details && !details.is_own_content && details.daily_actions_remaining > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[8px] text-gray-600">
+                {details.daily_actions_remaining} azioni rimaste oggi ({details.interact_cost} CP ciascuna)
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1 bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] h-7"
+                  disabled={interacting !== null} onClick={() => interact('support')} data-testid={`support-btn-${item.id}`}>
+                  {interacting === 'support' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ThumbsUp className="w-3 h-3 mr-1" />}
+                  Supporta
+                </Button>
+                <Button size="sm" className="flex-1 bg-red-600/80 hover:bg-red-600 text-white text-[10px] h-7"
+                  disabled={interacting !== null || details.max_boycott_reached} onClick={() => interact('boycott')} data-testid={`boycott-btn-${item.id}`}>
+                  {interacting === 'boycott' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ThumbsDown className="w-3 h-3 mr-1" />}
+                  Boicotta
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {details && !details.is_own_content && details.daily_actions_remaining <= 0 && (
+            <p className="text-[9px] text-amber-400/70 text-center">Limite giornaliero raggiunto</p>
+          )}
+
+          {/* OWN CONTENT: PvP Actions */}
+          {details?.is_own_content && (
+            <div className="space-y-2">
+              <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
+
+              {details.boycott_count > 0 && (
+                <div className="space-y-2 p-2.5 rounded-lg bg-white/[0.02] border border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <Swords className="w-3 h-3 text-yellow-500" />
+                    <span className="text-[9px] font-bold text-yellow-500 uppercase tracking-wider">Azioni PvP</span>
                   </div>
-                )}
 
-                {/* Audience expectation + Project Status */}
-                {details?.audience_expectation && (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <Shield className="w-3 h-3 text-blue-400" />
-                      <span className="text-[9px] text-gray-500">Aspettative:</span>
-                      <Badge className={`text-[8px] h-4 ${
-                        details.audience_expectation === 'Altissime' ? 'bg-emerald-500/15 text-emerald-400' :
-                        details.audience_expectation === 'Alte' ? 'bg-blue-500/15 text-blue-400' :
-                        details.audience_expectation === 'Medie' ? 'bg-yellow-500/15 text-yellow-400' :
-                        'bg-red-500/15 text-red-400'
-                      }`}>{details.audience_expectation}</Badge>
-                    </div>
-                    {details.project_status && (
-                      <Badge className={`text-[8px] h-4 ${
-                        details.project_status === 'in_crescita' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                        details.project_status === 'in_crisi' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                        details.project_status === 'promettente' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                        'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                      }`}>
-                        {details.project_status === 'in_crescita' ? 'In crescita' :
-                         details.project_status === 'in_crisi' ? 'In crisi' :
-                         details.project_status === 'promettente' ? 'Promettente' : 'Stabile'}
-                      </Badge>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-cyan-600/80 hover:bg-cyan-600 text-white text-[10px] h-7"
+                      disabled={pvpActing !== null || !invDiv || invDiv.level === 0 || invDiv.daily_remaining <= 0}
+                      onClick={pvpInvestigate} data-testid={`pvp-investigate-${item.id}`}>
+                      {pvpActing === 'investigate' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
+                      Indaga
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-orange-600/80 hover:bg-orange-600 text-white text-[10px] h-7"
+                      disabled={pvpActing !== null || !opsDiv || opsDiv.level === 0 || opsDiv.daily_remaining <= 0}
+                      onClick={pvpDefense} data-testid={`pvp-defense-${item.id}`}>
+                      {pvpActing === 'defense' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Shield className="w-3 h-3 mr-1" />}
+                      Difesa
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 text-[8px]">
+                    {invDiv && invDiv.level > 0 ? (
+                      <span className="text-cyan-400/70">Investigativa: {invDiv.daily_remaining}/{invDiv.daily_limit}</span>
+                    ) : (
+                      <span className="text-gray-600 flex items-center gap-0.5 cursor-pointer" onClick={() => { onClose?.(); navigate('/hq'); }}>
+                        <Search className="w-2.5 h-2.5" /> Sblocca Investigativa
+                      </span>
+                    )}
+                    {opsDiv && opsDiv.level > 0 ? (
+                      <span className="text-orange-400/70">Operativa: {opsDiv.daily_remaining}/{opsDiv.daily_limit}</span>
+                    ) : (
+                      <span className="text-gray-600 flex items-center gap-0.5 cursor-pointer" onClick={() => { onClose?.(); navigate('/hq'); }}>
+                        <Shield className="w-2.5 h-2.5" /> Sblocca Operativa
+                      </span>
                     )}
                   </div>
-                )}
 
-                {/* News Events */}
-                {details?.news_events?.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1">
-                      <Newspaper className="w-3 h-3 text-gray-500" />
-                      <span className="text-[9px] text-gray-500 uppercase tracking-wider">Notizie</span>
-                    </div>
-                    <div className="space-y-1 max-h-[100px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                      {details.news_events.slice(-4).reverse().map((evt, i) => (
-                        <NewsEvent key={i} event={evt} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Auto Comments */}
-                {details?.auto_comments?.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <MessageCircle className="w-3 h-3 text-gray-500" />
-                      <span className="text-[9px] text-gray-500 uppercase tracking-wider">Commenti</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {details.auto_comments.slice(-4).map((c, i) => (
-                        <span key={i} className="text-[8px] text-gray-500 bg-white/[0.03] px-1.5 py-0.5 rounded-full border border-white/5">
-                          "{c.text}"
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Interaction Stats */}
-                {details && (
-                  <div className="flex items-center gap-3 text-[9px]">
-                    <div className="flex items-center gap-1 text-emerald-400">
-                      <ThumbsUp className="w-3 h-3" />{details.support_count}
-                    </div>
-                    <div className="flex items-center gap-1 text-red-400">
-                      <ThumbsDown className="w-3 h-3" />{details.boycott_count}
-                    </div>
-                    {details.max_boycott_reached && (
-                      <Badge className="text-[7px] bg-red-500/10 text-red-400 border border-red-500/20">Max boicottaggi</Badge>
-                    )}
-                  </div>
-                )}
-
-                {/* === OTHER PLAYER'S CONTENT: Support/Boycott === */}
-                {details && !details.is_own_content && details.daily_actions_remaining > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[8px] text-gray-600">
-                      {details.daily_actions_remaining} azioni rimaste oggi ({details.interact_cost} CP ciascuna)
-                    </p>
-                    <div className="flex gap-2">
-                      <Button size="sm"
-                        className="flex-1 bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] h-7"
-                        disabled={interacting !== null}
-                        onClick={() => interact('support')}
-                        data-testid={`support-btn-${item.id}`}>
-                        {interacting === 'support' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ThumbsUp className="w-3 h-3 mr-1" />}
-                        Supporta
-                      </Button>
-                      <Button size="sm"
-                        className="flex-1 bg-red-600/80 hover:bg-red-600 text-white text-[10px] h-7"
-                        disabled={interacting !== null || details.max_boycott_reached}
-                        onClick={() => interact('boycott')}
-                        data-testid={`boycott-btn-${item.id}`}>
-                        {interacting === 'boycott' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ThumbsDown className="w-3 h-3 mr-1" />}
-                        Boicotta
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {details && !details.is_own_content && details.daily_actions_remaining <= 0 && (
-                  <p className="text-[9px] text-amber-400/70 text-center">Limite giornaliero raggiunto</p>
-                )}
-
-                {/* === OWN CONTENT: PvP Actions === */}
-                {details?.is_own_content && (
-                  <div className="space-y-2">
-                    <p className="text-[9px] text-gray-600 text-center italic">Questo e' un tuo progetto</p>
-
-                    {/* PvP Action Buttons */}
-                    {details.boycott_count > 0 && (
-                      <div className="space-y-2 p-2.5 rounded-lg bg-white/[0.02] border border-white/5">
-                        <div className="flex items-center gap-1.5">
-                          <Swords className="w-3 h-3 text-yellow-500" />
-                          <span className="text-[9px] font-bold text-yellow-500 uppercase tracking-wider">Azioni PvP</span>
-                        </div>
-
-                        <div className="flex gap-2">
-                          {/* Investigate */}
-                          <Button size="sm"
-                            className="flex-1 bg-cyan-600/80 hover:bg-cyan-600 text-white text-[10px] h-7"
-                            disabled={pvpActing !== null || !invDiv || invDiv.level === 0 || invDiv.daily_remaining <= 0}
-                            onClick={pvpInvestigate}
-                            data-testid={`pvp-investigate-${item.id}`}>
-                            {pvpActing === 'investigate' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
-                            Indaga
-                          </Button>
-                          {/* Defense */}
-                          <Button size="sm"
-                            className="flex-1 bg-orange-600/80 hover:bg-orange-600 text-white text-[10px] h-7"
-                            disabled={pvpActing !== null || !opsDiv || opsDiv.level === 0 || opsDiv.daily_remaining <= 0}
-                            onClick={pvpDefense}
-                            data-testid={`pvp-defense-${item.id}`}>
-                            {pvpActing === 'defense' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Shield className="w-3 h-3 mr-1" />}
-                            Difesa
-                          </Button>
-                        </div>
-
-                        {/* Division status hints */}
-                        <div className="flex flex-wrap gap-1.5 text-[8px]">
-                          {invDiv && invDiv.level > 0 ? (
-                            <span className="text-cyan-400/70">Investigativa: {invDiv.daily_remaining}/{invDiv.daily_limit}</span>
-                          ) : (
-                            <span className="text-gray-600 flex items-center gap-0.5" onClick={() => navigate('/hq')} role="button">
-                              <Search className="w-2.5 h-2.5" /> Sblocca Investigativa in HQ
-                            </span>
-                          )}
-                          {opsDiv && opsDiv.level > 0 ? (
-                            <span className="text-orange-400/70">Operativa: {opsDiv.daily_remaining}/{opsDiv.daily_limit}</span>
-                          ) : (
-                            <span className="text-gray-600 flex items-center gap-0.5" onClick={() => navigate('/hq')} role="button">
-                              <Shield className="w-2.5 h-2.5" /> Sblocca Operativa in HQ
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Identified Saboteurs */}
-                        {saboteurs.length > 0 && (
-                          <div className="space-y-1.5 mt-1">
-                            <div className="flex items-center gap-1">
-                              <Target className="w-3 h-3 text-red-400" />
-                              <span className="text-[9px] text-red-400 font-semibold">Sabotatori Identificati</span>
-                            </div>
-                            {saboteurs.map(sab => (
-                              <SaboteurCard
-                                key={sab.user_id}
-                                sab={sab}
-                                contentId={item.id}
-                                api={api}
-                                onAction={loadDetails}
-                              />
-                            ))}
-                          </div>
-                        )}
+                  {saboteurs.length > 0 && (
+                    <div className="space-y-1.5 mt-1">
+                      <div className="flex items-center gap-1">
+                        <Target className="w-3 h-3 text-red-400" />
+                        <span className="text-[9px] text-red-400 font-semibold">Sabotatori Identificati</span>
                       </div>
-                    )}
+                      {saboteurs.map(sab => (
+                        <SaboteurCard key={sab.user_id} sab={sab} contentId={item.id} api={api} onAction={loadDetails} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
-                    {/* Speed Up */}
-                    {details.coming_soon_speedup_cap > 0 && details.coming_soon_speedup_used < details.coming_soon_speedup_cap && (
-                      <Button size="sm"
-                        className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-[10px] h-7"
-                        disabled={speedingUp}
-                        onClick={speedUp}
-                        data-testid={`speedup-btn-${item.id}`}>
-                        {speedingUp ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <FastForward className="w-3 h-3 mr-1" />}
-                        Velocizza (-10%)
-                      </Button>
-                    )}
-                    {details.coming_soon_speedup_used > 0 && (
-                      <p className="text-[8px] text-gray-600 text-center">
-                        Velocizzato: {Math.round(details.coming_soon_speedup_used * 100)}% / {Math.round(details.coming_soon_speedup_cap * 100)}% max
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              {details.coming_soon_speedup_cap > 0 && details.coming_soon_speedup_used < details.coming_soon_speedup_cap && (
+                <Button size="sm" className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-[10px] h-7"
+                  disabled={speedingUp} onClick={speedUp} data-testid={`speedup-btn-${item.id}`}>
+                  {speedingUp ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <FastForward className="w-3 h-3 mr-1" />}
+                  Velocizza (-10%)
+                </Button>
+              )}
+              {details.coming_soon_speedup_used > 0 && (
+                <p className="text-[8px] text-gray-600 text-center">
+                  Velocizzato: {Math.round(details.coming_soon_speedup_used * 100)}% / {Math.round(details.coming_soon_speedup_cap * 100)}% max
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -528,10 +501,18 @@ export function ComingSoonSection({ compact = false }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pvpStatus, setPvpStatus] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const loadItems = useCallback(() => {
     if (!api) return;
-    api.get('/coming-soon').then(r => setItems(r.data.items || [])).catch(() => {}).finally(() => setLoading(false));
+    api.get('/coming-soon').then(r => {
+      const sorted = (r.data.items || []).sort((a, b) => {
+        const da = a.scheduled_release_at ? new Date(a.scheduled_release_at) : new Date('2099-01-01');
+        const db = b.scheduled_release_at ? new Date(b.scheduled_release_at) : new Date('2099-01-01');
+        return da - db;
+      });
+      setItems(sorted);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [api]);
 
   const loadPvpStatus = useCallback(() => {
@@ -549,25 +530,43 @@ export function ComingSoonSection({ compact = false }) {
   if (loading) return null;
 
   return (
-    <div className="space-y-2" data-testid="coming-soon-section">
-      <div className="flex items-center gap-2">
+    <div data-testid="coming-soon-section">
+      <div className="flex items-center gap-2 mb-2">
         <Clock className="w-4 h-4 text-cyan-400" />
-        <h3 className="text-sm font-bold text-white">Prossimamente</h3>
+        <h3 className="font-['Bebas_Neue'] text-lg text-white">Prossimamente</h3>
         {items.length > 0 && <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>}
       </div>
+
       {items.length === 0 ? (
         <div className="p-4 rounded-lg border border-dashed border-gray-700/50 text-center" data-testid="coming-soon-empty">
           <Clock className="w-6 h-6 mx-auto mb-1 text-gray-700" />
           <p className="text-[10px] text-gray-600">Nessun contenuto in arrivo</p>
-          <p className="text-[8px] text-gray-700">I film in Coming Soon appariranno qui</p>
         </div>
       ) : (
-        <div className={compact ? 'space-y-2' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
-          {items.slice(0, compact ? 3 : 10).map(item => (
-            <ComingSoonCard key={item.id} item={item} api={api} onRefresh={loadItems} pvpStatus={pvpStatus} />
+        /* Horizontal scroll */
+        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+          {items.map(item => (
+            <ComingSoonThumb key={item.id} item={item} onClick={() => setSelectedItem(item)} />
           ))}
         </div>
       )}
+
+      {/* Detail Dialog */}
+      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
+        <DialogContent className="bg-[#111113] border-white/10 text-white max-w-md max-h-[85vh] overflow-y-auto p-4"
+          style={{ scrollbarWidth: 'thin' }}
+          data-testid="coming-soon-dialog">
+          {selectedItem && (
+            <ComingSoonDetail
+              item={selectedItem}
+              api={api}
+              onRefresh={loadItems}
+              pvpStatus={pvpStatus}
+              onClose={() => setSelectedItem(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

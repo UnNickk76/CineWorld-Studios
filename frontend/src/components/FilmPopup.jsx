@@ -1173,7 +1173,8 @@ function ReleaseStepContent({ film, api, onRefresh, refreshUser }) {
       // Phase 5: Final result
       setTimeout(() => setReleasePhase(5), numbersDelay + 1500);
 
-      refreshUser(); onRefresh();
+      // DO NOT refresh here - it would cause the popup to close
+      // Refresh happens when user closes the cinematic overlay
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore nel rilascio'); setReleaseResult(null); }
     finally { setActionLoading(null); }
   };
@@ -1496,7 +1497,7 @@ function ReleaseStepContent({ film, api, onRefresh, refreshUser }) {
                 }`} data-testid="release-go-film">
                 <Film className="w-3 h-3 mr-1" /> Vai al Film
               </Button>
-              <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); onRefresh(); }} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="release-close">
+              <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); refreshUser(); onRefresh(); }} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="release-close">
                 Chiudi
               </Button>
             </div>

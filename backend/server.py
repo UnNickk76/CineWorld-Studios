@@ -11823,6 +11823,48 @@ async def startup_event():
     await initialize_cast_pool_if_needed()
     logging.info("Cast pool initialized")
     
+    # Auto-migrate legacy sequels from 'sequels' to 'films' collection
+    try:
+        legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
+        mig_count = 0
+        for seq in legacy:
+            if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
+                continue
+            now_iso = datetime.now(timezone.utc).isoformat()
+            film_doc = {
+                'id': seq['id'], 'user_id': seq['user_id'],
+                'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
+                'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
+                'quality_score': seq.get('quality_score', 50),
+                'quality': int(seq.get('quality_score', 50)),
+                'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+                'poster_url': seq.get('poster_url', ''),
+                'total_revenue': seq.get('total_revenue', 0),
+                'opening_revenue': seq.get('opening_revenue', 0),
+                'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
+                'release_type': 'immediate', 'is_sequel': True,
+                'sequel_parent_id': seq.get('parent_film_id', ''),
+                'sequel_number': seq.get('sequel_number', 2),
+                'sequel_parent_title': seq.get('parent_title', ''),
+                'hired_actors': seq.get('cast', []),
+                'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
+                'production_cost': seq.get('production_cost', 0),
+                'quality_breakdown': seq.get('quality_breakdown', {}),
+                'created_at': seq.get('created_at', now_iso),
+                'released_at': seq.get('completed_at', now_iso),
+                'updated_at': now_iso,
+            }
+            await db.films.insert_one(film_doc)
+            await db.films.update_one(
+                {'id': seq.get('parent_film_id')},
+                {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+            )
+            mig_count += 1
+        if mig_count:
+            logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+    except Exception as e:
+        logging.warning(f"Legacy sequel migration: {e}")
+    
     # Check and generate daily new cast members
     await generate_daily_cast_members()
     

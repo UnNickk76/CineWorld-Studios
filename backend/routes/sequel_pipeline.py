@@ -156,3 +156,62 @@ async def get_my_sequels(user: dict = Depends(get_current_user)):
     ).sort('created_at', -1).to_list(50)
 
     return {"active": active, "released": released}
+
+
+@router.post("/sequel-pipeline/migrate-legacy")
+async def migrate_legacy_sequels(user: dict = Depends(get_current_user)):
+    """Migrate completed sequels from old 'sequels' collection to 'films' collection."""
+    old_sequels = await db.sequels.find(
+        {'user_id': user['id'], 'status': 'completed'}
+    ).to_list(100)
+
+    migrated = 0
+    for seq in old_sequels:
+        seq_id = seq.get('id', '')
+        # Skip if already migrated
+        existing = await db.films.find_one({'id': seq_id}, {'_id': 0, 'id': 1})
+        if existing:
+            continue
+
+        now = datetime.now(timezone.utc).isoformat()
+        film_doc = {
+            'id': seq_id,
+            'user_id': seq['user_id'],
+            'title': seq.get('title', 'Sequel'),
+            'genre': seq.get('genre', 'drama'),
+            'subgenres': seq.get('subgenres', []),
+            'status': 'in_theaters',
+            'quality_score': seq.get('quality_score', 50),
+            'quality': int(seq.get('quality_score', 50)),
+            'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+            'poster_url': seq.get('poster_url', ''),
+            'total_revenue': seq.get('total_revenue', 0),
+            'opening_revenue': seq.get('opening_revenue', 0),
+            'weekly_revenue': 0,
+            'attendance': seq.get('attendance', 0),
+            'release_type': 'immediate',
+            'is_sequel': True,
+            'sequel_parent_id': seq.get('parent_film_id', ''),
+            'sequel_number': seq.get('sequel_number', 2),
+            'sequel_parent_title': seq.get('parent_title', ''),
+            'sequel_saga_bonus_percent': seq.get('saga_bonus_percent', 5),
+            'hired_actors': seq.get('cast', []),
+            'pre_screenplay': seq.get('screenplay', {}).get('text', ''),
+            'production_cost': seq.get('production_cost', 0),
+            'cost_summary': {'total_money': seq.get('production_cost', 0) + seq.get('cast_salary', 0)},
+            'quality_breakdown': seq.get('quality_breakdown', {}),
+            'created_at': seq.get('created_at', now),
+            'released_at': seq.get('completed_at', now),
+            'updated_at': now,
+        }
+        await db.films.insert_one(film_doc)
+        film_doc.pop('_id', None)
+
+        # Update parent sequel_count
+        await db.films.update_one(
+            {'id': seq.get('parent_film_id')},
+            {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+        )
+        migrated += 1
+
+    return {"migrated": migrated, "total_legacy": len(old_sequels)}

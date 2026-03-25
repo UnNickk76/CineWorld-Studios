@@ -92,7 +92,6 @@ export function DraftsSection({ api, onResume, onRefresh }) {
   };
 
   const totalItems = drafts.length + stuckFilms.length;
-  if (loading || totalItems === 0) return null;
 
   const allItems = [
     ...drafts.map(d => ({ ...d, _type: 'draft' })),
@@ -108,9 +107,11 @@ export function DraftsSection({ api, onResume, onRefresh }) {
       >
         <Shield className="w-4 h-4 text-amber-500" />
         <span className="font-['Bebas_Neue'] text-base text-amber-400">Bozze & Recupero</span>
-        <Badge className="bg-amber-500/15 text-amber-400 text-[9px] h-5 border border-amber-500/20">
-          {totalItems}
-        </Badge>
+        {totalItems > 0 && (
+          <Badge className="bg-amber-500/15 text-amber-400 text-[9px] h-5 border border-amber-500/20">
+            {totalItems}
+          </Badge>
+        )}
         <div className="flex-1" />
         {expanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
       </button>
@@ -143,7 +144,13 @@ export function DraftsSection({ api, onResume, onRefresh }) {
           </div>
 
           {/* Lista Bozze e Film Bloccati */}
-          {allItems.map(item => (
+          {allItems.length === 0 ? (
+            <div className="p-3 rounded-lg border border-dashed border-gray-700/50 text-center">
+              <Shield className="w-5 h-5 mx-auto mb-1 text-gray-700" />
+              <p className="text-[10px] text-gray-500">Nessuna bozza salvata</p>
+              <p className="text-[8px] text-gray-600">Usa "Diagnostica" per controllare i tuoi film</p>
+            </div>
+          ) : allItems.map(item => (
             <Card
               key={item.id}
               className={`bg-[#111113] border-white/5 overflow-hidden ${item._type === 'stuck' ? 'border-l-2 border-l-amber-500/50' : ''}`}

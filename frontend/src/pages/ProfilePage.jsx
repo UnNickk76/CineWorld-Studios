@@ -193,7 +193,7 @@ const ProfilePage = () => {
     if (!aiPrompt.trim()) { toast.error('Inserisci una descrizione'); return; }
     setGeneratingAi(true);
     try {
-      const res = await api.post('/avatar/generate', { description: aiPrompt, style: 'portrait' });
+      const res = await api.post('/avatar/generate', { prompt: aiPrompt, style: 'portrait' });
       setCustomAvatarUrl(res.data.avatar_url);
       setShowAiGenerator(false);
       toast.success('Avatar generato!');

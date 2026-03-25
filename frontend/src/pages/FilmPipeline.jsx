@@ -22,6 +22,7 @@ import {
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
 import { FilmProductionCard } from '../components/FilmProductionCard';
 import FilmPopup from '../components/FilmPopup';
+import { DraftsSection } from '../components/DraftsSection';
 
 // Haptic feedback utility
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
@@ -3137,6 +3138,16 @@ const FilmPipeline = () => {
             </TabErrorBoundary>
           </div>
         )}
+
+        {/* Drafts / Bozze Section (Safety Net) */}
+        <DraftsSection 
+          api={api} 
+          onResume={(film) => {
+            setSelectedFilm(film);
+            haptic([15]);
+          }}
+          onRefresh={handleRefresh}
+        />
 
         {/* Film Production List */}
         {loading ? (

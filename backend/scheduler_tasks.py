@@ -850,6 +850,10 @@ async def auto_release_coming_soon():
                 continue
 
             # Pre-release coming_soon (post-shooting, user chose timing): mark pending_release
+            film_hype = project.get('hype_score', 0)
+            film_hype_boost = min(15, film_hype * 0.5)
+            film_strategy_bonus = project.get('release_strategy_bonus_pct', 0)
+            
             await scheduler_db.film_projects.update_one(
                 {'id': project['id']},
                 {'$set': {
@@ -857,13 +861,13 @@ async def auto_release_coming_soon():
                     'coming_soon_completed': True,
                     'coming_soon_completed_at': now_str,
                     'updated_at': now_str,
-                    'hype_boost_applied': hype_boost,
-                    'release_strategy_applied_bonus': strategy_bonus_pct,
+                    'hype_boost_applied': film_hype_boost,
+                    'release_strategy_applied_bonus': film_strategy_bonus,
                 }}
             )
             
             from social_system import create_notification
-            bonus_msg = f" (Bonus strategia: +{strategy_bonus_pct}%)" if strategy_bonus_pct > 0 else ""
+            bonus_msg = f" (Bonus strategia: +{film_strategy_bonus}%)" if film_strategy_bonus > 0 else ""
             notif = create_notification(
                 project['user_id'], 'film_release',
                 'Film Pronto per il Rilascio!',
@@ -1083,26 +1087,31 @@ VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
 
 async def auto_cleanup_corrupted_projects():
-    """Periodic cleanup of corrupted/invalid projects. Runs every 30 min."""
+    """Periodic cleanup of corrupted/invalid projects. Runs every 30 min.
+    SAFETY: Never discard films - always move to 'proposed' as a safe fallback."""
     now_str = datetime.now(timezone.utc).isoformat()
     
-    # 1. Fix films with invalid status
+    # 1. Fix films with invalid status -> move to proposed (NOT discard)
     async for f in scheduler_db.film_projects.find({'status': {'$nin': list(VALID_FILM_STATUSES)}}):
         await scheduler_db.film_projects.update_one(
             {'id': f['id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'auto_cleanup_invalid_status'}}
+            {'$set': {'status': 'proposed', 'updated_at': now_str,
+                      'rescue_reason': f'auto_cleanup_invalid_status (was: {f.get("status")})',
+                      'rescued': True, 'rescued_at': now_str}}
         )
-        logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) invalid status '{f.get('status')}' -> discarded")
+        logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) invalid status '{f.get('status')}' -> proposed (rescued)")
     
-    # 2. Fix series with invalid status
+    # 2. Fix series with invalid status -> move to concept (NOT discard)
     async for s in scheduler_db.tv_series.find({'status': {'$nin': list(VALID_SERIES_STATUSES)}}):
         await scheduler_db.tv_series.update_one(
             {'id': s['id']},
-            {'$set': {'status': 'discarded', 'discarded_at': now_str, 'discard_reason': 'auto_cleanup_invalid_status'}}
+            {'$set': {'status': 'concept', 'updated_at': now_str,
+                      'rescue_reason': f'auto_cleanup_invalid_status (was: {s.get("status")})',
+                      'rescued': True, 'rescued_at': now_str}}
         )
-        logger.warning(f"Auto-cleanup: series {s['id']} ({s.get('title')}) invalid status '{s.get('status')}' -> discarded")
+        logger.warning(f"Auto-cleanup: series {s['id']} ({s.get('title')}) invalid status '{s.get('status')}' -> concept (rescued)")
     
-    # 3. Fix films in casting/screenplay without essential data
+    # 3. Fix films in casting/screenplay without essential data -> move to proposed (NOT discard)
     async for f in scheduler_db.film_projects.find({
         'status': {'$in': ['casting', 'screenplay', 'pre_production']},
         '$or': [
@@ -1111,7 +1120,6 @@ async def auto_cleanup_corrupted_projects():
             {'cast_proposals': {}},
         ]
     }):
-        # Check if cast has proposals (alt field)
         cast = f.get('cast', {})
         if not cast.get('proposals') and not cast.get('director') and not f.get('cast_proposals'):
             await scheduler_db.film_projects.update_one(

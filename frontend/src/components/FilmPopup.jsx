@@ -186,6 +186,8 @@ function getCurrentStepId(film) {
   // Infer release_type from status if missing
   const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || (film.status === 'coming_soon');
   const s = film.status;
+  // Films ready for release always go to release step
+  if (s === 'pending_release') return 'uscita';
   if (isCS) {
     if (s === 'proposed' && !film.poster_url) return 'poster';
     if (s === 'proposed' && film.poster_url) return 'hype';
@@ -1519,7 +1521,14 @@ function ReleaseStepContent({ film, api, onRefresh, refreshUser }) {
       </div>
 
       {completed ? (
-        film.release_type === 'coming_soon' ? (
+        film.status === 'pending_release' ? (
+          /* Film pronto al rilascio - mostra bottone diretto */
+          <Button className="w-full bg-green-700 hover:bg-green-800 text-xs" disabled={actionLoading === 'release'}
+            onClick={release} data-testid={`popup-release-btn-${film.id}`}>
+            {actionLoading === 'release' ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Film className="w-3 h-3 mr-1" />}
+            Rilascia al Cinema!
+          </Button>
+        ) : film.release_type === 'coming_soon' ? (
           <div className="space-y-2">
             <p className="text-xs font-bold text-white">Strategia di Uscita</p>
             <div className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
@@ -1602,7 +1611,7 @@ function DiscardButton({ film, api, onRefresh, refreshUser }) {
     finally { setLoading(false); }
   };
 
-  if (film.status === 'coming_soon') return null;
+  if (film.status === 'coming_soon' || film.status === 'completed' || film.status === 'released' || film.film_id) return null;
 
   return (
     <Button size="sm" variant="outline" className="w-full text-[9px] border-red-800/50 text-red-400/60 hover:bg-red-500/10 h-7 mt-2"

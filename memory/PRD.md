@@ -44,7 +44,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Sottotitolo coinvolgente sotto CINEWORLD STUDIO'S
 - Marketplace label "Prossimamente" (non "In pausa")
 
-### Festival System Overhaul v3.0 (NEW)
+### Festival System Overhaul v3.0
 **Backend:**
 - Nuove categorie: Miglior Produzione, Miglior Sorpresa (Best Surprise)
 - Nomination automatica multi-fattore: qualita 35%, soddisfazione 25%, revenue 15%, likes 15%, cast skills 10%
@@ -72,58 +72,20 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Envelope Reveal animation per cerimonia live
 - Festival custom mostra costo CinePass nella creazione
 
-### CRITICAL BUG FIX: Coming Soon Film Disappearing (v3.1 + v3.2)
-- **Root Cause 1**: `/film-pipeline/all` excluded `completed` status → film spariva dopo auto-completion scheduler
-- **Root Cause 2**: `/films/{id}` solo collection `films`, non `film_projects` → "non disponibile"
-- **Root Cause 3**: Notification links errati → `/films/{id}` invece di `/create-film?film={id}`
-- **Root Cause 4**: Count/list mismatch
-- **Root Cause 5**: Scheduler impostava `completed` senza passare dal casting (no flag `coming_soon_type`)
-- **Fixes v3.1**: Pipeline query include tutto tranne discarded/abandoned, `/films/{id}` fallback, fix notifiche, auto-advance endpoint
-- **Fixes v3.2**: 
-  - `/film-pipeline/all` ora mostra TUTTI i film (anche `completed`)
-  - Rescue aggressivo: scansiona TUTTI i film e recupera quelli persi
-  - Auto-rescue: se pipeline vuota, chiama rescue automaticamente
-  - **Admin Panel**: sezione "Recupero Film Persi" per nickname specifico
-  - `/admin/repair-database`: aggiunto case "completed senza produzione"
-  - Scheduler riconosce pre-casting anche senza flag (controlla assenza cast/shooting)
-- **Fixes v3.4 (DEFINITIVO)**:
-  - Logica rescue riscritta: condizione chiave = `completed SENZA shooting_started_at` (non piu basata su director)
-  - Cattura anche `auto_released: True` (scheduler) indipendentemente dalla presenza cast
-  - Pulizia dati fake: `$unset` di quality_score, total_revenue, audience_rating, auto_released, release_pending
-  - Auto-rescue su OGNI caricamento di "Produci" (non solo quando lista vuota)
-  - Testato E2E: film con director MA senza shooting → correttamente recuperato
-  - Film legittimi con shooting → correttamente ignorati
-
 ### Velion AI Assistant (v5.0 - Smart Advisor)
 - **Pannello con 2 Tab**: Tutorial (16 step immersivi) + "Chiedi a Velion" (chat AI)
 - **Chat AI**: GPT-4o-mini, personalita misterioso/cifrato, metafore cinematografiche, 2-3 frasi
 - **Quick Ask Chips**: 5 domande rapide + "Lo sapevi?" tips button
-- **ADVISOR SINGOLO (v5)**: Un solo suggerimento alla volta, il piu importante, secondo priorita:
-  1. Film bloccati/incompleti (stuck_film)
-  2. Coming Soon imminente < 10 min (countdown_imminent)
-  3. Coming Soon < 60 min (countdown)
-  4. Incassi da riscuotere (revenue)
-  5. Nessun film attivo (no_films)
-  6. Upgrade infrastrutture disponibile (infrastructure_upgrade)
-  7. Eventi PvP (pvp_event)
-  8. Social hint (social_hint)
-  9. Qualita bassa (low_quality)
-  10. Idle player (idle)
-- **Login Greeting**: `GET /api/velion/login-greeting` saluto + advisor combinati, 1x per sessione (sessionStorage)
-- **Infrastructure Upgrade Detection**: Controlla fondi vs costo upgrade, suggerisce se disponibile
-- **Trigger Automatici**: Login, cambio pagina (2s), polling 60s, idle detection 3+ min
-- **Messaggi Dinamici**: 4+ varianti per tipo (32+ totali), mai ripetitivi
-- **Suggerimenti Contestuali**: 9 pagine con messaggi per livello
-- **Bubble Non-Invasiva**: Styling per priorita, auto-hide 8-12s, cliccabile per navigazione
-- **Controllo Utente ON/OFF (v6)**: Toggle nel menu hamburger ("Assistente Velion")
-  - ON: Tutorial + suggerimenti + interventi automatici + bubble + login greeting
-  - OFF: Nessun popup automatico, icona visibile ma desaturata, tooltip "Velion (OFF)", click apre panel manualmente
-  - Persistenza in DB (collection `velion_prefs`: user_id, mode, last_autonomy_prompt)
-  - Comunicazione TopNavbar↔ProtectedRoute via window events
-  - Hint "Riattiva Velion per suggerimenti automatici" quando OFF
-  - Visual feedback: glow grigio, saturazione 0.5, no notification dot
-  - Autonomy Prompt: dopo 5 giorni, soft popup "Ti senti pronto a gestire in autonomia?" con 2 CTA
-- **Preparato per livelli futuri**: Velion Base / Velion Avanzato / Velion OFF
+- **ADVISOR SINGOLO (v5)**: Un solo suggerimento alla volta, il piu importante, secondo priorita
+- **Login Greeting**: saluto + advisor combinati, 1x per sessione
+- **Controllo ON/OFF (v6)**: Toggle nel menu hamburger
+
+### Rivivi il Rilascio (2026-03-25) - NEW
+- **Backend**: `GET /api/films/{film_id}/release-cinematic` ritorna dati cinematici salvati o ricostruiti da fallback
+- **Frontend**: `ReleaseCinematic.jsx` componente condiviso con supporto `inline` (per FilmPopup) e overlay (per FilmDetail)
+- **FilmDetail.jsx**: Card "Rivivi il Rilascio" visibile per film rilasciati, click carica dati e mostra overlay cinematica
+- **FilmPopup.jsx**: Refactorizzato per usare `<ReleaseCinematic inline>` invece del codice duplicato (~300 righe rimosse)
+- **Test**: Backend 100% (11/11), Frontend 100%
 
 ## Architettura
 - Frontend: React + Tailwind + Shadcn/UI + Framer Motion
@@ -131,205 +93,17 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Integrazioni: OpenAI GPT-4o-mini + GPT-Image-1 via Emergent LLM Key
 
 ## Test
-- Iter 127: 100% (Film Pipeline UX)
-- Iter 128: 100% (Notifiche + Eventi)
-- Iter 129: 100% (PvP Backend + HQ - 21/21)
-- Iter 130: 100% (PvP Coming Soon Integration - 12/12)
-- Iter 131: 100% (PvP Infra UX Revision - 11/11)
-- Iter 132: 100% (Festival Overhaul Phase 1+2 - 18/18)
-- Iter 133: 100% (Velion Tutorial System Interactive - 12/12)
-- Iter 134: 100% (Velion AI Assistant - Backend 13/13 + Frontend all verified)
-- Iter 135: 100% (Velion Phase 2 - Dynamic variants, Page-context, Priority styling - Backend 14/14 + Frontend all)
-- Iter 136: 100% (Velion Phase 3 - Enhanced personality, Idle detection, Tips, Quick asks - Backend 16/16 + Frontend all)
-- Iter 137: 100% (Velion Advisor Evolution - Priority system, Login greeting, Infra upgrade - Backend 15/15 + Frontend all)
-- Iter 138: 100% (Velion ON/OFF Control - Toggle, Persistence, Visual feedback, Autonomy prompt - Backend 15/15 + Frontend all)
-- Iter 139: 100% (Velion Mobile Bubble Fix + Login Welcome Bubble - 8/8 features verified)
-- Iter 140: 100% (Festival Rework Step 1-3: Dynamic Nominations + 4-State System + UI - Backend 25/25 + Frontend all)
-- Iter 141: 100% (Festival Rework Step 4-5-6: AI Unpredictable + Cinematic Ceremony + Player Festivals - Backend 21/21 + Frontend all)
-- Iter 143: 100% (Bug Fix "Scegli" Button - Casting actor selection verified working - Backend 5/5 + Frontend 9/9)
-- Iter 144: 100% (Fail-Safe Cast System - 4 livelli sicurezza - Backend 8/8 + Frontend all verified)
-- Iter 145: 100% (Fix Regressione Rilascio Film + Produci - 4 fix: colonna sonora, animazione, velocita, filtro)
-- Iter 146: Profile Page crash (React Error #31) - Root cause: fame_tier object rendered as React child. Fixed + Error Boundary added.
-- Iter 147: Preload Pages - Background prefetch di 5 endpoint chiave al login, pagine usano cachedGet con TTL 2min e deduplication.
-- Iter 148: 100% Draft/Autosave System - 7 fix: salvataggio step-by-step, autosave 4s, recupero bozza, draft in Produci, cleanup su create, no count limit.
-- Iter 149: 100% Step Navigation + Release Balancing - Step bar cliccabili per tornare indietro, rilascio immediato -2 qualita/-10% incassi, Coming Soon +3~11 qualita/+15~40% incassi.
-- Iter 150: Auth Fix - Login robusto con safe field defaults, Pydantic validation fallback, messaggio errore italiano, auto-logout su 401, password admin resettata.
-
-### Festival Rework Step 1-3 (2026-03-23)
-- **Step 1 - Nomination Dinamiche:** Solo film ultimi 14 giorni, max 5 candidati, mix top 3 + 2 random
-- **Step 2 - Sistema 4 Stati:** UPCOMING (>3gg) → VOTING (0-3gg) → LIVE (cerimonia) → ENDED. Auto-transizione
-- **Step 3 - UI Migliorata:** Countdown banner, state badges, voting type badges, card con premi, timer live
-
-### Festival Rework Step 4-5-6 (2026-03-23)
-- **Step 4 - AI Non Prevedibile:** 3 sistemi winner: player (50% voti + 50% audience), algorithm (qualita' tecnica pura), AI (fattori nascosti: hype, viral, rumor, critic bias, eventi random)
-- **Step 5 - Diretta Cinematica:** CinematicCeremony.jsx con 9 fasi animate (intro, presentazione, categoria, nomination, suspense, reveal, premio, transizione, finale), particelle, heartbeat, chat live, skip
-- **Step 6 - Festival Player Migliorato:** max_participants (5-50), badge vincitore (festival_badges collection), leaderboard custom festivals (top creators + top winners)
-
-### Fail-Safe Cast System (2026-03-24)
-- **Livello 1 - Fallback Automatico:** Endpoint `POST /api/film-pipeline/{id}/auto-complete-cast` riempie ruoli mancanti da proposte disponibili o genera nuovi membri, 50% costo ridotto
-- **Livello 2 - Auto-Complete in advance-to-screenplay:** Se cast incompleto, auto-fill prima di avanzare (MAI blocca con errore 400)
-- **Livello 3 - Cast Minimo Garantito:** Regista + Sceneggiatore + Compositore + 2-5 attori adatti al genere del film
-- **Livello 4 - Safe Mode Frontend:** Retry automatico su errore selectCast, fallback auto-complete, pulsante "Completa Cast Automaticamente" dopo 5s, messaggio Velion purple banner
-- **Emergency Mode:** Se tutto fallisce, genera cast d'emergenza minimo (2 attori) senza costo
-
-### Fix Regressione Rilascio Film + Produci (2026-03-24)
-- **Colonna Sonora:** Aggiunto `soundtrack_rating` e `modifiers.soundtrack` nella response del rilascio. UI mostra punteggio con highlight viola in Phase 5
-- **Animazione Cinematica Rilascio:** Portata animazione completa a 5 fasi da FilmPipeline.jsx a FilmPopup.jsx (intro cinema, trailer sceneggiatura, evento, numeri animati, risultato finale)
-- **Velocita Rilascio:** Loading immediato con fasi animate sequenziali, nessun blocco UI
-- **Filtro Produci:** Frontend ora esclude film con status `completed` e `released` dalla sezione Produci
-- **Recensioni Critici:** Aggiunte 3 recensioni nella response rilascio, mostrate in Phase 5 con punteggi
-- **Soddisfazione Pubblico:** Aggiunta barra soddisfazione pubblico nella Phase 5
-
-### Ottimizzazione Performance - Navigazione Istantanea (2026-03-24)
-- **GameStore SWR:** `contexts/GameStore.jsx` - Store globale con stale-while-revalidate (30s stale, 5min max). Dati persistenti tra navigazioni, aggiornamento background senza blocco UI.
-- **Prefetch intelligente:** Wave-based dopo login (wave1: dashboard+pipeline, wave2: films+arena, wave3: level+genres). Prefetch on-hover sui link della bottom navbar.
-- **Pagine migrate:** Dashboard (`useSWR('/dashboard/batch')`), FilmPipeline (`useSWR('/film-pipeline/all')`), PvPArena (`useSWR('/pvp-cinema/arena')`), MyFilms (`useSWR('/films/my')`)
-- **Riduzione API:** Cache elimina fetch duplicati, SWR mostra dati cached istantaneamente + revalidazione background
-- **Mobile performance:** Zero blocchi UI, dati visibili subito su ogni pagina
-- **Test:** Iter 149 - 100% frontend, 0 errori console, navigazione istantanea verificata
-
-### Bug Fix UX Mobile Chat (2026-03-24)
-- **Banner donazione:** Nascosto su `/chat` (`location.pathname !== '/chat'`)
-- **Velion avatar:** Nascosto su `/chat` (rimosso VelionOverlay quando chat attiva)
-- **Input sticky z-50:** Input chat con `sticky bottom-0 z-50`, sempre visibile sopra tutto
-- **Keyboard mobile:** `visualViewport` API per adattare altezza dinamicamente quando tastiera aperta
-- **100dvh:** Sostituito `h-screen` con `h-[100dvh]` per gestione corretta viewport mobile iOS/Android
-- **Auto-scroll:** `onFocus` dell'input scrolla messaggi in basso quando tastiera si apre
-
-### Arena PvP Cinematografica - Rework Completo (2026-03-24)
-- **Arena Film per Genere:** 5 sezioni (Azione&Thriller, Dramma&Romance, Commedia&Animazione, Fantasy&SciFi, Horror&Mistero) con mini locandine portrait, badge status (In Sala/Coming Soon/Anteprima), stella film propri
-- **Azioni Supporto (4):** Campagna Social (+2-5%), Influencer (+3-6%), Evento Promo (+4-7%), Premi Pilotati (+5-8%). Sempre positive per i propri film.
-- **Azioni Boicottaggio (4):** Scandalo Mediatico (-3-8%, 55% base), Critica Negativa (-4-10%, 50%), Leak Produzione (-5-10%, 45%), Sabotaggio Evento (-6-10%, 40%). Possono fallire e ritorcersi.
-- **Calcolo successo:** random + livello infrastrutture + fama + livello strategico
-- **Cooldown:** 30-90 min per azione, max 5 azioni/ora
-- **Difesa:** Recupera 40-70% danni da boicottaggio (2 CP)
-- **Report:** Storico azioni, successo/fallimento, stats aggregate
-- **Navbar:** "Arena" (Swords) aggiunta alla bottom navbar, sostituisce "Sfide"
-- **Backend:** `routes/pvp_cinema.py` - 8 endpoint (arena, film detail, support, boycott, defend, history, stats, marketing)
-- **Frontend:** `pages/PvPArenaPage.jsx` - 2 tab (Arena, Report), popup film con azioni
-- **Test:** Backend 8/8 API verificate via curl (support, boycott, defend, history, stats tutti OK)
-
-### Sistema "Migliora Film" + Velion UI (2026-03-24)
-- **Bug Fix P0:** Aggiunto `'proposed'` alla lista stati applicabili di `cast_upgrade` in IMPROVEMENT_OPTIONS
-- **Improvement Suggestions:** GET `/api/film-pipeline/{id}/suggestions` ritorna suggerimenti dinamici basati su stato film, cast, hype
-- **Apply Improvement:** POST `/api/film-pipeline/{id}/improve` applica miglioramento con costo fondi+CP, bonus qualita random
-- **ImprovementPanel:** Componente in FilmPopup.jsx con suggerimenti prioritizzati, Velion message, pulsante "Migliora"
-- **Swipe-to-Dismiss:** VelionOverlay.jsx con Framer Motion drag gesture per eliminare notifiche
-- **Smart Badges:** Badge conteggi nella pagina Produci per categorie film
-- **Test:** Iter 148 - 100% backend (13/13) + 100% frontend
-
-### Sistema PvP Cinematografico (2026-03-24)
-- **Guerra al Box Office:** Auto-trigger quando film dello stesso genere escono nello stesso periodo (48h). Marketing boost (4 tipi: Social, Premiere, Critici, Billboard). Premi: fondi, fama, revenue bonus al vincitore. Penalita revenue al perdente.
-- **Testa a Testa:** Sfide manuali tra film in sala. 24h durata, score basato su qualita, audience, revenue, IMDb, likes + fattore fortuna. Premi: $250K + 5 fama + 5 CP. Costo: $100K + 3 CP.
-- **Classifica PvP:** Leaderboard basata su vittorie totali nelle sfide.
-- **Scheduler:** `resolve_pvp_cinema_events` ogni 10min risolve guerre e sfide scadute.
-- **Integrazione rilascio:** Al rilascio di un film, auto-check per guerre al box office con film dello stesso genere.
-- **Navigazione:** Icona Target rossa nella top bar + route `/pvp-arena`
-- **Backend:** `routes/pvp_cinema.py` con 8 endpoint
-- **Frontend:** `pages/PvPArenaPage.jsx` con 3 tab (Box Office, Testa a Testa, Classifica)
-- **Test:** Backend 8/8 API verificate via curl + risoluzione challenge/war manuale + frontend verificato via screenshot
-
-### Fix UI Mobile + Migliorie Dashboard (2026-03-24)
-- **Navbar Safe Area:** Aggiunto `paddingTop: env(safe-area-inset-top)` al navbar e wrapper contenuto in ProtectedRoute per evitare sovrapposizione titoli pagina su mobile (specialmente iOS con notch/dynamic island)
-- **Bottom Nav Safe Area:** Aggiunto `paddingBottom: env(safe-area-inset-bottom)` al bottom mobile nav per dispositivi con home indicator
-- **Sezione "Ciak!" sostituita con "Arena":** Card "shooting-shortcut" rimossa dal Dashboard, sostituita con card "arena-shortcut" che mostra statistiche PvP e linka a /pvp-arena. Usa hook useSWR('/pvp-cinema/stats') dal GameStore.
-- **Bilancio Finanziario Collassabile:** Sezione resa collapsabile con Framer Motion AnimatePresence. Mostra Profitto/Perdita nel header quando chiuso. Default chiuso (financeOpen=false).
-- **Test:** Iter 150 - 100% frontend (6/6)
-
-### Sezione Studio Collassabile + Performance (2026-03-24)
-- **Collapsible Studio:** Click su nome studio (es. "Anacapito Studio's") apre/chiude la sezione con dati (film, incassi, like, qualità, incassi da riscuotere). Default: chiuso. Animazione Framer Motion.
-- **Pallino Rosso:** Indicatore rosso pulsante accanto al nome studio quando ci sono incassi da riscuotere, scompare quando riscossi o sezione aperta.
-- **Performance:** Revenue polling (setInterval 60s) attivo SOLO quando sezione aperta. Nessun polling a sezione chiusa.
-- **Velion Integration:** Dopo 5s, se incassi pendenti e sezione chiusa, Velion mostra bubble "Hai incassi pronti da riscuotere!". Click su bubble → apre sezione + scroll automatico a "Riscuoti Tutto".
-- **Test:** Screenshot mobile 390x844 - toggle, red dot, apertura/chiusura, Velion bubble tutti verificati.
-
-### Fix Pre-PWA (2026-03-24)
-- **Supporto Film PvP:** Rimossa restrizione "solo propri film". Ora supporto su QUALSIASI film con bonus al film target + piccolo bonus a un proprio film random.
-- **Azioni Arena:** Rimossa logica `is_mine` per tab support/boycott. Entrambe le opzioni disponibili per ogni film. Aggiunto loading spinner e feedback visivo (+X% applicato).
-- **Film "Rimasterizza":** Aggiunti in Arena con status "In Aggiornamento" e in Dashboard Prossimamente con badge. Backend: aggiunto 'remastering' a query arena e coming-soon endpoint.
-- **Prossimamente in Arena:** Nuova sezione con scroll orizzontale, mini locandine, click apre popup con supporto/boicotto.
-- **UI Mobile:** Aggiunto `safe-area-inset-bottom` padding ad Arena page e dialog popup per evitare sovrapposizione navbar Safari.
-
-### P0 Fix UX + Bug Post-PWA + Bug Film Scomparso Coming Soon (2026-03-25)
-**Bug critico film scomparso alla scelta del tempo:**
-- Root cause: `choose-release-strategy` settava `status: 'completed'` con `release_pending: True` → film invisibile in tutte le query UI
-- Fix: ora setta `status: 'coming_soon'` con `coming_soon_type: 'pre_release'` → film visibile in Prossimamente (Dashboard + Arena)
-- Scheduler auto_release: `pending_release` a fine countdown → utente rilascia manualmente con popup eventi
-
-**Bug pending_films cercati nella collection sbagliata:**
-- Root cause: Dashboard batch cercava `pending_release` in `films` (sbagliata) invece di `film_projects`
-- Fix: query corretta su `film_projects`
-
-**Release ceremony (presentazione post-Ciak):**
-- handleRelease ora chiama prima `/film-pipeline/{id}/release` per film `pending_release` → ottiene eventi + qualita + IMDB + critics
-- Popup release arricchito con: qualita, IMDB rating, tier, eventi, recensioni critiche
-
-**Velion non appare più ogni cambio pagina:**
-- Aggiunto cooldown 45s tra bubble successive nel VelionOverlay (lastBubbleTime ref)
-
-**Notifiche non coperte da notch:**
-- Toaster spostato sotto navbar + safe-area-inset-top con marginTop
-
-**Arena non coperta da navbar:**
-- Aggiunto pt-16 a PvPArenaPage
-
-**Marketing CTA:**
-- Messaggio Velion ora specifica "dalla sezione Miglioramenti"
-
-### Bug Fix - Film Scomparso dopo Rilancio (2026-03-24)
-**Root cause:** Tre bug correlati:
-1. `remastering` non presente in `VALID_FILM_STATUSES` → auto_cleanup_corrupted_projects ogni 30 min scartava i film in rimasterizzazione
-2. `auto_release_coming_soon` settava status `completed` in `film_projects` SENZA creare l'entry nella collection `films` → film "fantasma"
-3. `release_film()` accettava solo status `shooting` → film in `pending_release` non potevano essere rilasciati
-
-**Fix:**
-- Aggiunto `remastering` e `pending_release` a VALID_FILM_STATUSES in scheduler_tasks.py e film_pipeline.py
-- Auto-release ora setta `pending_release` (non `completed`) → utente deve completare il release manualmente → release popup + eventi triggerati
-- `release_film()` ora accetta anche `pending_release`
-- Aggiunti status `pending_release` e `remastering` al frontend FilmProductionCard
-- Aggiunto logging su release_film per tracciare cambi di stato
-
-### PWA Pro-Level (2026-03-24)
-- **Manifest:** display:standalone, theme_color:#FFD700, bg:#000, orientation:portrait, 10 icone (72-512px) con maskable
-- **Service Worker Avanzato:** Cache-First per asset statici (JS/CSS/images/fonts), Network-First per API (cache solo fallback offline), Navigation fallback a index.html per SPA
-- **PWA Install Banner:** Componente `PWAInstallBanner.jsx` con prompt nativo Android + guida custom iOS (bottom sheet con 3 step). Rileva standalone per nascondersi se già installato. Dismiss con timer 24h.
-- **Download Page:** Riscritta `DownloadAppPage.jsx` con fix import (Smartphone/QrCode), istruzioni iOS, Android e Desktop
-- **Apple Meta Tags:** apple-mobile-web-app-capable, black-translucent status bar, apple-touch-icon 192px
-- **Safe Area:** Padding bottom dinamico per Safari toolbar su tutte le pagine principali
-- **Test:** SW active, manifest verificato, download page funzionante. Banner PWA si attiva solo su dispositivi reali (iOS/Android).
-
-### Rimozione Feature Like Obsoleta (2026-03-25)
-- **Frontend rimosso:** CTA card "Interagisci con altri player" dalla Dashboard, stat "Like" dalla griglia Studio, popup dettagli Like, punteggio "Like" dai scores, like button da CineBoard/CinemaJournal/FilmDetail, popup Likers da FilmDetail, stat "total_likes" dal profilo giocatore (AuthPage), stat "Likes" da StatisticsPage
-- **Navigazione rimossa:** Voci "Social" e "Top Liked" dal menu CineBoard in App.js
-- **Backend rimosso:** Endpoint POST /films/{id}/like, GET /films/{id}/likes, GET /social/feed, GET /social/top-liked, GET /social/my-bonuses, GET /films/social/feed
-- **Mantenuto:** likes_count/virtual_likes nei calcoli interni del gioco (game_systems.py, challenge_system.py) per non rompere il bilanciamento
-- **Test:** 100% backend (6/6) + 100% frontend (5/5) passati
-
-### Recupero Film + Sistema Bozze (2026-03-25)
-- **BUG CRITICO FIXATO:** `scheduler_tasks.py` auto_release_coming_soon usava variabili `hype_boost` e `strategy_bonus_pct` non definite nel contesto film (definite solo per serie), causando NameError e film bloccati in `coming_soon` per sempre
-- **Scheduler sicurezza:** `auto_cleanup_corrupted_projects` ora recupera i film in stato `proposed` invece di scartarli in `discarded`
-- **Nuovi endpoint backend:**
-  - `GET /film-pipeline/drafts` - Lista bozze e film bloccati dell'utente
-  - `GET /film-pipeline/diagnose` - Diagnostica film persi/invisibili
-  - `POST /film-pipeline/admin/recover-all` - Recupero globale film persi (scansiona tutti gli utenti)
-- **Nuovo componente frontend:** `DraftsSection.jsx` - Sezione "Bozze & Recupero" nella pagina Produzione con:
-  - Pulsante "Diagnostica" per controllare la salute dei film
-  - Pulsante "Recupera Film Persi" per recupero automatico
-  - Lista bozze con azioni "Riprendi" e "Elimina"
-  - Indicatore film bloccati in stati intermedi
-- **Test:** 100% backend (15/15) + 100% frontend (5/5) + 100% scheduler verification (3/3)
+- Iter 127-152: Vedi changelog
+- Iter 153: 100% Rivivi il Rilascio (Backend 11/11 + Frontend verified)
 
 ## Backlog
 
-### P0 — Completato
-1. ~~Locandina non generata~~ — Risolto
-2. ~~Presentazione dopo Ciak assente~~ — Risolto
-3. ~~Velion appare sempre~~ — Risolto
-4. ~~Notifiche coperte da notch iPhone~~ — Risolto
-5. ~~Marketing non disponibile~~ — Risolto
-6. ~~Arena coperta da navbar~~ — Risolto
-7. ~~Rimozione sezione Like obsoleta~~ — Risolto
-8. ~~Recupero film scomparsi + sistema Bozze~~ — Risolto
+### P0 -- Completato
+1. ~~Locandina non generata~~ -- Risolto
+2. ~~Presentazione dopo Ciak assente~~ -- Risolto
+3. ~~Rimozione sezione Like obsoleta~~ -- Risolto
+4. ~~Recupero film scomparsi + sistema Bozze~~ -- Risolto
+5. ~~Rivivi il rilascio~~ -- Risolto
 
 ### P1
 - Sistema "Previsioni Festival" (scommesse sui vincitori)

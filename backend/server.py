@@ -5308,6 +5308,91 @@ async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
     } for f in films]
 
 # Parameterized film routes - MUST be after specific routes
+@api_router.get("/films/{film_id}/release-cinematic")
+async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_user)):
+    """Get saved release cinematic data for 'Rivivi il rilascio' feature."""
+    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'release_cinematic': 1, 'title': 1,
+        'quality_score': 1, 'imdb_rating': 1, 'poster_url': 1, 'opening_day_revenue': 1,
+        'total_revenue': 1, 'film_tier': 1, 'tier_score': 1, 'audience_satisfaction': 1,
+        'critic_reviews': 1, 'soundtrack_rating': 1, 'release_event': 1, 'id': 1,
+        'screenplay': 1, 'pre_screenplay': 1, 'status': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    # If release_cinematic is saved, return it
+    cinematic = film.get('release_cinematic')
+    if cinematic:
+        # Build screenplay_scenes and release_outcome from saved data
+        qs = cinematic.get('quality_score', film.get('quality_score', 50))
+        if qs < 55:
+            cinematic['release_outcome'] = 'flop'
+            cinematic['release_image'] = '/assets/release/cinema_flop.jpg'
+        elif qs <= 75:
+            cinematic['release_outcome'] = 'normal'
+            cinematic['release_image'] = '/assets/release/cinema_normal.jpg'
+        else:
+            cinematic['release_outcome'] = 'success'
+            cinematic['release_image'] = '/assets/release/cinema_success.jpg'
+        
+        # Generate screenplay scenes if not present
+        if 'screenplay_scenes' not in cinematic:
+            text = film.get('screenplay', film.get('pre_screenplay', ''))
+            scenes = []
+            if text and len(text) > 50:
+                sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
+                step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
+                scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
+            cinematic['screenplay_scenes'] = scenes
+        
+        cinematic['hype_level'] = cinematic.get('hype_level', 50)
+        cinematic['success'] = True
+        return cinematic
+    
+    # Fallback: reconstruct from film data for older films without saved cinematic
+    qs = film.get('quality_score', 50)
+    tier = film.get('film_tier', 'mediocre')
+    tier_labels = {'masterpiece': 'Capolavoro!', 'excellent': 'Eccellente!', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso'}
+    
+    if qs < 55:
+        outcome, img = 'flop', '/assets/release/cinema_flop.jpg'
+    elif qs <= 75:
+        outcome, img = 'normal', '/assets/release/cinema_normal.jpg'
+    else:
+        outcome, img = 'success', '/assets/release/cinema_success.jpg'
+    
+    text = film.get('screenplay', film.get('pre_screenplay', ''))
+    scenes = []
+    if text and len(text) > 50:
+        sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
+        step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
+        scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
+    
+    return {
+        'success': True,
+        'film_id': film_id,
+        'title': film.get('title', '?'),
+        'quality_score': qs,
+        'tier': tier,
+        'tier_label': tier_labels.get(tier, tier),
+        'imdb_rating': film.get('imdb_rating', 0),
+        'poster_url': film.get('poster_url'),
+        'release_outcome': outcome,
+        'release_image': img,
+        'screenplay_scenes': scenes,
+        'hype_level': 50,
+        'opening_day_revenue': film.get('opening_day_revenue', 0),
+        'total_revenue': film.get('total_revenue', 0),
+        'audience_satisfaction': film.get('audience_satisfaction', 50),
+        'soundtrack_rating': film.get('soundtrack_rating', 0),
+        'critic_reviews': (film.get('critic_reviews') or [])[:3],
+        'release_event': film.get('release_event'),
+        'sponsors': [],
+        'xp_gained': 0,
+        'modifiers': {},
+        'cost_summary': {},
+        'is_reconstructed': True,
+    }
+
 @api_router.get("/films/{film_id}")
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})

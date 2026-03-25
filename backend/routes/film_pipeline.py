@@ -3722,6 +3722,45 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     await db.films.insert_one(film_doc)
     film_doc.pop('_id', None)
 
+    # Save release cinematic data for "Rivivi il rilascio" feature
+    release_cinematic = {
+        'film_id': film_id,
+        'title': project['title'],
+        'quality_score': quality_score,
+        'tier': tier,
+        'tier_label': {'masterpiece': 'Capolavoro!', 'excellent': 'Eccellente!', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso'}.get(tier, tier),
+        'imdb_rating': film_doc.get('imdb_rating', 0),
+        'poster_url': film_doc.get('poster_url'),
+        'sponsors': project.get('sponsors', []),
+        'opening_day_revenue': opening_day_revenue,
+        'total_revenue': film_doc.get('total_revenue', 0),
+        'cost_summary': {
+            'total_money': total_cost,
+            'total_cinepass': total_cinepass,
+            'breakdown': costs_paid,
+            'cinepass_breakdown': cinepass_paid
+        },
+        'modifiers': {
+            'pre_imdb': pre_imdb,
+            'screenplay': screenplay_mod,
+            'remaster': remaster_boost,
+            'buzz': round(buzz_influence, 1),
+            'cast_quality': round(cast_quality, 1),
+            'role_weighted': round(role_weighted_quality, 1),
+            'soundtrack': soundtrack_score,
+            'cgi': cgi_bonus,
+            'vfx': vfx_bonus,
+            'extras': extras_bonus,
+            'extras_count': extras_count,
+            'advanced_factors': advanced_factors
+        },
+        'xp_gained': xp_gain,
+        'audience_satisfaction': audience_satisfaction,
+        'soundtrack_rating': film_doc.get('soundtrack_rating', 0),
+        'critic_reviews': film_doc.get('critic_reviews', [])[:3],
+    }
+    await db.films.update_one({'id': film_id}, {'$set': {'release_cinematic': release_cinematic}})
+
     # Launch AI tasks in background (synopsis + poster) - non-blocking
     asyncio.create_task(_generate_film_ai_content(
         film_id, project['title'], genre_name, director_name,

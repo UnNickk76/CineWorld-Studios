@@ -12,7 +12,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cleanup-like-feature.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-rewatch.preview.emergentagent.com')
 
 class TestAuth:
     """Authentication endpoint tests"""

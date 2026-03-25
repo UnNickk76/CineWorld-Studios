@@ -125,7 +125,7 @@ const Dashboard = () => {
     const lt = (key) => {
       const tr = {
         films: language === 'it' ? 'Film' : 'Films', revenue: language === 'it' ? 'Incassi' : 'Revenue',
-        likes: language === 'it' ? 'Like' : 'Likes', quality: language === 'it' ? 'Qualità' : 'Quality',
+        quality: language === 'it' ? 'Qualità' : 'Quality',
         byGenre: language === 'it' ? 'Per Genere' : 'By Genre', topFilms: language === 'it' ? 'Top Film' : 'Top Films',
         distribution: language === 'it' ? 'Distribuzione' : 'Distribution', excellent: language === 'it' ? 'Eccellente' : 'Excellent',
         good: language === 'it' ? 'Buono' : 'Good', average: language === 'it' ? 'Medio' : 'Average',
@@ -156,12 +156,6 @@ const Dashboard = () => {
               <div className="bg-green-500/10 rounded p-3 text-center border border-green-500/20"><p className="text-2xl font-bold text-green-500">${((detailedStats.revenue?.total || 0) / 1000000).toFixed(2)}M</p><p className="text-xs text-gray-400">{language === 'it' ? 'Box Office Attuale' : 'Current Box Office'}</p></div>
               <div className="bg-blue-500/10 rounded p-3 text-center border border-blue-500/20"><p className="text-2xl font-bold text-blue-500">${((detailedStats.revenue?.average_per_film || 0) / 1000000).toFixed(2)}M</p><p className="text-xs text-gray-400">{lt('avgPerFilm')}</p></div>
             </div></div>);
-        case 'likes':
-          return (<div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-pink-500/10 rounded p-3 text-center"><p className="text-2xl font-bold text-pink-500">{detailedStats.likes?.total || 0}</p><p className="text-xs text-gray-400">{lt('total')} {lt('likes')}</p></div>
-              <div className="bg-blue-500/10 rounded p-3 text-center"><p className="text-2xl font-bold text-blue-500">{(detailedStats.likes?.average_per_film || 0).toFixed(1)}</p><p className="text-xs text-gray-400">{lt('avgPerFilm')}</p></div>
-            </div></div>);
         case 'quality':
           return (<div className="space-y-4">
             <div className="bg-blue-500/10 rounded p-4 text-center"><p className="text-3xl font-bold text-blue-500">{(detailedStats.quality?.average || 0).toFixed(1)}%</p><p className="text-sm text-gray-400">{lt('average')} {lt('quality')}</p></div>
@@ -170,7 +164,7 @@ const Dashboard = () => {
       }
     };
     
-    const titles = { films: language === 'it' ? 'Dettagli Film' : 'Films Details', revenue: language === 'it' ? 'Dettagli Incassi' : 'Revenue Details', likes: language === 'it' ? 'Dettagli Like' : 'Likes Details', quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details' };
+    const titles = { films: language === 'it' ? 'Dettagli Film' : 'Films Details', revenue: language === 'it' ? 'Dettagli Incassi' : 'Revenue Details', quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details' };
     
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -461,11 +455,10 @@ const Dashboard = () => {
             className="overflow-hidden"
             data-testid="studio-section"
           >
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-3 gap-2 mb-4">
               {[
                 { label: 'Films', value: stats?.total_films || 0, icon: Film, color: 'yellow', statType: 'films' },
                 { label: 'Incassi', value: `$${((stats?.total_revenue || 0) / 1000000).toFixed(1)}M`, icon: DollarSign, color: 'green', statType: 'revenue' },
-                { label: 'Like', value: stats?.total_likes || 0, icon: Heart, color: 'red', statType: 'likes' },
                 { label: 'Qualità', value: `${(stats?.average_quality || 0).toFixed(0)}%`, icon: Star, color: 'blue', statType: 'quality' }
               ].map((stat, i) => (
                 <Card 
@@ -596,10 +589,9 @@ const Dashboard = () => {
               </Card>
             )}
 
-            {/* Like/Social/Char scores */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            {/* Social/Char scores */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
               {[
-                { label: 'Like', value: (stats?.likeability_score || 50).toFixed(0), icon: Heart, color: 'pink' },
                 { label: 'Social', value: (stats?.interaction_score || 50).toFixed(0), icon: Users, color: 'blue' },
                 { label: 'Char', value: (stats?.character_score || 50).toFixed(0), icon: Star, color: 'yellow' }
               ].map(s => (
@@ -654,23 +646,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Social CTA micro-copy */}
-      <Card className="mb-4 bg-gradient-to-r from-pink-500/5 to-red-500/5 border border-pink-500/15 cursor-pointer hover:border-pink-500/30 transition-all"
-        onClick={() => navigate('/social?view=social-feed')}
-        data-testid="social-cta-card">
-        <CardContent className="p-2.5 flex items-center gap-2.5">
-          <Heart className="w-5 h-5 text-pink-400 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-pink-300 font-semibold">
-              {language === 'it'
-                ? 'Interagisci con altri player: metti like ai film per supportarli e ottenere piccoli bonus!'
-                : 'Interact with other players: like films to support them and earn small bonuses!'}
-            </p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-pink-400/60 flex-shrink-0" />
-        </CardContent>
-      </Card>
 
       {/* Shooting Dialog - opens from CIAK! button */}
       <Dialog open={showShootingDialog} onOpenChange={setShowShootingDialog}>

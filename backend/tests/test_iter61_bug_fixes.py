@@ -13,7 +13,7 @@ sys.path.insert(0, '/app/backend')
 
 from challenge_system import simulate_skill_battle
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://mobile-performance-3.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cleanup-like-feature.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "fandrex1@gmail.com"

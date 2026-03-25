@@ -67,9 +67,6 @@ const FilmDetail = () => {
   const [rereleaseStatus, setRereleaseStatus] = useState(null);
   const [rereleasing, setRereleasing] = useState(false);
   const [distribution, setDistribution] = useState(null);
-  const [showLikersPopup, setShowLikersPopup] = useState(false);
-  const [likers, setLikers] = useState([]);
-  const [loadingLikers, setLoadingLikers] = useState(false);
   const [showEndRunPopup, setShowEndRunPopup] = useState(false);
   const [endRunData, setEndRunData] = useState(null);
   // Virtual Audience System
@@ -159,24 +156,6 @@ const FilmDetail = () => {
   };
 
   useEffect(() => { loadFilm(); }, [api]);
-  
-  // Load likers when popup opens - must be before early return
-  useEffect(() => {
-    if (showLikersPopup && film) {
-      const loadLikersData = async () => {
-        setLoadingLikers(true);
-        try {
-          const res = await api.get(`/films/${film.id}/likes`);
-          setLikers(res.data.likers || []);
-        } catch (e) {
-          toast.error('Errore nel caricamento');
-        } finally {
-          setLoadingLikers(false);
-        }
-      };
-      loadLikersData();
-    }
-  }, [showLikersPopup, film?.id, api]);
   
   if (loadError) return (
     <div className="pt-16 p-4 text-center space-y-4">
@@ -399,21 +378,10 @@ const FilmDetail = () => {
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-2">
-              <div 
-                className="text-center p-2 rounded bg-white/5 cursor-pointer hover:bg-white/10 transition-colors"
-                onClick={() => setShowLikersPopup(true)}
-                data-testid="likes-count-btn"
-              >
-                <Heart className="w-4 h-4 mx-auto mb-0.5 text-pink-400" />
-                <p className="font-bold text-sm">{film.likes_count}</p>
-                <p className="text-[9px] text-gray-500">{language === 'it' ? 'Like Giocatori' : 'Player Likes'}</p>
-              </div>
-              <div className="text-center p-2 rounded bg-white/5">
+            <div className="text-center p-2 rounded bg-white/5">
                 <Heart className="w-4 h-4 mx-auto mb-0.5 text-red-500 fill-red-500" />
                 <p className="font-bold text-sm">{virtualAudience?.virtual_likes?.toLocaleString() || 0}</p>
                 <p className="text-[9px] text-gray-500">{language === 'it' ? 'Like Pubblico' : 'Audience Likes'}</p>
-              </div>
             </div>
             
             {/* Virtual Audience Bonus Display */}
@@ -1107,65 +1075,6 @@ const FilmDetail = () => {
         </div>
       </div>
       
-      {/* Likers Popup */}
-      {showLikersPopup && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowLikersPopup(false)}>
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4 max-w-md w-full max-h-[70vh] overflow-hidden"
-            onClick={e => e.stopPropagation()}
-            data-testid="likers-popup"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
-                <Heart className="w-5 h-5 text-red-400 fill-red-400" />
-                {language === 'it' ? `Chi ha messo Like (${film.likes_count || 0})` : `Who Liked (${film.likes_count || 0})`}
-              </h3>
-              <button onClick={() => setShowLikersPopup(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <ScrollArea className="h-[50vh]">
-              {loadingLikers ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-yellow-500" />
-                </div>
-              ) : likers.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <Heart className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                  <p>{language === 'it' ? 'Nessun like ancora' : 'No likes yet'}</p>
-                </div>
-              ) : (
-                <div className="space-y-2 pr-2">
-                  {likers.map((liker, idx) => (
-                    <div 
-                      key={idx} 
-                      className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
-                      onClick={() => { setShowLikersPopup(false); navigate(`/player/${liker.user_id}`); }}
-                    >
-                      <img 
-                        src={liker.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${liker.nickname}`} 
-                        alt={liker.nickname}
-                        className="w-10 h-10 rounded-full"
-                      />
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm">{liker.nickname}</p>
-                        <p className="text-xs text-gray-400">{liker.production_house}</p>
-                      </div>
-                      <div className="text-[10px] text-gray-500">
-                        {new Date(liker.liked_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </motion.div>
-        </div>
-      )}
-      
       {/* End of Run Expectations Popup */}
       {showEndRunPopup && endRunData && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setShowEndRunPopup(false)}>
@@ -1323,8 +1232,8 @@ const FilmDetail = () => {
           {film && (() => {
             const quality = film.quality_score || 0;
             const qualityRating = (quality / 100) * 4;
-            const likes = film.likes_count || 0;
-            const engagementRating = Math.min(Math.log10(likes + 1) / 2.5, 1.0) * 3;
+            const virtualLikes = film.virtual_likes || 0;
+            const engagementRating = Math.min(Math.log10(virtualLikes + 1) / 4, 1.0) * 3;
             const awards = (film.awards || []).length;
             const nominations = (film.nominations || []).length;
             const criticalRating = Math.min((awards * 0.5 + nominations * 0.2) / 2, 1.0) * 2;
@@ -1337,7 +1246,7 @@ const FilmDetail = () => {
             
             const factors = [
               { name: language === 'it' ? 'Qualità Produzione' : 'Production Quality', weight: '40%', score: qualityRating, max: 4, detail: `${quality.toFixed(0)}%`, icon: Film },
-              { name: language === 'it' ? 'Engagement Pubblico' : 'Audience Engagement', weight: '30%', score: engagementRating, max: 3, detail: `${likes} likes`, icon: Heart },
+              { name: language === 'it' ? 'Engagement Pubblico' : 'Audience Engagement', weight: '30%', score: engagementRating, max: 3, detail: `${virtualLikes.toLocaleString()} fan`, icon: Heart },
               { name: language === 'it' ? 'Ricezione Critica' : 'Critical Reception', weight: '20%', score: criticalRating, max: 2, detail: `${awards} premi, ${nominations} nomine`, icon: Award },
               { name: language === 'it' ? 'Successo Commerciale' : 'Commercial Success', weight: '10%', score: revenueRating, max: 1, detail: `ROI: ${(roi * 100).toFixed(0)}%`, icon: DollarSign },
               { name: language === 'it' ? 'Punteggio Audience' : 'Audience Score', weight: 'bonus', score: (film.audience_satisfaction || 50) / 100, max: 1, detail: `${(film.audience_satisfaction || 50).toFixed(0)}%`, icon: Users },

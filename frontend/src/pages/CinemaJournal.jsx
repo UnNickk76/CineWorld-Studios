@@ -104,11 +104,6 @@ const CinemaJournal = () => {
     toast.success('Comment added!');
   };
 
-  const handleLike = async (filmId) => {
-    const res = await api.post(`/films/${filmId}/like`);
-    setFilms(films.map(f => f.id === filmId ? { ...f, user_liked: res.data.liked, likes_count: res.data.likes_count } : f));
-  };
-
   const hireStar = async (starId) => {
     setHiringStarId(starId);
     try {
@@ -543,9 +538,6 @@ const CinemaJournal = () => {
                   {/* Stats & Rating */}
                   <div className="flex items-center justify-between border-t border-white/10 pt-3 mt-3">
                     <div className="flex items-center gap-4">
-                      <Button variant="ghost" size="sm" className={`h-7 px-2 ${film.user_liked ? 'text-red-400' : 'text-gray-400'}`} onClick={() => handleLike(film.id)}>
-                        <Heart className={`w-3.5 h-3.5 mr-1 ${film.user_liked ? 'fill-red-400' : ''}`} /> {film.likes_count || 0}
-                      </Button>
                       <span className="text-xs text-gray-400">
                         <DollarSign className="w-3 h-3 inline" />{((film.total_revenue || 0) / 1000000).toFixed(1)}M
                       </span>

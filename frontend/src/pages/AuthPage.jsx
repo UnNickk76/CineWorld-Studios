@@ -818,33 +818,6 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
           </div>
         );
         
-      case 'likes':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-pink-500/10 rounded p-3 text-center">
-                <p className="text-2xl font-bold text-pink-500">{detailedStats.likes?.total || 0}</p>
-                <p className="text-xs text-gray-400">{t('total')} {t('likes')}</p>
-              </div>
-              <div className="bg-blue-500/10 rounded p-3 text-center">
-                <p className="text-2xl font-bold text-blue-500">{(detailedStats.likes?.average_per_film || 0).toFixed(1)}</p>
-                <p className="text-xs text-gray-400">{t('avgPerFilm')}</p>
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('likes')})</h4>
-              <div className="space-y-1">
-                {(detailedStats.films?.top_by_likes || []).map((film, i) => (
-                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { setShowStatsDetail(false); navigate(`/films/${film.id}`); }}>
-                    <span className="text-xs hover:text-yellow-500">{i + 1}. {film.title}</span>
-                    <span className="text-xs text-pink-500">{film.likes} likes</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-        
       case 'quality':
         return (
           <div className="space-y-4">
@@ -885,7 +858,6 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
     const titles = {
       films: language === 'it' ? 'Dettagli Film' : 'Films Details',
       revenue: language === 'it' ? 'Dettagli Incassi' : 'Revenue Details',
-      likes: language === 'it' ? 'Dettagli Like' : 'Likes Details',
       quality: language === 'it' ? 'Dettagli Qualità' : 'Quality Details'
     };
     return titles[statType] || 'Dettagli';

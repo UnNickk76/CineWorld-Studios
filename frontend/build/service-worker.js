@@ -1,80 +1,151 @@
-// CineWorld Studio's Service Worker - Beta Version
-const CACHE_NAME = 'cineworld-beta-v1';
-const DYNAMIC_CACHE = 'cineworld-dynamic-v1';
+// CineWorld Studio's - Pro Service Worker
+const CACHE_VERSION = 'cw-v3';
+const STATIC_CACHE = `cw-static-${CACHE_VERSION}`;
+const SHELL_CACHE = `cw-shell-${CACHE_VERSION}`;
 
-// Files to cache for offline use
-const STATIC_ASSETS = [
+// App shell - precache for instant open
+const APP_SHELL = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
 ];
 
-// Install event - cache static assets
+// Static asset extensions to cache aggressively (Cache-First)
+const STATIC_EXTENSIONS = ['.js', '.css', '.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico', '.gif'];
+
+function isStaticAsset(url) {
+  return STATIC_EXTENSIONS.some(ext => url.pathname.endsWith(ext));
+}
+
+function isAPIRequest(url) {
+  return url.pathname.startsWith('/api/') || url.pathname.startsWith('/api');
+}
+
+function isNavigationRequest(request) {
+  return request.mode === 'navigate';
+}
+
+// INSTALL: Precache app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing Service Worker...');
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
+    caches.open(SHELL_CACHE)
+      .then(cache => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate event - clean old caches
+// ACTIVATE: Clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating Service Worker...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== DYNAMIC_CACHE)
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== STATIC_CACHE && k !== SHELL_CACHE)
+          .map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
-// Fetch event - network first, fallback to cache
+// FETCH: Strategy router
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and API calls
+  const url = new URL(event.request.url);
+
+  // Skip non-GET, socket, chrome-extension etc
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return;
-  if (event.request.url.includes('/socket.io/')) return;
-  
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response for caching
-        const responseClone = response.clone();
-        caches.open(DYNAMIC_CACHE).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-        return response;
-      })
-      .catch(() => {
-        // If network fails, try cache
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-          return new Response('Offline', { status: 503 });
-        });
-      })
-  );
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
+  if (url.pathname.includes('/socket.io/')) return;
+
+  // API requests: Network-First, cache as offline fallback ONLY
+  if (isAPIRequest(url)) {
+    event.respondWith(networkFirstAPI(event.request));
+    return;
+  }
+
+  // Static assets (JS/CSS/images/fonts): Cache-First for speed
+  if (isStaticAsset(url)) {
+    event.respondWith(cacheFirstStatic(event.request));
+    return;
+  }
+
+  // Navigation (HTML pages): Network-First, fallback to app shell
+  if (isNavigationRequest(event.request)) {
+    event.respondWith(networkFirstNavigation(event.request));
+    return;
+  }
+
+  // Everything else: Network with cache fallback
+  event.respondWith(networkFirstGeneric(event.request));
 });
 
-// Listen for messages from the app
+// --- Strategies ---
+
+// API: Always go to network. Cache response ONLY as offline fallback.
+async function networkFirstAPI(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      // Store in a volatile API cache (not static)
+      const apiCache = await caches.open('cw-api-fallback');
+      apiCache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    // Offline: try cached version
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response(JSON.stringify({ error: 'Offline', detail: 'Connessione non disponibile' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Static: Cache-First. Fetch and cache if not found.
+async function cacheFirstStatic(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    return new Response('', { status: 503 });
+  }
+}
+
+// Navigation: Network-First, fallback to cached index.html (SPA)
+async function networkFirstNavigation(request) {
+  try {
+    const response = await fetch(request);
+    return response;
+  } catch {
+    const cached = await caches.match('/index.html') || await caches.match('/');
+    if (cached) return cached;
+    return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/html' } });
+  }
+}
+
+// Generic: Network with cache fallback
+async function networkFirstGeneric(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response('', { status: 503 });
+  }
+}
+
+// Listen for skip waiting message
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });

@@ -274,6 +274,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 
 ## Backlog
 
+### P0 — Fix UX + Bug Post-PWA (PRIORITA ASSOLUTA)
+1. **Locandina non generata** — Ripristinare generazione automatica poster (immediato + rimasterizza). Placeholder se non pronto. Aggiornamento UI auto.
+2. **Presentazione dopo Ciak assente** — Ripristinare sequenza scenografica post-rilascio con suspense + reveal risultati.
+3. **Velion appare sempre** — Tutorial solo al primo accesso o riapertura manuale, non ad ogni cambio pagina.
+4. **Notifiche coperte da notch iPhone** — safe-area-inset-top per toast/notifiche, oppure spostare sotto navbar.
+5. **Marketing non disponibile** — CTA marketing solo se azione esiste, oppure aggiungere bottone marketing in fase countdown.
+6. **Arena coperta da navbar** — Fix spacing top, evitare sovrapposizione con header.
+
 ### P1
 - Sistema "Previsioni Festival" (scommesse sui vincitori)
 - Marketplace per diritti TV/Anime

@@ -14,6 +14,7 @@ import {
   DollarSign, Target, Globe, UserCheck, Minus, TrendingUp, TrendingDown,
   HelpCircle, Wand2, ArrowUp
 } from 'lucide-react';
+import { ReleaseCinematic } from './ReleaseCinematic';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -1191,319 +1192,30 @@ function ReleaseStepContent({ film, api, onRefresh, refreshUser }) {
     finally { setActionLoading(null); }
   };
 
-  // Cinematic Release Overlay
+  // Cinematic Release Overlay — using shared ReleaseCinematic component
   if (releaseResult && releasePhase > 0) {
-    const fmtRev = (v) => v > 999999 ? (v / 1000000).toFixed(1) + 'M' : v > 999 ? (v / 1000).toFixed(0) + 'K' : v;
     return (
-      <div className="space-y-0" data-testid="release-cinematic">
-        <style>{`
-          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-          @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-          @keyframes scaleIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
-          @keyframes eventReveal { from { opacity: 0; transform: scale(0.9) translateY(15px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-          @keyframes shakeIn { 0% { opacity: 0; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.04); } 55% { transform: scale(1) rotate(-1deg); } 70% { transform: scale(1.02) rotate(1deg); } 85% { transform: scale(1) rotate(-0.5deg); } 100% { transform: scale(1) rotate(0); } }
-          @keyframes shimmer { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
-          @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-          @keyframes successZoom { 0% { opacity: 0; transform: scale(1.15); } 60% { opacity: 1; transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }
-          @keyframes slowZoom { 0% { transform: scale(1); } 100% { transform: scale(1.06); } }
-          @keyframes flopFade { 0% { opacity: 0; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1); } }
-          @keyframes glowPulse { 0%, 100% { box-shadow: inset 0 0 40px rgba(234, 179, 8, 0.1); } 50% { box-shadow: inset 0 0 80px rgba(234, 179, 8, 0.2); } }
-        `}</style>
-
-        {/* PHASE 1: Cinema Image + Intro */}
-        <div className={`relative w-full overflow-hidden rounded-t-lg ${
-          releaseResult.release_outcome === 'success' ? 'ring-2 ring-yellow-500/60' : ''
-        }`} data-testid="release-intro">
-          <div className="aspect-[16/10] relative overflow-hidden">
-            <img
-              src={releaseResult.release_image || '/assets/release/cinema_normal.jpg'}
-              alt="Cinema"
-              className={`w-full h-full object-cover ${
-                releaseResult.release_outcome === 'flop' ? 'saturate-[0.4] brightness-75' :
-                releaseResult.release_outcome === 'success' ? 'brightness-110' : ''
-              }`}
-              style={{
-                animation: releaseResult.release_outcome === 'success'
-                  ? 'successZoom 1.5s ease-out both'
-                  : releaseResult.release_outcome === 'flop'
-                  ? 'flopFade 1.2s ease-out both'
-                  : 'slowZoom 8s ease-out both'
-              }}
-              data-testid="release-image"
-            />
-            <div className={`absolute inset-0 ${
-              releaseResult.release_outcome === 'success'
-                ? 'bg-gradient-to-t from-black via-black/30 to-transparent'
-                : releaseResult.release_outcome === 'flop'
-                ? 'bg-gradient-to-t from-black via-black/50 to-blue-950/30'
-                : 'bg-gradient-to-t from-black via-black/40 to-transparent'
-            }`} />
-            {releaseResult.release_outcome === 'success' && (
-              <div className="absolute inset-0 pointer-events-none" style={{ animation: 'glowPulse 2s ease-in-out infinite' }} />
-            )}
-            <div className="absolute bottom-0 left-0 right-0 p-3 text-center">
-              {releasePhase === 1 && (
-                <p className="text-xs text-white/80 italic" style={{ animation: 'fadeIn 0.8s ease-out 0.3s both' }}>
-                  Il tuo film sta uscendo nelle sale...
-                </p>
-              )}
-              {releasePhase >= 2 && (
-                <>
-                  <h1 className="text-lg font-black text-white tracking-tight" style={{ animation: 'scaleIn 0.5s ease-out both' }}>
-                    {releaseResult.title}
-                  </h1>
-                  {releaseResult.modifiers?.cast_quality > 0 && (
-                    <p className="text-[9px] text-yellow-400/70 mt-0.5 uppercase tracking-[0.2em]" style={{ animation: 'fadeIn 0.4s ease-out 0.3s both' }}>
-                      Un film di {film.cast?.director?.name || 'il tuo regista'}
-                    </p>
-                  )}
-                </>
-              )}
-              {releaseResult.hype_level > 0 && releasePhase <= 2 && (
-                <div className="mt-1.5 flex items-center justify-center gap-1.5" style={{ animation: 'fadeIn 0.5s ease-out 0.6s both' }}>
-                  <div className="h-1 bg-white/10 rounded-full w-20 overflow-hidden">
-                    <div className={`h-full rounded-full ${
-                      releaseResult.hype_level >= 60 ? 'bg-yellow-400' : releaseResult.hype_level >= 30 ? 'bg-amber-500' : 'bg-gray-400'
-                    }`} style={{ width: `${releaseResult.hype_level}%`, transition: 'width 1s ease-out' }} />
-                  </div>
-                  <span className="text-[8px] text-white/40">Hype {releaseResult.hype_level}%</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* PHASE 2: Screenplay Trailer */}
-        {releasePhase >= 2 && releaseResult.screenplay_scenes?.length > 0 && (
-          <div className="bg-black/80 px-3 py-2 border-x border-white/5" data-testid="release-trailer">
-            <p className="text-[8px] text-white/30 uppercase tracking-[0.2em] text-center mb-1.5" style={{ animation: 'fadeIn 0.4s ease-out both' }}>
-              Anteprima Sceneggiatura
-            </p>
-            <div className="relative h-10 overflow-hidden">
-              {releaseResult.screenplay_scenes.map((scene, i) => (
-                <p key={i} className={`absolute inset-0 flex items-center justify-center text-center text-[10px] leading-relaxed italic transition-all duration-500 ${
-                  trailerSlide === i ? 'opacity-100 translate-y-0' : trailerSlide > i ? 'opacity-0 -translate-y-4' : 'opacity-0 translate-y-4'
-                } ${
-                  releaseResult.release_outcome === 'success' ? 'text-yellow-200/80' :
-                  releaseResult.release_outcome === 'flop' ? 'text-blue-200/60' : 'text-gray-300/70'
-                }`}>
-                  &quot;{scene.length > 60 ? scene.substring(0, 60) + '...' : scene}&quot;
-                </p>
-              ))}
-            </div>
-            <div className="flex justify-center gap-1 mt-1">
-              {releaseResult.screenplay_scenes.map((_, i) => (
-                <div key={i} className={`w-1 h-1 rounded-full transition-all duration-300 ${
-                  trailerSlide >= i ? 'bg-white/50 scale-110' : 'bg-white/15'
-                }`} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* PHASE 3: Event Reveal */}
-        {releasePhase >= 3 && releaseResult.release_event && releaseResult.release_event.id !== 'nothing_special' && (() => {
-          const evt = releaseResult.release_event;
-          const isRare = evt.rarity === 'rare';
-          const borderColor = evt.type === 'positive' ? 'border-emerald-500' : evt.type === 'negative' ? 'border-red-500' : 'border-amber-500';
-          const bgGrad = evt.type === 'positive' ? 'from-emerald-950/80 to-[#0a0a0b]' : evt.type === 'negative' ? 'from-red-950/80 to-[#0a0a0b]' : 'from-amber-950/80 to-[#0a0a0b]';
-          const accentColor = evt.type === 'positive' ? 'text-emerald-400' : evt.type === 'negative' ? 'text-red-400' : 'text-amber-400';
-          return (
-            <div className={`relative border-x-2 border-b ${borderColor} bg-gradient-to-b ${bgGrad} p-2.5 ${isRare ? 'ring-1 ring-purple-500/50' : ''}`}
-              style={{ animation: isRare ? 'shakeIn 0.7s ease-out both' : 'eventReveal 0.8s ease-out both' }}
-              data-testid="release-event">
-              {isRare && <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent" style={{ animation: 'shimmer 2s ease-in-out infinite' }} />
-              </div>}
-              <div className="flex items-center justify-center gap-2 mb-1.5">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                  evt.type === 'positive' ? 'bg-emerald-500/20' : evt.type === 'negative' ? 'bg-red-500/20' : 'bg-amber-500/20'
-                }`} style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
-                  <Sparkles className={`w-3.5 h-3.5 ${accentColor}`} />
-                </div>
-                <div className="text-center">
-                  {isRare && <Badge className="bg-purple-500/30 text-purple-300 text-[7px] mb-0.5 border border-purple-500/40">EVENTO RARO</Badge>}
-                  <h3 className={`text-[10px] font-black ${accentColor} uppercase tracking-wider`}>{evt.name}</h3>
-                </div>
-              </div>
-              <p className="text-[9px] text-gray-300 text-center leading-relaxed mb-1.5">{evt.description}</p>
-              <div className="flex justify-center gap-2 text-[9px] font-bold">
-                {evt.quality_modifier !== 0 && (
-                  <div className={`px-1.5 py-0.5 rounded-full ${evt.quality_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
-                    Qualita {evt.quality_modifier > 0 ? '+' : ''}{evt.quality_modifier}
-                  </div>
-                )}
-                {evt.revenue_modifier !== 0 && (
-                  <div className={`px-1.5 py-0.5 rounded-full ${evt.revenue_modifier > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
-                    Incassi {evt.revenue_modifier > 0 ? '+' : ''}{evt.revenue_modifier}%
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* PHASE 4: Animated Numbers */}
-        {releasePhase >= 4 && (
-          <div className="bg-[#0d0d0e] px-3 py-2.5 border-x border-white/5" style={{ animation: 'slideUp 0.6s ease-out both' }}
-            data-testid="release-numbers">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
-                <div className={`text-xl font-black tabular-nums ${
-                  releaseResult.quality_score >= 70 ? 'text-green-400' : releaseResult.quality_score >= 50 ? 'text-yellow-400' : 'text-red-400'
-                }`}>{animatedQuality}</div>
-                <p className="text-[7px] text-gray-500 uppercase tracking-wide">Qualita</p>
-              </div>
-              <div>
-                <div className="text-xl font-black tabular-nums text-yellow-400">
-                  {releaseResult.imdb_rating?.toFixed?.(1) || '-'}
-                </div>
-                <p className="text-[7px] text-gray-500 uppercase tracking-wide">IMDb</p>
-              </div>
-              <div>
-                <div className="text-xl font-black tabular-nums text-green-400">
-                  ${fmtRev(animatedRevenue)}
-                </div>
-                <p className="text-[7px] text-gray-500 uppercase tracking-wide">Apertura</p>
-              </div>
-            </div>
-            {/* Tier badge */}
-            <div className="flex justify-center mt-1.5">
-              <Badge className={`text-[9px] px-2.5 py-0.5 ${
-                releaseResult.tier === 'masterpiece' ? 'bg-yellow-500 text-black' :
-                releaseResult.tier === 'excellent' ? 'bg-green-500/30 text-green-300' :
-                releaseResult.tier === 'good' ? 'bg-blue-500/30 text-blue-300' :
-                releaseResult.tier === 'mediocre' ? 'bg-gray-500/30 text-gray-300' :
-                'bg-red-500/30 text-red-300'
-              }`} style={{ animation: 'scaleIn 0.4s ease-out 0.8s both' }}>
-                {releaseResult.tier_label}
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* PHASE 5: Final Result + Soundtrack + Modifiers */}
-        {releasePhase >= 5 && (
-          <div className={`rounded-b-lg overflow-hidden ${
-            releaseResult.release_outcome === 'success' ? 'bg-gradient-to-b from-[#0d0d0e] to-yellow-950/20' :
-            releaseResult.release_outcome === 'flop' ? 'bg-gradient-to-b from-[#0d0d0e] to-blue-950/20' :
-            'bg-[#0d0d0e]'
-          }`} style={{ animation: 'slideUp 0.5s ease-out both' }} data-testid="release-final">
-            {/* Outcome message */}
-            <div className={`text-center py-2 px-3 ${
-              releaseResult.release_outcome === 'success' ? 'border-t border-yellow-500/30' :
-              releaseResult.release_outcome === 'flop' ? 'border-t border-blue-500/20' :
-              'border-t border-white/10'
-            }`}>
-              <p className={`text-xs font-bold ${
-                releaseResult.release_outcome === 'success' ? 'text-yellow-400' :
-                releaseResult.release_outcome === 'flop' ? 'text-blue-300/70' : 'text-gray-300'
-              }`} style={{ animation: 'scaleIn 0.4s ease-out both' }}>
-                {releaseResult.release_outcome === 'success' ? "Evento dell'anno!" :
-                 releaseResult.release_outcome === 'flop' ? "Il pubblico non ha risposto..." : "Buona accoglienza"}
-              </p>
-              <p className="text-green-400 text-[10px] mt-0.5">+{releaseResult.xp_gained} XP</p>
-            </div>
-
-            {/* Compact details */}
-            <div className="px-2.5 pb-2 space-y-1">
-              {/* Soundtrack Score */}
-              {releaseResult.modifiers?.soundtrack > 0 && (
-                <div className="flex items-center gap-1.5 p-1.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px]">
-                  <Sparkles className="w-3 h-3 text-purple-400" />
-                  <span className="text-purple-300 font-medium">Colonna Sonora:</span>
-                  <span className="text-purple-200">+{releaseResult.modifiers.soundtrack} qualita</span>
-                  {releaseResult.modifiers?.soundtrack >= 3 && <Badge className="bg-purple-500/20 text-purple-300 text-[7px]">Eccellente</Badge>}
-                </div>
-              )}
-              {/* Sponsors */}
-              {releaseResult.sponsors?.length > 0 && (
-                <div className="text-[8px] text-gray-400 p-1.5 bg-black/30 rounded border border-cyan-500/10">
-                  <span className="font-medium text-cyan-300 mr-1">Sponsor:</span>
-                  {releaseResult.sponsors.map(sp => (
-                    <Badge key={sp.id || sp.name} className="text-[7px] h-3 mr-0.5" style={{ backgroundColor: (sp.logo_color || '#666') + '20', color: sp.logo_color || '#aaa' }}>
-                      {sp.name}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              {/* Modifiers breakdown */}
-              <div className="text-[8px] text-gray-500 p-1.5 bg-black/30 rounded flex flex-wrap gap-x-2 gap-y-0.5">
-                <span>Pre-IMDb: {releaseResult.modifiers?.pre_imdb}</span>
-                <span>Cast: {releaseResult.modifiers?.cast_quality}</span>
-                <span>Soundtrack: +{releaseResult.modifiers?.soundtrack || 0}</span>
-                <span>Buzz: {releaseResult.modifiers?.buzz > 0 ? '+' : ''}{releaseResult.modifiers?.buzz}</span>
-                <span>Remaster: +{releaseResult.modifiers?.remaster || 0}</span>
-              </div>
-              {/* Advanced factors */}
-              {releaseResult.modifiers?.advanced_factors && Object.keys(releaseResult.modifiers.advanced_factors).length > 0 && (
-                <div className="text-[8px] text-gray-500 p-1.5 bg-black/30 rounded flex flex-wrap gap-x-2 gap-y-0.5">
-                  {Object.entries(releaseResult.modifiers.advanced_factors).map(([key, val]) => (
-                    <span key={key} className={`${String(val).startsWith('+') || String(val).startsWith('-') ? (String(val).startsWith('+') ? 'text-green-400' : 'text-red-400') : ''}`}>
-                      {key.replace(/_/g, ' ')}: {val}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {/* Cost */}
-              <div className="text-[8px] text-gray-500 p-1.5 bg-black/30 rounded">
-                Denaro: <span className="text-yellow-400/80">${releaseResult.cost_summary?.total_money?.toLocaleString()}</span> | CinePass: <span className="text-cyan-400/80">{releaseResult.cost_summary?.total_cinepass} CP</span>
-              </div>
-              {/* Critic Reviews */}
-              {releaseResult.critic_reviews?.length > 0 && (
-                <div className="space-y-1 mt-1">
-                  <p className="text-[8px] text-gray-400 font-medium uppercase tracking-wider">Recensioni</p>
-                  {releaseResult.critic_reviews.slice(0, 3).map((review, idx) => (
-                    <div key={idx} className="text-[8px] p-1.5 bg-black/30 rounded border-l-2 border-gray-700" style={{ animation: `fadeIn 0.3s ease-out ${0.2 + idx * 0.15}s both` }}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-gray-300 font-medium">{review.source || review.critic_name || 'Critico'}</span>
-                        <span className={`font-bold ${
-                          (review.score || review.rating || 0) >= 7 ? 'text-green-400' :
-                          (review.score || review.rating || 0) >= 5 ? 'text-yellow-400' : 'text-red-400'
-                        }`}>{(review.score || review.rating || 0).toFixed?.(1) || review.score}/10</span>
-                      </div>
-                      <p className="text-gray-500 italic leading-relaxed">&quot;{review.text || review.comment || ''}&quot;</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Audience Satisfaction */}
-              {releaseResult.audience_satisfaction > 0 && (
-                <div className="flex items-center gap-2 p-1.5 bg-black/30 rounded">
-                  <Users className="w-3 h-3 text-blue-400" />
-                  <div className="flex-1">
-                    <div className="flex justify-between text-[8px]">
-                      <span className="text-gray-400">Soddisfazione Pubblico</span>
-                      <span className={`font-bold ${releaseResult.audience_satisfaction >= 70 ? 'text-green-400' : releaseResult.audience_satisfaction >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                        {releaseResult.audience_satisfaction}%
-                      </span>
-                    </div>
-                    <div className="h-1 bg-gray-800 rounded-full mt-0.5">
-                      <div className={`h-full rounded-full ${releaseResult.audience_satisfaction >= 70 ? 'bg-green-500' : releaseResult.audience_satisfaction >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                        style={{ width: `${releaseResult.audience_satisfaction}%`, transition: 'width 1s ease-out' }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2 px-2.5 pb-2.5">
-              <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); window.location.href = `/films/${releaseResult.film_id}`; }}
-                className={`flex-1 text-[10px] h-8 ${
-                  releaseResult.release_outcome === 'success' ? 'bg-yellow-600 hover:bg-yellow-500 text-black' :
-                  releaseResult.release_outcome === 'flop' ? 'bg-blue-700 hover:bg-blue-600 text-white' :
-                  'bg-amber-600 hover:bg-amber-500 text-black'
-                }`} data-testid="release-go-film">
-                <Film className="w-3 h-3 mr-1" /> Vai al Film
-              </Button>
-              <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); refreshUser(); onRefresh(); }} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="release-close">
-                Chiudi
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <ReleaseCinematic
+        data={releaseResult}
+        directorName={film.cast?.director?.name || 'il tuo regista'}
+        inline
+        onClose={() => { setReleaseResult(null); setReleasePhase(0); refreshUser(); onRefresh(); }}
+        actions={
+          <>
+            <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); window.location.href = `/films/${releaseResult.film_id}`; }}
+              className={`flex-1 text-[10px] h-8 ${
+                releaseResult.release_outcome === 'success' ? 'bg-yellow-600 hover:bg-yellow-500 text-black' :
+                releaseResult.release_outcome === 'flop' ? 'bg-blue-700 hover:bg-blue-600 text-white' :
+                'bg-amber-600 hover:bg-amber-500 text-black'
+              }`} data-testid="release-go-film">
+              <Film className="w-3 h-3 mr-1" /> Vai al Film
+            </Button>
+            <Button onClick={() => { setReleaseResult(null); setReleasePhase(0); refreshUser(); onRefresh(); }} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="release-close">
+              Chiudi
+            </Button>
+          </>
+        }
+      />
     );
   }
 

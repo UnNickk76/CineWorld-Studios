@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
+import { ReleaseCinematic } from '../components/ReleaseCinematic';
 
 // useTranslations imported from contexts
 
@@ -72,6 +73,8 @@ const FilmDetail = () => {
   // Virtual Audience System
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showImdbDetail, setShowImdbDetail] = useState(false);
+  const [cinematicData, setCinematicData] = useState(null);
+  const [loadingCinematic, setLoadingCinematic] = useState(false);
   const navigate = useNavigate();
   
   // One-time actions state
@@ -272,6 +275,23 @@ const FilmDetail = () => {
       }
     } catch (e) {
       toast.error('Errore nell\'evoluzione skill');
+    }
+  };
+
+  const loadCinematic = async () => {
+    setLoadingCinematic(true);
+    try {
+      const id = window.location.pathname.split('/').pop();
+      const res = await api.get(`/films/${id}/release-cinematic`);
+      if (res.data?.success !== false) {
+        setCinematicData(res.data);
+      } else {
+        toast.error('Dati cinematici non disponibili');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nel caricamento');
+    } finally {
+      setLoadingCinematic(false);
     }
   };
 
@@ -829,6 +849,37 @@ const FilmDetail = () => {
               </div>
             </DialogContent>
           </Dialog>
+          
+          {/* Rivivi il rilascio - Replay cinematic for released films */}
+          {film.status && !['proposed', 'casting', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'ready_for_casting', 'pending_release'].includes(film.status) && (
+            <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30 cursor-pointer hover:border-amber-400/50 transition-colors"
+              onClick={loadCinematic} data-testid="relive-release-card">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clapperboard className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <p className="font-['Bebas_Neue'] text-lg text-amber-300">Rivivi il Rilascio</p>
+                    <p className="text-[10px] text-gray-400">Riguarda la presentazione cinematica</p>
+                  </div>
+                </div>
+                {loadingCinematic ? (
+                  <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />
+                ) : (
+                  <Play className="w-5 h-5 text-amber-400" />
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Cinematic Replay Overlay */}
+          {cinematicData && (
+            <ReleaseCinematic
+              data={cinematicData}
+              directorName={film.director?.name}
+              onClose={() => setCinematicData(null)}
+            />
+          )}
+
           {/* Release Results Section - Visible to all players */}
           {(film.release_event || film.film_tier || film.advanced_factors) && (
             <Card className={`border overflow-hidden ${

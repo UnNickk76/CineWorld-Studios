@@ -19,7 +19,9 @@ const STYLES = `
 
 const fmtRev = (v) => v > 999999 ? (v / 1000000).toFixed(1) + 'M' : v > 999 ? (v / 1000).toFixed(0) + 'K' : v;
 
-export function ReleaseCinematic({ data, onClose, directorName }) {
+// inline: renders without fixed overlay (for embedding in FilmPopup dialog)
+// actions: custom JSX for bottom buttons (overrides default "Chiudi")
+export function ReleaseCinematic({ data, onClose, directorName, inline, actions }) {
   const [phase, setPhase] = useState(0);
   const [trailerSlide, setTrailerSlide] = useState(0);
   const [animQ, setAnimQ] = useState(0);
@@ -66,17 +68,18 @@ export function ReleaseCinematic({ data, onClose, directorName }) {
   const r = data;
   const outcome = r.release_outcome || 'normal';
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-3" onClick={onClose} data-testid="replay-cinematic-overlay">
-      <div className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-lg" onClick={e => e.stopPropagation()}>
-        <style>{STYLES}</style>
+  const content = (
+    <div className={inline ? 'space-y-0' : 'max-w-md w-full max-h-[90vh] overflow-y-auto rounded-lg'} onClick={inline ? undefined : e => e.stopPropagation()} data-testid="release-cinematic">
+      <style>{STYLES}</style>
 
-        {/* Close button */}
+      {/* Close button - only in overlay mode */}
+      {!inline && (
         <div className="sticky top-0 z-10 flex justify-end p-1">
           <button onClick={onClose} className="bg-black/60 rounded-full p-1 text-white/60 hover:text-white" data-testid="replay-close">
             <X className="w-4 h-4" />
           </button>
         </div>
+      )}
 
         {/* PHASE 1: Cinema Image */}
         <div className={`relative w-full overflow-hidden rounded-t-lg ${outcome === 'success' ? 'ring-2 ring-yellow-500/60' : ''}`}>
@@ -243,14 +246,23 @@ export function ReleaseCinematic({ data, onClose, directorName }) {
                 </div>
               )}
             </div>
-            <div className="flex justify-center px-2.5 pb-2.5">
-              <Button onClick={onClose} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="replay-close-btn">
-                Chiudi
-              </Button>
+            <div className="flex justify-center gap-2 px-2.5 pb-2.5">
+              {actions || (
+                <Button onClick={onClose} variant="outline" className="border-gray-700 text-[10px] h-8" data-testid="replay-close-btn">
+                  Chiudi
+                </Button>
+              )}
             </div>
           </div>
         )}
       </div>
+  );
+
+  if (inline) return content;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-3" onClick={onClose} data-testid="replay-cinematic-overlay">
+      {content}
     </div>
   );
 }

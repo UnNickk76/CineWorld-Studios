@@ -11764,38 +11764,30 @@ async def startup_event():
     import shutil
     import subprocess
     build_dir = '/app/frontend/build'
-    nginx_html = '/var/www/html'
+    build_index = os.path.join(build_dir, 'index.html')
     try:
-        # If build doesn't exist (gitignored), build it
-        if not os.path.isdir(build_dir) and os.path.isdir('/app/frontend'):
-            logging.info("React build not found, running yarn build...")
-            result = subprocess.run(
-                ['yarn', 'build'],
-                cwd='/app/frontend',
-                capture_output=True, text=True, timeout=180
-            )
-            if result.returncode == 0:
-                logging.info("React build completed successfully")
-            else:
-                logging.error(f"React build failed: {result.stderr[-500:]}")
-        # Copy build files to ALL possible nginx root directories
-        if os.path.isdir(build_dir):
+        # Only proceed if we have a valid build with index.html
+        if os.path.isdir(build_dir) and os.path.isfile(build_index):
             nginx_roots = ['/var/www/html', '/usr/share/nginx/html']
             for nginx_root in nginx_roots:
-                if os.path.isdir(nginx_root):
-                    try:
-                        for item in os.listdir(nginx_root):
-                            p = os.path.join(nginx_root, item)
-                            if os.path.isfile(p): os.remove(p)
-                            elif os.path.isdir(p): shutil.rmtree(p)
-                        for item in os.listdir(build_dir):
-                            s = os.path.join(build_dir, item)
-                            d = os.path.join(nginx_root, item)
-                            if os.path.isdir(s): shutil.copytree(s, d)
-                            else: shutil.copy2(s, d)
-                        logging.info(f"Copied React build to {nginx_root}")
-                    except Exception as e:
-                        logging.warning(f"Failed to copy to {nginx_root}: {e}")
+                if not os.path.isdir(nginx_root):
+                    continue
+                # Check if nginx root already has index.html (placed by deployment system)
+                if os.path.isfile(os.path.join(nginx_root, 'index.html')):
+                    logging.info(f"Nginx root {nginx_root} already has index.html, skipping copy")
+                    continue
+                try:
+                    for item in os.listdir(build_dir):
+                        s = os.path.join(build_dir, item)
+                        d = os.path.join(nginx_root, item)
+                        if os.path.exists(d):
+                            if os.path.isdir(d): shutil.rmtree(d)
+                            else: os.remove(d)
+                        if os.path.isdir(s): shutil.copytree(s, d)
+                        else: shutil.copy2(s, d)
+                    logging.info(f"Copied React build to {nginx_root}")
+                except Exception as e:
+                    logging.warning(f"Failed to copy to {nginx_root}: {e}")
             # Reload nginx to pick up new files
             try:
                 result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True, timeout=10)
@@ -11805,6 +11797,8 @@ async def startup_event():
                     logging.info(f"Nginx reload note: {result.stderr.strip()}")
             except Exception:
                 logging.info("Nginx reload skipped")
+        else:
+            logging.info("No valid React build found (missing index.html), skipping nginx copy")
     except Exception as e:
         logging.warning(f"Deploy setup: {e}")
 
@@ -11855,7 +11849,6 @@ async def startup_event():
         await db.films.create_index([('status', 1), ('quality', -1)])
         await db.people.create_index('role_type')
         await db.people.create_index('id', unique=True)
-        await db.likes.create_index([('film_id', 1), ('user_id', 1)], unique=True)
         await db.users.create_index('id', unique=True)
         await db.users.create_index('nickname')
         await db.users.create_index('email')

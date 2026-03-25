@@ -54,8 +54,11 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
   }, []);
 
   // Poll player status (only when ON)
+  const lastBubbleTime = React.useRef(0);
   const fetchTriggers = useCallback(async () => {
     if (!api || !user || isOff) return;
+    // Don't show new bubble within 45s of the last one
+    if (Date.now() - lastBubbleTime.current < 45000) return;
     try {
       const currentPage = location.pathname;
       const idle = idleMinutesRef.current;
@@ -64,11 +67,13 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
       const pageHint = res.data?.page_hint;
 
       if (advisor) {
+        lastBubbleTime.current = Date.now();
         setBubble(advisor);
         setHasAlert(advisor.priority === 'high');
         setLastBubbleType(advisor.type);
         setTimeout(() => setBubble(null), advisor.priority === 'high' ? 10000 : 8000);
       } else if (pageHint) {
+        lastBubbleTime.current = Date.now();
         setBubble({ ...pageHint, priority: 'low' });
         setHasAlert(false);
         setTimeout(() => setBubble(null), 10000);

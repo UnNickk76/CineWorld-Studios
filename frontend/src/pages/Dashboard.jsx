@@ -325,7 +325,20 @@ const Dashboard = () => {
     if (!releasePopup || !distConfig) return;
     setReleasing(true);
     try {
-      const res = await api.post(`/films/${releasePopup.id}/release`, {
+      let filmId = releasePopup.id;
+      let releaseEvents = null;
+
+      // For pending_release: first call film-pipeline release to create the films entry + get events
+      if (releasePopup.status === 'pending_release') {
+        const pipelineRes = await api.post(`/film-pipeline/${releasePopup.id}/release`);
+        if (pipelineRes.data.success) {
+          filmId = pipelineRes.data.film_id; // new film_id in films collection
+          releaseEvents = pipelineRes.data; // events, critics, etc.
+        }
+      }
+
+      // Now do distribution release on the films collection entry
+      const res = await api.post(`/films/${filmId}/release`, {
         distribution_zone: selectedZone,
         distribution_continent: selectedZone === 'continental' ? selectedContinent : null
       });
@@ -335,7 +348,17 @@ const Dashboard = () => {
         const zoneName = selectedZone === 'national' ? 'Nazionale' : selectedZone === 'continental' ? 'Continentale' : 'Mondiale';
         setPendingFilms(prev => prev.filter(f => f.id !== releasePopup.id));
         setReleasePopup(null);
-        setReleaseSuccess({ title: filmTitle, revenue: openingRevenue, zone: zoneName, poster: releasePopup.poster_url });
+        setReleaseSuccess({
+          title: filmTitle,
+          revenue: openingRevenue,
+          zone: zoneName,
+          poster: releasePopup.poster_url,
+          events: releaseEvents?.events,
+          quality_score: releaseEvents?.quality_score,
+          imdb_rating: releaseEvents?.imdb_rating,
+          critics: releaseEvents?.critics,
+          tier: releaseEvents?.tier,
+        });
         refreshUser().catch(() => {});
         try {
           const filmsRes = await api.get('/films/my/featured?limit=9');
@@ -916,6 +939,54 @@ const Dashboard = () => {
                   <p className="text-xs text-amber-400">Distribuzione {releaseSuccess.zone}</p>
                 </div>
               </div>
+              {/* Quality + Rating */}
+              {(releaseSuccess.quality_score || releaseSuccess.imdb_rating) && (
+                <div className="flex gap-2">
+                  {releaseSuccess.quality_score && (
+                    <div className="flex-1 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
+                      <p className="text-[10px] text-gray-400">Qualita</p>
+                      <p className="text-lg font-bold text-blue-400">{releaseSuccess.quality_score.toFixed(0)}%</p>
+                    </div>
+                  )}
+                  {releaseSuccess.imdb_rating && (
+                    <div className="flex-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2 text-center">
+                      <p className="text-[10px] text-gray-400">IMDB</p>
+                      <p className="text-lg font-bold text-yellow-400">{releaseSuccess.imdb_rating.toFixed(1)}</p>
+                    </div>
+                  )}
+                  {releaseSuccess.tier && (
+                    <div className="flex-1 bg-purple-500/10 border border-purple-500/20 rounded-lg p-2 text-center">
+                      <p className="text-[10px] text-gray-400">Tier</p>
+                      <p className="text-lg font-bold text-purple-400">{releaseSuccess.tier}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Events */}
+              {releaseSuccess.events?.length > 0 && (
+                <div className="space-y-1.5">
+                  {releaseSuccess.events.map((ev, i) => (
+                    <div key={i} className="bg-white/5 rounded-lg p-2 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-semibold">{ev.headline}</p>
+                        {ev.quality_impact && <p className="text-[9px] text-green-400">+{ev.quality_impact} qualita</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Critics */}
+              {releaseSuccess.critics?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] text-gray-500 uppercase">Recensioni</p>
+                  {releaseSuccess.critics.slice(0, 2).map((c, i) => (
+                    <div key={i} className="bg-white/5 rounded p-1.5 text-[10px]">
+                      <span className="text-gray-400">{c.outlet}:</span> <span className={c.score >= 7 ? 'text-green-400' : c.score >= 5 ? 'text-yellow-400' : 'text-red-400'}>{c.score}/10</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-400 mb-0.5">Incasso Giorno 1</p>
                 <p className="text-2xl font-bold text-green-400">${releaseSuccess.revenue?.toLocaleString()}</p>

@@ -250,6 +250,32 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Prossimamente in Arena:** Nuova sezione con scroll orizzontale, mini locandine, click apre popup con supporto/boicotto.
 - **UI Mobile:** Aggiunto `safe-area-inset-bottom` padding ad Arena page e dialog popup per evitare sovrapposizione navbar Safari.
 
+### P0 Fix UX + Bug Post-PWA + Bug Film Scomparso Coming Soon (2026-03-25)
+**Bug critico film scomparso alla scelta del tempo:**
+- Root cause: `choose-release-strategy` settava `status: 'completed'` con `release_pending: True` → film invisibile in tutte le query UI
+- Fix: ora setta `status: 'coming_soon'` con `coming_soon_type: 'pre_release'` → film visibile in Prossimamente (Dashboard + Arena)
+- Scheduler auto_release: `pending_release` a fine countdown → utente rilascia manualmente con popup eventi
+
+**Bug pending_films cercati nella collection sbagliata:**
+- Root cause: Dashboard batch cercava `pending_release` in `films` (sbagliata) invece di `film_projects`
+- Fix: query corretta su `film_projects`
+
+**Release ceremony (presentazione post-Ciak):**
+- handleRelease ora chiama prima `/film-pipeline/{id}/release` per film `pending_release` → ottiene eventi + qualita + IMDB + critics
+- Popup release arricchito con: qualita, IMDB rating, tier, eventi, recensioni critiche
+
+**Velion non appare più ogni cambio pagina:**
+- Aggiunto cooldown 45s tra bubble successive nel VelionOverlay (lastBubbleTime ref)
+
+**Notifiche non coperte da notch:**
+- Toaster spostato sotto navbar + safe-area-inset-top con marginTop
+
+**Arena non coperta da navbar:**
+- Aggiunto pt-16 a PvPArenaPage
+
+**Marketing CTA:**
+- Messaggio Velion ora specifica "dalla sezione Miglioramenti"
+
 ### Bug Fix - Film Scomparso dopo Rilancio (2026-03-24)
 **Root cause:** Tre bug correlati:
 1. `remastering` non presente in `VALID_FILM_STATUSES` → auto_cleanup_corrupted_projects ogni 30 min scartava i film in rimasterizzazione

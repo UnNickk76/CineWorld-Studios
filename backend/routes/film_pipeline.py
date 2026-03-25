@@ -3872,20 +3872,21 @@ async def choose_release_strategy(project_id: str, req: ReleaseStrategyRequest, 
     await db.film_projects.update_one(
         {'id': project_id},
         {'$set': {
-            'status': 'completed',
+            'status': 'coming_soon',
+            'coming_soon_type': 'pre_release',
             'release_pending': True,
             'release_strategy': req.strategy,
             'release_strategy_hours': hours,
             'release_strategy_bonus_pct': bonus_pct,
             'release_strategy_perfect': perfect_timing,
             'scheduled_release_at': release_at.isoformat(),
-            'completed_at': now.isoformat(),
+            'coming_soon_started_at': now.isoformat(),
             'updated_at': now.isoformat()
         }}
     )
 
     return {
-        "status": "completed",
+        "status": "coming_soon",
         "release_pending": True,
         "strategy": req.strategy,
         "hours_until_release": hours,

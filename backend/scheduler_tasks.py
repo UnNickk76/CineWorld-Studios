@@ -849,12 +849,7 @@ async def auto_release_coming_soon():
                 logger.info(f"Film {project['id']} ({project['title']}) Coming Soon completed -> ready_for_casting (pre_casting={project.get('coming_soon_type')})")
                 continue
 
-            # Legacy / pre_release: mark film as pending_release so user can release it properly
-            # DO NOT auto-complete - the normal release flow creates the films collection entry
-            hype = project.get('hype_score', 0)
-            hype_boost = min(15, hype * 0.5)
-            strategy_bonus_pct = project.get('release_strategy_bonus_pct', 0)
-            
+            # Pre-release coming_soon (post-shooting, user chose timing): mark pending_release
             await scheduler_db.film_projects.update_one(
                 {'id': project['id']},
                 {'$set': {

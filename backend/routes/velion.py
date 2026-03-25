@@ -621,7 +621,7 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
         if p.get('status') == 'coming_soon' and p.get('hype_score', 0) < 25:
             all_triggers.append({
                 'type': 'low_hype',
-                'message': f'"{p.get("title", "Il film")}" ha hype basso. Lancia una campagna marketing!',
+                'message': f'"{p.get("title", "Il film")}" ha hype basso. Lancia una campagna marketing dalla sezione Miglioramenti!',
                 'priority': 'medium',
                 'action': '/create-film',
                 '_sort': 5

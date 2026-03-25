@@ -9101,7 +9101,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         {'$or': [{'challenger_id': uid}, {'challenged_id': uid}]},
         {'_id': 0}
     ).sort('created_at', -1).to_list(50)
-    pending_films_task = db.films.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
+    pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, {'_id': 0}).to_list(50)

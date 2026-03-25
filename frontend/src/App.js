@@ -2086,7 +2086,7 @@ function App() {
           <GameStoreProvider>
           <LanguageProvider>
             <UrlManager>
-              <Toaster position="top-center" theme="dark" />
+              <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />

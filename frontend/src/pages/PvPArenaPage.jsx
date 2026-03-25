@@ -107,7 +107,7 @@ export default function PvPArenaPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B]" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }} data-testid="pvp-arena-page">
+    <div className="min-h-screen bg-[#0A0A0B] pt-16" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }} data-testid="pvp-arena-page">
       {/* Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-red-950/40 via-transparent to-transparent" />

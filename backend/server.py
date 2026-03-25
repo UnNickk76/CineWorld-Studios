@@ -3987,6 +3987,11 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     # Set total_revenue to 0 for pending release (will be calculated on release)
     film['total_revenue'] = 0
     
+    # Mark masterpiece films (quality >= 90, rare ~5%)
+    qs = film.get('quality_score', 0)
+    imdb = film.get('imdb_rating', 0)
+    film['is_masterpiece'] = (qs >= 90 and imdb >= 7.0)
+    
     await db.films.insert_one(film)
     
     # Update user funds (only production costs, NO opening revenue yet)
@@ -7141,6 +7146,29 @@ async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user))
     return {'success': True, 'nickname': target['nickname'], 'old_cinepass': old_cp, 'added': amount, 'new_cinepass': old_cp + amount}
 
 
+@api_router.post("/admin/set-badge")
+async def admin_set_badge(data: dict, user: dict = Depends(get_current_user)):
+    """Assign or remove a badge from a user (admin only). Badge lasts 7 days."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    nickname = data.get('nickname')
+    badge = data.get('badge', 'none')
+    if badge not in ('none', 'cinevip', 'cinestar'):
+        raise HTTPException(status_code=400, detail="Badge non valido")
+    target = await db.users.find_one(
+        {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
+        {'_id': 0, 'id': 1, 'nickname': 1}
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
+    if badge == 'none':
+        await db.users.update_one({'id': target['id']}, {'$set': {'badge': 'none', 'badge_expiry': None}})
+    else:
+        expiry = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        await db.users.update_one({'id': target['id']}, {'$set': {'badge': badge, 'badge_expiry': expiry}})
+    return {'success': True, 'nickname': target['nickname'], 'badge': badge}
+
+
 @api_router.get("/admin/search-users")
 async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)):
     """Search users by nickname (admin only)."""
@@ -8949,12 +8977,14 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
     producers = {}
     if producer_ids:
-        producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(50)
+        producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1}).to_list(50)
         producers = {p['id']: p for p in producer_docs}
     for r in recent_releases:
         p = producers.get(r.get('user_id'), {})
         r['producer_nickname'] = p.get('nickname', '?')
         r['producer_house'] = p.get('production_house_name', '')
+        r['producer_badge'] = p.get('badge', 'none')
+        r['producer_badge_expiry'] = p.get('badge_expiry')
     
     # Statistics calculation - use max to never show decreased revenue
     total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)

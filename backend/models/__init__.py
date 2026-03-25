@@ -49,6 +49,8 @@ class UserResponse(BaseModel):
     accept_offline_challenges: bool = True
     cinepass: int = 100
     login_streak: int = 0
+    badge: Optional[str] = 'none'
+    badge_expiry: Optional[str] = None
 
 class TokenResponse(BaseModel):
     access_token: str

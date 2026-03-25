@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench } from 'lucide-react';
+import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star } from 'lucide-react';
 import { AuthContext } from '../contexts';
+import { PlayerBadge } from '../components/PlayerBadge';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -151,6 +152,7 @@ function UsersTab({ api }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
+                  <PlayerBadge badge={u.badge} badgeExpiry={u.badge_expiry} size="sm" />
                   <span className="text-xs font-semibold truncate">{u.nickname}</span>
                   {u.role && <Badge className="text-[7px] h-3.5 bg-purple-500/20 text-purple-400">{u.role}</Badge>}
                 </div>
@@ -239,6 +241,34 @@ function UsersTab({ api }) {
                   <Minus className="w-3 h-3" />
                 </Button>
               </div>
+            </div>
+
+            {/* Badge controls */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-amber-400 font-semibold flex items-center gap-1"><Crown className="w-3 h-3" /> Badge Utente</p>
+              <p className="text-[8px] text-gray-500">Attuale: <span className="text-amber-300">{selectedUser.badge || 'none'}</span> {selectedUser.badge_expiry && selectedUser.badge !== 'none' ? `(scade: ${new Date(selectedUser.badge_expiry).toLocaleDateString()})` : ''}</p>
+              <div className="flex gap-1.5">
+                {[{ val: 'none', label: 'Nessuno', cls: 'bg-gray-700 hover:bg-gray-600' }, { val: 'cinevip', label: 'CineVIP', cls: 'bg-yellow-700 hover:bg-yellow-600' }, { val: 'cinestar', label: 'CineSTAR', cls: 'bg-amber-600 hover:bg-amber-500' }].map(b => (
+                  <Button key={b.val} size="sm" className={`text-[10px] h-7 px-2 flex-1 ${b.cls} ${selectedUser.badge === b.val ? 'ring-1 ring-white/40' : ''}`}
+                    disabled={actionLoading}
+                    onClick={async () => {
+                      setActionLoading('badge');
+                      try {
+                        await api.post('/admin/set-badge', { nickname: selectedUser.nickname, badge: b.val });
+                        toast.success(`Badge ${b.label} assegnato a ${selectedUser.nickname}`);
+                        setSelectedUser(prev => ({ ...prev, badge: b.val, badge_expiry: b.val === 'none' ? null : new Date(Date.now() + 7*24*60*60*1000).toISOString() }));
+                        searchUsers(searchQuery);
+                      } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                      setActionLoading(null);
+                    }}
+                    data-testid={`admin-badge-${b.val}`}>
+                    {b.val === 'cinevip' && <Crown className="w-3 h-3 mr-0.5" />}
+                    {b.val === 'cinestar' && <Star className="w-3 h-3 mr-0.5" />}
+                    {b.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-[8px] text-gray-600">Durata: 7 giorni dalla assegnazione</p>
             </div>
           </CardContent>
         </Card>

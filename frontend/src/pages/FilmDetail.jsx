@@ -51,6 +51,7 @@ import {
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
 import { ReleaseCinematic } from '../components/ReleaseCinematic';
+import { MasterpieceBadge } from '../components/PlayerBadge';
 
 // useTranslations imported from contexts
 
@@ -336,6 +337,7 @@ const FilmDetail = () => {
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="bg-[#1A1A1A] border-white/10 overflow-hidden">
           <div className="aspect-[2/3] relative">
+            <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="md" />
             <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
             {film.is_sequel && (
               <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow-lg">

@@ -45,6 +45,7 @@ import {
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
 import { LoadingSpinner } from '../components/ErrorBoundary';
+import { PlayerBadge } from '../components/PlayerBadge';
 
 // useTranslations imported from contexts
 
@@ -1908,7 +1909,7 @@ const ChallengesPage = () => {
                   {i + 1}
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold"><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
+                  <p className="font-semibold"><PlayerBadge badge={entry.badge} badgeExpiry={entry.badge_expiry} size="sm" /><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
                   <p className="text-xs text-gray-400">{entry.wins}W / {entry.losses}L</p>
                 </div>
                 <div className="text-right">

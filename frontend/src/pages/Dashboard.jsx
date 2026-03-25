@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge, MasterpieceBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { ComingSoonSection } from '../components/ComingSoonSection';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
@@ -429,7 +430,7 @@ const Dashboard = () => {
         >
           <div>
             <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
-              {t('welcome')}, <span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
+              {t('welcome')}, <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} size="md" /><span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
             </h1>
             <div className="flex items-center gap-2">
               <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
@@ -630,6 +631,7 @@ const Dashboard = () => {
               {recentReleases.slice(0, 5).map(film => (
                 <div key={film.id} className="cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-release-${film.id}`}>
                   <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                    <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                     <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                     {(film.virtual_likes > 0) && (
                       <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
@@ -639,7 +641,7 @@ const Dashboard = () => {
                     )}
                   </div>
                   <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
-                  <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
+                  <p className="text-[6px] text-gray-500 truncate"><PlayerBadge badge={film.producer_badge} badgeExpiry={film.producer_badge_expiry} size="xs" />{film.producer_nickname}</p>
                 </div>
               ))}
             </div>
@@ -1121,6 +1123,7 @@ const Dashboard = () => {
             {films.slice(0, 5).map(film => (
               <div key={film.id} className="cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`my-film-${film.id}`}>
                 <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                  <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                   <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                   {film.is_sequel && <div className="absolute top-0.5 right-0.5 bg-purple-600/90 text-white text-[6px] px-1 py-0.5 rounded font-bold">#{film.sequel_number || 2}</div>}
                   {(film.virtual_likes > 0) && (

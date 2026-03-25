@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { toast } from 'sonner';
 import { Film, Heart, Trophy, Building, MessageSquare, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '../components/ErrorBoundary';
+import { PlayerBadge } from '../components/PlayerBadge';
 
 const PlayerPublicProfile = () => {
   const { api, user } = useContext(AuthContext);
@@ -45,7 +46,7 @@ const PlayerPublicProfile = () => {
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-['Bebas_Neue'] text-2xl">{player.nickname}</h1>
+                <h1 className="font-['Bebas_Neue'] text-2xl"><PlayerBadge badge={player.badge} badgeExpiry={player.badge_expiry} size="lg" inline />{player.nickname}</h1>
                 <Badge className="bg-purple-500/20 text-purple-400">Lv.{player.level}</Badge>
               </div>
               <p className="text-gray-400">{player.production_house_name}</p>

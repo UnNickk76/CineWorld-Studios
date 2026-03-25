@@ -305,6 +305,20 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Mantenuto:** likes_count/virtual_likes nei calcoli interni del gioco (game_systems.py, challenge_system.py) per non rompere il bilanciamento
 - **Test:** 100% backend (6/6) + 100% frontend (5/5) passati
 
+### Recupero Film + Sistema Bozze (2026-03-25)
+- **BUG CRITICO FIXATO:** `scheduler_tasks.py` auto_release_coming_soon usava variabili `hype_boost` e `strategy_bonus_pct` non definite nel contesto film (definite solo per serie), causando NameError e film bloccati in `coming_soon` per sempre
+- **Scheduler sicurezza:** `auto_cleanup_corrupted_projects` ora recupera i film in stato `proposed` invece di scartarli in `discarded`
+- **Nuovi endpoint backend:**
+  - `GET /film-pipeline/drafts` - Lista bozze e film bloccati dell'utente
+  - `GET /film-pipeline/diagnose` - Diagnostica film persi/invisibili
+  - `POST /film-pipeline/admin/recover-all` - Recupero globale film persi (scansiona tutti gli utenti)
+- **Nuovo componente frontend:** `DraftsSection.jsx` - Sezione "Bozze & Recupero" nella pagina Produzione con:
+  - Pulsante "Diagnostica" per controllare la salute dei film
+  - Pulsante "Recupera Film Persi" per recupero automatico
+  - Lista bozze con azioni "Riprendi" e "Elimina"
+  - Indicatore film bloccati in stati intermedi
+- **Test:** 100% backend (15/15) + 100% frontend (5/5) + 100% scheduler verification (3/3)
+
 ## Backlog
 
 ### P0 — Completato
@@ -315,6 +329,7 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 5. ~~Marketing non disponibile~~ — Risolto
 6. ~~Arena coperta da navbar~~ — Risolto
 7. ~~Rimozione sezione Like obsoleta~~ — Risolto
+8. ~~Recupero film scomparsi + sistema Bozze~~ — Risolto
 
 ### P1
 - Sistema "Previsioni Festival" (scommesse sui vincitori)

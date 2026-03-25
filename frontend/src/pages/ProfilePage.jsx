@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -268,7 +269,7 @@ const ProfilePage = () => {
             </Avatar>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold">{user?.nickname}</h2>
+                <h2 className="text-base sm:text-lg font-bold"><PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" />{user?.nickname}</h2>
                 {user?.nickname === 'NeoMorpheus' && (
                   <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0">Creator</Badge>
                 )}

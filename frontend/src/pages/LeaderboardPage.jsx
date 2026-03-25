@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -87,6 +88,7 @@ const LeaderboardPage = () => {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
           <ClickableNickname userId={player.id} nickname={player.nickname} className="font-semibold text-sm" />
+          <PlayerBadge badge={player.badge} badgeExpiry={player.badge_expiry} badges={player.badges} size="sm" />
           <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{player.level_info?.level || 0}</Badge>
         </div>
         <p className="text-[10px] text-gray-400 truncate">{player.production_house_name}</p>

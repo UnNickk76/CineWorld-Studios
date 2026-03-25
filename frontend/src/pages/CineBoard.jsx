@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge, MasterpieceBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -644,7 +645,7 @@ const CineBoard = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
-                      <p className="text-xs text-gray-400 truncate"><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
+                      <p className="text-xs text-gray-400 truncate"><PlayerBadge badge={film.owner?.badge} badgeExpiry={film.owner?.badge_expiry} badges={film.owner?.badges} size="xs" /><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-blue-400">{film.current_cinemas}</p>
@@ -692,7 +693,7 @@ const CineBoard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{film.title}</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-xs text-gray-400 truncate"><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
+                        <p className="text-xs text-gray-400 truncate"><PlayerBadge badge={film.owner?.badge} badgeExpiry={film.owner?.badge_expiry} badges={film.owner?.badges} size="xs" /><ClickableNickname userId={film.owner?.id} nickname={film.owner?.production_house_name || film.owner?.nickname} /></p>
                         <Badge className={`text-[9px] ${film.status === 'in_theaters' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
                           {film.status === 'in_theaters' ? (language === 'it' ? 'In Sala' : 'Showing') : (language === 'it' ? 'Archivio' : 'Archive')}
                         </Badge>

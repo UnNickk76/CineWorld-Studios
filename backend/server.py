@@ -3991,10 +3991,10 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     # Set total_revenue to 0 for pending release (will be calculated on release)
     film['total_revenue'] = 0
     
-    # Mark masterpiece films (quality >= 90, rare ~5%)
+    # Mark masterpiece films (quality >= 85, rare ~5%)
     qs = film.get('quality_score', 0)
     imdb = film.get('imdb_rating', 0)
-    film['is_masterpiece'] = (qs >= 90 and imdb >= 7.0)
+    film['is_masterpiece'] = (qs >= 85 and imdb >= 7.0)
     
     await db.films.insert_one(film)
     
@@ -17091,7 +17091,7 @@ async def get_cineboard_now_playing(user: dict = Depends(get_current_user)):
     
     # Bulk fetch owners
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
-    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(len(owner_ids))
     owners_map = {o['id']: o for o in owners_list}
     
     for film in films:
@@ -17115,7 +17115,7 @@ async def get_cineboard_hall_of_fame(user: dict = Depends(get_current_user)):
     ).to_list(1000)
     
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
-    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(len(owner_ids))
     owners_map = {o['id']: o for o in owners_list}
     
     for film in films:
@@ -17156,7 +17156,7 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
 
     # Bulk fetch owners
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
-    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(len(owner_ids))
     owners_map = {o['id']: o for o in owners_list}
 
     for film in films:
@@ -17249,7 +17249,7 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
 
     # Bulk fetch owners
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
-    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}).to_list(len(owner_ids))
+    owners_list = await db.users.find({'id': {'$in': owner_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(len(owner_ids))
     owners_map = {o['id']: o for o in owners_list}
 
     for film in films:

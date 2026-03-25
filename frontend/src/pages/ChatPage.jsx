@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge } from '../components/PlayerBadge';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -580,7 +581,7 @@ const ChatPage = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className={`text-[10px] font-semibold truncate ${isActive ? 'text-yellow-400' : 'text-gray-300'}`}>{room.other_user?.nickname}</span>
+                          <span className={`text-[10px] font-semibold truncate ${isActive ? 'text-yellow-400' : 'text-gray-300'}`}><PlayerBadge badge={room.other_user?.badge} badgeExpiry={room.other_user?.badge_expiry} badges={room.other_user?.badges} size="xs" />{room.other_user?.nickname}</span>
                           {lastTime && <span className="text-[7px] text-gray-600 flex-shrink-0">{lastTime}</span>}
                         </div>
                         {room.last_message && <p className="text-[8px] text-gray-600 truncate">{room.last_message.content}</p>}
@@ -630,7 +631,7 @@ const ChatPage = () => {
                           {!isOwn && !activeRoom.is_private && !isCreator && (
                             <div className="flex items-center gap-1 mb-0.5">
                               <span className="text-[10px] font-bold">
-                                <ClickableNickname userId={msg.sender_id} nickname={msg.sender?.nickname || '?'} className="text-[10px] font-bold" />
+                                <PlayerBadge badge={msg.sender?.badge} badgeExpiry={msg.sender?.badge_expiry} badges={msg.sender?.badges} size="xs" /><ClickableNickname userId={msg.sender_id} nickname={msg.sender?.nickname || '?'} className="text-[10px] font-bold" />
                               </span>
                               {isBot && <Badge className="h-3 px-0.5 text-[7px] bg-blue-500/30 text-blue-400">BOT</Badge>}
                             </div>
@@ -778,7 +779,7 @@ const ChatPage = () => {
                       <div className="flex items-center gap-1">
                         <span className={`text-[10px] font-medium truncate ${
                           u.presence === 'online' ? 'text-white' : u.presence === 'recent' ? 'text-gray-400' : 'text-gray-600'
-                        }`}>{u.nickname}</span>
+                        }`}><PlayerBadge badge={u.badge} badgeExpiry={u.badge_expiry} badges={u.badges} size="xs" />{u.nickname}</span>
                         {u.is_bot && u.is_moderator && <Badge className="h-3 px-0.5 text-[6px] bg-red-500/20 text-red-400">MOD</Badge>}
                         {u.is_bot && !u.is_moderator && <Badge className="h-3 px-0.5 text-[6px] bg-blue-500/20 text-blue-400">BOT</Badge>}
                       </div>

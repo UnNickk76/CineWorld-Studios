@@ -9,6 +9,7 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
+import { PlayerBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Textarea } from '../components/ui/textarea';
@@ -858,7 +859,7 @@ const FestivalsPage = () => {
                       </div>
                       <img src={entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.nickname}`} alt="" className="w-10 h-10 rounded-full" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate"><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
+                        <p className="font-semibold text-sm truncate"><PlayerBadge badge={entry.badge} badgeExpiry={entry.badge_expiry} badges={entry.badges} size="sm" /><ClickableNickname userId={entry.user_id} nickname={entry.nickname} /></p>
                         <p className="text-xs text-gray-400">Lv.{entry.level} | {entry.fame} Fama</p>
                       </div>
                       <div className="text-right">

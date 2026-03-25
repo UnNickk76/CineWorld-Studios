@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -152,7 +152,7 @@ function UsersTab({ api }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <PlayerBadge badge={u.badge} badgeExpiry={u.badge_expiry} size="sm" />
+                  <PlayerBadge badge={u.badge} badgeExpiry={u.badge_expiry} badges={u.badges} size="sm" />
                   <span className="text-xs font-semibold truncate">{u.nickname}</span>
                   {u.role && <Badge className="text-[7px] h-3.5 bg-purple-500/20 text-purple-400">{u.role}</Badge>}
                 </div>
@@ -269,6 +269,38 @@ function UsersTab({ api }) {
                 ))}
               </div>
               <p className="text-[8px] text-gray-600">Durata: 7 giorni dalla assegnazione</p>
+            </div>
+
+            {/* Permanent Badge controls */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-red-400 font-semibold flex items-center gap-1"><Shield className="w-3 h-3" /> Badge Permanenti</p>
+              <div className="flex gap-1.5">
+                {[
+                  { key: 'cineadmin', label: 'CineADMIN', icon: Shield, cls: 'bg-red-800 hover:bg-red-700', activeCls: 'ring-1 ring-red-400', color: 'text-red-400' },
+                  { key: 'cinemod', label: 'CineMOD', icon: ShieldCheck, cls: 'bg-blue-800 hover:bg-blue-700', activeCls: 'ring-1 ring-blue-400', color: 'text-blue-400' },
+                ].map(b => {
+                  const isActive = selectedUser.badges?.[b.key];
+                  return (
+                    <Button key={b.key} size="sm" className={`text-[10px] h-7 px-2 flex-1 ${b.cls} ${isActive ? b.activeCls : 'opacity-60'}`}
+                      disabled={actionLoading}
+                      onClick={async () => {
+                        setActionLoading('perm-badge');
+                        try {
+                          await api.post('/admin/set-perm-badge', { nickname: selectedUser.nickname, badge_type: b.key, active: !isActive });
+                          toast.success(`${b.label} ${!isActive ? 'assegnato' : 'rimosso'} a ${selectedUser.nickname}`);
+                          setSelectedUser(prev => ({ ...prev, badges: { ...prev.badges, [b.key]: !isActive } }));
+                          searchUsers(searchQuery);
+                        } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                        setActionLoading(null);
+                      }}
+                      data-testid={`admin-perm-${b.key}`}>
+                      <b.icon className={`w-3 h-3 mr-0.5 ${b.color}`} />
+                      {isActive ? `Rimuovi ${b.label}` : `Assegna ${b.label}`}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-[8px] text-gray-600">Permanenti — rimovibili solo manualmente</p>
             </div>
           </CardContent>
         </Card>

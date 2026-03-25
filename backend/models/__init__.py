@@ -51,6 +51,7 @@ class UserResponse(BaseModel):
     login_streak: int = 0
     badge: Optional[str] = 'none'
     badge_expiry: Optional[str] = None
+    badges: Optional[dict] = None
 
 class TokenResponse(BaseModel):
     access_token: str

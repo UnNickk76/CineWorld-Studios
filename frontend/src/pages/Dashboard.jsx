@@ -430,7 +430,7 @@ const Dashboard = () => {
         >
           <div>
             <h1 className="font-['Bebas_Neue'] text-3xl md:text-4xl mb-1">
-              {t('welcome')}, <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} size="md" /><span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
+              {t('welcome')}, <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" /><span className="text-yellow-500">{user?.nickname || user?.production_house_name}</span>
             </h1>
             <div className="flex items-center gap-2">
               <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
@@ -641,7 +641,7 @@ const Dashboard = () => {
                     )}
                   </div>
                   <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
-                  <p className="text-[6px] text-gray-500 truncate"><PlayerBadge badge={film.producer_badge} badgeExpiry={film.producer_badge_expiry} size="xs" />{film.producer_nickname}</p>
+                  <p className="text-[6px] text-gray-500 truncate"><PlayerBadge badge={film.producer_badge} badgeExpiry={film.producer_badge_expiry} badges={film.producer_badges} size="xs" />{film.producer_nickname}</p>
                 </div>
               ))}
             </div>

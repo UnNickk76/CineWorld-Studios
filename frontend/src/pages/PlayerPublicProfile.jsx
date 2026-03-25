@@ -46,7 +46,7 @@ const PlayerPublicProfile = () => {
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-['Bebas_Neue'] text-2xl"><PlayerBadge badge={player.badge} badgeExpiry={player.badge_expiry} size="lg" inline />{player.nickname}</h1>
+                <h1 className="font-['Bebas_Neue'] text-2xl"><PlayerBadge badge={player.badge} badgeExpiry={player.badge_expiry} badges={player.badges} size="lg" inline />{player.nickname}</h1>
                 <Badge className="bg-purple-500/20 text-purple-400">Lv.{player.level}</Badge>
               </div>
               <p className="text-gray-400">{player.production_house_name}</p>

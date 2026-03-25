@@ -298,15 +298,23 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - **Safe Area:** Padding bottom dinamico per Safari toolbar su tutte le pagine principali
 - **Test:** SW active, manifest verificato, download page funzionante. Banner PWA si attiva solo su dispositivi reali (iOS/Android).
 
+### Rimozione Feature Like Obsoleta (2026-03-25)
+- **Frontend rimosso:** CTA card "Interagisci con altri player" dalla Dashboard, stat "Like" dalla griglia Studio, popup dettagli Like, punteggio "Like" dai scores, like button da CineBoard/CinemaJournal/FilmDetail, popup Likers da FilmDetail, stat "total_likes" dal profilo giocatore (AuthPage), stat "Likes" da StatisticsPage
+- **Navigazione rimossa:** Voci "Social" e "Top Liked" dal menu CineBoard in App.js
+- **Backend rimosso:** Endpoint POST /films/{id}/like, GET /films/{id}/likes, GET /social/feed, GET /social/top-liked, GET /social/my-bonuses, GET /films/social/feed
+- **Mantenuto:** likes_count/virtual_likes nei calcoli interni del gioco (game_systems.py, challenge_system.py) per non rompere il bilanciamento
+- **Test:** 100% backend (6/6) + 100% frontend (5/5) passati
+
 ## Backlog
 
-### P0 — Fix UX + Bug Post-PWA (PRIORITA ASSOLUTA)
-1. **Locandina non generata** — Ripristinare generazione automatica poster (immediato + rimasterizza). Placeholder se non pronto. Aggiornamento UI auto.
-2. **Presentazione dopo Ciak assente** — Ripristinare sequenza scenografica post-rilascio con suspense + reveal risultati.
-3. **Velion appare sempre** — Tutorial solo al primo accesso o riapertura manuale, non ad ogni cambio pagina.
-4. **Notifiche coperte da notch iPhone** — safe-area-inset-top per toast/notifiche, oppure spostare sotto navbar.
-5. **Marketing non disponibile** — CTA marketing solo se azione esiste, oppure aggiungere bottone marketing in fase countdown.
-6. **Arena coperta da navbar** — Fix spacing top, evitare sovrapposizione con header.
+### P0 — Completato
+1. ~~Locandina non generata~~ — Risolto
+2. ~~Presentazione dopo Ciak assente~~ — Risolto
+3. ~~Velion appare sempre~~ — Risolto
+4. ~~Notifiche coperte da notch iPhone~~ — Risolto
+5. ~~Marketing non disponibile~~ — Risolto
+6. ~~Arena coperta da navbar~~ — Risolto
+7. ~~Rimozione sezione Like obsoleta~~ — Risolto
 
 ### P1
 - Sistema "Previsioni Festival" (scommesse sui vincitori)

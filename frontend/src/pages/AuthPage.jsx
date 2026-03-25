@@ -542,10 +542,6 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
                 <p className="text-xs text-gray-400">{t('revenue')}</p>
               </div>
               <div className="bg-black/30 rounded p-2 text-center">
-                <p className="text-lg font-bold text-pink-500">{profile.stats?.total_likes}</p>
-                <p className="text-xs text-gray-400">{t('likes')}</p>
-              </div>
-              <div className="bg-black/30 rounded p-2 text-center">
                 <p className="text-lg font-bold text-blue-500">{profile.stats?.avg_quality}%</p>
                 <p className="text-xs text-gray-400">{t('quality')}</p>
               </div>

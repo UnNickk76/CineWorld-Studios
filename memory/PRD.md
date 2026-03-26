@@ -59,6 +59,14 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Backend /pvp-cinema/arena: aggiunta query per serie/anime (coming_soon, production, ready_to_release)
 - Serie e anime ora visibili in Dashboard Prossimamente e nell'Arena con tipo e num episodi
 
+### Feature "Prossimamente in TV" con selezione manuale (2026-03-26)
+- Backend: POST /tv-stations/toggle-schedule-tv (toggle flag scheduled_for_tv su film/serie/anime)
+- Backend: GET /tv-stations/{id}/scheduled (contenuti programmati per la stazione)
+- Backend: GET /tv-stations/{id}/schedulable-content (film al cinema + serie/anime in produzione)
+- Frontend TVStationPage: sezione "Prossimamente" con card 80px in scroll orizzontale
+- Frontend TVStationPage: dialog "Programma per TV" nel menu con toggle ON/OFF per ogni contenuto
+- Card esistenti (Consigliati/Del Momento/Piu Visti/Gestione) ridotte al 50% (80px/70px)
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

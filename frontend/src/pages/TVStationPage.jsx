@@ -58,6 +58,10 @@ export default function TVStationPage() {
   const [showAddContent, setShowAddContent] = useState(null); // 'film' | 'tv_series' | 'anime'
   const [availableContent, setAvailableContent] = useState({ films: [], tv_series: [], anime: [] });
   const [contentLoading, setContentLoading] = useState(false);
+  const [scheduledItems, setScheduledItems] = useState([]);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [schedulableContent, setSchedulableContent] = useState({ films: [], tv_series: [], anime: [] });
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   // Settings popup
   const [showSettings, setShowSettings] = useState(false);
@@ -66,15 +70,19 @@ export default function TVStationPage() {
 
   const loadStation = useCallback(async (id) => {
     try {
-      const res = await api.get(`/tv-stations/${id}`);
-      setStation(res.data.station);
-      setEnrichedContents(res.data.enriched_contents);
-      setShareData(res.data.share_data);
-      setNetflixSections(res.data.netflix_sections);
-      setIsOwner(res.data.is_owner);
-      setSettingsAd(res.data.station?.ad_seconds || 30);
-      setInfraLevel(res.data.infra_level || 1);
-      setCapacity(res.data.capacity || { films: 3, tv_series: 2, anime: 2, total: 7 });
+      const [stRes, schRes] = await Promise.all([
+        api.get(`/tv-stations/${id}`),
+        api.get(`/tv-stations/${id}/scheduled`).catch(() => ({ data: { items: [] } }))
+      ]);
+      setStation(stRes.data.station);
+      setEnrichedContents(stRes.data.enriched_contents);
+      setShareData(stRes.data.share_data);
+      setNetflixSections(stRes.data.netflix_sections);
+      setIsOwner(stRes.data.is_owner);
+      setSettingsAd(stRes.data.station?.ad_seconds || 30);
+      setInfraLevel(stRes.data.infra_level || 1);
+      setCapacity(stRes.data.capacity || { films: 3, tv_series: 2, anime: 2, total: 7 });
+      setScheduledItems(schRes.data.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [api]);
@@ -130,6 +138,38 @@ export default function TVStationPage() {
       setAvailableContent(res.data);
     } catch (e) { toast.error('Errore caricamento contenuti'); }
     setContentLoading(false);
+  };
+
+  const openScheduleDialog = async () => {
+    const sid = stationId || newStationId;
+    if (!sid) return;
+    setShowScheduleDialog(true);
+    setScheduleLoading(true);
+    try {
+      const res = await api.get(`/tv-stations/schedulable-content/${sid}`);
+      setSchedulableContent(res.data);
+    } catch (e) { toast.error('Errore caricamento'); }
+    setScheduleLoading(false);
+  };
+
+  const toggleSchedule = async (contentId, contentType) => {
+    const sid = stationId || newStationId;
+    try {
+      const res = await api.post('/tv-stations/toggle-schedule-tv', {
+        content_id: contentId, content_type: contentType, station_id: sid
+      });
+      if (res.data.scheduled_for_tv) {
+        toast.success('Programmato per TV!');
+      } else {
+        toast.info('Rimosso dalla programmazione');
+      }
+      // Update local state
+      setSchedulableContent(prev => {
+        const key = contentType === 'film' ? 'films' : contentType;
+        return { ...prev, [key]: prev[key].map(i => i.id === contentId ? { ...i, scheduled_for_tv: res.data.scheduled_for_tv } : i) };
+      });
+      loadStation(sid);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
   };
 
   const addContent = async (contentId, contentType) => {
@@ -344,7 +384,7 @@ export default function TVStationPage() {
         <h3 className={`text-sm font-bold mb-2 px-1 text-${color}`}>{title}</h3>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
           {items.map((item, i) => (
-            <div key={item.id || i} className="flex-shrink-0 w-[110px] group relative cursor-pointer" data-testid={`netflix-item-${item.id}`}>
+            <div key={item.id || i} className="flex-shrink-0 w-[80px] group relative cursor-pointer" data-testid={`netflix-item-${item.id}`}>
               <div className="aspect-[2/3] rounded-lg overflow-hidden relative">
                 <img
                   src={posterSrc(item.poster_url)}
@@ -363,7 +403,7 @@ export default function TVStationPage() {
                   </button>
                 )}
               </div>
-              <p className="text-[10px] font-medium truncate mt-1 px-0.5">{item.title}</p>
+              <p className="text-[8px] font-medium truncate mt-1 px-0.5">{item.title}</p>
             </div>
           ))}
         </div>
@@ -393,7 +433,7 @@ export default function TVStationPage() {
       </div>
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
         {items.map((item) => (
-          <div key={item.id} className="flex-shrink-0 w-[90px] group relative">
+          <div key={item.id} className="flex-shrink-0 w-[70px] group relative">
             <div className="aspect-[2/3] rounded-lg overflow-hidden">
               <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
               {isOwner && (
@@ -402,11 +442,11 @@ export default function TVStationPage() {
                 </button>
               )}
             </div>
-            <p className="text-[8px] font-medium truncate mt-0.5">{item.title}</p>
+            <p className="text-[7px] font-medium truncate mt-0.5">{item.title}</p>
           </div>
         ))}
         {isOwner && items.length === 0 && (
-          <button className="flex-shrink-0 w-[90px] aspect-[2/3] rounded-lg border border-dashed border-white/10 flex items-center justify-center hover:border-red-500/30 transition-colors" onClick={() => openAddContent(type)}>
+          <button className="flex-shrink-0 w-[70px] aspect-[2/3] rounded-lg border border-dashed border-white/10 flex items-center justify-center hover:border-red-500/30 transition-colors" onClick={() => openAddContent(type)}>
             <Plus className="w-5 h-5 text-gray-600" />
           </button>
         )}
@@ -473,15 +513,52 @@ export default function TVStationPage() {
         {/* Netflix Sections */}
         {!allContentsEmpty ? (
           <>
+            {/* PROSSIMAMENTE section */}
+            {scheduledItems.length > 0 && (
+              <div className="mb-5">
+                <h3 className="text-sm font-bold mb-2 px-1 text-cyan-400">Prossimamente</h3>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                  {scheduledItems.map((item) => (
+                    <div key={item.id} className="flex-shrink-0 w-[80px] group relative" data-testid={`scheduled-item-${item.id}`}>
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden relative ring-1 ring-cyan-500/30">
+                        <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 p-1">
+                          <Badge className="text-[6px] h-3 bg-cyan-500/20 text-cyan-400 border-0">
+                            {item.status === 'in_theaters' ? 'Al cinema' : item.status === 'production' ? 'In produzione' : item.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-[8px] font-medium truncate mt-1">{item.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <NetflixRow title="Consigliati" items={netflixSections.consigliati} color="white" />
             <NetflixRow title="Del Momento" items={netflixSections.del_momento} color="red-400" />
-            <NetflixRow title="I Più Visti" items={netflixSections.piu_visti} color="yellow-400" />
+            <NetflixRow title="I Piu Visti" items={netflixSections.piu_visti} color="yellow-400" />
           </>
         ) : (
           <div className="text-center py-8">
             <Radio className="w-10 h-10 text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">Nessun contenuto in programmazione</p>
             {isOwner && <p className="text-gray-600 text-xs mt-1">Aggiungi film, serie TV o anime qui sotto</p>}
+            {/* Show Prossimamente even when empty main content */}
+            {isOwner && scheduledItems.length > 0 && (
+              <div className="mt-4 text-left">
+                <h3 className="text-sm font-bold mb-2 px-1 text-cyan-400">Prossimamente</h3>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                  {scheduledItems.map((item) => (
+                    <div key={item.id} className="flex-shrink-0 w-[80px]">
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-cyan-500/30">
+                        <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                      </div>
+                      <p className="text-[8px] font-medium truncate mt-1">{item.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -505,6 +582,89 @@ export default function TVStationPage() {
         addContent={addContent}
         posterSrc={posterSrc}
       />
+
+      {/* Schedule for TV Dialog */}
+      <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm max-h-[80vh] overflow-y-auto p-0" data-testid="schedule-dialog">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2 text-cyan-400">
+              <TrendingUp className="w-5 h-5" /> Programma per TV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 pt-0 space-y-3">
+            <p className="text-[10px] text-gray-500">Seleziona i contenuti che vuoi programmare per la tua TV. Appariranno in "Prossimamente" e saranno aggiunti automaticamente quando disponibili.</p>
+            {scheduleLoading ? (
+              <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-cyan-400 animate-spin" /></div>
+            ) : (
+              <>
+                {schedulableContent.films.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-yellow-400 mb-1 flex items-center gap-1"><Film className="w-3 h-3" /> Film al Cinema</h4>
+                    <div className="space-y-1">
+                      {schedulableContent.films.map(f => (
+                        <button key={f.id} onClick={() => toggleSchedule(f.id, 'film')}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${f.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
+                          data-testid={`schedule-film-${f.id}`}>
+                          <img src={posterSrc(f.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-[10px] font-bold truncate">{f.title}</p>
+                            <p className="text-[8px] text-gray-500">{f.status === 'in_theaters' ? 'Al cinema' : f.status}</p>
+                          </div>
+                          {f.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {schedulableContent.tv_series.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-blue-400 mb-1 flex items-center gap-1"><Tv className="w-3 h-3" /> Serie TV in Produzione</h4>
+                    <div className="space-y-1">
+                      {schedulableContent.tv_series.map(s => (
+                        <button key={s.id} onClick={() => toggleSchedule(s.id, 'tv_series')}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${s.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
+                          data-testid={`schedule-series-${s.id}`}>
+                          <img src={posterSrc(s.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-[10px] font-bold truncate">{s.title}</p>
+                            <p className="text-[8px] text-gray-500">{s.num_episodes} ep. - {s.status}</p>
+                          </div>
+                          {s.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {schedulableContent.anime.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-orange-400 mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Anime in Produzione</h4>
+                    <div className="space-y-1">
+                      {schedulableContent.anime.map(a => (
+                        <button key={a.id} onClick={() => toggleSchedule(a.id, 'anime')}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${a.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
+                          data-testid={`schedule-anime-${a.id}`}>
+                          <img src={posterSrc(a.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-[10px] font-bold truncate">{a.title}</p>
+                            <p className="text-[8px] text-gray-500">{a.num_episodes} ep. - {a.status}</p>
+                          </div>
+                          {a.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!schedulableContent.films.length && !schedulableContent.tv_series.length && !schedulableContent.anime.length && (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-xs">Nessun contenuto programmabile</p>
+                    <p className="text-gray-600 text-[10px] mt-1">I film al cinema e le serie in produzione appariranno qui</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Settings Dialog */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
@@ -537,6 +697,9 @@ export default function TVStationPage() {
               Salva Impostazioni
             </Button>
             <div className="border-t border-white/5 pt-3 space-y-2">
+              <Button variant="outline" className="w-full text-xs h-9 border-cyan-500/20 text-cyan-400" onClick={() => { setShowSettings(false); openScheduleDialog(); }} data-testid="schedule-tv-btn">
+                <TrendingUp className="w-3 h-3 mr-2" /> Programma per TV
+              </Button>
               <Button variant="outline" className="w-full text-xs h-9 border-white/10" onClick={() => { setShowSettings(false); openAddContent('film'); }}>
                 <Film className="w-3 h-3 mr-2 text-yellow-400" /> Aggiungi Film
               </Button>

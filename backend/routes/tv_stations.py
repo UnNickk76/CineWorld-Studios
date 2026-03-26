@@ -388,6 +388,78 @@ async def update_ads(req: UpdateAdsRequest, user: dict = Depends(get_current_use
     return {"message": f"Pubblicità aggiornata a {ad_seconds} secondi", "ad_seconds": ad_seconds}
 
 
+class ScheduleTVRequest(BaseModel):
+    content_id: str
+    content_type: str  # 'film', 'tv_series', 'anime'
+    station_id: str
+
+
+@router.post("/tv-stations/toggle-schedule-tv")
+async def toggle_schedule_tv(req: ScheduleTVRequest, user: dict = Depends(get_current_user)):
+    """Toggle scheduled_for_tv flag on a content item."""
+    station = await db.tv_stations.find_one({'id': req.station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    if req.content_type == 'film':
+        item = await db.films.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'scheduled_for_tv': 1})
+        if not item:
+            # Check film_projects too
+            item = await db.film_projects.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'scheduled_for_tv': 1})
+            if not item:
+                raise HTTPException(404, "Film non trovato")
+            coll = db.film_projects
+        else:
+            coll = db.films
+    else:
+        item = await db.tv_series.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'scheduled_for_tv': 1})
+        if not item:
+            raise HTTPException(404, "Contenuto non trovato")
+        coll = db.tv_series
+
+    new_val = not item.get('scheduled_for_tv', False)
+    await coll.update_one(
+        {'id': req.content_id},
+        {'$set': {'scheduled_for_tv': new_val, 'scheduled_for_tv_station': req.station_id if new_val else None}}
+    )
+    return {"scheduled_for_tv": new_val, "content_id": req.content_id}
+
+
+@router.get("/tv-stations/{station_id}/scheduled")
+async def get_scheduled_content(station_id: str, user: dict = Depends(get_current_user)):
+    """Get content scheduled for TV (Prossimamente)."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    # Films in theaters or coming soon, scheduled for this station
+    scheduled_films = await db.films.find(
+        {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre': 1, 'quality_score': 1}
+    ).to_list(50)
+    # Also check film_projects (in_theaters stage)
+    scheduled_fp = await db.film_projects.find(
+        {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre': 1}
+    ).to_list(50)
+
+    # Series/Anime scheduled for this station
+    scheduled_series = await db.tv_series.find(
+        {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'tv_series'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+    ).to_list(50)
+    scheduled_anime = await db.tv_series.find(
+        {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'anime'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+    ).to_list(50)
+
+    all_scheduled = scheduled_films + scheduled_fp + scheduled_series + scheduled_anime
+    for item in all_scheduled:
+        item['content_type'] = 'film' if item in scheduled_films or item in scheduled_fp else ('anime' if item in scheduled_anime else 'tv_series')
+
+    return {"items": all_scheduled, "total": len(all_scheduled)}
+
+
 @router.get("/tv-stations/available-content/{station_id}")
 async def get_available_content(station_id: str, user: dict = Depends(get_current_user)):
     """Get content available to add to the TV station."""
@@ -438,6 +510,33 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
         "tv_series": available_series,
         "anime": available_anime,
     }
+
+
+@router.get("/tv-stations/schedulable-content/{station_id}")
+async def get_schedulable_content(station_id: str, user: dict = Depends(get_current_user)):
+    """Get content that can be scheduled for 'Prossimamente in TV'."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    # Films currently in theaters (will become available after cinema run)
+    films_in_cinema = await db.films.find(
+        {'user_id': user['id'], 'status': 'in_theaters'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'scheduled_for_tv': 1}
+    ).to_list(50)
+
+    # Series/Anime in production pipeline
+    series_in_prod = await db.tv_series.find(
+        {'user_id': user['id'], 'status': {'$in': ['coming_soon', 'casting', 'screenplay', 'production', 'ready_to_release']}, 'type': 'tv_series'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'num_episodes': 1, 'scheduled_for_tv': 1}
+    ).to_list(50)
+
+    anime_in_prod = await db.tv_series.find(
+        {'user_id': user['id'], 'status': {'$in': ['coming_soon', 'casting', 'screenplay', 'production', 'ready_to_release']}, 'type': 'anime'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'num_episodes': 1, 'scheduled_for_tv': 1}
+    ).to_list(50)
+
+    return {"films": films_in_cinema, "tv_series": series_in_prod, "anime": anime_in_prod}
 
 
 @router.get("/tv-stations/public/all")

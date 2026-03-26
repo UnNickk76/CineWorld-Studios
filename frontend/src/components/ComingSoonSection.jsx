@@ -152,10 +152,20 @@ function ComingSoonThumb({ item, onClick }) {
   const typeLabel = isRemastering ? 'Remaster' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie' : 'Film';
   const typeColor = isRemastering ? 'text-amber-400' : item.content_type === 'anime' ? 'text-pink-400' : item.content_type === 'tv_series' ? 'text-blue-400' : 'text-yellow-400';
 
+  // Urgency calculation
+  const diff = item.scheduled_release_at ? new Date(item.scheduled_release_at) - new Date() : Infinity;
+  const isImminent = diff > 0 && diff < 1800000; // < 30 min
+  const isUrgent = diff > 0 && diff < 7200000; // < 2h
+
+  // Hype label
+  const hype = item.hype_score || 0;
+  const hypeLabel = hype >= 30 ? 'Attesissimo' : hype >= 15 ? 'In crescita' : hype > 0 ? 'Interesse basso' : null;
+  const hypeColor = hype >= 30 ? 'text-red-400' : hype >= 15 ? 'text-orange-400' : 'text-gray-500';
+
   return (
     <div className="flex-shrink-0 w-[100px] cursor-pointer group" onClick={onClick}
       data-testid={`coming-soon-thumb-${item.id}`}>
-      <div className="aspect-[2/3] relative rounded-lg overflow-hidden bg-gradient-to-br from-gray-900 to-black">
+      <div className={`aspect-[2/3] relative rounded-lg overflow-hidden bg-gradient-to-br from-gray-900 to-black ${isImminent ? 'ring-2 ring-red-500/60 animate-pulse' : isUrgent ? 'ring-1 ring-orange-500/40' : ''}`}>
         {poster ? (
           <img src={poster} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
         ) : (
@@ -169,18 +179,35 @@ function ComingSoonThumb({ item, onClick }) {
             <Clock className="w-2.5 h-2.5 text-cyan-400" />
             <span className="text-[9px] font-bold text-cyan-300">{countdown}</span>
           </div>
+          {/* Hype label */}
+          {hypeLabel && (
+            <p className={`text-[7px] font-semibold mt-0.5 ${hypeColor}`}>
+              {hype >= 30 && <Flame className="w-2 h-2 inline mr-0.5" />}{hypeLabel}
+            </p>
+          )}
         </div>
+        {/* Urgency badge */}
+        {isImminent && (
+          <div className="absolute top-1 left-1 px-1 py-0.5 bg-red-600/90 rounded text-[6px] font-bold text-white" data-testid="urgency-imminent">
+            Uscita imminente
+          </div>
+        )}
+        {!isImminent && isUrgent && (
+          <div className="absolute top-1 left-1 px-1 py-0.5 bg-orange-600/80 rounded text-[6px] font-bold text-white" data-testid="urgency-soon">
+            In uscita
+          </div>
+        )}
         {/* Type badge */}
-        <div className="absolute top-1 right-1">
+        <div className={`absolute top-1 right-1 ${isImminent || isUrgent ? '' : ''}`}>
           <Badge className={`text-[6px] h-3 px-1 bg-black/70 ${typeColor} border-0`}>
             {typeLabel}
           </Badge>
         </div>
         {/* Hype indicator */}
-        {(item.hype_score || 0) > 0 && (
-          <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-black/70 rounded px-1 py-0.5">
-            <Flame className="w-2 h-2 text-orange-400" />
-            <span className="text-[7px] font-bold text-orange-300">{item.hype_score}</span>
+        {hype > 0 && (
+          <div className={`absolute ${isImminent || isUrgent ? 'top-5' : 'top-1'} left-1 flex items-center gap-0.5 bg-black/70 rounded px-1 py-0.5`}>
+            <Flame className={`w-2 h-2 ${hype >= 30 ? 'text-red-400' : 'text-orange-400'}`} />
+            <span className={`text-[7px] font-bold ${hype >= 30 ? 'text-red-300' : 'text-orange-300'}`}>{hype}</span>
           </div>
         )}
       </div>
@@ -227,10 +254,16 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
     try {
       const res = await api.post(`/coming-soon/${item.id}/interact`, { action });
       const d = res.data;
-      if (d.outcome === 'backfire') toast.info(d.message, { icon: '~' });
-      else if (d.outcome === 'success') toast.success(d.message);
-      else toast.info(d.message);
-      setLocalHype(prev => Math.max(0, prev + (d.effects?.hype || 0)));
+      const hypeChange = d.effects?.hype || 0;
+      if (d.outcome === 'backfire') {
+        toast.error(d.message || 'Operazione fallita', { duration: 4000 });
+      } else if (d.outcome === 'success') {
+        const hypeMsg = hypeChange > 0 ? ' +Hype in crescita' : hypeChange < 0 ? ' Hype in calo' : '';
+        toast.success(`${d.message}${hypeMsg}`, { duration: 4000 });
+      } else {
+        toast.info(d.message);
+      }
+      setLocalHype(prev => Math.max(0, prev + hypeChange));
       loadDetails();
       if (onRefresh) onRefresh();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -305,8 +338,17 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
         <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-500" /></div>
       ) : (
         <>
-          {/* Hype Bar */}
-          <HypeBar score={localHype} />
+          {/* Hype Bar with label */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className={`text-[9px] font-semibold ${
+                localHype >= 30 ? 'text-red-400' : localHype >= 15 ? 'text-orange-400' : 'text-gray-500'
+              }`}>
+                {localHype >= 30 ? 'Film attesissimo' : localHype >= 15 ? 'Sta crescendo' : 'Interesse basso'}
+              </span>
+            </div>
+            <HypeBar score={localHype} />
+          </div>
 
           {/* Anteprima */}
           {(details?.pre_screenplay || item.pre_screenplay) && (

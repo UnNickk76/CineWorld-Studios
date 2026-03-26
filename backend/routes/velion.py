@@ -616,17 +616,28 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
                 })
                 break
 
-    # --- 7d. Low hype for coming soon ---
+    # --- 7d. Coming soon hype triggers ---
     for p in active_pipeline:
-        if p.get('status') == 'coming_soon' and p.get('hype_score', 0) < 25:
-            all_triggers.append({
-                'type': 'low_hype',
-                'message': f'"{p.get("title", "Il film")}" ha hype basso. Lancia una campagna marketing dalla sezione Miglioramenti!',
-                'priority': 'medium',
-                'action': '/create-film',
-                '_sort': 5
-            })
-            break
+        if p.get('status') == 'coming_soon':
+            hype = p.get('hype_score', 0)
+            if hype < 10:
+                all_triggers.append({
+                    'type': 'low_hype',
+                    'message': f'"{p.get("title", "Il film")}" ha hype molto basso! Supportalo dalla sezione Prossimamente.',
+                    'priority': 'high',
+                    'action': '/',
+                    '_sort': 3
+                })
+                break
+            elif hype >= 35:
+                all_triggers.append({
+                    'type': 'high_hype',
+                    'message': f'"{p.get("title", "Il film")}" e\' un progetto promettente! L\'hype e\' altissimo.',
+                    'priority': 'high',
+                    'action': '/',
+                    '_sort': 4
+                })
+                break
 
     # --- 7e. Reinvest suggestion ---
     if pending_revenue > 200000 and len(active_pipeline) == 0:

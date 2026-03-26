@@ -8,7 +8,7 @@ const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
 const POLL_INTERVAL = 600000; // 10 minutes
 const BUBBLE_COOLDOWN = 600000; // 10 minutes between bubbles
-const HIGH_PRIORITY_TYPES = new Set(['revenue', 'stuck_film', 'countdown_imminent', 'countdown']);
+const HIGH_PRIORITY_TYPES = new Set(['revenue', 'stuck_film', 'countdown_imminent', 'countdown', 'low_hype', 'high_hype']);
 
 export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
   const { api, user } = useContext(AuthContext);

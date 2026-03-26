@@ -41,6 +41,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Blocco duplicati: stesso tipo non ripetuto per 30 min
 - Cambio pagina non riattiva consigli
 
+### Mini Espansione Coming Soon + Hype + Arena (2026-03-26)
+- Hype visibile: label testuale (Interesse basso / Sta crescendo / Attesissimo) in thumbnail e detail
+- Feedback supporto/boicotto: toast con "+Hype in crescita" / "Hype in calo" / "Operazione fallita"
+- Urgenza countdown: badge "In uscita" (<2h) e "Uscita imminente" (<30min) con ring glow
+- Velion: trigger low_hype e high_hype aggiunti come high priority
+- Arena: bordo glow orange (hype alto) / rosso (hype basso) sulle FilmMiniCard
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

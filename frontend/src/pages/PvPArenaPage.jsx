@@ -294,11 +294,15 @@ function FilmMiniCard({ film, onClick, userId }) {
   const st = STATUS_LABELS[film.film_status] || STATUS_LABELS.in_sala;
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+  // Hype-based border glow
+  const hype = film.hype_score || 0;
+  const hypeBorder = hype >= 30 ? 'ring-1 ring-orange-500/40' : hype < 10 && hype > 0 ? 'ring-1 ring-red-500/30' : '';
+
   return (
     <motion.button
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className={`flex-shrink-0 w-[100px] rounded-xl overflow-hidden border transition-all ${isMine ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-white/8 bg-white/[0.03]'} hover:border-white/20`}
+      className={`flex-shrink-0 w-[100px] rounded-xl overflow-hidden border transition-all ${isMine ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-white/8 bg-white/[0.03]'} hover:border-white/20 ${hypeBorder}`}
       data-testid={`arena-film-${film.id}`}
     >
       {/* Poster */}

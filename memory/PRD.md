@@ -81,6 +81,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - CineBoard: azione "Elimina" visibile solo se proprietario
 - MyFilms: popup dettagli serie con pulsanti Classifica + Elimina
 
+### Popup outcome Supporto/Boicotto (2026-03-26)
+- 5 immagini PNG scaricate in /public/assets/outcomes/ (boicotto_successo/fallito/ritorto, supporto_successo/fallito)
+- Componente OutcomePopup.jsx: popup con immagine, titolo, messaggio, bottone OK
+- ComingSoonSection: interact() apre popup basato su outcome (success/fail/backfire)
+- PvPArenaPage: executeAction() apre popup con stesso sistema
+- Limite giornaliero azioni Coming Soon aumentato da 3 a 50
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronRight, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { OutcomePopup, getOutcomeType } from './OutcomePopup';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -223,6 +224,7 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interacting, setInteracting] = useState(null);
+  const [outcomePopup, setOutcomePopup] = useState(null); // { type, title, message }
   const [speedingUp, setSpeedingUp] = useState(false);
   const [pvpActing, setPvpActing] = useState(null);
   const [localHype, setLocalHype] = useState(item.hype_score || 0);
@@ -255,14 +257,13 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
       const res = await api.post(`/coming-soon/${item.id}/interact`, { action });
       const d = res.data;
       const hypeChange = d.effects?.hype || 0;
-      if (d.outcome === 'backfire') {
-        toast.error(d.message || 'Operazione fallita', { duration: 4000 });
-      } else if (d.outcome === 'success') {
-        const hypeMsg = hypeChange > 0 ? ' +Hype in crescita' : hypeChange < 0 ? ' Hype in calo' : '';
-        toast.success(`${d.message}${hypeMsg}`, { duration: 4000 });
-      } else {
-        toast.info(d.message);
-      }
+      const outcomeType = getOutcomeType(action, d.outcome);
+      const hypeMsg = hypeChange > 0 ? `+${hypeChange} Hype` : hypeChange < 0 ? `${hypeChange} Hype` : '';
+      setOutcomePopup({
+        type: outcomeType,
+        title: item.title,
+        message: d.message + (hypeMsg ? ` (${hypeMsg})` : ''),
+      });
       setLocalHype(prev => Math.max(0, prev + hypeChange));
       loadDetails();
       if (onRefresh) onRefresh();
@@ -307,6 +308,7 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const saboteurs = details?.identified_saboteurs || [];
 
   return (
+    <>
     <div className="space-y-3" data-testid={`coming-soon-detail-${item.id}`}>
       {/* Header with poster */}
       <div className="flex gap-3">
@@ -535,6 +537,17 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
         </>
       )}
     </div>
+
+    {outcomePopup && (
+      <OutcomePopup
+        open={!!outcomePopup}
+        onClose={() => setOutcomePopup(null)}
+        outcomeType={outcomePopup.type}
+        title={outcomePopup.title}
+        message={outcomePopup.message}
+      />
+    )}
+    </>
   );
 }
 

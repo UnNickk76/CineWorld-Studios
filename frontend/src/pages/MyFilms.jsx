@@ -221,7 +221,7 @@ const MyFilms = () => {
                   <div className="flex justify-between items-center mt-0.5 text-[7px] sm:text-[8px]">
                     <span className="text-gray-400">{s.genre_name}</span>
                     <div className="flex items-center gap-1">
-                      <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${s.quality_score}/100` : `${s.num_episodes}ep`}</span>
+                      <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${Math.round(s.quality_score)}/100` : `${s.num_episodes}ep`}</span>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-4 w-4 p-0 text-red-400/50 hover:text-red-400" onClick={(e) => e.stopPropagation()} data-testid={`delete-series-${s.id}`}><Trash2 className="w-2.5 h-2.5" /></Button>
@@ -270,7 +270,7 @@ const MyFilms = () => {
                     <Badge className={`text-[9px] bg-${color}-500/15 text-${color}-400 border-${color}-500/20`}>{selectedSeries.genre_name || selectedSeries.genre}</Badge>
                     {selectedSeries.num_episodes > 0 && <span className="text-[10px] text-gray-400">{selectedSeries.num_episodes} episodi</span>}
                     {selectedSeries.quality_score > 0 && (
-                      <span className={`text-[10px] font-bold text-${color}-400`}>{selectedSeries.quality_score}/100</span>
+                      <span className={`text-[10px] font-bold text-${color}-400`}>{Math.round(selectedSeries.quality_score)}/100</span>
                     )}
                   </div>
                   {selectedSeries.description && (

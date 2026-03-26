@@ -120,6 +120,7 @@ const COLOR_MAP = {
 // ==================== TUTORIAL TAB ====================
 
 function TutorialTab({ onClose, onNavigate }) {
+  const { api } = useContext(AuthContext);
   const [step, setStep] = useState(0);
   const current = STEPS[step];
   const Icon = current.icon;
@@ -128,6 +129,8 @@ function TutorialTab({ onClose, onNavigate }) {
 
   const handleDone = () => {
     localStorage.setItem(LS_TUTORIAL_KEY, 'true');
+    // Save flag on backend
+    if (api) api.post('/velion/tutorial-complete').catch(() => {});
     setStep(0);
     onClose();
   };
@@ -464,6 +467,7 @@ export function VelionPanel({ open, onClose, onNavigate, defaultTab }) {
   );
 }
 
-export function shouldAutoShowTutorial() {
+export function shouldAutoShowTutorial(backendCompleted) {
+  if (backendCompleted) return false;
   return localStorage.getItem(LS_TUTORIAL_KEY) !== 'true';
 }

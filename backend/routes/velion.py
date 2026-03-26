@@ -771,7 +771,7 @@ AUTONOMY_CYCLE_DAYS = 5
 async def velion_get_mode(user: dict = Depends(_get_user)):
     prefs = await db.velion_prefs.find_one({'user_id': user['id']}, {'_id': 0})
     if not prefs:
-        return {'mode': 'on', 'show_autonomy': False}
+        return {'mode': 'on', 'show_autonomy': False, 'tutorial_completed': False}
 
     mode = prefs.get('mode', 'on')
 
@@ -801,7 +801,7 @@ async def velion_get_mode(user: dict = Depends(_get_user)):
                 except:
                     pass
 
-    return {'mode': mode, 'show_autonomy': show_autonomy}
+    return {'mode': mode, 'show_autonomy': show_autonomy, 'tutorial_completed': prefs.get('tutorial_completed', False)}
 
 
 @router.put("/mode")
@@ -825,6 +825,16 @@ async def velion_dismiss_autonomy(user: dict = Depends(_get_user)):
     await db.velion_prefs.update_one(
         {'user_id': user['id']},
         {'$set': {'last_autonomy_prompt': now_str}},
+        upsert=True
+    )
+    return {'ok': True}
+
+
+@router.post("/tutorial-complete")
+async def velion_tutorial_complete(user: dict = Depends(_get_user)):
+    await db.velion_prefs.update_one(
+        {'user_id': user['id']},
+        {'$set': {'tutorial_completed': True, 'tutorial_completed_at': datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
     return {'ok': True}

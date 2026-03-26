@@ -1796,6 +1796,7 @@ const ProtectedRoute = ({ children }) => {
   const [showAutonomy, setShowAutonomy] = useState(false);
   
   // Fetch Velion mode from backend
+  const [tutorialCompleted, setTutorialCompleted] = useState(true);
   useEffect(() => {
     if (!user || !api) return;
     api.get('/velion/mode').then(r => {
@@ -1803,6 +1804,9 @@ const ProtectedRoute = ({ children }) => {
       setVelionMode(m);
       window.__velionMode = m;
       if (r.data?.show_autonomy) setShowAutonomy(true);
+      const tc = r.data?.tutorial_completed || false;
+      setTutorialCompleted(tc);
+      if (tc) localStorage.setItem('velion_tutorial_done', 'true');
     }).catch(() => {});
   }, [user, api]);
 
@@ -1831,11 +1835,11 @@ const ProtectedRoute = ({ children }) => {
 
   // Auto-show tutorial for new users (only when ON)
   useEffect(() => {
-    if (user && velionMode === 'on' && shouldAutoShowTutorial()) {
+    if (user && velionMode === 'on' && shouldAutoShowTutorial(tutorialCompleted)) {
       const timer = setTimeout(() => { setVelionTab('tutorial'); setShowTutorial(true); }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [user, velionMode]);
+  }, [user, velionMode, tutorialCompleted]);
 
   // Listen for tutorial open event from hamburger menu
   useEffect(() => {

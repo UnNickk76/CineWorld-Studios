@@ -34,6 +34,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Film duplicati al rilascio: controllo idempotenza nell'endpoint POST /films/{film_id}/release
 - Bozze & Recupero esteso a Serie TV e Anime: nuovo endpoint GET /series-pipeline/drafts + UI con badge tipo e icone
 
+### Fix Velion Tutorial & Consigli (2026-03-26)
+- Tutorial mostrato 1 sola volta: flag velion_tutorial_completed salvato su backend (velion_prefs)
+- Consigli: cooldown globale 10 min (era 45s), polling ogni 10 min (era 60s)
+- Solo eventi importanti: revenue, stuck_film, countdown_imminent, countdown
+- Blocco duplicati: stesso tipo non ripetuto per 30 min
+- Cambio pagina non riattiva consigli
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

@@ -6,7 +6,9 @@ import { useLocation } from 'react-router-dom';
 
 const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
-const POLL_INTERVAL = 60000;
+const POLL_INTERVAL = 600000; // 10 minutes
+const BUBBLE_COOLDOWN = 600000; // 10 minutes between bubbles
+const HIGH_PRIORITY_TYPES = new Set(['revenue', 'stuck_film', 'countdown_imminent', 'countdown']);
 
 export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
   const { api, user } = useContext(AuthContext);
@@ -55,27 +57,26 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
 
   // Poll player status (only when ON)
   const lastBubbleTime = React.useRef(0);
+  const recentBubbleTypes = React.useRef(new Set());
   const fetchTriggers = useCallback(async () => {
     if (!api || !user || isOff) return;
-    // Don't show new bubble within 45s of the last one
-    if (Date.now() - lastBubbleTime.current < 45000) return;
+    // Don't show new bubble within cooldown period (10 min)
+    if (Date.now() - lastBubbleTime.current < BUBBLE_COOLDOWN) return;
     try {
       const currentPage = location.pathname;
       const idle = idleMinutesRef.current;
       const res = await api.get(`/velion/player-status?page=${encodeURIComponent(currentPage)}&idle_minutes=${idle}`);
       const advisor = res.data?.advisor;
-      const pageHint = res.data?.page_hint;
 
-      if (advisor) {
+      // Only show high-priority, non-duplicate advisors
+      if (advisor && HIGH_PRIORITY_TYPES.has(advisor.type) && !recentBubbleTypes.current.has(advisor.type)) {
         lastBubbleTime.current = Date.now();
+        recentBubbleTypes.current.add(advisor.type);
+        // Clear recent types after 30 min to allow re-showing
+        setTimeout(() => recentBubbleTypes.current.delete(advisor.type), 1800000);
         setBubble(advisor);
         setHasAlert(advisor.priority === 'high');
         setLastBubbleType(advisor.type);
-        setTimeout(() => setBubble(null), advisor.priority === 'high' ? 10000 : 8000);
-      } else if (pageHint) {
-        lastBubbleTime.current = Date.now();
-        setBubble({ ...pageHint, priority: 'low' });
-        setHasAlert(false);
         setTimeout(() => setBubble(null), 10000);
       } else {
         setHasAlert(false);
@@ -112,12 +113,10 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
     return () => clearTimeout(greetTimer);
   }, [user, api, isOff]);
 
-  // Re-fetch on page change (only when ON)
+  // Clear bubble on page change (no re-fetch to avoid spam)
   useEffect(() => {
     if (!user || !api || isOff) return;
     setBubble(null);
-    const quickTimer = setTimeout(fetchTriggers, 2000);
-    return () => clearTimeout(quickTimer);
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear bubble when switching to OFF

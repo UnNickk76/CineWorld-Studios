@@ -91,6 +91,36 @@ const MyFilms = () => {
     }
   };
 
+  const permanentDeleteFilm = async (filmId) => {
+    try {
+      await api.delete(`/films/${filmId}/permanent`);
+      toast.success('Film eliminato definitivamente');
+      setFilms(films.filter(f => f.id !== filmId));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const permanentDeleteProject = async (projectId) => {
+    try {
+      await api.delete(`/film-projects/${projectId}/permanent`);
+      toast.success('Progetto eliminato definitivamente');
+      setFilms(films.filter(f => f.id !== projectId));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const permanentDeleteSeries = async (seriesId) => {
+    try {
+      await api.delete(`/series/${seriesId}/permanent`);
+      toast.success('Eliminato definitivamente');
+      setSeries(series.filter(s => s.id !== seriesId));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
   const launchAdCampaign = async (filmId) => {
     if (selectedPlatforms.length === 0) { toast.error('Seleziona almeno una piattaforma'); return; }
     setAdLoading(true);
@@ -187,9 +217,26 @@ const MyFilms = () => {
                 </div>
                 <CardContent className="p-1">
                   <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{s.title}</h3>
-                  <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px]">
+                  <div className="flex justify-between items-center mt-0.5 text-[7px] sm:text-[8px]">
                     <span className="text-gray-400">{s.genre_name}</span>
-                    <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${s.quality_score}/100` : `${s.num_episodes}ep`}</span>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${s.quality_score}/100` : `${s.num_episodes}ep`}</span>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-4 w-4 p-0 text-red-400/50 hover:text-red-400" onClick={(e) => e.stopPropagation()} data-testid={`delete-series-${s.id}`}><Trash2 className="w-2.5 h-2.5" /></Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. "{s.title}" sara' eliminato definitivamente.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => permanentDeleteSeries(s.id)} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -255,6 +302,21 @@ const MyFilms = () => {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-red-500/30 text-red-400 px-1 py-0" data-testid={`delete-film-${film.id}`}><Trash2 className="w-2.5 h-2.5" /></Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare questo film?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. Il film "{film.title}" sara' eliminato definitivamente.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => permanentDeleteFilm(film.id)} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>

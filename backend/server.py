@@ -5537,7 +5537,38 @@ async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
     
     return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
 
-# Get advertising platforms
+
+@api_router.delete("/films/{film_id}/permanent")
+async def permanently_delete_film(film_id: str, user: dict = Depends(get_current_user)):
+    """Permanently delete a film and all related data. Irreversible."""
+    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+    if not film:
+        raise HTTPException(status_code=404, detail="Film non trovato o non di tua proprieta'")
+    await db.films.delete_one({'id': film_id})
+    await db.likes.delete_many({'film_id': film_id})
+    await db.film_ratings.delete_many({'film_id': film_id})
+    await db.film_reviews.delete_many({'film_id': film_id})
+    return {'message': f'Film "{film.get("title", "")}" eliminato definitivamente', 'deleted': True}
+
+
+@api_router.delete("/film-projects/{project_id}/permanent")
+async def permanently_delete_film_project(project_id: str, user: dict = Depends(get_current_user)):
+    """Permanently delete a film project. Irreversible."""
+    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato o non di tua proprieta'")
+    await db.film_projects.delete_one({'id': project_id})
+    return {'message': f'Progetto "{project.get("title", "")}" eliminato definitivamente', 'deleted': True}
+
+
+@api_router.delete("/series/{series_id}/permanent")
+async def permanently_delete_series(series_id: str, user: dict = Depends(get_current_user)):
+    """Permanently delete a TV series or anime. Irreversible."""
+    series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+    if not series:
+        raise HTTPException(status_code=404, detail="Serie non trovata o non di tua proprieta'")
+    await db.tv_series.delete_one({'id': series_id})
+    return {'message': f'"{series.get("title", "")}" eliminato definitivamente', 'deleted': True}
 @api_router.get("/advertising/platforms")
 async def get_ad_platforms():
     """Get available advertising platforms"""

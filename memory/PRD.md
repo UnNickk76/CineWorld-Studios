@@ -67,6 +67,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Frontend TVStationPage: dialog "Programma per TV" nel menu con toggle ON/OFF per ogni contenuto
 - Card esistenti (Consigliati/Del Momento/Piu Visti/Gestione) ridotte al 50% (80px/70px)
 
+### Eliminazione definitiva film/serie/anime (2026-03-26)
+- Backend: DELETE /films/{id}/permanent, DELETE /film-projects/{id}/permanent, DELETE /series/{id}/permanent
+- Ownership check su tutti gli endpoint (user_id match)
+- Frontend MyFilms: pulsante 🗑 rosso su TUTTI i film con AlertDialog conferma irreversibile
+- Frontend MyFilms: pulsante 🗑 anche su card serie/anime con AlertDialog conferma
+- Rimozione immediata dalla lista UI dopo eliminazione
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

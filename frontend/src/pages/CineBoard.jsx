@@ -63,7 +63,17 @@ const CineBoard = () => {
   const [seriesData, setSeriesData] = useState([]);
   const [animeData, setAnimeData] = useState([]);
   const [tvStationsData, setTvStationsData] = useState([]);
+  const [selectedDetail, setSelectedDetail] = useState(null);
   const navigate = useNavigate();
+
+  const deleteSeriesFromBoard = async (seriesId) => {
+    try {
+      await api.delete(`/series/${seriesId}/permanent`);
+      setSeriesData(prev => prev.filter(s => s.id !== seriesId));
+      setAnimeData(prev => prev.filter(s => s.id !== seriesId));
+      setSelectedDetail(null);
+    } catch (e) { /* silent */ }
+  };
 
   const t = (key) => {
     const translations = {
@@ -187,7 +197,7 @@ const CineBoard = () => {
         ) : (
           <div className="space-y-2">
             {seriesData.map(s => (
-              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden ${s.rank <= 3 ? 'border-blue-500/30' : ''}`} data-testid={`series-rank-${s.rank}`}>
+              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden cursor-pointer hover:border-blue-500/30 transition-colors ${s.rank <= 3 ? 'border-blue-500/30' : ''}`} data-testid={`series-rank-${s.rank}`} onClick={() => setSelectedDetail({ ...s, _type: 'tv_series' })}>
                 <div className="flex">
                   <div className={`w-12 flex items-center justify-center font-bold text-lg ${
                     s.rank === 1 ? 'bg-yellow-500 text-black' : s.rank === 2 ? 'bg-gray-300 text-black' : s.rank === 3 ? 'bg-amber-600 text-white' : s.rank <= 10 ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-gray-400'
@@ -241,7 +251,7 @@ const CineBoard = () => {
         ) : (
           <div className="space-y-2">
             {animeData.map(s => (
-              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden ${s.rank <= 3 ? 'border-orange-500/30' : ''}`} data-testid={`anime-rank-${s.rank}`}>
+              <Card key={s.id} className={`bg-[#1A1A1A] border-white/10 overflow-hidden cursor-pointer hover:border-orange-500/30 transition-colors ${s.rank <= 3 ? 'border-orange-500/30' : ''}`} data-testid={`anime-rank-${s.rank}`} onClick={() => setSelectedDetail({ ...s, _type: 'anime' })}>
                 <div className="flex">
                   <div className={`w-12 flex items-center justify-center font-bold text-lg ${
                     s.rank === 1 ? 'bg-yellow-500 text-black' : s.rank === 2 ? 'bg-gray-300 text-black' : s.rank === 3 ? 'bg-amber-600 text-white' : s.rank <= 10 ? 'bg-orange-500/20 text-orange-400' : 'bg-white/10 text-gray-400'
@@ -715,6 +725,76 @@ const CineBoard = () => {
         </div>
         )
       )}
+      {/* Series/Anime Detail Popup */}
+      <Dialog open={!!selectedDetail} onOpenChange={(open) => { if (!open) setSelectedDetail(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm p-0 overflow-hidden" data-testid="cineboard-detail-popup">
+          {selectedDetail && (() => {
+            const s = selectedDetail;
+            const isOwner = user && s.user_id === user.id;
+            const accentColor = s._type === 'anime' ? 'orange' : 'blue';
+            const TypeIcon = s._type === 'anime' ? Sparkles : Tv;
+            return (
+              <>
+                <div className="aspect-video relative">
+                  {s.poster_url ? (
+                    <img src={s.poster_url.startsWith('/') ? `${BACKEND_URL}${s.poster_url}` : s.poster_url} alt={s.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full bg-${accentColor}-500/10 flex items-center justify-center`}>
+                      <TypeIcon className={`w-12 h-12 text-${accentColor}-400/30`} />
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0F0F10] via-[#0F0F10]/60 to-transparent p-3 pt-8">
+                    <h2 className="font-['Bebas_Neue'] text-lg leading-tight">{s.title}</h2>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{s.owner?.production_house_name || s.owner?.nickname || 'Studio'}</p>
+                  </div>
+                  {s.rank && (
+                    <div className={`absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      s.rank === 1 ? 'bg-yellow-500 text-black' : s.rank === 2 ? 'bg-gray-300 text-black' : s.rank === 3 ? 'bg-amber-600 text-white' : `bg-${accentColor}-500/30 text-${accentColor}-400`
+                    }`}>#{s.rank}</div>
+                  )}
+                  <Badge className={`absolute top-2 right-2 text-[9px] bg-${accentColor}-500`}>{s._type === 'anime' ? 'Anime' : 'Serie TV'}</Badge>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className={`text-[9px] bg-${accentColor}-500/15 text-${accentColor}-400`}>{s.genre_name}</Badge>
+                    {s.num_episodes > 0 && <span className="text-[10px] text-gray-400">{s.num_episodes} episodi</span>}
+                    {s.season_number > 0 && <span className="text-[10px] text-gray-400">S{s.season_number}</span>}
+                    {s.quality_score > 0 && (
+                      <div className="flex items-center gap-0.5">
+                        <Star className={`w-3 h-3 text-${accentColor}-400 fill-${accentColor}-400`} />
+                        <span className={`text-[10px] font-bold text-${accentColor}-400`}>{s.quality_score?.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
+                  {s.description && <p className="text-[10px] text-gray-400 line-clamp-3">{s.description}</p>}
+
+                  {isOwner && (
+                    <div className="flex gap-2 pt-2 border-t border-white/5">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 text-[10px] border-red-500/30 text-red-400 px-3" data-testid="cineboard-detail-delete">
+                            <Trash2 className="w-3 h-3 mr-1" /> Elimina
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. "{s.title}" sara' eliminato definitivamente.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteSeriesFromBoard(s.id)} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

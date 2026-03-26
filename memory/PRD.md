@@ -74,6 +74,13 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Frontend MyFilms: pulsante 🗑 anche su card serie/anime con AlertDialog conferma
 - Rimozione immediata dalla lista UI dopo eliminazione
 
+### Popup dettagli serie/anime con permessi (2026-03-26)
+- TVStationPage: popup al click su locandina con poster, titolo, genere, episodi
+- TVStationPage: azioni owner "Togli dalla TV" / "Mantieni in TV" visibili solo se proprietario
+- CineBoard: popup al click su serie/anime nella classifica con rank, poster, genere, punteggio
+- CineBoard: azione "Elimina" visibile solo se proprietario
+- MyFilms: popup dettagli serie con pulsanti Classifica + Elimina
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

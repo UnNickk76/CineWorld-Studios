@@ -62,6 +62,7 @@ export default function TVStationPage() {
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [schedulableContent, setSchedulableContent] = useState({ films: [], tv_series: [], anime: [] });
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [selectedTVContent, setSelectedTVContent] = useState(null);
 
   // Settings popup
   const [showSettings, setShowSettings] = useState(false);
@@ -384,7 +385,7 @@ export default function TVStationPage() {
         <h3 className={`text-sm font-bold mb-2 px-1 text-${color}`}>{title}</h3>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
           {items.map((item, i) => (
-            <div key={item.id || i} className="flex-shrink-0 w-[80px] group relative cursor-pointer" data-testid={`netflix-item-${item.id}`}>
+            <div key={item.id || i} className="flex-shrink-0 w-[80px] group relative cursor-pointer" data-testid={`netflix-item-${item.id}`} onClick={() => setSelectedTVContent(item)}>
               <div className="aspect-[2/3] rounded-lg overflow-hidden relative">
                 <img
                   src={posterSrc(item.poster_url)}
@@ -519,7 +520,7 @@ export default function TVStationPage() {
                 <h3 className="text-sm font-bold mb-2 px-1 text-cyan-400">Prossimamente</h3>
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
                   {scheduledItems.map((item) => (
-                    <div key={item.id} className="flex-shrink-0 w-[80px] group relative" data-testid={`scheduled-item-${item.id}`}>
+                    <div key={item.id} className="flex-shrink-0 w-[80px] group relative cursor-pointer" data-testid={`scheduled-item-${item.id}`} onClick={() => setSelectedTVContent(item)}>
                       <div className="aspect-[2/3] rounded-lg overflow-hidden relative ring-1 ring-cyan-500/30">
                         <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 p-1">
@@ -549,7 +550,7 @@ export default function TVStationPage() {
                 <h3 className="text-sm font-bold mb-2 px-1 text-cyan-400">Prossimamente</h3>
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
                   {scheduledItems.map((item) => (
-                    <div key={item.id} className="flex-shrink-0 w-[80px]">
+                    <div key={item.id} className="flex-shrink-0 w-[80px] cursor-pointer" onClick={() => setSelectedTVContent(item)}>
                       <div className="aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-cyan-500/30">
                         <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                       </div>
@@ -708,6 +709,50 @@ export default function TVStationPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Content Detail Popup */}
+      <Dialog open={!!selectedTVContent} onOpenChange={(open) => { if (!open) setSelectedTVContent(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm p-0 overflow-hidden" data-testid="tv-content-detail-popup">
+          {selectedTVContent && (() => {
+            const c = selectedTVContent;
+            return (
+              <>
+                <div className="aspect-video relative">
+                  {c.poster_url ? (
+                    <img src={posterSrc(c.poster_url)} alt={c.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-red-500/10 flex items-center justify-center">
+                      <Film className="w-12 h-12 text-red-400/30" />
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0F0F10] via-[#0F0F10]/60 to-transparent p-3 pt-8">
+                    <h2 className="font-['Bebas_Neue'] text-lg leading-tight">{c.title}</h2>
+                  </div>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {c.genre && <Badge className="text-[9px] bg-white/10 text-gray-300">{c.genre}</Badge>}
+                    {c.genre_name && <Badge className="text-[9px] bg-white/10 text-gray-300">{c.genre_name}</Badge>}
+                    {c.quality_score > 0 && <span className="text-[10px] font-bold text-yellow-400">{c.quality_score}/100</span>}
+                    {c.num_episodes > 0 && <span className="text-[10px] text-gray-400">{c.num_episodes} ep.</span>}
+                  </div>
+                  {c.description && <p className="text-[10px] text-gray-400 line-clamp-3">{c.description}</p>}
+                  {isOwner && (
+                    <div className="flex gap-2 pt-2 border-t border-white/5">
+                      <Button variant="outline" size="sm" className="flex-1 h-8 text-[10px] border-red-500/30 text-red-400" onClick={() => { removeContent(c.id); setSelectedTVContent(null); }} data-testid="tv-detail-remove">
+                        <Trash2 className="w-3 h-3 mr-1" /> Togli dalla TV
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1 h-8 text-[10px] border-green-500/30 text-green-400" onClick={() => setSelectedTVContent(null)} data-testid="tv-detail-keep">
+                        <Check className="w-3 h-3 mr-1" /> Mantieni in TV
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

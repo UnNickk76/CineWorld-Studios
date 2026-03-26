@@ -66,6 +66,7 @@ const MyFilms = () => {
   const [adDays, setAdDays] = useState(7);
   const [adLoading, setAdLoading] = useState(false);
   const [regenLoading, setRegenLoading] = useState(null);
+  const [selectedSeries, setSelectedSeries] = useState(null);
   const navigate = useNavigate();
 
   // SWR for films - instant load from cache
@@ -203,7 +204,7 @@ const MyFilms = () => {
           <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
             {series.map(s => (
               <Card key={s.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
-                <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(boardRoute)}>
+                <div className="aspect-[2/3] relative cursor-pointer" onClick={() => setSelectedSeries(s)}>
                   {s.poster_url ? (
                     <img src={posterSrc(s.poster_url)} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
@@ -243,6 +244,67 @@ const MyFilms = () => {
             ))}
           </div>
         )}
+
+        {/* Series Detail Popup */}
+        <Dialog open={!!selectedSeries} onOpenChange={(open) => { if (!open) setSelectedSeries(null); }}>
+          <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm p-0 overflow-hidden" data-testid="series-detail-popup">
+            {selectedSeries && (
+              <>
+                <div className="aspect-video relative">
+                  {selectedSeries.poster_url ? (
+                    <img src={posterSrc(selectedSeries.poster_url)} alt={selectedSeries.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full bg-${color}-500/10 flex items-center justify-center`}>
+                      <Icon className={`w-12 h-12 text-${color}-400/30`} />
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0F0F10] via-[#0F0F10]/60 to-transparent p-3 pt-8">
+                    <h2 className="font-['Bebas_Neue'] text-lg leading-tight">{selectedSeries.title}</h2>
+                  </div>
+                  <Badge className={`absolute top-2 right-2 text-[8px] ${
+                    selectedSeries.status === 'completed' ? 'bg-green-500' : selectedSeries.status === 'cancelled' ? 'bg-red-500' : `bg-${color}-500`
+                  }`}>{selectedSeries.status === 'completed' ? 'COMPLETATA' : selectedSeries.status}</Badge>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className={`text-[9px] bg-${color}-500/15 text-${color}-400 border-${color}-500/20`}>{selectedSeries.genre_name || selectedSeries.genre}</Badge>
+                    {selectedSeries.num_episodes > 0 && <span className="text-[10px] text-gray-400">{selectedSeries.num_episodes} episodi</span>}
+                    {selectedSeries.quality_score > 0 && (
+                      <span className={`text-[10px] font-bold text-${color}-400`}>{selectedSeries.quality_score}/100</span>
+                    )}
+                  </div>
+                  {selectedSeries.description && (
+                    <p className="text-[10px] text-gray-400 line-clamp-3">{selectedSeries.description}</p>
+                  )}
+
+                  {/* Owner actions */}
+                  <div className="flex gap-2 pt-2 border-t border-white/5">
+                    <Button variant="outline" size="sm" className="flex-1 h-8 text-[10px] border-white/10" onClick={() => { setSelectedSeries(null); navigate(boardRoute); }} data-testid="series-detail-classifica">
+                      <Trophy className="w-3 h-3 mr-1" /> Classifica
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 text-[10px] border-red-500/30 text-red-400 px-3" data-testid="series-detail-delete">
+                          <Trash2 className="w-3 h-3 mr-1" /> Elimina
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare?</AlertDialogTitle>
+                          <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. "{selectedSeries.title}" sara' eliminato definitivamente.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => { permanentDeleteSeries(selectedSeries.id); setSelectedSeries(null); }} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

@@ -6,7 +6,7 @@ import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import {
   FileText, ChevronDown, ChevronUp, Trash2, Play, AlertTriangle,
-  Clock, Film, RefreshCw, Shield
+  Clock, Film, RefreshCw, Shield, Tv, Sparkles
 } from 'lucide-react';
 
 const STATUS_LABELS = {
@@ -15,6 +15,11 @@ const STATUS_LABELS = {
   ready_for_casting: 'Pronto Casting',
   pending_release: 'In Attesa Rilascio',
   coming_soon: 'Coming Soon',
+  concept: 'Concept',
+  casting: 'Casting',
+  screenplay: 'Sceneggiatura',
+  production: 'Produzione',
+  ready_to_release: 'Pronto al Rilascio',
 };
 
 const STATUS_COLORS = {
@@ -23,20 +28,44 @@ const STATUS_COLORS = {
   ready_for_casting: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20',
   pending_release: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
   coming_soon: 'bg-orange-500/15 text-orange-400 border-orange-500/20',
+  concept: 'bg-gray-500/15 text-gray-400 border-gray-500/20',
+  casting: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+  screenplay: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
+  production: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/20',
+  ready_to_release: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
+};
+
+const TYPE_ICONS = {
+  film: Film,
+  tv_series: Tv,
+  anime: Sparkles,
+};
+
+const TYPE_LABELS = {
+  film: 'Film',
+  tv_series: 'Serie TV',
+  anime: 'Anime',
 };
 
 export function DraftsSection({ api, onResume, onRefresh }) {
   const [drafts, setDrafts] = useState([]);
   const [stuckFilms, setStuckFilms] = useState([]);
+  const [seriesDrafts, setSeriesDrafts] = useState([]);
+  const [stuckSeries, setStuckSeries] = useState([]);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [diagnosing, setDiagnosing] = useState(false);
 
   const loadDrafts = useCallback(async () => {
     try {
-      const res = await api.get('/film-pipeline/drafts');
-      setDrafts(res.data.drafts || []);
-      setStuckFilms(res.data.stuck_films || []);
+      const [filmRes, seriesRes] = await Promise.all([
+        api.get('/film-pipeline/drafts'),
+        api.get('/series-pipeline/drafts').catch(() => ({ data: { drafts: [], stuck_series: [] } }))
+      ]);
+      setDrafts(filmRes.data.drafts || []);
+      setStuckFilms(filmRes.data.stuck_films || []);
+      setSeriesDrafts(seriesRes.data.drafts || []);
+      setStuckSeries(seriesRes.data.stuck_series || []);
     } catch (e) {
       console.error('Error loading drafts:', e);
     } finally {
@@ -108,11 +137,13 @@ export function DraftsSection({ api, onResume, onRefresh }) {
     }
   };
 
-  const totalItems = drafts.length + stuckFilms.length;
+  const totalItems = drafts.length + stuckFilms.length + seriesDrafts.length + stuckSeries.length;
 
   const allItems = [
-    ...drafts.map(d => ({ ...d, _type: 'draft' })),
-    ...stuckFilms.map(f => ({ ...f, _type: 'stuck' }))
+    ...drafts.map(d => ({ ...d, _type: 'draft', _content: 'film' })),
+    ...stuckFilms.map(f => ({ ...f, _type: 'stuck', _content: 'film' })),
+    ...seriesDrafts.map(d => ({ ...d, _type: 'draft', _content: d.type || 'tv_series' })),
+    ...stuckSeries.map(s => ({ ...s, _type: 'stuck', _content: s.type || 'tv_series' }))
   ];
 
   return (
@@ -167,9 +198,12 @@ export function DraftsSection({ api, onResume, onRefresh }) {
               <p className="text-[10px] text-gray-500">Nessuna bozza salvata</p>
               <p className="text-[8px] text-gray-600">Usa "Diagnostica" per controllare i tuoi film</p>
             </div>
-          ) : allItems.map(item => (
+          ) : allItems.map(item => {
+            const IconComp = TYPE_ICONS[item._content] || Film;
+            const typeLabel = TYPE_LABELS[item._content] || 'Film';
+            return (
             <Card
-              key={item.id}
+              key={`${item._content}-${item.id}`}
               className={`bg-[#111113] border-white/5 overflow-hidden ${item._type === 'stuck' ? 'border-l-2 border-l-amber-500/50' : ''}`}
               data-testid={`draft-item-${item.id}`}
             >
@@ -177,8 +211,13 @@ export function DraftsSection({ api, onResume, onRefresh }) {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <Film className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                      <IconComp className="w-3 h-3 text-gray-500 flex-shrink-0" />
                       <p className="text-xs font-semibold text-white truncate">{item.title || 'Senza Titolo'}</p>
+                      {item._content !== 'film' && (
+                        <Badge className="text-[7px] h-3.5 bg-violet-500/15 text-violet-400 border border-violet-500/20">
+                          {typeLabel}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge className={`text-[8px] h-4 border ${STATUS_COLORS[item.status] || 'bg-gray-500/15 text-gray-400 border-gray-500/20'}`}>
@@ -186,6 +225,9 @@ export function DraftsSection({ api, onResume, onRefresh }) {
                       </Badge>
                       {item.genre && (
                         <span className="text-[8px] text-gray-500">{item.genre}</span>
+                      )}
+                      {item.num_episodes > 0 && (
+                        <span className="text-[8px] text-gray-500">{item.num_episodes} ep.</span>
                       )}
                       {item.scheduled_release_at && (
                         <span className="text-[8px] text-orange-400 flex items-center gap-0.5">
@@ -205,7 +247,7 @@ export function DraftsSection({ api, onResume, onRefresh }) {
                     >
                       <Play className="w-3 h-3 mr-0.5" /> Riprendi
                     </Button>
-                    {item._type === 'draft' && (
+                    {item._type === 'draft' && item._content === 'film' && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -220,7 +262,7 @@ export function DraftsSection({ api, onResume, onRefresh }) {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          );})}
         </div>
       )}
     </div>

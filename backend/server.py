@@ -4261,6 +4261,19 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
+    
+    # Idempotency: if film is already released/in_theaters, return it without re-processing
+    if film.get('status') in ('in_theaters', 'released', 'completed'):
+        return {
+            'success': True,
+            'film': FilmResponse(**film),
+            'distribution_cost': 0,
+            'cinepass_cost': 0,
+            'opening_day_revenue': film.get('opening_day_revenue', 0),
+            'zone': film.get('distribution_zone', ''),
+            'already_released': True
+        }
+    
     if film.get('status') not in ('pending_release', 'ready_to_release'):
         raise HTTPException(status_code=400, detail="Questo film non può essere rilasciato")
     

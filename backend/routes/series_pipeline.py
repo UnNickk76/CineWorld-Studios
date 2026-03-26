@@ -342,12 +342,28 @@ async def get_my_series(series_type: str = 'tv_series', user: dict = Depends(get
     series = await cursor.to_list(100)
     
     # Structural validation: auto-discard corrupted entries
-    now_str = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
     safe_series = []
     for s in series:
         status = s.get('status', '')
         cast = s.get('cast')
         has_cast = cast and ((isinstance(cast, list) and len(cast) > 0) or (isinstance(cast, dict) and bool(cast)))
+        
+        # Auto-transition: coming_soon -> casting when timer expired
+        if status == 'coming_soon' and s.get('coming_soon_type') == 'pre_casting':
+            sra = s.get('scheduled_release_at')
+            if sra:
+                release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                if release_dt.tzinfo is None:
+                    release_dt = release_dt.replace(tzinfo=timezone.utc)
+                if now >= release_dt:
+                    await db.tv_series.update_one(
+                        {'id': s['id']},
+                        {'$set': {'status': 'casting', 'updated_at': now_str}}
+                    )
+                    s['status'] = 'casting'
+                    status = 'casting'
         
         # Validate state consistency
         if status in ('casting', 'screenplay', 'production') and not has_cast:
@@ -375,6 +391,50 @@ async def get_series_counts(user: dict = Depends(get_current_user)):
         "anime_in_pipeline": anime_count,
         "tv_completed": tv_completed,
         "anime_completed": anime_completed,
+    }
+
+
+@router.get("/series-pipeline/drafts")
+async def get_series_drafts(user: dict = Depends(get_current_user)):
+    """Get abandoned/stuck TV series and anime for recovery."""
+    draft_statuses = ['concept']
+    stuck_statuses = ['coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release']
+
+    drafts_cursor = db.tv_series.find(
+        {'user_id': user['id'], 'status': {'$in': draft_statuses}},
+        {'_id': 0}
+    ).sort('updated_at', -1)
+    drafts = await drafts_cursor.to_list(50)
+
+    stuck_cursor = db.tv_series.find(
+        {'user_id': user['id'], 'status': {'$in': stuck_statuses}},
+        {'_id': 0}
+    ).sort('updated_at', -1)
+    stuck_series = await stuck_cursor.to_list(50)
+
+    return {
+        'drafts': [{
+            'id': d['id'],
+            'title': d.get('title', 'Senza Titolo'),
+            'genre': d.get('genre', ''),
+            'status': d.get('status', 'concept'),
+            'type': d.get('type', 'tv_series'),
+            'num_episodes': d.get('num_episodes', 0),
+            'created_at': d.get('created_at'),
+            'updated_at': d.get('updated_at'),
+        } for d in drafts],
+        'stuck_series': [{
+            'id': s['id'],
+            'title': s.get('title', '?'),
+            'genre': s.get('genre', ''),
+            'status': s.get('status'),
+            'type': s.get('type', 'tv_series'),
+            'num_episodes': s.get('num_episodes', 0),
+            'scheduled_release_at': s.get('scheduled_release_at'),
+            'created_at': s.get('created_at'),
+            'updated_at': s.get('updated_at'),
+        } for s in stuck_series],
+        'total': len(drafts) + len(stuck_series)
     }
 
 
@@ -471,6 +531,20 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     if not series:
         raise HTTPException(404, "Serie non trovata")
     
+    # Auto-transition: coming_soon -> casting when timer expired
+    if series['status'] == 'coming_soon' and series.get('coming_soon_type') == 'pre_casting':
+        sra = series.get('scheduled_release_at')
+        if sra:
+            release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) >= release_dt:
+                await db.tv_series.update_one(
+                    {'id': series_id},
+                    {'$set': {'status': 'casting', 'updated_at': datetime.now(timezone.utc).isoformat()}}
+                )
+                series['status'] = 'casting'
+
     # Check if production is done
     if series['status'] == 'production' and series.get('production_started_at'):
         started = datetime.fromisoformat(series['production_started_at'])

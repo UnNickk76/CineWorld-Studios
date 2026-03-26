@@ -29,6 +29,11 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Rimosso indice MongoDB obsoleto (likes)
 - Build frontend generata correttamente con index.html
 
+### Bug Fix Produzione P0 (2026-03-26)
+- Serie TV bloccate in coming_soon: auto-transizione a casting quando timer scade (GET list + detail)
+- Film duplicati al rilascio: controllo idempotenza nell'endpoint POST /films/{film_id}/release
+- Bozze & Recupero esteso a Serie TV e Anime: nuovo endpoint GET /series-pipeline/drafts + UI con badge tipo e icone
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

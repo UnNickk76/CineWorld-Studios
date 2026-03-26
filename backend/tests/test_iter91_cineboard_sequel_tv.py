@@ -12,7 +12,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-rewatch.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://series-drafts-extend.preview.emergentagent.com').rstrip('/')
 
 # Test user credentials
 TEST_EMAIL = "fandrex1@gmail.com"

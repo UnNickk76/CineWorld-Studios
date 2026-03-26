@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Swords, Shield, Heart, Bomb, TrendingUp, Clock, Film, Share2, Users, Award, ThumbsDown, Eye, Newspaper, Sparkles, Flame, Skull, ChevronRight, BarChart3, History, X, Check, AlertTriangle, Target, PartyPopper, Laugh, Star, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { OutcomePopup, getOutcomeType } from '../components/OutcomePopup';
+import { OutcomePopup, getOutcomeType, parseOutcome } from '../components/OutcomePopup';
 
 const ICON_MAP = {
   Share2, Users, PartyPopper, Award, Newspaper, ThumbsDown, Eye, Bomb,
@@ -78,7 +78,7 @@ export default function PvPArenaPage() {
       const r = await api.post(endpoint, { film_id: filmDetail.id, action_id: actionId });
       setActionResult(r.data);
       // Show outcome popup
-      const outcome = r.data.success ? 'success' : (r.data.boycott_success === false ? 'backfire' : 'fail');
+      const outcome = parseOutcome(category, r.data);
       const otype = getOutcomeType(category, outcome);
       setOutcomePopup({
         type: otype,

@@ -199,6 +199,14 @@ async def get_arena(user: dict = Depends(get_current_user)):
          'hype_score': 1, 'poster_url': 1, 'scheduled_release_at': 1}
     ).to_list(50)
 
+    # 2b. Coming Soon / Production / Ready to release series & anime
+    series_cs = await db.tv_series.find(
+        {'status': {'$in': ['coming_soon', 'production', 'ready_to_release']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'type': 1,
+         'user_id': 1, 'hype_score': 1, 'poster_url': 1, 'scheduled_release_at': 1,
+         'num_episodes': 1, 'status': 1}
+    ).to_list(50)
+
     # 3. Shooting / pre_production / remastering (anteprima)
     anteprima = await db.film_projects.find(
         {'status': {'$in': ['shooting', 'pre_production', 'remastering']}},
@@ -208,7 +216,7 @@ async def get_arena(user: dict = Depends(get_current_user)):
 
     # Enrich with user info
     user_cache = {}
-    all_films = in_theaters + coming_soon + anteprima
+    all_films = in_theaters + coming_soon + anteprima + series_cs
     for f in all_films:
         uid = f.get('user_id')
         if uid and uid not in user_cache:
@@ -254,6 +262,16 @@ async def get_arena(user: dict = Depends(get_current_user)):
         f['quality_score'] = f.get('pre_imdb_score', 5) * 10
         gid = _find_group(f.get('genre', ''))
         genre_sections[gid]['films'].append(f)
+
+    for s in series_cs:
+        s['film_status'] = 'coming_soon' if s.get('status') == 'coming_soon' else 'anteprima'
+        s['source'] = 'series'
+        s['quality_score'] = (s.get('hype_score', 0) or 0) * 2
+        s['content_type'] = s.get('type', 'tv_series')
+        s['num_episodes'] = s.get('num_episodes', 0)
+        genre = s.get('genre') or s.get('genre_name', '')
+        gid = _find_group(genre)
+        genre_sections[gid]['films'].append(s)
 
     # Sort each section by quality
     for gid in genre_sections:

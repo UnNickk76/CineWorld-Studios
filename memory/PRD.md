@@ -54,6 +54,11 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Frontend SeriesTVPipeline: nuova sezione "Da Completare" per serie in attesa visibili e cliccabili
 - Frontend DraftsSection: click Riprendi su serie naviga a /series-tv (non piu' film pipeline)
 
+### Estensione Coming Soon a Serie TV e Anime (2026-03-26)
+- Backend /coming-soon: query estesa per includere tv_series con status production e ready_to_release
+- Backend /pvp-cinema/arena: aggiunta query per serie/anime (coming_soon, production, ready_to_release)
+- Serie e anime ora visibili in Dashboard Prossimamente e nell'Arena con tipo e num episodi
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

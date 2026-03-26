@@ -592,25 +592,24 @@ export default function TVStationPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="p-4 pt-0 space-y-3">
-            <p className="text-[10px] text-gray-500">Seleziona i contenuti che vuoi programmare per la tua TV. Appariranno in "Prossimamente" e saranno aggiunti automaticamente quando disponibili.</p>
+            <p className="text-[10px] text-gray-500">Tocca una locandina per programmare/deprogrammare.</p>
             {scheduleLoading ? (
               <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-cyan-400 animate-spin" /></div>
             ) : (
               <>
                 {schedulableContent.films.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold text-yellow-400 mb-1 flex items-center gap-1"><Film className="w-3 h-3" /> Film al Cinema</h4>
-                    <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-yellow-400 mb-2 flex items-center gap-1"><Film className="w-3 h-3" /> Film al Cinema</h4>
+                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
                       {schedulableContent.films.map(f => (
-                        <button key={f.id} onClick={() => toggleSchedule(f.id, 'film')}
-                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${f.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
-                          data-testid={`schedule-film-${f.id}`}>
-                          <img src={posterSrc(f.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-[10px] font-bold truncate">{f.title}</p>
-                            <p className="text-[8px] text-gray-500">{f.status === 'in_theaters' ? 'Al cinema' : f.status}</p>
+                        <button key={f.id} onClick={() => toggleSchedule(f.id, 'film')} className="flex-shrink-0 w-[70px] text-center" data-testid={`schedule-film-${f.id}`}>
+                          <div className={`aspect-[2/3] rounded-lg overflow-hidden relative transition-all ${f.scheduled_for_tv ? 'ring-2 ring-cyan-400' : 'ring-1 ring-white/10 hover:ring-white/25'}`}>
+                            <img src={posterSrc(f.poster_url)} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                            <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${f.scheduled_for_tv ? 'bg-cyan-500' : 'bg-black/60'}`}>
+                              {f.scheduled_for_tv ? <Check className="w-3 h-3 text-white" /> : <Plus className="w-3 h-3 text-gray-400" />}
+                            </div>
                           </div>
-                          {f.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                          <p className="text-[8px] font-medium truncate mt-1 px-0.5">{f.title}</p>
                         </button>
                       ))}
                     </div>
@@ -618,18 +617,17 @@ export default function TVStationPage() {
                 )}
                 {schedulableContent.tv_series.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold text-blue-400 mb-1 flex items-center gap-1"><Tv className="w-3 h-3" /> Serie TV in Produzione</h4>
-                    <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-blue-400 mb-2 flex items-center gap-1"><Tv className="w-3 h-3" /> Serie TV in Produzione</h4>
+                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
                       {schedulableContent.tv_series.map(s => (
-                        <button key={s.id} onClick={() => toggleSchedule(s.id, 'tv_series')}
-                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${s.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
-                          data-testid={`schedule-series-${s.id}`}>
-                          <img src={posterSrc(s.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-[10px] font-bold truncate">{s.title}</p>
-                            <p className="text-[8px] text-gray-500">{s.num_episodes} ep. - {s.status}</p>
+                        <button key={s.id} onClick={() => toggleSchedule(s.id, 'tv_series')} className="flex-shrink-0 w-[70px] text-center" data-testid={`schedule-series-${s.id}`}>
+                          <div className={`aspect-[2/3] rounded-lg overflow-hidden relative transition-all ${s.scheduled_for_tv ? 'ring-2 ring-cyan-400' : 'ring-1 ring-white/10 hover:ring-white/25'}`}>
+                            <img src={posterSrc(s.poster_url)} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                            <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${s.scheduled_for_tv ? 'bg-cyan-500' : 'bg-black/60'}`}>
+                              {s.scheduled_for_tv ? <Check className="w-3 h-3 text-white" /> : <Plus className="w-3 h-3 text-gray-400" />}
+                            </div>
                           </div>
-                          {s.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                          <p className="text-[8px] font-medium truncate mt-1 px-0.5">{s.title}</p>
                         </button>
                       ))}
                     </div>
@@ -637,18 +635,17 @@ export default function TVStationPage() {
                 )}
                 {schedulableContent.anime.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold text-orange-400 mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Anime in Produzione</h4>
-                    <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-orange-400 mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Anime in Produzione</h4>
+                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
                       {schedulableContent.anime.map(a => (
-                        <button key={a.id} onClick={() => toggleSchedule(a.id, 'anime')}
-                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${a.scheduled_for_tv ? 'bg-cyan-500/10 border border-cyan-500/30' : 'bg-white/[0.03] border border-white/5 hover:border-white/15'}`}
-                          data-testid={`schedule-anime-${a.id}`}>
-                          <img src={posterSrc(a.poster_url)} alt="" className="w-8 h-12 rounded object-cover flex-shrink-0" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=100'; }} />
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-[10px] font-bold truncate">{a.title}</p>
-                            <p className="text-[8px] text-gray-500">{a.num_episodes} ep. - {a.status}</p>
+                        <button key={a.id} onClick={() => toggleSchedule(a.id, 'anime')} className="flex-shrink-0 w-[70px] text-center" data-testid={`schedule-anime-${a.id}`}>
+                          <div className={`aspect-[2/3] rounded-lg overflow-hidden relative transition-all ${a.scheduled_for_tv ? 'ring-2 ring-cyan-400' : 'ring-1 ring-white/10 hover:ring-white/25'}`}>
+                            <img src={posterSrc(a.poster_url)} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                            <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${a.scheduled_for_tv ? 'bg-cyan-500' : 'bg-black/60'}`}>
+                              {a.scheduled_for_tv ? <Check className="w-3 h-3 text-white" /> : <Plus className="w-3 h-3 text-gray-400" />}
+                            </div>
                           </div>
-                          {a.scheduled_for_tv ? <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" /> : <Plus className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+                          <p className="text-[8px] font-medium truncate mt-1 px-0.5">{a.title}</p>
                         </button>
                       ))}
                     </div>

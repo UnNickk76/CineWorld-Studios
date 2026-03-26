@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -48,6 +49,7 @@ const TYPE_LABELS = {
 };
 
 export function DraftsSection({ api, onResume, onRefresh }) {
+  const navigate = useNavigate();
   const [drafts, setDrafts] = useState([]);
   const [stuckFilms, setStuckFilms] = useState([]);
   const [seriesDrafts, setSeriesDrafts] = useState([]);
@@ -242,7 +244,15 @@ export function DraftsSection({ api, onResume, onRefresh }) {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-[10px] text-emerald-400 hover:bg-emerald-500/10"
-                      onClick={() => onResume?.(item)}
+                      onClick={() => {
+                        if (item._content === 'tv_series') {
+                          navigate('/series-tv');
+                        } else if (item._content === 'anime') {
+                          navigate('/anime');
+                        } else {
+                          onResume?.(item);
+                        }
+                      }}
                       data-testid={`resume-draft-${item.id}`}
                     >
                       <Play className="w-3 h-3 mr-0.5" /> Riprendi

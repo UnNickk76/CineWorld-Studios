@@ -48,6 +48,12 @@ Gioco di gestione di un impero cinematografico. Full-stack React + FastAPI + Mon
 - Velion: trigger low_hype e high_hype aggiunti come high priority
 - Arena: bordo glow orange (hype alto) / rosso (hype basso) sulle FilmMiniCard
 
+### Fix Serie TV bloccate ready_for_casting (2026-03-26)
+- Backend: fallback in film-pipeline advance-to-casting per controllare anche tv_series
+- Frontend SeriesTVPipeline: ready_for_casting e coming_soon inclusi nell'auto-select
+- Frontend SeriesTVPipeline: nuova sezione "Da Completare" per serie in attesa visibili e cliccabili
+- Frontend DraftsSection: click Riprendi su serie naviga a /series-tv (non piu' film pipeline)
+
 ### Sistema Notifiche v2.0, PvP, Fame, Cast Skills, Tutorial, Festival v3.0, Velion AI v5.0
 - Vedi changelog precedente
 

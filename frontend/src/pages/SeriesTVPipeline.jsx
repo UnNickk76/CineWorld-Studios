@@ -82,7 +82,7 @@ export default function SeriesTVPipeline() {
           const updated = series.find(s => s.id === prev.id);
           return updated || null;
         }
-        const needsAttention = series.find(s => ['concept', 'casting', 'screenplay', 'ready_to_release'].includes(s.status));
+        const needsAttention = series.find(s => ['concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'ready_to_release'].includes(s.status));
         return needsAttention || null;
       });
     } catch (e) { console.error(e); }
@@ -375,6 +375,41 @@ export default function SeriesTVPipeline() {
                     <p className="text-[9px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
                   </div>
                   <Badge className="bg-orange-500/20 text-orange-400 text-[9px] flex-shrink-0">In Produzione</Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Pending series (ready_for_casting, coming_soon, concept) */}
+        {!activeSeries && mySeries.filter(s => ['ready_for_casting', 'coming_soon', 'concept', 'casting', 'screenplay', 'ready_to_release'].includes(s.status)).length > 0 && (
+          <div className="space-y-2 mb-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">Da Completare</h3>
+            {mySeries.filter(s => ['ready_for_casting', 'coming_soon', 'concept', 'casting', 'screenplay', 'ready_to_release'].includes(s.status)).map(s => (
+              <Card key={s.id} className="bg-[#111113] border-cyan-500/10 cursor-pointer hover:border-cyan-500/30 transition-colors"
+                onClick={() => { setActiveSeries(s); setShowCreateForm(false); }}
+                data-testid={`pending-series-${s.id}`}>
+                <CardContent className="p-2.5 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate">{s.title}</p>
+                    <p className="text-[9px] text-gray-500">{s.genre_name} - {s.num_episodes} ep.</p>
+                  </div>
+                  <Badge className={`text-[9px] flex-shrink-0 ${
+                    s.status === 'ready_for_casting' ? 'bg-green-500/20 text-green-400' :
+                    s.status === 'coming_soon' ? 'bg-orange-500/20 text-orange-400' :
+                    s.status === 'casting' ? 'bg-blue-500/20 text-blue-400' :
+                    'bg-gray-500/20 text-gray-400'
+                  }`}>{
+                    s.status === 'ready_for_casting' ? 'Pronto Casting' :
+                    s.status === 'coming_soon' ? 'Coming Soon' :
+                    s.status === 'casting' ? 'Casting' :
+                    s.status === 'screenplay' ? 'Sceneggiatura' :
+                    s.status === 'ready_to_release' ? 'Pronto Rilascio' :
+                    s.status
+                  }</Badge>
                 </CardContent>
               </Card>
             ))}

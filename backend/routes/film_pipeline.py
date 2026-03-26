@@ -1364,6 +1364,26 @@ async def advance_to_casting(project_id: str, user: dict = Depends(get_current_u
         {'_id': 0}
     )
     if not project:
+        # Fallback: check if this is actually a TV series
+        series = await db.tv_series.find_one(
+            {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['concept', 'coming_soon', 'ready_for_casting']}},
+            {'_id': 0}
+        )
+        if series:
+            # Handle series advance-to-casting inline
+            if series['status'] == 'coming_soon':
+                sra = series.get('scheduled_release_at')
+                if sra:
+                    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) < release_dt:
+                        raise HTTPException(400, "Il periodo Coming Soon non e' ancora terminato")
+            await db.tv_series.update_one(
+                {'id': project_id},
+                {'$set': {'status': 'casting', 'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"status": "casting", "message": "Fase casting iniziata! (Serie TV)"}
         raise HTTPException(status_code=404, detail="Progetto non trovato o non in fase Proposte")
 
     # If coming_soon (pre_casting), check timer expired

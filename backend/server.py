@@ -19551,22 +19551,39 @@ async def serve_poster(filename: str):
     
     raise HTTPException(status_code=404, detail="Poster non trovato")
 
-# Serve React build as fallback (production: nginx may proxy all to backend)
-_build_dir = '/app/frontend/build'
-if os.path.isdir(_build_dir) and os.path.isfile(os.path.join(_build_dir, 'index.html')):
-    from fastapi.staticfiles import StaticFiles
-    # Serve static assets
+# Serve React build — always register routes, resolve build dir at startup
+from fastapi.staticfiles import StaticFiles
+
+def _find_build_dir():
+    candidates = [
+        '/app/frontend/build',
+        os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'),
+        os.path.join(os.path.dirname(__file__), 'frontend', 'build'),
+    ]
+    for d in candidates:
+        d = os.path.abspath(d)
+        if os.path.isdir(d) and os.path.isfile(os.path.join(d, 'index.html')):
+            return d
+    return None
+
+_build_dir = _find_build_dir()
+if _build_dir:
+    logging.info(f"Serving React frontend from: {_build_dir}")
     if os.path.isdir(os.path.join(_build_dir, 'static')):
         app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, 'static')), name="static-files")
-    # Catch-all: serve index.html for SPA routing (skip /api and /health paths)
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        if full_path.startswith("api/") or full_path.startswith("api") or full_path == "health":
-            raise HTTPException(status_code=404, detail="Not found")
-        file_path = os.path.join(_build_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(_build_dir, 'index.html'))
+else:
+    logging.warning(f"React build directory NOT found. Frontend will not be served.")
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if full_path.startswith("api/") or full_path.startswith("api") or full_path in ("health", "docs", "redoc", "openapi.json"):
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _build_dir:
+        raise HTTPException(status_code=404, detail="Frontend build not available")
+    file_path = os.path.join(_build_dir, full_path)
+    if full_path and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    return FileResponse(os.path.join(_build_dir, 'index.html'))
 
 app.add_middleware(
     CORSMiddleware,

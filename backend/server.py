@@ -128,6 +128,14 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 # Create the main app
 app = FastAPI(title="CineWorld Studio's API")
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse("../frontend/dist/index.html")
 api_router = APIRouter(prefix="/api")
 
 # APScheduler instance - global so it persists

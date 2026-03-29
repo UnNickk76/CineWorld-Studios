@@ -131,11 +131,17 @@ app = FastAPI(title="CineWorld Studio's API")
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+frontend_path = os.path.join(BASE_DIR, "frontend", "dist")
+
+app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
 
 @app.get("/")
 def serve_frontend():
-    return FileResponse("../frontend/dist/index.html")
+    return FileResponse(os.path.join(frontend_path, "index.html"))
 api_router = APIRouter(prefix="/api")
 
 # APScheduler instance - global so it persists

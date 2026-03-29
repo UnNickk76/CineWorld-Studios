@@ -1,14 +1,26 @@
-FROM node:18
+# build stage
+FROM node:18 AS build
 
 WORKDIR /app
 
-COPY . .
+COPY frontend ./frontend
 
 WORKDIR /app/frontend
 
 RUN npm install
 RUN npm run build
 
-RUN npm install -g serve
+# production stage
+FROM node:18
 
-CMD ["serve", "-s", "build", "-l", "3000"]
+WORKDIR /app
+
+COPY --from=build /app/frontend/build ./build
+COPY frontend/server.js ./server.js
+COPY frontend/package.json ./package.json
+
+RUN npm install --omit=dev
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]

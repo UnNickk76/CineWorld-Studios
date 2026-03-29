@@ -1,54 +1,38 @@
-# CineWorld Studio's - PRD
+# CineMaster - Product Requirements Document
 
-## Problema originale
-Gioco di gestione cinematografica (Film, Serie TV, Anime) con meccaniche PvP, hype, boicottaggi, e sistema di produzione completo.
+## Original Problem Statement
+Full-stack cinematic management game (React + FastAPI + MongoDB). Players manage film studios, compete in PvP arenas, and build entertainment empires.
 
-## Architettura
-- **Frontend**: React + TailwindCSS + Shadcn UI + Framer Motion
+## Architecture
+- **Frontend**: React + Tailwind CSS + Shadcn UI + Framer Motion
 - **Backend**: FastAPI + MongoDB
-- **AI**: OpenAI GPT-4o-mini (testo) + GPT-Image-1 (immagini) via Emergent LLM Key
-- **Jobs**: APScheduler
+- **3rd Party**: OpenAI GPT-4o-mini (text), GPT-Image-1 (images) via Emergent LLM Key, APScheduler
+- **Path Resolution**: Strictly relative paths (`../`, `./`). NO `@/` aliases.
+- **PostCSS**: Uses `@tailwindcss/postcss` plugin (NOT `tailwindcss` directly)
 
-## Funzionalità implementate
-- Sistema completo di produzione Film/Serie TV/Anime (draft → casting → produzione → release)
-- PvP Arena con supporto/boicotto, difesa, statistiche
-- Coming Soon con countdown, hype, interazioni (supporto/boicotto)
-- TV Station scheduling manuale
-- Velion AI assistant (tutorial, suggerimenti con cooldown)
-- Cancellazione permanente contenuti
-- Popup dettaglio contenuti con permessi proprietario
-- **Popup esito Supporto/Boicotto** con immagini dedicate (supporto_successo, boicotto_ritorto, etc.)
+## Credentials
+- Test account: fandrex1@gmail.com / Ciaociao1
 
-## Fix completata (26 Mar 2026)
-- **OutcomePopup non mostrato**: Convertito da Radix Dialog (conflitto con Dialog parent) a overlay fisso con z-index:9999 + framer-motion
-- **Backfire non rilevato**: Corretta logica outcome detection in PvPArenaPage con nuova funzione `parseOutcome()`
+## Completed Features
+- OutcomePopup fix (framer-motion overlay instead of Radix Dialog)
+- MongoDB dump export
+- Full `@/` alias removal across entire frontend
+- PostCSS config fix for Railway build (`@tailwindcss/postcss`)
 
-## Task in corso
-Nessuno
+## In Progress
+- Railway deploy verification (user needs to push via "Save to Github")
 
-## Prossimi task (P1)
-- Sistema "Previsioni Festival" (scommesse sui vincitori)
-- Marketplace per diritti TV/Anime
+## Upcoming Tasks (P1)
+- Sistema "Previsioni Festival" (betting on festival winners)
+- Marketplace for TV/Anime rights
 
 ## Backlog (P2+)
-- Contest Page Mobile Layout rotto (P2, recurring 12+)
-- Velion Mood Indicator
-- Chat Evolution
-- CinePass + Stripe
-- Push notifications
-- Velion Levels
-- RBAC
-- Eventi globali
-- Guerre tra Major
-- Velion AI Memory
+- Contest Page mobile layout (recurring issue 12+ times)
+- Velion Mood Indicator, Chat Evolution, CinePass+Stripe
+- Push notifications, Velion Levels, RBAC
+- Eventi globali, Guerre tra Major, Velion AI Memory
 
-## Integrazioni 3rd party
-- OpenAI GPT-4o-mini (text) — Emergent LLM Key
-- OpenAI GPT-Image-1 (image) — Emergent LLM Key
-- APScheduler (cron)
-
-## Vincoli utente
-- Veloce, pratico, senza modifiche strutturali
-- NO testing agent (crediti)
-- NO refactoring di server.py
-- Lingua: Italiano
+## Constraints
+- User forbids testing_agent_v3_fork usage (save credits)
+- No refactoring of server.py
+- Language: Italiano

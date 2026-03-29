@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"08b0d171bcfb4b3ab6a6325a5713554c","collectionName":"casting_weekly_pool","type":"collection"}

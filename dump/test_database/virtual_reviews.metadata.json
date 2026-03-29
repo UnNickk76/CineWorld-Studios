@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"film_id":{"$numberInt":"1"}},"name":"film_id_1"}],"uuid":"36ebffb08b23449e8c4ba577fc1edec4","collectionName":"virtual_reviews","type":"collection"}

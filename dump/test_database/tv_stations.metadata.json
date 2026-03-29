@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"f1afb60e04a14e2982cf1366e50b27ef","collectionName":"tv_stations","type":"collection"}

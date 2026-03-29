@@ -226,3 +226,7 @@ frontend/public/mongodump_cineworld.zip
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/6.pack_
+-e 
+# Environment files
+*.env
+*.env.*

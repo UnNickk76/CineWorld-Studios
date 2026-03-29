@@ -1,3 +1,4 @@
+// force rebuild - alias fix 2026-03-28
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';

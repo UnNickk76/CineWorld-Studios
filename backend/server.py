@@ -128,6 +128,20 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 # Create the main app
 app = FastAPI(title="CineWorld Studio's API")
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+frontend_path = os.path.join(BASE_DIR, "frontend", "dist")
+
+app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse(os.path.join(frontend_path, "index.html"))
 api_router = APIRouter(prefix="/api")
 
 # APScheduler instance - global so it persists
@@ -19606,3 +19620,12 @@ async def shutdown_db_client():
         scheduler.shutdown(wait=False)
         logging.info("APScheduler stopped")
     client.close()
+
+
+
+import os
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("server:app", host="0.0.0.0", port=port)

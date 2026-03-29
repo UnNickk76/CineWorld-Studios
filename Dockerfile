@@ -1,26 +1,26 @@
-# build stage
-FROM node:18 AS build
+# ===== BUILD =====
+FROM node:18-alpine as build
 
 WORKDIR /app
 
-COPY frontend ./frontend
+# Copia TUTTO il progetto
+COPY . .
 
+# Vai nel frontend
 WORKDIR /app/frontend
 
 RUN npm install
 RUN npm run build
 
-# production stage
-FROM node:18
+# ===== PRODUCTION =====
+FROM node:18-alpine
 
 WORKDIR /app
 
-COPY --from=build /app/frontend/build ./build
-COPY frontend/server.js ./server.js
-COPY frontend/package.json ./package.json
+RUN npm install -g serve
 
-RUN npm install --omit=dev
+COPY --from=build /app/frontend/build ./build
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["serve", "-s", "build", "-l", "3000"]

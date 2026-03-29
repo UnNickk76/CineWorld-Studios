@@ -8,7 +8,7 @@ Full-stack cinematic management game (React + FastAPI + MongoDB). Players manage
 - **Backend**: FastAPI + MongoDB
 - **3rd Party**: OpenAI GPT-4o-mini (text), GPT-Image-1 (images) via Emergent LLM Key, APScheduler
 - **Path Resolution**: Strictly relative paths (`../`, `./`). NO `@/` aliases.
-- **PostCSS**: Uses `@tailwindcss/postcss` plugin (NOT `tailwindcss` directly)
+- **PostCSS**: Uses `@tailwindcss/postcss` plugin
 - **Deploy**: Dockerfile multi-stage (Node build frontend → Python serve backend + static files)
 
 ## Credentials
@@ -19,18 +19,15 @@ Full-stack cinematic management game (React + FastAPI + MongoDB). Players manage
 - MongoDB dump export
 - Full `@/` alias removal across entire frontend
 - PostCSS config fix for Railway build (`@tailwindcss/postcss`)
-- **Dockerfile per Railway deploy** — multi-stage build (frontend React + backend FastAPI)
-- FastAPI serves React build from `/app/frontend/build` with SPA catch-all routing
+- Dockerfile per Railway deploy — multi-stage build
+- **Unconditional SPA serving** — FastAPI always registers catch-all route for frontend, searches build dir at startup, excludes /api/*, /health, /docs
 
 ## Railway Deploy Configuration
 - `Dockerfile` at repo root handles both frontend build and backend setup
 - `REACT_APP_BACKEND_URL=""` by default (relative paths for same-domain deploy)
-- Can be overridden via Docker build arg: `--build-arg REACT_APP_BACKEND_URL=https://your-domain.com`
+- Can override via Docker build arg: `--build-arg REACT_APP_BACKEND_URL=https://your-domain.com`
 - Railway provides `PORT` env var automatically — CMD uses `${PORT:-8001}`
 - Required env vars on Railway: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `EMERGENT_LLM_KEY`, `CORS_ORIGINS`
-
-## In Progress
-- Railway deploy verification (user needs to push via "Save to Github")
 
 ## Upcoming Tasks (P1)
 - Sistema "Previsioni Festival" (betting on festival winners)

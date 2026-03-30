@@ -19551,42 +19551,37 @@ async def serve_poster(filename: str):
     
     raise HTTPException(status_code=404, detail="Poster non trovato")
 
-# Serve React build — StaticFiles mount + SPA middleware
+# Serve React frontend build
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import JSONResponse
 
-def _find_build_dir():
-    candidates = [
-        '/app/frontend/build',
-        os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'),
-        os.path.join(os.path.dirname(__file__), 'frontend', 'build'),
-    ]
-    for d in candidates:
-        d = os.path.abspath(d)
-        if os.path.isdir(d) and os.path.isfile(os.path.join(d, 'index.html')):
-            return d
-    return None
-
-_build_dir = _find_build_dir()
+_build_dir = None
+for _candidate in [
+    '/app/frontend/build',
+    os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'),
+]:
+    _candidate = os.path.abspath(_candidate)
+    if os.path.isdir(_candidate) and os.path.isfile(os.path.join(_candidate, 'index.html')):
+        _build_dir = _candidate
+        break
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
 
-# SPA middleware: catch 404s on non-API routes and serve index.html
-@app.middleware("http")
-async def spa_middleware(request, call_next):
-    response = await call_next(request)
-    path = request.url.path
-    if (
-        response.status_code == 404
-        and _build_dir
-        and not path.startswith("/api")
-        and path not in ("/health", "/docs", "/redoc", "/openapi.json")
-    ):
-        return FileResponse(os.path.join(_build_dir, 'index.html'))
-    return response
-
-# Mount the build directory — serves actual files (JS, CSS, images, etc.)
 if _build_dir:
-    app.mount("/", StaticFiles(directory=_build_dir, html=True), name="frontend")
+    app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="static")
+
+@app.get("/")
+async def serve_react():
+    if _build_dir:
+        return FileResponse(os.path.join(_build_dir, "index.html"))
+    return {"detail": "Frontend build not found"}
+
+@app.get("/{full_path:path}")
+async def serve_react_router(full_path: str):
+    if _build_dir:
+        file_path = os.path.join(_build_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_build_dir, "index.html"))
+    return {"detail": "Frontend build not found"}
 
 app.add_middleware(
     CORSMiddleware,

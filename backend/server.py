@@ -19551,8 +19551,9 @@ async def serve_poster(filename: str):
     
     raise HTTPException(status_code=404, detail="Poster non trovato")
 
-# Serve React build — always register routes, resolve build dir at startup
+# Serve React build — StaticFiles mount + SPA middleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
 
 def _find_build_dir():
     candidates = [
@@ -19567,23 +19568,25 @@ def _find_build_dir():
     return None
 
 _build_dir = _find_build_dir()
-if _build_dir:
-    logging.info(f"Serving React frontend from: {_build_dir}")
-    if os.path.isdir(os.path.join(_build_dir, 'static')):
-        app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, 'static')), name="static-files")
-else:
-    logging.warning(f"React build directory NOT found. Frontend will not be served.")
+print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
 
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    if full_path.startswith("api/") or full_path.startswith("api") or full_path in ("health", "docs", "redoc", "openapi.json"):
-        raise HTTPException(status_code=404, detail="Not found")
-    if not _build_dir:
-        raise HTTPException(status_code=404, detail="Frontend build not available")
-    file_path = os.path.join(_build_dir, full_path)
-    if full_path and os.path.isfile(file_path):
-        return FileResponse(file_path)
-    return FileResponse(os.path.join(_build_dir, 'index.html'))
+# SPA middleware: catch 404s on non-API routes and serve index.html
+@app.middleware("http")
+async def spa_middleware(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if (
+        response.status_code == 404
+        and _build_dir
+        and not path.startswith("/api")
+        and path not in ("/health", "/docs", "/redoc", "/openapi.json")
+    ):
+        return FileResponse(os.path.join(_build_dir, 'index.html'))
+    return response
+
+# Mount the build directory — serves actual files (JS, CSS, images, etc.)
+if _build_dir:
+    app.mount("/", StaticFiles(directory=_build_dir, html=True), name="frontend")
 
 app.add_middleware(
     CORSMiddleware,

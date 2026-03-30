@@ -130,6 +130,14 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 app = FastAPI(title="CineWorld Studio's API")
 api_router = APIRouter(prefix="/api")
 
+@api_router.get("/download-dump")
+async def download_dump():
+    dump_path = "/app/cinemaster_dump.zip"
+    if os.path.isfile(dump_path):
+        return FileResponse(dump_path, filename="cinemaster_dump.zip", media_type="application/zip")
+    raise HTTPException(status_code=404, detail="Dump not found")
+
+
 # APScheduler instance - global so it persists
 scheduler = AsyncIOScheduler()
 

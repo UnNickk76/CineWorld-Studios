@@ -129,10 +129,10 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 # Create the main app
 app = FastAPI(title="CineWorld Studio's API")
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
+@app.get("/")
+def root():
+    return {"status": "CineWorld backend attivo"}
+    
 api_router = APIRouter(prefix="/api")
 
 @api_router.get("/download-dump")

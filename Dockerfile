@@ -1,3 +1,15 @@
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json ./
+RUN npm install
+
+COPY frontend/ ./
+ENV CI=false
+RUN npm run build
+
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -9,8 +21,10 @@ RUN pip install --no-cache-dir --extra-index-url https://d33sy5i8bnduwe.cloudfro
 
 COPY backend/ ./backend/
 
+COPY --from=frontend-build /app/frontend/build ./frontend/build
+
 WORKDIR /app/backend
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001} --workers 1"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001}"]

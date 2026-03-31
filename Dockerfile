@@ -1,15 +1,3 @@
-FROM node:20-alpine AS frontend-build
-
-WORKDIR /app/frontend
-
-COPY frontend/ ./
-RUN npm install --legacy-peer-deps
-
-COPY frontend/ ./
-ENV CI=false
-RUN npm run build
-
-
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -20,8 +8,6 @@ COPY backend/requirements.txt ./backend/
 RUN pip install --no-cache-dir --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ -r backend/requirements.txt
 
 COPY backend/ ./backend/
-
-COPY --from=frontend-build /app/frontend/build ./frontend/build
 
 WORKDIR /app/backend
 

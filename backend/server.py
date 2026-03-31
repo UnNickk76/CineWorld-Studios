@@ -19594,7 +19594,7 @@ else:
 
     @app.get("/")
     async def root():
-        return {"status": "ok"}
+        return {"status": "backend attivo", "message": "Frontend non disponibile"}
 
 app.add_middleware(
     CORSMiddleware,

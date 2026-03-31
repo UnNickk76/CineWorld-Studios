@@ -19591,6 +19591,14 @@ if _build_dir:
 else:
     print("[WARNING] Frontend non trovato, avvio solo backend", flush=True)
 
+    @app.get("/")
+    async def root():
+        return {"status": "ok"}
+
+    @app.get("/{full_path:path}")
+    async def fallback(full_path: str):
+        return {"detail": "Backend only - frontend not available"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

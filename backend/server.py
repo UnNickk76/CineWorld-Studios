@@ -19563,7 +19563,9 @@ async def serve_poster(filename: str):
     
     raise HTTPException(status_code=404, detail="Poster non trovato")
 
-# Serve React frontend build (only if build exists)
+# Serve React frontend build
+from fastapi.staticfiles import StaticFiles
+
 _build_dir = None
 for _candidate in [
     '/app/frontend/build',
@@ -19576,25 +19578,25 @@ for _candidate in [
 
 if _build_dir:
     print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
-    from fastapi.staticfiles import StaticFiles
-    app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="static")
+    if os.path.isdir(os.path.join(_build_dir, "static")):
+        app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="static")
+else:
+    print("[WARNING] Frontend build non trovato al startup", flush=True)
 
-    @app.get("/")
-    async def serve_react():
+@app.get("/")
+async def serve_root():
+    if _build_dir:
         return FileResponse(os.path.join(_build_dir, "index.html"))
+    return {"status": "backend attivo", "frontend": "build non disponibile"}
 
-    @app.get("/{full_path:path}")
-    async def serve_react_router(full_path: str):
+@app.get("/{full_path:path}")
+async def serve_catchall(full_path: str):
+    if _build_dir:
         file_path = os.path.join(_build_dir, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(_build_dir, "index.html"))
-else:
-    print("[WARNING] Frontend non trovato, avvio solo backend", flush=True)
-
-    @app.get("/")
-    async def root():
-        return {"status": "backend attivo", "message": "Frontend non disponibile"}
+    return {"detail": "Not found"}
 
 app.add_middleware(
     CORSMiddleware,

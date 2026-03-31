@@ -6877,10 +6877,13 @@ async def run_startup_migrations():
 
     # Migration: Copy existing disk posters to MongoDB for deployment persistence
     if 'posters_to_mongodb_v1' not in completed:
-        migrated = await poster_storage.migrate_disk_to_db()
-        completed.append('posters_to_mongodb_v1')
-        changed = True
-        logging.info(f"Migration posters_to_mongodb_v1: Migrated {migrated} posters from disk to MongoDB")
+        try:
+            migrated = await poster_storage.migrate_disk_to_db()
+            completed.append('posters_to_mongodb_v1')
+            changed = True
+            logging.info(f"Migration posters_to_mongodb_v1: Migrated {migrated} posters from disk to MongoDB")
+        except Exception as e:
+            print(f"Startup migration skipped: {e}", flush=True)
 
 
     # Migration: Recalculate ALL films' quality_score with new Alchemy v2 formula

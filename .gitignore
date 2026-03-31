@@ -323,3 +323,27 @@ frontend/node_modules/.cache/default-development/6.pack_
 *.env
 *.env.*
 cinemaster_dump.zip
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*

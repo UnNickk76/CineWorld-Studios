@@ -128,6 +128,11 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 # Create the main app
 app = FastAPI(title="CineWorld Studio's API")
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
 api_router = APIRouter(prefix="/api")
 
 @api_router.get("/download-dump")
@@ -19470,10 +19475,6 @@ async def redirect_to_current_game():
         return RedirectResponse(url=config['url'], status_code=302)
     return {'error': 'No game URL configured'}
 
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
-
 # ============== TRAILER GENERATION ==============
 from fastapi.responses import FileResponse as TrailerFileResponse
 
@@ -19594,10 +19595,6 @@ else:
     @app.get("/")
     async def root():
         return {"status": "ok"}
-
-    @app.get("/{full_path:path}")
-    async def fallback(full_path: str):
-        return {"detail": "Backend only - frontend not available"}
 
 app.add_middleware(
     CORSMiddleware,

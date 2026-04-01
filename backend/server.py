@@ -19696,6 +19696,51 @@ for _candidate in [
         break
 
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
+# =========================
+# FIX LOOP PRODUZIONE + SCENEGGIATURA
+# =========================
+
+def finalize_production(production):
+    if production.get("status") == "released":
+        return production
+
+    if production.get("is_completed"):
+        return production
+
+    production["status"] = "ready_for_release"
+
+    if production.get("script"):
+        production["final_script"] = production["script"]
+
+    return production
+
+
+def release_production(production):
+    if production.get("status") == "released":
+        return production
+
+    if production.get("status") != "ready_for_release":
+        return production
+
+    production["status"] = "released"
+    production["is_completed"] = True
+
+    if not production.get("script") and production.get("final_script"):
+        production["script"] = production["final_script"]
+
+    return production
+
+
+def prevent_series_loop(production):
+    if production.get("type") in ["series", "anime"]:
+        if production.get("is_completed"):
+            return True
+
+        if production.get("status") in ["ready_for_release", "released"]:
+            return True
+
+    return False
+
 import os
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

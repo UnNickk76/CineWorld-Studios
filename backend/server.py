@@ -1,3 +1,8 @@
+import os
+
+# CREA SUBITO uploads appena parte il server (PRIMA DI TUTTO)
+os.makedirs("uploads", exist_ok=True)
+
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -19747,14 +19752,7 @@ import os
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 
-import os
-
-UPLOAD_DIR = "uploads"
-
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(

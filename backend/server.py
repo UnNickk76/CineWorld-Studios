@@ -130,8 +130,8 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 app = FastAPI(title="CineWorld Studio's API")
 
 @app.get("/health")
-async def health():
-    return {"status": "healthy"}
+def health():
+    return {"status": "ok"}
 
 api_router = APIRouter(prefix="/api")
 
@@ -12006,72 +12006,103 @@ async def startup_event():
     old_room_ids = ['general', 'producers', 'box-office']
     await db.chat_rooms.delete_many({'id': {'$in': old_room_ids}, 'is_private': False})
     
-    # Initialize cast pool if needed (2000 members: 500 actors, 500 directors, 500 screenwriters, 500 composers)
-    await initialize_cast_pool_if_needed()
-    logging.info("Cast pool initialized")
+    # Defer heavy initialization to background to avoid blocking health checks
+    async def _deferred_init():
+        try:
+            await initialize_cast_pool_if_needed()
+            logging.info("Cast pool initialized")
+        except Exception as e:
+            logging.warning(f"Cast pool init: {e}")
+
+        try:
+            legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
+            mig_count = 0
+            for seq in legacy:
+                if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
+                    continue
+                now_iso = datetime.now(timezone.utc).isoformat()
+                film_doc = {
+                    'id': seq['id'], 'user_id': seq['user_id'],
+                    'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
+                    'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
+                    'quality_score': seq.get('quality_score', 50),
+                    'quality': int(seq.get('quality_score', 50)),
+                    'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+                    'poster_url': seq.get('poster_url', ''),
+                    'total_revenue': seq.get('total_revenue', 0),
+                    'opening_revenue': seq.get('opening_revenue', 0),
+                    'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
+                    'release_type': 'immediate', 'is_sequel': True,
+                    'sequel_parent_id': seq.get('parent_film_id', ''),
+                    'sequel_number': seq.get('sequel_number', 2),
+                    'sequel_parent_title': seq.get('parent_title', ''),
+                    'hired_actors': seq.get('cast', []),
+                    'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
+                    'production_cost': seq.get('production_cost', 0),
+                    'quality_breakdown': seq.get('quality_breakdown', {}),
+                    'created_at': seq.get('created_at', now_iso),
+                    'released_at': seq.get('completed_at', now_iso),
+                    'updated_at': now_iso,
+                }
+                await db.films.insert_one(film_doc)
+                await db.films.update_one(
+                    {'id': seq.get('parent_film_id')},
+                    {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+                )
+                mig_count += 1
+            if mig_count:
+                logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+        except Exception as e:
+            logging.warning(f"Legacy sequel migration: {e}")
+
+        try:
+            await generate_daily_cast_members()
+        except Exception as e:
+            logging.warning(f"Daily cast gen: {e}")
+
+        try:
+            available_count = await db.emerging_screenplays.count_documents({
+                'status': 'available',
+                'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+            })
+            if available_count < 3:
+                num = random.randint(3, 6)
+                for _ in range(num):
+                    await generate_emerging_screenplay()
+                logging.info(f"Initialized {num} emerging screenplays")
+            else:
+                logging.info(f"Emerging screenplays: {available_count} available")
+        except Exception as e:
+            logging.warning(f"Emerging screenplays init: {e}")
+
+        try:
+            await fix_decimal_skills_in_db()
+        except Exception as e:
+            logging.warning(f"Fix decimal skills: {e}")
+
+        try:
+            await migrate_old_cast_system()
+        except Exception as e:
+            logging.warning(f"Migrate old cast: {e}")
+
+        try:
+            await initialize_release_notes()
+            logging.info("Release notes initialized")
+        except Exception as e:
+            logging.warning(f"Release notes init: {e}")
+
+        try:
+            await initialize_system_notes()
+            logging.info("System notes initialized")
+        except Exception as e:
+            logging.warning(f"System notes init: {e}")
+
+        logging.info("Deferred initialization complete")
+
+    import asyncio
+    asyncio.create_task(_deferred_init())
     
-    # Auto-migrate legacy sequels from 'sequels' to 'films' collection
-    try:
-        legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
-        mig_count = 0
-        for seq in legacy:
-            if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
-                continue
-            now_iso = datetime.now(timezone.utc).isoformat()
-            film_doc = {
-                'id': seq['id'], 'user_id': seq['user_id'],
-                'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
-                'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
-                'quality_score': seq.get('quality_score', 50),
-                'quality': int(seq.get('quality_score', 50)),
-                'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
-                'poster_url': seq.get('poster_url', ''),
-                'total_revenue': seq.get('total_revenue', 0),
-                'opening_revenue': seq.get('opening_revenue', 0),
-                'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
-                'release_type': 'immediate', 'is_sequel': True,
-                'sequel_parent_id': seq.get('parent_film_id', ''),
-                'sequel_number': seq.get('sequel_number', 2),
-                'sequel_parent_title': seq.get('parent_title', ''),
-                'hired_actors': seq.get('cast', []),
-                'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
-                'production_cost': seq.get('production_cost', 0),
-                'quality_breakdown': seq.get('quality_breakdown', {}),
-                'created_at': seq.get('created_at', now_iso),
-                'released_at': seq.get('completed_at', now_iso),
-                'updated_at': now_iso,
-            }
-            await db.films.insert_one(film_doc)
-            await db.films.update_one(
-                {'id': seq.get('parent_film_id')},
-                {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
-            )
-            mig_count += 1
-        if mig_count:
-            logging.info(f"Migrated {mig_count} legacy sequels to films collection")
-    except Exception as e:
-        logging.warning(f"Legacy sequel migration: {e}")
-    
-    # Check and generate daily new cast members
-    await generate_daily_cast_members()
-    
-    # Initialize emerging screenplays if needed
-    available_count = await db.emerging_screenplays.count_documents({
-        'status': 'available',
-        'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
-    })
-    if available_count < 3:
-        num = random.randint(3, 6)
-        for _ in range(num):
-            await generate_emerging_screenplay()
-        logging.info(f"Initialized {num} emerging screenplays")
-    else:
-        logging.info(f"Emerging screenplays: {available_count} available")
-    
-    # Fix existing cast members with decimal skills
-    await fix_decimal_skills_in_db()
-    
-    # Create MongoDB indexes for performance
+    # Create MongoDB indexes for performance (fast, non-blocking)
     try:
         await db.films.create_index('user_id')
         await db.films.create_index('status')
@@ -12107,25 +12138,16 @@ async def startup_event():
     except Exception as e:
         logging.warning(f"Index creation warning: {e}")
     
-    # Migrate old cast (skills 1-10 system) to new system (1-100)
-    await migrate_old_cast_system()
-    
-    # Add cinepass to existing users who don't have it
+    # Add cinepass to existing users who don't have it (fast update)
     await db.users.update_many(
         {'cinepass': {'$exists': False}},
         {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
     )
     
-    # Initialize release notes in database
-    await initialize_release_notes()
-    logging.info("Release notes initialized")
-    
-    # Initialize system notes if empty
-    await initialize_system_notes()
-    logging.info("System notes initialized")
-    
-    # One-time migrations
+    # One-time migrations (fast DB updates)
     await run_startup_migrations()
+    
+    logging.info("Startup complete - server ready for health checks")
     
     # ==================== APSCHEDULER SETUP ====================
     # Start the background scheduler for autonomous game operations

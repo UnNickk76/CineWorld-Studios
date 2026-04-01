@@ -19576,27 +19576,8 @@ for _candidate in [
         _build_dir = _candidate
         break
 
-if _build_dir:
-    print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
-    if os.path.isdir(os.path.join(_build_dir, "static")):
-        app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="static")
-else:
-    print("[WARNING] Frontend build non trovato al startup", flush=True)
-
-@app.get("/")
-async def serve_root():
-    if _build_dir:
-        return FileResponse(os.path.join(_build_dir, "index.html"))
-    return {"status": "backend attivo", "frontend": "build non disponibile"}
-
-@app.get("/{full_path:path}")
-async def serve_catchall(full_path: str):
-    if _build_dir:
-        file_path = os.path.join(_build_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(_build_dir, "index.html"))
-    return {"detail": "Not found"}
+print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
+app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(
     CORSMiddleware,

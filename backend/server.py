@@ -19647,3 +19647,15 @@ async def shutdown_db_client():
         scheduler.shutdown(wait=False)
         logging.info("APScheduler stopped")
     client.close()
+
+from fastapi.responses import FileResponse
+from fastapi import Request
+
+@app.get("/{full_path:path}")
+async def serve_react_app(request: Request, full_path: str):
+    file_path = os.path.join(_build_dir, full_path)
+
+    if os.path.exists(file_path) and not os.path.isdir(file_path):
+        return FileResponse(file_path)
+
+    return FileResponse(os.path.join(_build_dir, "index.html"))

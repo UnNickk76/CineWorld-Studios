@@ -2,13 +2,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 
 MONGO_URL = os.getenv("MONGO_URL")
-DB_NAME = os.getenv("DB_NAME", "cineworld")
+DB_NAME = os.getenv("DB_NAME", "test")
 
-print("MONGO_URL:", MONGO_URL)
-print("DB_NAME:", DB_NAME)
+client = AsyncIOMotorClient(
+    MONGO_URL,
+    serverSelectionTimeoutMS=2000,
+    connectTimeoutMS=2000,
+    socketTimeoutMS=2000
+)
 
-if not MONGO_URL:
-    raise Exception("MONGO_URL non configurato")
-
-client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]

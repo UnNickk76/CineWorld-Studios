@@ -19675,16 +19675,15 @@ from fastapi import Request
 
 @app.get("/{full_path:path}")
 async def serve_react_app(request: Request, full_path: str):
-    index_path = os.path.join(_build_dir, "index.html")
 
-    # Se è una richiesta API → lascia gestire FastAPI
+    # Se è una chiamata API → NON toccarla
     if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="API route not found")
 
-    # Se esiste file statico (js, css ecc)
+    # Se file esiste (css/js/img ecc)
     file_path = os.path.join(_build_dir, full_path)
     if os.path.exists(file_path) and not os.path.isdir(file_path):
         return FileResponse(file_path)
 
-    # Altrimenti sempre React
-    return FileResponse(index_path)
+    # 🔥 fallback SEMPRE a index.html (QUESTO RISOLVE IL REFRESH)
+    return FileResponse(os.path.join(_build_dir, "index.html"))

@@ -19646,7 +19646,7 @@ for _candidate in [
         break
 
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
-app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -19670,20 +19670,15 @@ async def shutdown_db_client():
         logging.info("APScheduler stopped")
     client.close()
 
-from fastapi.responses import FileResponse
-from fastapi import Request
-
 @app.get("/{full_path:path}")
 async def serve_react_app(request: Request, full_path: str):
 
-    # Se è una chiamata API → NON toccarla
     if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="API route not found")
 
-    # Se file esiste (css/js/img ecc)
     file_path = os.path.join(_build_dir, full_path)
+
     if os.path.exists(file_path) and not os.path.isdir(file_path):
         return FileResponse(file_path)
 
-    # 🔥 fallback SEMPRE a index.html (QUESTO RISOLVE IL REFRESH)
     return FileResponse(os.path.join(_build_dir, "index.html"))

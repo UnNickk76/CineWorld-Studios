@@ -1,0 +1,46 @@
+[
+  {
+    "_id": "69ccdc1c92b024709fa27134",
+    "id": "generale",
+    "name": "Generale",
+    "is_private": false,
+    "participant_ids": [],
+    "created_by": "system",
+    "icon": "message-square",
+    "description": "Chat libera per tutti i player",
+    "created_at": "2026-04-01T08:49:32.892389+00:00"
+  },
+  {
+    "_id": "69ccdc1d92b024709fa27135",
+    "id": "produzioni",
+    "name": "Produzioni",
+    "is_private": false,
+    "participant_ids": [],
+    "created_by": "system",
+    "icon": "film",
+    "description": "Film, serie TV e anime",
+    "created_at": "2026-04-01T08:49:33.132958+00:00"
+  },
+  {
+    "_id": "69ccdc1d92b024709fa27136",
+    "id": "strategie",
+    "name": "Strategie",
+    "is_private": false,
+    "participant_ids": [],
+    "created_by": "system",
+    "icon": "lightbulb",
+    "description": "Consigli e trucchi di gioco",
+    "created_at": "2026-04-01T08:49:33.355268+00:00"
+  },
+  {
+    "_id": "69ccdc1d92b024709fa27137",
+    "id": "offtopic",
+    "name": "Off-topic",
+    "is_private": false,
+    "participant_ids": [],
+    "created_by": "system",
+    "icon": "coffee",
+    "description": "Chiacchiere libere",
+    "created_at": "2026-04-01T08:49:33.577507+00:00"
+  }
+]

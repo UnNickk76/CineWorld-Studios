@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "69ccdca7fe01d570de26af55",
+    "id": "startup_migrations",
+    "completed": [
+      "neomorpheus_40m_v3",
+      "recalculate_imdb_v4",
+      "repair_incomplete_films_v2",
+      "refund_orphan_screenplays_v1",
+      "fix_film_status_v1",
+      "fix_fandrex_password_v1",
+      "fix_full_package_cast_v1",
+      "recalculate_imdb_v5",
+      "extract_posters_to_disk_v1",
+      "posters_to_mongodb_v1",
+      "recalculate_quality_v2",
+      "recalculate_quality_v3_balanced"
+    ]
+  }
+]

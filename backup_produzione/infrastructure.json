@@ -1,0 +1,27 @@
+[
+  {
+    "_id": "69ccdba4d84ce4ffee2d1aa6",
+    "studio_id": "134ebbbf-6c10-4c0b-9e7b-36836b8c33fa",
+    "level": 1,
+    "name": "Anacapito Production Studio",
+    "pre_production": {
+      "storyboard_bonus": 7,
+      "casting_discount": 18,
+      "scouting_discount": 12,
+      "cost": 400000
+    },
+    "post_production": {
+      "remaster_quality_bonus": 4,
+      "remaster_cost": 700000,
+      "remaster_cinepass": 2,
+      "max_remasters": 1
+    },
+    "casting_agency": {
+      "weekly_recruits": 4,
+      "discount_percent": 25,
+      "legendary_chance": 8
+    },
+    "pending_films": [],
+    "released_films": []
+  }
+]

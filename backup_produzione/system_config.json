@@ -1,0 +1,19 @@
+[
+  {
+    "_id": "69ccdba1d84ce4ffee2d1a9e",
+    "donations_enabled": true,
+    "donations_note": ""
+  },
+  {
+    "_id": "69ccdc50fe01d570de26af0a",
+    "key": "last_cast_refresh",
+    "count": 440,
+    "date": "2026-04-01T08:49:34.490904+00:00"
+  },
+  {
+    "_id": "69ccdcf3fe01d570de26af66",
+    "key": "current_game_url",
+    "updated_at": "2026-04-01T08:54:34.000456+00:00",
+    "url": "https://db-extraction.preview.emergentagent.com"
+  }
+]

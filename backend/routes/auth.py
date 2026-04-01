@@ -114,13 +114,15 @@ async def login(credentials: UserLogin):
     try:
         logging.info(f"Login attempt for: {credentials.email}")
         user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
+        
         if not user:
             logging.warning(f"Login failed: user not found for email {credentials.email}")
-            raise HTTPException(status_code=401, detail="Email o password non validi")
+            raise HTTPException(status_code=401, detail="Utente non trovato")
         
-        if not verify_password(credentials.password, user['password']):
+        import bcrypt
+        if not bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
             logging.warning(f"Login failed: wrong password for {credentials.email}")
-            raise HTTPException(status_code=401, detail="Email o password non validi")
+            raise HTTPException(status_code=401, detail="Password errata")
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})

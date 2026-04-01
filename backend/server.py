@@ -19696,6 +19696,9 @@ for _candidate in [
         break
 
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
+import os
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(

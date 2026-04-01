@@ -1,0 +1,452 @@
+[
+  {
+    "_id": "69ccdb91d84ce4ffee2d19a8",
+    "film_id": "70c900ae-3532-4756-b029-f4e416914c98",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.3,
+    "comment": "Mi è piaciuto moltissimo, consigliatissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19a9",
+    "film_id": "cc2aa42f-14aa-404d-ad8a-58f3a02a3345",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.0,
+    "comment": "Un'esperienza cinematografica unica!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19aa",
+    "film_id": "8fe50a2b-5295-4be6-942f-4f9e82904a86",
+    "film_title": "Che Vita È",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.8,
+    "comment": "Stupendo! Non vedo l'ora del sequel!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ab",
+    "film_id": "5075a406-9258-447b-83bd-59448cca0b3d",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 1.8,
+    "comment": "Two hours of my life wasted."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ac",
+    "film_id": "67fcc666-4817-41c0-a0fa-5144c7eb2f3f",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.8,
+    "comment": "Amazing film, must-see for everyone!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ad",
+    "film_id": "cc68c4af-289b-4e61-80f1-a9e3035560af",
+    "film_title": "Pip Adventures",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.3,
+    "comment": "Amazing film, must-see for everyone!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ae",
+    "film_id": "d164fede-ca2d-48f8-9fdb-05c1a5805172",
+    "film_title": "Neon Boulevard",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 2.2,
+    "comment": "Not worth the ticket price."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19af",
+    "film_id": "cf87dc13-8dc2-483c-b9bd-29666f77d533",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.9,
+    "comment": "Mi ha fatto ridere e piangere. Perfetto!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b0",
+    "film_id": "91e45d9b-5d3a-40e2-aa1b-c2e6dc4b168e",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.8,
+    "comment": "Incredible cast, perfect direction!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b1",
+    "film_id": "f0c1d520-6635-4e1b-9c19-b6281993d810",
+    "film_title": "I tempi di ieri",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.0,
+    "comment": "Stunning! Can't wait for the sequel!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b2",
+    "film_id": "cc68c4af-289b-4e61-80f1-a9e3035560af",
+    "film_title": "Pip Adventures",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 6.2,
+    "comment": "Visually nice, weak plot."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b3",
+    "film_id": "ab373249-c316-4946-8431-12778e75aef2",
+    "film_title": "Sotto una buona Stella",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.6,
+    "comment": "Mi è piaciuto moltissimo, consigliatissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b4",
+    "film_id": "ab373249-c316-4946-8431-12778e75aef2",
+    "film_title": "Sotto una buona Stella",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.8,
+    "comment": "Un'esperienza cinematografica unica!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b5",
+    "film_id": "dc84364b-3bb9-44ce-85ae-99ac6a8c00b5",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 3.8,
+    "comment": "Total flop. Avoid at all costs."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b6",
+    "film_id": "8eb9588f-af82-42c5-bf09-48cd54499d5f",
+    "film_title": "Perduti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 5.2,
+    "comment": "Nice but nothing special."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b7",
+    "film_id": "7f60d8e6-ac08-4327-9b46-6c069f857da6",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 2.9,
+    "comment": "Confusing plot, weak performances."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b8",
+    "film_id": "1914003f-be1c-4cf1-9497-9039818ca7ef",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.7,
+    "comment": "Una storia che tocca il cuore. Bellissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19b9",
+    "film_id": "80ab83b4-ff66-40c5-bb77-7edcfcddd7fb",
+    "film_title": "Eddy man",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 5.4,
+    "comment": "Not worth the ticket price."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ba",
+    "film_id": "cf87dc13-8dc2-483c-b9bd-29666f77d533",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.1,
+    "comment": "Stupendo! Non vedo l'ora del sequel!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19bb",
+    "film_id": "70c900ae-3532-4756-b029-f4e416914c98",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.0,
+    "comment": "Attori incredibili, regia perfetta!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19bc",
+    "film_id": "7f60d8e6-ac08-4327-9b46-6c069f857da6",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 1.9,
+    "comment": "Confusing plot, weak performances."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19bd",
+    "film_id": "f0c1d520-6635-4e1b-9c19-b6281993d810",
+    "film_title": "I tempi di ieri",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.8,
+    "comment": "Incredible cast, perfect direction!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19be",
+    "film_id": "ebdcd53c-6f11-4ea5-a3e8-5af6b0b04154",
+    "film_title": "I Tesori di Atlantide",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.8,
+    "comment": "Film straordinario, da vedere assolutamente!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19bf",
+    "film_id": "a9d0d558-3bdc-4977-8a1e-6aa7657c584b",
+    "film_title": "Indizi Nascosti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.0,
+    "comment": "Un'esperienza cinematografica unica!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c0",
+    "film_id": "8eb9588f-af82-42c5-bf09-48cd54499d5f",
+    "film_title": "Perduti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 4.8,
+    "comment": "Okay to pass the time."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c1",
+    "film_id": "cf87dc13-8dc2-483c-b9bd-29666f77d533",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.6,
+    "comment": "Film straordinario, da vedere assolutamente!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c2",
+    "film_id": "6fc313cf-6b6d-4882-be2a-4f66baf72fa3",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.0,
+    "comment": "Stupendo! Non vedo l'ora del sequel!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c3",
+    "film_id": "d164fede-ca2d-48f8-9fdb-05c1a5805172",
+    "film_title": "Neon Boulevard",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 2.1,
+    "comment": "Peccato, aveva potenziale sprecato."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c4",
+    "film_id": "7667c6c4-b503-4b3d-9907-ecc7072309bf",
+    "film_title": "Trenta secondi",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 1.6,
+    "comment": "Boring. Fell asleep halfway through."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c5",
+    "film_id": "8fe50a2b-5295-4be6-942f-4f9e82904a86",
+    "film_title": "Che Vita È",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.1,
+    "comment": "Una storia che tocca il cuore. Bellissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c6",
+    "film_id": "6fc313cf-6b6d-4882-be2a-4f66baf72fa3",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.5,
+    "comment": "Un film che resta nel cuore. Emozionante!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c7",
+    "film_id": "3dbd83c7-df8c-477e-b396-672281229dbb",
+    "film_title": "Il Punto Rosso",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.6,
+    "comment": "Stupendo! Non vedo l'ora del sequel!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c8",
+    "film_id": "51826c32-7592-4bd3-82d3-ecca96aa99a3",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 2.0,
+    "comment": "Boring. Fell asleep halfway through."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19c9",
+    "film_id": "3052b6f0-77ef-4fa1-8bd6-d6af2c93a9c8",
+    "film_title": "Lettere a Luna",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 1.9,
+    "comment": "Non vale il prezzo del biglietto."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ca",
+    "film_id": "60233d8b-bbeb-468c-ae9d-441b09258fcf",
+    "film_title": "Fuoco Incrociato",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.2,
+    "comment": "Una storia che tocca il cuore. Bellissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19cb",
+    "film_id": "1914003f-be1c-4cf1-9497-9039818ca7ef",
+    "film_title": "Film sconosciuto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.7,
+    "comment": "Mi è piaciuto moltissimo, consigliatissimo!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19cc",
+    "film_id": "dfd90ef7-1c03-499f-bb27-b036fe191724",
+    "film_title": "L'Inganno di Segreto",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.4,
+    "comment": "Un film che resta nel cuore. Emozionante!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19cd",
+    "film_id": "3dbd83c7-df8c-477e-b396-672281229dbb",
+    "film_title": "Il Punto Rosso",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.3,
+    "comment": "Attori incredibili, regia perfetta!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19ce",
+    "film_id": "3052b6f0-77ef-4fa1-8bd6-d6af2c93a9c8",
+    "film_title": "Lettere a Luna",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 3.5,
+    "comment": "Troppo lento e prevedibile."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19cf",
+    "film_id": "32af1af7-cdc5-459c-b26f-4bde6a91f9f4",
+    "film_title": "Film!",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 6.3,
+    "comment": "Alcuni momenti belli, altri no."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d0",
+    "film_id": "a9d0d558-3bdc-4977-8a1e-6aa7657c584b",
+    "film_title": "Indizi Nascosti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 9.6,
+    "comment": "Film straordinario, da vedere assolutamente!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d1",
+    "film_id": "8fe50a2b-5295-4be6-942f-4f9e82904a86",
+    "film_title": "Che Vita È",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.7,
+    "comment": "Attori incredibili, regia perfetta!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d2",
+    "film_id": "f0c1d520-6635-4e1b-9c19-b6281993d810",
+    "film_title": "I tempi di ieri",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.0,
+    "comment": "Top-tier cinema. Well done!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d3",
+    "film_id": "8f5703e5-9253-4c0d-9dc9-5ebef72d7229",
+    "film_title": "Fibonacci - Contro Tutti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 2.5,
+    "comment": "Boring. Fell asleep halfway through."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d4",
+    "film_id": "8f5703e5-9253-4c0d-9dc9-5ebef72d7229",
+    "film_title": "Fibonacci - Contro Tutti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 1.8,
+    "comment": "Don't recommend to anyone."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d5",
+    "film_id": "61f55ef1-8705-47bd-850a-dbe5999e6202",
+    "film_title": "Sotto una buona Stella",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.8,
+    "comment": "Un'esperienza cinematografica unica!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d6",
+    "film_id": "61f55ef1-8705-47bd-850a-dbe5999e6202",
+    "film_title": "Sotto una buona Stella",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.8,
+    "comment": "Film straordinario, da vedere assolutamente!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d7",
+    "film_id": "63580a13-4299-447e-a077-213cd5895e28",
+    "film_title": "La quinta Essenza",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 7.8,
+    "comment": "Un'esperienza cinematografica unica!"
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d8",
+    "film_id": "8eb9588f-af82-42c5-bf09-48cd54499d5f",
+    "film_title": "Perduti",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 5.6,
+    "comment": "Visually nice, weak plot."
+  },
+  {
+    "_id": "69ccdb91d84ce4ffee2d19d9",
+    "film_id": "61f55ef1-8705-47bd-850a-dbe5999e6202",
+    "film_title": "Sotto una buona Stella",
+    "reviewer_name": "Anonimo",
+    "reviewer_info": "",
+    "rating": 8.1,
+    "comment": "Stupendo! Non vedo l'ora del sequel!"
+  }
+]

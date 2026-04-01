@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6776,17 +6776,11 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration fix_film_status_v1: Fixed status for {result.modified_count} films")
     
-    # Migration: Reset password for test user (fix deployed auth)
+    # Migration: fix_fandrex_password_v1 - REMOVED (password now managed externally via Atlas)
     if 'fix_fandrex_password_v1' not in completed:
-        from auth_utils import hash_password
-        new_hash = hash_password('Ciaociao1')
-        result = await db.users.update_one(
-            {'email': 'fandrex1@gmail.com'},
-            {'$set': {'password': new_hash}}
-        )
         completed.append('fix_fandrex_password_v1')
         changed = True
-        logging.info(f"Migration fix_fandrex_password_v1: Reset password (modified={result.modified_count})")
+        logging.info("Migration fix_fandrex_password_v1: Skipped (password managed externally)")
     
     # Migration: Fix existing full_package films - add cast_locked and pre-fill cast
     if 'fix_full_package_cast_v1' not in completed:
@@ -7117,6 +7111,59 @@ async def get_admin_settings(user: dict = Depends(get_current_user)):
         'donations_enabled': settings.get('donations_enabled', True),
         'donations_note': settings.get('donations_note', '')
     }
+
+@api_router.get("/admin/export-db")
+async def admin_export_db(user: dict = Depends(get_current_user)):
+    """Esporta tutte le collection MongoDB in un unico file JSON scaricabile (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin può esportare il database")
+
+    from bson import ObjectId, Binary
+
+    def serialize(obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, Binary):
+            return f"<binary:{len(obj)}b>"
+        if isinstance(obj, bytes):
+            return f"<binary:{len(obj)}b>"
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: serialize(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [serialize(i) for i in obj]
+        return obj
+
+    collection_names = sorted(await db.list_collection_names())
+    export = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": user.get("nickname"),
+        "database": db.name,
+        "collections": {}
+    }
+
+    for coll_name in collection_names:
+        if coll_name == "poster_files":
+            docs = await db[coll_name].find({}, {"data": 0}).to_list(50000)
+        else:
+            docs = await db[coll_name].find({}).to_list(50000)
+        export["collections"][coll_name] = {
+            "count": len(docs),
+            "documents": serialize(docs)
+        }
+
+    import json
+    json_bytes = json.dumps(export, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"cineworld_backup_{timestamp}.json"
+
+    return StreamingResponse(
+        iter([json_bytes]),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 @api_router.post("/admin/toggle-donations")
 async def toggle_donations(data: dict, user: dict = Depends(get_current_user)):

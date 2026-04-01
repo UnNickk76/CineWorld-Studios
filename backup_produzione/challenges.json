@@ -1,0 +1,90 @@
+[
+  {
+    "_id": "69ccdb93d84ce4ffee2d19db",
+    "id": "like_5_films",
+    "name": "Social Butterfly",
+    "description": "Like 5 films from other players",
+    "reward": 25000,
+    "target": 5,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19dc",
+    "id": "send_10_messages",
+    "name": "Chatterbox",
+    "description": "Send 10 messages in chat",
+    "reward": 15000,
+    "target": 10,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19dd",
+    "id": "play_3_minigames",
+    "name": "Gamer",
+    "description": "Play 3 mini games",
+    "reward": 30000,
+    "target": 3,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19de",
+    "id": "visit_5_profiles",
+    "name": "Explorer",
+    "description": "Visit 5 player profiles",
+    "reward": 10000,
+    "target": 5,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19df",
+    "id": "create_film",
+    "name": "Producer",
+    "description": "Create and release a film",
+    "reward": 500000,
+    "target": 1,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19e0",
+    "id": "earn_1m",
+    "name": "Mogul",
+    "description": "Earn $1,000,000 from box office",
+    "reward": 250000,
+    "target": 1000000,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19e1",
+    "id": "get_50_likes",
+    "name": "Fan Favorite",
+    "description": "Get 50 likes on your films",
+    "reward": 200000,
+    "target": 50,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  },
+  {
+    "_id": "69ccdb93d84ce4ffee2d19e2",
+    "id": "win_3_pvp",
+    "name": "Champion",
+    "description": "Win 3 PvP challenges",
+    "reward": 300000,
+    "target": 3,
+    "current": 0,
+    "completed": false,
+    "claimed": false
+  }
+]

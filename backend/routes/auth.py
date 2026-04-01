@@ -112,17 +112,19 @@ async def register(user_data: UserCreate):
 @router.post("/auth/login")
 async def login(credentials: UserLogin):
     try:
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
         logging.info(f"Login attempt for: {credentials.email}")
         user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
         
         if not user:
             logging.warning(f"Login failed: user not found for email {credentials.email}")
-            raise HTTPException(status_code=401, detail="Utente non trovato")
+            raise HTTPException(status_code=401, detail="Credenziali errate")
         
-        import bcrypt
-        if not bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
+        if not pwd_context.verify(credentials.password, user["password"]):
             logging.warning(f"Login failed: wrong password for {credentials.email}")
-            raise HTTPException(status_code=401, detail="Password errata")
+            raise HTTPException(status_code=401, detail="Credenziali errate")
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})

@@ -112,6 +112,7 @@ async def register(user_data: UserCreate):
 @router.post("/auth/login")
 async def login(credentials: UserLogin):
     try:
+        logging.info(f"Login attempt for: {credentials.email}")
         user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
         if not user:
             logging.warning(f"Login failed: user not found for email {credentials.email}")

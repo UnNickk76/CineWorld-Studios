@@ -135,6 +135,10 @@ def health():
 
 api_router = APIRouter(prefix="/api")
 
+@api_router.get("/health")
+def api_health():
+    return {"status": "ok"}
+
 @api_router.get("/download-dump")
 async def download_dump():
     dump_path = "/app/cinemaster_dump.zip"

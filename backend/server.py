@@ -19742,8 +19742,13 @@ def prevent_series_loop(production):
     return False
 
 import os
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# Assicura che la cartella uploads esista sempre
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
+
+if os.path.exists("uploads"):
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(

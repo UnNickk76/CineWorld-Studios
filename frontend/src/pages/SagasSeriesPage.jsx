@@ -59,6 +59,7 @@ const SagasSeriesPage = () => {
   const [showCreateSeriesDialog, setShowCreateSeriesDialog] = useState(false);
   const [seriesType, setSeriesType] = useState('tv_series');
   const [creating, setCreating] = useState(false);
+  const [posterLoading, setPosterLoading] = useState(null);
   const [newSeries, setNewSeries] = useState({ title: '', genre: 'drama', episodes_count: 10, episode_length: 45, synopsis: '' });
 
   const labels = {
@@ -135,6 +136,29 @@ const SagasSeriesPage = () => {
       toast.error(e.response?.data?.detail || 'Errore creazione');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+  const posterSrc = (url) => {
+    if (!url) return null;
+    if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
+    return url;
+  };
+
+  const regeneratePoster = async (seriesId, isAnime) => {
+    setPosterLoading(seriesId);
+    try {
+      const endpoint = isAnime ? `/anime/${seriesId}/generate-poster` : `/series/${seriesId}/generate-poster`;
+      const res = await api.post(endpoint, {}, { timeout: 120000 });
+      if (res.data.poster_url) {
+        setMySeries(prev => prev.map(s => s.id === seriesId ? { ...s, poster_url: res.data.poster_url } : s));
+        toast.success(res.data.message || 'Locandina generata!');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore generazione locandina');
+    } finally {
+      setPosterLoading(null);
     }
   };
 
@@ -273,21 +297,36 @@ const SagasSeriesPage = () => {
               <CardTitle className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'Le Tue Serie TV' : 'Your TV Series'}</CardTitle>
             </CardHeader>
             <CardContent>
-              {mySeries.filter(s => s.series_type === 'tv_series').length === 0 ? (
+              {mySeries.filter(s => (s.series_type || s.type) === 'tv_series').length === 0 ? (
                 <p className="text-gray-400 text-center py-8">{language === 'it' ? 'Non hai ancora serie TV' : 'No TV series yet'}</p>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {mySeries.filter(s => s.series_type === 'tv_series').map(series => (
+                  {mySeries.filter(s => (s.series_type || s.type) === 'tv_series').map(series => (
                     <Card key={series.id} className="bg-white/5 border-white/10">
                       <CardContent className="p-3">
-                        <div className="flex items-center gap-3">
-                          <Clapperboard className="w-10 h-10 text-blue-400" />
-                          <div className="flex-1">
-                            <p className="font-semibold">{series.title}</p>
-                            <p className="text-xs text-gray-400">{series.episodes_count} episodi • {series.genre}</p>
+                        <div className="flex items-start gap-3">
+                          {posterSrc(series.poster_url) ? (
+                            <img src={posterSrc(series.poster_url)} alt={series.title} className="w-16 h-24 object-cover rounded flex-shrink-0" />
+                          ) : (
+                            <div className="w-16 h-24 bg-white/10 rounded flex items-center justify-center flex-shrink-0"><Clapperboard className="w-6 h-6 text-gray-500" /></div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold truncate">{series.title}</p>
+                            <p className="text-xs text-gray-400">{series.episodes_count} episodi &bull; {series.genre}</p>
                             <Badge className={series.status === 'in_production' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'} variant="outline">
                               {series.status === 'in_production' ? 'In Produzione' : series.status}
                             </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={posterLoading === series.id}
+                              onClick={(e) => { e.stopPropagation(); regeneratePoster(series.id, false); }}
+                              className="mt-1 h-7 text-[10px] text-blue-400 hover:text-blue-300 px-2"
+                              data-testid={`regen-poster-series-${series.id}`}
+                            >
+                              {posterLoading === series.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                              {posterLoading === series.id ? 'Generazione...' : (series.poster_url ? 'Rigenera Locandina' : 'Crea Locandina')}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -325,21 +364,36 @@ const SagasSeriesPage = () => {
               <CardTitle className="font-['Bebas_Neue'] text-lg">{language === 'it' ? 'I Tuoi Anime' : 'Your Anime'}</CardTitle>
             </CardHeader>
             <CardContent>
-              {mySeries.filter(s => s.series_type === 'anime').length === 0 ? (
+              {mySeries.filter(s => (s.series_type || s.type) === 'anime').length === 0 ? (
                 <p className="text-gray-400 text-center py-8">{language === 'it' ? 'Non hai ancora anime' : 'No anime yet'}</p>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {mySeries.filter(s => s.series_type === 'anime').map(series => (
+                  {mySeries.filter(s => (s.series_type || s.type) === 'anime').map(series => (
                     <Card key={series.id} className="bg-white/5 border-white/10">
                       <CardContent className="p-3">
-                        <div className="flex items-center gap-3">
-                          <Star className="w-10 h-10 text-pink-400" />
-                          <div className="flex-1">
-                            <p className="font-semibold">{series.title}</p>
-                            <p className="text-xs text-gray-400">{series.episodes_count} episodi • {series.genre}</p>
+                        <div className="flex items-start gap-3">
+                          {posterSrc(series.poster_url) ? (
+                            <img src={posterSrc(series.poster_url)} alt={series.title} className="w-16 h-24 object-cover rounded flex-shrink-0" />
+                          ) : (
+                            <div className="w-16 h-24 bg-white/10 rounded flex items-center justify-center flex-shrink-0"><Star className="w-6 h-6 text-gray-500" /></div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold truncate">{series.title}</p>
+                            <p className="text-xs text-gray-400">{series.episodes_count} episodi &bull; {series.genre}</p>
                             <Badge className={series.status === 'in_production' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'} variant="outline">
                               {series.status === 'in_production' ? 'In Produzione' : series.status}
                             </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={posterLoading === series.id}
+                              onClick={(e) => { e.stopPropagation(); regeneratePoster(series.id, true); }}
+                              className="mt-1 h-7 text-[10px] text-pink-400 hover:text-pink-300 px-2"
+                              data-testid={`regen-poster-anime-${series.id}`}
+                            >
+                              {posterLoading === series.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                              {posterLoading === series.id ? 'Generazione...' : (series.poster_url ? 'Rigenera Locandina' : 'Crea Locandina')}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>

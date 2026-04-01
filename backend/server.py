@@ -4496,6 +4496,52 @@ async def get_film_poster(film_id: str):
 
 
 
+@api_router.post("/series/{series_id}/generate-poster")
+@api_router.post("/anime/{series_id}/generate-poster")
+async def regenerate_series_poster(series_id: str, user: dict = Depends(get_current_user)):
+    """Generate/regenerate poster for a series or anime. Reuses series-pipeline logic."""
+    series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Serie non trovata")
+
+    key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not key:
+        raise HTTPException(status_code=500, detail="Servizio generazione immagini non disponibile")
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        img_gen = OpenAIImageGeneration(api_key=key)
+
+        is_anime = series.get('type') == 'anime'
+        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
+        genre_name = series.get('genre_name', series.get('genre', 'drama'))
+        prompt = f"TV series poster for '{series['title']}', {genre_name} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
+
+        images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+
+        if images:
+            from PIL import Image as PILImage
+            import io
+            img = PILImage.open(io.BytesIO(images[0]))
+            img = img.resize((400, 600), PILImage.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, 'PNG', optimize=True)
+            filename = f"series_{series_id}.png"
+            await poster_storage.save_poster(filename, buf.getvalue(), 'image/png')
+            poster_url = f"/api/posters/{filename}"
+            await db.tv_series.update_one(
+                {'id': series_id},
+                {'$set': {'poster_url': poster_url, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"poster_url": poster_url, "message": "Locandina generata!"}
+        raise HTTPException(status_code=500, detail="Nessuna immagine generata")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Series poster generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore generazione poster: {str(e)}")
+
+
 @api_router.post("/films/{film_id}/regenerate-poster")
 async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_user)):
     """Start async poster regeneration using the film's screenplay/plot. Returns task_id for polling."""
@@ -4893,7 +4939,7 @@ async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_c
 @api_router.get("/series/my")
 async def get_my_series(user: dict = Depends(get_current_user)):
     """Get user's TV series and anime."""
-    series = await db.series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
+    series = await db.tv_series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
     return {'series': series}
 
 @api_router.get("/series/{series_id}")

@@ -19747,8 +19747,14 @@ import os
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 
-if os.path.exists("uploads"):
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+import os
+
+UPLOAD_DIR = "uploads"
+
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(

@@ -6776,17 +6776,11 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration fix_film_status_v1: Fixed status for {result.modified_count} films")
     
-    # Migration: Reset password for test user (fix deployed auth)
+    # Migration: fix_fandrex_password_v1 - REMOVED (password now managed externally via Atlas)
     if 'fix_fandrex_password_v1' not in completed:
-        from auth_utils import hash_password
-        new_hash = hash_password('Ciaociao1')
-        result = await db.users.update_one(
-            {'email': 'fandrex1@gmail.com'},
-            {'$set': {'password': new_hash}}
-        )
         completed.append('fix_fandrex_password_v1')
         changed = True
-        logging.info(f"Migration fix_fandrex_password_v1: Reset password (modified={result.modified_count})")
+        logging.info("Migration fix_fandrex_password_v1: Skipped (password managed externally)")
     
     # Migration: Fix existing full_package films - add cast_locked and pre-fill cast
     if 'fix_full_package_cast_v1' not in completed:

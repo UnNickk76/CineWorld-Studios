@@ -19696,66 +19696,7 @@ for _candidate in [
         break
 
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
-# =========================
-# FIX LOOP PRODUZIONE + SCENEGGIATURA
-# =========================
 
-def finalize_production(production):
-    if production.get("status") == "released":
-        return production
-
-    if production.get("is_completed"):
-        return production
-
-    production["status"] = "ready_for_release"
-
-    if production.get("script"):
-        production["final_script"] = production["script"]
-
-    return production
-
-
-def release_production(production):
-    if production.get("status") == "released":
-        return production
-
-    if production.get("status") != "ready_for_release":
-        return production
-
-    production["status"] = "released"
-    production["is_completed"] = True
-
-    if not production.get("script") and production.get("final_script"):
-        production["script"] = production["final_script"]
-
-    return production
-
-
-def prevent_series_loop(production):
-    if production.get("type") in ["series", "anime"]:
-        if production.get("is_completed"):
-            return True
-
-        if production.get("status") in ["ready_for_release", "released"]:
-            return True
-
-    return False
-
-import os
-
-# Assicura che la cartella uploads esista sempre
-if not os.path.exists("uploads"):
-    os.makedirs("uploads")
-
-import os
-
-UPLOAD_DIR = "uploads"
-
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19778,3 +19719,21 @@ async def shutdown_db_client():
         scheduler.shutdown(wait=False)
         logging.info("APScheduler stopped")
     client.close()
+
+from fastapi.staticfiles import StaticFiles
+
+# 🔥 SERVE LE IMMAGINI (serie/anime)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+@app.get("/{full_path:path}")
+
+async def serve_react_app(request: Request, full_path: str):
+
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="API route not found")
+
+    file_path = os.path.join(_build_dir, full_path)
+
+    if os.path.exists(file_path) and not os.path.isdir(file_path):
+        return FileResponse(file_path)
+
+    return FileResponse(os.path.join(_build_dir, "index.html"))

@@ -1,7 +1,7 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps --force && npm install ajv@8 ajv-keywords@5 --force
 COPY frontend/ ./
 ENV CI=false
 RUN REACT_APP_BACKEND_URL="" npm run build

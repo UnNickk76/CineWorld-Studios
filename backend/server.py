@@ -12002,7 +12002,7 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
-    print("Server avviato")
+    pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===
     import shutil
     import subprocess

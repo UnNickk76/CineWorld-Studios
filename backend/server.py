@@ -19696,10 +19696,7 @@ for _candidate in [
         break
 
 print(f"[STARTUP] Build dir: {_build_dir}", flush=True)
-import os
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -19722,3 +19719,21 @@ async def shutdown_db_client():
         scheduler.shutdown(wait=False)
         logging.info("APScheduler stopped")
     client.close()
+
+from fastapi.staticfiles import StaticFiles
+
+# 🔥 SERVE LE IMMAGINI (serie/anime)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+@app.get("/{full_path:path}")
+
+async def serve_react_app(request: Request, full_path: str):
+
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="API route not found")
+
+    file_path = os.path.join(_build_dir, full_path)
+
+    if os.path.exists(file_path) and not os.path.isdir(file_path):
+        return FileResponse(file_path)
+
+    return FileResponse(os.path.join(_build_dir, "index.html"))

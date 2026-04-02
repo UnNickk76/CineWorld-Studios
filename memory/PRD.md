@@ -7,7 +7,7 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - Frontend: React (CRA + craco) + Tailwind CSS v3 + Shadcn UI + Framer Motion
 - Backend: FastAPI + MongoDB Atlas
 - 3rd Party: OpenAI GPT-4o-mini, GPT-Image-1 via Emergent LLM Key, APScheduler
-- Deploy: Dockerfile multi-stage (single service on Railway) + Emergent native
+- Deploy: Emergent native (.it) + Railway (test)
 
 ## Credentials
 - Admin account: fandrex1@gmail.com / Fandrel2776
@@ -15,32 +15,25 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - Test admin: test@cineworld.com / test123
 - Other users temporary password: CineWorld2026!
 
-## Railway/Emergent Deploy Config
-- Dockerfile builds React + serves via FastAPI
-- `REACT_APP_BACKEND_URL=""` in build (relative paths)
-- `--extra-index-url` for emergentintegrations
-- Health check: `/health` (app-level) + `/api/health` (api_router)
-- `railway.toml`: healthcheckPath=/health, healthcheckTimeout=120
-
 ## DB Config
-- MONGO_URL=mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld
-- DB_NAME=cineworld
+- MONGO_URL read via dotenv_values() directly from .env (override=True for load_dotenv)
+- Atlas: mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld
 - JWT_SECRET=cineworld-studio-secret-key-2024-secure
 
-## Completed
-- [2026-04-01] Production data extraction (13 users, 110 films, 86 posters, festivals, challenges, etc.)
-- [2026-04-01] Infrastructure recovery, Admin export endpoint, JSON backup
-- [2026-04-01] Health check fix, Startup refactor, Poster regeneration endpoints
-- [2026-04-01] Bug fixes: /series/my collection, production loops, uploads directory
-- [2026-04-01] database.py: clean config, auth login: bcrypt.checkpw direct
-- [2026-04-02] **LOGIN FIX**: Root cause: 2.7MB base64 avatar. Added persist_base64_avatar(). Login 29s/2.7MB → 0.7s/990B
-- [2026-04-02] **POSTER COMPRESSION**: Auto-compression in poster_storage.py (800x1200 JPEG q82) for NEW posters only. Compressed 44 existing disk posters: 38MB → 3MB
-- [2026-04-02] **API RESPONSE OPTIMIZATION**: Root cause of missing films/series/anime: MongoDB responses too large (daily_revenues 60KB/film, cast 15KB, attendance_history 21KB). Added inclusive projections to /films/my, /dashboard/batch, /films/my/featured excluding heavy fields for list views. Results: /films/my 1.4MB→31KB (0.86s), /dashboard/batch 321KB→13KB (1.4s), /featured 18KB→4.8KB (0.66s). Film detail page still returns all fields.
-- [2026-04-02] **POSTER ENDPOINT HARDENED**: Now tries both .png and .jpg extensions for fallback serving
-- [2026-04-02] **DB POSTER URLs RESTORED**: Reverted poster_url changes (.png→.jpg→original) using production backup as source of truth
+## Completed (this session 2026-04-02)
+- **LOGIN FIX**: Base64 avatar 2.7MB → file on disk. Login 29s → 0.7s
+- **API OPTIMIZATION**: Inclusive projections for list endpoints. /films/my 1.4MB→31KB, /dashboard/batch 321KB→13KB
+- **POSTER COMPRESSION**: Auto-compression for new posters (800x1200 JPEG q82). Compressed 44 disk posters: 38MB→3MB
+- **POSTER SYNC**: Downloaded 4 missing series posters from .it site
+- **POSTER ENDPOINT**: Fallback .png/.jpg extension handling
+- **DEPLOY FIX (passlib)**: Removed passlib==1.7.4 from requirements.txt (incompatible with bcrypt 4.1.3)
+- **DEPLOY FIX (MONGO_URL)**: database.py reads MONGO_URL via dotenv_values() to bypass Emergent's env override + load_dotenv(override=True) for JWT_SECRET etc.
+- **STORAGE OPTIMIZATION**: MongoDB Atlas 357MB → 50MB (86% reduction). Compressed poster binary data in MongoDB + drop/recreate collections to reclaim dead space (cinema_news 89MB→0MB, poster_files 206MB→9MB)
+- **DIAGNOSTIC ENDPOINT**: GET /api/debug/login-check for deployment debugging
 
-## IMPORTANT: DB Sync Issue
-The .it production site uses data that includes 23 film posters and 4 series posters NOT present in MongoDB Atlas. These were only on the .it server's local disk. Migration from .it to Atlas/preview/Railway requires syncing these files. The .it DB is the source of truth.
+## 20 Film Posters Missing
+These posters don't exist anywhere (404 on .it too). Need AI regeneration:
+- Referenced by films but never backed up to MongoDB
 
 ## Upcoming (P1)
 - Sistema "Previsioni Festival"

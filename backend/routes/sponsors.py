@@ -190,3 +190,210 @@ async def get_sponsor_stats(user=Depends(get_current_user)):
         'total': total,
         'by_tier': stats_dict
     }
+
+
+# === SPONSOR ↔ PROJECT ENDPOINTS ===
+
+MAX_SPONSORS_PER_PROJECT = 6
+
+# Status validi per aggiungere sponsor (per tipo progetto)
+SPONSORABLE_STATUSES = {
+    'film': ['proposed', 'ready_for_casting', 'coming_soon'],
+    'tv_series': ['concept', 'casting', 'coming_soon'],
+    'anime': ['concept', 'casting', 'coming_soon'],
+}
+
+
+class AddSponsorRequest(BaseModel):
+    project_id: str
+    project_type: str  # 'film', 'tv_series', 'anime'
+    sponsor_id: str
+
+
+class RemoveSponsorRequest(BaseModel):
+    project_id: str
+    project_type: str
+    sponsor_id: str
+
+
+def _get_collection(project_type: str):
+    """Return the DB collection for the project type."""
+    if project_type == 'film':
+        return db.film_projects
+    elif project_type in ('tv_series', 'anime'):
+        return db.tv_series
+    return None
+
+
+@router.post("/add-to-project")
+async def add_sponsor_to_project(req: AddSponsorRequest, user=Depends(get_current_user)):
+    """Add a sponsor to a film/series/anime project."""
+    collection = _get_collection(req.project_type)
+    if collection is None:
+        raise HTTPException(status_code=400, detail="Tipo progetto non valido. Usa: film, tv_series, anime")
+
+    valid_statuses = SPONSORABLE_STATUSES.get(req.project_type, [])
+
+    # Find project
+    query = {'id': req.project_id, 'user_id': user['id']}
+    project = await collection.find_one(query, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'sponsors': 1, 'type': 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    # For tv_series collection, verify the type matches
+    if req.project_type in ('tv_series', 'anime') and project.get('type') != req.project_type:
+        raise HTTPException(status_code=400, detail=f"Il progetto non e' di tipo {req.project_type}")
+
+    # Check status
+    if project.get('status') not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Non puoi aggiungere sponsor in stato '{project.get('status')}'. Stati validi: {', '.join(valid_statuses)}"
+        )
+
+    # Check max sponsors
+    current_sponsors = project.get('sponsors', [])
+    if len(current_sponsors) >= MAX_SPONSORS_PER_PROJECT:
+        raise HTTPException(status_code=400, detail=f"Massimo {MAX_SPONSORS_PER_PROJECT} sponsor per progetto")
+
+    # Check duplicate
+    if any(s['sponsor_id'] == req.sponsor_id for s in current_sponsors):
+        raise HTTPException(status_code=400, detail="Questo sponsor e' gia' associato al progetto")
+
+    # Find sponsor
+    sponsor = await db.sponsors.find_one({'id': req.sponsor_id}, {'_id': 0})
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor non trovato")
+
+    # Build sponsor entry for project
+    sponsor_entry = {
+        'sponsor_id': sponsor['id'],
+        'name': sponsor['name'],
+        'tier': sponsor['tier'],
+        'base_offer': sponsor['base_offer'],
+        'rev_share': sponsor['rev_share'],
+        'marketing_boost': sponsor['marketing_boost'],
+        'reputation': sponsor['reputation'],
+        'added_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Update project
+    await collection.update_one(
+        {'id': req.project_id, 'user_id': user['id']},
+        {'$push': {'sponsors': sponsor_entry}}
+    )
+
+    logger.info(f"Sponsor {sponsor['name']} added to {req.project_type} '{project.get('title')}'")
+
+    return {
+        'message': f"Sponsor {sponsor['name']} aggiunto al progetto",
+        'sponsor': sponsor_entry,
+        'total_sponsors': len(current_sponsors) + 1
+    }
+
+
+@router.post("/remove-from-project")
+async def remove_sponsor_from_project(req: RemoveSponsorRequest, user=Depends(get_current_user)):
+    """Remove a sponsor from a project."""
+    collection = _get_collection(req.project_type)
+    if collection is None:
+        raise HTTPException(status_code=400, detail="Tipo progetto non valido")
+
+    valid_statuses = SPONSORABLE_STATUSES.get(req.project_type, [])
+
+    project = await collection.find_one(
+        {'id': req.project_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'status': 1, 'sponsors': 1}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    if project.get('status') not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Non puoi rimuovere sponsor in questo stato")
+
+    current_sponsors = project.get('sponsors', [])
+    if not any(s['sponsor_id'] == req.sponsor_id for s in current_sponsors):
+        raise HTTPException(status_code=404, detail="Sponsor non trovato nel progetto")
+
+    await collection.update_one(
+        {'id': req.project_id, 'user_id': user['id']},
+        {'$pull': {'sponsors': {'sponsor_id': req.sponsor_id}}}
+    )
+
+    return {
+        'message': 'Sponsor rimosso dal progetto',
+        'total_sponsors': len(current_sponsors) - 1
+    }
+
+
+@router.get("/project/{project_type}/{project_id}")
+async def get_project_sponsors(project_type: str, project_id: str, user=Depends(get_current_user)):
+    """Get all sponsors for a specific project."""
+    collection = _get_collection(project_type)
+    if collection is None:
+        raise HTTPException(status_code=400, detail="Tipo progetto non valido")
+
+    project = await collection.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'sponsors': 1, 'genre': 1}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    sponsors = project.get('sponsors', [])
+    valid_statuses = SPONSORABLE_STATUSES.get(project_type, [])
+    can_add = project.get('status') in valid_statuses and len(sponsors) < MAX_SPONSORS_PER_PROJECT
+
+    return {
+        'project_id': project_id,
+        'title': project.get('title'),
+        'status': project.get('status'),
+        'sponsors': sponsors,
+        'count': len(sponsors),
+        'max': MAX_SPONSORS_PER_PROJECT,
+        'can_add_more': can_add,
+        'genre': project.get('genre')
+    }
+
+
+@router.get("/available-for-project/{project_type}/{project_id}")
+async def get_available_sponsors_for_project(
+    project_type: str,
+    project_id: str,
+    user=Depends(get_current_user)
+):
+    """Get sponsors available for a project (not already added), sorted by genre affinity."""
+    collection = _get_collection(project_type)
+    if collection is None:
+        raise HTTPException(status_code=400, detail="Tipo progetto non valido")
+
+    project = await collection.find_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'genre': 1, 'sponsors': 1, 'status': 1}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto non trovato")
+
+    current_ids = [s['sponsor_id'] for s in project.get('sponsors', [])]
+    genre = project.get('genre', '')
+
+    all_sponsors = await db.sponsors.find(
+        {'id': {'$nin': current_ids}}, {'_id': 0}
+    ).to_list(200)
+
+    # Sort: genre-affine first, then by reputation
+    def sort_key(s):
+        has_affinity = 1 if genre in s.get('genre_affinity', []) else 0
+        return (-has_affinity, -s.get('reputation', 0))
+
+    all_sponsors.sort(key=sort_key)
+
+    # Tag each sponsor with genre match info
+    for s in all_sponsors:
+        s['genre_match'] = genre in s.get('genre_affinity', [])
+
+    return {
+        'sponsors': all_sponsors,
+        'count': len(all_sponsors),
+        'project_genre': genre
+    }

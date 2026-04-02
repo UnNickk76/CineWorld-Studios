@@ -93,6 +93,7 @@ from routes.chat import router as chat_router
 from routes.festivals import router as festivals_router
 from routes.challenges import router as challenges_router
 from routes.ai import router as ai_router
+from routes.economy import router as economy_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -2190,116 +2191,116 @@ class NotificationMarkReadRequest(BaseModel):
 # [MOVED]         'was_capped': affinity_result['was_capped']
 # [MOVED]     }
 
-@api_router.get("/stats/detailed")
-async def get_detailed_stats(user: dict = Depends(get_current_user)):
-    """Get detailed statistics breakdown for the dashboard."""
-    user_id = user['id']
-    
+# [MOVED TO routes/economy.py] /stats/detailed
+# [MOVED] async def get_detailed_stats(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get detailed statistics breakdown for the dashboard."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
     # Get all films
-    all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(1000)
-    
+# [MOVED]     all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(1000)
+# [MOVED]     
     # Films breakdown
-    films_by_genre = {}
-    films_by_month = {}
-    films_by_quality = {'excellent': 0, 'good': 0, 'average': 0, 'poor': 0}
-    
-    for film in all_films:
+# [MOVED]     films_by_genre = {}
+# [MOVED]     films_by_month = {}
+# [MOVED]     films_by_quality = {'excellent': 0, 'good': 0, 'average': 0, 'poor': 0}
+# [MOVED]     
+# [MOVED]     for film in all_films:
         # By genre
-        genre = film.get('genre', 'unknown')
-        films_by_genre[genre] = films_by_genre.get(genre, 0) + 1
-        
+# [MOVED]         genre = film.get('genre', 'unknown')
+# [MOVED]         films_by_genre[genre] = films_by_genre.get(genre, 0) + 1
+# [MOVED]         
         # By month
-        created = film.get('created_at', '')
-        if created:
-            month_key = created[:7]  # YYYY-MM
-            films_by_month[month_key] = films_by_month.get(month_key, 0) + 1
-        
+# [MOVED]         created = film.get('created_at', '')
+# [MOVED]         if created:
+# [MOVED]             month_key = created[:7]  # YYYY-MM
+# [MOVED]             films_by_month[month_key] = films_by_month.get(month_key, 0) + 1
+# [MOVED]         
         # By quality
-        quality = film.get('quality_score', 0)
-        if quality >= 80:
-            films_by_quality['excellent'] += 1
-        elif quality >= 60:
-            films_by_quality['good'] += 1
-        elif quality >= 40:
-            films_by_quality['average'] += 1
-        else:
-            films_by_quality['poor'] += 1
-    
+# [MOVED]         quality = film.get('quality_score', 0)
+# [MOVED]         if quality >= 80:
+# [MOVED]             films_by_quality['excellent'] += 1
+# [MOVED]         elif quality >= 60:
+# [MOVED]             films_by_quality['good'] += 1
+# [MOVED]         elif quality >= 40:
+# [MOVED]             films_by_quality['average'] += 1
+# [MOVED]         else:
+# [MOVED]             films_by_quality['poor'] += 1
+# [MOVED]     
     # Revenue breakdown - use max to never show decreased revenue
-    total_revenue = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in all_films)
-    estimated_total = sum(f.get('estimated_final_revenue', 0) for f in all_films)
-    revenue_by_genre = {}
-    for film in all_films:
-        genre = film.get('genre', 'unknown')
-        revenue_by_genre[genre] = revenue_by_genre.get(genre, 0) + max(film.get('realistic_box_office', 0), film.get('total_revenue', 0))
-    
+# [MOVED]     total_revenue = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in all_films)
+# [MOVED]     estimated_total = sum(f.get('estimated_final_revenue', 0) for f in all_films)
+# [MOVED]     revenue_by_genre = {}
+# [MOVED]     for film in all_films:
+# [MOVED]         genre = film.get('genre', 'unknown')
+# [MOVED]         revenue_by_genre[genre] = revenue_by_genre.get(genre, 0) + max(film.get('realistic_box_office', 0), film.get('total_revenue', 0))
+# [MOVED]     
     # Top 5 films by revenue
-    top_films_revenue = sorted(all_films, key=lambda x: max(x.get('realistic_box_office', 0), x.get('total_revenue', 0)), reverse=True)[:5]
-    
+# [MOVED]     top_films_revenue = sorted(all_films, key=lambda x: max(x.get('realistic_box_office', 0), x.get('total_revenue', 0)), reverse=True)[:5]
+# [MOVED]     
     # Likes breakdown
-    total_likes = sum(f.get('likes_count', 0) for f in all_films)
-    top_films_likes = sorted(all_films, key=lambda x: x.get('likes_count', 0), reverse=True)[:5]
-    
+# [MOVED]     total_likes = sum(f.get('likes_count', 0) for f in all_films)
+# [MOVED]     top_films_likes = sorted(all_films, key=lambda x: x.get('likes_count', 0), reverse=True)[:5]
+# [MOVED]     
     # Quality breakdown
-    avg_quality = sum(f.get('quality_score', 0) for f in all_films) / len(all_films) if all_films else 0
-    
+# [MOVED]     avg_quality = sum(f.get('quality_score', 0) for f in all_films) / len(all_films) if all_films else 0
+# [MOVED]     
     # Social stats
-    social_score = user.get('social_score', 0)
-    charm_score = user.get('charm_score', 0)
-    
+# [MOVED]     social_score = user.get('social_score', 0)
+# [MOVED]     charm_score = user.get('charm_score', 0)
+# [MOVED]     
     # Infrastructure stats
-    infrastructure = user.get('infrastructure', [])
-    infra_by_type = {}
-    total_infra_value = 0
-    for infra in infrastructure:
-        infra_type = infra.get('type', 'cinema')
-        infra_by_type[infra_type] = infra_by_type.get(infra_type, 0) + 1
-        total_infra_value += infra.get('purchase_cost', 0)
-    
-    return {
-        'films': {
-            'total': len(all_films),
-            'by_genre': films_by_genre,
-            'by_month': films_by_month,
-            'by_quality': films_by_quality,
-            'top_by_revenue': [{'id': f.get('id'), 'title': f.get('title'), 'revenue': max(f.get('realistic_box_office', 0), f.get('total_revenue', 0))} for f in top_films_revenue],
-            'top_by_likes': [{'id': f.get('id'), 'title': f.get('title'), 'likes': f.get('likes_count', 0)} for f in top_films_likes]
-        },
-        'revenue': {
-            'total': total_revenue,
-            'estimated_total': estimated_total,
-            'by_genre': revenue_by_genre,
-            'average_per_film': total_revenue / len(all_films) if all_films else 0
-        },
-        'likes': {
-            'total': total_likes,
-            'average_per_film': total_likes / len(all_films) if all_films else 0
-        },
-        'quality': {
-            'average': round(avg_quality, 1),
-            'distribution': films_by_quality
-        },
-        'social': {
-            'social_score': social_score,
-            'charm_score': charm_score
-        },
-        'infrastructure': {
-            'total_count': len(infrastructure),
-            'by_type': infra_by_type,
-            'total_value': total_infra_value
-        },
-        'progression': {
-            'level': user.get('level', 1),
-            'xp': user.get('xp', 0),
-            'fame': user.get('fame', 0),
-            'xp_to_next_level': calculate_xp_for_level(user.get('level', 1) + 1) - user.get('xp', 0)
-        }
-    }
-
+# [MOVED]     infrastructure = user.get('infrastructure', [])
+# [MOVED]     infra_by_type = {}
+# [MOVED]     total_infra_value = 0
+# [MOVED]     for infra in infrastructure:
+# [MOVED]         infra_type = infra.get('type', 'cinema')
+# [MOVED]         infra_by_type[infra_type] = infra_by_type.get(infra_type, 0) + 1
+# [MOVED]         total_infra_value += infra.get('purchase_cost', 0)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'films': {
+# [MOVED]             'total': len(all_films),
+# [MOVED]             'by_genre': films_by_genre,
+# [MOVED]             'by_month': films_by_month,
+# [MOVED]             'by_quality': films_by_quality,
+# [MOVED]             'top_by_revenue': [{'id': f.get('id'), 'title': f.get('title'), 'revenue': max(f.get('realistic_box_office', 0), f.get('total_revenue', 0))} for f in top_films_revenue],
+# [MOVED]             'top_by_likes': [{'id': f.get('id'), 'title': f.get('title'), 'likes': f.get('likes_count', 0)} for f in top_films_likes]
+# [MOVED]         },
+# [MOVED]         'revenue': {
+# [MOVED]             'total': total_revenue,
+# [MOVED]             'estimated_total': estimated_total,
+# [MOVED]             'by_genre': revenue_by_genre,
+# [MOVED]             'average_per_film': total_revenue / len(all_films) if all_films else 0
+# [MOVED]         },
+# [MOVED]         'likes': {
+# [MOVED]             'total': total_likes,
+# [MOVED]             'average_per_film': total_likes / len(all_films) if all_films else 0
+# [MOVED]         },
+# [MOVED]         'quality': {
+# [MOVED]             'average': round(avg_quality, 1),
+# [MOVED]             'distribution': films_by_quality
+# [MOVED]         },
+# [MOVED]         'social': {
+# [MOVED]             'social_score': social_score,
+# [MOVED]             'charm_score': charm_score
+# [MOVED]         },
+# [MOVED]         'infrastructure': {
+# [MOVED]             'total_count': len(infrastructure),
+# [MOVED]             'by_type': infra_by_type,
+# [MOVED]             'total_value': total_infra_value
+# [MOVED]         },
+# [MOVED]         'progression': {
+# [MOVED]             'level': user.get('level', 1),
+# [MOVED]             'xp': user.get('xp', 0),
+# [MOVED]             'fame': user.get('fame', 0),
+# [MOVED]             'xp_to_next_level': calculate_xp_for_level(user.get('level', 1) + 1) - user.get('xp', 0)
+# [MOVED]         }
+# [MOVED]     }
+# [MOVED] 
 # [MOVED TO routes/cast.py] ACTOR_ROLES constant and /actor-roles endpoint
 # ACTOR_ROLES = [...]  # Moved to routes/cast.py
 # @api_router.get("/actor-roles")  # Moved to routes/cast.py
-
+# [MOVED] 
 # ==================== FILM ONE-TIME ACTIONS ====================
 
 @api_router.get("/films/{film_id}/actions")
@@ -6938,24 +6939,24 @@ async def admin_add_money(data: dict, user: dict = Depends(get_current_user)):
     return {'success': True, 'nickname': target['nickname'], 'old_funds': target.get('funds', 0), 'added': amount, 'new_funds': new_funds}
 
 
-@api_router.post("/admin/add-cinepass")
-async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user)):
-    """Add or remove CinePass from a user (admin only)."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin")
-    nickname = data.get('nickname')
-    amount = data.get('amount', 0)
-    if not nickname or not amount:
-        raise HTTPException(status_code=400, detail="nickname e amount richiesti")
-    target = await db.users.find_one(
-        {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'cinepass': 1}
-    )
-    if not target:
-        raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
-    await db.users.update_one({'id': target['id']}, {'$inc': {'cinepass': amount}})
-    old_cp = target.get('cinepass', 100)
-    return {'success': True, 'nickname': target['nickname'], 'old_cinepass': old_cp, 'added': amount, 'new_cinepass': old_cp + amount}
+# [MOVED TO routes/economy.py] /admin/add-cinepass
+# [MOVED] async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user)):
+# [MOVED]     """Add or remove CinePass from a user (admin only)."""
+# [MOVED]     if user.get('nickname') != ADMIN_NICKNAME:
+# [MOVED]         raise HTTPException(status_code=403, detail="Solo l'admin")
+# [MOVED]     nickname = data.get('nickname')
+# [MOVED]     amount = data.get('amount', 0)
+# [MOVED]     if not nickname or not amount:
+# [MOVED]         raise HTTPException(status_code=400, detail="nickname e amount richiesti")
+# [MOVED]     target = await db.users.find_one(
+# [MOVED]         {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
+# [MOVED]         {'_id': 0, 'id': 1, 'nickname': 1, 'cinepass': 1}
+# [MOVED]     )
+# [MOVED]     if not target:
+# [MOVED]         raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
+# [MOVED]     await db.users.update_one({'id': target['id']}, {'$inc': {'cinepass': amount}})
+# [MOVED]     old_cp = target.get('cinepass', 100)
+# [MOVED]     return {'success': True, 'nickname': target['nickname'], 'old_cinepass': old_cp, 'added': amount, 'new_cinepass': old_cp + amount}
 
 
 @api_router.post("/admin/set-badge")
@@ -8688,520 +8689,520 @@ async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_curr
 # [MOVED]     return {'reward': challenge['reward'], 'new_balance': user['funds'] + challenge['reward']}
 # [MOVED] 
 # Statistics
-@api_router.get("/statistics/global")
-async def get_global_statistics(user: dict = Depends(get_current_user)):
-    total_films = await db.films.count_documents({})
-    total_users = await db.users.count_documents({})
-    
-    pipeline = [
-        {'$group': {
-            '_id': None,
-            'total_revenue': {'$sum': '$total_revenue'}
-        }}
-    ]
-    revenue_result = await db.films.aggregate(pipeline).to_list(1)
-    total_revenue = revenue_result[0]['total_revenue'] if revenue_result else 0
-    
-    genre_pipeline = [
-        {'$group': {'_id': '$genre', 'count': {'$sum': 1}}}
-    ]
-    genre_result = await db.films.aggregate(genre_pipeline).to_list(20)
-    
-    return {
-        'total_films': total_films,
-        'total_users': total_users,
-        'total_box_office': total_revenue,
-        'genre_distribution': {g['_id']: g['count'] for g in genre_result if g['_id']},
-        'top_countries': list(COUNTRIES.keys())
-    }
+# [MOVED TO routes/economy.py] /statistics/global
+# [MOVED] async def get_global_statistics(user: dict = Depends(get_current_user)):
+# [MOVED]     total_films = await db.films.count_documents({})
+# [MOVED]     total_users = await db.users.count_documents({})
+# [MOVED]     
+# [MOVED]     pipeline = [
+# [MOVED]         {'$group': {
+# [MOVED]             '_id': None,
+# [MOVED]             'total_revenue': {'$sum': '$total_revenue'}
+# [MOVED]         }}
+# [MOVED]     ]
+# [MOVED]     revenue_result = await db.films.aggregate(pipeline).to_list(1)
+# [MOVED]     total_revenue = revenue_result[0]['total_revenue'] if revenue_result else 0
+# [MOVED]     
+# [MOVED]     genre_pipeline = [
+# [MOVED]         {'$group': {'_id': '$genre', 'count': {'$sum': 1}}}
+# [MOVED]     ]
+# [MOVED]     genre_result = await db.films.aggregate(genre_pipeline).to_list(20)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'total_films': total_films,
+# [MOVED]         'total_users': total_users,
+# [MOVED]         'total_box_office': total_revenue,
+# [MOVED]         'genre_distribution': {g['_id']: g['count'] for g in genre_result if g['_id']},
+# [MOVED]         'top_countries': list(COUNTRIES.keys())
+# [MOVED]     }
 
-@api_router.get("/statistics/my")
-async def get_my_statistics(user: dict = Depends(get_current_user)):
-    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
-    
+# [MOVED TO routes/economy.py] /statistics/my
+# [MOVED] async def get_my_statistics(user: dict = Depends(get_current_user)):
+# [MOVED]     films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
+# [MOVED]     
     # Current realistic box office (what has been generated so far) - use max to prevent decrease
-    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
+# [MOVED]     total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
     # Estimated final revenue (projection if films stay 4 weeks)
-    total_estimated = sum(f.get('estimated_final_revenue', 0) for f in films)
+# [MOVED]     total_estimated = sum(f.get('estimated_final_revenue', 0) for f in films)
     # What user has actually collected
-    total_collected = sum(f.get('collected_revenue', 0) for f in films)
-    
-    total_likes = sum(f.get('likes_count', 0) for f in films)
-    avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
-    
+# [MOVED]     total_collected = sum(f.get('collected_revenue', 0) for f in films)
+# [MOVED]     
+# [MOVED]     total_likes = sum(f.get('likes_count', 0) for f in films)
+# [MOVED]     avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
+# [MOVED]     
     # Calculate total spent (film budgets + infrastructure purchases)
-    total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
-    
+# [MOVED]     total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
+# [MOVED]     
     # Get infrastructure costs and revenue
-    infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1}).to_list(100)
-    total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
-    total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
-    
+# [MOVED]     infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1}).to_list(100)
+# [MOVED]     total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
+# [MOVED]     total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
+# [MOVED]     
     # Lifetime collected from collection actions
-    lifetime_collected = user.get('total_lifetime_revenue', 0)
-    
+# [MOVED]     lifetime_collected = user.get('total_lifetime_revenue', 0)
+# [MOVED]     
     # Calculate spending
-    total_spent = total_film_costs + total_infra_costs
-    
+# [MOVED]     total_spent = total_film_costs + total_infra_costs
+# [MOVED]     
     # Starting funds for new users is $5M
-    INITIAL_FUNDS = 5000000
-    current_funds = user.get('funds', 0)
-    
+# [MOVED]     INITIAL_FUNDS = 5000000
+# [MOVED]     current_funds = user.get('funds', 0)
+# [MOVED]     
     # Real profit = current funds - initial funds
-    real_profit = current_funds - INITIAL_FUNDS
-    
+# [MOVED]     real_profit = current_funds - INITIAL_FUNDS
+# [MOVED]     
     # Total earned = funds gained through gameplay
     # Formula: current_funds + total_spent - INITIAL_FUNDS
-    total_earned = current_funds + total_spent - INITIAL_FUNDS
-    if total_earned < 0:
-        total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
-    
-    return {
-        'total_films': len(films),
-        'total_revenue': total_box_office,  # Current realistic box office
-        'estimated_revenue': total_estimated,  # Projected final revenue
-        'collected_revenue': total_collected,  # Actually collected from films
-        'total_likes': total_likes,
-        'average_quality': avg_quality,
-        'current_funds': current_funds,
-        'production_house': user['production_house_name'],
-        'likeability_score': user.get('likeability_score', 50),
-        'interaction_score': user.get('interaction_score', 50),
-        'character_score': user.get('character_score', 50),
+# [MOVED]     total_earned = current_funds + total_spent - INITIAL_FUNDS
+# [MOVED]     if total_earned < 0:
+# [MOVED]         total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'total_films': len(films),
+# [MOVED]         'total_revenue': total_box_office,  # Current realistic box office
+# [MOVED]         'estimated_revenue': total_estimated,  # Projected final revenue
+# [MOVED]         'collected_revenue': total_collected,  # Actually collected from films
+# [MOVED]         'total_likes': total_likes,
+# [MOVED]         'average_quality': avg_quality,
+# [MOVED]         'current_funds': current_funds,
+# [MOVED]         'production_house': user['production_house_name'],
+# [MOVED]         'likeability_score': user.get('likeability_score', 50),
+# [MOVED]         'interaction_score': user.get('interaction_score', 50),
+# [MOVED]         'character_score': user.get('character_score', 50),
         # Financial stats
-        'total_spent': total_spent,
-        'total_earned': total_earned,
-        'profit_loss': real_profit,
-        'total_film_costs': total_film_costs,
-        'total_infra_costs': total_infra_costs,
-        'total_infra_revenue': total_infra_revenue,
-        'lifetime_collected': lifetime_collected,
-        'infrastructure_count': len(infrastructure)
-    }
+# [MOVED]         'total_spent': total_spent,
+# [MOVED]         'total_earned': total_earned,
+# [MOVED]         'profit_loss': real_profit,
+# [MOVED]         'total_film_costs': total_film_costs,
+# [MOVED]         'total_infra_costs': total_infra_costs,
+# [MOVED]         'total_infra_revenue': total_infra_revenue,
+# [MOVED]         'lifetime_collected': lifetime_collected,
+# [MOVED]         'infrastructure_count': len(infrastructure)
+# [MOVED]     }
 
 
-@api_router.get("/dashboard/batch")
-async def get_dashboard_batch(user: dict = Depends(get_current_user)):
-    """Single endpoint returning all dashboard data to reduce API calls from 13+ to 1."""
-    now = datetime.now(timezone.utc)
-    uid = user['id']
-    
+# [MOVED TO routes/economy.py] /dashboard/batch
+# [MOVED] async def get_dashboard_batch(user: dict = Depends(get_current_user)):
+# [MOVED]     """Single endpoint returning all dashboard data to reduce API calls from 13+ to 1."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     uid = user['id']
+# [MOVED]     
     # Parallel DB queries - use lightweight projections to avoid huge response
-    films_light_fields = {
-        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
-        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
-        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
-        'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
-        'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
-        'current_week': 1, 'opening_day_revenue': 1, 'last_revenue_collected': 1,
-        'subtitle': 1
-    }
-    films_task = db.films.find({'user_id': uid}, films_light_fields).to_list(100)
-    infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
-    challenges_task = db.challenges.find(
-        {'$or': [{'challenger_id': uid}, {'challenged_id': uid}]},
-        {'_id': 0}
-    ).sort('created_at', -1).to_list(50)
-    pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
-    pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
-    emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
-    shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
-    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
-    my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
-    my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
-    recent_releases_task = db.films.find(
-        {'status': 'in_theaters'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
-    ).sort('released_at', -1).to_list(10)
-    
-    films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
-    )
-    
+# [MOVED]     films_light_fields = {
+# [MOVED]         '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
+# [MOVED]         'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+# [MOVED]         'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+# [MOVED]         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
+# [MOVED]         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
+# [MOVED]         'current_week': 1, 'opening_day_revenue': 1, 'last_revenue_collected': 1,
+# [MOVED]         'subtitle': 1
+# [MOVED]     }
+# [MOVED]     films_task = db.films.find({'user_id': uid}, films_light_fields).to_list(100)
+# [MOVED]     infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
+# [MOVED]     challenges_task = db.challenges.find(
+# [MOVED]         {'$or': [{'challenger_id': uid}, {'challenged_id': uid}]},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(50)
+# [MOVED]     pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
+# [MOVED]     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
+# [MOVED]     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
+# [MOVED]     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
+# [MOVED]     series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
+# [MOVED]     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
+# [MOVED]     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
+# [MOVED]     recent_releases_task = db.films.find(
+# [MOVED]         {'status': 'in_theaters'},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
+# [MOVED]     ).sort('released_at', -1).to_list(10)
+# [MOVED]     
+# [MOVED]     films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
+# [MOVED]         films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
+# [MOVED]     )
+# [MOVED]     
     # Enrich recent releases with producer nicknames
-    producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
-    producers = {}
-    if producer_ids:
-        producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(50)
-        producers = {p['id']: p for p in producer_docs}
-    for r in recent_releases:
-        p = producers.get(r.get('user_id'), {})
-        r['producer_nickname'] = p.get('nickname', '?')
-        r['producer_house'] = p.get('production_house_name', '')
-        r['producer_badge'] = p.get('badge', 'none')
-        r['producer_badge_expiry'] = p.get('badge_expiry')
-        r['producer_badges'] = p.get('badges', {})
-    
+# [MOVED]     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
+# [MOVED]     producers = {}
+# [MOVED]     if producer_ids:
+# [MOVED]         producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(50)
+# [MOVED]         producers = {p['id']: p for p in producer_docs}
+# [MOVED]     for r in recent_releases:
+# [MOVED]         p = producers.get(r.get('user_id'), {})
+# [MOVED]         r['producer_nickname'] = p.get('nickname', '?')
+# [MOVED]         r['producer_house'] = p.get('production_house_name', '')
+# [MOVED]         r['producer_badge'] = p.get('badge', 'none')
+# [MOVED]         r['producer_badge_expiry'] = p.get('badge_expiry')
+# [MOVED]         r['producer_badges'] = p.get('badges', {})
+# [MOVED]     
     # Statistics calculation - use max to never show decreased revenue
-    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
-    total_likes = sum(f.get('likes_count', 0) for f in films)
-    avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
-    total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
-    total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
-    total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
-    INITIAL_FUNDS = 5000000
-    current_funds = user.get('funds', 0)
-    total_spent = total_film_costs + total_infra_costs
-    total_earned = current_funds + total_spent - INITIAL_FUNDS
-    lifetime_collected = user.get('total_lifetime_revenue', 0)
-    if total_earned < 0:
-        total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
-    
+# [MOVED]     total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
+# [MOVED]     total_likes = sum(f.get('likes_count', 0) for f in films)
+# [MOVED]     avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
+# [MOVED]     total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
+# [MOVED]     total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
+# [MOVED]     total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
+# [MOVED]     INITIAL_FUNDS = 5000000
+# [MOVED]     current_funds = user.get('funds', 0)
+# [MOVED]     total_spent = total_film_costs + total_infra_costs
+# [MOVED]     total_earned = current_funds + total_spent - INITIAL_FUNDS
+# [MOVED]     lifetime_collected = user.get('total_lifetime_revenue', 0)
+# [MOVED]     if total_earned < 0:
+# [MOVED]         total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
+# [MOVED]     
     # Featured films (top 9 by quality)
-    featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
-    
+# [MOVED]     featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
+# [MOVED]     
     # Pending revenue calc (dynamic, based on time since last collection)
-    films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
-    film_pending = 0
-    infra_pending = 0
-    for f in films_in_theaters:
-        try:
-            date_str = f.get('last_revenue_collected') or f.get('release_date') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_collected = datetime.fromisoformat(date_str)
-            if last_collected.tzinfo is None:
-                last_collected = last_collected.replace(tzinfo=timezone.utc)
-            hours_since = (now - last_collected).total_seconds() / 3600
-            if hours_since >= (1/60):
-                quality = f.get('quality_score', 50)
-                week = f.get('current_week', 1)
-                base_hourly = f.get('opening_day_revenue', 100000) / 24
-                decay = 0.85 ** (week - 1)
-                hourly_rev = base_hourly * decay * (quality / 100)
-                film_pending += int(hourly_rev * min(6, hours_since))
-        except:
-            pass
-    for i in infrastructure:
-        try:
-            infra_type = INFRASTRUCTURE_TYPES.get(i.get('type'))
-            if not infra_type:
-                continue
-            date_str = i.get('last_revenue_update') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_update = datetime.fromisoformat(date_str)
-            if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=timezone.utc)
-            hours_passed = min(6, (now - last_update).total_seconds() / 3600)
-            if hours_passed >= (1/60):
-                hourly_revenue = infra_type.get('passive_income', 500)
-                city_multiplier = i.get('city', {}).get('revenue_multiplier', 1.0)
-                infra_pending += int(hourly_revenue * city_multiplier * hours_passed)
-        except:
-            pass
-    total_pending = film_pending + infra_pending
-    
+# [MOVED]     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
+# [MOVED]     film_pending = 0
+# [MOVED]     infra_pending = 0
+# [MOVED]     for f in films_in_theaters:
+# [MOVED]         try:
+# [MOVED]             date_str = f.get('last_revenue_collected') or f.get('release_date') or now.isoformat()
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_collected = datetime.fromisoformat(date_str)
+# [MOVED]             if last_collected.tzinfo is None:
+# [MOVED]                 last_collected = last_collected.replace(tzinfo=timezone.utc)
+# [MOVED]             hours_since = (now - last_collected).total_seconds() / 3600
+# [MOVED]             if hours_since >= (1/60):
+# [MOVED]                 quality = f.get('quality_score', 50)
+# [MOVED]                 week = f.get('current_week', 1)
+# [MOVED]                 base_hourly = f.get('opening_day_revenue', 100000) / 24
+# [MOVED]                 decay = 0.85 ** (week - 1)
+# [MOVED]                 hourly_rev = base_hourly * decay * (quality / 100)
+# [MOVED]                 film_pending += int(hourly_rev * min(6, hours_since))
+# [MOVED]         except:
+# [MOVED]             pass
+# [MOVED]     for i in infrastructure:
+# [MOVED]         try:
+# [MOVED]             infra_type = INFRASTRUCTURE_TYPES.get(i.get('type'))
+# [MOVED]             if not infra_type:
+# [MOVED]                 continue
+# [MOVED]             date_str = i.get('last_revenue_update') or now.isoformat()
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_update = datetime.fromisoformat(date_str)
+# [MOVED]             if last_update.tzinfo is None:
+# [MOVED]                 last_update = last_update.replace(tzinfo=timezone.utc)
+# [MOVED]             hours_passed = min(6, (now - last_update).total_seconds() / 3600)
+# [MOVED]             if hours_passed >= (1/60):
+# [MOVED]                 hourly_revenue = infra_type.get('passive_income', 500)
+# [MOVED]                 city_multiplier = i.get('city', {}).get('revenue_multiplier', 1.0)
+# [MOVED]                 infra_pending += int(hourly_revenue * city_multiplier * hours_passed)
+# [MOVED]         except:
+# [MOVED]             pass
+# [MOVED]     total_pending = film_pending + infra_pending
+# [MOVED]     
     # Pipeline counts
-    pipeline_counts = {}
-    for p in pipeline_projects:
-        s = p.get('status', 'unknown')
-        pipeline_counts[s] = pipeline_counts.get(s, 0) + 1
-    pipeline_total = sum(pipeline_counts.values())
-    
+# [MOVED]     pipeline_counts = {}
+# [MOVED]     for p in pipeline_projects:
+# [MOVED]         s = p.get('status', 'unknown')
+# [MOVED]         pipeline_counts[s] = pipeline_counts.get(s, 0) + 1
+# [MOVED]     pipeline_total = sum(pipeline_counts.values())
+# [MOVED]     
     # Has studio?
-    has_studio = any(i.get('type') == 'production_studio' for i in infrastructure)
-    
-    return {
-        'stats': {
-            'total_films': len(films),
-            'total_revenue': total_box_office,
-            'total_likes': total_likes,
-            'average_quality': avg_quality,
-            'current_funds': current_funds,
-            'production_house': user.get('production_house_name', ''),
-            'total_spent': total_spent,
-            'total_earned': total_earned,
-            'profit_loss': current_funds - INITIAL_FUNDS,
-            'total_film_costs': total_film_costs,
-            'total_infra_costs': total_infra_costs,
-            'total_infra_revenue': total_infra_revenue,
-            'lifetime_collected': lifetime_collected,
-            'infrastructure_count': len(infrastructure),
-            'likeability_score': user.get('likeability_score', 50),
-            'interaction_score': user.get('interaction_score', 50),
-            'character_score': user.get('character_score', 50)
-        },
-        'featured_films': featured,
-        'my_series': my_series[:5],
-        'my_anime': my_anime[:5],
-        'recent_releases': recent_releases,
-        'challenges': challenges,
-        'pending_revenue': {
-            'total_pending': total_pending,
-            'film_pending': film_pending,
-            'infra_pending': infra_pending,
-            'can_collect': total_pending > 0,
-            'films_count': len(films_in_theaters)
-        },
-        'pending_films': pending_films,
-        'emerging_count': emerging_count,
-        'has_studio': has_studio,
-        'shooting_films': shooting_films,
-        'pipeline_counts': pipeline_counts,
-        'pipeline_total': pipeline_total
-    }
-
-
+# [MOVED]     has_studio = any(i.get('type') == 'production_studio' for i in infrastructure)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'stats': {
+# [MOVED]             'total_films': len(films),
+# [MOVED]             'total_revenue': total_box_office,
+# [MOVED]             'total_likes': total_likes,
+# [MOVED]             'average_quality': avg_quality,
+# [MOVED]             'current_funds': current_funds,
+# [MOVED]             'production_house': user.get('production_house_name', ''),
+# [MOVED]             'total_spent': total_spent,
+# [MOVED]             'total_earned': total_earned,
+# [MOVED]             'profit_loss': current_funds - INITIAL_FUNDS,
+# [MOVED]             'total_film_costs': total_film_costs,
+# [MOVED]             'total_infra_costs': total_infra_costs,
+# [MOVED]             'total_infra_revenue': total_infra_revenue,
+# [MOVED]             'lifetime_collected': lifetime_collected,
+# [MOVED]             'infrastructure_count': len(infrastructure),
+# [MOVED]             'likeability_score': user.get('likeability_score', 50),
+# [MOVED]             'interaction_score': user.get('interaction_score', 50),
+# [MOVED]             'character_score': user.get('character_score', 50)
+# [MOVED]         },
+# [MOVED]         'featured_films': featured,
+# [MOVED]         'my_series': my_series[:5],
+# [MOVED]         'my_anime': my_anime[:5],
+# [MOVED]         'recent_releases': recent_releases,
+# [MOVED]         'challenges': challenges,
+# [MOVED]         'pending_revenue': {
+# [MOVED]             'total_pending': total_pending,
+# [MOVED]             'film_pending': film_pending,
+# [MOVED]             'infra_pending': infra_pending,
+# [MOVED]             'can_collect': total_pending > 0,
+# [MOVED]             'films_count': len(films_in_theaters)
+# [MOVED]         },
+# [MOVED]         'pending_films': pending_films,
+# [MOVED]         'emerging_count': emerging_count,
+# [MOVED]         'has_studio': has_studio,
+# [MOVED]         'shooting_films': shooting_films,
+# [MOVED]         'pipeline_counts': pipeline_counts,
+# [MOVED]         'pipeline_total': pipeline_total
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] 
 # ==================== COLLECT ALL REVENUE (Films + Infrastructure) ====================
 
-@api_router.get("/revenue/pending-all")
-async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
-    """Get all pending revenue from films and infrastructure."""
-    now = datetime.now(timezone.utc)
-    
+# [MOVED TO routes/economy.py] /revenue/pending-all
+# [MOVED] async def get_all_pending_revenue(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all pending revenue from films and infrastructure."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     
     # Get pending film revenue (films in theaters)
-    films_in_theaters = await db.films.find({
-        'user_id': user['id'],
-        'status': 'in_theaters'
-    }, {'_id': 0}).to_list(100)
-    
-    film_pending = 0
-    film_details = []
-    for film in films_in_theaters:
-        try:
+# [MOVED]     films_in_theaters = await db.films.find({
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'status': 'in_theaters'
+# [MOVED]     }, {'_id': 0}).to_list(100)
+# [MOVED]     
+# [MOVED]     film_pending = 0
+# [MOVED]     film_details = []
+# [MOVED]     for film in films_in_theaters:
+# [MOVED]         try:
             # Calculate daily revenue that hasn't been collected yet
-            date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
+# [MOVED]             date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
             # Handle different date formats
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_collected = datetime.fromisoformat(date_str)
-            
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_collected = datetime.fromisoformat(date_str)
+# [MOVED]             
             # Make sure last_collected is timezone-aware
-            if last_collected.tzinfo is None:
-                last_collected = last_collected.replace(tzinfo=timezone.utc)
-            
-            hours_since_collection = (now - last_collected).total_seconds() / 3600
-            
+# [MOVED]             if last_collected.tzinfo is None:
+# [MOVED]                 last_collected = last_collected.replace(tzinfo=timezone.utc)
+# [MOVED]             
+# [MOVED]             hours_since_collection = (now - last_collected).total_seconds() / 3600
+# [MOVED]             
             # Skip if hours is negative (future date) or less than 1 minute
-            if hours_since_collection < (1/60):  # 1 minute minimum
-                continue
-                
+# [MOVED]             if hours_since_collection < (1/60):  # 1 minute minimum
+# [MOVED]                 continue
+# [MOVED]                 
             # Calculate hourly revenue based on quality and week
-            quality = film.get('quality_score', 50)
-            week = film.get('current_week', 1)
-            base_hourly = film.get('opening_day_revenue', 100000) / 24
-            decay = 0.85 ** (week - 1)
-            hourly_revenue = base_hourly * decay * (quality / 100)
+# [MOVED]             quality = film.get('quality_score', 50)
+# [MOVED]             week = film.get('current_week', 1)
+# [MOVED]             base_hourly = film.get('opening_day_revenue', 100000) / 24
+# [MOVED]             decay = 0.85 ** (week - 1)
+# [MOVED]             hourly_revenue = base_hourly * decay * (quality / 100)
             # Cap at 6 hours of accumulated revenue
-            pending = int(hourly_revenue * min(6, hours_since_collection))
-            
-            if pending > 0:
-                film_pending += pending
-                film_details.append({
-                    'id': film['id'],
-                    'title': film.get('title'),
-                    'pending': pending,
-                    'hours': round(hours_since_collection, 1)
-                })
-        except Exception as e:
+# [MOVED]             pending = int(hourly_revenue * min(6, hours_since_collection))
+# [MOVED]             
+# [MOVED]             if pending > 0:
+# [MOVED]                 film_pending += pending
+# [MOVED]                 film_details.append({
+# [MOVED]                     'id': film['id'],
+# [MOVED]                     'title': film.get('title'),
+# [MOVED]                     'pending': pending,
+# [MOVED]                     'hours': round(hours_since_collection, 1)
+# [MOVED]                 })
+# [MOVED]         except Exception as e:
             # Skip films with invalid date formats
-            logging.warning(f"Error calculating pending revenue for film {film.get('id')}: {e}")
-            continue
-    
+# [MOVED]             logging.warning(f"Error calculating pending revenue for film {film.get('id')}: {e}")
+# [MOVED]             continue
+# [MOVED]     
     # Get pending infrastructure revenue
-    infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0}).to_list(100)
-    
-    infra_pending = 0
-    infra_details = []
-    for infra in infrastructure:
-        try:
-            infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
-            if not infra_type:
-                continue
-            
-            date_str = infra.get('last_revenue_update') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_update = datetime.fromisoformat(date_str)
-            
-            if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=timezone.utc)
-            
+# [MOVED]     infrastructure = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0}).to_list(100)
+# [MOVED]     
+# [MOVED]     infra_pending = 0
+# [MOVED]     infra_details = []
+# [MOVED]     for infra in infrastructure:
+# [MOVED]         try:
+# [MOVED]             infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+# [MOVED]             if not infra_type:
+# [MOVED]                 continue
+# [MOVED]             
+# [MOVED]             date_str = infra.get('last_revenue_update') or now.isoformat()
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_update = datetime.fromisoformat(date_str)
+# [MOVED]             
+# [MOVED]             if last_update.tzinfo is None:
+# [MOVED]                 last_update = last_update.replace(tzinfo=timezone.utc)
+# [MOVED]             
             # Cap at 6 hours of accumulated revenue
-            hours_passed = min(6, (now - last_update).total_seconds() / 3600)
-            
+# [MOVED]             hours_passed = min(6, (now - last_update).total_seconds() / 3600)
+# [MOVED]             
             # Minimum 1 minute to collect
-            if hours_passed >= (1/60):
+# [MOVED]             if hours_passed >= (1/60):
                 # Calculate hourly revenue
-                films_showing = infra.get('films_showing', [])
-                hourly_revenue = 0
-                
-                if infra_type.get('screens', 0) > 0 and films_showing:
-                    prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
-                    ticket_price = prices.get('ticket', 12)
-                    for film in films_showing:
-                        quality = film.get('quality_score', 50)
-                        visitors_per_hour = int(10 + (quality * 0.5) + 30)
-                        hourly_revenue += visitors_per_hour * ticket_price
-                else:
-                    hourly_revenue = infra_type.get('passive_income', 500)
-                
-                city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
-                hourly_revenue *= city_multiplier
-                pending = int(hourly_revenue * hours_passed)
-                
-                if pending > 0:
-                    infra_pending += pending
-                    infra_details.append({
-                        'id': infra['id'],
-                        'name': infra.get('custom_name'),
-                        'type': infra.get('type'),
-                        'pending': pending,
-                        'hours': round(hours_passed, 1)
-                    })
-        except Exception as e:
-            logging.warning(f"Error calculating pending revenue for infra {infra.get('id')}: {e}")
-            continue
-    
-    total_pending = film_pending + infra_pending
-    
-    return {
-        'total_pending': total_pending,
-        'film_pending': film_pending,
-        'infra_pending': infra_pending,
-        'film_details': film_details,
-        'infra_details': infra_details,
-        'can_collect': total_pending > 0
-    }
+# [MOVED]                 films_showing = infra.get('films_showing', [])
+# [MOVED]                 hourly_revenue = 0
+# [MOVED]                 
+# [MOVED]                 if infra_type.get('screens', 0) > 0 and films_showing:
+# [MOVED]                     prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+# [MOVED]                     ticket_price = prices.get('ticket', 12)
+# [MOVED]                     for film in films_showing:
+# [MOVED]                         quality = film.get('quality_score', 50)
+# [MOVED]                         visitors_per_hour = int(10 + (quality * 0.5) + 30)
+# [MOVED]                         hourly_revenue += visitors_per_hour * ticket_price
+# [MOVED]                 else:
+# [MOVED]                     hourly_revenue = infra_type.get('passive_income', 500)
+# [MOVED]                 
+# [MOVED]                 city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
+# [MOVED]                 hourly_revenue *= city_multiplier
+# [MOVED]                 pending = int(hourly_revenue * hours_passed)
+# [MOVED]                 
+# [MOVED]                 if pending > 0:
+# [MOVED]                     infra_pending += pending
+# [MOVED]                     infra_details.append({
+# [MOVED]                         'id': infra['id'],
+# [MOVED]                         'name': infra.get('custom_name'),
+# [MOVED]                         'type': infra.get('type'),
+# [MOVED]                         'pending': pending,
+# [MOVED]                         'hours': round(hours_passed, 1)
+# [MOVED]                     })
+# [MOVED]         except Exception as e:
+# [MOVED]             logging.warning(f"Error calculating pending revenue for infra {infra.get('id')}: {e}")
+# [MOVED]             continue
+# [MOVED]     
+# [MOVED]     total_pending = film_pending + infra_pending
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'total_pending': total_pending,
+# [MOVED]         'film_pending': film_pending,
+# [MOVED]         'infra_pending': infra_pending,
+# [MOVED]         'film_details': film_details,
+# [MOVED]         'infra_details': infra_details,
+# [MOVED]         'can_collect': total_pending > 0
+# [MOVED]     }
 
-@api_router.post("/revenue/collect-all")
-async def collect_all_revenue(user: dict = Depends(get_current_user)):
-    """Collect all pending revenue from films and infrastructure at once."""
-    now = datetime.now(timezone.utc)
-    
-    total_collected = 0
-    collected_from_films = 0
-    collected_from_infra = 0
-    films_collected = 0
-    infra_collected = 0
-    
+# [MOVED TO routes/economy.py] /revenue/collect-all
+# [MOVED] async def collect_all_revenue(user: dict = Depends(get_current_user)):
+# [MOVED]     """Collect all pending revenue from films and infrastructure at once."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     
+# [MOVED]     total_collected = 0
+# [MOVED]     collected_from_films = 0
+# [MOVED]     collected_from_infra = 0
+# [MOVED]     films_collected = 0
+# [MOVED]     infra_collected = 0
+# [MOVED]     
     # Collect from films in theaters
-    films_in_theaters = await db.films.find({
-        'user_id': user['id'],
-        'status': 'in_theaters'
-    }).to_list(100)
-    
-    for film in films_in_theaters:
-        try:
-            date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_collected = datetime.fromisoformat(date_str)
-            if last_collected.tzinfo is None:
-                last_collected = last_collected.replace(tzinfo=timezone.utc)
-        except:
-            last_collected = now
-            
-        hours_since_collection = (now - last_collected).total_seconds() / 3600
-        
+# [MOVED]     films_in_theaters = await db.films.find({
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'status': 'in_theaters'
+# [MOVED]     }).to_list(100)
+# [MOVED]     
+# [MOVED]     for film in films_in_theaters:
+# [MOVED]         try:
+# [MOVED]             date_str = film.get('last_revenue_collected') or film.get('release_date') or now.isoformat()
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_collected = datetime.fromisoformat(date_str)
+# [MOVED]             if last_collected.tzinfo is None:
+# [MOVED]                 last_collected = last_collected.replace(tzinfo=timezone.utc)
+# [MOVED]         except:
+# [MOVED]             last_collected = now
+# [MOVED]             
+# [MOVED]         hours_since_collection = (now - last_collected).total_seconds() / 3600
+# [MOVED]         
         # Minimum 1 minute to collect
-        if hours_since_collection >= (1/60):
-            quality = film.get('quality_score', 50)
-            week = film.get('current_week', 1)
-            base_hourly = film.get('opening_day_revenue', 100000) / 24
-            decay = 0.85 ** (week - 1)
-            hourly_revenue = base_hourly * decay * (quality / 100)
+# [MOVED]         if hours_since_collection >= (1/60):
+# [MOVED]             quality = film.get('quality_score', 50)
+# [MOVED]             week = film.get('current_week', 1)
+# [MOVED]             base_hourly = film.get('opening_day_revenue', 100000) / 24
+# [MOVED]             decay = 0.85 ** (week - 1)
+# [MOVED]             hourly_revenue = base_hourly * decay * (quality / 100)
             # Cap at 6 hours
-            revenue = int(hourly_revenue * min(6, hours_since_collection))
-            
-            if revenue > 0:
-                await db.films.update_one(
-                    {'id': film['id']},
-                    {
-                        '$inc': {'total_revenue': revenue},
-                        '$set': {'last_revenue_collected': now.isoformat()}
-                    }
-                )
-                collected_from_films += revenue
-                films_collected += 1
-    
+# [MOVED]             revenue = int(hourly_revenue * min(6, hours_since_collection))
+# [MOVED]             
+# [MOVED]             if revenue > 0:
+# [MOVED]                 await db.films.update_one(
+# [MOVED]                     {'id': film['id']},
+# [MOVED]                     {
+# [MOVED]                         '$inc': {'total_revenue': revenue},
+# [MOVED]                         '$set': {'last_revenue_collected': now.isoformat()}
+# [MOVED]                     }
+# [MOVED]                 )
+# [MOVED]                 collected_from_films += revenue
+# [MOVED]                 films_collected += 1
+# [MOVED]     
     # Collect from infrastructure
-    infrastructure = await db.infrastructure.find({'owner_id': user['id']}).to_list(100)
-    
-    for infra in infrastructure:
-        infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
-        if not infra_type:
-            continue
-        
-        try:
-            date_str = infra.get('last_revenue_update') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last_update = datetime.fromisoformat(date_str)
-            if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=timezone.utc)
-        except:
-            last_update = now
-            
+# [MOVED]     infrastructure = await db.infrastructure.find({'owner_id': user['id']}).to_list(100)
+# [MOVED]     
+# [MOVED]     for infra in infrastructure:
+# [MOVED]         infra_type = INFRASTRUCTURE_TYPES.get(infra.get('type'))
+# [MOVED]         if not infra_type:
+# [MOVED]             continue
+# [MOVED]         
+# [MOVED]         try:
+# [MOVED]             date_str = infra.get('last_revenue_update') or now.isoformat()
+# [MOVED]             date_str = date_str.replace('Z', '+00:00')
+# [MOVED]             if '+' not in date_str and '-' not in date_str[-6:]:
+# [MOVED]                 date_str += '+00:00'
+# [MOVED]             last_update = datetime.fromisoformat(date_str)
+# [MOVED]             if last_update.tzinfo is None:
+# [MOVED]                 last_update = last_update.replace(tzinfo=timezone.utc)
+# [MOVED]         except:
+# [MOVED]             last_update = now
+# [MOVED]             
         # Cap at 6 hours
-        hours_passed = min(6, (now - last_update).total_seconds() / 3600)
-        
+# [MOVED]         hours_passed = min(6, (now - last_update).total_seconds() / 3600)
+# [MOVED]         
         # Minimum 1 minute to collect
-        if hours_passed >= (1/60):
-            films_showing = infra.get('films_showing', [])
-            hourly_revenue = 0
-            
-            if infra_type.get('screens', 0) > 0 and films_showing:
-                prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
-                ticket_price = prices.get('ticket', 12)
-                for film in films_showing:
-                    quality = film.get('quality_score', 50)
-                    visitors_per_hour = int(10 + (quality * 0.5) + 30)
-                    hourly_revenue += visitors_per_hour * ticket_price
-            else:
-                hourly_revenue = infra_type.get('passive_income', 500)
-            
-            city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
-            hourly_revenue *= city_multiplier
-            revenue = int(hourly_revenue * hours_passed)
-            
-            if revenue > 0:
-                await db.infrastructure.update_one(
-                    {'id': infra['id']},
-                    {
-                        '$inc': {'total_revenue': revenue},
-                        '$set': {
-                            'last_revenue_update': now.isoformat(),
-                            'last_collection': now.isoformat()
-                        }
-                    }
-                )
-                collected_from_infra += revenue
-                infra_collected += 1
-    
-    total_collected = collected_from_films + collected_from_infra
-    
-    if total_collected > 0:
+# [MOVED]         if hours_passed >= (1/60):
+# [MOVED]             films_showing = infra.get('films_showing', [])
+# [MOVED]             hourly_revenue = 0
+# [MOVED]             
+# [MOVED]             if infra_type.get('screens', 0) > 0 and films_showing:
+# [MOVED]                 prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
+# [MOVED]                 ticket_price = prices.get('ticket', 12)
+# [MOVED]                 for film in films_showing:
+# [MOVED]                     quality = film.get('quality_score', 50)
+# [MOVED]                     visitors_per_hour = int(10 + (quality * 0.5) + 30)
+# [MOVED]                     hourly_revenue += visitors_per_hour * ticket_price
+# [MOVED]             else:
+# [MOVED]                 hourly_revenue = infra_type.get('passive_income', 500)
+# [MOVED]             
+# [MOVED]             city_multiplier = infra.get('city', {}).get('revenue_multiplier', 1.0)
+# [MOVED]             hourly_revenue *= city_multiplier
+# [MOVED]             revenue = int(hourly_revenue * hours_passed)
+# [MOVED]             
+# [MOVED]             if revenue > 0:
+# [MOVED]                 await db.infrastructure.update_one(
+# [MOVED]                     {'id': infra['id']},
+# [MOVED]                     {
+# [MOVED]                         '$inc': {'total_revenue': revenue},
+# [MOVED]                         '$set': {
+# [MOVED]                             'last_revenue_update': now.isoformat(),
+# [MOVED]                             'last_collection': now.isoformat()
+# [MOVED]                         }
+# [MOVED]                     }
+# [MOVED]                 )
+# [MOVED]                 collected_from_infra += revenue
+# [MOVED]                 infra_collected += 1
+# [MOVED]     
+# [MOVED]     total_collected = collected_from_films + collected_from_infra
+# [MOVED]     
+# [MOVED]     if total_collected > 0:
         # Update user funds and XP
-        xp_earned = max(1, total_collected // 5000)
-        await db.users.update_one(
-            {'id': user['id']},
-            {
-                '$inc': {
-                    'funds': total_collected,
-                    'total_xp': xp_earned,
-                    'total_lifetime_revenue': total_collected
-                }
-            }
-        )
-    
-    return {
-        'success': True,
-        'total_collected': total_collected,
-        'collected_from_films': collected_from_films,
-        'collected_from_infra': collected_from_infra,
-        'films_collected': films_collected,
-        'infra_collected': infra_collected,
-        'xp_earned': max(1, total_collected // 5000) if total_collected > 0 else 0,
-    }
-
+# [MOVED]         xp_earned = max(1, total_collected // 5000)
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': user['id']},
+# [MOVED]             {
+# [MOVED]                 '$inc': {
+# [MOVED]                     'funds': total_collected,
+# [MOVED]                     'total_xp': xp_earned,
+# [MOVED]                     'total_lifetime_revenue': total_collected
+# [MOVED]                 }
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'total_collected': total_collected,
+# [MOVED]         'collected_from_films': collected_from_films,
+# [MOVED]         'collected_from_infra': collected_from_infra,
+# [MOVED]         'films_collected': films_collected,
+# [MOVED]         'infra_collected': infra_collected,
+# [MOVED]         'xp_earned': max(1, total_collected // 5000) if total_collected > 0 else 0,
+# [MOVED]     }
+# [MOVED] 
 # [MOVED TO routes/users.py + routes/chat.py] Users & Chat endpoints (22 endpoints)
 # Original code commented out below
 # [MOVED] 
@@ -16537,108 +16538,108 @@ def parse_date_with_timezone(date_str: str) -> datetime:
     
     return dt
 
-@api_router.get("/films/{film_id}/hourly-revenue")
-async def calculate_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
-    """Calculate current hourly revenue for a film."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    
-    if film.get('status') != 'in_theaters':
-        return {'revenue': 0, 'status': film.get('status'), 'message': 'Film not in theaters'}
-    
+# [MOVED TO routes/economy.py] /films/{film_id}/hourly-revenue
+# [MOVED] async def calculate_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Calculate current hourly revenue for a film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         return {'revenue': 0, 'status': film.get('status'), 'message': 'Film not in theaters'}
+# [MOVED]     
     # Calculate days in theater
-    release_date = parse_date_with_timezone(film.get('release_date'))
-    days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
-    
+# [MOVED]     release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]     days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+# [MOVED]     
     # Get current hour and day
-    now = datetime.now(timezone.utc)
-    hour = now.hour
-    day_of_week = now.weekday()
-    
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     hour = now.hour
+# [MOVED]     day_of_week = now.weekday()
+# [MOVED]     
     # Count competing films
-    competing_films = await db.films.count_documents({
-        'status': 'in_theaters',
-        'id': {'$ne': film_id}
-    })
-    
-    revenue_data = calculate_hourly_film_revenue(
-        film, hour, day_of_week, days_in_theater, competing_films
-    )
-    
-    return revenue_data
+# [MOVED]     competing_films = await db.films.count_documents({
+# [MOVED]         'status': 'in_theaters',
+# [MOVED]         'id': {'$ne': film_id}
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     revenue_data = calculate_hourly_film_revenue(
+# [MOVED]         film, hour, day_of_week, days_in_theater, competing_films
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return revenue_data
 
-@api_router.post("/films/{film_id}/process-hourly-revenue")
-async def process_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
-    """Process hourly revenue for a film and update totals."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    
-    if film.get('status') != 'in_theaters':
-        return {'processed': False, 'status': film.get('status')}
-    
+# [MOVED TO routes/economy.py] /films/{film_id}/process-hourly-revenue
+# [MOVED] async def process_film_hourly_revenue(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Process hourly revenue for a film and update totals."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         return {'processed': False, 'status': film.get('status')}
+# [MOVED]     
     # Check last processing time
-    last_processed = film.get('last_hourly_processed')
-    if last_processed:
-        last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
-        time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
-        if time_diff < 3500:  # Less than ~58 minutes
-            return {'processed': False, 'wait_seconds': int(3600 - time_diff)}
-    
+# [MOVED]     last_processed = film.get('last_hourly_processed')
+# [MOVED]     if last_processed:
+# [MOVED]         last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
+# [MOVED]         time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
+# [MOVED]         if time_diff < 3500:  # Less than ~58 minutes
+# [MOVED]             return {'processed': False, 'wait_seconds': int(3600 - time_diff)}
+# [MOVED]     
     # Calculate days in theater
-    release_date = parse_date_with_timezone(film.get('release_date'))
-    days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
-    
-    now = datetime.now(timezone.utc)
-    hour = now.hour
-    day_of_week = now.weekday()
-    
-    competing_films = await db.films.count_documents({
-        'status': 'in_theaters',
-        'id': {'$ne': film_id}
-    })
-    
-    revenue_data = calculate_hourly_film_revenue(
-        film, hour, day_of_week, days_in_theater, competing_films
-    )
-    
+# [MOVED]     release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]     days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+# [MOVED]     
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     hour = now.hour
+# [MOVED]     day_of_week = now.weekday()
+# [MOVED]     
+# [MOVED]     competing_films = await db.films.count_documents({
+# [MOVED]         'status': 'in_theaters',
+# [MOVED]         'id': {'$ne': film_id}
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     revenue_data = calculate_hourly_film_revenue(
+# [MOVED]         film, hour, day_of_week, days_in_theater, competing_films
+# [MOVED]     )
+# [MOVED]     
     # Update film revenue
-    new_total = film.get('total_revenue', 0) + revenue_data['revenue']
-    hourly_history = film.get('hourly_revenues', [])
-    hourly_history.append({
-        'timestamp': now.isoformat(),
-        'revenue': revenue_data['revenue'],
-        'factors': revenue_data['factors'],
-        'special_event': revenue_data.get('special_event')
-    })
-    
+# [MOVED]     new_total = film.get('total_revenue', 0) + revenue_data['revenue']
+# [MOVED]     hourly_history = film.get('hourly_revenues', [])
+# [MOVED]     hourly_history.append({
+# [MOVED]         'timestamp': now.isoformat(),
+# [MOVED]         'revenue': revenue_data['revenue'],
+# [MOVED]         'factors': revenue_data['factors'],
+# [MOVED]         'special_event': revenue_data.get('special_event')
+# [MOVED]     })
+# [MOVED]     
     # Keep only last 168 hours (1 week) of history
-    if len(hourly_history) > 168:
-        hourly_history = hourly_history[-168:]
-    
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'total_revenue': new_total,
-            'hourly_revenues': hourly_history,
-            'last_hourly_processed': now.isoformat()
-        }}
-    )
-    
+# [MOVED]     if len(hourly_history) > 168:
+# [MOVED]         hourly_history = hourly_history[-168:]
+# [MOVED]     
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'total_revenue': new_total,
+# [MOVED]             'hourly_revenues': hourly_history,
+# [MOVED]             'last_hourly_processed': now.isoformat()
+# [MOVED]         }}
+# [MOVED]     )
+# [MOVED]     
     # Update user funds
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'funds': revenue_data['revenue'], 'total_lifetime_revenue': revenue_data['revenue']}}
-    )
-    
-    return {
-        'processed': True,
-        'revenue': revenue_data['revenue'],
-        'new_total': new_total,
-        'factors': revenue_data['factors'],
-        'special_event': revenue_data.get('special_event')
-    }
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'funds': revenue_data['revenue'], 'total_lifetime_revenue': revenue_data['revenue']}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'processed': True,
+# [MOVED]         'revenue': revenue_data['revenue'],
+# [MOVED]         'new_total': new_total,
+# [MOVED]         'factors': revenue_data['factors'],
+# [MOVED]         'special_event': revenue_data.get('special_event')
+# [MOVED]     }
 
 @api_router.get("/films/{film_id}/duration-status")
 async def get_film_duration_status(film_id: str, user: dict = Depends(get_current_user)):
@@ -17054,299 +17055,299 @@ async def evolve_film_cast_skills(film_id: str, user: dict = Depends(get_current
 
 # ==================== NEGATIVE RATING PENALTY ====================
 
-@api_router.get("/player/rating-stats")
-async def get_player_rating_stats(user: dict = Depends(get_current_user)):
-    """Get player's rating statistics and any active penalties."""
-    total = user.get('total_ratings_given', 0)
-    negative = user.get('negative_ratings_given', 0)
-    ratio = negative / max(total, 1)
-    
-    penalty = 0
-    warning = None
-    if total >= 10:
-        if ratio > 0.8:
-            penalty = 10
-            warning = "SEVERE: Your films receive -10% quality penalty due to excessive negative ratings."
-        elif ratio > 0.6:
-            penalty = 5
-            warning = "WARNING: Your films receive -5% quality penalty due to many negative ratings."
-    
-    return {
-        'total_ratings_given': total,
-        'negative_ratings_given': negative,
-        'negative_ratio': round(ratio, 2),
-        'quality_penalty': penalty,
-        'warning': warning
-    }
-
+# [MOVED TO routes/economy.py] /player/rating-stats
+# [MOVED] async def get_player_rating_stats(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get player's rating statistics and any active penalties."""
+# [MOVED]     total = user.get('total_ratings_given', 0)
+# [MOVED]     negative = user.get('negative_ratings_given', 0)
+# [MOVED]     ratio = negative / max(total, 1)
+# [MOVED]     
+# [MOVED]     penalty = 0
+# [MOVED]     warning = None
+# [MOVED]     if total >= 10:
+# [MOVED]         if ratio > 0.8:
+# [MOVED]             penalty = 10
+# [MOVED]             warning = "SEVERE: Your films receive -10% quality penalty due to excessive negative ratings."
+# [MOVED]         elif ratio > 0.6:
+# [MOVED]             penalty = 5
+# [MOVED]             warning = "WARNING: Your films receive -5% quality penalty due to many negative ratings."
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'total_ratings_given': total,
+# [MOVED]         'negative_ratings_given': negative,
+# [MOVED]         'negative_ratio': round(ratio, 2),
+# [MOVED]         'quality_penalty': penalty,
+# [MOVED]         'warning': warning
+# [MOVED]     }
+# [MOVED] 
 # ==================== ALL FILMS HOURLY PROCESSOR ====================
 
-@api_router.post("/films/process-all-hourly")
-async def process_all_films_hourly(user: dict = Depends(get_current_user)):
-    """Process hourly revenue for all user's films in theaters."""
-    films = await db.films.find({
-        'user_id': user['id'],
-        'status': 'in_theaters'
-    }).to_list(100)
-    
-    results = []
-    total_revenue = 0
-    
-    for film in films:
+# [MOVED TO routes/economy.py] /films/process-all-hourly
+# [MOVED] async def process_all_films_hourly(user: dict = Depends(get_current_user)):
+# [MOVED]     """Process hourly revenue for all user's films in theaters."""
+# [MOVED]     films = await db.films.find({
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'status': 'in_theaters'
+# [MOVED]     }).to_list(100)
+# [MOVED]     
+# [MOVED]     results = []
+# [MOVED]     total_revenue = 0
+# [MOVED]     
+# [MOVED]     for film in films:
         # Check last processing time
-        last_processed = film.get('last_hourly_processed')
-        if last_processed:
-            last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
-            time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
-            if time_diff < 3500:
-                results.append({
-                    'film_id': film['id'],
-                    'title': film['title'],
-                    'skipped': True,
-                    'wait_seconds': int(3600 - time_diff)
-                })
-                continue
-        
+# [MOVED]         last_processed = film.get('last_hourly_processed')
+# [MOVED]         if last_processed:
+# [MOVED]             last_time = datetime.fromisoformat(last_processed.replace('Z', '+00:00'))
+# [MOVED]             time_diff = (datetime.now(timezone.utc) - last_time).total_seconds()
+# [MOVED]             if time_diff < 3500:
+# [MOVED]                 results.append({
+# [MOVED]                     'film_id': film['id'],
+# [MOVED]                     'title': film['title'],
+# [MOVED]                     'skipped': True,
+# [MOVED]                     'wait_seconds': int(3600 - time_diff)
+# [MOVED]                 })
+# [MOVED]                 continue
+# [MOVED]         
         # Calculate revenue
-        release_date = parse_date_with_timezone(film.get('release_date'))
-        days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
-        
-        now = datetime.now(timezone.utc)
-        hour = now.hour
-        day_of_week = now.weekday()
-        
-        competing_films = await db.films.count_documents({
-            'status': 'in_theaters',
-            'id': {'$ne': film['id']}
-        })
-        
-        revenue_data = calculate_hourly_film_revenue(
-            film, hour, day_of_week, days_in_theater, competing_films
-        )
-        
+# [MOVED]         release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]         days_in_theater = max(1, (datetime.now(timezone.utc) - release_date).days)
+# [MOVED]         
+# [MOVED]         now = datetime.now(timezone.utc)
+# [MOVED]         hour = now.hour
+# [MOVED]         day_of_week = now.weekday()
+# [MOVED]         
+# [MOVED]         competing_films = await db.films.count_documents({
+# [MOVED]             'status': 'in_theaters',
+# [MOVED]             'id': {'$ne': film['id']}
+# [MOVED]         })
+# [MOVED]         
+# [MOVED]         revenue_data = calculate_hourly_film_revenue(
+# [MOVED]             film, hour, day_of_week, days_in_theater, competing_films
+# [MOVED]         )
+# [MOVED]         
         # Update film
-        new_total = film.get('total_revenue', 0) + revenue_data['revenue']
-        hourly_history = film.get('hourly_revenues', [])
-        hourly_history.append({
-            'timestamp': now.isoformat(),
-            'revenue': revenue_data['revenue']
-        })
-        if len(hourly_history) > 168:
-            hourly_history = hourly_history[-168:]
-        
-        await db.films.update_one(
-            {'id': film['id']},
-            {'$set': {
-                'total_revenue': new_total,
-                'hourly_revenues': hourly_history,
-                'last_hourly_processed': now.isoformat()
-            }}
-        )
-        
-        total_revenue += revenue_data['revenue']
-        results.append({
-            'film_id': film['id'],
-            'title': film['title'],
-            'revenue': revenue_data['revenue'],
-            'special_event': revenue_data.get('special_event')
-        })
-    
+# [MOVED]         new_total = film.get('total_revenue', 0) + revenue_data['revenue']
+# [MOVED]         hourly_history = film.get('hourly_revenues', [])
+# [MOVED]         hourly_history.append({
+# [MOVED]             'timestamp': now.isoformat(),
+# [MOVED]             'revenue': revenue_data['revenue']
+# [MOVED]         })
+# [MOVED]         if len(hourly_history) > 168:
+# [MOVED]             hourly_history = hourly_history[-168:]
+# [MOVED]         
+# [MOVED]         await db.films.update_one(
+# [MOVED]             {'id': film['id']},
+# [MOVED]             {'$set': {
+# [MOVED]                 'total_revenue': new_total,
+# [MOVED]                 'hourly_revenues': hourly_history,
+# [MOVED]                 'last_hourly_processed': now.isoformat()
+# [MOVED]             }}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         total_revenue += revenue_data['revenue']
+# [MOVED]         results.append({
+# [MOVED]             'film_id': film['id'],
+# [MOVED]             'title': film['title'],
+# [MOVED]             'revenue': revenue_data['revenue'],
+# [MOVED]             'special_event': revenue_data.get('special_event')
+# [MOVED]         })
+# [MOVED]     
     # Update user funds
-    if total_revenue > 0:
-        await db.users.update_one(
-            {'id': user['id']},
-            {'$inc': {'funds': total_revenue, 'total_lifetime_revenue': total_revenue}}
-        )
-    
-    return {
-        'processed': len([r for r in results if not r.get('skipped')]),
-        'skipped': len([r for r in results if r.get('skipped')]),
-        'total_revenue': total_revenue,
-        'results': results
-    }
-
+# [MOVED]     if total_revenue > 0:
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': user['id']},
+# [MOVED]             {'$inc': {'funds': total_revenue, 'total_lifetime_revenue': total_revenue}}
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'processed': len([r for r in results if not r.get('skipped')]),
+# [MOVED]         'skipped': len([r for r in results if r.get('skipped')]),
+# [MOVED]         'total_revenue': total_revenue,
+# [MOVED]         'results': results
+# [MOVED]     }
+# [MOVED] 
 # ==================== OFFLINE CATCH-UP SYSTEM ====================
 
-@api_router.post("/catchup/process")
-async def process_offline_catchup(user: dict = Depends(get_current_user)):
-    """
-    Process all missed revenue while the server was offline.
-    This calculates retroactive earnings for films in theaters and infrastructure.
-    Called automatically when user reconnects after server sleep.
-    """
-    user_id = user['id']
-    
+# [MOVED TO routes/economy.py] /catchup/process
+# [MOVED] async def process_offline_catchup(user: dict = Depends(get_current_user)):
+# [MOVED]     """
+# [MOVED]     Process all missed revenue while the server was offline.
+# [MOVED]     This calculates retroactive earnings for films in theaters and infrastructure.
+# [MOVED]     Called automatically when user reconnects after server sleep.
+# [MOVED]     """
+# [MOVED]     user_id = user['id']
+# [MOVED]     
     # Get user's last activity timestamp
-    last_activity = user.get('last_activity')
-    now = datetime.now(timezone.utc)
-    
+# [MOVED]     last_activity = user.get('last_activity')
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     
     # If no last activity, use current time (first login)
-    if not last_activity:
-        await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
-        return {'status': 'first_login', 'catchup_revenue': 0, 'hours_missed': 0}
-    
+# [MOVED]     if not last_activity:
+# [MOVED]         await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
+# [MOVED]         return {'status': 'first_login', 'catchup_revenue': 0, 'hours_missed': 0}
+# [MOVED]     
     # Parse last activity
-    if isinstance(last_activity, str):
-        last_activity = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
-    if last_activity.tzinfo is None:
-        last_activity = last_activity.replace(tzinfo=timezone.utc)
-    
+# [MOVED]     if isinstance(last_activity, str):
+# [MOVED]         last_activity = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+# [MOVED]     if last_activity.tzinfo is None:
+# [MOVED]         last_activity = last_activity.replace(tzinfo=timezone.utc)
+# [MOVED]     
     # Calculate hours missed
-    hours_missed = (now - last_activity).total_seconds() / 3600
-    
+# [MOVED]     hours_missed = (now - last_activity).total_seconds() / 3600
+# [MOVED]     
     # Only process if more than 1 hour has passed
-    if hours_missed < 1:
-        await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
-        return {'status': 'recent_activity', 'catchup_revenue': 0, 'hours_missed': 0}
-    
+# [MOVED]     if hours_missed < 1:
+# [MOVED]         await db.users.update_one({'id': user_id}, {'$set': {'last_activity': now.isoformat()}})
+# [MOVED]         return {'status': 'recent_activity', 'catchup_revenue': 0, 'hours_missed': 0}
+# [MOVED]     
     # Cap at 168 hours (1 week) to prevent excessive calculations
-    hours_missed = min(hours_missed, 168)
-    full_hours = int(hours_missed)
-    
+# [MOVED]     hours_missed = min(hours_missed, 168)
+# [MOVED]     full_hours = int(hours_missed)
+# [MOVED]     
     # Diminishing returns: first 3h = 100%, 3-6h = 50%, 6h+ = 25%
-    def diminishing_factor(hour_offset):
-        if hour_offset < 3:
-            return 1.0
-        elif hour_offset < 6:
-            return 0.5
-        else:
-            return 0.25
-    
+# [MOVED]     def diminishing_factor(hour_offset):
+# [MOVED]         if hour_offset < 3:
+# [MOVED]             return 1.0
+# [MOVED]         elif hour_offset < 6:
+# [MOVED]             return 0.5
+# [MOVED]         else:
+# [MOVED]             return 0.25
+# [MOVED]     
     # Cap based on player level
-    user_level = user.get('level', 1)
-    max_catchup_revenue = user_level * 50000
-    
-    total_catchup_revenue = 0
-    film_details = []
-    infra_details = []
-    
+# [MOVED]     user_level = user.get('level', 1)
+# [MOVED]     max_catchup_revenue = user_level * 50000
+# [MOVED]     
+# [MOVED]     total_catchup_revenue = 0
+# [MOVED]     film_details = []
+# [MOVED]     infra_details = []
+# [MOVED]     
     # 1. Process Films in Theaters
-    films = await db.films.find({
-        'user_id': user_id,
-        'status': 'in_theaters'
-    }).to_list(100)
-    
-    for film in films:
+# [MOVED]     films = await db.films.find({
+# [MOVED]         'user_id': user_id,
+# [MOVED]         'status': 'in_theaters'
+# [MOVED]     }).to_list(100)
+# [MOVED]     
+# [MOVED]     for film in films:
         # Calculate average hourly revenue based on film stats
-        release_date = film.get('release_date')
-        if release_date:
-            if isinstance(release_date, str):
-                release_date = datetime.fromisoformat(release_date.replace('Z', '+00:00'))
-            if release_date.tzinfo is None:
-                release_date = release_date.replace(tzinfo=timezone.utc)
-            days_in_theater = max(1, (now - release_date).days)
-        else:
-            days_in_theater = 1
-        
+# [MOVED]         release_date = film.get('release_date')
+# [MOVED]         if release_date:
+# [MOVED]             if isinstance(release_date, str):
+# [MOVED]                 release_date = datetime.fromisoformat(release_date.replace('Z', '+00:00'))
+# [MOVED]             if release_date.tzinfo is None:
+# [MOVED]                 release_date = release_date.replace(tzinfo=timezone.utc)
+# [MOVED]             days_in_theater = max(1, (now - release_date).days)
+# [MOVED]         else:
+# [MOVED]             days_in_theater = 1
+# [MOVED]         
         # Get competing films count
-        competing_films = await db.films.count_documents({
-            'status': 'in_theaters',
-            'id': {'$ne': film['id']}
-        })
-        
+# [MOVED]         competing_films = await db.films.count_documents({
+# [MOVED]             'status': 'in_theaters',
+# [MOVED]             'id': {'$ne': film['id']}
+# [MOVED]         })
+# [MOVED]         
         # Calculate revenue for each missed hour with diminishing returns
-        film_catchup = 0
-        for hour_offset in range(full_hours):
-            past_time = last_activity + timedelta(hours=hour_offset)
-            hour = past_time.hour
-            day_of_week = past_time.weekday()
-            
-            revenue_data = calculate_hourly_film_revenue(
-                film, hour, day_of_week, days_in_theater + (hour_offset // 24), competing_films
-            )
-            film_catchup += int(revenue_data['revenue'] * diminishing_factor(hour_offset))
-        
-        if film_catchup > 0:
+# [MOVED]         film_catchup = 0
+# [MOVED]         for hour_offset in range(full_hours):
+# [MOVED]             past_time = last_activity + timedelta(hours=hour_offset)
+# [MOVED]             hour = past_time.hour
+# [MOVED]             day_of_week = past_time.weekday()
+# [MOVED]             
+# [MOVED]             revenue_data = calculate_hourly_film_revenue(
+# [MOVED]                 film, hour, day_of_week, days_in_theater + (hour_offset // 24), competing_films
+# [MOVED]             )
+# [MOVED]             film_catchup += int(revenue_data['revenue'] * diminishing_factor(hour_offset))
+# [MOVED]         
+# [MOVED]         if film_catchup > 0:
             # Update film total revenue
-            new_total = film.get('total_revenue', 0) + film_catchup
-            await db.films.update_one(
-                {'id': film['id']},
-                {'$set': {
-                    'total_revenue': new_total,
-                    'last_hourly_processed': now.isoformat()
-                }}
-            )
-            
-            total_catchup_revenue += film_catchup
-            film_details.append({
-                'title': film['title'],
-                'revenue': film_catchup,
-                'hours': full_hours
-            })
-    
+# [MOVED]             new_total = film.get('total_revenue', 0) + film_catchup
+# [MOVED]             await db.films.update_one(
+# [MOVED]                 {'id': film['id']},
+# [MOVED]                 {'$set': {
+# [MOVED]                     'total_revenue': new_total,
+# [MOVED]                     'last_hourly_processed': now.isoformat()
+# [MOVED]                 }}
+# [MOVED]             )
+# [MOVED]             
+# [MOVED]             total_catchup_revenue += film_catchup
+# [MOVED]             film_details.append({
+# [MOVED]                 'title': film['title'],
+# [MOVED]                 'revenue': film_catchup,
+# [MOVED]                 'hours': full_hours
+# [MOVED]             })
+# [MOVED]     
     # 2. Process Infrastructure (cinemas, etc.)
-    infra = await db.infrastructure.find_one({'user_id': user_id})
-    if infra and infra.get('owned'):
-        for item in infra.get('owned', []):
-            item_type = item.get('type')
-            infra_config = next((i for i in INFRASTRUCTURE_TYPES if i['id'] == item_type), None)
-            if not infra_config:
-                continue
-            
+# [MOVED]     infra = await db.infrastructure.find_one({'user_id': user_id})
+# [MOVED]     if infra and infra.get('owned'):
+# [MOVED]         for item in infra.get('owned', []):
+# [MOVED]             item_type = item.get('type')
+# [MOVED]             infra_config = next((i for i in INFRASTRUCTURE_TYPES if i['id'] == item_type), None)
+# [MOVED]             if not infra_config:
+# [MOVED]                 continue
+# [MOVED]             
             # Calculate passive income for missed hours with diminishing returns
-            base_income = infra_config.get('passive_income', 0)
-            if base_income > 0:
+# [MOVED]             base_income = infra_config.get('passive_income', 0)
+# [MOVED]             if base_income > 0:
                 # Check if it's a cinema with films
-                if infra_config.get('can_screen_films'):
+# [MOVED]                 if infra_config.get('can_screen_films'):
                     # Use average of 500 per hour for cinemas
-                    hourly_rate = 500
-                else:
-                    hourly_rate = base_income
-                
-                infra_catchup = 0
-                for h in range(full_hours):
-                    infra_catchup += int(hourly_rate * diminishing_factor(h))
-                if infra_catchup > 0:
-                    total_catchup_revenue += infra_catchup
-                    infra_details.append({
-                        'name': infra_config.get('name', item_type),
-                        'revenue': infra_catchup,
-                        'hours': full_hours
-                    })
-        
+# [MOVED]                     hourly_rate = 500
+# [MOVED]                 else:
+# [MOVED]                     hourly_rate = base_income
+# [MOVED]                 
+# [MOVED]                 infra_catchup = 0
+# [MOVED]                 for h in range(full_hours):
+# [MOVED]                     infra_catchup += int(hourly_rate * diminishing_factor(h))
+# [MOVED]                 if infra_catchup > 0:
+# [MOVED]                     total_catchup_revenue += infra_catchup
+# [MOVED]                     infra_details.append({
+# [MOVED]                         'name': infra_config.get('name', item_type),
+# [MOVED]                         'revenue': infra_catchup,
+# [MOVED]                         'hours': full_hours
+# [MOVED]                     })
+# [MOVED]         
         # Update infrastructure last update
-        await db.infrastructure.update_one(
-            {'user_id': user_id},
-            {'$set': {'last_revenue_update': now.isoformat()}}
-        )
-    
+# [MOVED]         await db.infrastructure.update_one(
+# [MOVED]             {'user_id': user_id},
+# [MOVED]             {'$set': {'last_revenue_update': now.isoformat()}}
+# [MOVED]         )
+# [MOVED]     
     # 3. Apply max catchup cap based on player level
-    if total_catchup_revenue > max_catchup_revenue:
-        total_catchup_revenue = max_catchup_revenue
-    
+# [MOVED]     if total_catchup_revenue > max_catchup_revenue:
+# [MOVED]         total_catchup_revenue = max_catchup_revenue
+# [MOVED]     
     # 4. Update user funds and last activity
-    if total_catchup_revenue > 0:
-        await db.users.update_one(
-            {'id': user_id},
-            {
-                '$inc': {'funds': total_catchup_revenue, 'total_lifetime_revenue': total_catchup_revenue},
-                '$set': {'last_activity': now.isoformat()}
-            }
-        )
-    else:
-        await db.users.update_one(
-            {'id': user_id},
-            {'$set': {'last_activity': now.isoformat()}}
-        )
-    
-    return {
-        'status': 'catchup_processed',
-        'hours_missed': full_hours,
-        'catchup_revenue': total_catchup_revenue,
-        'films': film_details,
-        'infrastructure': infra_details,
-        'message': f'Recuperati ${total_catchup_revenue:,} per {full_hours} ore di inattività!' if total_catchup_revenue > 0 else None
-    }
+# [MOVED]     if total_catchup_revenue > 0:
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': user_id},
+# [MOVED]             {
+# [MOVED]                 '$inc': {'funds': total_catchup_revenue, 'total_lifetime_revenue': total_catchup_revenue},
+# [MOVED]                 '$set': {'last_activity': now.isoformat()}
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     else:
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': user_id},
+# [MOVED]             {'$set': {'last_activity': now.isoformat()}}
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'status': 'catchup_processed',
+# [MOVED]         'hours_missed': full_hours,
+# [MOVED]         'catchup_revenue': total_catchup_revenue,
+# [MOVED]         'films': film_details,
+# [MOVED]         'infrastructure': infra_details,
+# [MOVED]         'message': f'Recuperati ${total_catchup_revenue:,} per {full_hours} ore di inattività!' if total_catchup_revenue > 0 else None
+# [MOVED]     }
 
-@api_router.post("/activity/heartbeat")
-async def update_activity_heartbeat(user: dict = Depends(get_current_user)):
-    """Update user's last activity timestamp. Called periodically by frontend."""
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$set': {'last_activity': datetime.now(timezone.utc).isoformat()}}
-    )
-    return {'status': 'ok'}
-
+# [MOVED TO routes/economy.py] /activity/heartbeat
+# [MOVED] async def update_activity_heartbeat(user: dict = Depends(get_current_user)):
+# [MOVED]     """Update user's last activity timestamp. Called periodically by frontend."""
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$set': {'last_activity': datetime.now(timezone.utc).isoformat()}}
+# [MOVED]     )
+# [MOVED]     return {'status': 'ok'}
+# [MOVED] 
 # ==================== WORLD EVENTS ====================
 
 @api_router.get("/events/active")
@@ -18366,6 +18367,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(festivals_router, prefix="/api")
 app.include_router(challenges_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
+app.include_router(economy_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

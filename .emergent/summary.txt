@@ -1,22 +1,30 @@
 <analysis>**original_problem_statement**: 
-The user requested a **gradual, step-by-step modularization of **.
+The user is requesting a **gradual, step-by-step modularization of **. 
 PRODUCT REQUIREMENTS: 
-Modularize  into dedicated files inside  safely. Follow a strict ONE STEP AT A TIME rule. Move endpoints, comment out the old ones in , test, and wait for explicit user confirmation before proceeding to the next group. Do NOT use the testing agent (to save credits).
+Modularize  into dedicated files inside  safely without modifying existing business logic or database queries. Follow a strict ONE STEP AT A TIME rule. Move endpoints, comment out old ones in , test, and wait for explicit user confirmation. Do NOT use the testing agent. Currently, the user has requested **STEP 10 — Modularizzazione Dashboard / Stats** (moving dashboard, stats, overview, and riepiloghi endpoints to ).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-A full-stack React + FastAPI application. The backend  is undergoing a massive, strict step-by-step refactoring process to move routes into the  directory. Steps 1 through 6 have been successfully completed (moving Cast, Film Drafts, Series, Users/Chat, Festivals, and Challenges). Step 7 (AI/Poster/Trailer) is currently underway.
+A full-stack React + FastAPI application. The backend  is undergoing a massive, strict step-by-step refactoring process to move routes into the  directory. Steps 1 through 7 and Step 9 have been successfully completed. Step 10 (Dashboard/Stats) is currently in progress, with the file created and endpoints moved, but backend errors are occurring during curl testing.
 
 **Last working item**: 
-    - Last item agent was working: Step 7 of the  modularization process. Specifically, the agent was instructed to move the **AI / Poster / Trailer** group (16 endpoints) into a new file . 
+    - Last item agent was working: Step 10 of the  modularization process. The agent created , extracted 20 endpoints (including , , ), registered the router, and commented out the originals in . The agent was running curl tests when one of the endpoints () failed.
     - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use?: manual testing by curl (Do NOT use testing subagent).
+    - Agent Testing Done: Y (Partially done; currently failing)
+    - Which testing method agent to use?: manual testing by curl (Do NOT use testing subagent, as forbidden by user).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: 20 film posters are missing/returning 404 (P1)
+  Issue 1:  (and potentially other dashboard endpoints) is failing with a 500 Internal Server Error (JSONDecodeError during curl test). (P0)
+     - Attempted fixes: The agent previously fixed a missing  import in  which fixed , but  failed immediately after.
+     - Next debug checklist: Check backend logs for the exact Traceback when calling . Look for missing imports (e.g., from , , or  helper functions) that were left behind during the code extraction to .
+     - Why fix this issue and what will be achieved with the fix?: Necessary to complete Step 10 modularization successfully and ensure the frontend dashboard does not break.
+     - Status: IN PROGRESS
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Backend (via curl)
+
+  Issue 2: 20 film posters are missing/returning 404 (P1)
      - Attempted fixes: Investigated in previous sessions, posters must be regenerated via AI.
      - Next debug checklist: Inform the user that they must be regenerated via the AI generation feature.
      - Why fix this issue and what will be achieved with the fix?: Restores missing UI assets for legacy films.
@@ -25,16 +33,16 @@ A full-stack React + FastAPI application. The backend  is undergoing a massive, 
      - Should Test frontend/backend/both after fix?: Both
 
 **In progress Task List**: 
-  Task 1: Modularize AI/Poster/Trailer endpoints from  to  (P0)
-     - Where to resume: Create . Define . Move the 16 AI/Poster/Trailer endpoints and their corresponding Pydantic models (, , , ) from  into this new file, changing  to . **CRITICAL**: Ensure  and all OpenAI/integration imports are copied to . In , add  and . **COMMENT OUT** (do not delete) the old endpoints in .
-     - What will be achieved with this?: Step 7 of the  modularization without breaking AI functionality.
+  Task 1: Complete Step 10 - Modularize Dashboard/Stats endpoints (P0)
+     - Where to resume: Debug the 500 error on . Once all 20 endpoints inside  return 200 OK, update  with the completed Step 10, summarize the endpoints moved, and ask the user for the next group to migrate.
+     - What will be achieved with this?: Completion of Step 10 without breaking dashboard functionality.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix?: Backend (Test via curl).
-     - Blocked on something: None.
+     - Should Test frontend/backend/both after fix?: Backend (via curl)
+     - Blocked on something: Issue 1 (Missing imports/Internal server error).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Modularize the remaining ~150-175 endpoints in  (ONLY proceed group by group after user approval).
+    - (P1) Modularize the remaining endpoints in  (Wait for user instructions on the next group).
     - (P1) Sistema Previsioni Festival (Betting on festival winners).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
@@ -42,12 +50,9 @@ A full-stack React + FastAPI application. The backend  is undergoing a massive, 
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Modularizzazione Step 1: Cast/People →  (DONE)
-- Modularizzazione Step 2: Film Drafts & Pre-Films →  (DONE)
-- Modularizzazione Step 3: Series/Saga →  (DONE)
-- Modularizzazione Step 4: Users/Chat/Social → , ,  (DONE)
-- Modularizzazione Step 5: Festivals →  (DONE)
-- Modularizzazione Step 6: Challenges/PVP →  (DONE)
+- Modularizzazione Step 7: AI/Poster/Trailer →  (DONE)
+- Modularizzazione Step 9: Economy/Revenue →  (DONE)
+- Fixed missing  import bug in  for  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -64,61 +69,57 @@ None.
 - Full-stack React + FastAPI application.
 - SWR for React data fetching.
 - MongoDB Atlas.
+- APScheduler for background tasks.
 
 **key DB schema**
   - : 
   - : 
   - : 
-  - : 
 
 **changes in tech stack**
-  - Continuous backend architectural shift from monolithic  to router-based modularization. 
+  - Continuous backend architectural shift from monolithic  to router-based modularization.
 
 **All files of reference**
-  -  
-  -  (Target file to create)
-  -  (Updated)
-  -  (Updated)
-  -  (Updated)
+  -  (Actively modified)
   -  (Created)
   -  (Created)
+  -  (Created, needs bugfix)
   -  (Updated)
-  -  (Created)
-  -  (Created)
-  -  (Updated after each step)
 
 **Areas that need refactoring**
-  -  (Actively being refactored right now).
+  -  (Ongoing step-by-step refactoring).
 
 **key api endpoints**
+  - 
   - 
   - 
   - 
 
 **Critical Info for New Agent**
   - **Language**: You MUST respond in Italian.
-  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  instead.
-  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead**. You must only move the AI / Poster / Trailer endpoints to  right now. Watch out for  imports, Pydantic models, and the  variable which MUST be ported over to the new file so OpenAI generations do not break.
-  - **Env Load**: Avoid messing with  overrides as it breaks the emergent deployment environment.
+  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  and  logs instead.
+  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead** or touch logic. Only debug the moved endpoints in  and finalize Step 10 before asking for Step 11.
+  - Watch out for missing imports (like , , , etc.) when extracting large blocks of code from .
 
 **documents and test reports created in this job**
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. User: Step 4 - Move Users/Chat/Social (26 endpoints).
-2. Agent: Extracted 26 endpoints into 3 files. Tested successfully.
-3. User: Step 5 - Move Festivals (23 endpoints).
-4. Agent: Extracted 35 endpoints (including custom) to . Fixed missing  import. Tested successfully.
-5. User: Step 5 - Move Festivals (Accidental duplicate message).
-6. Agent: Informed user Step 5 is already done, asked for the next group.
-7. User: Step 6 - Move Challenges/PVP (19 endpoints).
-8. Agent: Extracted 22 endpoints to . Fixed missing constants (). Tested successfully.
-9. User: Step 7 - Move AI / Poster / Trailer (16 endpoints) to . Make sure  and config are correctly copied.
-10. Agent: Started finding AI endpoints, but was interrupted before writing .
-*Pending Human Action*: None. The agent must execute the AI / Poster / Trailer migration.
+1. User: Please use ask_human tool and confirm your plan now.
+2. Agent: (Asked for confirmation).
+3. User: Procedi.
+4. Agent: (Completed Step 7: AI/Poster/Trailer).
+5. User: Uploaded screenshots. Bug report: missing films/series on preview/Railway.
+6. Agent: Investigated dashboard endpoints.
+7. User: Rettifico, in preview si vede tutto... Il problema sembra solo su railway, sto facendo il deploy.
+8. User: Nuova rettifica: Funziona anche railway, non era partito l’ultimo deploy, fatto ora e tutto ok
+9. User: STEP 9 — Economy / Revenue -> Move economy endpoints.
+10. Agent: (Completed Step 9: Economy/Revenue).
+11. User: STEP 10 — Modularizzazione Dashboard / Stats -> Move dashboard/stats endpoints.
+*Pending Human Action*: None. The agent must finish testing and fixing  (Step 10) and then report back to the user.
 
 **Project Health Check:**
-- Functional, actively undergoing major architectural refactoring (monolith teardown).
+- Broken:  endpoint (due to missing dependencies in the newly created ).
 
 **3rd Party Integrations**
   - OpenAI GPT-4o-mini (Text Generation) — uses Emergent LLM Key
@@ -129,26 +130,223 @@ None.
   - Testing agent used after significant changes: NO (Forbidden by user)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None currently.
+  - Known regressions:  failing after modularization.
 
 **Credentials to test flow:**
   - User:  / 
   - Admin Test:  / 
 
 **What agent forgot to execute**
-The agent was directly interrupted before it could write the code to create  and move the 16 AI endpoints out of .
+The agent was in the middle of executing curl tests for  and forgot to check the backend logs for the  on  before the context cut off.
 
 **Debugging checklist for current issue**
-    Task: Move AI / Poster / Trailer endpoints from  to .
+    Issue:  returns a 500 Internal Server Error (identified by JSONDecodeError in curl).
     Backend files to check: 
-    -  
-    -  (Create this file).
+    - 
     Steps:
-    1. Extract the 16 AI endpoints (e.g., , , , ).
-    2. Extract the related models (, , , ).
-    3. Create  with .
-    4. **CRITICAL**: Add  and  to .
-    5. Update decorators to .
-    6. Comment out the original blocks and models in .
-    7. Add  and  in .
-    8. Test via  to ensure  or similar endpoints still return 200.</analysis>
+    1. Run ==> /var/log/supervisor/backend.err.log <==
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/routes/dashboard.py", line 1400, in get_cineboard_daily
+    cached = _cache.get('cineboard_daily', ttl=30)
+             ^^^^^^
+NameError: name '_cache' is not defined
+2026-04-02 15:41:40,169 - root - INFO - No old cast system members found
+WARNING:  WatchFiles detected changes in 'routes/dashboard.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-04-02 15:41:47,915 - root - INFO - APScheduler stopped
+2026-04-02 15:41:48,030 - apscheduler.scheduler - INFO - Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4474]
+INFO:     Started server process [4591]
+INFO:     Waiting for application startup.
+2026-04-02 15:41:49,701 - root - INFO - Nginx root /var/www/html already has index.html, skipping copy
+2026-04-02 15:41:49,702 - root - INFO - Nginx root /usr/share/nginx/html already has index.html, skipping copy
+2026-04-02 15:41:49,743 - root - INFO - Nginx reloaded successfully after build copy
+2026-04-02 15:41:52,896 - root - INFO - Cast pool initialized
+2026-04-02 15:41:53,734 - root - INFO - Cast refresh: 11 giorni alla prossima generazione
+2026-04-02 15:41:53,854 - root - INFO - Emerging screenplays: 10 available
+2026-04-02 15:41:55,799 - root - INFO - MongoDB indexes created/verified
+2026-04-02 15:41:56,057 - root - INFO - Startup complete - server ready for health checks
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,081 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Added job "update_all_films_revenue" to job store "default"
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Added job "update_leaderboard_scores" to job store "default"
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Added job "update_cinema_revenue" to job store "default"
+2026-04-02 15:41:56,082 - apscheduler.scheduler - INFO - Added job "calculate_tv_station_revenues" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "reset_daily_challenges" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "cleanup_expired_rejections" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "generate_daily_cast_members_task" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "cleanup_expired_hired_stars" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "reset_weekly_challenges" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "update_film_attendance" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "auto_release_coming_soon" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "process_coming_soon_dynamic_events" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "auto_cleanup_corrupted_projects" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "startup_event.<locals>.emerging_screenplays_task" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "process_shooting_progress" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Added job "startup_event.<locals>.cleanup_videos_task" to job store "default"
+2026-04-02 15:41:56,083 - apscheduler.scheduler - INFO - Scheduler started
+2026-04-02 15:41:56,083 - root - INFO - APScheduler started with background jobs for autonomous game operations
+INFO:     Application startup complete.
+2026-04-02 15:42:05,011 - root - INFO - Login attempt for: fandrex1@gmail.com
+2026-04-02 15:42:16,592 - root - INFO - No old cast system members found
+2026-04-02 15:42:32,142 - root - INFO - Release notes initialized
+2026-04-02 15:42:32,263 - root - INFO - System notes initialized
+2026-04-02 15:42:32,263 - root - INFO - Deferred initialization complete
+2026-04-02 15:43:12,739 - root - INFO - Login attempt for: fandrex1@gmail.com
+2026-04-02 15:43:29,578 - root - INFO - Login attempt for: fandrex1@gmail.com
+2026-04-02 15:46:56,083 - apscheduler.executors.default - INFO - Running job "auto_release_coming_soon (trigger: interval[0:05:00], next run at: 2026-04-02 15:51:56 UTC)" (scheduled at 2026-04-02 15:46:56.082411+00:00)
+2026-04-02 15:46:57,483 - apscheduler.executors.default - INFO - Job "auto_release_coming_soon (trigger: interval[0:05:00], next run at: 2026-04-02 15:51:56 UTC)" executed successfully
+2026-04-02 15:51:56,082 - apscheduler.executors.default - INFO - Running job "update_all_films_revenue (trigger: interval[0:10:00], next run at: 2026-04-02 16:01:56 UTC)" (scheduled at 2026-04-02 15:51:56.081514+00:00)
+2026-04-02 15:51:56,083 - apscheduler.executors.default - INFO - Running job "update_film_attendance (trigger: interval[0:10:00], next run at: 2026-04-02 16:01:56 UTC)" (scheduled at 2026-04-02 15:51:56.082378+00:00)
+2026-04-02 15:51:56,083 - apscheduler.executors.default - INFO - Running job "auto_release_coming_soon (trigger: interval[0:05:00], next run at: 2026-04-02 15:56:56 UTC)" (scheduled at 2026-04-02 15:51:56.082411+00:00)
+2026-04-02 15:51:57,082 - apscheduler.executors.default - INFO - Job "auto_release_coming_soon (trigger: interval[0:05:00], next run at: 2026-04-02 15:56:56 UTC)" executed successfully
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [50] using WatchFiles
+INFO:     Started server process [77]
+INFO:     Waiting for application startup.
+2026-04-02 15:53:32,032 - root - INFO - Copied React build to /var/www/html
+2026-04-02 15:53:32,033 - root - INFO - Nginx root /usr/share/nginx/html already has index.html, skipping copy
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.64.130.16:44666 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.173:56988 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:56998 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.16:44674 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.16:44688 - "GET /api/coming-soon HTTP/1.1" 200 OK
+INFO:     10.64.130.16:57784 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:49474 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:41190 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:32906 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:41618 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+INFO:     10.64.130.173:60798 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.16:41602 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:41604 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.16:41634 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:60800 - "GET /api/coming-soon HTTP/1.1" 200 OK
+INFO:     10.64.130.16:48666 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:46274 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.16:44552 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:48276 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:39526 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+[STARTUP] Build dir: /app/frontend/build
+[STARTUP] Build dir: /app/frontend/build
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.173:53412 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.130.173:53412 - "GET /api/dashboard/batch HTTP/1.1" 200 OK
+INFO:     10.64.130.16:56066 - "GET /api/cineboard/daily HTTP/1.1" 404 Not Found
+INFO:     10.64.130.173:53412 - "GET /api/cineboard/weekly HTTP/1.1" 404 Not Found
+INFO:     10.64.130.16:56066 - "GET /api/release-notes HTTP/1.1" 404 Not Found
+INFO:     10.64.130.16:56066 - "GET /api/cinema-news HTTP/1.1" 404 Not Found
+INFO:     10.64.130.16:56066 - "GET /api/leaderboard/local/Italy HTTP/1.1" 404 Not Found
+INFO:     10.64.130.16:56066 - "GET /api/cineboard/tv-stations-daily HTTP/1.1" 404 Not Found
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.173:50196 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39602 - "GET /api/cinema-news HTTP/1.1" 404 Not Found
+INFO:     10.64.130.173:50196 - "GET /api/cineboard/daily HTTP/1.1" 404 Not Found
+INFO:     10.64.130.16:39602 - "GET /api/release-notes HTTP/1.1" 404 Not Found
+[STARTUP] Build dir: /app/frontend/build
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.173:54674 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.130.173:54674 - "GET /api/cineboard/daily HTTP/1.1" 500 Internal Server Error
+INFO:     10.64.130.173:54684 - "GET /api/cinema-news HTTP/1.1" 200 OK
+INFO:     10.64.130.16:47566 - "GET /api/release-notes HTTP/1.1" 200 OK
+[STARTUP] Build dir: /app/frontend/build
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.16:35566 - "POST /api/auth/login HTTP/1.1" 200 OK
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.16:56858 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.130.16:56858 - "GET /api/cineboard/daily HTTP/1.1" 200 OK
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.64.130.16:40138 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.130.16:40138 - "GET /api/cineboard/daily HTTP/1.1" 200 OK
+INFO:     10.64.130.173:52338 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+INFO:     10.64.130.16:55520 - "POST /api/activity/heartbeat HTTP/1.1" 200 OK
+INFO:     10.64.130.16:55526 - "GET /api/coming-soon HTTP/1.1" 200 OK
+INFO:     10.64.130.173:52342 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.16:55516 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.173:46100 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39566 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39560 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:39476 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:46046 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39764 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39758 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.16:39742 - "GET /api/coming-soon HTTP/1.1" 200 OK
+INFO:     10.64.130.173:46066 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+INFO:     10.64.130.173:46060 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.173:43584 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:54278 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:54266 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.16:58364 - "GET /api/velion/player-status?page=%2Fdashboard&idle_minutes=21 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:43080 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:59942 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.173:48910 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+INFO:     10.64.130.16:59926 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:59934 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.173:48904 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:48908 - "GET /api/coming-soon HTTP/1.1" 200 OK
+INFO:     10.64.130.173:37028 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:34786 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:34788 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.16:52892 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.16:58924 - "GET /api/users/online HTTP/1.1" 200 OK
+INFO:     10.64.130.16:58940 - "GET /api/festivals/notifications?timezone=Europe/Rome&language=it HTTP/1.1" 200 OK
+INFO:     10.64.130.16:58954 - "GET /api/notifications/popup HTTP/1.1" 200 OK
+INFO:     10.64.130.173:60548 - "GET /api/users/all-players HTTP/1.1" 200 OK
+INFO:     10.64.130.173:60538 - "GET /api/notifications?limit=20 HTTP/1.1" 200 OK
+INFO:     10.64.130.173:60558 - "GET /api/coming-soon HTTP/1.1" 200 OK
+[STARTUP] Build dir: /app/frontend/build or execute the curl command again while checking logs to get the python Traceback.
+    2. Identify which variable or function is missing (e.g., a constant, helper function, or imported module from  or ).
+    3. Import or define the missing dependency in .
+    4. Re-test  and the other dashboard endpoints to ensure stability.</analysis>

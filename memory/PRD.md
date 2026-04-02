@@ -41,14 +41,17 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - **MODULARIZATION Step 7 (AI/Poster/Trailer)**: Moved 15 route decorators (14 endpoint functions) + 1 background task from server.py → routes/ai.py (new, 1054 lines). Includes: /ai/screenplay, /ai/poster/start, /ai/poster/status/{task_id}, /ai/poster, /ai/translate, /ai/soundtrack-description, /ai/generate-trailer, /ai/trailer-cost, /trailers/{film_id}.mp4, /films/{film_id}/trailer-status, /films/{film_id}/reset-trailer, /films/{film_id}/poster, /series/{series_id}/generate-poster, /anime/{series_id}/generate-poster, /films/{film_id}/regenerate-poster. Also moved: ScreenplayRequest, PosterRequest, TranslationRequest, SoundtrackRequest, TrailerRequest models + POSTER_GENRE_THEMES, POSTER_DEFAULT_THEMES, POSTER_PATTERNS, GENRE_POSTER_IMAGES constants + _overlay_poster_text(), _generate_fallback_poster(), generate_trailer_task_sora2() helpers + poster_tasks dict. EMERGENT_LLM_KEY properly ported. Old code commented out. server.py: 19589→18592 lines. Also fixed pre-existing bug: added `from game_state import online_users` import in server.py.
 - **MODULARIZATION Step 9 (Economy/Revenue)**: Moved 13 endpoints from server.py → routes/economy.py (new, 1015 lines). Includes: /stats/detailed, /statistics/global, /statistics/my, /dashboard/batch, /revenue/pending-all, /revenue/collect-all, /films/{film_id}/hourly-revenue, /films/{film_id}/process-hourly-revenue, /films/process-all-hourly, /player/rating-stats, /catchup/process, /activity/heartbeat, /admin/add-cinepass. Dependencies imported from game_systems. Old code commented out. server.py now ~18594 lines.
 
+- **MODULARIZATION Step 10 (Dashboard/Stats)**: Moved 20 endpoints from server.py → routes/dashboard.py (new, 1771 lines). Includes: /cineboard/attendance, /cinema-news, /discovered-stars, /journal/virtual-reviews, /journal/other-news, /release-notes (GET), /release-notes (POST creator), /release-notes/unread-count, /release-notes/mark-read, /admin/release-notes (POST), /leaderboard/local/{country}, /cineboard/now-playing, /cineboard/hall-of-fame, /cineboard/daily, /cineboard/weekly, /cineboard/series-weekly, /cineboard/anime-weekly, /cineboard/tv-stations-alltime, /cineboard/tv-stations-weekly, /cineboard/tv-stations-daily. Also moved: RELEASE_NOTES data, DEFAULT_SYSTEM_NOTES, TTLCache class, calculate_cineboard_score(), NewReleaseNote model, initialize_release_notes(), initialize_system_notes(). Old code commented out. 18/20 endpoints return 200 OK; 2 (now-playing, hall-of-fame) are slow due to pre-existing heavy MongoDB queries (not a regression). (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
 
 ## Upcoming (P1)
-- Modularizzazione server.py — prossimi gruppi (dopo conferma utente per ogni step)
+- Modularizzazione server.py — Step 11+ (attendere indicazioni utente per il prossimo gruppo)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
+- Performance: ottimizzare query MongoDB per cineboard/now-playing e hall-of-fame (60-90s)
 
 ## Backlog (P2+)
 - Contest Page mobile layout (broken, recurrence 14+)

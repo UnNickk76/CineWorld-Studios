@@ -104,6 +104,7 @@ from routes.major import router as major_router
 from routes.emerging_screenplays import router as emerging_screenplays_router
 from routes.emerging_screenplays import expire_old_screenplays
 from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
+from routes.la_prima import router as la_prima_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -16873,6 +16874,7 @@ app.include_router(coming_soon_router, prefix="/api")
 app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
 app.include_router(sponsors_router, prefix="/api")
+app.include_router(la_prima_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

@@ -251,6 +251,10 @@ async def process_shooting_progress():
     try:
         shooting_films = await db.films.find({'status': 'shooting'}, {'_id': 0}).to_list(500)
         for film in shooting_films:
+            # Guard: skip films that already changed status (defensive)
+            if film.get('status') != 'shooting':
+                logger.warning(f"[PIPELINE] Skipping film '{film.get('title')}' id={film.get('id')} — status is '{film.get('status')}', expected 'shooting'")
+                continue
             days_completed = film.get('shooting_days_completed', 0) + 1
             days_total = film.get('shooting_days', 1)
 
@@ -292,7 +296,12 @@ async def process_shooting_progress():
                 update_data['shooting_ended_early'] = False
                 logger.info(f"Film '{film.get('title')}' shooting complete: {new_quality:.0f}% quality (+{accumulated}% bonus)")
 
-            await db.films.update_one({'id': film['id']}, {'$set': update_data})
+            await db.films.update_one(
+                {'id': film['id'], 'status': 'shooting'},
+                {'$set': update_data}
+            )
+            if days_completed >= days_total:
+                logger.info(f"[PIPELINE] Film '{film.get('title')}' id={film.get('id')}: shooting -> ready_to_release")
 
         logger.info(f"Shooting progress: processed {len(shooting_films)} films")
     except Exception as e:
@@ -644,6 +653,7 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     film['is_masterpiece'] = (qs >= 85 and imdb >= 7.0)
 
     await db.films.insert_one(film)
+    logger.info(f"[FILM CREATE] id={film['id']} title='{film.get('title')}' status={film.get('status')} quality={film.get('quality_score', 0):.0f}%")
 
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue
     await db.users.update_one(
@@ -679,7 +689,7 @@ async def get_my_films(user: dict = Depends(get_current_user)):
         'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
         'opening_day_revenue': 1, 'last_revenue_collected': 1
     }
-    films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
+    films = await db.films.find({'user_id': user['id'], 'status': {'$ne': 'deleted'}}, list_fields).sort('created_at', -1).to_list(100)
     return films
 
 
@@ -713,6 +723,7 @@ async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dic
 
     max_bonus = SHOOTING_BONUS_CURVE.get(req.shooting_days, 10)
     now = datetime.now(timezone.utc).isoformat()
+    logger.info(f"[FILM SHOOTING] id={film_id} title='{film.get('title')}' status_before={film.get('status')} -> shooting days={req.shooting_days}")
     await db.films.update_one({'id': film_id}, {'$set': {
         'status': 'shooting',
         'shooting_days': req.shooting_days,
@@ -920,6 +931,7 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
         release_update['quality_score'] = effective_quality
         release_update['imdb_rating'] = round(max(1.0, min(10.0, effective_quality / 10)), 1)
         release_update['direct_release'] = True
+    logger.info(f"[FILM RELEASE] id={film_id} title='{film.get('title')}' status_before={film.get('status')} -> in_theaters zone={zone}")
     await db.films.update_one({'id': film_id}, {'$set': release_update})
 
     quality_score = film.get('quality_score', 50)
@@ -1089,7 +1101,7 @@ async def get_cinema_journal(
     skip = (page - 1) * limit
 
     recent_trailers = await db.films.find(
-        {'trailer_url': {'$exists': True, '$ne': None}},
+        {'trailer_url': {'$exists': True, '$ne': None}, 'status': {'$ne': 'deleted'}},
         {'_id': 0}
     ).sort('trailer_generated_at', -1).limit(5).to_list(5)
 
@@ -1098,7 +1110,7 @@ async def get_cinema_journal(
         trailer_film['owner'] = owner
 
     films = await db.films.find(
-        {'user_id': {'$exists': True, '$ne': None}},
+        {'user_id': {'$exists': True, '$ne': None}, 'status': {'$ne': 'deleted'}},
         {'_id': 0, 'attendance_history': 0}
     ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
 
@@ -1333,7 +1345,7 @@ async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_u
 
 @router.get("/films/{film_id}")
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
+    film = await db.films.find_one({'id': film_id, 'status': {'$ne': 'deleted'}}, {'_id': 0})
     if not film:
         film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
         if film:

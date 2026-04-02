@@ -57,6 +57,8 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
 
+- **BUGFIX Pipeline + Data Integrity (Step 15.5)**: (1) Screenplay: confermato che NON si perde — tutti gli update usano `$set`. (2) Pipeline: aggiunto guard atomico in `process_shooting_progress` (`update_one` con filtro `status: 'shooting'`) + skip per film con status cambiato. (3) Elementi fantasma: aggiunto filtro `status != 'deleted'` su `GET /films/{id}`, `/films/my`, `/films/cinema-journal`. (4) Debug: aggiunto log `[FILM CREATE]`, `[FILM SHOOTING]`, `[FILM RELEASE]`, `[PIPELINE]` con id+status per tracciamento. (2026-04-02)
+
 ## Upcoming (P1)
 - Modularizzazione server.py — Step 16+ (attendere indicazioni utente per il prossimo gruppo)
 - Sistema "Previsioni Festival"

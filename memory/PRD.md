@@ -43,6 +43,8 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 - **MODULARIZATION Step 10 (Dashboard/Stats)**: Moved 20 endpoints from server.py → routes/dashboard.py (new, 1771 lines). Includes: /cineboard/attendance, /cinema-news, /discovered-stars, /journal/virtual-reviews, /journal/other-news, /release-notes (GET), /release-notes (POST creator), /release-notes/unread-count, /release-notes/mark-read, /admin/release-notes (POST), /leaderboard/local/{country}, /cineboard/now-playing, /cineboard/hall-of-fame, /cineboard/daily, /cineboard/weekly, /cineboard/series-weekly, /cineboard/anime-weekly, /cineboard/tv-stations-alltime, /cineboard/tv-stations-weekly, /cineboard/tv-stations-daily. Also moved: RELEASE_NOTES data, DEFAULT_SYSTEM_NOTES, TTLCache class, calculate_cineboard_score(), NewReleaseNote model, initialize_release_notes(), initialize_system_notes(). Old code commented out. 18/20 endpoints return 200 OK; 2 (now-playing, hall-of-fame) are slow due to pre-existing heavy MongoDB queries (not a regression). (2026-04-02)
 
+- **PERFORMANCE FIX (CineBoard)**: Ottimizzati `cineboard/now-playing` e `cineboard/hall-of-fame` in `routes/dashboard.py`. Aggiunta projection mirata (esclusi `daily_revenues` 63KB, `attendance_history` 21KB, `cast`, `screenplay`, `ai_interactions`, `hourly_revenues`, `cinema_distribution` per film). Rimosso `liked_by` dalla projection principale, sostituito con query parallela via `asyncio.gather`. Aggiunta cache TTL 60s per hall-of-fame. Aggiunti indici MongoDB `(status, cineboard_score)` e `liked_by`. Rimosso dead code (codice duplicato) alla fine di dashboard.py. **now-playing: 65.5s → 1.2s (53x)**, **hall-of-fame: 101.6s → 1.2s (85x)**. (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
@@ -51,7 +53,6 @@ These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Modularizzazione server.py — Step 11+ (attendere indicazioni utente per il prossimo gruppo)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
-- Performance: ottimizzare query MongoDB per cineboard/now-playing e hall-of-fame (60-90s)
 
 ## Backlog (P2+)
 - Contest Page mobile layout (broken, recurrence 14+)

@@ -10971,6 +10971,8 @@ async def startup_event():
         await db.films.create_index('user_id')
         await db.films.create_index('status')
         await db.films.create_index([('status', 1), ('quality', -1)])
+        await db.films.create_index([('status', 1), ('cineboard_score', -1)])
+        await db.films.create_index('liked_by')
         await db.people.create_index('role_type')
         await db.people.create_index('id', unique=True)
         await db.users.create_index('id', unique=True)

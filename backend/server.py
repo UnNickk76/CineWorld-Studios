@@ -103,6 +103,10 @@ from routes.coming_soon import router as coming_soon_router
 from routes.major import router as major_router
 from routes.emerging_screenplays import router as emerging_screenplays_router
 from routes.emerging_screenplays import expire_old_screenplays
+from routes.films import router as films_router
+from routes.films import process_shooting_progress as _films_process_shooting
+from routes.film_engagement import router as film_engagement_router
+from routes.production_studio import router as production_studio_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -2307,226 +2311,226 @@ class NotificationMarkReadRequest(BaseModel):
 # [MOVED] 
 # ==================== FILM ONE-TIME ACTIONS ====================
 
-@api_router.get("/films/{film_id}/actions")
-async def get_film_actions(film_id: str, user: dict = Depends(get_current_user)):
-    """Get the status of one-time actions for a film."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'trailer_error': 1, 'trailer_generating': 1, 'user_id': 1})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/actions")
+# [MOVED] async def get_film_actions(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get the status of one-time actions for a film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0, 'actions_performed': 1, 'trailer_url': 1, 'trailer_error': 1, 'trailer_generating': 1, 'user_id': 1})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    is_owner = film.get('user_id') == user['id']
-    actions_performed = film.get('actions_performed', {})
+# [MOVED]     is_owner = film.get('user_id') == user['id']
+# [MOVED]     actions_performed = film.get('actions_performed', {})
     
-    # Trailer is available if: owner AND (no trailer OR there was an error) AND not currently generating
-    has_trailer = bool(film.get('trailer_url'))
-    has_error = bool(film.get('trailer_error'))
-    is_generating = bool(film.get('trailer_generating'))
-    trailer_available = is_owner and (not has_trailer or has_error) and not is_generating
+# [MOVED]     # Trailer is available if: owner AND (no trailer OR there was an error) AND not currently generating
+# [MOVED]     has_trailer = bool(film.get('trailer_url'))
+# [MOVED]     has_error = bool(film.get('trailer_error'))
+# [MOVED]     is_generating = bool(film.get('trailer_generating'))
+# [MOVED]     trailer_available = is_owner and (not has_trailer or has_error) and not is_generating
     
-    return {
-        'film_id': film_id,
-        'is_owner': is_owner,
-        'actions': {
-            'create_star': {
-                'performed': actions_performed.get('create_star', False),
-                'performed_at': actions_performed.get('create_star_at'),
-                'available': is_owner and not actions_performed.get('create_star', False)
-            },
-            'skill_boost': {
-                'performed': actions_performed.get('skill_boost', False),
-                'performed_at': actions_performed.get('skill_boost_at'),
-                'available': is_owner and not actions_performed.get('skill_boost', False)
-            },
-            'generate_trailer': {
-                'performed': bool(film.get('trailer_url')) and not film.get('trailer_error'),
-                'trailer_url': film.get('trailer_url'),
-                'trailer_error': film.get('trailer_error'),
-                'generating': film.get('trailer_generating', False),
-                'available': trailer_available
-            }
-        }
-    }
+# [MOVED]     return {
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'is_owner': is_owner,
+# [MOVED]         'actions': {
+# [MOVED]             'create_star': {
+# [MOVED]                 'performed': actions_performed.get('create_star', False),
+# [MOVED]                 'performed_at': actions_performed.get('create_star_at'),
+# [MOVED]                 'available': is_owner and not actions_performed.get('create_star', False)
+# [MOVED]             },
+# [MOVED]             'skill_boost': {
+# [MOVED]                 'performed': actions_performed.get('skill_boost', False),
+# [MOVED]                 'performed_at': actions_performed.get('skill_boost_at'),
+# [MOVED]                 'available': is_owner and not actions_performed.get('skill_boost', False)
+# [MOVED]             },
+# [MOVED]             'generate_trailer': {
+# [MOVED]                 'performed': bool(film.get('trailer_url')) and not film.get('trailer_error'),
+# [MOVED]                 'trailer_url': film.get('trailer_url'),
+# [MOVED]                 'trailer_error': film.get('trailer_error'),
+# [MOVED]                 'generating': film.get('trailer_generating', False),
+# [MOVED]                 'available': trailer_available
+# [MOVED]             }
+# [MOVED]         }
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/action/create-star")
-async def perform_create_star_action(film_id: str, actor_id: str = Query(...), user: dict = Depends(get_current_user)):
-    """Promote an actor from this film to star status. Can only be done once per film."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+# [MOVED] @api_router.post("/films/{film_id}/action/create-star")
+# [MOVED] async def perform_create_star_action(film_id: str, actor_id: str = Query(...), user: dict = Depends(get_current_user)):
+# [MOVED]     """Promote an actor from this film to star status. Can only be done once per film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
-    # Check if action already performed
-    actions_performed = film.get('actions_performed', {})
-    if actions_performed.get('create_star'):
-        raise HTTPException(status_code=400, detail="Create Star action already used for this film")
+# [MOVED]     # Check if action already performed
+# [MOVED]     actions_performed = film.get('actions_performed', {})
+# [MOVED]     if actions_performed.get('create_star'):
+# [MOVED]         raise HTTPException(status_code=400, detail="Create Star action already used for this film")
     
-    # Find the actor in the film's cast
-    actor_in_film = None
-    for actor in film.get('cast', []):
-        if actor.get('actor_id') == actor_id or actor.get('id') == actor_id:
-            actor_in_film = actor
-            break
+# [MOVED]     # Find the actor in the film's cast
+# [MOVED]     actor_in_film = None
+# [MOVED]     for actor in film.get('cast', []):
+# [MOVED]         if actor.get('actor_id') == actor_id or actor.get('id') == actor_id:
+# [MOVED]             actor_in_film = actor
+# [MOVED]             break
     
-    if not actor_in_film:
-        raise HTTPException(status_code=404, detail="Actor not found in this film's cast")
+# [MOVED]     if not actor_in_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Actor not found in this film's cast")
     
-    # Get actor from DB
-    actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
-    if not actor:
-        raise HTTPException(status_code=404, detail="Attore non trovato")
+# [MOVED]     # Get actor from DB
+# [MOVED]     actor = await db.people.find_one({'id': actor_id}, {'_id': 0})
+# [MOVED]     if not actor:
+# [MOVED]         raise HTTPException(status_code=404, detail="Attore non trovato")
     
-    # Promote to star
-    await db.people.update_one(
-        {'id': actor_id},
-        {
-            '$set': {
-                'is_discovered_star': True,
-                'discovered_by': user['id'],
-                'discovered_at': datetime.now(timezone.utc).isoformat(),
-                'fame_category': 'famous',
-                'category': 'star'
-            },
-            '$inc': {'fame_score': 30}
-        }
-    )
+# [MOVED]     # Promote to star
+# [MOVED]     await db.people.update_one(
+# [MOVED]         {'id': actor_id},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'is_discovered_star': True,
+# [MOVED]                 'discovered_by': user['id'],
+# [MOVED]                 'discovered_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]                 'fame_category': 'famous',
+# [MOVED]                 'category': 'star'
+# [MOVED]             },
+# [MOVED]             '$inc': {'fame_score': 30}
+# [MOVED]         }
+# [MOVED]     )
     
-    # Mark action as performed
-    await db.films.update_one(
-        {'id': film_id},
-        {
-            '$set': {
-                'actions_performed.create_star': True,
-                'actions_performed.create_star_at': datetime.now(timezone.utc).isoformat(),
-                'actions_performed.create_star_actor_id': actor_id
-            }
-        }
-    )
+# [MOVED]     # Mark action as performed
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'actions_performed.create_star': True,
+# [MOVED]                 'actions_performed.create_star_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]                 'actions_performed.create_star_actor_id': actor_id
+# [MOVED]             }
+# [MOVED]         }
+# [MOVED]     )
     
-    # Award XP to user
-    await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 500, 'fame': 10}})
+# [MOVED]     # Award XP to user
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'total_xp': 500, 'fame': 10}})
     
-    return {
-        'success': True,
-        'message': f"{actor.get('name')} is now a star!",
-        'actor_name': actor.get('name'),
-        'new_category': 'star'
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f"{actor.get('name')} is now a star!",
+# [MOVED]         'actor_name': actor.get('name'),
+# [MOVED]         'new_category': 'star'
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/action/skill-boost")
-async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_current_user)):
-    """Boost skills of all cast members in this film. Can only be done once per film."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+# [MOVED] @api_router.post("/films/{film_id}/action/skill-boost")
+# [MOVED] async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Boost skills of all cast members in this film. Can only be done once per film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
-    # Check if action already performed
-    actions_performed = film.get('actions_performed', {})
-    if actions_performed.get('skill_boost'):
-        raise HTTPException(status_code=400, detail="Skill Boost action already used for this film")
+# [MOVED]     # Check if action already performed
+# [MOVED]     actions_performed = film.get('actions_performed', {})
+# [MOVED]     if actions_performed.get('skill_boost'):
+# [MOVED]         raise HTTPException(status_code=400, detail="Skill Boost action already used for this film")
     
-    boosted_cast = []
+# [MOVED]     boosted_cast = []
     
-    # Boost actors
-    for actor in film.get('cast', []):
-        actor_id = actor.get('actor_id') or actor.get('id')
-        if actor_id:
-            actor_doc = await db.people.find_one({'id': actor_id}, {'_id': 0, 'skills': 1, 'name': 1})
-            if actor_doc and actor_doc.get('skills'):
-                # Boost random skill by 1-2 points
-                skill_keys = list(actor_doc['skills'].keys())
-                if skill_keys:
-                    skill_to_boost = random.choice(skill_keys)
-                    boost_amount = random.randint(1, 2)
-                    new_value = min(10, actor_doc['skills'][skill_to_boost] + boost_amount)
-                    await db.people.update_one(
-                        {'id': actor_id},
-                        {'$set': {f'skills.{skill_to_boost}': new_value}}
-                    )
-                    boosted_cast.append({
-                        'name': actor_doc.get('name'),
-                        'type': 'actor',
-                        'skill': skill_to_boost,
-                        'boost': boost_amount
-                    })
+# [MOVED]     # Boost actors
+# [MOVED]     for actor in film.get('cast', []):
+# [MOVED]         actor_id = actor.get('actor_id') or actor.get('id')
+# [MOVED]         if actor_id:
+# [MOVED]             actor_doc = await db.people.find_one({'id': actor_id}, {'_id': 0, 'skills': 1, 'name': 1})
+# [MOVED]             if actor_doc and actor_doc.get('skills'):
+# [MOVED]                 # Boost random skill by 1-2 points
+# [MOVED]                 skill_keys = list(actor_doc['skills'].keys())
+# [MOVED]                 if skill_keys:
+# [MOVED]                     skill_to_boost = random.choice(skill_keys)
+# [MOVED]                     boost_amount = random.randint(1, 2)
+# [MOVED]                     new_value = min(10, actor_doc['skills'][skill_to_boost] + boost_amount)
+# [MOVED]                     await db.people.update_one(
+# [MOVED]                         {'id': actor_id},
+# [MOVED]                         {'$set': {f'skills.{skill_to_boost}': new_value}}
+# [MOVED]                     )
+# [MOVED]                     boosted_cast.append({
+# [MOVED]                         'name': actor_doc.get('name'),
+# [MOVED]                         'type': 'actor',
+# [MOVED]                         'skill': skill_to_boost,
+# [MOVED]                         'boost': boost_amount
+# [MOVED]                     })
     
-    # Boost director
-    director = film.get('director', {})
-    if director.get('id'):
-        dir_doc = await db.people.find_one({'id': director['id']}, {'_id': 0, 'skills': 1, 'name': 1})
-        if dir_doc and dir_doc.get('skills'):
-            skill_keys = list(dir_doc['skills'].keys())
-            if skill_keys:
-                skill_to_boost = random.choice(skill_keys)
-                boost_amount = random.randint(1, 2)
-                new_value = min(10, dir_doc['skills'][skill_to_boost] + boost_amount)
-                await db.people.update_one(
-                    {'id': director['id']},
-                    {'$set': {f'skills.{skill_to_boost}': new_value}}
-                )
-                boosted_cast.append({
-                    'name': dir_doc.get('name'),
-                    'type': 'director',
-                    'skill': skill_to_boost,
-                    'boost': boost_amount
-                })
+# [MOVED]     # Boost director
+# [MOVED]     director = film.get('director', {})
+# [MOVED]     if director.get('id'):
+# [MOVED]         dir_doc = await db.people.find_one({'id': director['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+# [MOVED]         if dir_doc and dir_doc.get('skills'):
+# [MOVED]             skill_keys = list(dir_doc['skills'].keys())
+# [MOVED]             if skill_keys:
+# [MOVED]                 skill_to_boost = random.choice(skill_keys)
+# [MOVED]                 boost_amount = random.randint(1, 2)
+# [MOVED]                 new_value = min(10, dir_doc['skills'][skill_to_boost] + boost_amount)
+# [MOVED]                 await db.people.update_one(
+# [MOVED]                     {'id': director['id']},
+# [MOVED]                     {'$set': {f'skills.{skill_to_boost}': new_value}}
+# [MOVED]                 )
+# [MOVED]                 boosted_cast.append({
+# [MOVED]                     'name': dir_doc.get('name'),
+# [MOVED]                     'type': 'director',
+# [MOVED]                     'skill': skill_to_boost,
+# [MOVED]                     'boost': boost_amount
+# [MOVED]                 })
     
-    # Boost screenwriter
-    sw = film.get('screenwriter', {})
-    if sw.get('id'):
-        sw_doc = await db.people.find_one({'id': sw['id']}, {'_id': 0, 'skills': 1, 'name': 1})
-        if sw_doc and sw_doc.get('skills'):
-            skill_keys = list(sw_doc['skills'].keys())
-            if skill_keys:
-                skill_to_boost = random.choice(skill_keys)
-                boost_amount = random.randint(1, 2)
-                new_value = min(10, sw_doc['skills'][skill_to_boost] + boost_amount)
-                await db.people.update_one(
-                    {'id': sw['id']},
-                    {'$set': {f'skills.{skill_to_boost}': new_value}}
-                )
-                boosted_cast.append({
-                    'name': sw_doc.get('name'),
-                    'type': 'screenwriter',
-                    'skill': skill_to_boost,
-                    'boost': boost_amount
-                })
+# [MOVED]     # Boost screenwriter
+# [MOVED]     sw = film.get('screenwriter', {})
+# [MOVED]     if sw.get('id'):
+# [MOVED]         sw_doc = await db.people.find_one({'id': sw['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+# [MOVED]         if sw_doc and sw_doc.get('skills'):
+# [MOVED]             skill_keys = list(sw_doc['skills'].keys())
+# [MOVED]             if skill_keys:
+# [MOVED]                 skill_to_boost = random.choice(skill_keys)
+# [MOVED]                 boost_amount = random.randint(1, 2)
+# [MOVED]                 new_value = min(10, sw_doc['skills'][skill_to_boost] + boost_amount)
+# [MOVED]                 await db.people.update_one(
+# [MOVED]                     {'id': sw['id']},
+# [MOVED]                     {'$set': {f'skills.{skill_to_boost}': new_value}}
+# [MOVED]                 )
+# [MOVED]                 boosted_cast.append({
+# [MOVED]                     'name': sw_doc.get('name'),
+# [MOVED]                     'type': 'screenwriter',
+# [MOVED]                     'skill': skill_to_boost,
+# [MOVED]                     'boost': boost_amount
+# [MOVED]                 })
     
-    # Boost composer
-    comp = film.get('composer', {})
-    if comp.get('id'):
-        comp_doc = await db.people.find_one({'id': comp['id']}, {'_id': 0, 'skills': 1, 'name': 1})
-        if comp_doc and comp_doc.get('skills'):
-            skill_keys = list(comp_doc['skills'].keys())
-            if skill_keys:
-                skill_to_boost = random.choice(skill_keys)
-                boost_amount = random.randint(1, 2)
-                new_value = min(10, comp_doc['skills'][skill_to_boost] + boost_amount)
-                await db.people.update_one(
-                    {'id': comp['id']},
-                    {'$set': {f'skills.{skill_to_boost}': new_value}}
-                )
-                boosted_cast.append({
-                    'name': comp_doc.get('name'),
-                    'type': 'composer',
-                    'skill': skill_to_boost,
-                    'boost': boost_amount
-                })
+# [MOVED]     # Boost composer
+# [MOVED]     comp = film.get('composer', {})
+# [MOVED]     if comp.get('id'):
+# [MOVED]         comp_doc = await db.people.find_one({'id': comp['id']}, {'_id': 0, 'skills': 1, 'name': 1})
+# [MOVED]         if comp_doc and comp_doc.get('skills'):
+# [MOVED]             skill_keys = list(comp_doc['skills'].keys())
+# [MOVED]             if skill_keys:
+# [MOVED]                 skill_to_boost = random.choice(skill_keys)
+# [MOVED]                 boost_amount = random.randint(1, 2)
+# [MOVED]                 new_value = min(10, comp_doc['skills'][skill_to_boost] + boost_amount)
+# [MOVED]                 await db.people.update_one(
+# [MOVED]                     {'id': comp['id']},
+# [MOVED]                     {'$set': {f'skills.{skill_to_boost}': new_value}}
+# [MOVED]                 )
+# [MOVED]                 boosted_cast.append({
+# [MOVED]                     'name': comp_doc.get('name'),
+# [MOVED]                     'type': 'composer',
+# [MOVED]                     'skill': skill_to_boost,
+# [MOVED]                     'boost': boost_amount
+# [MOVED]                 })
     
-    # Mark action as performed
-    await db.films.update_one(
-        {'id': film_id},
-        {
-            '$set': {
-                'actions_performed.skill_boost': True,
-                'actions_performed.skill_boost_at': datetime.now(timezone.utc).isoformat()
-            }
-        }
-    )
+# [MOVED]     # Mark action as performed
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'actions_performed.skill_boost': True,
+# [MOVED]                 'actions_performed.skill_boost_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             }
+# [MOVED]         }
+# [MOVED]     )
     
-    return {
-        'success': True,
-        'message': f"Boosted skills for {len(boosted_cast)} cast members!",
-        'boosted_cast': boosted_cast
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f"Boosted skills for {len(boosted_cast)} cast members!",
+# [MOVED]         'boosted_cast': boosted_cast
+# [MOVED]     }
 
 
 # [MOVED TO routes/film_pipeline.py] Film Drafts & Pre-Films (16 endpoints)
@@ -3351,485 +3355,485 @@ async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_curr
 
 
 # Film Management
-@api_router.post("/films", response_model=FilmResponse)
-async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
-    # Studio draft bonus tracking
-    studio_draft_bonus = 0
-    studio_draft_doc = None
-    if film_data.studio_draft_id:
-        studio_draft_doc = await db.studio_drafts.find_one(
-            {'id': film_data.studio_draft_id, 'user_id': user['id'], 'used': False}, {'_id': 0}
-        )
-        if studio_draft_doc:
-            studio_draft_bonus = studio_draft_doc.get('quality_bonus', 5)
-            # Mark draft as used
-            await db.studio_drafts.update_one(
-                {'id': film_data.studio_draft_id},
-                {'$set': {'used': True, 'used_at': datetime.now(timezone.utc).isoformat()}}
-            )
+# [MOVED] @api_router.post("/films", response_model=FilmResponse)
+# [MOVED] async def create_film(film_data: FilmCreate, user: dict = Depends(get_current_user)):
+# [MOVED]     # Studio draft bonus tracking
+# [MOVED]     studio_draft_bonus = 0
+# [MOVED]     studio_draft_doc = None
+# [MOVED]     if film_data.studio_draft_id:
+# [MOVED]         studio_draft_doc = await db.studio_drafts.find_one(
+# [MOVED]             {'id': film_data.studio_draft_id, 'user_id': user['id'], 'used': False}, {'_id': 0}
+# [MOVED]         )
+# [MOVED]         if studio_draft_doc:
+# [MOVED]             studio_draft_bonus = studio_draft_doc.get('quality_bonus', 5)
+# [MOVED]             # Mark draft as used
+# [MOVED]             await db.studio_drafts.update_one(
+# [MOVED]                 {'id': film_data.studio_draft_id},
+# [MOVED]                 {'$set': {'used': True, 'used_at': datetime.now(timezone.utc).isoformat()}}
+# [MOVED]             )
     
-    # CinePass check - skip if film comes from emerging screenplay or studio draft
-    if not film_data.emerging_screenplay_id and not studio_draft_doc:
-        await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
-    # Sequel validation: subtitle is required for sequels
-    if film_data.is_sequel:
-        if not film_data.subtitle:
-            raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
-        if not film_data.sequel_parent_id:
-            raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
+# [MOVED]     # CinePass check - skip if film comes from emerging screenplay or studio draft
+# [MOVED]     if not film_data.emerging_screenplay_id and not studio_draft_doc:
+# [MOVED]         await spend_cinepass(user['id'], CINEPASS_COSTS['create_film'], user.get('cinepass', 100))
+# [MOVED]     # Sequel validation: subtitle is required for sequels
+# [MOVED]     if film_data.is_sequel:
+# [MOVED]         if not film_data.subtitle:
+# [MOVED]             raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
+# [MOVED]         if not film_data.sequel_parent_id:
+# [MOVED]             raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
     
-    # If is_sequel, verify parent film exists and belongs to user
-    sequel_parent = None
-    sequel_number = 0
-    sequel_bonus_info = None
-    if film_data.is_sequel and film_data.sequel_parent_id:
-        sequel_parent = await db.films.find_one({'id': film_data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0})
-        if not sequel_parent:
-            raise HTTPException(status_code=404, detail="Parent film not found or not owned by you")
+# [MOVED]     # If is_sequel, verify parent film exists and belongs to user
+# [MOVED]     sequel_parent = None
+# [MOVED]     sequel_number = 0
+# [MOVED]     sequel_bonus_info = None
+# [MOVED]     if film_data.is_sequel and film_data.sequel_parent_id:
+# [MOVED]         sequel_parent = await db.films.find_one({'id': film_data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]         if not sequel_parent:
+# [MOVED]             raise HTTPException(status_code=404, detail="Parent film not found or not owned by you")
         
-        # Count existing sequels
-        existing_sequels = await db.films.count_documents({
-            'sequel_parent_id': film_data.sequel_parent_id,
-            'user_id': user['id']
-        })
-        sequel_number = existing_sequels + 2  # Parent is #1, first sequel is #2
+# [MOVED]         # Count existing sequels
+# [MOVED]         existing_sequels = await db.films.count_documents({
+# [MOVED]             'sequel_parent_id': film_data.sequel_parent_id,
+# [MOVED]             'user_id': user['id']
+# [MOVED]         })
+# [MOVED]         sequel_number = existing_sequels + 2  # Parent is #1, first sequel is #2
         
-        if sequel_number > 6:  # Max 5 sequels (6 total films in saga)
-            raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
+# [MOVED]         if sequel_number > 6:  # Max 5 sequels (6 total films in saga)
+# [MOVED]             raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
     
-    equipment = next((e for e in EQUIPMENT_PACKAGES if e['name'] == film_data.equipment_package), EQUIPMENT_PACKAGES[0])
-    location_costs = {}
-    total_location_cost = 0
-    for loc_name in film_data.locations:
-        loc = next((loc_item for loc_item in LOCATIONS if loc_item['name'] == loc_name), None)
-        if loc:
-            days = film_data.location_days.get(loc_name, 7)
-            cost = loc['cost_per_day'] * days
-            location_costs[loc_name] = cost
-            total_location_cost += cost
+# [MOVED]     equipment = next((e for e in EQUIPMENT_PACKAGES if e['name'] == film_data.equipment_package), EQUIPMENT_PACKAGES[0])
+# [MOVED]     location_costs = {}
+# [MOVED]     total_location_cost = 0
+# [MOVED]     for loc_name in film_data.locations:
+# [MOVED]         loc = next((loc_item for loc_item in LOCATIONS if loc_item['name'] == loc_name), None)
+# [MOVED]         if loc:
+# [MOVED]             days = film_data.location_days.get(loc_name, 7)
+# [MOVED]             cost = loc['cost_per_day'] * days
+# [MOVED]             location_costs[loc_name] = cost
+# [MOVED]             total_location_cost += cost
     
-    total_budget = equipment['cost'] + total_location_cost + film_data.extras_cost
+# [MOVED]     total_budget = equipment['cost'] + total_location_cost + film_data.extras_cost
     
-    sponsor_budget = 0
-    sponsor = None
-    if film_data.sponsor_id:
-        sponsor = next((s for s in SPONSORS if s['name'] == film_data.sponsor_id), None)
-        if sponsor:
-            sponsor_budget = sponsor['budget_offer']
+# [MOVED]     sponsor_budget = 0
+# [MOVED]     sponsor = None
+# [MOVED]     if film_data.sponsor_id:
+# [MOVED]         sponsor = next((s for s in SPONSORS if s['name'] == film_data.sponsor_id), None)
+# [MOVED]         if sponsor:
+# [MOVED]             sponsor_budget = sponsor['budget_offer']
     
-    available_funds = user['funds'] + sponsor_budget
-    if total_budget > available_funds:
-        raise HTTPException(status_code=400, detail="Fondi insufficienti")
+# [MOVED]     available_funds = user['funds'] + sponsor_budget
+# [MOVED]     if total_budget > available_funds:
+# [MOVED]         raise HTTPException(status_code=400, detail="Fondi insufficienti")
     
-    # === REWORKED QUALITY SYSTEM v3 - Balanced distribution ===
-    # Base quality starts at 42 - ensures average films for new players
-    base_quality = 42
+# [MOVED]     # === REWORKED QUALITY SYSTEM v3 - Balanced distribution ===
+# [MOVED]     # Base quality starts at 42 - ensures average films for new players
+# [MOVED]     base_quality = 42
     
-    # Equipment bonus (dampened: usually 2-8)
-    base_quality += equipment['quality_bonus'] * 0.65
+# [MOVED]     # Equipment bonus (dampened: usually 2-8)
+# [MOVED]     base_quality += equipment['quality_bonus'] * 0.65
     
-    # Director talent factor (0-10 based on fame)
-    director = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'fame': 1, 'avg_film_quality': 1})
-    if director:
-        director_bonus = min(10, (director.get('fame', 3) - 2) * 2.5)
-        base_quality += director_bonus
+# [MOVED]     # Director talent factor (0-10 based on fame)
+# [MOVED]     director = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'fame': 1, 'avg_film_quality': 1})
+# [MOVED]     if director:
+# [MOVED]         director_bonus = min(10, (director.get('fame', 3) - 2) * 2.5)
+# [MOVED]         base_quality += director_bonus
     
-    # Load cast members from DB for quality calculation
-    cast_members = []
-    for actor_info in film_data.actors:
-        actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'avg_film_quality': 1, 'fame': 1})
-        if actor_doc:
-            cast_members.append(actor_doc)
+# [MOVED]     # Load cast members from DB for quality calculation
+# [MOVED]     cast_members = []
+# [MOVED]     for actor_info in film_data.actors:
+# [MOVED]         actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'avg_film_quality': 1, 'fame': 1})
+# [MOVED]         if actor_doc:
+# [MOVED]             cast_members.append(actor_doc)
     
-    # Cast average quality influence (±8)
-    cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50
-    cast_influence = (cast_avg_quality - 45) / 6
-    base_quality += cast_influence
+# [MOVED]     # Cast average quality influence (±8)
+# [MOVED]     cast_avg_quality = sum(c.get('avg_film_quality', 50) for c in cast_members) / len(cast_members) if cast_members else 50
+# [MOVED]     cast_influence = (cast_avg_quality - 45) / 6
+# [MOVED]     base_quality += cast_influence
     
-    # Budget influence (max +6)
-    budget_millions = total_budget / 1000000
-    budget_bonus = min(6, budget_millions * 2)
-    base_quality += budget_bonus
+# [MOVED]     # Budget influence (max +6)
+# [MOVED]     budget_millions = total_budget / 1000000
+# [MOVED]     budget_bonus = min(6, budget_millions * 2)
+# [MOVED]     base_quality += budget_bonus
     
-    # Player experience bonus (0-7 based on level)
-    player_level = user.get('level', 1)
-    experience_bonus = min(7, player_level * 0.7)
-    base_quality += experience_bonus
+# [MOVED]     # Player experience bonus (0-7 based on level)
+# [MOVED]     player_level = user.get('level', 1)
+# [MOVED]     experience_bonus = min(7, player_level * 0.7)
+# [MOVED]     base_quality += experience_bonus
     
-    # === BALANCED RANDOM FACTOR ===
-    # Bell curve centered at 0 with std dev 12
-    random_roll = random.gauss(0, 12)
-    random_roll = max(-25, min(25, random_roll))
+# [MOVED]     # === BALANCED RANDOM FACTOR ===
+# [MOVED]     # Bell curve centered at 0 with std dev 12
+# [MOVED]     random_roll = random.gauss(0, 12)
+# [MOVED]     random_roll = max(-25, min(25, random_roll))
     
-    # "Bad day" factor: 8% chance of production problems
-    if random.random() < 0.08:
-        bad_day_penalty = random.uniform(-12, -4)
-        random_roll += bad_day_penalty
+# [MOVED]     # "Bad day" factor: 8% chance of production problems
+# [MOVED]     if random.random() < 0.08:
+# [MOVED]         bad_day_penalty = random.uniform(-12, -4)
+# [MOVED]         random_roll += bad_day_penalty
     
-    # "Magic" factor: 8% chance something amazing happens
-    if random.random() < 0.08:
-        magic_bonus = random.uniform(8, 18)
-        random_roll += magic_bonus
+# [MOVED]     # "Magic" factor: 8% chance something amazing happens
+# [MOVED]     if random.random() < 0.08:
+# [MOVED]         magic_bonus = random.uniform(8, 18)
+# [MOVED]         random_roll += magic_bonus
     
-    # Luck factor - balanced distribution
-    luck_factor = random.choice([-10, -5, -3, 0, 0, 0, 3, 5, 8, 12])
+# [MOVED]     # Luck factor - balanced distribution
+# [MOVED]     luck_factor = random.choice([-10, -5, -3, 0, 0, 0, 3, 5, 8, 12])
     
-    # Combine all factors
-    quality_score = base_quality + random_roll + luck_factor
+# [MOVED]     # Combine all factors
+# [MOVED]     quality_score = base_quality + random_roll + luck_factor
     
-    # Ensure quality is in valid range
-    quality_score = max(3, min(97, quality_score))
+# [MOVED]     # Ensure quality is in valid range
+# [MOVED]     quality_score = max(3, min(97, quality_score))
     
-    # Small bonus for creative long titles
-    if len(film_data.title) > 12:
-        quality_score += random.randint(0, 2)
+# [MOVED]     # Small bonus for creative long titles
+# [MOVED]     if len(film_data.title) > 12:
+# [MOVED]         quality_score += random.randint(0, 2)
     
-    # Studio draft quality bonus
-    if studio_draft_bonus > 0:
-        quality_score += studio_draft_bonus
+# [MOVED]     # Studio draft quality bonus
+# [MOVED]     if studio_draft_bonus > 0:
+# [MOVED]         quality_score += studio_draft_bonus
     
-    quality_score = max(3, min(100, quality_score))
+# [MOVED]     quality_score = max(3, min(100, quality_score))
     
-    # === TIER ASSIGNMENT based on quality ===
-    # Balanced distribution: rewards skill but allows flops
-    if quality_score >= 88:
-        film_tier = 'masterpiece'  # ~1-3% of films depending on player level
-    elif quality_score >= 75:
-        film_tier = 'excellent'    # ~3-11%
-    elif quality_score >= 62:
-        film_tier = 'good'         # ~5-22%
-    elif quality_score >= 48:
-        film_tier = 'average'      # ~16-28%
-    elif quality_score >= 35:
-        film_tier = 'mediocre'     # ~20-28%
-    elif quality_score >= 20:
-        film_tier = 'poor'         # ~11-29%
-    else:
-        film_tier = 'flop'         # ~3-22%
+# [MOVED]     # === TIER ASSIGNMENT based on quality ===
+# [MOVED]     # Balanced distribution: rewards skill but allows flops
+# [MOVED]     if quality_score >= 88:
+# [MOVED]         film_tier = 'masterpiece'  # ~1-3% of films depending on player level
+# [MOVED]     elif quality_score >= 75:
+# [MOVED]         film_tier = 'excellent'    # ~3-11%
+# [MOVED]     elif quality_score >= 62:
+# [MOVED]         film_tier = 'good'         # ~5-22%
+# [MOVED]     elif quality_score >= 48:
+# [MOVED]         film_tier = 'average'      # ~16-28%
+# [MOVED]     elif quality_score >= 35:
+# [MOVED]         film_tier = 'mediocre'     # ~20-28%
+# [MOVED]     elif quality_score >= 20:
+# [MOVED]         film_tier = 'poor'         # ~11-29%
+# [MOVED]     else:
+# [MOVED]         film_tier = 'flop'         # ~3-22%
     
-    # Calculate opening day revenue - Quality matters but with variance
-    base_revenue = 50000  # Base $50,000
-    quality_multiplier = (quality_score / 50) ** 2  # Exponential: quality 50 = 1x, 100 = 4x, 25 = 0.25x
-    random_factor = random.uniform(0.6, 1.4)  # ±40% variance
+# [MOVED]     # Calculate opening day revenue - Quality matters but with variance
+# [MOVED]     base_revenue = 50000  # Base $50,000
+# [MOVED]     quality_multiplier = (quality_score / 50) ** 2  # Exponential: quality 50 = 1x, 100 = 4x, 25 = 0.25x
+# [MOVED]     random_factor = random.uniform(0.6, 1.4)  # ±40% variance
     
-    # Tier influences opening - flops get negative buzz, masterpieces get hype
-    tier_multiplier = {
-        'masterpiece': 3.0,
-        'excellent': 2.2,
-        'good': 1.5,
-        'average': 1.0,
-        'mediocre': 0.6,
-        'poor': 0.3,
-        'flop': 0.15
-    }.get(film_tier, 1.0)
+# [MOVED]     # Tier influences opening - flops get negative buzz, masterpieces get hype
+# [MOVED]     tier_multiplier = {
+# [MOVED]         'masterpiece': 3.0,
+# [MOVED]         'excellent': 2.2,
+# [MOVED]         'good': 1.5,
+# [MOVED]         'average': 1.0,
+# [MOVED]         'mediocre': 0.6,
+# [MOVED]         'poor': 0.3,
+# [MOVED]         'flop': 0.15
+# [MOVED]     }.get(film_tier, 1.0)
     
-    opening_day_revenue = int(base_revenue * quality_multiplier * tier_multiplier * random_factor)
-    opening_day_revenue = max(5000, min(5000000, opening_day_revenue))  # $5k-$5M cap
+# [MOVED]     opening_day_revenue = int(base_revenue * quality_multiplier * tier_multiplier * random_factor)
+# [MOVED]     opening_day_revenue = max(5000, min(5000000, opening_day_revenue))  # $5k-$5M cap
     
-    # === SEQUEL BONUS/MALUS SYSTEM ===
-    # Sequels get bonus/malus based on parent film performance
-    sequel_bonus_info = None
-    if film_data.is_sequel and sequel_parent:
-        parent_quality = sequel_parent.get('quality_score', 50)
-        parent_revenue = sequel_parent.get('total_revenue', 0)
-        parent_tier = sequel_parent.get('film_tier', 'normal')
+# [MOVED]     # === SEQUEL BONUS/MALUS SYSTEM ===
+# [MOVED]     # Sequels get bonus/malus based on parent film performance
+# [MOVED]     sequel_bonus_info = None
+# [MOVED]     if film_data.is_sequel and sequel_parent:
+# [MOVED]         parent_quality = sequel_parent.get('quality_score', 50)
+# [MOVED]         parent_revenue = sequel_parent.get('total_revenue', 0)
+# [MOVED]         parent_tier = sequel_parent.get('film_tier', 'normal')
         
-        # Base sequel multiplier: depends on parent success
-        # Great parent film (quality > 75) = bonus
-        # Poor parent film (quality < 40) = malus
-        # Medium parent film = slight bonus for franchise loyalty
+# [MOVED]         # Base sequel multiplier: depends on parent success
+# [MOVED]         # Great parent film (quality > 75) = bonus
+# [MOVED]         # Poor parent film (quality < 40) = malus
+# [MOVED]         # Medium parent film = slight bonus for franchise loyalty
         
-        sequel_multiplier = 1.0
-        sequel_reason = ""
+# [MOVED]         sequel_multiplier = 1.0
+# [MOVED]         sequel_reason = ""
         
-        if parent_quality >= 85:
-            # Excellent parent film: fans excited for sequel
-            sequel_multiplier = 1.35 + (sequel_number * 0.02)  # +35% base + 2% per sequel
-            sequel_reason = "Fans eagerly awaited this sequel!"
-        elif parent_quality >= 70:
-            # Good parent film: solid anticipation
-            sequel_multiplier = 1.20 + (sequel_number * 0.01)
-            sequel_reason = "High expectations from fans"
-        elif parent_quality >= 55:
-            # Decent parent film: franchise loyalty boost
-            sequel_multiplier = 1.10
-            sequel_reason = "Franchise loyalty brings viewers"
-        elif parent_quality >= 40:
-            # Mediocre parent film: skeptical audience
-            sequel_multiplier = 0.95 - (sequel_number * 0.05)  # -5% base, worse with more sequels
-            sequel_reason = "Audiences skeptical after previous film"
-        else:
-            # Poor parent film: significant malus
-            sequel_multiplier = 0.70 - (sequel_number * 0.10)  # -30% base, -10% per sequel
-            sequel_reason = "Previous flop hurt franchise reputation"
+# [MOVED]         if parent_quality >= 85:
+# [MOVED]             # Excellent parent film: fans excited for sequel
+# [MOVED]             sequel_multiplier = 1.35 + (sequel_number * 0.02)  # +35% base + 2% per sequel
+# [MOVED]             sequel_reason = "Fans eagerly awaited this sequel!"
+# [MOVED]         elif parent_quality >= 70:
+# [MOVED]             # Good parent film: solid anticipation
+# [MOVED]             sequel_multiplier = 1.20 + (sequel_number * 0.01)
+# [MOVED]             sequel_reason = "High expectations from fans"
+# [MOVED]         elif parent_quality >= 55:
+# [MOVED]             # Decent parent film: franchise loyalty boost
+# [MOVED]             sequel_multiplier = 1.10
+# [MOVED]             sequel_reason = "Franchise loyalty brings viewers"
+# [MOVED]         elif parent_quality >= 40:
+# [MOVED]             # Mediocre parent film: skeptical audience
+# [MOVED]             sequel_multiplier = 0.95 - (sequel_number * 0.05)  # -5% base, worse with more sequels
+# [MOVED]             sequel_reason = "Audiences skeptical after previous film"
+# [MOVED]         else:
+# [MOVED]             # Poor parent film: significant malus
+# [MOVED]             sequel_multiplier = 0.70 - (sequel_number * 0.10)  # -30% base, -10% per sequel
+# [MOVED]             sequel_reason = "Previous flop hurt franchise reputation"
         
-        # Tier bonuses for sequel
-        tier_bonus = {
-            'masterpiece': 0.25,
-            'epic': 0.15,
-            'excellent': 0.10,
-            'promising': 0.05,
-            'normal': 0,
-            'possible_flop': -0.15
-        }.get(parent_tier, 0)
+# [MOVED]         # Tier bonuses for sequel
+# [MOVED]         tier_bonus = {
+# [MOVED]             'masterpiece': 0.25,
+# [MOVED]             'epic': 0.15,
+# [MOVED]             'excellent': 0.10,
+# [MOVED]             'promising': 0.05,
+# [MOVED]             'normal': 0,
+# [MOVED]             'possible_flop': -0.15
+# [MOVED]         }.get(parent_tier, 0)
         
-        sequel_multiplier += tier_bonus
+# [MOVED]         sequel_multiplier += tier_bonus
         
-        # Ensure multiplier is within bounds
-        sequel_multiplier = max(0.5, min(1.8, sequel_multiplier))
+# [MOVED]         # Ensure multiplier is within bounds
+# [MOVED]         sequel_multiplier = max(0.5, min(1.8, sequel_multiplier))
         
-        # Apply sequel multiplier to opening revenue
-        original_revenue = opening_day_revenue
-        opening_day_revenue = int(opening_day_revenue * sequel_multiplier)
+# [MOVED]         # Apply sequel multiplier to opening revenue
+# [MOVED]         original_revenue = opening_day_revenue
+# [MOVED]         opening_day_revenue = int(opening_day_revenue * sequel_multiplier)
         
-        sequel_bonus_info = {
-            'parent_title': sequel_parent.get('title', 'Unknown'),
-            'parent_quality': parent_quality,
-            'parent_tier': parent_tier,
-            'sequel_number': sequel_number,
-            'multiplier': sequel_multiplier,
-            'bonus_amount': opening_day_revenue - original_revenue,
-            'reason': sequel_reason
-        }
+# [MOVED]         sequel_bonus_info = {
+# [MOVED]             'parent_title': sequel_parent.get('title', 'Unknown'),
+# [MOVED]             'parent_quality': parent_quality,
+# [MOVED]             'parent_tier': parent_tier,
+# [MOVED]             'sequel_number': sequel_number,
+# [MOVED]             'multiplier': sequel_multiplier,
+# [MOVED]             'bonus_amount': opening_day_revenue - original_revenue,
+# [MOVED]             'reason': sequel_reason
+# [MOVED]         }
     
-    # Get director and screenwriter names to store with the film
-    director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
+# [MOVED]     # Get director and screenwriter names to store with the film
+# [MOVED]     director_doc = await db.people.find_one({'id': film_data.director_id}, {'_id': 0, 'name': 1})
     
-    # Support multiple screenwriters
-    sw_ids = film_data.screenwriter_ids if film_data.screenwriter_ids else ([film_data.screenwriter_id] if film_data.screenwriter_id else [])
-    screenwriters_list = []
-    for sw_id in sw_ids[:5]:  # Max 5
-        sw_doc = await db.people.find_one({'id': sw_id}, {'_id': 0, 'name': 1})
-        if sw_doc:
-            screenwriters_list.append({'id': sw_id, 'name': sw_doc.get('name', 'Unknown')})
+# [MOVED]     # Support multiple screenwriters
+# [MOVED]     sw_ids = film_data.screenwriter_ids if film_data.screenwriter_ids else ([film_data.screenwriter_id] if film_data.screenwriter_id else [])
+# [MOVED]     screenwriters_list = []
+# [MOVED]     for sw_id in sw_ids[:5]:  # Max 5
+# [MOVED]         sw_doc = await db.people.find_one({'id': sw_id}, {'_id': 0, 'name': 1})
+# [MOVED]         if sw_doc:
+# [MOVED]             screenwriters_list.append({'id': sw_id, 'name': sw_doc.get('name', 'Unknown')})
     
-    # Get composer if provided
-    composer_doc = None
-    soundtrack_rating = 0
-    if film_data.composer_id:
-        composer_doc = await db.people.find_one({'id': film_data.composer_id}, {'_id': 0, 'name': 1, 'fame': 1, 'imdb_rating': 1, 'skills': 1})
-        if composer_doc:
-            soundtrack_rating = composer_doc.get('imdb_rating', 0) or 0
-            # Soundtrack quality bonus: 25% weight on film quality
-            soundtrack_quality_factor = (soundtrack_rating / 100) * 25
-            quality_score = (quality_score * 0.75) + soundtrack_quality_factor
-            quality_score = max(3, min(100, quality_score))
+# [MOVED]     # Get composer if provided
+# [MOVED]     composer_doc = None
+# [MOVED]     soundtrack_rating = 0
+# [MOVED]     if film_data.composer_id:
+# [MOVED]         composer_doc = await db.people.find_one({'id': film_data.composer_id}, {'_id': 0, 'name': 1, 'fame': 1, 'imdb_rating': 1, 'skills': 1})
+# [MOVED]         if composer_doc:
+# [MOVED]             soundtrack_rating = composer_doc.get('imdb_rating', 0) or 0
+# [MOVED]             # Soundtrack quality bonus: 25% weight on film quality
+# [MOVED]             soundtrack_quality_factor = (soundtrack_rating / 100) * 25
+# [MOVED]             quality_score = (quality_score * 0.75) + soundtrack_quality_factor
+# [MOVED]             quality_score = max(3, min(100, quality_score))
             
-            # Recalculate tier with soundtrack influence
-            if quality_score >= 88: film_tier = 'masterpiece'
-            elif quality_score >= 75: film_tier = 'excellent'
-            elif quality_score >= 62: film_tier = 'good'
-            elif quality_score >= 48: film_tier = 'average'
-            elif quality_score >= 35: film_tier = 'mediocre'
-            elif quality_score >= 20: film_tier = 'poor'
-            else: film_tier = 'flop'
+# [MOVED]             # Recalculate tier with soundtrack influence
+# [MOVED]             if quality_score >= 88: film_tier = 'masterpiece'
+# [MOVED]             elif quality_score >= 75: film_tier = 'excellent'
+# [MOVED]             elif quality_score >= 62: film_tier = 'good'
+# [MOVED]             elif quality_score >= 48: film_tier = 'average'
+# [MOVED]             elif quality_score >= 35: film_tier = 'mediocre'
+# [MOVED]             elif quality_score >= 20: film_tier = 'poor'
+# [MOVED]             else: film_tier = 'flop'
             
-            # Soundtrack boost on opening revenue (exponential first 3 days effect)
-            soundtrack_boost = 1.0 + (soundtrack_rating / 100) * 0.5  # Up to +50% from great soundtrack
-            opening_day_revenue = int(opening_day_revenue * soundtrack_boost)
+# [MOVED]             # Soundtrack boost on opening revenue (exponential first 3 days effect)
+# [MOVED]             soundtrack_boost = 1.0 + (soundtrack_rating / 100) * 0.5  # Up to +50% from great soundtrack
+# [MOVED]             opening_day_revenue = int(opening_day_revenue * soundtrack_boost)
     
-    # Enrich cast with names
-    enriched_cast = []
-    for actor_info in film_data.actors:
-        actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'name': 1, 'gender': 1})
-        enriched_actor = {
-            'actor_id': actor_info.get('actor_id'),
-            'role': actor_info.get('role', 'supporting'),
-            'name': actor_doc.get('name', 'Unknown Actor') if actor_doc else 'Unknown Actor',
-            'gender': actor_doc.get('gender', 'male') if actor_doc else 'male'
-        }
-        enriched_cast.append(enriched_actor)
+# [MOVED]     # Enrich cast with names
+# [MOVED]     enriched_cast = []
+# [MOVED]     for actor_info in film_data.actors:
+# [MOVED]         actor_doc = await db.people.find_one({'id': actor_info.get('actor_id')}, {'_id': 0, 'name': 1, 'gender': 1})
+# [MOVED]         enriched_actor = {
+# [MOVED]             'actor_id': actor_info.get('actor_id'),
+# [MOVED]             'role': actor_info.get('role', 'supporting'),
+# [MOVED]             'name': actor_doc.get('name', 'Unknown Actor') if actor_doc else 'Unknown Actor',
+# [MOVED]             'gender': actor_doc.get('gender', 'male') if actor_doc else 'male'
+# [MOVED]         }
+# [MOVED]         enriched_cast.append(enriched_actor)
     
-    film = {
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'title': film_data.title,
-        'subtitle': film_data.subtitle,  # Optional subtitle for sequels
-        'genre': film_data.genre,
-        'subgenres': film_data.subgenres[:3],  # Max 3 sub-genres
-        'release_date': film_data.release_date,
-        'weeks_in_theater': film_data.weeks_in_theater,
-        'actual_weeks_in_theater': 0,
-        'sponsor': sponsor,
-        'equipment_package': film_data.equipment_package,
-        'locations': film_data.locations,
-        'location_costs': location_costs,
-        'screenwriter': screenwriters_list[0] if screenwriters_list else {'id': '', 'name': 'Unknown'},
-        'screenwriters': screenwriters_list,
-        'director': {
-            'id': film_data.director_id,
-            'name': director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
-        },
-        'composer': None,  # Will be set below if provided
-        'cast': enriched_cast,  # Now includes name for each actor
-        'extras_count': film_data.extras_count,
-        'extras_cost': film_data.extras_cost,
-        'screenplay': film_data.screenplay,
-        'screenplay_source': film_data.screenplay_source,
-        'poster_url': film_data.poster_url,
-        'ad_duration_seconds': film_data.ad_duration_seconds,
-        'ad_revenue': film_data.ad_revenue,
-        'total_budget': total_budget,
-        'status': 'pending_release',
-        'quality_score': quality_score,
-        'audience_satisfaction': 50 + random.randint(-10, 20),
-        'likes_count': 0,
-        'box_office': {},
-        'daily_revenues': [],
-        'opening_day_revenue': opening_day_revenue,
-        'total_revenue': 0,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        # Sequel fields
-        'is_sequel': film_data.is_sequel,
-        'sequel_parent_id': film_data.sequel_parent_id,
-        'sequel_number': sequel_number,
-        'sequel_bonus_applied': sequel_bonus_info,  # Info about sequel bonus/malus
-        # Studio draft
-        'studio_draft_id': film_data.studio_draft_id if studio_draft_doc else None,
-        'studio_draft_bonus': studio_draft_bonus,
-    }
+# [MOVED]     film = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': film_data.title,
+# [MOVED]         'subtitle': film_data.subtitle,  # Optional subtitle for sequels
+# [MOVED]         'genre': film_data.genre,
+# [MOVED]         'subgenres': film_data.subgenres[:3],  # Max 3 sub-genres
+# [MOVED]         'release_date': film_data.release_date,
+# [MOVED]         'weeks_in_theater': film_data.weeks_in_theater,
+# [MOVED]         'actual_weeks_in_theater': 0,
+# [MOVED]         'sponsor': sponsor,
+# [MOVED]         'equipment_package': film_data.equipment_package,
+# [MOVED]         'locations': film_data.locations,
+# [MOVED]         'location_costs': location_costs,
+# [MOVED]         'screenwriter': screenwriters_list[0] if screenwriters_list else {'id': '', 'name': 'Unknown'},
+# [MOVED]         'screenwriters': screenwriters_list,
+# [MOVED]         'director': {
+# [MOVED]             'id': film_data.director_id,
+# [MOVED]             'name': director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
+# [MOVED]         },
+# [MOVED]         'composer': None,  # Will be set below if provided
+# [MOVED]         'cast': enriched_cast,  # Now includes name for each actor
+# [MOVED]         'extras_count': film_data.extras_count,
+# [MOVED]         'extras_cost': film_data.extras_cost,
+# [MOVED]         'screenplay': film_data.screenplay,
+# [MOVED]         'screenplay_source': film_data.screenplay_source,
+# [MOVED]         'poster_url': film_data.poster_url,
+# [MOVED]         'ad_duration_seconds': film_data.ad_duration_seconds,
+# [MOVED]         'ad_revenue': film_data.ad_revenue,
+# [MOVED]         'total_budget': total_budget,
+# [MOVED]         'status': 'pending_release',
+# [MOVED]         'quality_score': quality_score,
+# [MOVED]         'audience_satisfaction': 50 + random.randint(-10, 20),
+# [MOVED]         'likes_count': 0,
+# [MOVED]         'box_office': {},
+# [MOVED]         'daily_revenues': [],
+# [MOVED]         'opening_day_revenue': opening_day_revenue,
+# [MOVED]         'total_revenue': 0,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         # Sequel fields
+# [MOVED]         'is_sequel': film_data.is_sequel,
+# [MOVED]         'sequel_parent_id': film_data.sequel_parent_id,
+# [MOVED]         'sequel_number': sequel_number,
+# [MOVED]         'sequel_bonus_applied': sequel_bonus_info,  # Info about sequel bonus/malus
+# [MOVED]         # Studio draft
+# [MOVED]         'studio_draft_id': film_data.studio_draft_id if studio_draft_doc else None,
+# [MOVED]         'studio_draft_bonus': studio_draft_bonus,
+# [MOVED]     }
     
-    # Set composer if provided
-    if composer_doc:
-        film['composer'] = {
-            'id': film_data.composer_id,
-            'name': composer_doc.get('name', 'Unknown'),
-            'imdb_rating': soundtrack_rating
-        }
-        film['soundtrack_rating'] = soundtrack_rating
-        # Soundtrack exponential boost for first 3 days
-        film['soundtrack_boost'] = {
-            'day_1_multiplier': round(1.0 + (soundtrack_rating / 100) * 1.5, 2),  # Up to +150%
-            'day_2_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.8, 2),  # Up to +80%
-            'day_3_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.3, 2),  # Up to +30%
-        }
+# [MOVED]     # Set composer if provided
+# [MOVED]     if composer_doc:
+# [MOVED]         film['composer'] = {
+# [MOVED]             'id': film_data.composer_id,
+# [MOVED]             'name': composer_doc.get('name', 'Unknown'),
+# [MOVED]             'imdb_rating': soundtrack_rating
+# [MOVED]         }
+# [MOVED]         film['soundtrack_rating'] = soundtrack_rating
+# [MOVED]         # Soundtrack exponential boost for first 3 days
+# [MOVED]         film['soundtrack_boost'] = {
+# [MOVED]             'day_1_multiplier': round(1.0 + (soundtrack_rating / 100) * 1.5, 2),  # Up to +150%
+# [MOVED]             'day_2_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.8, 2),  # Up to +80%
+# [MOVED]             'day_3_multiplier': round(1.0 + (soundtrack_rating / 100) * 0.3, 2),  # Up to +30%
+# [MOVED]         }
     
-    # Calculate IMDb-style rating
-    film['imdb_rating'] = calculate_imdb_rating(film)
+# [MOVED]     # Calculate IMDb-style rating
+# [MOVED]     film['imdb_rating'] = calculate_imdb_rating(film)
     
-    # Generate synopsis/plot summary from screenplay
-    genre_name = GENRES.get(film_data.genre, {}).get('name', film_data.genre)
-    director_name = director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
+# [MOVED]     # Generate synopsis/plot summary from screenplay
+# [MOVED]     genre_name = GENRES.get(film_data.genre, {}).get('name', film_data.genre)
+# [MOVED]     director_name = director_doc.get('name', 'Unknown') if director_doc else 'Unknown'
     
-    if film_data.screenplay:
-        try:
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
+# [MOVED]     if film_data.screenplay:
+# [MOVED]         try:
+# [MOVED]             from emergentintegrations.llm.chat import LlmChat, UserMessage
             
-            chat = LlmChat(
-                api_key=EMERGENT_LLM_KEY,
-                session_id=f"synopsis-{film['id']}",
-                system_message="You are a creative movie synopsis writer. Write compelling, dramatic summaries."
-            ).with_model("openai", "gpt-4o-mini")
+# [MOVED]             chat = LlmChat(
+# [MOVED]                 api_key=EMERGENT_LLM_KEY,
+# [MOVED]                 session_id=f"synopsis-{film['id']}",
+# [MOVED]                 system_message="You are a creative movie synopsis writer. Write compelling, dramatic summaries."
+# [MOVED]             ).with_model("openai", "gpt-4o-mini")
             
-            cast_names = ", ".join([c.get('name', 'Unknown') for c in enriched_cast[:3]])
+# [MOVED]             cast_names = ", ".join([c.get('name', 'Unknown') for c in enriched_cast[:3]])
             
-            synopsis_prompt = f"""Create a compelling movie synopsis/plot summary for a {genre_name} film.
+# [MOVED]             synopsis_prompt = f"""Create a compelling movie synopsis/plot summary for a {genre_name} film.
 
-Title: {film_data.title}
-Director: {director_name}
-Cast: {cast_names}
-Screenplay excerpt: {film_data.screenplay[:500]}
+# [MOVED] Title: {film_data.title}
+# [MOVED] Director: {director_name}
+# [MOVED] Cast: {cast_names}
+# [MOVED] Screenplay excerpt: {film_data.screenplay[:500]}
 
-Write a 2-3 paragraph synopsis that:
-1. Sets up the premise and main characters
-2. Hints at the central conflict without major spoilers
-3. Creates intrigue and makes people want to watch it
-4. Matches the tone of the genre ({genre_name})
+# [MOVED] Write a 2-3 paragraph synopsis that:
+# [MOVED] 1. Sets up the premise and main characters
+# [MOVED] 2. Hints at the central conflict without major spoilers
+# [MOVED] 3. Creates intrigue and makes people want to watch it
+# [MOVED] 4. Matches the tone of the genre ({genre_name})
 
-Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
+# [MOVED] Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
 
-            user_message = UserMessage(text=synopsis_prompt)
-            synopsis_result = await chat.send_message(user_message)
-            film['synopsis'] = synopsis_result.strip()
-        except Exception as e:
-            logging.error(f"Synopsis generation error: {e}")
+# [MOVED]             user_message = UserMessage(text=synopsis_prompt)
+# [MOVED]             synopsis_result = await chat.send_message(user_message)
+# [MOVED]             film['synopsis'] = synopsis_result.strip()
+# [MOVED]         except Exception as e:
+# [MOVED]             logging.error(f"Synopsis generation error: {e}")
             # Fallback synopsis
-            film['synopsis'] = f"Un avvincente {genre_name} diretto da {director_doc.get('name', 'un regista visionario') if director_doc else 'un regista visionario'}. {film_data.title} racconta una storia che vi terrà col fiato sospeso dall'inizio alla fine."
-    else:
-        film['synopsis'] = f"Un film {genre_name} che promette emozioni e intrattenimento."
+# [MOVED]             film['synopsis'] = f"Un avvincente {genre_name} diretto da {director_doc.get('name', 'un regista visionario') if director_doc else 'un regista visionario'}. {film_data.title} racconta una storia che vi terrà col fiato sospeso dall'inizio alla fine."
+# [MOVED]     else:
+# [MOVED]         film['synopsis'] = f"Un film {genre_name} che promette emozioni e intrattenimento."
     
     # Generate initial AI interactions
-    film['ai_interactions'] = generate_ai_interactions(film, 0)
-    film['ratings'] = {'user_ratings': [], 'ai_ratings': film['ai_interactions']}
+# [MOVED]     film['ai_interactions'] = generate_ai_interactions(film, 0)
+# [MOVED]     film['ratings'] = {'user_ratings': [], 'ai_ratings': film['ai_interactions']}
     
     # Calculate film tier (Masterpiece, Epic, Excellent, Promising, Flop, or Normal)
-    tier_result = calculate_film_tier(film)
-    film['film_tier'] = tier_result['tier']
-    film['tier_score'] = tier_result['score']
-    film['tier_bonuses'] = tier_result['bonuses']
+# [MOVED]     tier_result = calculate_film_tier(film)
+# [MOVED]     film['film_tier'] = tier_result['tier']
+# [MOVED]     film['tier_score'] = tier_result['score']
+# [MOVED]     film['tier_bonuses'] = tier_result['bonuses']
     
     # Apply immediate tier bonus/malus to opening day revenue
-    if tier_result['triggered'] and tier_result['tier_info']:
-        immediate_bonus = tier_result['tier_info'].get('immediate_bonus', 0)
-        if immediate_bonus != 0:
-            bonus_amount = int(opening_day_revenue * immediate_bonus)
-            film['opening_day_revenue'] = opening_day_revenue + bonus_amount
-            film['total_revenue'] = film['opening_day_revenue']
-            film['tier_opening_bonus'] = bonus_amount
+# [MOVED]     if tier_result['triggered'] and tier_result['tier_info']:
+# [MOVED]         immediate_bonus = tier_result['tier_info'].get('immediate_bonus', 0)
+# [MOVED]         if immediate_bonus != 0:
+# [MOVED]             bonus_amount = int(opening_day_revenue * immediate_bonus)
+# [MOVED]             film['opening_day_revenue'] = opening_day_revenue + bonus_amount
+# [MOVED]             film['total_revenue'] = film['opening_day_revenue']
+# [MOVED]             film['tier_opening_bonus'] = bonus_amount
     
     # Store likes as array of user IDs for tracking who liked
-    film['liked_by'] = []
+# [MOVED]     film['liked_by'] = []
     
     # Critic reviews will be generated when the film is released to theaters, not at creation
-    film['critic_reviews'] = []
-    film['critic_effects'] = None
+# [MOVED]     film['critic_reviews'] = []
+# [MOVED]     film['critic_effects'] = None
     
     # Set total_revenue to 0 for pending release (will be calculated on release)
-    film['total_revenue'] = 0
+# [MOVED]     film['total_revenue'] = 0
     
     # Mark masterpiece films (quality >= 85, rare ~5%)
-    qs = film.get('quality_score', 0)
-    imdb = film.get('imdb_rating', 0)
-    film['is_masterpiece'] = (qs >= 85 and imdb >= 7.0)
+# [MOVED]     qs = film.get('quality_score', 0)
+# [MOVED]     imdb = film.get('imdb_rating', 0)
+# [MOVED]     film['is_masterpiece'] = (qs >= 85 and imdb >= 7.0)
     
-    await db.films.insert_one(film)
+# [MOVED]     await db.films.insert_one(film)
     
     # Update user funds (only production costs, NO opening revenue yet)
-    new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue
+# [MOVED]     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue
     
-    await db.users.update_one(
-        {'id': user['id']}, 
-        {'$set': {'funds': new_funds}}
-    )
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']}, 
+# [MOVED]         {'$set': {'funds': new_funds}}
+# [MOVED]     )
     
     # Create notification for pending film
-    user_lang = user.get('language', 'it')
-    await db.notifications.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'type': 'film_produced',
-        'title': f'Film "{film_data.title}" prodotto!' if user_lang == 'it' else f'Film "{film_data.title}" produced!',
-        'message': f'Qualità: {quality_score:.0f}% - In attesa di rilascio. Scegli la distribuzione!' if user_lang == 'it' else f'Quality: {quality_score:.0f}% - Pending release. Choose distribution!',
-        'data': {'film_id': film['id']},
-        'read': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    })
+# [MOVED]     user_lang = user.get('language', 'it')
+# [MOVED]     await db.notifications.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'type': 'film_produced',
+# [MOVED]         'title': f'Film "{film_data.title}" prodotto!' if user_lang == 'it' else f'Film "{film_data.title}" produced!',
+# [MOVED]         'message': f'Qualità: {quality_score:.0f}% - In attesa di rilascio. Scegli la distribuzione!' if user_lang == 'it' else f'Quality: {quality_score:.0f}% - Pending release. Choose distribution!',
+# [MOVED]         'data': {'film_id': film['id']},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     })
     
-    return FilmResponse(**{k: v for k, v in film.items() if k != '_id'})
+# [MOVED]     return FilmResponse(**{k: v for k, v in film.items() if k != '_id'})
 
-@api_router.get("/films/my")
-async def get_my_films(user: dict = Depends(get_current_user)):
-    # Only include fields needed for list view
-    list_fields = {
-        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'subtitle': 1, 'poster_url': 1,
-        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
-        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
-        'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
-        'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
-        'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
-        'opening_day_revenue': 1, 'last_revenue_collected': 1
-    }
-    films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
-    return films
+# [MOVED] @api_router.get("/films/my")
+# [MOVED] async def get_my_films(user: dict = Depends(get_current_user)):
+# [MOVED]     # Only include fields needed for list view
+# [MOVED]     list_fields = {
+# [MOVED]         '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'subtitle': 1, 'poster_url': 1,
+# [MOVED]         'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+# [MOVED]         'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+# [MOVED]         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
+# [MOVED]         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
+# [MOVED]         'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
+# [MOVED]         'opening_day_revenue': 1, 'last_revenue_collected': 1
+# [MOVED]     }
+# [MOVED]     films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
+# [MOVED]     return films
 
-@api_router.get("/films/pending")
-async def get_pending_films(user: dict = Depends(get_current_user)):
-    """Get films waiting to be released."""
-    films = await db.films.find(
-        {'user_id': user['id'], 'status': {'$in': ['pending_release', 'ready_to_release']}},
-        {'_id': 0}
-    ).sort('created_at', -1).to_list(50)
-    return [FilmResponse(**f) for f in films]
+# [MOVED] @api_router.get("/films/pending")
+# [MOVED] async def get_pending_films(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get films waiting to be released."""
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user['id'], 'status': {'$in': ['pending_release', 'ready_to_release']}},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(50)
+# [MOVED]     return [FilmResponse(**f) for f in films]
 
 # ==================== SHOOTING SYSTEM ====================
 
@@ -3847,411 +3851,411 @@ SHOOTING_EVENTS = [
     {'type': 'normal_day', 'name': 'Giornata Regolare', 'bonus': 0, 'chance': 18},
 ]
 
-class StartShootingRequest(BaseModel):
-    shooting_days: int  # 1-10
+# [MOVED] class StartShootingRequest(BaseModel):
+# [MOVED]     shooting_days: int  # 1-10
 
-@api_router.post("/films/{film_id}/start-shooting")
-async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dict = Depends(get_current_user)):
-    """Start shooting a pending film for 1-10 days to improve quality."""
-    if req.shooting_days < 1 or req.shooting_days > 10:
-        raise HTTPException(status_code=400, detail="Giorni di riprese: da 1 a 10")
+# [MOVED] @api_router.post("/films/{film_id}/start-shooting")
+# [MOVED] async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Start shooting a pending film for 1-10 days to improve quality."""
+# [MOVED]     if req.shooting_days < 1 or req.shooting_days > 10:
+# [MOVED]         raise HTTPException(status_code=400, detail="Giorni di riprese: da 1 a 10")
     
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    if film.get('status') != 'pending_release':
-        raise HTTPException(status_code=400, detail="Solo i film in attesa possono iniziare le riprese")
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     if film.get('status') != 'pending_release':
+# [MOVED]         raise HTTPException(status_code=400, detail="Solo i film in attesa possono iniziare le riprese")
     
-    # Calculate cost: 15% of film budget * days
-    budget = film.get('total_budget', 0) or film.get('production_cost', 500000)
-    shooting_cost = int(budget * 0.15 * req.shooting_days)
+# [MOVED]     # Calculate cost: 15% of film budget * days
+# [MOVED]     budget = film.get('total_budget', 0) or film.get('production_cost', 500000)
+# [MOVED]     shooting_cost = int(budget * 0.15 * req.shooting_days)
     
-    if user.get('funds', 0) < shooting_cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${shooting_cost:,}")
+# [MOVED]     if user.get('funds', 0) < shooting_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${shooting_cost:,}")
     
-    max_bonus = SHOOTING_BONUS_CURVE.get(req.shooting_days, 10)
+# [MOVED]     max_bonus = SHOOTING_BONUS_CURVE.get(req.shooting_days, 10)
     
-    now = datetime.now(timezone.utc).isoformat()
-    await db.films.update_one({'id': film_id}, {'$set': {
-        'status': 'shooting',
-        'shooting_days': req.shooting_days,
-        'shooting_days_completed': 0,
-        'shooting_started_at': now,
-        'shooting_events': [],
-        'shooting_bonus': 0,
-        'shooting_max_bonus': max_bonus,
-        'shooting_cost': shooting_cost
-    }})
+# [MOVED]     now = datetime.now(timezone.utc).isoformat()
+# [MOVED]     await db.films.update_one({'id': film_id}, {'$set': {
+# [MOVED]         'status': 'shooting',
+# [MOVED]         'shooting_days': req.shooting_days,
+# [MOVED]         'shooting_days_completed': 0,
+# [MOVED]         'shooting_started_at': now,
+# [MOVED]         'shooting_events': [],
+# [MOVED]         'shooting_bonus': 0,
+# [MOVED]         'shooting_max_bonus': max_bonus,
+# [MOVED]         'shooting_cost': shooting_cost
+# [MOVED]     }})
     
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -shooting_cost}})
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -shooting_cost}})
     
-    return {
-        'success': True,
-        'message': f'Riprese iniziate! {req.shooting_days} giorni di lavoro per +{max_bonus}% qualità max.',
-        'shooting_days': req.shooting_days,
-        'max_bonus': max_bonus,
-        'cost': shooting_cost
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'Riprese iniziate! {req.shooting_days} giorni di lavoro per +{max_bonus}% qualità max.',
+# [MOVED]         'shooting_days': req.shooting_days,
+# [MOVED]         'max_bonus': max_bonus,
+# [MOVED]         'cost': shooting_cost
+# [MOVED]     }
 
-@api_router.get("/films/shooting")
-async def get_shooting_films(user: dict = Depends(get_current_user)):
-    """Get films currently in shooting phase."""
-    films = await db.films.find(
-        {'user_id': user['id'], 'status': 'shooting'},
-        {'_id': 0}
-    ).sort('shooting_started_at', -1).to_list(20)
+# [MOVED] @api_router.get("/films/shooting")
+# [MOVED] async def get_shooting_films(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get films currently in shooting phase."""
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user['id'], 'status': 'shooting'},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('shooting_started_at', -1).to_list(20)
     
-    now = datetime.now(timezone.utc)
-    results = []
-    for f in films:
-        days_total = f.get('shooting_days', 1)
-        days_done = f.get('shooting_days_completed', 0)
-        days_remaining = days_total - days_done
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     results = []
+# [MOVED]     for f in films:
+# [MOVED]         days_total = f.get('shooting_days', 1)
+# [MOVED]         days_done = f.get('shooting_days_completed', 0)
+# [MOVED]         days_remaining = days_total - days_done
         
-        # Calculate early end cost
-        early_end_cost = max(1, days_remaining * 2) if days_remaining > 0 else 0
+# [MOVED]         # Calculate early end cost
+# [MOVED]         early_end_cost = max(1, days_remaining * 2) if days_remaining > 0 else 0
         
-        results.append({
-            'id': f['id'],
-            'title': f.get('title', ''),
-            'poster_url': f.get('poster_url', ''),
-            'genre': f.get('genre', ''),
-            'quality_score': f.get('quality_score', 0),
-            'shooting_days': days_total,
-            'shooting_days_completed': days_done,
-            'shooting_bonus': f.get('shooting_bonus', 0),
-            'shooting_max_bonus': f.get('shooting_max_bonus', 0),
-            'shooting_events': f.get('shooting_events', [])[-5:],
-            'early_end_cinepass_cost': early_end_cost,
-            'shooting_started_at': f.get('shooting_started_at', '')
-        })
+# [MOVED]         results.append({
+# [MOVED]             'id': f['id'],
+# [MOVED]             'title': f.get('title', ''),
+# [MOVED]             'poster_url': f.get('poster_url', ''),
+# [MOVED]             'genre': f.get('genre', ''),
+# [MOVED]             'quality_score': f.get('quality_score', 0),
+# [MOVED]             'shooting_days': days_total,
+# [MOVED]             'shooting_days_completed': days_done,
+# [MOVED]             'shooting_bonus': f.get('shooting_bonus', 0),
+# [MOVED]             'shooting_max_bonus': f.get('shooting_max_bonus', 0),
+# [MOVED]             'shooting_events': f.get('shooting_events', [])[-5:],
+# [MOVED]             'early_end_cinepass_cost': early_end_cost,
+# [MOVED]             'shooting_started_at': f.get('shooting_started_at', '')
+# [MOVED]         })
     
-    return {'films': results, 'count': len(results)}
+# [MOVED]     return {'films': results, 'count': len(results)}
 
-@api_router.post("/films/{film_id}/end-shooting-early")
-async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user)):
-    """End shooting early by paying CinePass. Film moves to ready_to_release."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    if film.get('status') != 'shooting':
-        raise HTTPException(status_code=400, detail="Il film non è in fase di riprese")
+# [MOVED] @api_router.post("/films/{film_id}/end-shooting-early")
+# [MOVED] async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """End shooting early by paying CinePass. Film moves to ready_to_release."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     if film.get('status') != 'shooting':
+# [MOVED]         raise HTTPException(status_code=400, detail="Il film non è in fase di riprese")
     
-    days_remaining = film.get('shooting_days', 0) - film.get('shooting_days_completed', 0)
-    cinepass_cost = max(1, days_remaining * 2)
+# [MOVED]     days_remaining = film.get('shooting_days', 0) - film.get('shooting_days_completed', 0)
+# [MOVED]     cinepass_cost = max(1, days_remaining * 2)
     
-    if user.get('cinepass', 0) < cinepass_cost:
-        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
+# [MOVED]     if user.get('cinepass', 0) < cinepass_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
     
-    # Apply accumulated bonus to quality
-    shooting_bonus = film.get('shooting_bonus', 0)
-    current_quality = film.get('quality_score', 50)
-    bonus_quality = current_quality * (1 + shooting_bonus / 100)
-    new_quality = min(100, round(bonus_quality, 1))
+# [MOVED]     # Apply accumulated bonus to quality
+# [MOVED]     shooting_bonus = film.get('shooting_bonus', 0)
+# [MOVED]     current_quality = film.get('quality_score', 50)
+# [MOVED]     bonus_quality = current_quality * (1 + shooting_bonus / 100)
+# [MOVED]     new_quality = min(100, round(bonus_quality, 1))
     
-    # Calculate IMDb from quality
-    new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
+# [MOVED]     # Calculate IMDb from quality
+# [MOVED]     new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
     
-    await db.films.update_one({'id': film_id}, {'$set': {
-        'status': 'ready_to_release',
-        'quality_score': new_quality,
-        'imdb_rating': new_imdb,
-        'shooting_completed_at': datetime.now(timezone.utc).isoformat(),
-        'shooting_ended_early': True
-    }})
+# [MOVED]     await db.films.update_one({'id': film_id}, {'$set': {
+# [MOVED]         'status': 'ready_to_release',
+# [MOVED]         'quality_score': new_quality,
+# [MOVED]         'imdb_rating': new_imdb,
+# [MOVED]         'shooting_completed_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'shooting_ended_early': True
+# [MOVED]     }})
     
-    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cinepass_cost}})
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cinepass_cost}})
     
-    return {
-        'success': True,
-        'message': f'Riprese concluse! Qualità: {new_quality:.0f}% (bonus +{shooting_bonus}%). Costo: {cinepass_cost} CinePass',
-        'new_quality': new_quality,
-        'new_imdb': new_imdb,
-        'shooting_bonus': shooting_bonus,
-        'cinepass_cost': cinepass_cost
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'Riprese concluse! Qualità: {new_quality:.0f}% (bonus +{shooting_bonus}%). Costo: {cinepass_cost} CinePass',
+# [MOVED]         'new_quality': new_quality,
+# [MOVED]         'new_imdb': new_imdb,
+# [MOVED]         'shooting_bonus': shooting_bonus,
+# [MOVED]         'cinepass_cost': cinepass_cost
+# [MOVED]     }
 
 # Scheduler task: process daily shooting progress
-async def process_shooting_progress():
-    """Daily task to advance all films in shooting by 1 day."""
-    try:
-        shooting_films = await db.films.find({'status': 'shooting'}, {'_id': 0}).to_list(500)
-        for film in shooting_films:
-            days_completed = film.get('shooting_days_completed', 0) + 1
-            days_total = film.get('shooting_days', 1)
+# [MOVED] async def process_shooting_progress():
+# [MOVED]     """Daily task to advance all films in shooting by 1 day."""
+# [MOVED]     try:
+# [MOVED]         shooting_films = await db.films.find({'status': 'shooting'}, {'_id': 0}).to_list(500)
+# [MOVED]         for film in shooting_films:
+# [MOVED]             days_completed = film.get('shooting_days_completed', 0) + 1
+# [MOVED]             days_total = film.get('shooting_days', 1)
             
-            # Generate random event
-            roll = random.randint(1, 100)
-            cumulative = 0
-            event = {'type': 'normal_day', 'name': 'Giornata Regolare', 'bonus': 0}
-            for evt in SHOOTING_EVENTS:
-                cumulative += evt['chance']
-                if roll <= cumulative:
-                    event = {'type': evt['type'], 'name': evt['name'], 'bonus': evt['bonus']}
-                    break
+# [MOVED]             # Generate random event
+# [MOVED]             roll = random.randint(1, 100)
+# [MOVED]             cumulative = 0
+# [MOVED]             event = {'type': 'normal_day', 'name': 'Giornata Regolare', 'bonus': 0}
+# [MOVED]             for evt in SHOOTING_EVENTS:
+# [MOVED]                 cumulative += evt['chance']
+# [MOVED]                 if roll <= cumulative:
+# [MOVED]                     event = {'type': evt['type'], 'name': evt['name'], 'bonus': evt['bonus']}
+# [MOVED]                     break
             
-            event['day'] = days_completed
-            events = film.get('shooting_events', [])
-            events.append(event)
+# [MOVED]             event['day'] = days_completed
+# [MOVED]             events = film.get('shooting_events', [])
+# [MOVED]             events.append(event)
             
-            # Calculate daily bonus (base curve portion + event)
-            max_bonus = SHOOTING_BONUS_CURVE.get(days_total, 10)
-            base_daily = max_bonus / days_total
-            accumulated = film.get('shooting_bonus', 0) + base_daily + event['bonus']
-            accumulated = max(0, round(accumulated, 1))
+# [MOVED]             # Calculate daily bonus (base curve portion + event)
+# [MOVED]             max_bonus = SHOOTING_BONUS_CURVE.get(days_total, 10)
+# [MOVED]             base_daily = max_bonus / days_total
+# [MOVED]             accumulated = film.get('shooting_bonus', 0) + base_daily + event['bonus']
+# [MOVED]             accumulated = max(0, round(accumulated, 1))
             
-            update_data = {
-                'shooting_days_completed': days_completed,
-                'shooting_events': events,
-                'shooting_bonus': accumulated
-            }
+# [MOVED]             update_data = {
+# [MOVED]                 'shooting_days_completed': days_completed,
+# [MOVED]                 'shooting_events': events,
+# [MOVED]                 'shooting_bonus': accumulated
+# [MOVED]             }
             
-            # Check if shooting is complete
-            if days_completed >= days_total:
-                current_quality = film.get('quality_score', 50)
-                bonus_quality = current_quality * (1 + accumulated / 100)
-                new_quality = min(100, round(bonus_quality, 1))
-                new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
+# [MOVED]             # Check if shooting is complete
+# [MOVED]             if days_completed >= days_total:
+# [MOVED]                 current_quality = film.get('quality_score', 50)
+# [MOVED]                 bonus_quality = current_quality * (1 + accumulated / 100)
+# [MOVED]                 new_quality = min(100, round(bonus_quality, 1))
+# [MOVED]                 new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
                 
-                update_data['status'] = 'ready_to_release'
-                update_data['quality_score'] = new_quality
-                update_data['imdb_rating'] = new_imdb
-                update_data['shooting_completed_at'] = datetime.now(timezone.utc).isoformat()
-                update_data['shooting_ended_early'] = False
-                logging.info(f"Film '{film.get('title')}' shooting complete: {new_quality:.0f}% quality (+{accumulated}% bonus)")
+# [MOVED]                 update_data['status'] = 'ready_to_release'
+# [MOVED]                 update_data['quality_score'] = new_quality
+# [MOVED]                 update_data['imdb_rating'] = new_imdb
+# [MOVED]                 update_data['shooting_completed_at'] = datetime.now(timezone.utc).isoformat()
+# [MOVED]                 update_data['shooting_ended_early'] = False
+# [MOVED]                 logging.info(f"Film '{film.get('title')}' shooting complete: {new_quality:.0f}% quality (+{accumulated}% bonus)")
             
-            await db.films.update_one({'id': film['id']}, {'$set': update_data})
+# [MOVED]             await db.films.update_one({'id': film['id']}, {'$set': update_data})
         
-        logging.info(f"Shooting progress: processed {len(shooting_films)} films")
-    except Exception as e:
-        logging.error(f"Shooting progress error: {e}")
+# [MOVED]         logging.info(f"Shooting progress: processed {len(shooting_films)} films")
+# [MOVED]     except Exception as e:
+# [MOVED]         logging.error(f"Shooting progress error: {e}")
 
-@api_router.get("/films/shooting/config")
-async def get_shooting_config():
-    """Return shooting configuration for the UI."""
-    return {
-        'bonus_curve': SHOOTING_BONUS_CURVE,
-        'cost_multiplier': 0.15,
-        'early_end_cinepass_per_day': 2,
-        'events': [{'type': e['type'], 'name': e['name'], 'bonus': e['bonus']} for e in SHOOTING_EVENTS]
-    }
+# [MOVED] @api_router.get("/films/shooting/config")
+# [MOVED] async def get_shooting_config():
+# [MOVED]     """Return shooting configuration for the UI."""
+# [MOVED]     return {
+# [MOVED]         'bonus_curve': SHOOTING_BONUS_CURVE,
+# [MOVED]         'cost_multiplier': 0.15,
+# [MOVED]         'early_end_cinepass_per_day': 2,
+# [MOVED]         'events': [{'type': e['type'], 'name': e['name'], 'bonus': e['bonus']} for e in SHOOTING_EVENTS]
+# [MOVED]     }
 
-@api_router.get("/distribution/config")
-async def get_distribution_config(user: dict = Depends(get_current_user)):
-    """Return distribution zones, countries and continents for the release popup."""
-    return {
-        'zones': DISTRIBUTION_ZONES,
-        'countries': COUNTRY_NAMES,
-        'continents': CONTINENTS,
-        'country_to_continent': COUNTRY_TO_CONTINENT,
-        'studio_country': user.get('studio_country', 'IT')
-    }
+# [MOVED] @api_router.get("/distribution/config")
+# [MOVED] async def get_distribution_config(user: dict = Depends(get_current_user)):
+# [MOVED]     """Return distribution zones, countries and continents for the release popup."""
+# [MOVED]     return {
+# [MOVED]         'zones': DISTRIBUTION_ZONES,
+# [MOVED]         'countries': COUNTRY_NAMES,
+# [MOVED]         'continents': CONTINENTS,
+# [MOVED]         'country_to_continent': COUNTRY_TO_CONTINENT,
+# [MOVED]         'studio_country': user.get('studio_country', 'IT')
+# [MOVED]     }
 
-class FilmReleaseRequest(BaseModel):
-    distribution_zone: str  # national, continental, world
-    distribution_continent: Optional[str] = None  # required if continental
+# [MOVED] class FilmReleaseRequest(BaseModel):
+# [MOVED]     distribution_zone: str  # national, continental, world
+# [MOVED]     distribution_continent: Optional[str] = None  # required if continental
 
-@api_router.post("/films/{film_id}/release")
-async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dict = Depends(get_current_user)):
-    """Release a pending film to theaters with chosen distribution."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/release")
+# [MOVED] async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Release a pending film to theaters with chosen distribution."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Idempotency: if film is already released/in_theaters, return it without re-processing
-    if film.get('status') in ('in_theaters', 'released', 'completed'):
-        return {
-            'success': True,
-            'film': FilmResponse(**film),
-            'distribution_cost': 0,
-            'cinepass_cost': 0,
-            'opening_day_revenue': film.get('opening_day_revenue', 0),
-            'zone': film.get('distribution_zone', ''),
-            'already_released': True
-        }
+# [MOVED]     # Idempotency: if film is already released/in_theaters, return it without re-processing
+# [MOVED]     if film.get('status') in ('in_theaters', 'released', 'completed'):
+# [MOVED]         return {
+# [MOVED]             'success': True,
+# [MOVED]             'film': FilmResponse(**film),
+# [MOVED]             'distribution_cost': 0,
+# [MOVED]             'cinepass_cost': 0,
+# [MOVED]             'opening_day_revenue': film.get('opening_day_revenue', 0),
+# [MOVED]             'zone': film.get('distribution_zone', ''),
+# [MOVED]             'already_released': True
+# [MOVED]         }
     
-    if film.get('status') not in ('pending_release', 'ready_to_release'):
-        raise HTTPException(status_code=400, detail="Questo film non può essere rilasciato")
+# [MOVED]     if film.get('status') not in ('pending_release', 'ready_to_release'):
+# [MOVED]         raise HTTPException(status_code=400, detail="Questo film non può essere rilasciato")
     
-    is_direct_release = film.get('status') == 'pending_release'
+# [MOVED]     is_direct_release = film.get('status') == 'pending_release'
     
-    zone = release_data.distribution_zone
-    if zone not in DISTRIBUTION_ZONES:
-        raise HTTPException(status_code=400, detail="Zona di distribuzione non valida")
+# [MOVED]     zone = release_data.distribution_zone
+# [MOVED]     if zone not in DISTRIBUTION_ZONES:
+# [MOVED]         raise HTTPException(status_code=400, detail="Zona di distribuzione non valida")
     
-    zone_config = DISTRIBUTION_ZONES[zone]
+# [MOVED]     zone_config = DISTRIBUTION_ZONES[zone]
     
-    if zone == 'continental' and not release_data.distribution_continent:
-        raise HTTPException(status_code=400, detail="Seleziona un continente")
-    if zone == 'continental' and release_data.distribution_continent not in CONTINENTS:
-        raise HTTPException(status_code=400, detail="Continente non valido")
+# [MOVED]     if zone == 'continental' and not release_data.distribution_continent:
+# [MOVED]         raise HTTPException(status_code=400, detail="Seleziona un continente")
+# [MOVED]     if zone == 'continental' and release_data.distribution_continent not in CONTINENTS:
+# [MOVED]         raise HTTPException(status_code=400, detail="Continente non valido")
     
-    # Calculate costs - direct release is 30% cheaper but lower quality
-    distribution_cost = zone_config['base_cost']
-    cinepass_cost = zone_config['cinepass_cost']
+# [MOVED]     # Calculate costs - direct release is 30% cheaper but lower quality
+# [MOVED]     distribution_cost = zone_config['base_cost']
+# [MOVED]     cinepass_cost = zone_config['cinepass_cost']
     
-    # Scale cost based on film quality (better films cost more to distribute)
-    quality_factor = 1.0 + (film.get('quality_score', 50) - 50) / 200  # 0.75x to 1.25x
-    distribution_cost = int(distribution_cost * quality_factor)
+# [MOVED]     # Scale cost based on film quality (better films cost more to distribute)
+# [MOVED]     quality_factor = 1.0 + (film.get('quality_score', 50) - 50) / 200  # 0.75x to 1.25x
+# [MOVED]     distribution_cost = int(distribution_cost * quality_factor)
     
-    if is_direct_release:
-        # Direct release: 30% cheaper but cap quality to ~5.8 IMDb equivalent
-        distribution_cost = int(distribution_cost * 0.7)
-        cinepass_cost = max(1, cinepass_cost - 1)
+# [MOVED]     if is_direct_release:
+# [MOVED]         # Direct release: 30% cheaper but cap quality to ~5.8 IMDb equivalent
+# [MOVED]         distribution_cost = int(distribution_cost * 0.7)
+# [MOVED]         cinepass_cost = max(1, cinepass_cost - 1)
     
-    # Check user can afford
-    if user.get('funds', 0) < distribution_cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${distribution_cost:,.0f}")
-    if user.get('cinepass', 0) < cinepass_cost:
-        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
+# [MOVED]     # Check user can afford
+# [MOVED]     if user.get('funds', 0) < distribution_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${distribution_cost:,.0f}")
+# [MOVED]     if user.get('cinepass', 0) < cinepass_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost} CinePass")
     
-    # Calculate final opening revenue with distribution multiplier
-    base_opening = film.get('opening_day_revenue', 0)
-    revenue_multiplier = zone_config['revenue_multiplier']
-    audience_multiplier = zone_config['audience_multiplier']
+# [MOVED]     # Calculate final opening revenue with distribution multiplier
+# [MOVED]     base_opening = film.get('opening_day_revenue', 0)
+# [MOVED]     revenue_multiplier = zone_config['revenue_multiplier']
+# [MOVED]     audience_multiplier = zone_config['audience_multiplier']
     
-    # For direct release: cap quality to ~58 (5.8 IMDb equivalent) and reduce revenue
-    effective_quality = film.get('quality_score', 50)
-    if is_direct_release:
-        effective_quality = min(effective_quality, 58)
-        base_opening = int(base_opening * 0.6)  # 40% less opening revenue
+# [MOVED]     # For direct release: cap quality to ~58 (5.8 IMDb equivalent) and reduce revenue
+# [MOVED]     effective_quality = film.get('quality_score', 50)
+# [MOVED]     if is_direct_release:
+# [MOVED]         effective_quality = min(effective_quality, 58)
+# [MOVED]         base_opening = int(base_opening * 0.6)  # 40% less opening revenue
     
-    final_opening_revenue = int(base_opening * revenue_multiplier)
-    final_attendance = int(film.get('cumulative_attendance', 0) * audience_multiplier)
+# [MOVED]     final_opening_revenue = int(base_opening * revenue_multiplier)
+# [MOVED]     final_attendance = int(film.get('cumulative_attendance', 0) * audience_multiplier)
     
-    # Update film status to in_theaters
-    now = datetime.now(timezone.utc).isoformat()
+# [MOVED]     # Update film status to in_theaters
+# [MOVED]     now = datetime.now(timezone.utc).isoformat()
     
-    # Generate critic reviews NOW at release (not at creation)
-    user_lang = user.get('language', 'it')
-    # Use effective quality for the review generation
-    film_for_review = {**film, 'quality_score': effective_quality}
-    critic_data = generate_critic_reviews(film_for_review, user_lang)
+# [MOVED]     # Generate critic reviews NOW at release (not at creation)
+# [MOVED]     user_lang = user.get('language', 'it')
+# [MOVED]     # Use effective quality for the review generation
+# [MOVED]     film_for_review = {**film, 'quality_score': effective_quality}
+# [MOVED]     critic_data = generate_critic_reviews(film_for_review, user_lang)
     
-    # Apply critic effects to revenue/attendance
-    critic_attendance = critic_data['total_effects']['attendance_bonus']
-    critic_revenue_pct = critic_data['total_effects']['revenue_bonus_pct'] / 100
-    critic_rating = critic_data['total_effects']['rating_bonus']
+# [MOVED]     # Apply critic effects to revenue/attendance
+# [MOVED]     critic_attendance = critic_data['total_effects']['attendance_bonus']
+# [MOVED]     critic_revenue_pct = critic_data['total_effects']['revenue_bonus_pct'] / 100
+# [MOVED]     critic_rating = critic_data['total_effects']['rating_bonus']
     
-    final_attendance = max(0, final_attendance + critic_attendance)
-    if critic_revenue_pct != 0:
-        final_opening_revenue = max(0, int(final_opening_revenue * (1 + critic_revenue_pct)))
-    current_satisfaction = film.get('audience_satisfaction', effective_quality)
-    final_satisfaction = max(0, min(100, current_satisfaction + critic_rating * 10))
+# [MOVED]     final_attendance = max(0, final_attendance + critic_attendance)
+# [MOVED]     if critic_revenue_pct != 0:
+# [MOVED]         final_opening_revenue = max(0, int(final_opening_revenue * (1 + critic_revenue_pct)))
+# [MOVED]     current_satisfaction = film.get('audience_satisfaction', effective_quality)
+# [MOVED]     final_satisfaction = max(0, min(100, current_satisfaction + critic_rating * 10))
     
-    release_update = {
-        'status': 'in_theaters',
-        'distribution_zone': zone,
-        'distribution_continent': release_data.distribution_continent,
-        'distribution_cost': distribution_cost,
-        'opening_day_revenue': final_opening_revenue,
-        'total_revenue': final_opening_revenue,
-        'cumulative_attendance': final_attendance,
-        'audience_satisfaction': final_satisfaction,
-        'critic_reviews': critic_data['reviews'],
-        'critic_effects': critic_data['total_effects'],
-        'released_at': now,
-        'release_date': now[:10]
-    }
-    if is_direct_release:
-        release_update['quality_score'] = effective_quality
-        release_update['imdb_rating'] = round(max(1.0, min(10.0, effective_quality / 10)), 1)
-        release_update['direct_release'] = True
-    await db.films.update_one({'id': film_id}, {'$set': release_update})
+# [MOVED]     release_update = {
+# [MOVED]         'status': 'in_theaters',
+# [MOVED]         'distribution_zone': zone,
+# [MOVED]         'distribution_continent': release_data.distribution_continent,
+# [MOVED]         'distribution_cost': distribution_cost,
+# [MOVED]         'opening_day_revenue': final_opening_revenue,
+# [MOVED]         'total_revenue': final_opening_revenue,
+# [MOVED]         'cumulative_attendance': final_attendance,
+# [MOVED]         'audience_satisfaction': final_satisfaction,
+# [MOVED]         'critic_reviews': critic_data['reviews'],
+# [MOVED]         'critic_effects': critic_data['total_effects'],
+# [MOVED]         'released_at': now,
+# [MOVED]         'release_date': now[:10]
+# [MOVED]     }
+# [MOVED]     if is_direct_release:
+# [MOVED]         release_update['quality_score'] = effective_quality
+# [MOVED]         release_update['imdb_rating'] = round(max(1.0, min(10.0, effective_quality / 10)), 1)
+# [MOVED]         release_update['direct_release'] = True
+# [MOVED]     await db.films.update_one({'id': film_id}, {'$set': release_update})
     
-    # Calculate XP based on film quality
-    quality_score = film.get('quality_score', 50)
-    xp_gained = XP_REWARDS.get('film_release', 100)
-    if quality_score >= 90:
-        xp_gained += XP_REWARDS.get('film_blockbuster', 500)
-    elif quality_score >= 80:
-        xp_gained += XP_REWARDS.get('film_hit', 250)
-    elif quality_score < 40:
-        xp_gained = XP_REWARDS.get('film_flop', 10)
+# [MOVED]     # Calculate XP based on film quality
+# [MOVED]     quality_score = film.get('quality_score', 50)
+# [MOVED]     xp_gained = XP_REWARDS.get('film_release', 100)
+# [MOVED]     if quality_score >= 90:
+# [MOVED]         xp_gained += XP_REWARDS.get('film_blockbuster', 500)
+# [MOVED]     elif quality_score >= 80:
+# [MOVED]         xp_gained += XP_REWARDS.get('film_hit', 250)
+# [MOVED]     elif quality_score < 40:
+# [MOVED]         xp_gained = XP_REWARDS.get('film_flop', 10)
     
-    # Calculate fame change
-    current_fame = user.get('fame', 50)
-    fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
-    new_fame = max(0, min(100, current_fame + fame_change))
+# [MOVED]     # Calculate fame change
+# [MOVED]     current_fame = user.get('fame', 50)
+# [MOVED]     fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
+# [MOVED]     new_fame = max(0, min(100, current_fame + fame_change))
     
-    # Update user: deduct costs, add revenue, update stats
-    new_funds = user['funds'] - distribution_cost + final_opening_revenue
-    new_xp = user.get('total_xp', 0) + xp_gained
-    new_level_info = get_level_from_xp(new_xp)
-    new_lifetime_revenue = user.get('total_lifetime_revenue', 0) + final_opening_revenue
+# [MOVED]     # Update user: deduct costs, add revenue, update stats
+# [MOVED]     new_funds = user['funds'] - distribution_cost + final_opening_revenue
+# [MOVED]     new_xp = user.get('total_xp', 0) + xp_gained
+# [MOVED]     new_level_info = get_level_from_xp(new_xp)
+# [MOVED]     new_lifetime_revenue = user.get('total_lifetime_revenue', 0) + final_opening_revenue
     
-    await db.users.update_one(
-        {'id': user['id']},
-        {
-            '$set': {
-                'funds': new_funds,
-                'total_xp': new_xp,
-                'level': new_level_info['level'],
-                'fame': new_fame,
-                'total_lifetime_revenue': new_lifetime_revenue
-            },
-            '$inc': {'cinepass': -cinepass_cost}
-        }
-    )
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'funds': new_funds,
+# [MOVED]                 'total_xp': new_xp,
+# [MOVED]                 'level': new_level_info['level'],
+# [MOVED]                 'fame': new_fame,
+# [MOVED]                 'total_lifetime_revenue': new_lifetime_revenue
+# [MOVED]             },
+# [MOVED]             '$inc': {'cinepass': -cinepass_cost}
+# [MOVED]         }
+# [MOVED]     )
     
-    # Check for star discoveries
-    for actor in film.get('cast', []):
-        await check_star_discovery(user, actor.get('actor_id') or actor.get('id'), quality_score)
-    if film.get('director', {}).get('id'):
-        await check_star_discovery(user, film['director']['id'], quality_score)
+# [MOVED]     # Check for star discoveries
+# [MOVED]     for actor in film.get('cast', []):
+# [MOVED]         await check_star_discovery(user, actor.get('actor_id') or actor.get('id'), quality_score)
+# [MOVED]     if film.get('director', {}).get('id'):
+# [MOVED]         await check_star_discovery(user, film['director']['id'], quality_score)
     
-    # Update cast skills
-    await update_cast_after_film(film_id, quality_score)
+# [MOVED]     # Update cast skills
+# [MOVED]     await update_cast_after_film(film_id, quality_score)
     
-    # CineNews announcement
-    user_lang = user.get('language', 'it')
-    zone_label = zone_config['name'] if user_lang == 'it' else zone_config['name_en']
-    title = film.get('title', 'Unknown')
-    studio = user.get('production_house_name', 'Studio')
-    genre_name = GENRES.get(film.get('genre', ''), {}).get('name', film.get('genre', ''))
+# [MOVED]     # CineNews announcement
+# [MOVED]     user_lang = user.get('language', 'it')
+# [MOVED]     zone_label = zone_config['name'] if user_lang == 'it' else zone_config['name_en']
+# [MOVED]     title = film.get('title', 'Unknown')
+# [MOVED]     studio = user.get('production_house_name', 'Studio')
+# [MOVED]     genre_name = GENRES.get(film.get('genre', ''), {}).get('name', film.get('genre', ''))
     
-    try:
-        news_bot = CHAT_BOTS[2]
-        announcement = f"🎬 NUOVO FILM! '{title}' di {studio} esce in distribuzione {zone_label}! Genere: {genre_name}"
-        bot_message = {
-            'id': str(uuid.uuid4()), 'room_id': 'general', 'sender_id': news_bot['id'],
-            'content': announcement, 'message_type': 'text', 'image_url': None,
-            'created_at': now
-        }
-        await db.chat_messages.insert_one(bot_message)
-        await sio.emit('new_message', {
-            **{k: v for k, v in bot_message.items() if k != '_id'},
-            'sender': {'id': news_bot['id'], 'nickname': news_bot['nickname'],
-                       'avatar_url': news_bot['avatar_url'], 'is_bot': True, 'is_moderator': False}
-        }, room='general')
-    except Exception:
-        pass
+# [MOVED]     try:
+# [MOVED]         news_bot = CHAT_BOTS[2]
+# [MOVED]         announcement = f"🎬 NUOVO FILM! '{title}' di {studio} esce in distribuzione {zone_label}! Genere: {genre_name}"
+# [MOVED]         bot_message = {
+# [MOVED]             'id': str(uuid.uuid4()), 'room_id': 'general', 'sender_id': news_bot['id'],
+# [MOVED]             'content': announcement, 'message_type': 'text', 'image_url': None,
+# [MOVED]             'created_at': now
+# [MOVED]         }
+# [MOVED]         await db.chat_messages.insert_one(bot_message)
+# [MOVED]         await sio.emit('new_message', {
+# [MOVED]             **{k: v for k, v in bot_message.items() if k != '_id'},
+# [MOVED]             'sender': {'id': news_bot['id'], 'nickname': news_bot['nickname'],
+# [MOVED]                        'avatar_url': news_bot['avatar_url'], 'is_bot': True, 'is_moderator': False}
+# [MOVED]         }, room='general')
+# [MOVED]     except Exception:
+# [MOVED]         pass
     
-    # Create release notification
-    tier_labels = {'blockbuster': 'Blockbuster', 'hit': 'Hit', 'good': 'Buono', 'average': 'Nella Media', 'mediocre': 'Mediocre', 'flop': 'Flop'}
-    tier_text = tier_labels.get(film.get('film_tier', 'average'), 'N/A')
+# [MOVED]     # Create release notification
+# [MOVED]     tier_labels = {'blockbuster': 'Blockbuster', 'hit': 'Hit', 'good': 'Buono', 'average': 'Nella Media', 'mediocre': 'Mediocre', 'flop': 'Flop'}
+# [MOVED]     tier_text = tier_labels.get(film.get('film_tier', 'average'), 'N/A')
     
-    await db.notifications.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'type': 'film_released',
-        'title': f'"{title}" è nelle sale!' if user_lang == 'it' else f'"{title}" is in theaters!',
-        'message': f'Distribuzione: {zone_label} | Qualità: {quality_score:.0f}% ({tier_text}) | Incasso giorno 1: ${final_opening_revenue:,.0f}',
-        'data': {'film_id': film_id},
-        'read': False,
-        'created_at': now
-    })
+# [MOVED]     await db.notifications.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'type': 'film_released',
+# [MOVED]         'title': f'"{title}" è nelle sale!' if user_lang == 'it' else f'"{title}" is in theaters!',
+# [MOVED]         'message': f'Distribuzione: {zone_label} | Qualità: {quality_score:.0f}% ({tier_text}) | Incasso giorno 1: ${final_opening_revenue:,.0f}',
+# [MOVED]         'data': {'film_id': film_id},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': now
+# [MOVED]     })
     
-    # Return updated film
-    updated_film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    return {
-        'success': True,
-        'film': FilmResponse(**updated_film),
-        'distribution_cost': distribution_cost,
-        'cinepass_cost': cinepass_cost,
-        'opening_day_revenue': final_opening_revenue,
-        'zone': zone_label
-    }
+# [MOVED]     # Return updated film
+# [MOVED]     updated_film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'film': FilmResponse(**updated_film),
+# [MOVED]         'distribution_cost': distribution_cost,
+# [MOVED]         'cinepass_cost': cinepass_cost,
+# [MOVED]         'opening_day_revenue': final_opening_revenue,
+# [MOVED]         'zone': zone_label
+# [MOVED]     }
 
 
 
@@ -4273,92 +4277,92 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
 
 
 
-@api_router.get("/films/my/featured")
-async def get_my_featured_films(user: dict = Depends(get_current_user), limit: int = 4):
-    """Get user's top films sorted by attendance/popularity for dashboard featuring."""
-    featured_fields = {
-        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
-        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
-        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
-        'audience_satisfaction': 1, 'created_at': 1, 'released_at': 1, 
-        'release_date': 1, 'subtitle': 1
-    }
-    films = await db.films.find({'user_id': user['id']}, featured_fields).to_list(100)
+# [MOVED] @api_router.get("/films/my/featured")
+# [MOVED] async def get_my_featured_films(user: dict = Depends(get_current_user), limit: int = 4):
+# [MOVED]     """Get user's top films sorted by attendance/popularity for dashboard featuring."""
+# [MOVED]     featured_fields = {
+# [MOVED]         '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
+# [MOVED]         'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+# [MOVED]         'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+# [MOVED]         'audience_satisfaction': 1, 'created_at': 1, 'released_at': 1, 
+# [MOVED]         'release_date': 1, 'subtitle': 1
+# [MOVED]     }
+# [MOVED]     films = await db.films.find({'user_id': user['id']}, featured_fields).to_list(100)
     
-    if not films:
-        return []
+# [MOVED]     if not films:
+# [MOVED]         return []
     
-    # Calculate a "featuring score" for each film
-    for film in films:
-        # Base score from revenue and quality
-        revenue_score = min(100, (film.get('total_revenue', 0) / 1000000) * 10)  # Max 100 for 10M+
-        quality_score = film.get('quality_score', 50)
-        satisfaction_score = film.get('audience_satisfaction', 50)
-        likes_score = min(50, film.get('likes_count', 0) * 5)  # Max 50 for 10+ likes
+# [MOVED]     # Calculate a "featuring score" for each film
+# [MOVED]     for film in films:
+# [MOVED]         # Base score from revenue and quality
+# [MOVED]         revenue_score = min(100, (film.get('total_revenue', 0) / 1000000) * 10)  # Max 100 for 10M+
+# [MOVED]         quality_score = film.get('quality_score', 50)
+# [MOVED]         satisfaction_score = film.get('audience_satisfaction', 50)
+# [MOVED]         likes_score = min(50, film.get('likes_count', 0) * 5)  # Max 50 for 10+ likes
         
-        # Recency bonus: films in theaters get priority
-        recency_bonus = 0
-        if film.get('status') == 'in_theaters':
-            recency_bonus = 30
-        elif film.get('status') == 'released':
-            # Check how recent
-            try:
-                release_date = datetime.fromisoformat(film.get('release_date', '2020-01-01').replace('Z', '+00:00'))
-                days_old = (datetime.now(timezone.utc) - release_date).days
-                if days_old < 30:
-                    recency_bonus = 20
-                elif days_old < 90:
-                    recency_bonus = 10
-            except:
-                pass
+# [MOVED]         # Recency bonus: films in theaters get priority
+# [MOVED]         recency_bonus = 0
+# [MOVED]         if film.get('status') == 'in_theaters':
+# [MOVED]             recency_bonus = 30
+# [MOVED]         elif film.get('status') == 'released':
+# [MOVED]             # Check how recent
+# [MOVED]             try:
+# [MOVED]                 release_date = datetime.fromisoformat(film.get('release_date', '2020-01-01').replace('Z', '+00:00'))
+# [MOVED]                 days_old = (datetime.now(timezone.utc) - release_date).days
+# [MOVED]                 if days_old < 30:
+# [MOVED]                     recency_bonus = 20
+# [MOVED]                 elif days_old < 90:
+# [MOVED]                     recency_bonus = 10
+# [MOVED]             except:
+# [MOVED]                 pass
         
-        # Virtual likes score (new system)
-        virtual_likes_score = min(50, film.get('virtual_likes', 0) / 100)  # Max 50 for 5000+ virtual likes
+# [MOVED]         # Virtual likes score (new system)
+# [MOVED]         virtual_likes_score = min(50, film.get('virtual_likes', 0) / 100)  # Max 50 for 5000+ virtual likes
         
-        # Add some randomness for rotation (0-15 points)
-        import random
-        rotation_bonus = random.randint(0, 15)
+# [MOVED]         # Add some randomness for rotation (0-15 points)
+# [MOVED]         import random
+# [MOVED]         rotation_bonus = random.randint(0, 15)
         
-        film['_featuring_score'] = revenue_score + quality_score + satisfaction_score + likes_score + recency_bonus + virtual_likes_score + rotation_bonus
+# [MOVED]         film['_featuring_score'] = revenue_score + quality_score + satisfaction_score + likes_score + recency_bonus + virtual_likes_score + rotation_bonus
     
-    # Sort by featuring score (descending)
-    films.sort(key=lambda f: f.get('_featuring_score', 0), reverse=True)
+# [MOVED]     # Sort by featuring score (descending)
+# [MOVED]     films.sort(key=lambda f: f.get('_featuring_score', 0), reverse=True)
     
-    return films[:limit]
+# [MOVED]     return films[:limit]
 
-@api_router.get("/films/my/for-sequel")
-async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
-    """Get list of user's films that can be used as parent for a sequel.
-    Returns simplified list with id, title, subtitle, quality_score, and sequel count."""
-    films = await db.films.find(
-        {'user_id': user['id']},
-        {'_id': 0, 'id': 1, 'title': 1, 'subtitle': 1, 'quality_score': 1, 
-         'total_revenue': 1, 'film_tier': 1, 'genre': 1, 'sequel_parent_id': 1}
-    ).to_list(200)
+# [MOVED] @api_router.get("/films/my/for-sequel")
+# [MOVED] async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get list of user's films that can be used as parent for a sequel.
+# [MOVED]     Returns simplified list with id, title, subtitle, quality_score, and sequel count."""
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user['id']},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'subtitle': 1, 'quality_score': 1, 
+# [MOVED]          'total_revenue': 1, 'film_tier': 1, 'genre': 1, 'sequel_parent_id': 1}
+# [MOVED]     ).to_list(200)
     
-    result = []
-    for film in films:
-        # Count how many sequels this film already has
-        sequel_count = await db.films.count_documents({'sequel_parent_id': film['id']})
+# [MOVED]     result = []
+# [MOVED]     for film in films:
+# [MOVED]         # Count how many sequels this film already has
+# [MOVED]         sequel_count = await db.films.count_documents({'sequel_parent_id': film['id']})
         
-        # Only include films that haven't reached max sequels (5)
-        if sequel_count < 5:
-            result.append({
-                'id': film['id'],
-                'title': film['title'],
-                'subtitle': film.get('subtitle'),
-                'full_title': f"{film['title']}" + (f": {film.get('subtitle')}" if film.get('subtitle') else ""),
-                'quality_score': film.get('quality_score', 50),
-                'total_revenue': film.get('total_revenue', 0),
-                'film_tier': film.get('film_tier', 'normal'),
-                'genre': film.get('genre', 'action'),
-                'sequel_count': sequel_count,
-                'is_itself_sequel': film.get('sequel_parent_id') is not None
-            })
+# [MOVED]         # Only include films that haven't reached max sequels (5)
+# [MOVED]         if sequel_count < 5:
+# [MOVED]             result.append({
+# [MOVED]                 'id': film['id'],
+# [MOVED]                 'title': film['title'],
+# [MOVED]                 'subtitle': film.get('subtitle'),
+# [MOVED]                 'full_title': f"{film['title']}" + (f": {film.get('subtitle')}" if film.get('subtitle') else ""),
+# [MOVED]                 'quality_score': film.get('quality_score', 50),
+# [MOVED]                 'total_revenue': film.get('total_revenue', 0),
+# [MOVED]                 'film_tier': film.get('film_tier', 'normal'),
+# [MOVED]                 'genre': film.get('genre', 'action'),
+# [MOVED]                 'sequel_count': sequel_count,
+# [MOVED]                 'is_itself_sequel': film.get('sequel_parent_id') is not None
+# [MOVED]             })
     
-    # Sort by total revenue (most successful first)
-    result.sort(key=lambda x: x['total_revenue'], reverse=True)
-    return {'films': result}
+# [MOVED]     # Sort by total revenue (most successful first)
+# [MOVED]     result.sort(key=lambda x: x['total_revenue'], reverse=True)
+# [MOVED]     return {'films': result}
 
 # [MOVED TO routes/series_pipeline.py] Sagas & TV Series (8 endpoints + constants + models)
 # Original code commented out below
@@ -4793,483 +4797,483 @@ def calculate_imdb_rating(film: dict) -> float:
 #         }
 #     }
 
-@api_router.post("/films/{film_id}/user-rating")
-async def submit_user_rating(film_id: str, rating: float, user: dict = Depends(get_current_user)):
-    """Submit user rating for a film (1-10 scale)."""
-    if rating < 1 or rating > 10:
-        raise HTTPException(status_code=400, detail="Il voto deve essere tra 1 e 10")
+# [MOVED] @api_router.post("/films/{film_id}/user-rating")
+# [MOVED] async def submit_user_rating(film_id: str, rating: float, user: dict = Depends(get_current_user)):
+# [MOVED]     """Submit user rating for a film (1-10 scale)."""
+# [MOVED]     if rating < 1 or rating > 10:
+# [MOVED]         raise HTTPException(status_code=400, detail="Il voto deve essere tra 1 e 10")
     
-    film = await db.films.find_one({'id': film_id})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     film = await db.films.find_one({'id': film_id})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Upsert user rating
-    await db.film_ratings.update_one(
-        {'film_id': film_id, 'user_id': user['id']},
-        {
-            '$set': {
-                'rating': rating,
-                'updated_at': datetime.now(timezone.utc).isoformat()
-            },
-            '$setOnInsert': {
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
-        },
-        upsert=True
-    )
+# [MOVED]     # Upsert user rating
+# [MOVED]     await db.film_ratings.update_one(
+# [MOVED]         {'film_id': film_id, 'user_id': user['id']},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'rating': rating,
+# [MOVED]                 'updated_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             },
+# [MOVED]             '$setOnInsert': {
+# [MOVED]                 'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             }
+# [MOVED]         },
+# [MOVED]         upsert=True
+# [MOVED]     )
     
-    # Calculate new average rating
-    ratings = await db.film_ratings.find({'film_id': film_id}).to_list(10000)
-    avg_rating = sum(r['rating'] for r in ratings) / len(ratings) if ratings else 0
+# [MOVED]     # Calculate new average rating
+# [MOVED]     ratings = await db.film_ratings.find({'film_id': film_id}).to_list(10000)
+# [MOVED]     avg_rating = sum(r['rating'] for r in ratings) / len(ratings) if ratings else 0
     
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'user_avg_rating': round(avg_rating, 1),
-            'rating_count': len(ratings)
-        }}
-    )
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'user_avg_rating': round(avg_rating, 1),
+# [MOVED]             'rating_count': len(ratings)
+# [MOVED]         }}
+# [MOVED]     )
     
-    return {
-        'success': True,
-        'new_average': round(avg_rating, 1),
-        'total_ratings': len(ratings)
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'new_average': round(avg_rating, 1),
+# [MOVED]         'total_ratings': len(ratings)
+# [MOVED]     }
 
-@api_router.get("/films/{film_id}/ratings")
-async def get_film_ratings(film_id: str, user: dict = Depends(get_current_user)):
-    """Get film ratings summary."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/ratings")
+# [MOVED] async def get_film_ratings(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get film ratings summary."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Get user's rating
-    user_rating = await db.film_ratings.find_one(
-        {'film_id': film_id, 'user_id': user['id']},
-        {'_id': 0}
-    )
+# [MOVED]     # Get user's rating
+# [MOVED]     user_rating = await db.film_ratings.find_one(
+# [MOVED]         {'film_id': film_id, 'user_id': user['id']},
+# [MOVED]         {'_id': 0}
+# [MOVED]     )
     
-    return {
-        'imdb_rating': calculate_imdb_rating(film),
-        'user_avg_rating': film.get('user_avg_rating', 0),
-        'rating_count': film.get('rating_count', 0),
-        'user_rating': user_rating.get('rating') if user_rating else None,
-        'cineboard_score': calculate_film_score(film)
-    }
+# [MOVED]     return {
+# [MOVED]         'imdb_rating': calculate_imdb_rating(film),
+# [MOVED]         'user_avg_rating': film.get('user_avg_rating', 0),
+# [MOVED]         'rating_count': film.get('rating_count', 0),
+# [MOVED]         'user_rating': user_rating.get('rating') if user_rating else None,
+# [MOVED]         'cineboard_score': calculate_film_score(film)
+# [MOVED]     }
 
 # Cinema Journal - Film newspaper style
-@api_router.get("/films/cinema-journal")
-async def get_cinema_journal(
-    page: int = 1,
-    limit: int = 10,
-    user: dict = Depends(get_current_user)
-):
-    """Get all films in newspaper style, ordered by quality score (beauty)"""
-    skip = (page - 1) * limit
+# [MOVED] @api_router.get("/films/cinema-journal")
+# [MOVED] async def get_cinema_journal(
+# [MOVED]     page: int = 1,
+# [MOVED]     limit: int = 10,
+# [MOVED]     user: dict = Depends(get_current_user)
+# [MOVED] ):
+# [MOVED]     """Get all films in newspaper style, ordered by quality score (beauty)"""
+# [MOVED]     skip = (page - 1) * limit
     
     # Get films with recent trailers (for headline section)
-    recent_trailers = await db.films.find(
-        {'trailer_url': {'$exists': True, '$ne': None}},
-        {'_id': 0}
-    ).sort('trailer_generated_at', -1).limit(5).to_list(5)
+# [MOVED]     recent_trailers = await db.films.find(
+# [MOVED]         {'trailer_url': {'$exists': True, '$ne': None}},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('trailer_generated_at', -1).limit(5).to_list(5)
     
-    for trailer_film in recent_trailers:
-        owner = await db.users.find_one({'id': trailer_film.get('user_id')}, {'_id': 0, 'nickname': 1, 'production_house_name': 1}) if trailer_film.get('user_id') else None
-        trailer_film['owner'] = owner
+# [MOVED]     for trailer_film in recent_trailers:
+# [MOVED]         owner = await db.users.find_one({'id': trailer_film.get('user_id')}, {'_id': 0, 'nickname': 1, 'production_house_name': 1}) if trailer_film.get('user_id') else None
+# [MOVED]         trailer_film['owner'] = owner
     
     # Get all films ordered by quality_score descending
-    films = await db.films.find(
-        {'user_id': {'$exists': True, '$ne': None}},
-        {'_id': 0, 'attendance_history': 0}
-    ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': {'$exists': True, '$ne': None}},
+# [MOVED]         {'_id': 0, 'attendance_history': 0}
+# [MOVED]     ).sort('quality_score', -1).skip(skip).limit(limit).to_list(limit)
     
-    for film in films:
+# [MOVED]     for film in films:
         # Get owner details (exclude large fields)
-        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0}) if film.get('user_id') else None
-        film['owner'] = owner
+# [MOVED]         owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0}) if film.get('user_id') else None
+# [MOVED]         film['owner'] = owner
         
         # Get director details
-        director_id = (film.get('director') or {}).get('id')
-        director = await db.people.find_one({'id': director_id}, {'_id': 0, 'avatar_url': 0}) if director_id else None
-        if director:
-            film['director_details'] = director
-        else:
-            film['director_details'] = {
-                'id': director_id,
-                'name': (film.get('director') or {}).get('name', 'Director'),
-                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=dir{(director_id or 'unknown')[:6]}",
-                'nationality': 'Unknown'
-            }
+# [MOVED]         director_id = (film.get('director') or {}).get('id')
+# [MOVED]         director = await db.people.find_one({'id': director_id}, {'_id': 0, 'avatar_url': 0}) if director_id else None
+# [MOVED]         if director:
+# [MOVED]             film['director_details'] = director
+# [MOVED]         else:
+# [MOVED]             film['director_details'] = {
+# [MOVED]                 'id': director_id,
+# [MOVED]                 'name': (film.get('director') or {}).get('name', 'Director'),
+# [MOVED]                 'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=dir{(director_id or 'unknown')[:6]}",
+# [MOVED]                 'nationality': 'Unknown'
+# [MOVED]             }
         
         # Get screenwriter details
-        screenwriter_id = (film.get('screenwriter') or {}).get('id')
-        screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0, 'avatar_url': 0}) if screenwriter_id else None
-        if screenwriter:
-            film['screenwriter_details'] = screenwriter
-        else:
-            film['screenwriter_details'] = {
-                'id': screenwriter_id,
-                'name': (film.get('screenwriter') or {}).get('name', 'Screenwriter'),
-                'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=scr{(screenwriter_id or 'unknown')[:6]}",
-                'nationality': 'Unknown'
-            }
+# [MOVED]         screenwriter_id = (film.get('screenwriter') or {}).get('id')
+# [MOVED]         screenwriter = await db.people.find_one({'id': screenwriter_id}, {'_id': 0, 'avatar_url': 0}) if screenwriter_id else None
+# [MOVED]         if screenwriter:
+# [MOVED]             film['screenwriter_details'] = screenwriter
+# [MOVED]         else:
+# [MOVED]             film['screenwriter_details'] = {
+# [MOVED]                 'id': screenwriter_id,
+# [MOVED]                 'name': (film.get('screenwriter') or {}).get('name', 'Screenwriter'),
+# [MOVED]                 'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed=scr{(screenwriter_id or 'unknown')[:6]}",
+# [MOVED]                 'nationality': 'Unknown'
+# [MOVED]             }
         
         # Get main cast (protagonists and co-protagonists)
-        main_cast = []
-        for actor_info in film.get('cast', [])[:5]:  # Top 5 actors
-            actor_id = actor_info.get('actor_id')
-            actor = await db.people.find_one({'id': actor_id}, {'_id': 0, 'avatar_url': 0})
-            if actor:
-                actor['role'] = actor_info.get('role', 'supporting')
-                main_cast.append(actor)
-            else:
+# [MOVED]         main_cast = []
+# [MOVED]         for actor_info in film.get('cast', [])[:5]:  # Top 5 actors
+# [MOVED]             actor_id = actor_info.get('actor_id')
+# [MOVED]             actor = await db.people.find_one({'id': actor_id}, {'_id': 0, 'avatar_url': 0})
+# [MOVED]             if actor:
+# [MOVED]                 actor['role'] = actor_info.get('role', 'supporting')
+# [MOVED]                 main_cast.append(actor)
+# [MOVED]             else:
                 # Create placeholder for missing actors
                 # Try to get name from actor_info if stored, otherwise generate placeholder
-                placeholder_name = actor_info.get('name', f"Actor #{len(main_cast)+1}")
-                main_cast.append({
-                    'id': actor_id or '',
-                    'name': placeholder_name,
-                    'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed={(actor_id or 'unknown')[:8]}",
-                    'gender': actor_info.get('gender', 'male'),
-                    'role': actor_info.get('role', 'supporting'),
-                    'nationality': 'Unknown',
-                    'fame_category': 'unknown',
-                    'stars': 3,
-                    'years_active': 0
-                })
-        film['main_cast'] = main_cast
+# [MOVED]                 placeholder_name = actor_info.get('name', f"Actor #{len(main_cast)+1}")
+# [MOVED]                 main_cast.append({
+# [MOVED]                     'id': actor_id or '',
+# [MOVED]                     'name': placeholder_name,
+# [MOVED]                     'avatar_url': f"https://api.dicebear.com/9.x/avataaars/svg?seed={(actor_id or 'unknown')[:8]}",
+# [MOVED]                     'gender': actor_info.get('gender', 'male'),
+# [MOVED]                     'role': actor_info.get('role', 'supporting'),
+# [MOVED]                     'nationality': 'Unknown',
+# [MOVED]                     'fame_category': 'unknown',
+# [MOVED]                     'stars': 3,
+# [MOVED]                     'years_active': 0
+# [MOVED]                 })
+# [MOVED]         film['main_cast'] = main_cast
         
         # Get user's rating if exists
-        user_rating = await db.film_ratings.find_one({'film_id': film['id'], 'user_id': user['id']})
-        film['user_rating'] = user_rating['rating'] if user_rating else None
+# [MOVED]         user_rating = await db.film_ratings.find_one({'film_id': film['id'], 'user_id': user['id']})
+# [MOVED]         film['user_rating'] = user_rating['rating'] if user_rating else None
         
         # Get average rating
-        ratings = await db.film_ratings.find({'film_id': film['id']}).to_list(1000)
-        if ratings:
-            film['average_rating'] = sum(r['rating'] for r in ratings) / len(ratings)
-            film['ratings_count'] = len(ratings)
-        else:
-            film['average_rating'] = None
-            film['ratings_count'] = 0
+# [MOVED]         ratings = await db.film_ratings.find({'film_id': film['id']}).to_list(1000)
+# [MOVED]         if ratings:
+# [MOVED]             film['average_rating'] = sum(r['rating'] for r in ratings) / len(ratings)
+# [MOVED]             film['ratings_count'] = len(ratings)
+# [MOVED]         else:
+# [MOVED]             film['average_rating'] = None
+# [MOVED]             film['ratings_count'] = 0
         
         # Get recent reviews/comments
-        comments = await db.film_comments.find(
-            {'film_id': film['id']},
-            {'_id': 0}
-        ).sort('created_at', -1).limit(3).to_list(3)
-        for comment in comments:
-            commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0})
-            comment['user'] = commenter
-        film['recent_comments'] = comments
+# [MOVED]         comments = await db.film_comments.find(
+# [MOVED]             {'film_id': film['id']},
+# [MOVED]             {'_id': 0}
+# [MOVED]         ).sort('created_at', -1).limit(3).to_list(3)
+# [MOVED]         for comment in comments:
+# [MOVED]             commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0, 'avatar_url': 0, 'mini_game_sessions': 0})
+# [MOVED]             comment['user'] = commenter
+# [MOVED]         film['recent_comments'] = comments
         
         # Check if current user liked the film
-        like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
-        film['user_liked'] = like is not None
+# [MOVED]         like = await db.likes.find_one({'film_id': film['id'], 'user_id': user['id']})
+# [MOVED]         film['user_liked'] = like is not None
     
-    total = await db.films.count_documents({})
+# [MOVED]     total = await db.films.count_documents({})
     
     # Get recent posters (films with poster_url created recently - deduplicate by title, limit to 8)
-    recent_posters_raw = await db.films.find(
-        {'poster_url': {'$exists': True, '$ne': None}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1, 'virtual_likes': 1, 'likes_count': 1}
-    ).sort('created_at', -1).limit(20).to_list(20)
+# [MOVED]     recent_posters_raw = await db.films.find(
+# [MOVED]         {'poster_url': {'$exists': True, '$ne': None}},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'created_at': 1, 'virtual_likes': 1, 'likes_count': 1}
+# [MOVED]     ).sort('created_at', -1).limit(20).to_list(20)
     # Deduplicate by title (keep first occurrence = most recent)
-    seen_titles = set()
-    recent_posters = []
-    for p in recent_posters_raw:
-        if p['title'] not in seen_titles:
-            seen_titles.add(p['title'])
-            recent_posters.append(p)
-            if len(recent_posters) >= 8:
-                break
+# [MOVED]     seen_titles = set()
+# [MOVED]     recent_posters = []
+# [MOVED]     for p in recent_posters_raw:
+# [MOVED]         if p['title'] not in seen_titles:
+# [MOVED]             seen_titles.add(p['title'])
+# [MOVED]             recent_posters.append(p)
+# [MOVED]             if len(recent_posters) >= 8:
+# [MOVED]                 break
     
-    return {
-        'films': films, 
-        'total': total, 
-        'page': page, 
-        'recent_trailers': recent_trailers,
-        'recent_posters': recent_posters
-    }
+# [MOVED]     return {
+# [MOVED]         'films': films, 
+# [MOVED]         'total': total, 
+# [MOVED]         'page': page, 
+# [MOVED]         'recent_trailers': recent_trailers,
+# [MOVED]         'recent_posters': recent_posters
+# [MOVED]     }
 
 # Films available for rental (must be before /films/{film_id})
-@api_router.get("/films/available-for-rental")
-async def get_films_for_rental(user: dict = Depends(get_current_user)):
-    """Get films from other players available for rental."""
-    films = await db.films.find(
-        {'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
-        {'_id': 0}
-    ).to_list(50)
+# [MOVED] @api_router.get("/films/available-for-rental")
+# [MOVED] async def get_films_for_rental(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get films from other players available for rental."""
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': {'$ne': user['id']}, 'status': 'in_theaters'},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(50)
     
-    result = []
-    for film in films:
-        # Calculate rental price based on rating and quality
-        quality = film.get('quality_score', 50)
-        imdb_rating = film.get('imdb_rating', calculate_imdb_rating(film))
-        likes = film.get('likes_count', 0)
+# [MOVED]     result = []
+# [MOVED]     for film in films:
+# [MOVED]         # Calculate rental price based on rating and quality
+# [MOVED]         quality = film.get('quality_score', 50)
+# [MOVED]         imdb_rating = film.get('imdb_rating', calculate_imdb_rating(film))
+# [MOVED]         likes = film.get('likes_count', 0)
         
-        # Formula: Rating × Quality × 100 + popularity bonus
-        weekly_rental = int((imdb_rating * quality * 100) + (likes * 500))
-        weekly_rental = max(5000, min(weekly_rental, 100000))  # Between $5k-$100k/week
+# [MOVED]         # Formula: Rating × Quality × 100 + popularity bonus
+# [MOVED]         weekly_rental = int((imdb_rating * quality * 100) + (likes * 500))
+# [MOVED]         weekly_rental = max(5000, min(weekly_rental, 100000))  # Between $5k-$100k/week
         
-        owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1})
+# [MOVED]         owner = await db.users.find_one({'id': film['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1})
         
-        result.append({
-            'id': film['id'],
-            'title': film['title'],
-            'genre': film['genre'],
-            'subgenres': film.get('subgenres', []),
-            'quality_score': quality,
-            'imdb_rating': round(imdb_rating, 1),
-            'likes_count': likes,
-            'poster_url': film.get('poster_url'),
-            'owner': owner,
-            'owner_id': film['user_id'],
-            'weekly_rental': weekly_rental,
-            'revenue_share': 70  # Renter gets 70%, owner gets 30%
-        })
+# [MOVED]         result.append({
+# [MOVED]             'id': film['id'],
+# [MOVED]             'title': film['title'],
+# [MOVED]             'genre': film['genre'],
+# [MOVED]             'subgenres': film.get('subgenres', []),
+# [MOVED]             'quality_score': quality,
+# [MOVED]             'imdb_rating': round(imdb_rating, 1),
+# [MOVED]             'likes_count': likes,
+# [MOVED]             'poster_url': film.get('poster_url'),
+# [MOVED]             'owner': owner,
+# [MOVED]             'owner_id': film['user_id'],
+# [MOVED]             'weekly_rental': weekly_rental,
+# [MOVED]             'revenue_share': 70  # Renter gets 70%, owner gets 30%
+# [MOVED]         })
     
-    return sorted(result, key=lambda x: x['imdb_rating'], reverse=True)
+# [MOVED]     return sorted(result, key=lambda x: x['imdb_rating'], reverse=True)
 
-@api_router.get("/films/my-available")
-async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
-    """Get own films available to show in cinemas."""
-    films = await db.films.find(
-        {'user_id': user['id']},
-        {'_id': 0}
-    ).to_list(100)
+# [MOVED] @api_router.get("/films/my-available")
+# [MOVED] async def get_my_films_for_cinema(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get own films available to show in cinemas."""
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user['id']},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(100)
     
-    return [{
-        'id': f['id'],
-        'title': f['title'],
-        'genre': f['genre'],
-        'quality_score': f.get('quality_score', 50),
-        'imdb_rating': round(f.get('imdb_rating', calculate_imdb_rating(f)), 1),
-        'poster_url': f.get('poster_url'),
-        'total_revenue': f.get('total_revenue', 0)
-    } for f in films]
+# [MOVED]     return [{
+# [MOVED]         'id': f['id'],
+# [MOVED]         'title': f['title'],
+# [MOVED]         'genre': f['genre'],
+# [MOVED]         'quality_score': f.get('quality_score', 50),
+# [MOVED]         'imdb_rating': round(f.get('imdb_rating', calculate_imdb_rating(f)), 1),
+# [MOVED]         'poster_url': f.get('poster_url'),
+# [MOVED]         'total_revenue': f.get('total_revenue', 0)
+# [MOVED]     } for f in films]
 
 # Parameterized film routes - MUST be after specific routes
-@api_router.get("/films/{film_id}/release-cinematic")
-async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_user)):
-    """Get saved release cinematic data for 'Rivivi il rilascio' feature."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'release_cinematic': 1, 'title': 1,
-        'quality_score': 1, 'imdb_rating': 1, 'poster_url': 1, 'opening_day_revenue': 1,
-        'total_revenue': 1, 'film_tier': 1, 'tier_score': 1, 'audience_satisfaction': 1,
-        'critic_reviews': 1, 'soundtrack_rating': 1, 'release_event': 1, 'id': 1,
-        'screenplay': 1, 'pre_screenplay': 1, 'status': 1})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/release-cinematic")
+# [MOVED] async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get saved release cinematic data for 'Rivivi il rilascio' feature."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0, 'release_cinematic': 1, 'title': 1,
+# [MOVED]         'quality_score': 1, 'imdb_rating': 1, 'poster_url': 1, 'opening_day_revenue': 1,
+# [MOVED]         'total_revenue': 1, 'film_tier': 1, 'tier_score': 1, 'audience_satisfaction': 1,
+# [MOVED]         'critic_reviews': 1, 'soundtrack_rating': 1, 'release_event': 1, 'id': 1,
+# [MOVED]         'screenplay': 1, 'pre_screenplay': 1, 'status': 1})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # If release_cinematic is saved, return it
-    cinematic = film.get('release_cinematic')
-    if cinematic:
-        # Build screenplay_scenes and release_outcome from saved data
-        qs = cinematic.get('quality_score', film.get('quality_score', 50))
-        if qs < 55:
-            cinematic['release_outcome'] = 'flop'
-            cinematic['release_image'] = '/assets/release/cinema_flop.jpg'
-        elif qs <= 75:
-            cinematic['release_outcome'] = 'normal'
-            cinematic['release_image'] = '/assets/release/cinema_normal.jpg'
-        else:
-            cinematic['release_outcome'] = 'success'
-            cinematic['release_image'] = '/assets/release/cinema_success.jpg'
+# [MOVED]     # If release_cinematic is saved, return it
+# [MOVED]     cinematic = film.get('release_cinematic')
+# [MOVED]     if cinematic:
+# [MOVED]         # Build screenplay_scenes and release_outcome from saved data
+# [MOVED]         qs = cinematic.get('quality_score', film.get('quality_score', 50))
+# [MOVED]         if qs < 55:
+# [MOVED]             cinematic['release_outcome'] = 'flop'
+# [MOVED]             cinematic['release_image'] = '/assets/release/cinema_flop.jpg'
+# [MOVED]         elif qs <= 75:
+# [MOVED]             cinematic['release_outcome'] = 'normal'
+# [MOVED]             cinematic['release_image'] = '/assets/release/cinema_normal.jpg'
+# [MOVED]         else:
+# [MOVED]             cinematic['release_outcome'] = 'success'
+# [MOVED]             cinematic['release_image'] = '/assets/release/cinema_success.jpg'
         
-        # Generate screenplay scenes if not present
-        if 'screenplay_scenes' not in cinematic:
-            text = film.get('screenplay', film.get('pre_screenplay', ''))
-            scenes = []
-            if text and len(text) > 50:
-                sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
-                step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
-                scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
-            cinematic['screenplay_scenes'] = scenes
+# [MOVED]         # Generate screenplay scenes if not present
+# [MOVED]         if 'screenplay_scenes' not in cinematic:
+# [MOVED]             text = film.get('screenplay', film.get('pre_screenplay', ''))
+# [MOVED]             scenes = []
+# [MOVED]             if text and len(text) > 50:
+# [MOVED]                 sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
+# [MOVED]                 step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
+# [MOVED]                 scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
+# [MOVED]             cinematic['screenplay_scenes'] = scenes
         
-        cinematic['hype_level'] = cinematic.get('hype_level', 50)
-        cinematic['success'] = True
-        return cinematic
+# [MOVED]         cinematic['hype_level'] = cinematic.get('hype_level', 50)
+# [MOVED]         cinematic['success'] = True
+# [MOVED]         return cinematic
     
-    # Fallback: reconstruct from film data for older films without saved cinematic
-    qs = film.get('quality_score', 50)
-    tier = film.get('film_tier', 'mediocre')
-    tier_labels = {'masterpiece': 'Capolavoro!', 'excellent': 'Eccellente!', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso'}
+# [MOVED]     # Fallback: reconstruct from film data for older films without saved cinematic
+# [MOVED]     qs = film.get('quality_score', 50)
+# [MOVED]     tier = film.get('film_tier', 'mediocre')
+# [MOVED]     tier_labels = {'masterpiece': 'Capolavoro!', 'excellent': 'Eccellente!', 'good': 'Buono', 'mediocre': 'Mediocre', 'bad': 'Scarso'}
     
-    if qs < 55:
-        outcome, img = 'flop', '/assets/release/cinema_flop.jpg'
-    elif qs <= 75:
-        outcome, img = 'normal', '/assets/release/cinema_normal.jpg'
-    else:
-        outcome, img = 'success', '/assets/release/cinema_success.jpg'
+# [MOVED]     if qs < 55:
+# [MOVED]         outcome, img = 'flop', '/assets/release/cinema_flop.jpg'
+# [MOVED]     elif qs <= 75:
+# [MOVED]         outcome, img = 'normal', '/assets/release/cinema_normal.jpg'
+# [MOVED]     else:
+# [MOVED]         outcome, img = 'success', '/assets/release/cinema_success.jpg'
     
-    text = film.get('screenplay', film.get('pre_screenplay', ''))
-    scenes = []
-    if text and len(text) > 50:
-        sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
-        step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
-        scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
+# [MOVED]     text = film.get('screenplay', film.get('pre_screenplay', ''))
+# [MOVED]     scenes = []
+# [MOVED]     if text and len(text) > 50:
+# [MOVED]         sentences = [s.strip() for s in text.replace('\n', '. ').split('.') if len(s.strip()) > 15]
+# [MOVED]         step_s = max(1, len(sentences) // min(5, len(sentences))) if sentences else 1
+# [MOVED]         scenes = [sentences[i * step_s] + '.' for i in range(min(5, len(sentences)))] if sentences else []
     
-    return {
-        'success': True,
-        'film_id': film_id,
-        'title': film.get('title', '?'),
-        'quality_score': qs,
-        'tier': tier,
-        'tier_label': tier_labels.get(tier, tier),
-        'imdb_rating': film.get('imdb_rating', 0),
-        'poster_url': film.get('poster_url'),
-        'release_outcome': outcome,
-        'release_image': img,
-        'screenplay_scenes': scenes,
-        'hype_level': 50,
-        'opening_day_revenue': film.get('opening_day_revenue', 0),
-        'total_revenue': film.get('total_revenue', 0),
-        'audience_satisfaction': film.get('audience_satisfaction', 50),
-        'soundtrack_rating': film.get('soundtrack_rating', 0),
-        'critic_reviews': (film.get('critic_reviews') or [])[:3],
-        'release_event': film.get('release_event'),
-        'sponsors': [],
-        'xp_gained': 0,
-        'modifiers': {},
-        'cost_summary': {},
-        'is_reconstructed': True,
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'title': film.get('title', '?'),
+# [MOVED]         'quality_score': qs,
+# [MOVED]         'tier': tier,
+# [MOVED]         'tier_label': tier_labels.get(tier, tier),
+# [MOVED]         'imdb_rating': film.get('imdb_rating', 0),
+# [MOVED]         'poster_url': film.get('poster_url'),
+# [MOVED]         'release_outcome': outcome,
+# [MOVED]         'release_image': img,
+# [MOVED]         'screenplay_scenes': scenes,
+# [MOVED]         'hype_level': 50,
+# [MOVED]         'opening_day_revenue': film.get('opening_day_revenue', 0),
+# [MOVED]         'total_revenue': film.get('total_revenue', 0),
+# [MOVED]         'audience_satisfaction': film.get('audience_satisfaction', 50),
+# [MOVED]         'soundtrack_rating': film.get('soundtrack_rating', 0),
+# [MOVED]         'critic_reviews': (film.get('critic_reviews') or [])[:3],
+# [MOVED]         'release_event': film.get('release_event'),
+# [MOVED]         'sponsors': [],
+# [MOVED]         'xp_gained': 0,
+# [MOVED]         'modifiers': {},
+# [MOVED]         'cost_summary': {},
+# [MOVED]         'is_reconstructed': True,
+# [MOVED]     }
 
-@api_router.get("/films/{film_id}")
-async def get_film(film_id: str, user: dict = Depends(get_current_user)):
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        # Fallback: check film_projects for auto-released/completed films
-        film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
-        if film:
-            # Provide defaults for film_projects that may lack some fields
-            film.setdefault('owner_id', film.get('user_id'))
-            film.setdefault('owner_nickname', '')
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}")
+# [MOVED] async def get_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         # Fallback: check film_projects for auto-released/completed films
+# [MOVED]         film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
+# [MOVED]         if film:
+# [MOVED]             # Provide defaults for film_projects that may lack some fields
+# [MOVED]             film.setdefault('owner_id', film.get('user_id'))
+# [MOVED]             film.setdefault('owner_nickname', '')
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Calculate and add cineboard_score
-    film['cineboard_score'] = calculate_cineboard_score(film)
+# [MOVED]     # Calculate and add cineboard_score
+# [MOVED]     film['cineboard_score'] = calculate_cineboard_score(film)
     
-    # Ensure all expected fields exist with defaults
-    film.setdefault('subtitle', None)
-    film.setdefault('subgenres', [])
-    film.setdefault('release_date', film.get('created_at', '')[:10] if film.get('created_at') else None)
-    film.setdefault('weeks_in_theater', 0)
-    film.setdefault('actual_weeks_in_theater', 0)
-    film.setdefault('locations', [])
-    film.setdefault('location_costs', {})
-    film.setdefault('cast', [])
-    film.setdefault('extras_count', 0)
-    film.setdefault('extras_cost', 0)
-    film.setdefault('poster_url', None)
-    film.setdefault('total_budget', film.get('budget', 0))
-    film.setdefault('status', 'released')
-    film.setdefault('quality_score', film.get('quality', 0))
-    film.setdefault('audience_satisfaction', 50.0)
-    film.setdefault('likes_count', 0)
-    film.setdefault('box_office', {})
-    film.setdefault('daily_revenues', [])
-    film.setdefault('opening_day_revenue', 0)
-    film.setdefault('total_revenue', 0)
-    film.setdefault('imdb_rating', None)
-    film.setdefault('film_tier', None)
-    film.setdefault('liked_by', [])
-    film.setdefault('virtual_likes', 0)
-    film.setdefault('cumulative_attendance', 0)
-    film.setdefault('popularity_score', 0)
-    film.setdefault('distribution_zone', None)
-    film.setdefault('distribution_cost', 0)
-    film.setdefault('release_event', None)
-    film.setdefault('advanced_factors', {})
-    film.setdefault('soundtrack_rating', None)
-    film.setdefault('critic_reviews', [])
+# [MOVED]     # Ensure all expected fields exist with defaults
+# [MOVED]     film.setdefault('subtitle', None)
+# [MOVED]     film.setdefault('subgenres', [])
+# [MOVED]     film.setdefault('release_date', film.get('created_at', '')[:10] if film.get('created_at') else None)
+# [MOVED]     film.setdefault('weeks_in_theater', 0)
+# [MOVED]     film.setdefault('actual_weeks_in_theater', 0)
+# [MOVED]     film.setdefault('locations', [])
+# [MOVED]     film.setdefault('location_costs', {})
+# [MOVED]     film.setdefault('cast', [])
+# [MOVED]     film.setdefault('extras_count', 0)
+# [MOVED]     film.setdefault('extras_cost', 0)
+# [MOVED]     film.setdefault('poster_url', None)
+# [MOVED]     film.setdefault('total_budget', film.get('budget', 0))
+# [MOVED]     film.setdefault('status', 'released')
+# [MOVED]     film.setdefault('quality_score', film.get('quality', 0))
+# [MOVED]     film.setdefault('audience_satisfaction', 50.0)
+# [MOVED]     film.setdefault('likes_count', 0)
+# [MOVED]     film.setdefault('box_office', {})
+# [MOVED]     film.setdefault('daily_revenues', [])
+# [MOVED]     film.setdefault('opening_day_revenue', 0)
+# [MOVED]     film.setdefault('total_revenue', 0)
+# [MOVED]     film.setdefault('imdb_rating', None)
+# [MOVED]     film.setdefault('film_tier', None)
+# [MOVED]     film.setdefault('liked_by', [])
+# [MOVED]     film.setdefault('virtual_likes', 0)
+# [MOVED]     film.setdefault('cumulative_attendance', 0)
+# [MOVED]     film.setdefault('popularity_score', 0)
+# [MOVED]     film.setdefault('distribution_zone', None)
+# [MOVED]     film.setdefault('distribution_cost', 0)
+# [MOVED]     film.setdefault('release_event', None)
+# [MOVED]     film.setdefault('advanced_factors', {})
+# [MOVED]     film.setdefault('soundtrack_rating', None)
+# [MOVED]     film.setdefault('critic_reviews', [])
     
-    return film
+# [MOVED]     return film
 
-@api_router.get("/films/{film_id}/distribution")
-async def get_film_distribution(film_id: str, user: dict = Depends(get_current_user)):
-    """Get cinema distribution data for a film - where it's showing."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/distribution")
+# [MOVED] async def get_film_distribution(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get cinema distribution data for a film - where it's showing."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Get current distribution data
-    cinema_distribution = film.get('cinema_distribution', [])
-    current_cinemas = film.get('current_cinemas', 0)
-    current_attendance = film.get('current_attendance', 0)
-    avg_attendance = film.get('avg_attendance_per_cinema', 0)
+# [MOVED]     # Get current distribution data
+# [MOVED]     cinema_distribution = film.get('cinema_distribution', [])
+# [MOVED]     current_cinemas = film.get('current_cinemas', 0)
+# [MOVED]     current_attendance = film.get('current_attendance', 0)
+# [MOVED]     avg_attendance = film.get('avg_attendance_per_cinema', 0)
     
-    # Get historical data
-    attendance_history = film.get('attendance_history', [])
+# [MOVED]     # Get historical data
+# [MOVED]     attendance_history = film.get('attendance_history', [])
     
-    # Calculate trend (last 6 updates vs previous 6)
-    if len(attendance_history) >= 2:
-        recent = attendance_history[-6:] if len(attendance_history) >= 6 else attendance_history
-        recent_avg = sum(h['total_cinemas'] for h in recent) / len(recent)
+# [MOVED]     # Calculate trend (last 6 updates vs previous 6)
+# [MOVED]     if len(attendance_history) >= 2:
+# [MOVED]         recent = attendance_history[-6:] if len(attendance_history) >= 6 else attendance_history
+# [MOVED]         recent_avg = sum(h['total_cinemas'] for h in recent) / len(recent)
         
-        if len(attendance_history) > 6:
-            older = attendance_history[-12:-6]
-            older_avg = sum(h['total_cinemas'] for h in older) / len(older) if older else recent_avg
-            trend = 'growing' if recent_avg > older_avg * 1.05 else 'declining' if recent_avg < older_avg * 0.95 else 'stable'
-        else:
-            trend = 'new'
-    else:
-        trend = 'no_data'
+# [MOVED]         if len(attendance_history) > 6:
+# [MOVED]             older = attendance_history[-12:-6]
+# [MOVED]             older_avg = sum(h['total_cinemas'] for h in older) / len(older) if older else recent_avg
+# [MOVED]             trend = 'growing' if recent_avg > older_avg * 1.05 else 'declining' if recent_avg < older_avg * 0.95 else 'stable'
+# [MOVED]         else:
+# [MOVED]             trend = 'new'
+# [MOVED]     else:
+# [MOVED]         trend = 'no_data'
     
-    return {
-        'film_id': film_id,
-        'title': film.get('title'),
-        'status': film.get('status'),
-        'current_cinemas': current_cinemas,
-        'current_attendance': current_attendance,
-        'avg_attendance_per_cinema': avg_attendance,
-        'cumulative_attendance': film.get('cumulative_attendance', 0),
-        'total_screenings': film.get('total_screenings', 0),
-        'distribution': cinema_distribution,
-        'trend': trend,
-        'last_update': film.get('last_attendance_update'),
-        'history_24h': attendance_history[-144:] if attendance_history else []  # Last 24h of data
-    }
+# [MOVED]     return {
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'title': film.get('title'),
+# [MOVED]         'status': film.get('status'),
+# [MOVED]         'current_cinemas': current_cinemas,
+# [MOVED]         'current_attendance': current_attendance,
+# [MOVED]         'avg_attendance_per_cinema': avg_attendance,
+# [MOVED]         'cumulative_attendance': film.get('cumulative_attendance', 0),
+# [MOVED]         'total_screenings': film.get('total_screenings', 0),
+# [MOVED]         'distribution': cinema_distribution,
+# [MOVED]         'trend': trend,
+# [MOVED]         'last_update': film.get('last_attendance_update'),
+# [MOVED]         'history_24h': attendance_history[-144:] if attendance_history else []  # Last 24h of data
+# [MOVED]     }
 
-@api_router.delete("/films/{film_id}")
-async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
-    """Withdraw film from theaters"""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+# [MOVED] @api_router.delete("/films/{film_id}")
+# [MOVED] async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Withdraw film from theaters"""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
-    if film['status'] != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Film is not currently in theaters")
+# [MOVED]     if film['status'] != 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Film is not currently in theaters")
     
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {'status': 'withdrawn'}}
-    )
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {'status': 'withdrawn'}}
+# [MOVED]     )
     
-    return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
+# [MOVED]     return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
 
 
-@api_router.delete("/films/{film_id}/permanent")
-async def permanently_delete_film(film_id: str, user: dict = Depends(get_current_user)):
-    """Permanently delete a film and all related data. Irreversible."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato o non di tua proprieta'")
-    await db.films.delete_one({'id': film_id})
-    await db.likes.delete_many({'film_id': film_id})
-    await db.film_ratings.delete_many({'film_id': film_id})
-    await db.film_reviews.delete_many({'film_id': film_id})
-    return {'message': f'Film "{film.get("title", "")}" eliminato definitivamente', 'deleted': True}
+# [MOVED] @api_router.delete("/films/{film_id}/permanent")
+# [MOVED] async def permanently_delete_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Permanently delete a film and all related data. Irreversible."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato o non di tua proprieta'")
+# [MOVED]     await db.films.delete_one({'id': film_id})
+# [MOVED]     await db.likes.delete_many({'film_id': film_id})
+# [MOVED]     await db.film_ratings.delete_many({'film_id': film_id})
+# [MOVED]     await db.film_reviews.delete_many({'film_id': film_id})
+# [MOVED]     return {'message': f'Film "{film.get("title", "")}" eliminato definitivamente', 'deleted': True}
 
 
-@api_router.delete("/film-projects/{project_id}/permanent")
-async def permanently_delete_film_project(project_id: str, user: dict = Depends(get_current_user)):
-    """Permanently delete a film project. Irreversible."""
-    project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
-    if not project:
-        raise HTTPException(status_code=404, detail="Progetto non trovato o non di tua proprieta'")
-    await db.film_projects.delete_one({'id': project_id})
-    return {'message': f'Progetto "{project.get("title", "")}" eliminato definitivamente', 'deleted': True}
+# [MOVED] @api_router.delete("/film-projects/{project_id}/permanent")
+# [MOVED] async def permanently_delete_film_project(project_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Permanently delete a film project. Irreversible."""
+# [MOVED]     project = await db.film_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+# [MOVED]     if not project:
+# [MOVED]         raise HTTPException(status_code=404, detail="Progetto non trovato o non di tua proprieta'")
+# [MOVED]     await db.film_projects.delete_one({'id': project_id})
+# [MOVED]     return {'message': f'Progetto "{project.get("title", "")}" eliminato definitivamente', 'deleted': True}
 
 
 # [MOVED] @api_router.delete("/series/{series_id}/permanent")
@@ -5280,10 +5284,10 @@ async def permanently_delete_film_project(project_id: str, user: dict = Depends(
 # [MOVED]         raise HTTPException(status_code=404, detail="Serie non trovata o non di tua proprieta'")
 # [MOVED]     await db.tv_series.delete_one({'id': series_id})
 # [MOVED]     return {'message': f'"{series.get("title", "")}" eliminato definitivamente', 'deleted': True}
-@api_router.get("/advertising/platforms")
-async def get_ad_platforms():
-    """Get available advertising platforms"""
-    return AD_PLATFORMS
+# [MOVED] @api_router.get("/advertising/platforms")
+# [MOVED] async def get_ad_platforms():
+# [MOVED]     """Get available advertising platforms"""
+# [MOVED]     return AD_PLATFORMS
 
 # Get Cinema News (star discoveries, events, etc.)
 # [MOVED TO routes/dashboard.py] /cinema-news
@@ -8069,92 +8073,92 @@ class AdvertisingCampaign(BaseModel):
     days: int  # Campaign duration in days
     budget: float
 
-@api_router.post("/films/{film_id}/advertise")
-async def advertise_film(film_id: str, campaign: AdvertisingCampaign, user: dict = Depends(get_current_user)):
-    """Create an advertising campaign for a film"""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+# [MOVED] @api_router.post("/films/{film_id}/advertise")
+# [MOVED] async def advertise_film(film_id: str, campaign: AdvertisingCampaign, user: dict = Depends(get_current_user)):
+# [MOVED]     """Create an advertising campaign for a film"""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
-    if film['status'] != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Puoi pubblicizzare solo film attualmente in sala")
+# [MOVED]     if film['status'] != 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Puoi pubblicizzare solo film attualmente in sala")
     
-    # Calculate total cost
-    total_cost = 0
-    total_multiplier = 1.0
-    selected_platforms = []
+# [MOVED]     # Calculate total cost
+# [MOVED]     total_cost = 0
+# [MOVED]     total_multiplier = 1.0
+# [MOVED]     selected_platforms = []
     
-    for platform_id in campaign.platforms:
-        platform = next((p for p in AD_PLATFORMS if p['id'] == platform_id), None)
-        if platform:
-            platform_cost = platform['cost_per_day'] * campaign.days
-            total_cost += platform_cost
-            total_multiplier *= platform['reach_multiplier']
-            selected_platforms.append(platform)
+# [MOVED]     for platform_id in campaign.platforms:
+# [MOVED]         platform = next((p for p in AD_PLATFORMS if p['id'] == platform_id), None)
+# [MOVED]         if platform:
+# [MOVED]             platform_cost = platform['cost_per_day'] * campaign.days
+# [MOVED]             total_cost += platform_cost
+# [MOVED]             total_multiplier *= platform['reach_multiplier']
+# [MOVED]             selected_platforms.append(platform)
     
-    # Check if user has enough funds
-    if user['funds'] < total_cost:
-        raise HTTPException(status_code=400, detail=f"Not enough funds. Need ${total_cost:,.0f}")
+# [MOVED]     # Check if user has enough funds
+# [MOVED]     if user['funds'] < total_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Not enough funds. Need ${total_cost:,.0f}")
     
-    # Deduct funds
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+# [MOVED]     # Deduct funds
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
     
-    # Calculate revenue boost - based on opening day revenue to prevent exponential growth
-    # Opening day is a more stable baseline than total_revenue which can grow exponentially
-    opening_day = film.get('opening_day_revenue', 100000)
-    quality_multiplier = film.get('quality_score', 50) / 100
+# [MOVED]     # Calculate revenue boost - based on opening day revenue to prevent exponential growth
+# [MOVED]     # Opening day is a more stable baseline than total_revenue which can grow exponentially
+# [MOVED]     opening_day = film.get('opening_day_revenue', 100000)
+# [MOVED]     quality_multiplier = film.get('quality_score', 50) / 100
     
-    # Daily boost = opening_day * quality * platform_reach * 0.5 (to keep it reasonable)
-    daily_boost = opening_day * quality_multiplier * total_multiplier * 0.5
-    boosted_revenue = int(daily_boost * campaign.days)
+# [MOVED]     # Daily boost = opening_day * quality * platform_reach * 0.5 (to keep it reasonable)
+# [MOVED]     daily_boost = opening_day * quality_multiplier * total_multiplier * 0.5
+# [MOVED]     boosted_revenue = int(daily_boost * campaign.days)
     
-    # Cap the boost to prevent absurd numbers (max 10x opening day per campaign)
-    max_boost = opening_day * 10
-    boosted_revenue = min(boosted_revenue, max_boost)
+# [MOVED]     # Cap the boost to prevent absurd numbers (max 10x opening day per campaign)
+# [MOVED]     max_boost = opening_day * 10
+# [MOVED]     boosted_revenue = min(boosted_revenue, max_boost)
     
-    # Update film with advertising boost
-    await db.films.update_one(
-        {'id': film_id},
-        {
-            '$inc': {'total_revenue': boosted_revenue, 'quality_score': 2},
-            '$push': {
-                'advertising_campaigns': {
-                    'id': str(uuid.uuid4()),
-                    'platforms': [p['name'] for p in selected_platforms],
-                    'cost': total_cost,
-                    'days': campaign.days,
-                    'revenue_generated': boosted_revenue,
-                    'created_at': datetime.now(timezone.utc).isoformat()
-                }
-            }
-        }
-    )
+# [MOVED]     # Update film with advertising boost
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {
+# [MOVED]             '$inc': {'total_revenue': boosted_revenue, 'quality_score': 2},
+# [MOVED]             '$push': {
+# [MOVED]                 'advertising_campaigns': {
+# [MOVED]                     'id': str(uuid.uuid4()),
+# [MOVED]                     'platforms': [p['name'] for p in selected_platforms],
+# [MOVED]                     'cost': total_cost,
+# [MOVED]                     'days': campaign.days,
+# [MOVED]                     'revenue_generated': boosted_revenue,
+# [MOVED]                     'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]                 }
+# [MOVED]             }
+# [MOVED]         }
+# [MOVED]     )
     
-    # Announce in chat
-    news_bot = CHAT_BOTS[2]  # CineNews
-    user_lang = user.get('language', 'en')
-    announcements = {
-        'en': f"📣 ADVERTISING BLITZ! '{film['title']}' launches massive marketing campaign on {', '.join([p['name'] for p in selected_platforms])}!",
-        'it': f"📣 CAMPAGNA PUBBLICITARIA! '{film['title']}' lancia una massiccia campagna su {', '.join([p['name_it'] for p in selected_platforms])}!",
-    }
-    bot_msg = {
-        'id': str(uuid.uuid4()),
-        'room_id': 'general',
-        'sender_id': news_bot['id'],
-        'content': announcements.get(user_lang, announcements['en']),
-        'message_type': 'text',
-        'image_url': None,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.chat_messages.insert_one(bot_msg)
+# [MOVED]     # Announce in chat
+# [MOVED]     news_bot = CHAT_BOTS[2]  # CineNews
+# [MOVED]     user_lang = user.get('language', 'en')
+# [MOVED]     announcements = {
+# [MOVED]         'en': f"📣 ADVERTISING BLITZ! '{film['title']}' launches massive marketing campaign on {', '.join([p['name'] for p in selected_platforms])}!",
+# [MOVED]         'it': f"📣 CAMPAGNA PUBBLICITARIA! '{film['title']}' lancia una massiccia campagna su {', '.join([p['name_it'] for p in selected_platforms])}!",
+# [MOVED]     }
+# [MOVED]     bot_msg = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'room_id': 'general',
+# [MOVED]         'sender_id': news_bot['id'],
+# [MOVED]         'content': announcements.get(user_lang, announcements['en']),
+# [MOVED]         'message_type': 'text',
+# [MOVED]         'image_url': None,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.chat_messages.insert_one(bot_msg)
     
-    return {
-        'success': True,
-        'cost': total_cost,
-        'revenue_boost': boosted_revenue,
-        'platforms': [p['name'] for p in selected_platforms],
-        'days': campaign.days
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'cost': total_cost,
+# [MOVED]         'revenue_boost': boosted_revenue,
+# [MOVED]         'platforms': [p['name'] for p in selected_platforms],
+# [MOVED]         'days': campaign.days
+# [MOVED]     }
 
 # Check for star discovery when film is created
 async def check_star_discovery(user: dict, person_id: str, film_quality: float):
@@ -8337,254 +8341,254 @@ async def update_cast_after_film(film_id: str, quality_score: float):
 class FilmRating(BaseModel):
     rating: float  # 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5
 
-@api_router.post("/films/{film_id}/rate")
-async def rate_film(film_id: str, rating_data: FilmRating, user: dict = Depends(get_current_user)):
-    """Rate a film from 0 to 5 stars (half stars allowed). Votes are PERMANENT and cannot be changed."""
-    film = await db.films.find_one({'id': film_id})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/rate")
+# [MOVED] async def rate_film(film_id: str, rating_data: FilmRating, user: dict = Depends(get_current_user)):
+# [MOVED]     """Rate a film from 0 to 5 stars (half stars allowed). Votes are PERMANENT and cannot be changed."""
+# [MOVED]     film = await db.films.find_one({'id': film_id})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Validate rating
-    valid_ratings = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
-    if rating_data.rating not in valid_ratings:
-        raise HTTPException(status_code=400, detail="Voto non valido. Usa 0-5 con mezzi voti.")
+# [MOVED]     # Validate rating
+# [MOVED]     valid_ratings = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+# [MOVED]     if rating_data.rating not in valid_ratings:
+# [MOVED]         raise HTTPException(status_code=400, detail="Voto non valido. Usa 0-5 con mezzi voti.")
     
-    # Check if user already rated this film - VOTES ARE PERMANENT
-    existing_rating = await db.film_ratings.find_one({'film_id': film_id, 'user_id': user['id']})
+# [MOVED]     # Check if user already rated this film - VOTES ARE PERMANENT
+# [MOVED]     existing_rating = await db.film_ratings.find_one({'film_id': film_id, 'user_id': user['id']})
     
-    if existing_rating:
-        raise HTTPException(status_code=400, detail="Hai già votato questo film. Il voto non è modificabile.")
+# [MOVED]     if existing_rating:
+# [MOVED]         raise HTTPException(status_code=400, detail="Hai già votato questo film. Il voto non è modificabile.")
     
-    # Create new rating (permanent)
-    await db.film_ratings.insert_one({
-        'id': str(uuid.uuid4()),
-        'film_id': film_id,
-        'user_id': user['id'],
-        'rating': rating_data.rating,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'is_permanent': True
-    })
+# [MOVED]     # Create new rating (permanent)
+# [MOVED]     await db.film_ratings.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'rating': rating_data.rating,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'is_permanent': True
+# [MOVED]     })
     
-    # Calculate penalty for low ratings
-    # Too many low ratings (< 2 stars) will affect the rater's own films
-    if rating_data.rating < 2:
-        # Count how many low ratings this user has given
-        low_ratings_count = await db.film_ratings.count_documents({
-            'user_id': user['id'],
-            'rating': {'$lt': 2}
-        })
+# [MOVED]     # Calculate penalty for low ratings
+# [MOVED]     # Too many low ratings (< 2 stars) will affect the rater's own films
+# [MOVED]     if rating_data.rating < 2:
+# [MOVED]         # Count how many low ratings this user has given
+# [MOVED]         low_ratings_count = await db.film_ratings.count_documents({
+# [MOVED]             'user_id': user['id'],
+# [MOVED]             'rating': {'$lt': 2}
+# [MOVED]         })
         
-        # If user gives too many low ratings (>5), penalize their own films
-        if low_ratings_count > 5:
-            # Reduce quality score of user's own films slightly
-            await db.films.update_many(
-                {'user_id': user['id']},
-                {'$inc': {'quality_score': -0.5}}
-            )
-            # Also affect their character score
-            await db.users.update_one(
-                {'id': user['id']},
-                {'$inc': {'character_score': -0.2}}
-            )
+# [MOVED]         # If user gives too many low ratings (>5), penalize their own films
+# [MOVED]         if low_ratings_count > 5:
+# [MOVED]             # Reduce quality score of user's own films slightly
+# [MOVED]             await db.films.update_many(
+# [MOVED]                 {'user_id': user['id']},
+# [MOVED]                 {'$inc': {'quality_score': -0.5}}
+# [MOVED]             )
+# [MOVED]             # Also affect their character score
+# [MOVED]             await db.users.update_one(
+# [MOVED]                 {'id': user['id']},
+# [MOVED]                 {'$inc': {'character_score': -0.2}}
+# [MOVED]             )
     
-    # Update film quality based on rating
-    rating_impact = (rating_data.rating - 2.5) * 0.5  # Positive for good ratings, negative for bad
-    await db.films.update_one(
-        {'id': film_id},
-        {'$inc': {'quality_score': rating_impact}}
-    )
+# [MOVED]     # Update film quality based on rating
+# [MOVED]     rating_impact = (rating_data.rating - 2.5) * 0.5  # Positive for good ratings, negative for bad
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$inc': {'quality_score': rating_impact}}
+# [MOVED]     )
     
-    # Get updated average
-    all_ratings = await db.film_ratings.find({'film_id': film_id}).to_list(1000)
-    avg_rating = sum(r['rating'] for r in all_ratings) / len(all_ratings) if all_ratings else 0
+# [MOVED]     # Get updated average
+# [MOVED]     all_ratings = await db.film_ratings.find({'film_id': film_id}).to_list(1000)
+# [MOVED]     avg_rating = sum(r['rating'] for r in all_ratings) / len(all_ratings) if all_ratings else 0
     
-    return {
-        'rating': rating_data.rating,
-        'average_rating': round(avg_rating, 1),
-        'ratings_count': len(all_ratings)
-    }
+# [MOVED]     return {
+# [MOVED]         'rating': rating_data.rating,
+# [MOVED]         'average_rating': round(avg_rating, 1),
+# [MOVED]         'ratings_count': len(all_ratings)
+# [MOVED]     }
 
 # Comment on a film
-class FilmComment(BaseModel):
-    content: str
+# [MOVED] class FilmComment(BaseModel):
+# [MOVED]     content: str
 
-@api_router.post("/films/{film_id}/comment")
-async def comment_on_film(film_id: str, comment_data: FilmComment, user: dict = Depends(get_current_user)):
-    """Add a comment/review to a film"""
-    film = await db.films.find_one({'id': film_id})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/comment")
+# [MOVED] async def comment_on_film(film_id: str, comment_data: FilmComment, user: dict = Depends(get_current_user)):
+# [MOVED]     """Add a comment/review to a film"""
+# [MOVED]     film = await db.films.find_one({'id': film_id})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    comment = {
-        'id': str(uuid.uuid4()),
-        'film_id': film_id,
-        'user_id': user['id'],
-        'content': comment_data.content[:500],  # Max 500 characters
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.film_comments.insert_one(comment)
+# [MOVED]     comment = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'content': comment_data.content[:500],  # Max 500 characters
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.film_comments.insert_one(comment)
     
-    # Increase interaction score
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'interaction_score': 0.3}}
-    )
+# [MOVED]     # Increase interaction score
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'interaction_score': 0.3}}
+# [MOVED]     )
     
-    return {k: v for k, v in comment.items() if k != '_id'}
+# [MOVED]     return {k: v for k, v in comment.items() if k != '_id'}
 
-@api_router.get("/films/{film_id}/comments")
-async def get_film_comments(film_id: str, user: dict = Depends(get_current_user)):
-    """Get all comments for a film"""
-    comments = await db.film_comments.find(
-        {'film_id': film_id},
-        {'_id': 0}
-    ).sort('created_at', -1).to_list(100)
+# [MOVED] @api_router.get("/films/{film_id}/comments")
+# [MOVED] async def get_film_comments(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all comments for a film"""
+# [MOVED]     comments = await db.film_comments.find(
+# [MOVED]         {'film_id': film_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(100)
     
-    for comment in comments:
-        commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
-        comment['user'] = commenter
+# [MOVED]     for comment in comments:
+# [MOVED]         commenter = await db.users.find_one({'id': comment['user_id']}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]         comment['user'] = commenter
     
-    return comments
+# [MOVED]     return comments
 
 # ==================== VIRTUAL AUDIENCE SYSTEM ====================
-from virtual_audience import (
-    generate_review, 
-    calculate_virtual_likes, 
-    calculate_virtual_like_bonus,
-    calculate_festival_audience_votes
-)
+# [MOVED] from virtual_audience import (
+# [MOVED]     generate_review, 
+# [MOVED]     calculate_virtual_likes, 
+# [MOVED]     calculate_virtual_like_bonus,
+# [MOVED]     calculate_festival_audience_votes
+# [MOVED] )
 
-@api_router.get("/films/{film_id}/virtual-audience")
-async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
-    """Get virtual audience data for a film: virtual likes, reviews, and bonuses."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/virtual-audience")
+# [MOVED] async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get virtual audience data for a film: virtual likes, reviews, and bonuses."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    # Get or generate virtual likes
-    virtual_likes = film.get('virtual_likes')
-    if virtual_likes is None:
-        virtual_likes = calculate_virtual_likes(film)
-        await db.films.update_one({'id': film_id}, {'$set': {'virtual_likes': virtual_likes}})
+# [MOVED]     # Get or generate virtual likes
+# [MOVED]     virtual_likes = film.get('virtual_likes')
+# [MOVED]     if virtual_likes is None:
+# [MOVED]         virtual_likes = calculate_virtual_likes(film)
+# [MOVED]         await db.films.update_one({'id': film_id}, {'$set': {'virtual_likes': virtual_likes}})
     
-    # Get existing reviews or generate new ones
-    existing_reviews = await db.virtual_reviews.find({'film_id': film_id}, {'_id': 0}).to_list(5)
+# [MOVED]     # Get existing reviews or generate new ones
+# [MOVED]     existing_reviews = await db.virtual_reviews.find({'film_id': film_id}, {'_id': 0}).to_list(5)
     
-    # Generate reviews if needed (for notable films)
-    reviews = existing_reviews
-    quality = film.get('quality_score', 50)
-    satisfaction = film.get('audience_satisfaction', 50)
-    avg_score = (quality + satisfaction) / 2
+# [MOVED]     # Generate reviews if needed (for notable films)
+# [MOVED]     reviews = existing_reviews
+# [MOVED]     quality = film.get('quality_score', 50)
+# [MOVED]     satisfaction = film.get('audience_satisfaction', 50)
+# [MOVED]     avg_score = (quality + satisfaction) / 2
     
-    # Only generate reviews for notable films (very good or very bad)
-    if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):
-        num_to_generate = min(3 - len(existing_reviews), 2 if avg_score <= 35 else 3)
-        language = user.get('language', 'it')
+# [MOVED]     # Only generate reviews for notable films (very good or very bad)
+# [MOVED]     if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):
+# [MOVED]         num_to_generate = min(3 - len(existing_reviews), 2 if avg_score <= 35 else 3)
+# [MOVED]         language = user.get('language', 'it')
         
-        for _ in range(num_to_generate):
-            review = generate_review(quality, satisfaction, language)
-            review['film_id'] = film_id
-            review['id'] = str(uuid.uuid4())
-            await db.virtual_reviews.insert_one(review)
-            reviews.append({k: v for k, v in review.items() if k != '_id'})
+# [MOVED]         for _ in range(num_to_generate):
+# [MOVED]             review = generate_review(quality, satisfaction, language)
+# [MOVED]             review['film_id'] = film_id
+# [MOVED]             review['id'] = str(uuid.uuid4())
+# [MOVED]             await db.virtual_reviews.insert_one(review)
+# [MOVED]             reviews.append({k: v for k, v in review.items() if k != '_id'})
     
-    # Calculate bonuses
-    bonus_info = calculate_virtual_like_bonus(virtual_likes)
+# [MOVED]     # Calculate bonuses
+# [MOVED]     bonus_info = calculate_virtual_like_bonus(virtual_likes)
     
-    return {
-        'film_id': film_id,
-        'film_title': film.get('title'),
-        'virtual_likes': virtual_likes,
-        'player_likes': film.get('likes_count', 0),
-        'reviews': reviews,
-        'bonuses': bonus_info
-    }
+# [MOVED]     return {
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'film_title': film.get('title'),
+# [MOVED]         'virtual_likes': virtual_likes,
+# [MOVED]         'player_likes': film.get('likes_count', 0),
+# [MOVED]         'reviews': reviews,
+# [MOVED]         'bonuses': bonus_info
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/update-virtual-audience")
-async def update_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
-    """Recalculate virtual audience metrics for a film (called periodically or on demand)."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film not found or not owned by you")
+# [MOVED] @api_router.post("/films/{film_id}/update-virtual-audience")
+# [MOVED] async def update_film_virtual_audience(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Recalculate virtual audience metrics for a film (called periodically or on demand)."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film not found or not owned by you")
     
-    # Recalculate virtual likes
-    new_virtual_likes = calculate_virtual_likes(film)
+# [MOVED]     # Recalculate virtual likes
+# [MOVED]     new_virtual_likes = calculate_virtual_likes(film)
     
-    # Get current virtual likes and only update if increased (virtual likes don't decrease)
-    current_likes = film.get('virtual_likes', 0)
-    final_likes = max(current_likes, new_virtual_likes)
+# [MOVED]     # Get current virtual likes and only update if increased (virtual likes don't decrease)
+# [MOVED]     current_likes = film.get('virtual_likes', 0)
+# [MOVED]     final_likes = max(current_likes, new_virtual_likes)
     
-    # Calculate bonuses
-    bonus_info = calculate_virtual_like_bonus(final_likes)
+# [MOVED]     # Calculate bonuses
+# [MOVED]     bonus_info = calculate_virtual_like_bonus(final_likes)
     
-    # Update film with new metrics
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'virtual_likes': final_likes,
-            'virtual_bonus_percent': bonus_info['money_bonus_percent'],
-            'virtual_rating_bonus': bonus_info['rating_bonus']
-        }}
-    )
+# [MOVED]     # Update film with new metrics
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'virtual_likes': final_likes,
+# [MOVED]             'virtual_bonus_percent': bonus_info['money_bonus_percent'],
+# [MOVED]             'virtual_rating_bonus': bonus_info['rating_bonus']
+# [MOVED]         }}
+# [MOVED]     )
     
-    return {
-        'film_id': film_id,
-        'previous_virtual_likes': current_likes,
-        'new_virtual_likes': final_likes,
-        'bonuses': bonus_info,
-        'message': f"Virtual audience updated! {final_likes:,} virtual likes"
-    }
+# [MOVED]     return {
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'previous_virtual_likes': current_likes,
+# [MOVED]         'new_virtual_likes': final_likes,
+# [MOVED]         'bonuses': bonus_info,
+# [MOVED]         'message': f"Virtual audience updated! {final_likes:,} virtual likes"
+# [MOVED]     }
 
-@api_router.get("/films/reviews-board")
-async def get_virtual_reviews_board(user: dict = Depends(get_current_user), limit: int = 20):
-    """Get the public board of virtual audience reviews (IMDb style)."""
-    # Get recent reviews with film info
-    reviews = await db.virtual_reviews.find(
-        {},
-        {'_id': 0}
-    ).sort('created_at', -1).limit(limit).to_list(limit)
+# [MOVED] @api_router.get("/films/reviews-board")
+# [MOVED] async def get_virtual_reviews_board(user: dict = Depends(get_current_user), limit: int = 20):
+# [MOVED]     """Get the public board of virtual audience reviews (IMDb style)."""
+# [MOVED]     # Get recent reviews with film info
+# [MOVED]     reviews = await db.virtual_reviews.find(
+# [MOVED]         {},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).limit(limit).to_list(limit)
     
-    # Enrich with film data
-    enriched_reviews = []
-    for review in reviews:
-        film = await db.films.find_one(
-            {'id': review.get('film_id')},
-            {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'quality_score': 1, 'user_id': 1}
-        )
-        if film:
-            owner = await db.users.find_one(
-                {'id': film.get('user_id')},
-                {'_id': 0, 'nickname': 1, 'production_house_name': 1}
-            )
-            enriched_reviews.append({
-                **review,
-                'film': {
-                    'id': film.get('id'),
-                    'title': film.get('title'),
-                    'poster_url': film.get('poster_url'),
-                    'owner_nickname': owner.get('nickname') if owner else 'Unknown',
-                    'owner_studio': owner.get('production_house_name') if owner else 'Unknown'
-                }
-            })
+# [MOVED]     # Enrich with film data
+# [MOVED]     enriched_reviews = []
+# [MOVED]     for review in reviews:
+# [MOVED]         film = await db.films.find_one(
+# [MOVED]             {'id': review.get('film_id')},
+# [MOVED]             {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'quality_score': 1, 'user_id': 1}
+# [MOVED]         )
+# [MOVED]         if film:
+# [MOVED]             owner = await db.users.find_one(
+# [MOVED]                 {'id': film.get('user_id')},
+# [MOVED]                 {'_id': 0, 'nickname': 1, 'production_house_name': 1}
+# [MOVED]             )
+# [MOVED]             enriched_reviews.append({
+# [MOVED]                 **review,
+# [MOVED]                 'film': {
+# [MOVED]                     'id': film.get('id'),
+# [MOVED]                     'title': film.get('title'),
+# [MOVED]                     'poster_url': film.get('poster_url'),
+# [MOVED]                     'owner_nickname': owner.get('nickname') if owner else 'Unknown',
+# [MOVED]                     'owner_studio': owner.get('production_house_name') if owner else 'Unknown'
+# [MOVED]                 }
+# [MOVED]             })
     
-    return {
-        'reviews': enriched_reviews,
-        'total': len(enriched_reviews)
-    }
+# [MOVED]     return {
+# [MOVED]         'reviews': enriched_reviews,
+# [MOVED]         'total': len(enriched_reviews)
+# [MOVED]     }
 
-@api_router.get("/films/{film_id}/tier-expectations")
-async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_current_user)):
-    """Check if a film met its tier expectations (for end of run popup)."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/tier-expectations")
+# [MOVED] async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if a film met its tier expectations (for end of run popup)."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    result = check_film_expectations(film)
-    result['film_id'] = film_id
-    result['film_title'] = film.get('title')
-    result['film_tier_info'] = FILM_TIERS.get(film.get('film_tier', 'normal'), {})
+# [MOVED]     result = check_film_expectations(film)
+# [MOVED]     result['film_id'] = film_id
+# [MOVED]     result['film_title'] = film.get('title')
+# [MOVED]     result['film_tier_info'] = FILM_TIERS.get(film.get('film_tier', 'normal'), {})
     
-    return result
+# [MOVED]     return result
 
 # Mini Games with real questions
 # [MOVED TO routes/challenges.py] Daily/Weekly challenges (2 endpoints)
@@ -10366,7 +10370,7 @@ async def startup_event():
     
     # Every hour: Process film shooting progress (simulates 1 day per hour for faster gameplay)
     scheduler.add_job(
-        process_shooting_progress,
+        _films_process_shooting,
         IntervalTrigger(hours=1),
         id='process_shooting',
         replace_existing=True
@@ -10924,527 +10928,527 @@ async def delete_system_note(note_id: str, user: dict = Depends(get_current_user
 
 # ==================== PRODUCTION STUDIO ====================
 
-@api_router.get("/production-studio/status")
-async def get_production_studio_status(user: dict = Depends(get_current_user)):
-    """Get production studio status and capabilities."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.get("/production-studio/status")
+# [MOVED] async def get_production_studio_status(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get production studio status and capabilities."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    level = studio.get('level', 1)
-    pending_films = await db.films.find(
-        {'user_id': user['id'], 'status': 'pending_release'}, {'_id': 0}
-    ).sort('created_at', -1).to_list(20)
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     pending_films = await db.films.find(
+# [MOVED]         {'user_id': user['id'], 'status': 'pending_release'}, {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(20)
     
-    released_films = await db.film_projects.find(
-        {'user_id': user['id'], 'status': 'pre_production'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pre_imdb_score': 1, 'genre': 1, 
-         'remaster_completed': 1, 'remaster_started_at': 1, 'remaster_quality_boost': 1}
-    ).sort('created_at', -1).limit(10).to_list(10)
+# [MOVED]     released_films = await db.film_projects.find(
+# [MOVED]         {'user_id': user['id'], 'status': 'pre_production'},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pre_imdb_score': 1, 'genre': 1, 
+# [MOVED]          'remaster_completed': 1, 'remaster_started_at': 1, 'remaster_quality_boost': 1}
+# [MOVED]     ).sort('created_at', -1).limit(10).to_list(10)
     
-    return {
-        'studio_id': studio.get('id'),
-        'level': level,
-        'name': studio.get('custom_name', 'Studio di Produzione'),
-        'pre_production': {
-            'storyboard_bonus': 5 + level * 2,  # +7% to +25% quality
-            'casting_discount': 15 + level * 3,  # 18% to 45% actor cost discount
-            'scouting_discount': 10 + level * 2,  # 12% to 30% location discount
-            'cost': int(300000 + level * 100000)   # $400K to $1.3M
-        },
-        'post_production': {
-            'remaster_quality_bonus': 3 + level,    # +4 to +13 quality_score
-            'remaster_cost': int(500000 + level * 200000),  # $700K to $2.5M
-            'remaster_cinepass': 2 + level // 3,     # 2 to 5 CinePass
-            'max_remasters': 1 if level < 5 else 2
-        },
-        'casting_agency': {
-            'weekly_recruits': 3 + level,   # 4 to 13 weekly recruits
-            'discount_percent': 20 + level * 5,   # 25% to 70% discount
-            'legendary_chance': min(5 + level * 3, 40)  # 8% to 40%
-        },
-        'pending_films': [{k: v for k, v in f.items() if k != '_id'} for f in pending_films],
-        'released_films': released_films
-    }
+# [MOVED]     return {
+# [MOVED]         'studio_id': studio.get('id'),
+# [MOVED]         'level': level,
+# [MOVED]         'name': studio.get('custom_name', 'Studio di Produzione'),
+# [MOVED]         'pre_production': {
+# [MOVED]             'storyboard_bonus': 5 + level * 2,  # +7% to +25% quality
+# [MOVED]             'casting_discount': 15 + level * 3,  # 18% to 45% actor cost discount
+# [MOVED]             'scouting_discount': 10 + level * 2,  # 12% to 30% location discount
+# [MOVED]             'cost': int(300000 + level * 100000)   # $400K to $1.3M
+# [MOVED]         },
+# [MOVED]         'post_production': {
+# [MOVED]             'remaster_quality_bonus': 3 + level,    # +4 to +13 quality_score
+# [MOVED]             'remaster_cost': int(500000 + level * 200000),  # $700K to $2.5M
+# [MOVED]             'remaster_cinepass': 2 + level // 3,     # 2 to 5 CinePass
+# [MOVED]             'max_remasters': 1 if level < 5 else 2
+# [MOVED]         },
+# [MOVED]         'casting_agency': {
+# [MOVED]             'weekly_recruits': 3 + level,   # 4 to 13 weekly recruits
+# [MOVED]             'discount_percent': 20 + level * 5,   # 25% to 70% discount
+# [MOVED]             'legendary_chance': min(5 + level * 3, 40)  # 8% to 40%
+# [MOVED]         },
+# [MOVED]         'pending_films': [{k: v for k, v in f.items() if k != '_id'} for f in pending_films],
+# [MOVED]         'released_films': released_films
+# [MOVED]     }
 
 
-@api_router.get("/production-studios/unlock-status")
-async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
-    """Fast endpoint to check which sub-studios are unlocked. Used by bottom nav."""
-    infra_types = await db.infrastructure.find(
-        {'owner_id': user['id'], 'type': {'$in': ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv']}},
-        {'_id': 0, 'type': 1, 'level': 1, 'id': 1}
-    ).to_list(10)
-    owned = {i['type']: {'level': i.get('level', 1), 'id': i.get('id')} for i in infra_types}
-    return {
-        'has_production_studio': 'production_studio' in owned,
-        'has_studio_serie_tv': 'studio_serie_tv' in owned,
-        'has_studio_anime': 'studio_anime' in owned,
-        'has_emittente_tv': 'emittente_tv' in owned,
-        'studios': owned,
-        'requirements': {
-            'studio_serie_tv': {'level': 7, 'fame': 60, 'cost': 3000000},
-            'studio_anime': {'level': 9, 'fame': 90, 'cost': 4000000},
-            'emittente_tv': {'level': 7, 'fame': 80, 'cost': 2000000}
-        }
-    }
+# [MOVED] @api_router.get("/production-studios/unlock-status")
+# [MOVED] async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
+# [MOVED]     """Fast endpoint to check which sub-studios are unlocked. Used by bottom nav."""
+# [MOVED]     infra_types = await db.infrastructure.find(
+# [MOVED]         {'owner_id': user['id'], 'type': {'$in': ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv']}},
+# [MOVED]         {'_id': 0, 'type': 1, 'level': 1, 'id': 1}
+# [MOVED]     ).to_list(10)
+# [MOVED]     owned = {i['type']: {'level': i.get('level', 1), 'id': i.get('id')} for i in infra_types}
+# [MOVED]     return {
+# [MOVED]         'has_production_studio': 'production_studio' in owned,
+# [MOVED]         'has_studio_serie_tv': 'studio_serie_tv' in owned,
+# [MOVED]         'has_studio_anime': 'studio_anime' in owned,
+# [MOVED]         'has_emittente_tv': 'emittente_tv' in owned,
+# [MOVED]         'studios': owned,
+# [MOVED]         'requirements': {
+# [MOVED]             'studio_serie_tv': {'level': 7, 'fame': 60, 'cost': 3000000},
+# [MOVED]             'studio_anime': {'level': 9, 'fame': 90, 'cost': 4000000},
+# [MOVED]             'emittente_tv': {'level': 7, 'fame': 80, 'cost': 2000000}
+# [MOVED]         }
+# [MOVED]     }
 
-class PreProductionRequest(BaseModel):
-    bonus_type: str  # storyboard, casting_interno, scouting
+# [MOVED] class PreProductionRequest(BaseModel):
+# [MOVED]     bonus_type: str  # storyboard, casting_interno, scouting
 
-@api_router.post("/production-studio/pre-production/{film_id}")
-async def apply_pre_production(film_id: str, req: PreProductionRequest, user: dict = Depends(get_current_user)):
-    """Apply pre-production bonuses to a pending film."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.post("/production-studio/pre-production/{film_id}")
+# [MOVED] async def apply_pre_production(film_id: str, req: PreProductionRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Apply pre-production bonuses to a pending film."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    if film.get('status') != 'pending_release':
-        raise HTTPException(status_code=400, detail="Il film deve essere in attesa di rilascio")
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     if film.get('status') != 'pending_release':
+# [MOVED]         raise HTTPException(status_code=400, detail="Il film deve essere in attesa di rilascio")
     
-    # Check if bonus already applied
-    applied = film.get('pre_production_bonuses', [])
-    if req.bonus_type in applied:
-        raise HTTPException(status_code=400, detail="Questo bonus è già stato applicato a questo film")
+# [MOVED]     # Check if bonus already applied
+# [MOVED]     applied = film.get('pre_production_bonuses', [])
+# [MOVED]     if req.bonus_type in applied:
+# [MOVED]         raise HTTPException(status_code=400, detail="Questo bonus è già stato applicato a questo film")
     
-    level = studio.get('level', 1)
-    cost = int(300000 + level * 100000)
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     cost = int(300000 + level * 100000)
     
-    if user.get('funds', 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+# [MOVED]     if user.get('funds', 0) < cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
     
-    updates = {}
-    message = ''
-    if req.bonus_type == 'storyboard':
-        bonus = 5 + level * 2
-        updates['quality_score'] = min(100, film.get('quality_score', 50) + bonus)
-        updates['opening_day_revenue'] = int(film.get('opening_day_revenue', 0) * (1 + bonus / 100))
-        message = f'Storyboard completato! Qualità +{bonus}%'
-    elif req.bonus_type == 'casting_interno':
-        discount = (15 + level * 3) / 100
-        saved = int(film.get('production_cost', 0) * discount)
-        message = f'Casting interno completato! Risparmio attori: ${saved:,}'
-        # Refund part of the production cost
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
-    elif req.bonus_type == 'scouting':
-        discount = (10 + level * 2) / 100
-        saved = int(film.get('location_costs', 0) * discount)
-        message = f'Location scouting completato! Risparmio location: ${saved:,}'
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
-    else:
-        raise HTTPException(status_code=400, detail="Tipo bonus non valido")
+# [MOVED]     updates = {}
+# [MOVED]     message = ''
+# [MOVED]     if req.bonus_type == 'storyboard':
+# [MOVED]         bonus = 5 + level * 2
+# [MOVED]         updates['quality_score'] = min(100, film.get('quality_score', 50) + bonus)
+# [MOVED]         updates['opening_day_revenue'] = int(film.get('opening_day_revenue', 0) * (1 + bonus / 100))
+# [MOVED]         message = f'Storyboard completato! Qualità +{bonus}%'
+# [MOVED]     elif req.bonus_type == 'casting_interno':
+# [MOVED]         discount = (15 + level * 3) / 100
+# [MOVED]         saved = int(film.get('production_cost', 0) * discount)
+# [MOVED]         message = f'Casting interno completato! Risparmio attori: ${saved:,}'
+# [MOVED]         # Refund part of the production cost
+# [MOVED]         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
+# [MOVED]     elif req.bonus_type == 'scouting':
+# [MOVED]         discount = (10 + level * 2) / 100
+# [MOVED]         saved = int(film.get('location_costs', 0) * discount)
+# [MOVED]         message = f'Location scouting completato! Risparmio location: ${saved:,}'
+# [MOVED]         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': saved}})
+# [MOVED]     else:
+# [MOVED]         raise HTTPException(status_code=400, detail="Tipo bonus non valido")
     
-    updates['pre_production_bonuses'] = applied + [req.bonus_type]
-    await db.films.update_one({'id': film_id}, {'$set': updates})
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+# [MOVED]     updates['pre_production_bonuses'] = applied + [req.bonus_type]
+# [MOVED]     await db.films.update_one({'id': film_id}, {'$set': updates})
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
     
-    return {'success': True, 'message': message, 'cost': cost, 'bonus_type': req.bonus_type}
+# [MOVED]     return {'success': True, 'message': message, 'cost': cost, 'bonus_type': req.bonus_type}
 
-@api_router.post("/production-studio/remaster/{film_id}")
-async def remaster_film(film_id: str, user: dict = Depends(get_current_user)):
-    """Remaster a released film to improve its quality."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.post("/production-studio/remaster/{film_id}")
+# [MOVED] async def remaster_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Remaster a released film to improve its quality."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    if film.get('status') != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Il film deve essere nelle sale")
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Il film deve essere nelle sale")
     
-    remaster_count = film.get('remaster_count', 0)
-    level = studio.get('level', 1)
-    max_remasters = 1 if level < 5 else 2
-    if remaster_count >= max_remasters:
-        raise HTTPException(status_code=400, detail=f"Limite remaster raggiunto ({max_remasters})")
+# [MOVED]     remaster_count = film.get('remaster_count', 0)
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     max_remasters = 1 if level < 5 else 2
+# [MOVED]     if remaster_count >= max_remasters:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Limite remaster raggiunto ({max_remasters})")
     
-    cost = int(500000 + level * 200000)
-    cinepass_cost = 2 + level // 3
+# [MOVED]     cost = int(500000 + level * 200000)
+# [MOVED]     cinepass_cost = 2 + level // 3
     
-    if user.get('funds', 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
-    if user.get('cinepass', 0) < cinepass_cost:
-        raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost}")
+# [MOVED]     if user.get('funds', 0) < cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+# [MOVED]     if user.get('cinepass', 0) < cinepass_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"CinePass insufficienti. Servono {cinepass_cost}")
     
-    quality_bonus = 3 + level
-    old_quality = film.get('quality_score', 50)
-    new_quality = min(100, old_quality + quality_bonus)
+# [MOVED]     quality_bonus = 3 + level
+# [MOVED]     old_quality = film.get('quality_score', 50)
+# [MOVED]     new_quality = min(100, old_quality + quality_bonus)
     
-    # Improve film stats
-    old_imdb = film.get('imdb_rating', 5.0)
-    new_imdb = min(10.0, old_imdb + quality_bonus * 0.1)
+# [MOVED]     # Improve film stats
+# [MOVED]     old_imdb = film.get('imdb_rating', 5.0)
+# [MOVED]     new_imdb = min(10.0, old_imdb + quality_bonus * 0.1)
     
-    await db.films.update_one({'id': film_id}, {'$set': {
-        'quality_score': new_quality,
-        'imdb_rating': round(new_imdb, 1),
-        'remastered': True,
-        'remaster_count': remaster_count + 1
-    }})
+# [MOVED]     await db.films.update_one({'id': film_id}, {'$set': {
+# [MOVED]         'quality_score': new_quality,
+# [MOVED]         'imdb_rating': round(new_imdb, 1),
+# [MOVED]         'remastered': True,
+# [MOVED]         'remaster_count': remaster_count + 1
+# [MOVED]     }})
     
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'funds': -cost, 'cinepass': -cinepass_cost}}
-    )
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'funds': -cost, 'cinepass': -cinepass_cost}}
+# [MOVED]     )
     
-    return {
-        'success': True,
-        'message': f'Remaster completato! Qualità: {old_quality:.0f}% → {new_quality:.0f}%',
-        'quality_before': old_quality,
-        'quality_after': new_quality,
-        'cost': cost,
-        'cinepass_cost': cinepass_cost
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'Remaster completato! Qualità: {old_quality:.0f}% → {new_quality:.0f}%',
+# [MOVED]         'quality_before': old_quality,
+# [MOVED]         'quality_after': new_quality,
+# [MOVED]         'cost': cost,
+# [MOVED]         'cinepass_cost': cinepass_cost
+# [MOVED]     }
 
-@api_router.get("/production-studio/casting")
-async def get_casting_agency(user: dict = Depends(get_current_user)):
-    """Get available actors from the casting agency (weekly refresh)."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.get("/production-studio/casting")
+# [MOVED] async def get_casting_agency(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get available actors from the casting agency (weekly refresh)."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    level = studio.get('level', 1)
-    num_recruits = 3 + level
-    discount = 20 + level * 5
-    legendary_chance = min(5 + level * 3, 40)
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     num_recruits = 3 + level
+# [MOVED]     discount = 20 + level * 5
+# [MOVED]     legendary_chance = min(5 + level * 3, 40)
     
-    # Generate weekly casting pool (seeded by week number for consistency)
-    import hashlib
-    week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
-    seed_str = f"{user['id']}-{week_key}"
-    seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
-    rng = random.Random(seed)
+# [MOVED]     # Generate weekly casting pool (seeded by week number for consistency)
+# [MOVED]     import hashlib
+# [MOVED]     week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
+# [MOVED]     seed_str = f"{user['id']}-{week_key}"
+# [MOVED]     seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+# [MOVED]     rng = random.Random(seed)
     
-    # Check which recruits were already hired this week
-    hired_this_week = await db.casting_hires.find(
-        {'user_id': user['id'], 'week': week_key},
-        {'_id': 0, 'recruit_id': 1, 'action': 1}
-    ).to_list(50)
+# [MOVED]     # Check which recruits were already hired this week
+# [MOVED]     hired_this_week = await db.casting_hires.find(
+# [MOVED]         {'user_id': user['id'], 'week': week_key},
+# [MOVED]         {'_id': 0, 'recruit_id': 1, 'action': 1}
+# [MOVED]     ).to_list(50)
     
-    # Cross-check: for "school" hires, verify student still exists and is active
-    active_students = set()
-    if any(h['action'] == 'school' for h in hired_this_week):
-        active = await db.casting_school_students.find(
-            {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
-            {'_id': 0, 'source_recruit_id': 1}
-        ).to_list(100)
-        active_students = {s.get('source_recruit_id') for s in active if s.get('source_recruit_id')}
+# [MOVED]     # Cross-check: for "school" hires, verify student still exists and is active
+# [MOVED]     active_students = set()
+# [MOVED]     if any(h['action'] == 'school' for h in hired_this_week):
+# [MOVED]         active = await db.casting_school_students.find(
+# [MOVED]             {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
+# [MOVED]             {'_id': 0, 'source_recruit_id': 1}
+# [MOVED]         ).to_list(100)
+# [MOVED]         active_students = {s.get('source_recruit_id') for s in active if s.get('source_recruit_id')}
     
-    hired_map = {}
-    for h in hired_this_week:
-        if h['action'] == 'school' and h['recruit_id'] not in active_students:
-            # Student was dismissed - remove stale hire record
-            await db.casting_hires.delete_one({'user_id': user['id'], 'recruit_id': h['recruit_id'], 'action': 'school'})
-            continue
-        hired_map[h['recruit_id']] = h['action']
+# [MOVED]     hired_map = {}
+# [MOVED]     for h in hired_this_week:
+# [MOVED]         if h['action'] == 'school' and h['recruit_id'] not in active_students:
+# [MOVED]             # Student was dismissed - remove stale hire record
+# [MOVED]             await db.casting_hires.delete_one({'user_id': user['id'], 'recruit_id': h['recruit_id'], 'action': 'school'})
+# [MOVED]             continue
+# [MOVED]         hired_map[h['recruit_id']] = h['action']
 
-    recruits = []
-    genders = ['male', 'female']
-    for i in range(num_recruits):
-        gender = rng.choice(genders)
-        nationality = rng.choice(NATIONALITIES)
-        nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
-        first_names = nat_names.get(f'first_{gender}', ['Alex'])
-        last_names = nat_names.get('last', ['Smith'])
-        name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
+# [MOVED]     recruits = []
+# [MOVED]     genders = ['male', 'female']
+# [MOVED]     for i in range(num_recruits):
+# [MOVED]         gender = rng.choice(genders)
+# [MOVED]         nationality = rng.choice(NATIONALITIES)
+# [MOVED]         nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
+# [MOVED]         first_names = nat_names.get(f'first_{gender}', ['Alex'])
+# [MOVED]         last_names = nat_names.get('last', ['Smith'])
+# [MOVED]         name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
         
-        is_legendary = rng.randint(1, 100) <= legendary_chance
-        base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
-        base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
-        discounted_cost = int(base_cost * (1 - discount / 100))
-        rid = f'casting_{seed}_{i}'
+# [MOVED]         is_legendary = rng.randint(1, 100) <= legendary_chance
+# [MOVED]         base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
+# [MOVED]         base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
+# [MOVED]         discounted_cost = int(base_cost * (1 - discount / 100))
+# [MOVED]         rid = f'casting_{seed}_{i}'
         
-        recruits.append({
-            'id': rid,
-            'name': name,
-            'age': rng.randint(18, 55),
-            'gender': gender,
-            'nationality': nationality,
-            'is_legendary': is_legendary,
-            'skill': base_skill,
-            'original_cost': base_cost,
-            'discounted_cost': discounted_cost,
-            'discount_percent': discount,
-            'hired': rid in hired_map,
-            'hire_action': hired_map.get(rid)
-        })
+# [MOVED]         recruits.append({
+# [MOVED]             'id': rid,
+# [MOVED]             'name': name,
+# [MOVED]             'age': rng.randint(18, 55),
+# [MOVED]             'gender': gender,
+# [MOVED]             'nationality': nationality,
+# [MOVED]             'is_legendary': is_legendary,
+# [MOVED]             'skill': base_skill,
+# [MOVED]             'original_cost': base_cost,
+# [MOVED]             'discounted_cost': discounted_cost,
+# [MOVED]             'discount_percent': discount,
+# [MOVED]             'hired': rid in hired_map,
+# [MOVED]             'hire_action': hired_map.get(rid)
+# [MOVED]         })
     
-    return {
-        'recruits': recruits,
-        'week': week_key,
-        'discount_percent': discount,
-        'legendary_chance': legendary_chance,
-        'studio_level': level
-    }
+# [MOVED]     return {
+# [MOVED]         'recruits': recruits,
+# [MOVED]         'week': week_key,
+# [MOVED]         'discount_percent': discount,
+# [MOVED]         'legendary_chance': legendary_chance,
+# [MOVED]         'studio_level': level
+# [MOVED]     }
 
-class CastingHireRequest(BaseModel):
-    recruit_id: str
-    action: str  # 'hire' or 'send_to_school'
+# [MOVED] class CastingHireRequest(BaseModel):
+# [MOVED]     recruit_id: str
+# [MOVED]     action: str  # 'hire' or 'send_to_school'
 
-@api_router.post("/production-studio/casting/hire")
-async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_current_user)):
-    """Hire a recruit from the casting agency: use immediately or send to school."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.post("/production-studio/casting/hire")
+# [MOVED] async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Hire a recruit from the casting agency: use immediately or send to school."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    # Regenerate the same weekly pool to validate the recruit
-    level = studio.get('level', 1)
-    discount = 20 + level * 5
-    legendary_chance = min(5 + level * 3, 40)
-    import hashlib
-    week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
-    seed_str = f"{user['id']}-{week_key}"
-    seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
-    rng = random.Random(seed)
+# [MOVED]     # Regenerate the same weekly pool to validate the recruit
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     discount = 20 + level * 5
+# [MOVED]     legendary_chance = min(5 + level * 3, 40)
+# [MOVED]     import hashlib
+# [MOVED]     week_key = datetime.now(timezone.utc).strftime('%Y-W%W')
+# [MOVED]     seed_str = f"{user['id']}-{week_key}"
+# [MOVED]     seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+# [MOVED]     rng = random.Random(seed)
     
-    num_recruits = 3 + level
-    genders = ['male', 'female']
-    target = None
-    for i in range(num_recruits):
-        gender = rng.choice(genders)
-        nationality = rng.choice(NATIONALITIES)
-        nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
-        first_names = nat_names.get(f'first_{gender}', ['Alex'])
-        last_names = nat_names.get('last', ['Smith'])
-        name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
-        age = rng.randint(18, 55)
-        is_legendary = rng.randint(1, 100) <= legendary_chance
-        base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
-        base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
-        discounted_cost = int(base_cost * (1 - discount / 100))
-        rid = f'casting_{seed}_{i}'
-        if rid == req.recruit_id:
-            target = {'name': name, 'age': age, 'gender': gender, 'nationality': nationality, 'is_legendary': is_legendary, 'skill': base_skill, 'cost': discounted_cost}
-            break
+# [MOVED]     num_recruits = 3 + level
+# [MOVED]     genders = ['male', 'female']
+# [MOVED]     target = None
+# [MOVED]     for i in range(num_recruits):
+# [MOVED]         gender = rng.choice(genders)
+# [MOVED]         nationality = rng.choice(NATIONALITIES)
+# [MOVED]         nat_names = NAMES_BY_NATIONALITY.get(nationality, NAMES_BY_NATIONALITY['USA'])
+# [MOVED]         first_names = nat_names.get(f'first_{gender}', ['Alex'])
+# [MOVED]         last_names = nat_names.get('last', ['Smith'])
+# [MOVED]         name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
+# [MOVED]         age = rng.randint(18, 55)
+# [MOVED]         is_legendary = rng.randint(1, 100) <= legendary_chance
+# [MOVED]         base_skill = rng.randint(50, 75) if not is_legendary else rng.randint(75, 95)
+# [MOVED]         base_cost = rng.randint(100000, 300000) if not is_legendary else rng.randint(300000, 800000)
+# [MOVED]         discounted_cost = int(base_cost * (1 - discount / 100))
+# [MOVED]         rid = f'casting_{seed}_{i}'
+# [MOVED]         if rid == req.recruit_id:
+# [MOVED]             target = {'name': name, 'age': age, 'gender': gender, 'nationality': nationality, 'is_legendary': is_legendary, 'skill': base_skill, 'cost': discounted_cost}
+# [MOVED]             break
     
-    if not target:
-        raise HTTPException(status_code=404, detail="Talento non trovato nel pool settimanale")
+# [MOVED]     if not target:
+# [MOVED]         raise HTTPException(status_code=404, detail="Talento non trovato nel pool settimanale")
     
-    # Check already hired this week
-    already = await db.casting_hires.find_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key})
-    if already:
-        raise HTTPException(status_code=400, detail="Hai già ingaggiato questo talento questa settimana")
+# [MOVED]     # Check already hired this week
+# [MOVED]     already = await db.casting_hires.find_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key})
+# [MOVED]     if already:
+# [MOVED]         raise HTTPException(status_code=400, detail="Hai già ingaggiato questo talento questa settimana")
     
-    if user.get('funds', 0) < target['cost']:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${target['cost']:,}")
+# [MOVED]     if user.get('funds', 0) < target['cost']:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${target['cost']:,}")
     
-    if req.action == 'hire':
-        # Add directly to the cast pool as a personal cast member
-        cast_id = str(uuid.uuid4())
-        person_type = 'actor'
-        stars = 3 if target['skill'] >= 70 else (4 if target['skill'] >= 80 else (5 if target['skill'] >= 90 else 2))
-        skill_value = target['skill']
+# [MOVED]     if req.action == 'hire':
+# [MOVED]         # Add directly to the cast pool as a personal cast member
+# [MOVED]         cast_id = str(uuid.uuid4())
+# [MOVED]         person_type = 'actor'
+# [MOVED]         stars = 3 if target['skill'] >= 70 else (4 if target['skill'] >= 80 else (5 if target['skill'] >= 90 else 2))
+# [MOVED]         skill_value = target['skill']
         
-        cast_doc = {
-            'id': cast_id,
-            'name': target['name'],
-            'type': person_type,
-            'gender': target['gender'],
-            'nationality': target['nationality'],
-            'stars': stars,
-            'skill': skill_value,
-            'fame': skill_value - 10 + random.randint(0, 20),
-            'cost_per_film': target['cost'],
-            'is_legendary': target['is_legendary'],
-            'owner_id': user['id'],
-            'is_personal_cast': True,
-            'source': 'casting_agency',
-            'hired_at': datetime.now(timezone.utc).isoformat()
-        }
-        await db.cast_pool.insert_one(cast_doc)
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
-        await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'hire'})
+# [MOVED]         cast_doc = {
+# [MOVED]             'id': cast_id,
+# [MOVED]             'name': target['name'],
+# [MOVED]             'type': person_type,
+# [MOVED]             'gender': target['gender'],
+# [MOVED]             'nationality': target['nationality'],
+# [MOVED]             'stars': stars,
+# [MOVED]             'skill': skill_value,
+# [MOVED]             'fame': skill_value - 10 + random.randint(0, 20),
+# [MOVED]             'cost_per_film': target['cost'],
+# [MOVED]             'is_legendary': target['is_legendary'],
+# [MOVED]             'owner_id': user['id'],
+# [MOVED]             'is_personal_cast': True,
+# [MOVED]             'source': 'casting_agency',
+# [MOVED]             'hired_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         }
+# [MOVED]         await db.cast_pool.insert_one(cast_doc)
+# [MOVED]         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
+# [MOVED]         await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'hire'})
         
-        cast_doc.pop('_id', None)
-        return {'success': True, 'message': f'{target["name"]} ingaggiato! Disponibile nel tuo cast personale.', 'cast_member': cast_doc, 'cost': target['cost']}
+# [MOVED]         cast_doc.pop('_id', None)
+# [MOVED]         return {'success': True, 'message': f'{target["name"]} ingaggiato! Disponibile nel tuo cast personale.', 'cast_member': cast_doc, 'cost': target['cost']}
     
-    elif req.action == 'send_to_school':
-        # Check if user has a cinema school
-        school = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'cinema_school'}, {'_id': 0})
-        if not school:
-            raise HTTPException(status_code=400, detail="Non possiedi una Scuola di Recitazione")
+# [MOVED]     elif req.action == 'send_to_school':
+# [MOVED]         # Check if user has a cinema school
+# [MOVED]         school = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'cinema_school'}, {'_id': 0})
+# [MOVED]         if not school:
+# [MOVED]             raise HTTPException(status_code=400, detail="Non possiedi una Scuola di Recitazione")
         
-        school_level = school.get('level', 1)
-        # Capacity for casting students: 2 + school_level
-        casting_capacity = 2 + school_level
-        current_casting_students = await db.casting_school_students.count_documents(
-            {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}}
-        )
-        if current_casting_students >= casting_capacity:
-            raise HTTPException(status_code=400, detail=f"Sezione Agenzia Casting piena ({current_casting_students}/{casting_capacity})")
+# [MOVED]         school_level = school.get('level', 1)
+# [MOVED]         # Capacity for casting students: 2 + school_level
+# [MOVED]         casting_capacity = 2 + school_level
+# [MOVED]         current_casting_students = await db.casting_school_students.count_documents(
+# [MOVED]             {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}}
+# [MOVED]         )
+# [MOVED]         if current_casting_students >= casting_capacity:
+# [MOVED]             raise HTTPException(status_code=400, detail=f"Sezione Agenzia Casting piena ({current_casting_students}/{casting_capacity})")
         
-        # Create student with pre-existing skills on 0-100 scale
-        base_skill = target['skill']  # 50-95 range from casting agency
-        age = target.get('age', random.randint(18, 55))
+# [MOVED]         # Create student with pre-existing skills on 0-100 scale
+# [MOVED]         base_skill = target['skill']  # 50-95 range from casting agency
+# [MOVED]         age = target.get('age', random.randint(18, 55))
         
-        # Initial skills on 0-100 scale (starting from casting agency skill level with variance)
-        initial_skills = {}
-        skill_names = ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing',
-                       'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation',
-                       'Chemistry', 'Star Power']
-        for sk in skill_names:
-            variance = random.randint(-15, 10)
-            initial_skills[sk] = max(5, min(95, base_skill - 20 + variance))
+# [MOVED]         # Initial skills on 0-100 scale (starting from casting agency skill level with variance)
+# [MOVED]         initial_skills = {}
+# [MOVED]         skill_names = ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing',
+# [MOVED]                        'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation',
+# [MOVED]                        'Chemistry', 'Star Power']
+# [MOVED]         for sk in skill_names:
+# [MOVED]             variance = random.randint(-15, 10)
+# [MOVED]             initial_skills[sk] = max(5, min(95, base_skill - 20 + variance))
         
-        # Potential based on original skill + legendary status
-        potential = round(0.6 + (base_skill / 100) * 0.35, 2)
-        if target['is_legendary']:
-            potential = min(1.0, potential + 0.15)
+# [MOVED]         # Potential based on original skill + legendary status
+# [MOVED]         potential = round(0.6 + (base_skill / 100) * 0.35, 2)
+# [MOVED]         if target['is_legendary']:
+# [MOVED]             potential = min(1.0, potential + 0.15)
         
-        student = {
-            'id': str(uuid.uuid4()),
-            'user_id': user['id'],
-            'name': target['name'],
-            'age': age,
-            'gender': target['gender'],
-            'nationality': target['nationality'],
-            'is_legendary': target['is_legendary'],
-            'skills': initial_skills,
-            'initial_skills': initial_skills.copy(),
-            'potential': potential,
-            'motivation': round(random.uniform(0.7, 1.0), 2),
-            'training_days': 0,
-            'paid_days': 1,  # First day is free
-            'free_day_used': True,
-            'enrolled_at': datetime.now(timezone.utc).isoformat(),
-            'status': 'training',
-            'source': 'casting_agency',
-            'source_recruit_id': req.recruit_id,
-            'avatar_url': f"https://api.dicebear.com/7.x/avataaars/svg?seed={target['name'].replace(' ','')}{age}"
-        }
+# [MOVED]         student = {
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': user['id'],
+# [MOVED]             'name': target['name'],
+# [MOVED]             'age': age,
+# [MOVED]             'gender': target['gender'],
+# [MOVED]             'nationality': target['nationality'],
+# [MOVED]             'is_legendary': target['is_legendary'],
+# [MOVED]             'skills': initial_skills,
+# [MOVED]             'initial_skills': initial_skills.copy(),
+# [MOVED]             'potential': potential,
+# [MOVED]             'motivation': round(random.uniform(0.7, 1.0), 2),
+# [MOVED]             'training_days': 0,
+# [MOVED]             'paid_days': 1,  # First day is free
+# [MOVED]             'free_day_used': True,
+# [MOVED]             'enrolled_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]             'status': 'training',
+# [MOVED]             'source': 'casting_agency',
+# [MOVED]             'source_recruit_id': req.recruit_id,
+# [MOVED]             'avatar_url': f"https://api.dicebear.com/7.x/avataaars/svg?seed={target['name'].replace(' ','')}{age}"
+# [MOVED]         }
         
-        await db.casting_school_students.insert_one(student)
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
-        await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'school'})
+# [MOVED]         await db.casting_school_students.insert_one(student)
+# [MOVED]         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -target['cost']}})
+# [MOVED]         await db.casting_hires.insert_one({'user_id': user['id'], 'recruit_id': req.recruit_id, 'week': week_key, 'action': 'school'})
         
-        student.pop('_id', None)
-        return {'success': True, 'message': f'{target["name"]} inviato alla Scuola di Recitazione! Primo giorno gratuito.', 'student': student, 'cost': target['cost']}
+# [MOVED]         student.pop('_id', None)
+# [MOVED]         return {'success': True, 'message': f'{target["name"]} inviato alla Scuola di Recitazione! Primo giorno gratuito.', 'student': student, 'cost': target['cost']}
     
-    raise HTTPException(status_code=400, detail="Azione non valida. Usa 'hire' o 'send_to_school'")
+# [MOVED]     raise HTTPException(status_code=400, detail="Azione non valida. Usa 'hire' o 'send_to_school'")
 
 
-class StudioDraftRequest(BaseModel):
-    genre: str
-    title_hint: Optional[str] = ''
+# [MOVED] class StudioDraftRequest(BaseModel):
+# [MOVED]     genre: str
+# [MOVED]     title_hint: Optional[str] = ''
 
-@api_router.post("/production-studio/generate-draft")
-async def generate_studio_draft(req: StudioDraftRequest, user: dict = Depends(get_current_user)):
-    """Generate a screenplay draft from the production studio."""
-    studio = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
-    )
-    if not studio:
-        raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
+# [MOVED] @api_router.post("/production-studio/generate-draft")
+# [MOVED] async def generate_studio_draft(req: StudioDraftRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Generate a screenplay draft from the production studio."""
+# [MOVED]     studio = await db.infrastructure.find_one(
+# [MOVED]         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0}
+# [MOVED]     )
+# [MOVED]     if not studio:
+# [MOVED]         raise HTTPException(status_code=404, detail="Non possiedi uno Studio di Produzione")
     
-    level = studio.get('level', 1)
-    cost = int(200000 + level * 80000)  # $280K to $1M
+# [MOVED]     level = studio.get('level', 1)
+# [MOVED]     cost = int(200000 + level * 80000)  # $280K to $1M
     
-    if user.get('funds', 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
+# [MOVED]     if user.get('funds', 0) < cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${cost:,}")
     
-    # Limit active drafts
-    active_drafts = await db.studio_drafts.count_documents({'user_id': user['id'], 'used': False})
-    if active_drafts >= 3 + level:
-        raise HTTPException(status_code=400, detail=f"Limite bozze raggiunto ({3 + level}). Usa o elimina le bozze esistenti.")
+# [MOVED]     # Limit active drafts
+# [MOVED]     active_drafts = await db.studio_drafts.count_documents({'user_id': user['id'], 'used': False})
+# [MOVED]     if active_drafts >= 3 + level:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Limite bozze raggiunto ({3 + level}). Usa o elimina le bozze esistenti.")
     
-    genre_name = GENRES.get(req.genre, {}).get('name', req.genre)
-    quality_bonus = 3 + level  # +4 to +13 quality bonus
+# [MOVED]     genre_name = GENRES.get(req.genre, {}).get('name', req.genre)
+# [MOVED]     quality_bonus = 3 + level  # +4 to +13 quality bonus
     
-    # Generate draft using AI
-    title = req.title_hint or ''
-    synopsis = ''
-    suggested_subgenres = []
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"studio-draft-{user['id']}-{uuid.uuid4()}",
-            system_message="Sei uno sceneggiatore professionista italiano. Scrivi in italiano."
-        ).with_model("openai", "gpt-4o-mini")
+# [MOVED]     # Generate draft using AI
+# [MOVED]     title = req.title_hint or ''
+# [MOVED]     synopsis = ''
+# [MOVED]     suggested_subgenres = []
+# [MOVED]     try:
+# [MOVED]         from emergentintegrations.llm.chat import LlmChat, UserMessage
+# [MOVED]         chat = LlmChat(
+# [MOVED]             api_key=EMERGENT_LLM_KEY,
+# [MOVED]             session_id=f"studio-draft-{user['id']}-{uuid.uuid4()}",
+# [MOVED]             system_message="Sei uno sceneggiatore professionista italiano. Scrivi in italiano."
+# [MOVED]         ).with_model("openai", "gpt-4o-mini")
         
-        prompt = f"""Crea una bozza di sceneggiatura per un film di genere {genre_name}.
-{f'Titolo suggerito: {req.title_hint}' if req.title_hint else 'Inventa un titolo originale italiano.'}
+# [MOVED]         prompt = f"""Crea una bozza di sceneggiatura per un film di genere {genre_name}.
+# [MOVED] {f'Titolo suggerito: {req.title_hint}' if req.title_hint else 'Inventa un titolo originale italiano.'}
 
-Rispondi SOLO con questo formato JSON:
-{{"title": "...", "synopsis": "... (200-300 parole, in italiano)", "subgenres": ["sottogenere1", "sottogenere2"]}}"""
+# [MOVED] Rispondi SOLO con questo formato JSON:
+# [MOVED] {{"title": "...", "synopsis": "... (200-300 parole, in italiano)", "subgenres": ["sottogenere1", "sottogenere2"]}}"""
         
-        response = await chat.send_message_async(UserMessage(text=prompt))
-        import json as json_module
+# [MOVED]         response = await chat.send_message_async(UserMessage(text=prompt))
+# [MOVED]         import json as json_module
         # Try to parse JSON from response
-        text = response.text.strip()
-        if text.startswith('```'): text = text.split('\n', 1)[1].rsplit('```', 1)[0]
-        parsed = json_module.loads(text)
-        title = parsed.get('title', title or f'Bozza {genre_name}')
-        synopsis = parsed.get('synopsis', '')
-        suggested_subgenres = parsed.get('subgenres', [])[:2]
-    except Exception as e:
-        logging.warning(f"AI draft generation failed: {e}")
-        title = req.title_hint or f'Bozza {genre_name}'
-        synopsis = f'Una storia avvincente di genere {genre_name} ambientata nel mondo contemporaneo.'
+# [MOVED]         text = response.text.strip()
+# [MOVED]         if text.startswith('```'): text = text.split('\n', 1)[1].rsplit('```', 1)[0]
+# [MOVED]         parsed = json_module.loads(text)
+# [MOVED]         title = parsed.get('title', title or f'Bozza {genre_name}')
+# [MOVED]         synopsis = parsed.get('synopsis', '')
+# [MOVED]         suggested_subgenres = parsed.get('subgenres', [])[:2]
+# [MOVED]     except Exception as e:
+# [MOVED]         logging.warning(f"AI draft generation failed: {e}")
+# [MOVED]         title = req.title_hint or f'Bozza {genre_name}'
+# [MOVED]         synopsis = f'Una storia avvincente di genere {genre_name} ambientata nel mondo contemporaneo.'
         # Fallback: use template-based synopsis generation
-        try:
-            from emerging_screenplays import generate_synopsis as _gen_syn
-            synopsis = _gen_syn(req.genre)
-        except Exception:
-            pass
+# [MOVED]         try:
+# [MOVED]             from emerging_screenplays import generate_synopsis as _gen_syn
+# [MOVED]             synopsis = _gen_syn(req.genre)
+# [MOVED]         except Exception:
+# [MOVED]             pass
     
-    draft_id = str(uuid.uuid4())
-    draft_doc = {
-        'id': draft_id,
-        'user_id': user['id'],
-        'title': title,
-        'genre': req.genre,
-        'genre_name': genre_name,
-        'synopsis': synopsis,
-        'suggested_subgenres': suggested_subgenres,
-        'quality_bonus': quality_bonus,
-        'studio_level': level,
-        'cost': cost,
-        'used': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
+# [MOVED]     draft_id = str(uuid.uuid4())
+# [MOVED]     draft_doc = {
+# [MOVED]         'id': draft_id,
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': title,
+# [MOVED]         'genre': req.genre,
+# [MOVED]         'genre_name': genre_name,
+# [MOVED]         'synopsis': synopsis,
+# [MOVED]         'suggested_subgenres': suggested_subgenres,
+# [MOVED]         'quality_bonus': quality_bonus,
+# [MOVED]         'studio_level': level,
+# [MOVED]         'cost': cost,
+# [MOVED]         'used': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
     
-    await db.studio_drafts.insert_one(draft_doc)
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+# [MOVED]     await db.studio_drafts.insert_one(draft_doc)
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
     
     # Remove _id before returning
-    draft_doc.pop('_id', None)
-    return {
-        'success': True,
-        'message': f'Bozza "{title}" creata! Qualità bonus: +{quality_bonus}%',
-        'draft': draft_doc,
-        'cost': cost
-    }
+# [MOVED]     draft_doc.pop('_id', None)
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'Bozza "{title}" creata! Qualità bonus: +{quality_bonus}%',
+# [MOVED]         'draft': draft_doc,
+# [MOVED]         'cost': cost
+# [MOVED]     }
 
-@api_router.get("/production-studio/drafts")
-async def get_studio_drafts(user: dict = Depends(get_current_user)):
-    """Get available studio drafts for the user."""
-    drafts = await db.studio_drafts.find(
-        {'user_id': user['id'], 'used': False}, {'_id': 0}
-    ).sort('created_at', -1).to_list(20)
-    return {'drafts': drafts}
+# [MOVED] @api_router.get("/production-studio/drafts")
+# [MOVED] async def get_studio_drafts(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get available studio drafts for the user."""
+# [MOVED]     drafts = await db.studio_drafts.find(
+# [MOVED]         {'user_id': user['id'], 'used': False}, {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(20)
+# [MOVED]     return {'drafts': drafts}
 
-@api_router.delete("/production-studio/drafts/{draft_id}")
-async def delete_studio_draft(draft_id: str, user: dict = Depends(get_current_user)):
-    """Delete an unused studio draft."""
-    result = await db.studio_drafts.delete_one({'id': draft_id, 'user_id': user['id'], 'used': False})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Bozza non trovata")
-    return {'success': True, 'message': 'Bozza eliminata'}
+# [MOVED] @api_router.delete("/production-studio/drafts/{draft_id}")
+# [MOVED] async def delete_studio_draft(draft_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Delete an unused studio draft."""
+# [MOVED]     result = await db.studio_drafts.delete_one({'id': draft_id, 'user_id': user['id'], 'used': False})
+# [MOVED]     if result.deleted_count == 0:
+# [MOVED]         raise HTTPException(status_code=404, detail="Bozza non trovata")
+# [MOVED]     return {'success': True, 'message': 'Bozza eliminata'}
 
 
 @api_router.get("/game/credits")
@@ -15854,417 +15858,417 @@ async def get_global_leaderboard(limit: int = 50):
 # [MOVED]         'special_event': revenue_data.get('special_event')
 # [MOVED]     }
 # 
-@api_router.get("/films/{film_id}/duration-status")
-async def get_film_duration_status(film_id: str, user: dict = Depends(get_current_user)):
-    """Check if a film should be extended or withdrawn early."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/duration-status")
+# [MOVED] async def get_film_duration_status(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if a film should be extended or withdrawn early."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    if film.get('status') != 'in_theaters':
-        return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 1}
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         return {'status': film.get('status'), 'can_extend': False, 'extension_count': 0, 'max_extensions': 1}
     
-    now = datetime.now(timezone.utc)
-    release_date = parse_date_with_timezone(film.get('release_date'))
-    current_days = max(1, (now - release_date).days)
-    total_extension_days = film.get('total_extension_days', 0)
-    planned_days = int(film.get('weeks_in_theater', 2) * 7)
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]     current_days = max(1, (now - release_date).days)
+# [MOVED]     total_extension_days = film.get('total_extension_days', 0)
+# [MOVED]     planned_days = int(film.get('weeks_in_theater', 2) * 7)
     
-    duration_data = calculate_film_duration_factors(film, current_days, planned_days)
+# [MOVED]     duration_data = calculate_film_duration_factors(film, current_days, planned_days)
     
-    # Extension tracking - max 1 extension per film
-    extension_count = film.get('extension_count', 0)
-    can_extend = duration_data['status'] == 'extend' and extension_count < 1
+# [MOVED]     # Extension tracking - max 1 extension per film
+# [MOVED]     extension_count = film.get('extension_count', 0)
+# [MOVED]     can_extend = duration_data['status'] == 'extend' and extension_count < 1
     
-    # Check cooldown
-    days_until_next_extension = 0
-    last_extension_date = film.get('last_extension_date')
-    if last_extension_date and extension_count > 0:
-        last_ext = parse_date_with_timezone(last_extension_date)
-        days_since_extension = (now - last_ext).days
-        if days_since_extension < 5:
-            days_until_next_extension = 5 - days_since_extension
-            can_extend = False
+# [MOVED]     # Check cooldown
+# [MOVED]     days_until_next_extension = 0
+# [MOVED]     last_extension_date = film.get('last_extension_date')
+# [MOVED]     if last_extension_date and extension_count > 0:
+# [MOVED]         last_ext = parse_date_with_timezone(last_extension_date)
+# [MOVED]         days_since_extension = (now - last_ext).days
+# [MOVED]         if days_since_extension < 5:
+# [MOVED]             days_until_next_extension = 5 - days_since_extension
+# [MOVED]             can_extend = False
     
-    return {
-        **duration_data,
-        'current_days': current_days,
-        'planned_days': planned_days,
-        'days_remaining': max(0, planned_days - current_days),
-        # Extension info
-        'extension_count': extension_count,
-        'max_extensions': 1,
-        'extensions_remaining': max(0, 1 - extension_count),
-        'can_extend': can_extend,
-        'days_until_next_extension': days_until_next_extension,
-        'max_days_per_extension': 3,
-        'total_extension_days': total_extension_days
-    }
+# [MOVED]     return {
+# [MOVED]         **duration_data,
+# [MOVED]         'current_days': current_days,
+# [MOVED]         'planned_days': planned_days,
+# [MOVED]         'days_remaining': max(0, planned_days - current_days),
+# [MOVED]         # Extension info
+# [MOVED]         'extension_count': extension_count,
+# [MOVED]         'max_extensions': 1,
+# [MOVED]         'extensions_remaining': max(0, 1 - extension_count),
+# [MOVED]         'can_extend': can_extend,
+# [MOVED]         'days_until_next_extension': days_until_next_extension,
+# [MOVED]         'max_days_per_extension': 3,
+# [MOVED]         'total_extension_days': total_extension_days
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/extend")
-async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, le=3), user: dict = Depends(get_current_user)):
-    """Extend a film's theater run.
+# [MOVED] @api_router.post("/films/{film_id}/extend")
+# [MOVED] async def extend_film_duration(film_id: str, extra_days: int = Query(..., ge=1, le=3), user: dict = Depends(get_current_user)):
+# [MOVED]     """Extend a film's theater run.
     
-    Rules:
-    - Maximum 1 extension per film
-    - Maximum 3 days per extension
-    - Only eligible films can be extended
-    """
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     Rules:
+# [MOVED]     - Maximum 1 extension per film
+# [MOVED]     - Maximum 3 days per extension
+# [MOVED]     - Only eligible films can be extended
+# [MOVED]     """
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    if film.get('status') != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Il film non è in sala")
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Il film non è in sala")
     
-    # Check extension count (max 1)
-    extension_count = film.get('extension_count', 0)
-    if extension_count >= 1:
-        raise HTTPException(status_code=400, detail="Estensione già utilizzata (1/1)")
+# [MOVED]     # Check extension count (max 1)
+# [MOVED]     extension_count = film.get('extension_count', 0)
+# [MOVED]     if extension_count >= 1:
+# [MOVED]         raise HTTPException(status_code=400, detail="Estensione già utilizzata (1/1)")
     
-    # Check eligibility based on performance
-    now = datetime.now(timezone.utc)
-    release_date = parse_date_with_timezone(film.get('release_date'))
-    current_days = max(1, (now - release_date).days)
-    planned_days = film.get('weeks_in_theater', 2) * 7
+# [MOVED]     # Check eligibility based on performance
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]     current_days = max(1, (now - release_date).days)
+# [MOVED]     planned_days = film.get('weeks_in_theater', 2) * 7
     
-    duration_data = calculate_film_duration_factors(film, current_days, planned_days)
+# [MOVED]     duration_data = calculate_film_duration_factors(film, current_days, planned_days)
     
-    if duration_data['status'] != 'extend':
-        raise HTTPException(status_code=400, detail="Film not eligible for extension (performance too low)")
+# [MOVED]     if duration_data['status'] != 'extend':
+# [MOVED]         raise HTTPException(status_code=400, detail="Film not eligible for extension (performance too low)")
     
-    # Limit to max 3 days per extension
-    actual_extension = min(extra_days, 3)
+# [MOVED]     # Limit to max 3 days per extension
+# [MOVED]     actual_extension = min(extra_days, 3)
     
-    # Calculate new duration
-    current_total_days = planned_days + film.get('total_extension_days', 0)
-    new_total_days = current_total_days + actual_extension
-    new_weeks = max(1, int(new_total_days / 7))  # Always integer
+# [MOVED]     # Calculate new duration
+# [MOVED]     current_total_days = planned_days + film.get('total_extension_days', 0)
+# [MOVED]     new_total_days = current_total_days + actual_extension
+# [MOVED]     new_weeks = max(1, int(new_total_days / 7))  # Always integer
     
-    # Update film
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'weeks_in_theater': new_weeks,
-            'extended': True,
-            'extension_count': extension_count + 1,
-            'total_extension_days': film.get('total_extension_days', 0) + actual_extension,
-            'last_extension_date': now.isoformat()
-        }}
-    )
+# [MOVED]     # Update film
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'weeks_in_theater': new_weeks,
+# [MOVED]             'extended': True,
+# [MOVED]             'extension_count': extension_count + 1,
+# [MOVED]             'total_extension_days': film.get('total_extension_days', 0) + actual_extension,
+# [MOVED]             'last_extension_date': now.isoformat()
+# [MOVED]         }}
+# [MOVED]     )
     
-    # Add fame bonus
-    fame_bonus = actual_extension * 0.5
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'fame': fame_bonus}}
-    )
+# [MOVED]     # Add fame bonus
+# [MOVED]     fame_bonus = actual_extension * 0.5
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'fame': fame_bonus}}
+# [MOVED]     )
     
-    # Add XP
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'total_xp': actual_extension * 10}}
-    )
+# [MOVED]     # Add XP
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'total_xp': actual_extension * 10}}
+# [MOVED]     )
     
-    return {
-        'extended': True,
-        'extra_days': actual_extension,
-        'new_total_days': int(new_total_days),
-        'extensions_remaining': max(0, 1 - (extension_count + 1)),  # max_extensions is now 1
-        'fame_bonus': fame_bonus,
-        'xp_bonus': actual_extension * 10,
-        'next_extension_available_in': 5  # days
-    }
+# [MOVED]     return {
+# [MOVED]         'extended': True,
+# [MOVED]         'extra_days': actual_extension,
+# [MOVED]         'new_total_days': int(new_total_days),
+# [MOVED]         'extensions_remaining': max(0, 1 - (extension_count + 1)),  # max_extensions is now 1
+# [MOVED]         'fame_bonus': fame_bonus,
+# [MOVED]         'xp_bonus': actual_extension * 10,
+# [MOVED]         'next_extension_available_in': 5  # days
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/early-withdraw")
-async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
-    """Withdraw a film early from theaters."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/early-withdraw")
+# [MOVED] async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Withdraw a film early from theaters."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    if film.get('status') != 'in_theaters':
-        raise HTTPException(status_code=400, detail="Film not in theaters")
+# [MOVED]     if film.get('status') != 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Film not in theaters")
     
-    release_date = parse_date_with_timezone(film.get('release_date'))
-    current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
-    planned_days = film.get('weeks_in_theater', 4) * 7
+# [MOVED]     release_date = parse_date_with_timezone(film.get('release_date'))
+# [MOVED]     current_days = max(1, (datetime.now(timezone.utc) - release_date).days)
+# [MOVED]     planned_days = film.get('weeks_in_theater', 4) * 7
     
-    days_early = planned_days - current_days
+# [MOVED]     days_early = planned_days - current_days
     
-    # Calculate penalties
-    fame_penalty = days_early * 0.3
-    revenue_penalty = days_early * 20000  # $20k per day early
+# [MOVED]     # Calculate penalties
+# [MOVED]     fame_penalty = days_early * 0.3
+# [MOVED]     revenue_penalty = days_early * 20000  # $20k per day early
     
-    # Update film
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'status': 'withdrawn',
-            'withdrawn_at': datetime.now(timezone.utc).isoformat(),
-            'withdrawn_early': True,
-            'days_early': days_early
-        }}
-    )
+# [MOVED]     # Update film
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'status': 'withdrawn',
+# [MOVED]             'withdrawn_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]             'withdrawn_early': True,
+# [MOVED]             'days_early': days_early
+# [MOVED]         }}
+# [MOVED]     )
     
-    # Apply penalties
-    current_fame = user.get('fame', 50)
-    new_fame = int(max(0, current_fame - fame_penalty))
+# [MOVED]     # Apply penalties
+# [MOVED]     current_fame = user.get('fame', 50)
+# [MOVED]     new_fame = int(max(0, current_fame - fame_penalty))
     
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$set': {'fame': new_fame}, '$inc': {'funds': -revenue_penalty}}
-    )
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$set': {'fame': new_fame}, '$inc': {'funds': -revenue_penalty}}
+# [MOVED]     )
     
-    return {
-        'withdrawn': True,
-        'days_early': days_early,
-        'fame_penalty': fame_penalty,
-        'revenue_penalty': revenue_penalty
-    }
+# [MOVED]     return {
+# [MOVED]         'withdrawn': True,
+# [MOVED]         'days_early': days_early,
+# [MOVED]         'fame_penalty': fame_penalty,
+# [MOVED]         'revenue_penalty': revenue_penalty
+# [MOVED]     }
 
 # ==================== FILM RE-RELEASE ====================
 
-RE_RELEASE_WAIT_DAYS = 7  # Days to wait before re-releasing
-RE_RELEASE_COST_MULTIPLIER = 0.3  # 30% of original budget
+# [MOVED] RE_RELEASE_WAIT_DAYS = 7  # Days to wait before re-releasing
+# [MOVED] RE_RELEASE_COST_MULTIPLIER = 0.3  # 30% of original budget
 
-@api_router.get("/films/{film_id}/rerelease-status")
-async def get_rerelease_status(film_id: str, user: dict = Depends(get_current_user)):
-    """Check if a film can be re-released and when."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/rerelease-status")
+# [MOVED] async def get_rerelease_status(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if a film can be re-released and when."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    status = film.get('status')
-    if status == 'in_theaters':
-        return {'can_rerelease': False, 'reason': 'Film già in sala'}
+# [MOVED]     status = film.get('status')
+# [MOVED]     if status == 'in_theaters':
+# [MOVED]         return {'can_rerelease': False, 'reason': 'Film già in sala'}
     
-    if status not in ['withdrawn', 'completed']:
-        return {'can_rerelease': False, 'reason': 'Film non può essere rimesso in sala'}
+# [MOVED]     if status not in ['withdrawn', 'completed']:
+# [MOVED]         return {'can_rerelease': False, 'reason': 'Film non può essere rimesso in sala'}
     
-    # Check when the film was withdrawn/completed
-    withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
-    if withdrawn_at:
-        if isinstance(withdrawn_at, str):
-            withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
+# [MOVED]     # Check when the film was withdrawn/completed
+# [MOVED]     withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
+# [MOVED]     if withdrawn_at:
+# [MOVED]         if isinstance(withdrawn_at, str):
+# [MOVED]             withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
         
-        days_since = (datetime.now(timezone.utc) - withdrawn_at).days
-        days_remaining = max(0, RE_RELEASE_WAIT_DAYS - days_since)
+# [MOVED]         days_since = (datetime.now(timezone.utc) - withdrawn_at).days
+# [MOVED]         days_remaining = max(0, RE_RELEASE_WAIT_DAYS - days_since)
         
-        if days_remaining > 0:
-            return {
-                'can_rerelease': False, 
-                'reason': f'Devi aspettare ancora {days_remaining} giorni',
-                'days_remaining': days_remaining,
-                'available_date': (withdrawn_at + timedelta(days=RE_RELEASE_WAIT_DAYS)).isoformat()
-            }
+# [MOVED]         if days_remaining > 0:
+# [MOVED]             return {
+# [MOVED]                 'can_rerelease': False, 
+# [MOVED]                 'reason': f'Devi aspettare ancora {days_remaining} giorni',
+# [MOVED]                 'days_remaining': days_remaining,
+# [MOVED]                 'available_date': (withdrawn_at + timedelta(days=RE_RELEASE_WAIT_DAYS)).isoformat()
+# [MOVED]             }
     
-    # Calculate re-release cost
-    original_budget = film.get('budget', 1000000)
-    rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
+# [MOVED]     # Calculate re-release cost
+# [MOVED]     original_budget = film.get('budget', 1000000)
+# [MOVED]     rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
     
-    return {
-        'can_rerelease': True,
-        'cost': rerelease_cost,
-        'original_budget': original_budget,
-        'times_released': film.get('times_released', 1)
-    }
+# [MOVED]     return {
+# [MOVED]         'can_rerelease': True,
+# [MOVED]         'cost': rerelease_cost,
+# [MOVED]         'original_budget': original_budget,
+# [MOVED]         'times_released': film.get('times_released', 1)
+# [MOVED]     }
 
-@api_router.post("/films/{film_id}/rerelease")
-async def rerelease_film(film_id: str, user: dict = Depends(get_current_user)):
-    """Re-release a withdrawn or completed film back to theaters."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/rerelease")
+# [MOVED] async def rerelease_film(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Re-release a withdrawn or completed film back to theaters."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    status = film.get('status')
-    if status == 'in_theaters':
-        raise HTTPException(status_code=400, detail="Film già in sala")
+# [MOVED]     status = film.get('status')
+# [MOVED]     if status == 'in_theaters':
+# [MOVED]         raise HTTPException(status_code=400, detail="Film già in sala")
     
-    if status not in ['withdrawn', 'completed']:
-        raise HTTPException(status_code=400, detail="Questo film non può essere rimesso in sala")
+# [MOVED]     if status not in ['withdrawn', 'completed']:
+# [MOVED]         raise HTTPException(status_code=400, detail="Questo film non può essere rimesso in sala")
     
-    # Check wait period
-    withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
-    if withdrawn_at:
-        if isinstance(withdrawn_at, str):
-            withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
+# [MOVED]     # Check wait period
+# [MOVED]     withdrawn_at = film.get('withdrawn_at') or film.get('theater_end_date')
+# [MOVED]     if withdrawn_at:
+# [MOVED]         if isinstance(withdrawn_at, str):
+# [MOVED]             withdrawn_at = datetime.fromisoformat(withdrawn_at.replace('Z', '+00:00'))
         
-        days_since = (datetime.now(timezone.utc) - withdrawn_at).days
-        if days_since < RE_RELEASE_WAIT_DAYS:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Devi aspettare ancora {RE_RELEASE_WAIT_DAYS - days_since} giorni prima di rimettere il film in sala"
-            )
+# [MOVED]         days_since = (datetime.now(timezone.utc) - withdrawn_at).days
+# [MOVED]         if days_since < RE_RELEASE_WAIT_DAYS:
+# [MOVED]             raise HTTPException(
+# [MOVED]                 status_code=400, 
+# [MOVED]                 detail=f"Devi aspettare ancora {RE_RELEASE_WAIT_DAYS - days_since} giorni prima di rimettere il film in sala"
+# [MOVED]             )
     
-    # Calculate and check cost
-    original_budget = film.get('budget', 1000000)
-    rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
+# [MOVED]     # Calculate and check cost
+# [MOVED]     original_budget = film.get('budget', 1000000)
+# [MOVED]     rerelease_cost = int(original_budget * RE_RELEASE_COST_MULTIPLIER)
     
-    if user.get('funds', 0) < rerelease_cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${rerelease_cost:,}")
+# [MOVED]     if user.get('funds', 0) < rerelease_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${rerelease_cost:,}")
     
-    # Deduct cost
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -rerelease_cost}})
+# [MOVED]     # Deduct cost
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -rerelease_cost}})
     
-    # Update film status
-    times_released = film.get('times_released', 1) + 1
-    now = datetime.now(timezone.utc)
+# [MOVED]     # Update film status
+# [MOVED]     times_released = film.get('times_released', 1) + 1
+# [MOVED]     now = datetime.now(timezone.utc)
     
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {
-            'status': 'in_theaters',
-            'release_date': now.isoformat(),
-            'rerelease_date': now.isoformat(),
-            'times_released': times_released,
-            'theater_days_extended': 0
-        },
-        '$unset': {
-            'withdrawn_at': '',
-            'withdrawn_early': '',
-            'theater_end_date': ''
-        }}
-    )
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'status': 'in_theaters',
+# [MOVED]             'release_date': now.isoformat(),
+# [MOVED]             'rerelease_date': now.isoformat(),
+# [MOVED]             'times_released': times_released,
+# [MOVED]             'theater_days_extended': 0
+# [MOVED]         },
+# [MOVED]         '$unset': {
+# [MOVED]             'withdrawn_at': '',
+# [MOVED]             'withdrawn_early': '',
+# [MOVED]             'theater_end_date': ''
+# [MOVED]         }}
+# [MOVED]     )
     
-    # Calculate opening day revenue (reduced for re-release)
-    quality_factor = film.get('quality_score', 50) / 100
-    base_revenue = film.get('budget', 1000000) * 0.1 * quality_factor
-    opening_revenue = int(base_revenue * (0.5 / times_released))  # Diminishing returns
+# [MOVED]     # Calculate opening day revenue (reduced for re-release)
+# [MOVED]     quality_factor = film.get('quality_score', 50) / 100
+# [MOVED]     base_revenue = film.get('budget', 1000000) * 0.1 * quality_factor
+# [MOVED]     opening_revenue = int(base_revenue * (0.5 / times_released))  # Diminishing returns
     
-    await db.users.update_one(
-        {'id': user['id']}, 
-        {'$inc': {'funds': opening_revenue, 'total_lifetime_revenue': opening_revenue}}
-    )
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']}, 
+# [MOVED]         {'$inc': {'funds': opening_revenue, 'total_lifetime_revenue': opening_revenue}}
+# [MOVED]     )
     
-    await db.films.update_one(
-        {'id': film_id},
-        {'$inc': {'total_revenue': opening_revenue}}
-    )
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$inc': {'total_revenue': opening_revenue}}
+# [MOVED]     )
     
-    return {
-        'success': True,
-        'message': f'"{film.get("title")}" è tornato in sala!',
-        'opening_revenue': opening_revenue,
-        'cost': rerelease_cost,
-        'times_released': times_released
-    }
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'"{film.get("title")}" è tornato in sala!',
+# [MOVED]         'opening_revenue': opening_revenue,
+# [MOVED]         'cost': rerelease_cost,
+# [MOVED]         'times_released': times_released
+# [MOVED]     }
 
 # ==================== STAR DISCOVERY & SKILL EVOLUTION ====================
 
-@api_router.post("/films/{film_id}/check-star-discoveries")
-async def check_film_star_discoveries(film_id: str, user: dict = Depends(get_current_user)):
-    """Check for star discoveries among the cast of a film."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/check-star-discoveries")
+# [MOVED] async def check_film_star_discoveries(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check for star discoveries among the cast of a film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    quality = film.get('quality_score', 50)
-    discoveries = []
+# [MOVED]     quality = film.get('quality_score', 50)
+# [MOVED]     discoveries = []
     
-    cast = film.get('cast', [])
-    for actor_info in cast:
-        actor_id = actor_info.get('actor_id') or actor_info.get('id')
-        if not actor_id:
-            continue
+# [MOVED]     cast = film.get('cast', [])
+# [MOVED]     for actor_info in cast:
+# [MOVED]         actor_id = actor_info.get('actor_id') or actor_info.get('id')
+# [MOVED]         if not actor_id:
+# [MOVED]             continue
         
-        actor = await db.people.find_one({'id': actor_id})
-        if not actor:
-            continue
+# [MOVED]         actor = await db.people.find_one({'id': actor_id})
+# [MOVED]         if not actor:
+# [MOVED]             continue
         
-        discovery = calculate_star_discovery_chance(actor, quality)
-        if discovery['discovered']:
-            # Update actor fame
-            await db.people.update_one(
-                {'id': actor_id},
-                {'$set': {
-                    'fame_category': discovery['new_fame_category'],
-                    'discovered_by': user['id'],
-                    'discovered_at': datetime.now(timezone.utc).isoformat(),
-                    'discovery_film': film_id
-                }}
-            )
+# [MOVED]         discovery = calculate_star_discovery_chance(actor, quality)
+# [MOVED]         if discovery['discovered']:
+# [MOVED]             # Update actor fame
+# [MOVED]             await db.people.update_one(
+# [MOVED]                 {'id': actor_id},
+# [MOVED]                 {'$set': {
+# [MOVED]                     'fame_category': discovery['new_fame_category'],
+# [MOVED]                     'discovered_by': user['id'],
+# [MOVED]                     'discovered_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]                     'discovery_film': film_id
+# [MOVED]                 }}
+# [MOVED]             )
             
-            # Add fame bonus to player
-            await db.users.update_one(
-                {'id': user['id']},
-                {'$inc': {'fame': discovery['fame_bonus_to_player']}}
-            )
+# [MOVED]             # Add fame bonus to player
+# [MOVED]             await db.users.update_one(
+# [MOVED]                 {'id': user['id']},
+# [MOVED]                 {'$inc': {'fame': discovery['fame_bonus_to_player']}}
+# [MOVED]             )
             
-            discoveries.append({
-                'actor_name': actor.get('name'),
-                'announcement': discovery['announcement'],
-                'fame_bonus': discovery['fame_bonus_to_player']
-            })
+# [MOVED]             discoveries.append({
+# [MOVED]                 'actor_name': actor.get('name'),
+# [MOVED]                 'announcement': discovery['announcement'],
+# [MOVED]                 'fame_bonus': discovery['fame_bonus_to_player']
+# [MOVED]             })
             
-            # Broadcast announcement via chat
-            news_bot = CHAT_BOTS[2]
-            bot_message = {
-                'id': str(uuid.uuid4()),
-                'room_id': 'general',
-                'sender_id': news_bot['id'],
-                'content': discovery['announcement'],
-                'message_type': 'text',
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
-            await db.chat_messages.insert_one(bot_message)
+# [MOVED]             # Broadcast announcement via chat
+# [MOVED]             news_bot = CHAT_BOTS[2]
+# [MOVED]             bot_message = {
+# [MOVED]                 'id': str(uuid.uuid4()),
+# [MOVED]                 'room_id': 'general',
+# [MOVED]                 'sender_id': news_bot['id'],
+# [MOVED]                 'content': discovery['announcement'],
+# [MOVED]                 'message_type': 'text',
+# [MOVED]                 'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             }
+# [MOVED]             await db.chat_messages.insert_one(bot_message)
     
-    return {'discoveries': discoveries, 'total_found': len(discoveries)}
+# [MOVED]     return {'discoveries': discoveries, 'total_found': len(discoveries)}
 
-@api_router.post("/films/{film_id}/evolve-cast-skills")
-async def evolve_film_cast_skills(film_id: str, user: dict = Depends(get_current_user)):
-    """Evolve the skills of all cast members based on film performance."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.post("/films/{film_id}/evolve-cast-skills")
+# [MOVED] async def evolve_film_cast_skills(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Evolve the skills of all cast members based on film performance."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    quality = film.get('quality_score', 50)
-    evolutions = []
+# [MOVED]     quality = film.get('quality_score', 50)
+# [MOVED]     evolutions = []
     
-    cast = film.get('cast', [])
-    for actor_info in cast:
-        actor_id = actor_info.get('actor_id') or actor_info.get('id')
-        role = actor_info.get('role', 'supporting')
-        if not actor_id:
-            continue
+# [MOVED]     cast = film.get('cast', [])
+# [MOVED]     for actor_info in cast:
+# [MOVED]         actor_id = actor_info.get('actor_id') or actor_info.get('id')
+# [MOVED]         role = actor_info.get('role', 'supporting')
+# [MOVED]         if not actor_id:
+# [MOVED]             continue
         
-        actor = await db.people.find_one({'id': actor_id})
-        if not actor:
-            continue
+# [MOVED]         actor = await db.people.find_one({'id': actor_id})
+# [MOVED]         if not actor:
+# [MOVED]             continue
         
-        evolution = evolve_cast_skills(actor, quality, role)
+# [MOVED]         evolution = evolve_cast_skills(actor, quality, role)
         
-        if evolution['had_changes']:
-            await db.people.update_one(
-                {'id': actor_id},
-                {'$set': {'skills': evolution['updated_skills']}}
-            )
+# [MOVED]         if evolution['had_changes']:
+# [MOVED]             await db.people.update_one(
+# [MOVED]                 {'id': actor_id},
+# [MOVED]                 {'$set': {'skills': evolution['updated_skills']}}
+# [MOVED]             )
             
-            evolutions.append({
-                'actor_name': actor.get('name'),
-                'role': role,
-                'changes': evolution['changes']
-            })
+# [MOVED]             evolutions.append({
+# [MOVED]                 'actor_name': actor.get('name'),
+# [MOVED]                 'role': role,
+# [MOVED]                 'changes': evolution['changes']
+# [MOVED]             })
     
-    # Also evolve director
-    director = film.get('director', {})
-    director_id = director.get('id')
-    if director_id:
-        director_doc = await db.people.find_one({'id': director_id})
-        if director_doc:
-            evolution = evolve_cast_skills(director_doc, quality, 'director')
-            if evolution['had_changes']:
-                await db.people.update_one(
-                    {'id': director_id},
-                    {'$set': {'skills': evolution['updated_skills']}}
-                )
-                evolutions.append({
-                    'actor_name': director_doc.get('name'),
-                    'role': 'director',
-                    'changes': evolution['changes']
-                })
+# [MOVED]     # Also evolve director
+# [MOVED]     director = film.get('director', {})
+# [MOVED]     director_id = director.get('id')
+# [MOVED]     if director_id:
+# [MOVED]         director_doc = await db.people.find_one({'id': director_id})
+# [MOVED]         if director_doc:
+# [MOVED]             evolution = evolve_cast_skills(director_doc, quality, 'director')
+# [MOVED]             if evolution['had_changes']:
+# [MOVED]                 await db.people.update_one(
+# [MOVED]                     {'id': director_id},
+# [MOVED]                     {'$set': {'skills': evolution['updated_skills']}}
+# [MOVED]                 )
+# [MOVED]                 evolutions.append({
+# [MOVED]                     'actor_name': director_doc.get('name'),
+# [MOVED]                     'role': 'director',
+# [MOVED]                     'changes': evolution['changes']
+# [MOVED]                 })
     
-    return {'evolutions': evolutions, 'total_evolved': len(evolutions)}
+# [MOVED]     return {'evolutions': evolutions, 'total_evolved': len(evolutions)}
 
 # ==================== NEGATIVE RATING PENALTY ====================
 
@@ -16577,15 +16581,15 @@ async def get_all_events():
     """Get all possible world events."""
     return list(WORLD_EVENTS.values())
 
-@api_router.get("/films/{film_id}/event-bonus")
-async def get_film_event_bonus(film_id: str, user: dict = Depends(get_current_user)):
-    """Calculate event bonuses for a specific film."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED] @api_router.get("/films/{film_id}/event-bonus")
+# [MOVED] async def get_film_event_bonus(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Calculate event bonuses for a specific film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
     
-    bonus = calculate_event_bonus(film)
-    return bonus
+# [MOVED]     bonus = calculate_event_bonus(film)
+# [MOVED]     return bonus
 
 # [MOVED TO routes/premiere.py] CINEMA TOUR SYSTEM
 # @api_router.get("/tour/featured") ...
@@ -16851,6 +16855,9 @@ app.include_router(premiere_router, prefix="/api")
 app.include_router(coming_soon_router, prefix="/api")
 app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
+app.include_router(film_engagement_router, prefix="/api")
+app.include_router(films_router, prefix="/api")
+app.include_router(production_studio_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

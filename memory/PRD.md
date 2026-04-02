@@ -49,12 +49,14 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 - **MODULARIZATION Step 12 (Coming Soon + Major + Emerging Screenplays)**: Moved 16 endpoints from server.py → 3 new route files. `routes/coming_soon.py` (5): hype, interact, details, investigate-boycott, speed-up + helpers/constants. `routes/major.py` (5): my, create, invite, accept, challenge + models. `routes/emerging_screenplays.py` (6): list, count, mark-seen, detail, accept, admin/diagnose-screenplay + expire_old_screenplays. Old code commented out. (2026-04-02)
 
+- **MODULARIZATION Step 14 (Game Core — Films, Engagement, Production Studio)**: Moved ~57 endpoints from server.py → 3 new route files. `routes/films.py` (28 endpoints): POST /films, GET /films/my, /films/pending, /films/shooting, /films/shooting/config, POST /films/{id}/start-shooting, /films/{id}/end-shooting-early, /films/{id}/release, GET /films/my/featured, /films/my/for-sequel, /films/cinema-journal, /films/available-for-rental, /films/my-available, /films/{id}/release-cinematic, /films/{id}, /films/{id}/distribution, DELETE /films/{id}, /films/{id}/permanent, /film-projects/{id}/permanent, GET /films/{id}/duration-status, POST /films/{id}/extend, /films/{id}/early-withdraw, GET /films/{id}/rerelease-status, POST /films/{id}/rerelease, /films/{id}/check-star-discoveries, /films/{id}/evolve-cast-skills, GET /films/{id}/event-bonus, GET /distribution/config + process_shooting_progress scheduler function + models (StartShootingRequest, FilmReleaseRequest). `routes/film_engagement.py` (15 endpoints): GET /films/{id}/actions, POST /films/{id}/action/create-star, /films/{id}/action/skill-boost, /films/{id}/user-rating, GET /films/{id}/ratings, /advertising/platforms, POST /films/{id}/advertise, /films/{id}/rate, /films/{id}/comment, GET /films/{id}/comments, /films/{id}/virtual-audience, POST /films/{id}/update-virtual-audience, GET /films/reviews-board, /films/{id}/tier-expectations. `routes/production_studio.py` (9 endpoints): GET /production-studio/status, /production-studios/unlock-status, POST /production-studio/pre-production/{id}, /production-studio/remaster/{id}, GET /production-studio/casting, POST /production-studio/casting/hire, /production-studio/generate-draft, GET /production-studio/drafts, DELETE /production-studio/drafts/{id} + models (PreProductionRequest, CastingHireRequest, StudioDraftRequest). Router ordering: film_engagement_router before films_router to prevent {film_id} from capturing static paths. Old code commented out. server.py ~17084 lines, ~9620 [MOVED] lines. (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
 
 ## Upcoming (P1)
-- Modularizzazione server.py — Step 11+ (attendere indicazioni utente per il prossimo gruppo)
+- Modularizzazione server.py — Step 15+ (attendere indicazioni utente per il prossimo gruppo)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
 

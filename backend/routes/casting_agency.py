@@ -30,11 +30,51 @@ GENRE_NAMES = {
     'biographical': 'Biographical', 'documentary': 'Documentary'
 }
 
-ACTOR_SKILL_NAMES = [
-    'Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing',
-    'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation',
-    'Chemistry', 'Star Power'
-]
+# Mapping legacy ACTOR_SKILL_NAMES → ACTOR_SKILLS (cast_system.py)
+# Used to convert old agency_actors documents on-the-fly
+LEGACY_SKILL_MAPPING = {
+    'Acting': 'drama',
+    'Emotional Range': 'emotional_depth',
+    'Action Sequences': 'action',
+    'Comedy Timing': 'comedy',
+    'Drama': 'drama',
+    'Voice Acting': 'voice_acting',
+    'Physical Acting': 'physical_acting',
+    'Improvisation': 'improvisation',
+    'Chemistry': 'charisma',
+    'Star Power': 'charisma',
+}
+
+def convert_legacy_skills(skills: dict) -> dict:
+    """Convert old ACTOR_SKILL_NAMES keys to ACTOR_SKILLS keys.
+    If a key is already in ACTOR_SKILLS format, keep it as-is.
+    For duplicate mappings (e.g. Acting+Drama both → drama), keep the max value.
+    """
+    from cast_system import ACTOR_SKILLS
+    valid_keys = set(ACTOR_SKILLS.keys())
+    converted = {}
+    for key, value in skills.items():
+        if key in valid_keys:
+            # Already in new format
+            converted[key] = max(converted.get(key, 0), value)
+        elif key in LEGACY_SKILL_MAPPING:
+            new_key = LEGACY_SKILL_MAPPING[key]
+            converted[new_key] = max(converted.get(new_key, 0), value)
+        # else: unknown key, skip
+    return converted
+
+def convert_legacy_skill_caps(caps: dict) -> dict:
+    """Convert old skill caps keys to new format."""
+    from cast_system import ACTOR_SKILLS
+    valid_keys = set(ACTOR_SKILLS.keys())
+    converted = {}
+    for key, value in caps.items():
+        if key in valid_keys:
+            converted[key] = max(converted.get(key, 0), value)
+        elif key in LEGACY_SKILL_MAPPING:
+            new_key = LEGACY_SKILL_MAPPING[key]
+            converted[new_key] = max(converted.get(new_key, 0), value)
+    return converted
 
 # --- Level formulas ---
 def get_max_agency_actors(level: int) -> int:
@@ -53,9 +93,12 @@ def generate_actor_genres(rng):
 
 
 def generate_full_skills(base_skill, rng):
-    """Generate full skill set from a base skill value."""
+    """Generate skill set using unified ACTOR_SKILLS (8 out of 13)."""
+    from cast_system import ACTOR_SKILLS
+    all_keys = list(ACTOR_SKILLS.keys())
+    chosen = rng.sample(all_keys, 8)
     skills = {}
-    for sk in ACTOR_SKILL_NAMES:
+    for sk in chosen:
         variance = rng.randint(-15, 10)
         skills[sk] = max(5, min(95, base_skill - 10 + variance))
     return skills
@@ -65,10 +108,8 @@ def generate_skill_caps(skills, hidden_talent, rng):
     """Generate max skill caps for each skill. Some skills may never max out."""
     caps = {}
     for sk, val in skills.items():
-        # Base cap depends on hidden talent
         base_cap = int(60 + hidden_talent * 35 + rng.randint(-10, 10))
-        # Some skills have a lower cap (actor's weakness)
-        if rng.random() < 0.3:  # 30% chance of a "weak" skill
+        if rng.random() < 0.3:
             base_cap = int(base_cap * 0.6)
         caps[sk] = max(val + 5, min(100, base_cap))
     return caps
@@ -125,6 +166,12 @@ async def get_agency_actors(user: dict = Depends(get_current_user)):
     actors = await db.agency_actors.find(
         {'user_id': user['id']}, {'_id': 0}
     ).sort('recruited_at', -1).to_list(200)
+
+    # Convert legacy skills on-the-fly for existing actors
+    for actor in actors:
+        actor['skills'] = convert_legacy_skills(actor.get('skills', {}))
+        if actor.get('skill_caps'):
+            actor['skill_caps'] = convert_legacy_skill_caps(actor['skill_caps'])
 
     studio = await db.infrastructure.find_one(
         {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0, 'level': 1}
@@ -363,7 +410,9 @@ async def fire_actor(actor_id: str, user: dict = Depends(get_current_user)):
     if not actor:
         raise HTTPException(404, "Attore non trovato nella tua agenzia")
 
-    # Add to global people pool
+    # Add to global people pool (convert legacy skills if needed)
+    raw_skills = actor.get('skills', {})
+    unified_skills = convert_legacy_skills(raw_skills)
     global_person = {
         'id': actor['id'],
         'type': 'actor',
@@ -372,8 +421,8 @@ async def fire_actor(actor_id: str, user: dict = Depends(get_current_user)):
         'nationality': actor['nationality'],
         'gender': actor['gender'],
         'avatar_url': actor.get('avatar_url', ''),
-        'skills': actor.get('skills', {}),
-        'primary_skills': list(actor.get('skills', {}).keys())[:3],
+        'skills': unified_skills,
+        'primary_skills': list(unified_skills.keys())[:3],
         'fame_score': actor.get('fame_score', 50),
         'fame_category': actor.get('fame_category', 'unknown'),
         'stars': actor.get('stars', 2),
@@ -414,6 +463,10 @@ async def get_actors_for_casting(user: dict = Depends(get_current_user)):
     for a in effective_actors:
         a['actor_type'] = 'effective'
         a['agency_name'] = agency_name
+        # Convert legacy skills on-the-fly
+        a['skills'] = convert_legacy_skills(a.get('skills', {}))
+        if a.get('skill_caps'):
+            a['skill_caps'] = convert_legacy_skill_caps(a['skill_caps'])
 
     # 2. School students (available for casting, continue training + bonus)
     school_students = await db.casting_school_students.find(
@@ -711,8 +764,8 @@ async def update_agency_actors_after_film(film: dict, user_id: str):
         if not agency_actor:
             continue
 
-        skills = agency_actor.get('skills', {})
-        caps = agency_actor.get('skill_caps', {})
+        skills = convert_legacy_skills(agency_actor.get('skills', {}))
+        caps = convert_legacy_skill_caps(agency_actor.get('skill_caps', {}))
         hidden_talent = agency_actor.get('hidden_talent', 0.5)
 
         # Determine improvement points based on film quality

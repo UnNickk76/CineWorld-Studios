@@ -804,7 +804,7 @@ async def get_available_actors(series_id: str, user: dict = Depends(get_current_
     # 3. Generate procedural actors if not enough
     if len(available) < 8:
         from server import NATIONALITIES, NAMES_BY_NATIONALITY
-        from routes.casting_agency import generate_actor_genres, generate_full_skills, GENRE_NAMES as AG_GENRE_NAMES, ACTOR_SKILL_NAMES
+        from routes.casting_agency import generate_actor_genres, generate_full_skills, GENRE_NAMES as AG_GENRE_NAMES
         rng = random.Random(f"{series_id}-market")
         needed = 8 - len(available)
         for i in range(needed):

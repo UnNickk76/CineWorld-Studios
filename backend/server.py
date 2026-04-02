@@ -103,6 +103,7 @@ from routes.coming_soon import router as coming_soon_router
 from routes.major import router as major_router
 from routes.emerging_screenplays import router as emerging_screenplays_router
 from routes.emerging_screenplays import expire_old_screenplays
+from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -10169,6 +10170,12 @@ async def startup_event():
         except Exception as e:
             logging.warning(f"System notes init: {e}")
 
+        try:
+            await _init_sponsors()
+            logging.info("Sponsors initialized")
+        except Exception as e:
+            logging.warning(f"Sponsors init: {e}")
+
         logging.info("Deferred initialization complete")
 
     import asyncio
@@ -16851,6 +16858,7 @@ app.include_router(premiere_router, prefix="/api")
 app.include_router(coming_soon_router, prefix="/api")
 app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
+app.include_router(sponsors_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

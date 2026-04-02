@@ -1469,23 +1469,42 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
     """Get today's top films ranked by daily revenue with hourly trend."""
     cached = _cache.get('cineboard_daily', ttl=30)
     if cached:
+        user_liked_ids = _cache.get(f'daily_likes_{user["id"]}', ttl=30)
+        if user_liked_ids is None:
+            user_liked_films = await db.films.find(
+                {'status': 'in_theaters', 'liked_by': user['id']},
+                {'_id': 0, 'id': 1}
+            ).to_list(500)
+            user_liked_ids = set(f['id'] for f in user_liked_films)
+            _cache.set(f'daily_likes_{user["id"]}', user_liked_ids)
         for f in cached:
-            f['user_liked'] = user['id'] in f.get('liked_by', [])
+            f['user_liked'] = f.get('id') in user_liked_ids
         return {'films': cached}
     
+    import asyncio as _asyncio
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     FILM_PROJECTION = {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'genre': 1, 'subgenre': 1,
         'poster_url': 1, 'imdb_rating': 1, 'quality_score': 1, 'quality': 1, 'likes_count': 1,
-        'liked_by': 1, 'daily_revenues': 1, 'total_revenue': 1, 'opening_day_revenue': 1,
+        'daily_revenues': {'$slice': -10}, 'total_revenue': 1, 'opening_day_revenue': 1,
         'released_at': 1, 'release_date': 1, 'created_at': 1, 'status': 1,
         'realistic_box_office': 1, 'total_attendance': 1, 'cineboard_score': 1,
-        'weekly_revenues': 1, 'estimated_final_revenue': 1}
-    films = await db.films.find(
+        'estimated_final_revenue': 1,
+        'awards': 1, 'actual_weeks_in_theater': 1, 'weeks_in_theater': 1}
+    
+    films_future = db.films.find(
         {'status': 'in_theaters'},
         FILM_PROJECTION
     ).to_list(500)
+    liked_future = db.films.find(
+        {'status': 'in_theaters', 'liked_by': user['id']},
+        {'_id': 0, 'id': 1}
+    ).to_list(500)
+    
+    films, user_liked_films = await _asyncio.gather(films_future, liked_future)
+    user_liked_ids = set(f['id'] for f in user_liked_films)
+    _cache.set(f'daily_likes_{user["id"]}', user_liked_ids)
 
     # Bulk fetch owners
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
@@ -1548,7 +1567,7 @@ async def get_cineboard_daily(user: dict = Depends(get_current_user)):
         film['hourly_trend'] = hourly_blocks
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
-        film['user_liked'] = user['id'] in film.get('liked_by', [])
+        film['user_liked'] = film.get('id') in user_liked_ids
 
     sorted_films = sorted(films, key=lambda x: x['daily_revenue'], reverse=True)[:50]
     for i, film in enumerate(sorted_films):
@@ -1562,23 +1581,42 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
     """Get this week's top films ranked by weekly revenue with daily trend."""
     cached = _cache.get('cineboard_weekly', ttl=30)
     if cached:
+        user_liked_ids = _cache.get(f'weekly_likes_{user["id"]}', ttl=30)
+        if user_liked_ids is None:
+            user_liked_films = await db.films.find(
+                {'status': 'in_theaters', 'liked_by': user['id']},
+                {'_id': 0, 'id': 1}
+            ).to_list(500)
+            user_liked_ids = set(f['id'] for f in user_liked_films)
+            _cache.set(f'weekly_likes_{user["id"]}', user_liked_ids)
         for f in cached:
-            f['user_liked'] = user['id'] in f.get('liked_by', [])
+            f['user_liked'] = f.get('id') in user_liked_ids
         return {'films': cached}
     
+    import asyncio as _asyncio
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     week_start = now - timedelta(days=7)
     FILM_PROJECTION = {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'genre': 1, 'subgenre': 1,
         'poster_url': 1, 'imdb_rating': 1, 'quality_score': 1, 'quality': 1, 'likes_count': 1,
-        'liked_by': 1, 'daily_revenues': 1, 'total_revenue': 1, 'opening_day_revenue': 1,
+        'daily_revenues': {'$slice': -30}, 'total_revenue': 1, 'opening_day_revenue': 1,
         'released_at': 1, 'release_date': 1, 'created_at': 1, 'status': 1,
         'realistic_box_office': 1, 'total_attendance': 1, 'cineboard_score': 1,
-        'weekly_revenues': 1, 'estimated_final_revenue': 1}
-    films = await db.films.find(
+        'estimated_final_revenue': 1,
+        'awards': 1, 'actual_weeks_in_theater': 1, 'weeks_in_theater': 1}
+    
+    films_future = db.films.find(
         {'status': 'in_theaters'},
         FILM_PROJECTION
     ).to_list(500)
+    liked_future = db.films.find(
+        {'status': 'in_theaters', 'liked_by': user['id']},
+        {'_id': 0, 'id': 1}
+    ).to_list(500)
+    
+    films, user_liked_films = await _asyncio.gather(films_future, liked_future)
+    user_liked_ids = set(f['id'] for f in user_liked_films)
+    _cache.set(f'weekly_likes_{user["id"]}', user_liked_ids)
 
     # Bulk fetch owners
     owner_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
@@ -1652,7 +1690,7 @@ async def get_cineboard_weekly(user: dict = Depends(get_current_user)):
         film['daily_trend'] = daily_trend_since_release
         film['cineboard_score'] = calculate_cineboard_score(film)
         film['owner'] = owners_map.get(film.get('user_id'))
-        film['user_liked'] = user['id'] in film.get('liked_by', [])
+        film['user_liked'] = film.get('id') in user_liked_ids
 
     sorted_films = sorted(films, key=lambda x: x['weekly_revenue'], reverse=True)[:50]
     for i, film in enumerate(sorted_films):

@@ -3387,26 +3387,50 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
         low_pct = buzz_votes.get('low', 0) / total_votes
         buzz_influence = (high_pct - low_pct) * 10  # ±10% influence
 
-    # Cast quality
+    # Cast quality — GENRE-AWARE skill evaluation
     cast = project.get('cast', {})
+    genre = project.get('genre', 'drama')
+
+    from cast_system import GENRE_SKILL_MAPPING
+    genre_relevant_skills = GENRE_SKILL_MAPPING.get(genre, ['drama'])
+
     cast_skills = []
+    skill_debug = {}
+
+    # Director & Screenwriter: use full average (no genre mapping for these roles)
     for role in ['director', 'screenwriter']:
         person = cast.get(role, {})
         if person and person.get('skills'):
             avg = sum(person['skills'].values()) / max(1, len(person['skills']))
             cast_skills.append(avg)
-    for actor in cast.get('actors', []):
+            skill_debug[role] = {'avg': round(avg, 1), 'method': 'full_avg'}
+
+    # Actors: use genre-relevant skills
+    for idx, actor in enumerate(cast.get('actors', [])):
         if actor.get('skills'):
-            avg = sum(actor['skills'].values()) / max(1, len(actor['skills']))
-            cast_skills.append(avg)
+            actor_skills = actor['skills']
+            relevant_values = [actor_skills.get(sk, 0) for sk in genre_relevant_skills]
+            # Blend: 70% genre-relevant avg, 30% full avg (so non-genre skills still matter a bit)
+            genre_avg = sum(relevant_values) / max(1, len(relevant_values))
+            full_avg = sum(actor_skills.values()) / max(1, len(actor_skills))
+            blended = genre_avg * 0.7 + full_avg * 0.3
+            cast_skills.append(blended)
+            skill_debug[f'actor_{idx}'] = {
+                'name': actor.get('name', '?'),
+                'genre_skills': {sk: actor_skills.get(sk, 0) for sk in genre_relevant_skills},
+                'genre_avg': round(genre_avg, 1),
+                'full_avg': round(full_avg, 1),
+                'blended': round(blended, 1)
+            }
+
     cast_quality = sum(cast_skills) / max(1, len(cast_skills)) if cast_skills else 30
 
-    # Soundtrack quality (from composer skills)
+    # Soundtrack quality (from composer skills — full avg, no genre mapping)
     composer = cast.get('composer', {})
     soundtrack_score = 0
     if composer and composer.get('skills'):
         composer_avg = sum(composer['skills'].values()) / max(1, len(composer['skills']))
-        soundtrack_score = round(composer_avg * 0.08, 1)  # 0-8 points based on composer skill avg (0-100)
+        soundtrack_score = round(composer_avg * 0.08, 1)
 
     # Production setup bonuses (extras, CGI, VFX)
     prod_setup = project.get('production_setup', {})
@@ -3428,13 +3452,17 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     else:
         extras_bonus = 0.0
 
-    # Role-weighted cast quality
+    # Role-weighted cast quality (genre-aware)
     role_weighted_quality = 0
     for actor in cast.get('actors', []):
         if actor.get('skills'):
-            avg_skill = sum(actor['skills'].values()) / max(1, len(actor['skills']))
+            actor_skills = actor['skills']
+            relevant_values = [actor_skills.get(sk, 0) for sk in genre_relevant_skills]
+            genre_avg = sum(relevant_values) / max(1, len(relevant_values))
+            full_avg = sum(actor_skills.values()) / max(1, len(actor_skills))
+            blended_skill = genre_avg * 0.7 + full_avg * 0.3
             role_weight = ROLE_VALUES.get(actor.get('role_in_film', 'Supporto'), {}).get('quality_weight', 0.7)
-            role_weighted_quality += avg_skill * role_weight
+            role_weighted_quality += blended_skill * role_weight
     if cast.get('actors'):
         role_weighted_quality = role_weighted_quality / len(cast['actors'])
 
@@ -3578,6 +3606,22 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     # Final clamp
     quality_score = max(10, min(100, quality_score))
     quality_score = round(quality_score, 1)
+
+    # Debug log: skill contribution breakdown
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[QUALITY] Film genre={genre}, genre_skills={genre_relevant_skills}")
+    logger.info(f"[QUALITY] cast_quality={cast_quality:.1f}, role_weighted={role_weighted_quality:.1f}, soundtrack={soundtrack_score:.1f}")
+    for k, v in skill_debug.items():
+        logger.info(f"[QUALITY]   {k}: {v}")
+
+    # Store skill breakdown in advanced_factors for frontend visibility
+    advanced_factors['_skill_debug'] = {
+        'genre': genre,
+        'genre_relevant_skills': genre_relevant_skills,
+        'cast_quality': round(cast_quality, 1),
+        'skill_breakdown': skill_debug
+    }
 
     # Determine tier
     if quality_score >= 85:

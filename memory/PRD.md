@@ -29,19 +29,12 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 ## Completed
 - [2026-04-01] Production data extraction (13 users, 110 films, 86 posters, festivals, challenges, etc.)
-- [2026-04-01] Infrastructure recovery: NeoMorpheus 12 items, Emilians 7 items, TV stations, series
-- [2026-04-01] Admin export endpoint: GET /api/admin/export-db
-- [2026-04-01] JSON backup in /app/backup_produzione/
-- [2026-04-01] Health check fix: /api/health added for Emergent deploy
-- [2026-04-01] Startup refactor: heavy init deferred to background tasks
-- [2026-04-01] Poster regeneration: POST /api/series/{id}/generate-poster, POST /api/anime/{id}/generate-poster
-- [2026-04-01] Bug fix: /series/my now queries db.tv_series (correct collection)
-- [2026-04-01] SagasSeriesPage: poster thumbnails + "Rigenera Locandina" buttons
-- [2026-04-01] uploads directory: os.makedirs at server start + StaticFiles mount
-- [2026-04-01] Production loop fix: finalize_production, release_production, prevent_series_loop utilities
-- [2026-04-01] database.py: clean config, no strict timeouts
-- [2026-04-01] auth login: bcrypt.checkpw direct + error logging
-- [2026-04-02] **LOGIN FIX**: Root cause was 2.7MB base64 avatar stored in user document. Login response was 2.7MB taking 29s (axios 12s timeout = ERR_ABORTED). Fix: persist_base64_avatar() converts base64 to file in /uploads/avatars/, updates DB. Login now returns 990 bytes in 0.7s. Also fixed avatar generation to save directly to file.
+- [2026-04-01] Infrastructure recovery, Admin export endpoint, JSON backup
+- [2026-04-01] Health check fix, Startup refactor, Poster regeneration endpoints
+- [2026-04-01] Bug fixes: /series/my collection, production loops, uploads directory
+- [2026-04-01] database.py: clean config, auth login: bcrypt.checkpw direct
+- [2026-04-02] **LOGIN FIX**: Root cause was 2.7MB base64 avatar in user document. Added persist_base64_avatar() to convert base64 to file. Login: 29s/2.7MB → 0.7s/990B
+- [2026-04-02] **POSTER COMPRESSION**: Auto-compression in poster_storage.py (800x1200 JPEG q82). Compressed 44 existing posters: 38MB → 3MB (92% reduction). Updated DB refs .png → .jpg. Also fixed avatar generation to save directly to file.
 
 ## Upcoming (P1)
 - Sistema "Previsioni Festival"

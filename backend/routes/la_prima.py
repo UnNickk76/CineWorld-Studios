@@ -97,6 +97,144 @@ def default_premiere() -> dict:
     }
 
 
+from pydantic import BaseModel, Field
+
+class PremiereSetupRequest(BaseModel):
+    city: str
+    datetime_str: str = Field(alias='datetime')
+    release_delay_days: int = Field(ge=1, le=6)
+
+
+# === STEP 4: HIDDEN IMPACT CALCULATION ===
+
+def _get_city(name: str) -> dict:
+    """Find city by name (case-insensitive)."""
+    for c in PREMIERE_CITIES:
+        if c['name'].lower() == name.lower():
+            return c
+    return None
+
+
+def _calc_city_match_score(city: dict, genre: str) -> float:
+    """Genre affinity with city. 0.0-1.0"""
+    if genre in city.get('preferred_genres', []):
+        return city['weight']
+    return city['weight'] * 0.4
+
+
+def _calc_timing_score(datetime_str: str, city: dict) -> float:
+    """Optimal premiere time is 19:00-21:00 local. 0.0-1.0"""
+    try:
+        dt = datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        local_hour = (dt.hour + city.get('time_zone_offset', 0)) % 24
+        # Sweet spot: 19-21h local
+        if 19 <= local_hour <= 21:
+            return 1.0
+        elif 18 <= local_hour <= 22:
+            return 0.8
+        elif 17 <= local_hour <= 23:
+            return 0.5
+        elif 14 <= local_hour <= 16:
+            return 0.3
+        else:
+            return 0.1  # Morning/late night = bad
+    except Exception:
+        return 0.5
+
+
+def _calc_delay_score(delay_days: int) -> float:
+    """Ideal delay is 3 days. Too short = no buzz, too long = hype dies. 0.0-1.0"""
+    # 3 days = perfect, 2-4 = good, 1 or 5-6 = mediocre
+    scores = {1: 0.4, 2: 0.75, 3: 1.0, 4: 0.85, 5: 0.55, 6: 0.3}
+    return scores.get(delay_days, 0.5)
+
+
+async def _calc_saturation_penalty(city_name: str) -> float:
+    """Penalty if too many premieres happened recently in this city. 0.0-0.5"""
+    recent = await db.premiere_history.count_documents({
+        'city': city_name,
+        'created_at': {'$gte': (datetime.now(timezone.utc).replace(day=1)).isoformat()}
+    })
+    if recent == 0:
+        return 0.0
+    elif recent <= 2:
+        return 0.1
+    elif recent <= 5:
+        return 0.25
+    else:
+        return 0.4
+
+
+def _calc_cast_bonus(cast: dict) -> float:
+    """Bonus from cast fame. 0.0-0.3"""
+    actors = cast.get('actors', [])
+    if not actors:
+        return 0.0
+    total_fame = sum(a.get('fame_score', a.get('fame', 30)) for a in actors)
+    avg_fame = total_fame / len(actors)
+    # Star actors give bigger boost
+    star_count = sum(1 for a in actors if a.get('is_star') or a.get('fame_score', 0) > 80)
+    return min(0.3, (avg_fame / 100) * 0.2 + star_count * 0.05)
+
+
+def _calc_sponsor_bonus(sponsors: list) -> float:
+    """Bonus from sponsors. 0.0-0.2"""
+    if not sponsors:
+        return 0.0
+    tier_values = {'A': 0.08, 'B': 0.04, 'C': 0.02}
+    total = sum(tier_values.get(s.get('tier', 'C'), 0.02) for s in sponsors)
+    return min(0.2, total)
+
+
+def _calc_decay_factor(initial_hype_boost: float) -> float:
+    """Higher boost = faster decay after 3 days. 0.7-0.95"""
+    # Strong premiere = strong decay
+    if initial_hype_boost > 0.25:
+        return 0.75
+    elif initial_hype_boost > 0.15:
+        return 0.82
+    elif initial_hype_boost > 0.08:
+        return 0.88
+    else:
+        return 0.93
+
+
+async def calculate_premiere_impact(film_project: dict, city: dict, datetime_str: str, delay_days: int) -> dict:
+    """Calculate hidden premiere impact. Returns impact details (internal only)."""
+    genre = film_project.get('genre', 'drama')
+    cast = film_project.get('cast', {})
+    sponsors = film_project.get('sponsors', [])
+
+    city_match = _calc_city_match_score(city, genre)
+    timing = _calc_timing_score(datetime_str, city)
+    delay = _calc_delay_score(delay_days)
+    saturation = await _calc_saturation_penalty(city['name'])
+    cast_bonus = _calc_cast_bonus(cast)
+    sponsor_bonus = _calc_sponsor_bonus(sponsors)
+
+    # Base multiplier: 0.30 (a premiere alone is worth up to 30% hype boost)
+    base = 0.30
+
+    raw_impact = base * (city_match + timing + delay + cast_bonus + sponsor_bonus - saturation)
+    # Clamp to 0.01 - 0.40 range
+    initial_hype_boost = round(max(0.01, min(0.40, raw_impact)), 3)
+    decay_factor = _calc_decay_factor(initial_hype_boost)
+
+    return {
+        'initial_hype_boost': initial_hype_boost,
+        'decay_factor': decay_factor,
+        '_debug': {
+            'city_match': round(city_match, 3),
+            'timing': round(timing, 3),
+            'delay': round(delay, 3),
+            'saturation': round(saturation, 3),
+            'cast_bonus': round(cast_bonus, 3),
+            'sponsor_bonus': round(sponsor_bonus, 3),
+            'raw_impact': round(raw_impact, 3),
+        }
+    }
+
+
 # === ENDPOINTS ===
 
 @router.post("/enable/{film_id}")
@@ -132,6 +270,92 @@ async def enable_premiere(film_id: str, user=Depends(get_current_user)):
     return {
         'message': f"La Prima attivata per '{project.get('title')}'",
         'premiere': premiere
+    }
+
+
+@router.post("/setup/{film_id}")
+async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(get_current_user)):
+    """Configure La Prima: choose city, datetime, and release delay.
+    Calculates hidden impact score. Cannot be modified after confirmation."""
+    project = await db.film_projects.find_one(
+        {'id': film_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1, 'cast': 1, 'sponsors': 1}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Progetto film non trovato")
+
+    premiere = project.get('premiere', {})
+
+    # Must be enabled first
+    if not premiere.get('enabled'):
+        raise HTTPException(status_code=400, detail="Devi prima attivare La Prima")
+
+    # Cannot modify after setup
+    if premiere.get('city') is not None:
+        raise HTTPException(status_code=400, detail="La Prima e' gia' stata configurata e non puo' essere modificata")
+
+    # Block if already released
+    if project.get('status') in ('released', 'in_theaters', 'withdrawn'):
+        raise HTTPException(status_code=400, detail="Film gia' uscito, impossibile configurare La Prima")
+
+    # Validate city
+    city = _get_city(req.city)
+    if not city:
+        raise HTTPException(status_code=400, detail=f"Citta' non valida: {req.city}")
+
+    # Validate datetime format
+    try:
+        dt = datetime.fromisoformat(req.datetime_str.replace('Z', '+00:00'))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato datetime non valido. Usa ISO 8601")
+
+    # === STEP 4: Calculate hidden impact ===
+    impact = await calculate_premiere_impact(project, city, req.datetime_str, req.release_delay_days)
+
+    # Update premiere object
+    premiere.update({
+        'city': city['name'],
+        'datetime': req.datetime_str,
+        'release_delay_days': req.release_delay_days,
+        'initial_hype_boost': impact['initial_hype_boost'],
+        'decay_factor': impact['decay_factor'],
+        'outcome': None,  # Will be set after premiere event
+    })
+
+    await db.film_projects.update_one(
+        {'id': film_id, 'user_id': user['id']},
+        {'$set': {'premiere': premiere}}
+    )
+
+    # Record in premiere_history (for saturation tracking)
+    await db.premiere_history.insert_one({
+        'film_id': film_id,
+        'city': city['name'],
+        'user_id': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    })
+
+    logger.info(f"La Prima configured: '{project.get('title')}' in {city['name']}, delay={req.release_delay_days}d, boost={impact['initial_hype_boost']}")
+
+    # Response: show premiere config but NOT the internal formula details
+    return {
+        'message': f"La Prima configurata a {city['name']}!",
+        'premiere': {
+            'enabled': True,
+            'city': city['name'],
+            'region': city['region'],
+            'vibe': city['vibe'],
+            'datetime': req.datetime_str,
+            'release_delay_days': req.release_delay_days,
+            # Hint at impact without revealing exact numbers
+            'impact_preview': (
+                'Eccezionale' if impact['initial_hype_boost'] > 0.30
+                else 'Forte' if impact['initial_hype_boost'] > 0.20
+                else 'Buono' if impact['initial_hype_boost'] > 0.12
+                else 'Moderato' if impact['initial_hype_boost'] > 0.05
+                else 'Debole'
+            ),
+        }
     }
 
 

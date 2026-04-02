@@ -112,6 +112,7 @@ async def register(user_data: UserCreate):
 @router.post("/auth/login")
 async def login(credentials: UserLogin):
     try:
+        print("LOGIN START")
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -122,9 +123,13 @@ async def login(credentials: UserLogin):
             logging.warning(f"Login failed: user not found for email {credentials.email}")
             raise HTTPException(status_code=401, detail="Credenziali errate")
         
+        print("LOGIN USER FOUND")
+
         if not pwd_context.verify(credentials.password, user["password"]):
             logging.warning(f"Login failed: wrong password for {credentials.email}")
             raise HTTPException(status_code=401, detail="Credenziali errate")
+        
+        print("LOGIN PASSWORD CHECK OK")
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
@@ -175,6 +180,9 @@ async def login(credentials: UserLogin):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"LOGIN FULL ERROR: {repr(e)}")
+        traceback.print_exc()
         logging.error(f"Login error for {credentials.email}: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Errore server durante il login. Riprova.")
 

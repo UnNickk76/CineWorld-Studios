@@ -91,6 +91,7 @@ from routes.cast import router as cast_router, initialize_cast_pool_if_needed as
 from routes.users import router as users_router
 from routes.chat import router as chat_router
 from routes.festivals import router as festivals_router
+from routes.challenges import router as challenges_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -8781,62 +8782,62 @@ async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_curr
     return result
 
 # Mini Games with real questions
-# Minigames routes moved to routes/minigames.py
+# [MOVED TO routes/challenges.py] Daily/Weekly challenges (2 endpoints)
 # Challenges
-@api_router.get("/challenges")
-async def get_challenges(user: dict = Depends(get_current_user)):
-    user_daily = user.get('daily_challenges', {})
-    user_weekly = user.get('weekly_challenges', {})
-    
-    daily = []
-    for c in DAILY_CHALLENGES:
-        progress = user_daily.get(c['id'], {})
-        daily.append({
-            **c,
-            'current': progress.get('current', 0),
-            'completed': progress.get('completed', False),
-            'claimed': progress.get('claimed', False)
-        })
-    
-    weekly = []
-    for c in WEEKLY_CHALLENGES:
-        progress = user_weekly.get(c['id'], {})
-        weekly.append({
-            **c,
-            'current': progress.get('current', 0),
-            'completed': progress.get('completed', False),
-            'claimed': progress.get('claimed', False)
-        })
-    
-    return {'daily': daily, 'weekly': weekly}
-
-@api_router.post("/challenges/{challenge_id}/claim")
-async def claim_challenge(challenge_id: str, challenge_type: str = 'daily', user: dict = Depends(get_current_user)):
-    challenges = DAILY_CHALLENGES if challenge_type == 'daily' else WEEKLY_CHALLENGES
-    challenge = next((c for c in challenges if c['id'] == challenge_id), None)
-    
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata")
-    
-    field = 'daily_challenges' if challenge_type == 'daily' else 'weekly_challenges'
-    user_progress = user.get(field, {}).get(challenge_id, {})
-    
-    if not user_progress.get('completed', False):
-        raise HTTPException(status_code=400, detail="Sfida non completata")
-    
-    if user_progress.get('claimed', False):
-        raise HTTPException(status_code=400, detail="Ricompensa già riscossa")
-    
-    await db.users.update_one(
-        {'id': user['id']},
-        {
-            '$inc': {'funds': challenge['reward']},
-            '$set': {f'{field}.{challenge_id}.claimed': True}
-        }
-    )
-    
-    return {'reward': challenge['reward'], 'new_balance': user['funds'] + challenge['reward']}
-
+# [MOVED] @api_router.get("/challenges")
+# [MOVED] async def get_challenges(user: dict = Depends(get_current_user)):
+# [MOVED]     user_daily = user.get('daily_challenges', {})
+# [MOVED]     user_weekly = user.get('weekly_challenges', {})
+# [MOVED]     
+# [MOVED]     daily = []
+# [MOVED]     for c in DAILY_CHALLENGES:
+# [MOVED]         progress = user_daily.get(c['id'], {})
+# [MOVED]         daily.append({
+# [MOVED]             **c,
+# [MOVED]             'current': progress.get('current', 0),
+# [MOVED]             'completed': progress.get('completed', False),
+# [MOVED]             'claimed': progress.get('claimed', False)
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     weekly = []
+# [MOVED]     for c in WEEKLY_CHALLENGES:
+# [MOVED]         progress = user_weekly.get(c['id'], {})
+# [MOVED]         weekly.append({
+# [MOVED]             **c,
+# [MOVED]             'current': progress.get('current', 0),
+# [MOVED]             'completed': progress.get('completed', False),
+# [MOVED]             'claimed': progress.get('claimed', False)
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return {'daily': daily, 'weekly': weekly}
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/claim")
+# [MOVED] async def claim_challenge(challenge_id: str, challenge_type: str = 'daily', user: dict = Depends(get_current_user)):
+# [MOVED]     challenges = DAILY_CHALLENGES if challenge_type == 'daily' else WEEKLY_CHALLENGES
+# [MOVED]     challenge = next((c for c in challenges if c['id'] == challenge_id), None)
+# [MOVED]     
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata")
+# [MOVED]     
+# [MOVED]     field = 'daily_challenges' if challenge_type == 'daily' else 'weekly_challenges'
+# [MOVED]     user_progress = user.get(field, {}).get(challenge_id, {})
+# [MOVED]     
+# [MOVED]     if not user_progress.get('completed', False):
+# [MOVED]         raise HTTPException(status_code=400, detail="Sfida non completata")
+# [MOVED]     
+# [MOVED]     if user_progress.get('claimed', False):
+# [MOVED]         raise HTTPException(status_code=400, detail="Ricompensa già riscossa")
+# [MOVED]     
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {
+# [MOVED]             '$inc': {'funds': challenge['reward']},
+# [MOVED]             '$set': {f'{field}.{challenge_id}.claimed': True}
+# [MOVED]         }
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {'reward': challenge['reward'], 'new_balance': user['funds'] + challenge['reward']}
+# [MOVED] 
 # Statistics
 @api_router.get("/statistics/global")
 async def get_global_statistics(user: dict = Depends(get_current_user)):
@@ -12375,133 +12376,130 @@ def get_newly_unlocked_infrastructure(old_level: int, new_level: int) -> List[di
 
 # Minigames cooldown routes moved to routes/minigames.py
 
-class ChallengeRequest(BaseModel):
-    opponent_id: str
-    game_id: str
-    bet_amount: int = 0
+# [MOVED TO routes/challenges.py] ChallengeRequest, ChallengeResponse models
+# class ChallengeRequest(BaseModel): ...
+# class ChallengeResponse(BaseModel): ...
 
-class ChallengeResponse(BaseModel):
-    accept: bool
-
-@api_router.post("/challenges/send")
-async def send_challenge(request: ChallengeRequest, user: dict = Depends(get_current_user)):
-    """Send a minigame challenge to another player."""
-    if request.opponent_id == user['id']:
-        raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
-    
-    opponent = await db.users.find_one({'id': request.opponent_id})
-    if not opponent:
-        raise HTTPException(status_code=404, detail="Avversario non trovato")
-    
-    # Check bet amount
-    if request.bet_amount > 0:
-        if user.get('funds', 0) < request.bet_amount:
-            raise HTTPException(status_code=400, detail="Fondi insufficienti per la scommessa")
-        if request.bet_amount > 10000:
-            raise HTTPException(status_code=400, detail="Scommessa massima: $10,000")
-    
-    challenge = {
-        'id': str(uuid.uuid4()),
-        'challenger_id': user['id'],
-        'challenger_name': user.get('nickname'),
-        'opponent_id': request.opponent_id,
-        'opponent_name': opponent.get('nickname'),
-        'game_id': request.game_id,
-        'bet_amount': min(request.bet_amount, 10000),
-        'status': 'pending',
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
-    }
-    
-    await db.challenges.insert_one(challenge)
-    
-    # Create notification for opponent
-    notification = {
-        'id': str(uuid.uuid4()),
-        'user_id': request.opponent_id,
-        'type': 'challenge',
-        'title': 'Nuova Sfida!',
-        'message': f'{user.get("nickname")} ti ha sfidato! Scommessa: ${request.bet_amount:,}',
-        'data': {'challenge_id': challenge['id']},
-        'read': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.notifications.insert_one(notification)
-    
-    return {'success': True, 'challenge_id': challenge['id']}
-
-@api_router.post("/challenges/{challenge_id}/respond")
-async def respond_to_challenge(challenge_id: str, response: ChallengeResponse, user: dict = Depends(get_current_user)):
-    """Accept or decline a challenge."""
-    challenge = await db.challenges.find_one({'id': challenge_id, 'opponent_id': user['id'], 'status': 'pending'})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata")
-    
-    if not response.accept:
-        await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'declined'}})
-        return {'success': True, 'message': 'Sfida rifiutata'}
-    
-    if challenge.get('bet_amount', 0) > 0:
-        if user.get('funds', 0) < challenge['bet_amount']:
-            raise HTTPException(status_code=400, detail="Fondi insufficienti")
-    
-    await db.challenges.update_one(
-        {'id': challenge_id},
-        {'$set': {'status': 'active', 'accepted_at': datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    return {'success': True, 'challenge_id': challenge_id, 'game_id': challenge['game_id']}
-
-@api_router.post("/challenges/{challenge_id}/submit-result")
-async def submit_challenge_result(challenge_id: str, score: int, user: dict = Depends(get_current_user)):
-    """Submit score for a challenge."""
-    challenge = await db.challenges.find_one({'id': challenge_id, 'status': 'active'})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non attiva")
-    
-    score_field = 'challenger_score' if user['id'] == challenge['challenger_id'] else 'opponent_score'
-    await db.challenges.update_one({'id': challenge_id}, {'$set': {score_field: score}})
-    
-    updated = await db.challenges.find_one({'id': challenge_id})
-    if updated.get('challenger_score') is not None and updated.get('opponent_score') is not None:
-        challenger_wins = updated['challenger_score'] > updated['opponent_score']
-        winner_id = challenge['challenger_id'] if challenger_wins else challenge['opponent_id']
-        loser_id = challenge['opponent_id'] if challenger_wins else challenge['challenger_id']
-        
-        bet = challenge.get('bet_amount', 0)
-        if bet > 0:
-            await db.users.update_one({'id': winner_id}, {'$inc': {'funds': bet, 'total_xp': 50}})
-            await db.users.update_one({'id': loser_id}, {'$inc': {'funds': -bet, 'total_xp': 10}})
-        else:
-            await db.users.update_one({'id': winner_id}, {'$inc': {'total_xp': 50}})
-            await db.users.update_one({'id': loser_id}, {'$inc': {'total_xp': 10}})
-        
-        await db.challenges.update_one(
-            {'id': challenge_id},
-            {'$set': {'status': 'completed', 'winner_id': winner_id}}
-        )
-        
-        return {'completed': True, 'winner_id': winner_id}
-    
-    return {'completed': False, 'waiting_for_opponent': True}
-
-@api_router.get("/challenges/pending")
-async def get_pending_challenges(user: dict = Depends(get_current_user)):
-    """Get pending challenges."""
-    received = await db.challenges.find(
-        {'opponent_id': user['id'], 'status': 'pending'},
-        {'_id': 0}
-    ).to_list(10)
-    
-    sent = await db.challenges.find(
-        {'challenger_id': user['id'], 'status': {'$in': ['pending', 'active']}},
-        {'_id': 0}
-    ).to_list(10)
-    
-    return {'received': received, 'sent': sent}
-
+# [MOVED TO routes/challenges.py] PVP send/respond/submit/pending (4 endpoints)
+# [MOVED] @api_router.post("/challenges/send")
+# [MOVED] async def send_challenge(request: ChallengeRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Send a minigame challenge to another player."""
+# [MOVED]     if request.opponent_id == user['id']:
+# [MOVED]         raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+# [MOVED]     
+# [MOVED]     opponent = await db.users.find_one({'id': request.opponent_id})
+# [MOVED]     if not opponent:
+# [MOVED]         raise HTTPException(status_code=404, detail="Avversario non trovato")
+# [MOVED]     
+# [MOVED]     # Check bet amount
+# [MOVED]     if request.bet_amount > 0:
+# [MOVED]         if user.get('funds', 0) < request.bet_amount:
+# [MOVED]             raise HTTPException(status_code=400, detail="Fondi insufficienti per la scommessa")
+# [MOVED]         if request.bet_amount > 10000:
+# [MOVED]             raise HTTPException(status_code=400, detail="Scommessa massima: $10,000")
+# [MOVED]     
+# [MOVED]     challenge = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'challenger_id': user['id'],
+# [MOVED]         'challenger_name': user.get('nickname'),
+# [MOVED]         'opponent_id': request.opponent_id,
+# [MOVED]         'opponent_name': opponent.get('nickname'),
+# [MOVED]         'game_id': request.game_id,
+# [MOVED]         'bet_amount': min(request.bet_amount, 10000),
+# [MOVED]         'status': 'pending',
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.challenges.insert_one(challenge)
+# [MOVED]     
+# [MOVED]     # Create notification for opponent
+# [MOVED]     notification = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': request.opponent_id,
+# [MOVED]         'type': 'challenge',
+# [MOVED]         'title': 'Nuova Sfida!',
+# [MOVED]         'message': f'{user.get("nickname")} ti ha sfidato! Scommessa: ${request.bet_amount:,}',
+# [MOVED]         'data': {'challenge_id': challenge['id']},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.notifications.insert_one(notification)
+# [MOVED]     
+# [MOVED]     return {'success': True, 'challenge_id': challenge['id']}
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/respond")
+# [MOVED] async def respond_to_challenge(challenge_id: str, response: ChallengeResponse, user: dict = Depends(get_current_user)):
+# [MOVED]     """Accept or decline a challenge."""
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id, 'opponent_id': user['id'], 'status': 'pending'})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata")
+# [MOVED]     
+# [MOVED]     if not response.accept:
+# [MOVED]         await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'declined'}})
+# [MOVED]         return {'success': True, 'message': 'Sfida rifiutata'}
+# [MOVED]     
+# [MOVED]     if challenge.get('bet_amount', 0) > 0:
+# [MOVED]         if user.get('funds', 0) < challenge['bet_amount']:
+# [MOVED]             raise HTTPException(status_code=400, detail="Fondi insufficienti")
+# [MOVED]     
+# [MOVED]     await db.challenges.update_one(
+# [MOVED]         {'id': challenge_id},
+# [MOVED]         {'$set': {'status': 'active', 'accepted_at': datetime.now(timezone.utc).isoformat()}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {'success': True, 'challenge_id': challenge_id, 'game_id': challenge['game_id']}
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/submit-result")
+# [MOVED] async def submit_challenge_result(challenge_id: str, score: int, user: dict = Depends(get_current_user)):
+# [MOVED]     """Submit score for a challenge."""
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id, 'status': 'active'})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non attiva")
+# [MOVED]     
+# [MOVED]     score_field = 'challenger_score' if user['id'] == challenge['challenger_id'] else 'opponent_score'
+# [MOVED]     await db.challenges.update_one({'id': challenge_id}, {'$set': {score_field: score}})
+# [MOVED]     
+# [MOVED]     updated = await db.challenges.find_one({'id': challenge_id})
+# [MOVED]     if updated.get('challenger_score') is not None and updated.get('opponent_score') is not None:
+# [MOVED]         challenger_wins = updated['challenger_score'] > updated['opponent_score']
+# [MOVED]         winner_id = challenge['challenger_id'] if challenger_wins else challenge['opponent_id']
+# [MOVED]         loser_id = challenge['opponent_id'] if challenger_wins else challenge['challenger_id']
+# [MOVED]         
+# [MOVED]         bet = challenge.get('bet_amount', 0)
+# [MOVED]         if bet > 0:
+# [MOVED]             await db.users.update_one({'id': winner_id}, {'$inc': {'funds': bet, 'total_xp': 50}})
+# [MOVED]             await db.users.update_one({'id': loser_id}, {'$inc': {'funds': -bet, 'total_xp': 10}})
+# [MOVED]         else:
+# [MOVED]             await db.users.update_one({'id': winner_id}, {'$inc': {'total_xp': 50}})
+# [MOVED]             await db.users.update_one({'id': loser_id}, {'$inc': {'total_xp': 10}})
+# [MOVED]         
+# [MOVED]         await db.challenges.update_one(
+# [MOVED]             {'id': challenge_id},
+# [MOVED]             {'$set': {'status': 'completed', 'winner_id': winner_id}}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         return {'completed': True, 'winner_id': winner_id}
+# [MOVED]     
+# [MOVED]     return {'completed': False, 'waiting_for_opponent': True}
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/pending")
+# [MOVED] async def get_pending_challenges(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get pending challenges."""
+# [MOVED]     received = await db.challenges.find(
+# [MOVED]         {'opponent_id': user['id'], 'status': 'pending'},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(10)
+# [MOVED]     
+# [MOVED]     sent = await db.challenges.find(
+# [MOVED]         {'challenger_id': user['id'], 'status': {'$in': ['pending', 'active']}},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(10)
+# [MOVED]     
+# [MOVED]     return {'received': received, 'sent': sent}
+# [MOVED] 
 # ==================== FAME SYSTEM ====================
-
+# [MOVED] 
 @api_router.get("/player/fame")
 async def get_player_fame(user: dict = Depends(get_current_user)):
     """Get player fame information."""
@@ -15312,977 +15310,977 @@ async def download_film_trailer(film_id: str, user: dict = Depends(get_current_u
         return RedirectResponse(url=trailer_url)
     
     raise HTTPException(status_code=404, detail="Trailer non disponibile")
-
+# [MOVED TO routes/challenges.py] Challenge system (16 endpoints + ChallengeCreate + imports)
 # ==================== CHALLENGE SYSTEM (Sfide) ====================
-
-from challenge_system import (
-    CHALLENGE_SKILLS, CHALLENGE_TYPES, TEAM_NAMES_A, TEAM_NAMES_B,
-    calculate_film_challenge_skills, calculate_film_scores, calculate_team_scores,
-    simulate_challenge, calculate_challenge_rewards, get_random_team_name
-)
-
-class ChallengeCreate(BaseModel):
-    challenge_type: str  # '1v1'
-    film_ids: List[str]  # 3 film IDs selected by creator
-    opponent_id: Optional[str] = None  # Specific opponent
-    team_type: Optional[str] = None
-    teammate_ids: Optional[List[str]] = None
-    is_live: bool = False  # Online challenge
-    is_offline_challenge: bool = False  # Offline auto-accept
-    ffa_player_count: Optional[int] = None
-    booster_film_id: Optional[str] = None  # Film to boost
-
-@api_router.get("/challenges/types")
-async def get_challenge_types(user: dict = Depends(get_current_user)):
-    """Get available challenge types with details."""
-    language = user.get('language', 'it')
-    
-    types = []
-    for key, config in CHALLENGE_TYPES.items():
-        types.append({
-            'id': key,
-            'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
-            'players_per_team': config.get('players_per_team'),
-            'min_players': config.get('min_players'),
-            'max_players': config.get('max_players'),
-            'films_per_player': config['films_per_player'],
-            'duration_seconds': config['duration_seconds'],
-            'xp_base': config['xp_base']
-        })
-    
-    return types
-
-@api_router.get("/challenges/skills")
-async def get_challenge_skills(user: dict = Depends(get_current_user)):
-    """Get available challenge skills info."""
-    language = user.get('language', 'it')
-    
-    skills = []
-    for key, config in CHALLENGE_SKILLS.items():
-        skills.append({
-            'id': key,
-            'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
-            'attack_weight': config['attack_weight'],
-            'defense_weight': config['defense_weight']
-        })
-    
-    return skills
-
-@api_router.get("/films/{film_id}/challenge-skills")
-async def get_film_challenge_skills(film_id: str, user: dict = Depends(get_current_user)):
-    """Get challenge skills for a specific film."""
-    film = await db.films.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    
-    skills = calculate_film_challenge_skills(film)
-    scores = calculate_film_scores(skills)
-    
-    return {
-        'film_id': film_id,
-        'title': film.get('title', 'Unknown'),
-        'skills': skills,
-        'scores': scores
-    }
-
-@api_router.get("/challenges/my-films")
-async def get_my_challenge_films(user: dict = Depends(get_current_user)):
-    """Get user's films with their challenge skills."""
-    user_id = user['id']
-    
-    # Get all user films that are in theaters or completed
-    films = await db.films.find(
-        {'user_id': user_id, 'status': {'$in': ['in_theaters', 'completed', 'home_video']}},
-        {'_id': 0}
-    ).to_list(100)
-    
-    result = []
-    for film in films:
-        skills = calculate_film_challenge_skills(film)
-        scores = calculate_film_scores(skills)
-        result.append({
-            'id': film['id'],
-            'title': film.get('title', 'Unknown'),
-            'poster_url': film.get('poster_url'),
-            'genre': film.get('genre', ''),
-            'quality_score': film.get('quality_score', 0),
-            'tier': film.get('tier', 'average'),
-            'skills': skills,
-            'scores': scores
-        })
-    
-    # Sort by global score descending
-    result.sort(key=lambda x: x['scores']['global'], reverse=True)
-    
-    return result
-
-@api_router.post("/challenges/create")
-async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_current_user)):
-    """Create a new challenge."""
-    user_id = user['id']
-    language = user.get('language', 'it')
-    
-    # Validate challenge type - only 1v1 allowed now
-    if data.challenge_type != '1v1':
-        raise HTTPException(status_code=400, detail="Solo sfide 1v1 disponibili")
-    
-    if data.challenge_type not in CHALLENGE_TYPES:
-        raise HTTPException(status_code=400, detail="Tipo di sfida non valido")
-    
-    challenge_config = CHALLENGE_TYPES[data.challenge_type]
-    
-    # Participation cost
-    PARTICIPATION_COST = 50000
-    
-    # Check if user has enough funds
-    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
-    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
-    
-    # Validate film count
-    if len(data.film_ids) != 3:
-        raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
-    
-    # Verify films belong to user
-    user_films = await db.films.find(
-        {'id': {'$in': data.film_ids}, 'user_id': user_id},
-        {'_id': 0}
-    ).to_list(3)
-    
-    if len(user_films) != 3:
-        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
-    
-    # Deduct participation cost
-    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
-    
-    # Calculate skills for user's films
-    for film in user_films:
-        film['challenge_skills'] = calculate_film_challenge_skills(film)
-    
-    # Booster system: boost one film's skills by 20% (costs extra)
-    booster_info = None
-    if data.booster_film_id and data.booster_film_id in data.film_ids:
-        boosted_film = next((f for f in user_films if f['id'] == data.booster_film_id), None)
-        if boosted_film:
-            quality = boosted_film.get('quality_score', 50)
-            import math
-            booster_cost = max(5000, min(100000, round(100000 * math.exp(-quality / 40))))
-            
-            user_remaining = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
-            if (user_remaining.get('funds', 0) or 0) < booster_cost:
-                pass  # Not enough funds, skip booster silently
-            else:
-                await db.users.update_one({'id': user_id}, {'$inc': {'funds': -booster_cost}})
-                for skill_key in boosted_film.get('challenge_skills', {}):
-                    boosted_film['challenge_skills'][skill_key] = int(boosted_film['challenge_skills'][skill_key] * 1.2)
-                booster_info = {'film_id': data.booster_film_id, 'cost': booster_cost, 'boost_percent': 20}
-    
-    # Create challenge document
-    challenge_id = str(uuid.uuid4())
-    challenge = {
-        'id': challenge_id,
-        'type': data.challenge_type,
-        'status': 'pending',
-        'is_live': data.is_live,
-        'creator_id': user_id,
-        'creator_nickname': user.get('nickname', 'Player'),
-        'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
-        'opponent_id': data.opponent_id,
-        'team_type': data.team_type,
-        'teammate_ids': data.teammate_ids or [],
-        'ffa_player_count': data.ffa_player_count,
-        'participation_cost': PARTICIPATION_COST,
-        'prize_pool': PARTICIPATION_COST * 2,
-        'participants': [{
-            'user_id': user_id,
-            'nickname': user.get('nickname', 'Player'),
-            'film_ids': data.film_ids,
-            'team': 'a',
-            'ready': True
-        }],
-        'booster': booster_info,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-    }
-    
-    # For random matchmaking, add to queue
-    if data.challenge_type == '1v1' and not data.opponent_id:
-        challenge['matchmaking'] = 'random'
-        challenge['status'] = 'waiting'
-    elif data.challenge_type == 'ffa':
-        challenge['status'] = 'waiting'
-        challenge['required_players'] = data.ffa_player_count or 4
-    elif data.team_type == 'random':
-        challenge['status'] = 'waiting'
-        players_needed = challenge_config['players_per_team'] * 2
-        challenge['required_players'] = players_needed
-    
-    await db.challenges.insert_one(challenge)
-    
-    # OFFLINE CHALLENGE: auto-accept and simulate immediately
-    if data.is_offline_challenge and data.opponent_id:
-        # Get opponent's best 3 films (AI picks them)
-        opponent_films = await db.films.find(
-            {'user_id': data.opponent_id, 'status': {'$in': ['in_theaters', 'completed', 'classic']}},
-            {'_id': 0}
-        ).sort('scores.global', -1).to_list(3)
-        
-        if len(opponent_films) < 3:
-            # Not enough films - refund and cancel
-            await db.users.update_one({'id': user_id}, {'$inc': {'funds': PARTICIPATION_COST}})
-            await db.challenges.delete_one({'id': challenge_id})
-            raise HTTPException(status_code=400, detail="L'avversario non ha abbastanza film (servono almeno 3)")
-        
-        # Calculate skills for opponent films
-        for film in opponent_films:
-            film['challenge_skills'] = calculate_film_challenge_skills(film)
-        
-        opponent_doc = await db.users.find_one({'id': data.opponent_id}, {'_id': 0, 'nickname': 1})
-        opponent_nick = opponent_doc.get('nickname', 'Avversario') if opponent_doc else 'Avversario'
-        
-        # Add opponent as participant
-        opponent_participant = {
-            'user_id': data.opponent_id,
-            'nickname': opponent_nick,
-            'film_ids': [f['id'] for f in opponent_films],
-            'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
-            'team': 'b',
-            'ready': True
-        }
-        
-        await db.challenges.update_one(
-            {'id': challenge_id},
-            {'$push': {'participants': opponent_participant}, '$set': {'status': 'ready'}}
-        )
-        
-        # Run simulation immediately
-        result = await run_challenge_simulation(challenge_id)
-        return {
-            'success': True,
-            'challenge_id': challenge_id,
-            'status': 'completed',
-            'participation_cost': PARTICIPATION_COST,
-            'prize_pool': PARTICIPATION_COST * 2,
-            'result': result,
-            'message': f'Sfida offline completata! Costo: ${PARTICIPATION_COST:,}.'
-        }
-    
-    # ONLINE CHALLENGE: send notification with popup flag
-    if data.opponent_id and not data.is_offline_challenge:
-        await db.notifications.insert_one({
-            'id': str(uuid.uuid4()),
-            'user_id': data.opponent_id,
-            'type': 'challenge_invite',
-            'title': 'Sfida 1v1 Ricevuta!',
-            'message': f'{user.get("nickname", "Un giocatore")} ti ha sfidato a un 1v1! Costo partecipazione: ${PARTICIPATION_COST:,}. Premio vittoria: ${PARTICIPATION_COST * 2:,}. Accetta o rifiuta entro 24 ore.',
-            'data': {
-                'challenge_id': challenge_id, 
-                'challenger': user.get('nickname'),
-                'participation_cost': PARTICIPATION_COST,
-                'prize_pool': PARTICIPATION_COST * 2,
-                'is_popup': True
-            },
-            'read': False,
-            'created_at': datetime.now(timezone.utc).isoformat()
-        })
-    
-    return {
-        'success': True,
-        'challenge_id': challenge_id,
-        'status': challenge['status'],
-        'participation_cost': PARTICIPATION_COST,
-        'prize_pool': PARTICIPATION_COST * 2,
-        'message': f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}. In attesa che l\'avversario accetti.'
-    }
-
-@api_router.post("/challenges/{challenge_id}/join")
-async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = Depends(get_current_user)):
-    """Join an existing challenge."""
-    user_id = user['id']
-    
-    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata")
-    
-    if challenge['status'] not in ['pending', 'waiting']:
-        raise HTTPException(status_code=400, detail="Questa sfida non accetta più partecipanti")
-    
-    # Check if already participating
-    if any(p['user_id'] == user_id for p in challenge.get('participants', [])):
-        raise HTTPException(status_code=400, detail="Stai già partecipando a questa sfida")
-    
-    # Participation cost
-    PARTICIPATION_COST = challenge.get('participation_cost', 50000)
-    
-    # Check if user has enough funds
-    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
-    if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
-    
-    # Deduct participation cost
-    await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
-    
-    # Validate films
-    if len(film_ids) != 3:
-        raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
-    
-    user_films = await db.films.find(
-        {'id': {'$in': film_ids}, 'user_id': user_id},
-        {'_id': 0}
-    ).to_list(3)
-    
-    if len(user_films) != 3:
-        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
-    
-    # Calculate skills
-    for film in user_films:
-        film['challenge_skills'] = calculate_film_challenge_skills(film)
-    
-    # Determine team assignment
-    participants = challenge.get('participants', [])
-    challenge_type = challenge['type']
-    
-    if challenge_type == 'ffa':
-        team = None
-    else:
-        team_a_count = sum(1 for p in participants if p.get('team') == 'a')
-        team_b_count = sum(1 for p in participants if p.get('team') == 'b')
-        team = 'b' if team_a_count > team_b_count else 'a'
-    
-    # Add participant
-    new_participant = {
-        'user_id': user_id,
-        'nickname': user.get('nickname', 'Player'),
-        'film_ids': film_ids,
-        'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
-        'team': team,
-        'ready': True
-    }
-    
-    participants.append(new_participant)
-    
-    # Check if challenge is ready to start
-    required_players = challenge.get('required_players', 2)
-    ready_to_start = len(participants) >= required_players
-    
-    new_status = 'ready' if ready_to_start else 'waiting'
-    
-    await db.challenges.update_one(
-        {'id': challenge_id},
-        {'$set': {'participants': participants, 'status': new_status}}
-    )
-    
-    # If ready, start the challenge
-    if ready_to_start:
-        result = await run_challenge_simulation(challenge_id)
-        return {'success': True, 'message': 'Sfida iniziata!', 'result': result}
-    
-    return {
-        'success': True,
-        'message': f'Ti sei unito alla sfida! In attesa di altri {required_players - len(participants)} giocatori.',
-        'participants_count': len(participants),
-        'required': required_players
-    }
-
-async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
-    """Run the challenge simulation and apply rewards."""
-    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
-    if not challenge:
-        return {'error': 'Challenge not found'}
-    
-    participants = challenge.get('participants', [])
-    challenge_type = challenge['type']
-    is_live = challenge.get('is_live', False)
-    
-    # Build teams
-    if challenge_type == 'ffa':
-        # FFA: each participant is their own "team"
-        teams = []
-        for p in participants:
-            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
-            for f in films:
-                f['challenge_skills'] = calculate_film_challenge_skills(f)
-            teams.append({
-                'name': p['nickname'],
-                'players': [p['user_id']],
-                'films': films
-            })
-        
-        # FFA tournament simulation (simplified: round-robin)
-        scores = {t['name']: 0 for t in teams}
-        rounds = []
-        
-        for i, team_a in enumerate(teams):
-            for team_b in teams[i+1:]:
-                result = simulate_challenge(team_a, team_b, 'ffa')
-                if result['winner'] == 'team_a':
-                    scores[team_a['name']] += 3
-                elif result['winner'] == 'team_b':
-                    scores[team_b['name']] += 3
-                else:
-                    scores[team_a['name']] += 1
-                    scores[team_b['name']] += 1
-                rounds.append({
-                    'matchup': f"{team_a['name']} vs {team_b['name']}",
-                    'winner': result['winner']
-                })
-        
-        # Determine overall winner
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        winner_name = sorted_scores[0][0]
-        
-        battle_result = {
-            'type': 'ffa',
-            'participants': [t['name'] for t in teams],
-            'rounds': rounds,
-            'final_scores': dict(sorted_scores),
-            'winner': winner_name,
-            'winner_comment': f"🏆 {winner_name} domina il torneo Tutti contro Tutti!"
-        }
-        
-    else:
-        # Team vs Team
-        team_a_participants = [p for p in participants if p.get('team') == 'a']
-        team_b_participants = [p for p in participants if p.get('team') == 'b']
-        
-        # Get films for each team
-        team_a_films = []
-        team_b_films = []
-        
-        for p in team_a_participants:
-            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
-            for f in films:
-                f['challenge_skills'] = calculate_film_challenge_skills(f)
-            team_a_films.extend(films)
-        
-        for p in team_b_participants:
-            films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
-            for f in films:
-                f['challenge_skills'] = calculate_film_challenge_skills(f)
-            team_b_films.extend(films)
-        
-        # Team names
-        team_a_name = get_random_team_name()
-        team_b_name = get_random_team_name([team_a_name])
-        
-        # Check if it's a Major challenge
-        if challenge.get('team_type') == 'major':
-            creator = await db.users.find_one({'id': challenge['creator_id']}, {'_id': 0, 'major_id': 1})
-            if creator and creator.get('major_id'):
-                major = await db.majors.find_one({'id': creator['major_id']}, {'_id': 0, 'name': 1})
-                if major:
-                    team_a_name = major['name']
-        
-        team_a = {
-            'name': team_a_name,
-            'players': [p['user_id'] for p in team_a_participants],
-            'films': team_a_films
-        }
-        
-        team_b = {
-            'name': team_b_name,
-            'players': [p['user_id'] for p in team_b_participants],
-            'films': team_b_films
-        }
-        
-        battle_result = simulate_challenge(team_a, team_b, challenge_type)
-    
-    # Save result
-    await db.challenges.update_one(
-        {'id': challenge_id},
-        {'$set': {
-            'status': 'completed',
-            'result': battle_result,
-            'completed_at': datetime.now(timezone.utc).isoformat()
-        }}
-    )
-    
-    # Apply rewards
-    winner_rewards, loser_penalties = calculate_challenge_rewards(
-        battle_result['winner'], challenge_type, is_live
-    )
-    
-    # Prize pool from participation costs
-    prize_pool = challenge.get('prize_pool', 100000)
-    
-    # Determine winners and losers
-    if challenge_type == 'ffa':
-        winner_user_ids = [p['user_id'] for p in participants if p['nickname'] == battle_result['winner']]
-        loser_user_ids = [p['user_id'] for p in participants if p['nickname'] != battle_result['winner']]
-    else:
-        if battle_result['winner'] == 'team_a':
-            winner_user_ids = battle_result['team_a']['players']
-            loser_user_ids = battle_result['team_b']['players']
-        elif battle_result['winner'] == 'team_b':
-            winner_user_ids = battle_result['team_b']['players']
-            loser_user_ids = battle_result['team_a']['players']
-        else:
-            # Draw - refund both
-            for p in participants:
-                refund = challenge.get('participation_cost', 50000)
-                await db.users.update_one({'id': p['user_id']}, {'$inc': {'funds': refund}})
-            winner_user_ids = battle_result['team_a']['players'] + battle_result['team_b']['players']
-            loser_user_ids = []
-            prize_pool = 0
-    
-    # Apply rewards to winners (including prize pool + CinePass)
-    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
-    prize_per_winner = prize_pool // max(len(winner_user_ids), 1) if prize_pool > 0 else 0
-    for uid in winner_user_ids:
-        await db.users.update_one(
-            {'id': uid},
-            {'$inc': {
-                'total_xp': winner_rewards['xp'],
-                'fame': winner_rewards['fame'],
-                'funds': winner_rewards['funds'] + prize_per_winner,
-                'challenge_wins': 1,
-                'challenge_total': 1,
-                'cinepass': cinepass_reward
-            }}
-        )
-        
-        # Apply film bonuses
-        participant = next((p for p in participants if p['user_id'] == uid), None)
-        if participant:
-            await db.films.update_many(
-                {'id': {'$in': participant['film_ids']}},
-                {'$inc': {
-                    'quality_score': winner_rewards['quality_bonus'],
-                    'cumulative_attendance': winner_rewards['attendance_bonus']
-                }}
-            )
-        
-        # Notification
-        await db.notifications.insert_one({
-            'id': str(uuid.uuid4()),
-            'user_id': uid,
-            'type': 'challenge_won',
-            'title': 'Sfida Vinta!',
-            'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP, +{cinepass_reward} CinePass',
-            'data': {'challenge_id': challenge_id, 'prize': prize_per_winner},
-            'read': False,
-            'created_at': datetime.now(timezone.utc).isoformat()
-        })
-    
-    # Apply penalties to losers
-    for uid in loser_user_ids:
-        await db.users.update_one(
-            {'id': uid},
-            {'$inc': {
-                'total_xp': loser_penalties['xp'],
-                'fame': loser_penalties['fame'],
-                'challenge_losses': 1,
-                'challenge_total': 1
-            }}
-        )
-        
-        # Apply film penalties
-        participant = next((p for p in participants if p['user_id'] == uid), None)
-        if participant and loser_penalties['attendance_bonus'] < 0:
-            await db.films.update_many(
-                {'id': {'$in': participant['film_ids']}},
-                {'$inc': {'cumulative_attendance': loser_penalties['attendance_bonus']}}
-            )
-        
-        # Notification
-        await db.notifications.insert_one({
-            'id': str(uuid.uuid4()),
-            'user_id': uid,
-            'type': 'challenge_lost',
-            'title': 'Sfida Persa',
-            'message': f'Hai perso la sfida. +{loser_penalties["xp"]} XP consolazione.',
-            'data': {'challenge_id': challenge_id},
-            'read': False,
-            'created_at': datetime.now(timezone.utc).isoformat()
-        })
-    
-    return battle_result
-
-@api_router.get("/challenges/waiting")
-async def get_waiting_challenges(user: dict = Depends(get_current_user)):
-    """Get challenges waiting for players (for random matchmaking)."""
-    user_id = user['id']
-    
-    challenges = await db.challenges.find({
-        'status': 'waiting',
-        'creator_id': {'$ne': user_id},
-        'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
-    }, {'_id': 0}).to_list(50)
-    
-    return challenges
-
-@api_router.get("/challenges/my")
-async def get_my_challenges(user: dict = Depends(get_current_user)):
-    """Get user's challenges (created and participated)."""
-    user_id = user['id']
-    
-    challenges = await db.challenges.find({
-        '$or': [
-            {'creator_id': user_id},
-            {'participants.user_id': user_id}
-        ]
-    }, {'_id': 0}).sort('created_at', -1).to_list(50)
-    
-    return challenges
-
-@api_router.get("/challenges/leaderboard")
-async def get_challenge_leaderboard(user: dict = Depends(get_current_user)):
-    """Get challenge leaderboard."""
-    users = await db.users.find(
-        {'challenge_total': {'$gt': 0}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'challenge_wins': 1, 'challenge_losses': 1, 'challenge_total': 1}
-    ).sort('challenge_wins', -1).to_list(100)
-    
-    leaderboard = []
-    for i, u in enumerate(users):
-        wins = u.get('challenge_wins', 0)
-        total = u.get('challenge_total', 1)
-        win_rate = round((wins / total) * 100, 1) if total > 0 else 0
-        
-        leaderboard.append({
-            'rank': i + 1,
-            'user_id': u['id'],
-            'nickname': u.get('nickname', 'Player'),
-            'wins': wins,
-            'losses': u.get('challenge_losses', 0),
-            'total': total,
-            'win_rate': win_rate
-        })
-    
-    return leaderboard
-
-@api_router.get("/challenges/limits")
-async def get_challenge_limits(user: dict = Depends(get_current_user)):
-    """Get current challenge usage and limits."""
-    now = datetime.now(timezone.utc)
-    one_hour_ago = (now - timedelta(hours=1)).isoformat()
-    one_day_ago = (now - timedelta(hours=24)).isoformat()
-    
-    hourly_count = await db.challenges.count_documents({
-        'creator_id': user['id'],
-        'created_at': {'$gte': one_hour_ago}
-    })
-    daily_count = await db.challenges.count_documents({
-        'creator_id': user['id'],
-        'created_at': {'$gte': one_day_ago}
-    })
-    
-    return {
-        'hourly': {'used': hourly_count, 'limit': CHALLENGE_LIMITS['per_hour']},
-        'daily': {'used': daily_count, 'limit': CHALLENGE_LIMITS['per_day']},
-        'cinepass_reward_per_win': CINEPASS_REWARDS.get('challenge_win', 2),
-    }
-
-@api_router.get("/challenges/{challenge_id}")
-async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
-    """Get challenge details."""
-    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata")
-    
-    return challenge
-
-@api_router.get("/challenges/stats/{user_id}")
-async def get_user_challenge_stats(user_id: str, user: dict = Depends(get_current_user)):
-    """Get detailed challenge stats for a user."""
-    target_user = await db.users.find_one({'id': user_id}, {'_id': 0})
-    if not target_user:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
-    
-    wins = target_user.get('challenge_wins', 0)
-    losses = target_user.get('challenge_losses', 0)
-    total = target_user.get('challenge_total', 0)
-    
-    # Get recent challenges
-    recent = await db.challenges.find({
-        'participants.user_id': user_id,
-        'status': 'completed'
-    }, {'_id': 0}).sort('completed_at', -1).to_list(10)
-    
-    # Calculate streak
-    streak = 0
-    for c in recent:
-        result = c.get('result', {})
-        winner = result.get('winner')
-        
-        if c['type'] == 'ffa':
-            user_won = result.get('winner') == next((p['nickname'] for p in c['participants'] if p['user_id'] == user_id), None)
-        else:
-            user_team = next((p['team'] for p in c['participants'] if p['user_id'] == user_id), None)
-            user_won = (winner == 'team_a' and user_team == 'a') or (winner == 'team_b' and user_team == 'b')
-        
-        if user_won:
-            streak += 1
-        else:
-            break
-    
-    return {
-        'user_id': user_id,
-        'nickname': target_user.get('nickname', 'Player'),
-        'wins': wins,
-        'losses': losses,
-        'total': total,
-        'win_rate': round((wins / total) * 100, 1) if total > 0 else 0,
-        'current_streak': streak,
-        'recent_challenges': len(recent)
-    }
-
-@api_router.post("/challenges/{challenge_id}/cancel")
-async def cancel_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
-    """Cancel a challenge created by the user."""
-    challenge = await db.challenges.find_one({'id': challenge_id, 'creator_id': user['id'], 'status': 'waiting'})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata o non cancellabile")
-    await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'cancelled'}})
-    return {'success': True, 'message': 'Sfida annullata'}
-
+# [MOVED] 
+# [MOVED] from challenge_system import (
+# [MOVED]     CHALLENGE_SKILLS, CHALLENGE_TYPES, TEAM_NAMES_A, TEAM_NAMES_B,
+# [MOVED]     calculate_film_challenge_skills, calculate_film_scores, calculate_team_scores,
+# [MOVED]     simulate_challenge, calculate_challenge_rewards, get_random_team_name
+# [MOVED] )
+# [MOVED] 
+# [MOVED] class ChallengeCreate(BaseModel):
+# [MOVED]     challenge_type: str  # '1v1'
+# [MOVED]     film_ids: List[str]  # 3 film IDs selected by creator
+# [MOVED]     opponent_id: Optional[str] = None  # Specific opponent
+# [MOVED]     team_type: Optional[str] = None
+# [MOVED]     teammate_ids: Optional[List[str]] = None
+# [MOVED]     is_live: bool = False  # Online challenge
+# [MOVED]     is_offline_challenge: bool = False  # Offline auto-accept
+# [MOVED]     ffa_player_count: Optional[int] = None
+# [MOVED]     booster_film_id: Optional[str] = None  # Film to boost
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/types")
+# [MOVED] async def get_challenge_types(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get available challenge types with details."""
+# [MOVED]     language = user.get('language', 'it')
+# [MOVED]     
+# [MOVED]     types = []
+# [MOVED]     for key, config in CHALLENGE_TYPES.items():
+# [MOVED]         types.append({
+# [MOVED]             'id': key,
+# [MOVED]             'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
+# [MOVED]             'players_per_team': config.get('players_per_team'),
+# [MOVED]             'min_players': config.get('min_players'),
+# [MOVED]             'max_players': config.get('max_players'),
+# [MOVED]             'films_per_player': config['films_per_player'],
+# [MOVED]             'duration_seconds': config['duration_seconds'],
+# [MOVED]             'xp_base': config['xp_base']
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return types
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/skills")
+# [MOVED] async def get_challenge_skills(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get available challenge skills info."""
+# [MOVED]     language = user.get('language', 'it')
+# [MOVED]     
+# [MOVED]     skills = []
+# [MOVED]     for key, config in CHALLENGE_SKILLS.items():
+# [MOVED]         skills.append({
+# [MOVED]             'id': key,
+# [MOVED]             'name': config[f'name_{language}'] if f'name_{language}' in config else config['name_it'],
+# [MOVED]             'attack_weight': config['attack_weight'],
+# [MOVED]             'defense_weight': config['defense_weight']
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return skills
+# [MOVED] 
+# [MOVED] @api_router.get("/films/{film_id}/challenge-skills")
+# [MOVED] async def get_film_challenge_skills(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get challenge skills for a specific film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id}, {'_id': 0})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     
+# [MOVED]     skills = calculate_film_challenge_skills(film)
+# [MOVED]     scores = calculate_film_scores(skills)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'film_id': film_id,
+# [MOVED]         'title': film.get('title', 'Unknown'),
+# [MOVED]         'skills': skills,
+# [MOVED]         'scores': scores
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/my-films")
+# [MOVED] async def get_my_challenge_films(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get user's films with their challenge skills."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     # Get all user films that are in theaters or completed
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user_id, 'status': {'$in': ['in_theaters', 'completed', 'home_video']}},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(100)
+# [MOVED]     
+# [MOVED]     result = []
+# [MOVED]     for film in films:
+# [MOVED]         skills = calculate_film_challenge_skills(film)
+# [MOVED]         scores = calculate_film_scores(skills)
+# [MOVED]         result.append({
+# [MOVED]             'id': film['id'],
+# [MOVED]             'title': film.get('title', 'Unknown'),
+# [MOVED]             'poster_url': film.get('poster_url'),
+# [MOVED]             'genre': film.get('genre', ''),
+# [MOVED]             'quality_score': film.get('quality_score', 0),
+# [MOVED]             'tier': film.get('tier', 'average'),
+# [MOVED]             'skills': skills,
+# [MOVED]             'scores': scores
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     # Sort by global score descending
+# [MOVED]     result.sort(key=lambda x: x['scores']['global'], reverse=True)
+# [MOVED]     
+# [MOVED]     return result
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/create")
+# [MOVED] async def create_challenge(data: ChallengeCreate, user: dict = Depends(get_current_user)):
+# [MOVED]     """Create a new challenge."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     language = user.get('language', 'it')
+# [MOVED]     
+# [MOVED]     # Validate challenge type - only 1v1 allowed now
+# [MOVED]     if data.challenge_type != '1v1':
+# [MOVED]         raise HTTPException(status_code=400, detail="Solo sfide 1v1 disponibili")
+# [MOVED]     
+# [MOVED]     if data.challenge_type not in CHALLENGE_TYPES:
+# [MOVED]         raise HTTPException(status_code=400, detail="Tipo di sfida non valido")
+# [MOVED]     
+# [MOVED]     challenge_config = CHALLENGE_TYPES[data.challenge_type]
+# [MOVED]     
+# [MOVED]     # Participation cost
+# [MOVED]     PARTICIPATION_COST = 50000
+# [MOVED]     
+# [MOVED]     # Check if user has enough funds
+# [MOVED]     user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+# [MOVED]     if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
+# [MOVED]     
+# [MOVED]     # Validate film count
+# [MOVED]     if len(data.film_ids) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
+# [MOVED]     
+# [MOVED]     # Verify films belong to user
+# [MOVED]     user_films = await db.films.find(
+# [MOVED]         {'id': {'$in': data.film_ids}, 'user_id': user_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(3)
+# [MOVED]     
+# [MOVED]     if len(user_films) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+# [MOVED]     
+# [MOVED]     # Deduct participation cost
+# [MOVED]     await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
+# [MOVED]     
+# [MOVED]     # Calculate skills for user's films
+# [MOVED]     for film in user_films:
+# [MOVED]         film['challenge_skills'] = calculate_film_challenge_skills(film)
+# [MOVED]     
+# [MOVED]     # Booster system: boost one film's skills by 20% (costs extra)
+# [MOVED]     booster_info = None
+# [MOVED]     if data.booster_film_id and data.booster_film_id in data.film_ids:
+# [MOVED]         boosted_film = next((f for f in user_films if f['id'] == data.booster_film_id), None)
+# [MOVED]         if boosted_film:
+# [MOVED]             quality = boosted_film.get('quality_score', 50)
+# [MOVED]             import math
+# [MOVED]             booster_cost = max(5000, min(100000, round(100000 * math.exp(-quality / 40))))
+# [MOVED]             
+# [MOVED]             user_remaining = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+# [MOVED]             if (user_remaining.get('funds', 0) or 0) < booster_cost:
+# [MOVED]                 pass  # Not enough funds, skip booster silently
+# [MOVED]             else:
+# [MOVED]                 await db.users.update_one({'id': user_id}, {'$inc': {'funds': -booster_cost}})
+# [MOVED]                 for skill_key in boosted_film.get('challenge_skills', {}):
+# [MOVED]                     boosted_film['challenge_skills'][skill_key] = int(boosted_film['challenge_skills'][skill_key] * 1.2)
+# [MOVED]                 booster_info = {'film_id': data.booster_film_id, 'cost': booster_cost, 'boost_percent': 20}
+# [MOVED]     
+# [MOVED]     # Create challenge document
+# [MOVED]     challenge_id = str(uuid.uuid4())
+# [MOVED]     challenge = {
+# [MOVED]         'id': challenge_id,
+# [MOVED]         'type': data.challenge_type,
+# [MOVED]         'status': 'pending',
+# [MOVED]         'is_live': data.is_live,
+# [MOVED]         'creator_id': user_id,
+# [MOVED]         'creator_nickname': user.get('nickname', 'Player'),
+# [MOVED]         'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
+# [MOVED]         'opponent_id': data.opponent_id,
+# [MOVED]         'team_type': data.team_type,
+# [MOVED]         'teammate_ids': data.teammate_ids or [],
+# [MOVED]         'ffa_player_count': data.ffa_player_count,
+# [MOVED]         'participation_cost': PARTICIPATION_COST,
+# [MOVED]         'prize_pool': PARTICIPATION_COST * 2,
+# [MOVED]         'participants': [{
+# [MOVED]             'user_id': user_id,
+# [MOVED]             'nickname': user.get('nickname', 'Player'),
+# [MOVED]             'film_ids': data.film_ids,
+# [MOVED]             'team': 'a',
+# [MOVED]             'ready': True
+# [MOVED]         }],
+# [MOVED]         'booster': booster_info,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     # For random matchmaking, add to queue
+# [MOVED]     if data.challenge_type == '1v1' and not data.opponent_id:
+# [MOVED]         challenge['matchmaking'] = 'random'
+# [MOVED]         challenge['status'] = 'waiting'
+# [MOVED]     elif data.challenge_type == 'ffa':
+# [MOVED]         challenge['status'] = 'waiting'
+# [MOVED]         challenge['required_players'] = data.ffa_player_count or 4
+# [MOVED]     elif data.team_type == 'random':
+# [MOVED]         challenge['status'] = 'waiting'
+# [MOVED]         players_needed = challenge_config['players_per_team'] * 2
+# [MOVED]         challenge['required_players'] = players_needed
+# [MOVED]     
+# [MOVED]     await db.challenges.insert_one(challenge)
+# [MOVED]     
+# [MOVED]     # OFFLINE CHALLENGE: auto-accept and simulate immediately
+# [MOVED]     if data.is_offline_challenge and data.opponent_id:
+# [MOVED]         # Get opponent's best 3 films (AI picks them)
+# [MOVED]         opponent_films = await db.films.find(
+# [MOVED]             {'user_id': data.opponent_id, 'status': {'$in': ['in_theaters', 'completed', 'classic']}},
+# [MOVED]             {'_id': 0}
+# [MOVED]         ).sort('scores.global', -1).to_list(3)
+# [MOVED]         
+# [MOVED]         if len(opponent_films) < 3:
+# [MOVED]             # Not enough films - refund and cancel
+# [MOVED]             await db.users.update_one({'id': user_id}, {'$inc': {'funds': PARTICIPATION_COST}})
+# [MOVED]             await db.challenges.delete_one({'id': challenge_id})
+# [MOVED]             raise HTTPException(status_code=400, detail="L'avversario non ha abbastanza film (servono almeno 3)")
+# [MOVED]         
+# [MOVED]         # Calculate skills for opponent films
+# [MOVED]         for film in opponent_films:
+# [MOVED]             film['challenge_skills'] = calculate_film_challenge_skills(film)
+# [MOVED]         
+# [MOVED]         opponent_doc = await db.users.find_one({'id': data.opponent_id}, {'_id': 0, 'nickname': 1})
+# [MOVED]         opponent_nick = opponent_doc.get('nickname', 'Avversario') if opponent_doc else 'Avversario'
+# [MOVED]         
+# [MOVED]         # Add opponent as participant
+# [MOVED]         opponent_participant = {
+# [MOVED]             'user_id': data.opponent_id,
+# [MOVED]             'nickname': opponent_nick,
+# [MOVED]             'film_ids': [f['id'] for f in opponent_films],
+# [MOVED]             'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
+# [MOVED]             'team': 'b',
+# [MOVED]             'ready': True
+# [MOVED]         }
+# [MOVED]         
+# [MOVED]         await db.challenges.update_one(
+# [MOVED]             {'id': challenge_id},
+# [MOVED]             {'$push': {'participants': opponent_participant}, '$set': {'status': 'ready'}}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         # Run simulation immediately
+# [MOVED]         result = await run_challenge_simulation(challenge_id)
+# [MOVED]         return {
+# [MOVED]             'success': True,
+# [MOVED]             'challenge_id': challenge_id,
+# [MOVED]             'status': 'completed',
+# [MOVED]             'participation_cost': PARTICIPATION_COST,
+# [MOVED]             'prize_pool': PARTICIPATION_COST * 2,
+# [MOVED]             'result': result,
+# [MOVED]             'message': f'Sfida offline completata! Costo: ${PARTICIPATION_COST:,}.'
+# [MOVED]         }
+# [MOVED]     
+# [MOVED]     # ONLINE CHALLENGE: send notification with popup flag
+# [MOVED]     if data.opponent_id and not data.is_offline_challenge:
+# [MOVED]         await db.notifications.insert_one({
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': data.opponent_id,
+# [MOVED]             'type': 'challenge_invite',
+# [MOVED]             'title': 'Sfida 1v1 Ricevuta!',
+# [MOVED]             'message': f'{user.get("nickname", "Un giocatore")} ti ha sfidato a un 1v1! Costo partecipazione: ${PARTICIPATION_COST:,}. Premio vittoria: ${PARTICIPATION_COST * 2:,}. Accetta o rifiuta entro 24 ore.',
+# [MOVED]             'data': {
+# [MOVED]                 'challenge_id': challenge_id, 
+# [MOVED]                 'challenger': user.get('nickname'),
+# [MOVED]                 'participation_cost': PARTICIPATION_COST,
+# [MOVED]                 'prize_pool': PARTICIPATION_COST * 2,
+# [MOVED]                 'is_popup': True
+# [MOVED]             },
+# [MOVED]             'read': False,
+# [MOVED]             'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'challenge_id': challenge_id,
+# [MOVED]         'status': challenge['status'],
+# [MOVED]         'participation_cost': PARTICIPATION_COST,
+# [MOVED]         'prize_pool': PARTICIPATION_COST * 2,
+# [MOVED]         'message': f'Sfida inviata! Costo: ${PARTICIPATION_COST:,}. In attesa che l\'avversario accetti.'
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/join")
+# [MOVED] async def join_challenge(challenge_id: str, film_ids: List[str], user: dict = Depends(get_current_user)):
+# [MOVED]     """Join an existing challenge."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata")
+# [MOVED]     
+# [MOVED]     if challenge['status'] not in ['pending', 'waiting']:
+# [MOVED]         raise HTTPException(status_code=400, detail="Questa sfida non accetta più partecipanti")
+# [MOVED]     
+# [MOVED]     # Check if already participating
+# [MOVED]     if any(p['user_id'] == user_id for p in challenge.get('participants', [])):
+# [MOVED]         raise HTTPException(status_code=400, detail="Stai già partecipando a questa sfida")
+# [MOVED]     
+# [MOVED]     # Participation cost
+# [MOVED]     PARTICIPATION_COST = challenge.get('participation_cost', 50000)
+# [MOVED]     
+# [MOVED]     # Check if user has enough funds
+# [MOVED]     user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'funds': 1})
+# [MOVED]     if (user_doc.get('funds', 0) or 0) < PARTICIPATION_COST:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti! Servono ${PARTICIPATION_COST:,} per partecipare.")
+# [MOVED]     
+# [MOVED]     # Deduct participation cost
+# [MOVED]     await db.users.update_one({'id': user_id}, {'$inc': {'funds': -PARTICIPATION_COST}})
+# [MOVED]     
+# [MOVED]     # Validate films
+# [MOVED]     if len(film_ids) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Devi selezionare esattamente 3 film")
+# [MOVED]     
+# [MOVED]     user_films = await db.films.find(
+# [MOVED]         {'id': {'$in': film_ids}, 'user_id': user_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(3)
+# [MOVED]     
+# [MOVED]     if len(user_films) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+# [MOVED]     
+# [MOVED]     # Calculate skills
+# [MOVED]     for film in user_films:
+# [MOVED]         film['challenge_skills'] = calculate_film_challenge_skills(film)
+# [MOVED]     
+# [MOVED]     # Determine team assignment
+# [MOVED]     participants = challenge.get('participants', [])
+# [MOVED]     challenge_type = challenge['type']
+# [MOVED]     
+# [MOVED]     if challenge_type == 'ffa':
+# [MOVED]         team = None
+# [MOVED]     else:
+# [MOVED]         team_a_count = sum(1 for p in participants if p.get('team') == 'a')
+# [MOVED]         team_b_count = sum(1 for p in participants if p.get('team') == 'b')
+# [MOVED]         team = 'b' if team_a_count > team_b_count else 'a'
+# [MOVED]     
+# [MOVED]     # Add participant
+# [MOVED]     new_participant = {
+# [MOVED]         'user_id': user_id,
+# [MOVED]         'nickname': user.get('nickname', 'Player'),
+# [MOVED]         'film_ids': film_ids,
+# [MOVED]         'films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in user_films],
+# [MOVED]         'team': team,
+# [MOVED]         'ready': True
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     participants.append(new_participant)
+# [MOVED]     
+# [MOVED]     # Check if challenge is ready to start
+# [MOVED]     required_players = challenge.get('required_players', 2)
+# [MOVED]     ready_to_start = len(participants) >= required_players
+# [MOVED]     
+# [MOVED]     new_status = 'ready' if ready_to_start else 'waiting'
+# [MOVED]     
+# [MOVED]     await db.challenges.update_one(
+# [MOVED]         {'id': challenge_id},
+# [MOVED]         {'$set': {'participants': participants, 'status': new_status}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # If ready, start the challenge
+# [MOVED]     if ready_to_start:
+# [MOVED]         result = await run_challenge_simulation(challenge_id)
+# [MOVED]         return {'success': True, 'message': 'Sfida iniziata!', 'result': result}
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f'Ti sei unito alla sfida! In attesa di altri {required_players - len(participants)} giocatori.',
+# [MOVED]         'participants_count': len(participants),
+# [MOVED]         'required': required_players
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] async def run_challenge_simulation(challenge_id: str) -> Dict[str, Any]:
+# [MOVED]     """Run the challenge simulation and apply rewards."""
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+# [MOVED]     if not challenge:
+# [MOVED]         return {'error': 'Challenge not found'}
+# [MOVED]     
+# [MOVED]     participants = challenge.get('participants', [])
+# [MOVED]     challenge_type = challenge['type']
+# [MOVED]     is_live = challenge.get('is_live', False)
+# [MOVED]     
+# [MOVED]     # Build teams
+# [MOVED]     if challenge_type == 'ffa':
+# [MOVED]         # FFA: each participant is their own "team"
+# [MOVED]         teams = []
+# [MOVED]         for p in participants:
+# [MOVED]             films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+# [MOVED]             for f in films:
+# [MOVED]                 f['challenge_skills'] = calculate_film_challenge_skills(f)
+# [MOVED]             teams.append({
+# [MOVED]                 'name': p['nickname'],
+# [MOVED]                 'players': [p['user_id']],
+# [MOVED]                 'films': films
+# [MOVED]             })
+# [MOVED]         
+# [MOVED]         # FFA tournament simulation (simplified: round-robin)
+# [MOVED]         scores = {t['name']: 0 for t in teams}
+# [MOVED]         rounds = []
+# [MOVED]         
+# [MOVED]         for i, team_a in enumerate(teams):
+# [MOVED]             for team_b in teams[i+1:]:
+# [MOVED]                 result = simulate_challenge(team_a, team_b, 'ffa')
+# [MOVED]                 if result['winner'] == 'team_a':
+# [MOVED]                     scores[team_a['name']] += 3
+# [MOVED]                 elif result['winner'] == 'team_b':
+# [MOVED]                     scores[team_b['name']] += 3
+# [MOVED]                 else:
+# [MOVED]                     scores[team_a['name']] += 1
+# [MOVED]                     scores[team_b['name']] += 1
+# [MOVED]                 rounds.append({
+# [MOVED]                     'matchup': f"{team_a['name']} vs {team_b['name']}",
+# [MOVED]                     'winner': result['winner']
+# [MOVED]                 })
+# [MOVED]         
+# [MOVED]         # Determine overall winner
+# [MOVED]         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+# [MOVED]         winner_name = sorted_scores[0][0]
+# [MOVED]         
+# [MOVED]         battle_result = {
+# [MOVED]             'type': 'ffa',
+# [MOVED]             'participants': [t['name'] for t in teams],
+# [MOVED]             'rounds': rounds,
+# [MOVED]             'final_scores': dict(sorted_scores),
+# [MOVED]             'winner': winner_name,
+# [MOVED]             'winner_comment': f"🏆 {winner_name} domina il torneo Tutti contro Tutti!"
+# [MOVED]         }
+# [MOVED]         
+# [MOVED]     else:
+# [MOVED]         # Team vs Team
+# [MOVED]         team_a_participants = [p for p in participants if p.get('team') == 'a']
+# [MOVED]         team_b_participants = [p for p in participants if p.get('team') == 'b']
+# [MOVED]         
+# [MOVED]         # Get films for each team
+# [MOVED]         team_a_films = []
+# [MOVED]         team_b_films = []
+# [MOVED]         
+# [MOVED]         for p in team_a_participants:
+# [MOVED]             films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+# [MOVED]             for f in films:
+# [MOVED]                 f['challenge_skills'] = calculate_film_challenge_skills(f)
+# [MOVED]             team_a_films.extend(films)
+# [MOVED]         
+# [MOVED]         for p in team_b_participants:
+# [MOVED]             films = await db.films.find({'id': {'$in': p['film_ids']}}, {'_id': 0}).to_list(3)
+# [MOVED]             for f in films:
+# [MOVED]                 f['challenge_skills'] = calculate_film_challenge_skills(f)
+# [MOVED]             team_b_films.extend(films)
+# [MOVED]         
+# [MOVED]         # Team names
+# [MOVED]         team_a_name = get_random_team_name()
+# [MOVED]         team_b_name = get_random_team_name([team_a_name])
+# [MOVED]         
+# [MOVED]         # Check if it's a Major challenge
+# [MOVED]         if challenge.get('team_type') == 'major':
+# [MOVED]             creator = await db.users.find_one({'id': challenge['creator_id']}, {'_id': 0, 'major_id': 1})
+# [MOVED]             if creator and creator.get('major_id'):
+# [MOVED]                 major = await db.majors.find_one({'id': creator['major_id']}, {'_id': 0, 'name': 1})
+# [MOVED]                 if major:
+# [MOVED]                     team_a_name = major['name']
+# [MOVED]         
+# [MOVED]         team_a = {
+# [MOVED]             'name': team_a_name,
+# [MOVED]             'players': [p['user_id'] for p in team_a_participants],
+# [MOVED]             'films': team_a_films
+# [MOVED]         }
+# [MOVED]         
+# [MOVED]         team_b = {
+# [MOVED]             'name': team_b_name,
+# [MOVED]             'players': [p['user_id'] for p in team_b_participants],
+# [MOVED]             'films': team_b_films
+# [MOVED]         }
+# [MOVED]         
+# [MOVED]         battle_result = simulate_challenge(team_a, team_b, challenge_type)
+# [MOVED]     
+# [MOVED]     # Save result
+# [MOVED]     await db.challenges.update_one(
+# [MOVED]         {'id': challenge_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'status': 'completed',
+# [MOVED]             'result': battle_result,
+# [MOVED]             'completed_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         }}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # Apply rewards
+# [MOVED]     winner_rewards, loser_penalties = calculate_challenge_rewards(
+# [MOVED]         battle_result['winner'], challenge_type, is_live
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # Prize pool from participation costs
+# [MOVED]     prize_pool = challenge.get('prize_pool', 100000)
+# [MOVED]     
+# [MOVED]     # Determine winners and losers
+# [MOVED]     if challenge_type == 'ffa':
+# [MOVED]         winner_user_ids = [p['user_id'] for p in participants if p['nickname'] == battle_result['winner']]
+# [MOVED]         loser_user_ids = [p['user_id'] for p in participants if p['nickname'] != battle_result['winner']]
+# [MOVED]     else:
+# [MOVED]         if battle_result['winner'] == 'team_a':
+# [MOVED]             winner_user_ids = battle_result['team_a']['players']
+# [MOVED]             loser_user_ids = battle_result['team_b']['players']
+# [MOVED]         elif battle_result['winner'] == 'team_b':
+# [MOVED]             winner_user_ids = battle_result['team_b']['players']
+# [MOVED]             loser_user_ids = battle_result['team_a']['players']
+# [MOVED]         else:
+# [MOVED]             # Draw - refund both
+# [MOVED]             for p in participants:
+# [MOVED]                 refund = challenge.get('participation_cost', 50000)
+# [MOVED]                 await db.users.update_one({'id': p['user_id']}, {'$inc': {'funds': refund}})
+# [MOVED]             winner_user_ids = battle_result['team_a']['players'] + battle_result['team_b']['players']
+# [MOVED]             loser_user_ids = []
+# [MOVED]             prize_pool = 0
+# [MOVED]     
+# [MOVED]     # Apply rewards to winners (including prize pool + CinePass)
+# [MOVED]     cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
+# [MOVED]     prize_per_winner = prize_pool // max(len(winner_user_ids), 1) if prize_pool > 0 else 0
+# [MOVED]     for uid in winner_user_ids:
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': uid},
+# [MOVED]             {'$inc': {
+# [MOVED]                 'total_xp': winner_rewards['xp'],
+# [MOVED]                 'fame': winner_rewards['fame'],
+# [MOVED]                 'funds': winner_rewards['funds'] + prize_per_winner,
+# [MOVED]                 'challenge_wins': 1,
+# [MOVED]                 'challenge_total': 1,
+# [MOVED]                 'cinepass': cinepass_reward
+# [MOVED]             }}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         # Apply film bonuses
+# [MOVED]         participant = next((p for p in participants if p['user_id'] == uid), None)
+# [MOVED]         if participant:
+# [MOVED]             await db.films.update_many(
+# [MOVED]                 {'id': {'$in': participant['film_ids']}},
+# [MOVED]                 {'$inc': {
+# [MOVED]                     'quality_score': winner_rewards['quality_bonus'],
+# [MOVED]                     'cumulative_attendance': winner_rewards['attendance_bonus']
+# [MOVED]                 }}
+# [MOVED]             )
+# [MOVED]         
+# [MOVED]         # Notification
+# [MOVED]         await db.notifications.insert_one({
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': uid,
+# [MOVED]             'type': 'challenge_won',
+# [MOVED]             'title': 'Sfida Vinta!',
+# [MOVED]             'message': f'Hai vinto la sfida! Premio: ${prize_per_winner:,} CineCoins. +{winner_rewards["xp"]} XP, +{cinepass_reward} CinePass',
+# [MOVED]             'data': {'challenge_id': challenge_id, 'prize': prize_per_winner},
+# [MOVED]             'read': False,
+# [MOVED]             'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     # Apply penalties to losers
+# [MOVED]     for uid in loser_user_ids:
+# [MOVED]         await db.users.update_one(
+# [MOVED]             {'id': uid},
+# [MOVED]             {'$inc': {
+# [MOVED]                 'total_xp': loser_penalties['xp'],
+# [MOVED]                 'fame': loser_penalties['fame'],
+# [MOVED]                 'challenge_losses': 1,
+# [MOVED]                 'challenge_total': 1
+# [MOVED]             }}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         # Apply film penalties
+# [MOVED]         participant = next((p for p in participants if p['user_id'] == uid), None)
+# [MOVED]         if participant and loser_penalties['attendance_bonus'] < 0:
+# [MOVED]             await db.films.update_many(
+# [MOVED]                 {'id': {'$in': participant['film_ids']}},
+# [MOVED]                 {'$inc': {'cumulative_attendance': loser_penalties['attendance_bonus']}}
+# [MOVED]             )
+# [MOVED]         
+# [MOVED]         # Notification
+# [MOVED]         await db.notifications.insert_one({
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': uid,
+# [MOVED]             'type': 'challenge_lost',
+# [MOVED]             'title': 'Sfida Persa',
+# [MOVED]             'message': f'Hai perso la sfida. +{loser_penalties["xp"]} XP consolazione.',
+# [MOVED]             'data': {'challenge_id': challenge_id},
+# [MOVED]             'read': False,
+# [MOVED]             'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return battle_result
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/waiting")
+# [MOVED] async def get_waiting_challenges(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get challenges waiting for players (for random matchmaking)."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     challenges = await db.challenges.find({
+# [MOVED]         'status': 'waiting',
+# [MOVED]         'creator_id': {'$ne': user_id},
+# [MOVED]         'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+# [MOVED]     }, {'_id': 0}).to_list(50)
+# [MOVED]     
+# [MOVED]     return challenges
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/my")
+# [MOVED] async def get_my_challenges(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get user's challenges (created and participated)."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     challenges = await db.challenges.find({
+# [MOVED]         '$or': [
+# [MOVED]             {'creator_id': user_id},
+# [MOVED]             {'participants.user_id': user_id}
+# [MOVED]         ]
+# [MOVED]     }, {'_id': 0}).sort('created_at', -1).to_list(50)
+# [MOVED]     
+# [MOVED]     return challenges
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/leaderboard")
+# [MOVED] async def get_challenge_leaderboard(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get challenge leaderboard."""
+# [MOVED]     users = await db.users.find(
+# [MOVED]         {'challenge_total': {'$gt': 0}},
+# [MOVED]         {'_id': 0, 'id': 1, 'nickname': 1, 'challenge_wins': 1, 'challenge_losses': 1, 'challenge_total': 1}
+# [MOVED]     ).sort('challenge_wins', -1).to_list(100)
+# [MOVED]     
+# [MOVED]     leaderboard = []
+# [MOVED]     for i, u in enumerate(users):
+# [MOVED]         wins = u.get('challenge_wins', 0)
+# [MOVED]         total = u.get('challenge_total', 1)
+# [MOVED]         win_rate = round((wins / total) * 100, 1) if total > 0 else 0
+# [MOVED]         
+# [MOVED]         leaderboard.append({
+# [MOVED]             'rank': i + 1,
+# [MOVED]             'user_id': u['id'],
+# [MOVED]             'nickname': u.get('nickname', 'Player'),
+# [MOVED]             'wins': wins,
+# [MOVED]             'losses': u.get('challenge_losses', 0),
+# [MOVED]             'total': total,
+# [MOVED]             'win_rate': win_rate
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return leaderboard
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/limits")
+# [MOVED] async def get_challenge_limits(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get current challenge usage and limits."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     one_hour_ago = (now - timedelta(hours=1)).isoformat()
+# [MOVED]     one_day_ago = (now - timedelta(hours=24)).isoformat()
+# [MOVED]     
+# [MOVED]     hourly_count = await db.challenges.count_documents({
+# [MOVED]         'creator_id': user['id'],
+# [MOVED]         'created_at': {'$gte': one_hour_ago}
+# [MOVED]     })
+# [MOVED]     daily_count = await db.challenges.count_documents({
+# [MOVED]         'creator_id': user['id'],
+# [MOVED]         'created_at': {'$gte': one_day_ago}
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'hourly': {'used': hourly_count, 'limit': CHALLENGE_LIMITS['per_hour']},
+# [MOVED]         'daily': {'used': daily_count, 'limit': CHALLENGE_LIMITS['per_day']},
+# [MOVED]         'cinepass_reward_per_win': CINEPASS_REWARDS.get('challenge_win', 2),
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/{challenge_id}")
+# [MOVED] async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get challenge details."""
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata")
+# [MOVED]     
+# [MOVED]     return challenge
+# [MOVED] 
+# [MOVED] @api_router.get("/challenges/stats/{user_id}")
+# [MOVED] async def get_user_challenge_stats(user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get detailed challenge stats for a user."""
+# [MOVED]     target_user = await db.users.find_one({'id': user_id}, {'_id': 0})
+# [MOVED]     if not target_user:
+# [MOVED]         raise HTTPException(status_code=404, detail="Utente non trovato")
+# [MOVED]     
+# [MOVED]     wins = target_user.get('challenge_wins', 0)
+# [MOVED]     losses = target_user.get('challenge_losses', 0)
+# [MOVED]     total = target_user.get('challenge_total', 0)
+# [MOVED]     
+# [MOVED]     # Get recent challenges
+# [MOVED]     recent = await db.challenges.find({
+# [MOVED]         'participants.user_id': user_id,
+# [MOVED]         'status': 'completed'
+# [MOVED]     }, {'_id': 0}).sort('completed_at', -1).to_list(10)
+# [MOVED]     
+# [MOVED]     # Calculate streak
+# [MOVED]     streak = 0
+# [MOVED]     for c in recent:
+# [MOVED]         result = c.get('result', {})
+# [MOVED]         winner = result.get('winner')
+# [MOVED]         
+# [MOVED]         if c['type'] == 'ffa':
+# [MOVED]             user_won = result.get('winner') == next((p['nickname'] for p in c['participants'] if p['user_id'] == user_id), None)
+# [MOVED]         else:
+# [MOVED]             user_team = next((p['team'] for p in c['participants'] if p['user_id'] == user_id), None)
+# [MOVED]             user_won = (winner == 'team_a' and user_team == 'a') or (winner == 'team_b' and user_team == 'b')
+# [MOVED]         
+# [MOVED]         if user_won:
+# [MOVED]             streak += 1
+# [MOVED]         else:
+# [MOVED]             break
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'user_id': user_id,
+# [MOVED]         'nickname': target_user.get('nickname', 'Player'),
+# [MOVED]         'wins': wins,
+# [MOVED]         'losses': losses,
+# [MOVED]         'total': total,
+# [MOVED]         'win_rate': round((wins / total) * 100, 1) if total > 0 else 0,
+# [MOVED]         'current_streak': streak,
+# [MOVED]         'recent_challenges': len(recent)
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/cancel")
+# [MOVED] async def cancel_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Cancel a challenge created by the user."""
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id, 'creator_id': user['id'], 'status': 'waiting'})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata o non cancellabile")
+# [MOVED]     await db.challenges.update_one({'id': challenge_id}, {'$set': {'status': 'cancelled'}})
+# [MOVED]     return {'success': True, 'message': 'Sfida annullata'}
+# [MOVED] 
 # ==================== OFFLINE CHALLENGE SYSTEM ====================
-
-@api_router.post("/challenges/toggle-offline")
-async def toggle_offline_challenges(user: dict = Depends(get_current_user)):
-    """Toggle availability for offline VS challenges."""
-    current = user.get('accept_offline_challenges', False)
-    new_value = not current
-    await db.users.update_one({'id': user['id']}, {'$set': {'accept_offline_challenges': new_value}})
-    return {'accept_offline_challenges': new_value, 'message': 'Sfide offline attivate!' if new_value else 'Sfide offline disattivate.'}
-
-@api_router.post("/challenges/offline-battle")
-async def start_offline_battle(data: dict, user: dict = Depends(get_current_user)):
-    """Start an offline 1v1 challenge. AI picks films for the offline opponent."""
-    opponent_id = data.get('opponent_id')
-    film_ids = data.get('film_ids', [])
-    
-    if not opponent_id or not film_ids or len(film_ids) != 3:
-        raise HTTPException(status_code=400, detail="Devi specificare un avversario e 3 film")
-    
-    if opponent_id == user['id']:
-        raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
-    
-    # Check challenge limits (5/hour, 20/day)
-    now = datetime.now(timezone.utc)
-    one_hour_ago = (now - timedelta(hours=1)).isoformat()
-    one_day_ago = (now - timedelta(hours=24)).isoformat()
-    
-    hourly_count = await db.challenges.count_documents({
-        'creator_id': user['id'],
-        'created_at': {'$gte': one_hour_ago}
-    })
-    if hourly_count >= CHALLENGE_LIMITS['per_hour']:
-        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_hour']} sfide all'ora")
-    
-    daily_count = await db.challenges.count_documents({
-        'creator_id': user['id'],
-        'created_at': {'$gte': one_day_ago}
-    })
-    if daily_count >= CHALLENGE_LIMITS['per_day']:
-        raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_day']} sfide al giorno")
-    
-    # Check opponent exists and accepts offline challenges
-    opponent = await db.users.find_one({'id': opponent_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'accept_offline_challenges': 1, 'production_house_name': 1})
-    if not opponent:
-        raise HTTPException(status_code=404, detail="Avversario non trovato")
-    
-    if not opponent.get('accept_offline_challenges', False):
-        raise HTTPException(status_code=400, detail="Questo giocatore non accetta sfide offline")
-    
-    # Verify challenger's films
-    challenger_films = await db.films.find({'id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0}).to_list(3)
-    if len(challenger_films) != 3:
-        raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
-    
-    for f in challenger_films:
-        f['challenge_skills'] = calculate_film_challenge_skills(f)
-    
-    # AI picks best 3 films for opponent (sorted by quality)
-    opponent_all_films = await db.films.find(
-        {'user_id': opponent_id}, {'_id': 0}
-    ).sort('quality_score', -1).to_list(20)
-    
-    if len(opponent_all_films) < 3:
-        raise HTTPException(status_code=400, detail=f"{opponent['nickname']} non ha abbastanza film (minimo 3)")
-    
-    # AI strategy: pick top 3 by combined score (quality + revenue + popularity)
-    for f in opponent_all_films:
-        f['ai_score'] = f.get('quality_score', 0) * 0.4 + f.get('imdb_rating', 5) * 10 + f.get('popularity_score', 50) * 0.2
-        f['challenge_skills'] = calculate_film_challenge_skills(f)
-    
-    opponent_all_films.sort(key=lambda x: x['ai_score'], reverse=True)
-    opponent_films = opponent_all_films[:3]
-    
-    # Create and run the challenge immediately
-    challenge_id = str(uuid.uuid4())
-    
-    team_a = {
-        'name': user.get('nickname', 'Sfidante'),
-        'players': [user['id']],
-        'films': challenger_films
-    }
-    
-    team_b = {
-        'name': opponent.get('nickname', 'Difensore'),
-        'players': [opponent_id],
-        'films': opponent_films
-    }
-    
-    battle_result = simulate_challenge(team_a, team_b, '1v1')
-    
-    # Save the challenge
-    challenge = {
-        'id': challenge_id,
-        'type': '1v1',
-        'status': 'completed',
-        'is_live': False,
-        'is_offline': True,
-        'creator_id': user['id'],
-        'creator_nickname': user.get('nickname', 'Player'),
-        'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in challenger_films],
-        'opponent_id': opponent_id,
-        'opponent_nickname': opponent.get('nickname', 'Player'),
-        'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
-        'participants': [
-            {'user_id': user['id'], 'nickname': user.get('nickname'), 'film_ids': film_ids, 'team': 'a', 'ready': True},
-            {'user_id': opponent_id, 'nickname': opponent.get('nickname'), 'film_ids': [f['id'] for f in opponent_films], 'team': 'b', 'ready': True}
-        ],
-        'result': battle_result,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'completed_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.challenges.insert_one(challenge)
-    
-    # Calculate rewards — loser penalties reduced by 80% in offline mode
-    winner_rewards, loser_penalties = calculate_challenge_rewards(battle_result['winner'], '1v1', False, is_online=False)
-    
-    # Apply 80% reduction to loser penalties
-    offline_loser_penalties = {
-        'xp': loser_penalties['xp'],  # Keep consolation XP
-        'fame': max(-1, int(loser_penalties['fame'] * 0.2)),  # 80% reduced
-        'funds': 0,
-        'quality_bonus': 0,
-        'attendance_bonus': int(loser_penalties.get('attendance_bonus', 0) * 0.2),  # 80% reduced
-    }
-    
-    # Determine winner/loser
-    if battle_result['winner'] == 'team_a':
-        winner_ids, loser_ids = [user['id']], [opponent_id]
-        winner_name = user.get('nickname')
-        loser_name = opponent.get('nickname')
-    elif battle_result['winner'] == 'team_b':
-        winner_ids, loser_ids = [opponent_id], [user['id']]
-        winner_name = opponent.get('nickname')
-        loser_name = user.get('nickname')
-    else:
-        winner_ids = [user['id'], opponent_id]
-        loser_ids = []
-        winner_name = 'Pareggio'
-        loser_name = None
-    
-    # Apply rewards to winners (including CinePass)
-    cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
-    for uid in winner_ids:
-        await db.users.update_one({'id': uid}, {'$inc': {
-            'total_xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
-            'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1,
-            'cinepass': cinepass_reward
-        }})
-    
-    # Apply reduced penalties to losers
-    for uid in loser_ids:
-        await db.users.update_one({'id': uid}, {'$inc': {
-            'total_xp': offline_loser_penalties['xp'], 'fame': offline_loser_penalties['fame'],
-            'challenge_losses': 1, 'challenge_total': 1
-        }})
-    
-    # Build detailed battle report for notifications
-    rounds_summary = ''
-    for i, r in enumerate(battle_result.get('rounds', [])[:3]):
-        skill_name = r.get('skill', f'Round {i+1}')
-        rounds_summary += f"Round {i+1} ({skill_name}): {'Sfidante' if r.get('winner') == 'team_a' else 'Difensore'} vince | "
-    
-    winner_text = f"Vincitore: {winner_name}" if winner_name != 'Pareggio' else 'Risultato: Pareggio!'
-    
-    # Notification to challenger (the active player)
-    await db.notifications.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'type': 'offline_challenge_result',
-        'title': 'Sfida Offline Completata!',
-        'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP, +"+str(cinepass_reward)+" CinePass" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
-        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'path': '/challenges'},
-        'read': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    })
-    
-    # Notification to OFFLINE opponent with full battle report
-    report_films_a = ', '.join([f['title'] for f in challenger_films[:3]])
-    report_films_b = ', '.join([f['title'] for f in opponent_films[:3]])
-    
-    report_msg = (
-        f"{user.get('nickname')} ti ha sfidato offline!\n"
-        f"I tuoi film (scelti dall'AI): {report_films_b}\n"
-        f"Film avversario: {report_films_a}\n"
-        f"{rounds_summary}\n"
-        f"{winner_text}."
-    )
-    
-    await db.notifications.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': opponent_id,
-        'type': 'offline_challenge_report',
-        'title': 'Report Sfida Offline!',
-        'message': report_msg,
-        'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'battle_result': battle_result, 'path': '/challenges'},
-        'read': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    })
-    
-    return {
-        'success': True,
-        'challenge_id': challenge_id,
-        'result': battle_result,
-        'winner_name': winner_name,
-        'rewards': winner_rewards if user['id'] in winner_ids else offline_loser_penalties,
-        'cinepass_reward': cinepass_reward if user['id'] in winner_ids else 0,
-        'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'genre': f.get('genre')} for f in opponent_films],
-    }
-
-@api_router.post("/challenges/{challenge_id}/resend")
-async def resend_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
-    """Resend notifications for a pending challenge (creator only)."""
-    user_id = user['id']
-    
-    challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Sfida non trovata")
-    
-    if challenge['creator_id'] != user_id:
-        raise HTTPException(status_code=403, detail="Solo il creatore può riproporre la sfida")
-    
-    if challenge['status'] not in ['pending', 'waiting']:
-        raise HTTPException(status_code=400, detail="Questa sfida non può essere riproposta")
-    
-    # Update expiration
-    new_expiration = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-    await db.challenges.update_one(
-        {'id': challenge_id},
-        {'$set': {'expires_at': new_expiration, 'resent_at': datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    # If specific opponent, resend notification
-    if challenge.get('opponent_id'):
-        await db.notifications.insert_one({
-            'id': str(uuid.uuid4()),
-            'user_id': challenge['opponent_id'],
-            'type': 'challenge_invite',
-            'title': '⚔️ Sfida Riproposta!',
-            'message': f'{user.get("nickname", "Un giocatore")} ti ha nuovamente sfidato! Accetta entro 24 ore.',
-            'data': {'challenge_id': challenge_id, 'challenger': user.get('nickname')},
-            'read': False,
-            'created_at': datetime.now(timezone.utc).isoformat()
-        })
-    
-    return {'success': True, 'message': 'Sfida riproposta! Scadenza estesa di 24 ore.'}
-
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/toggle-offline")
+# [MOVED] async def toggle_offline_challenges(user: dict = Depends(get_current_user)):
+# [MOVED]     """Toggle availability for offline VS challenges."""
+# [MOVED]     current = user.get('accept_offline_challenges', False)
+# [MOVED]     new_value = not current
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$set': {'accept_offline_challenges': new_value}})
+# [MOVED]     return {'accept_offline_challenges': new_value, 'message': 'Sfide offline attivate!' if new_value else 'Sfide offline disattivate.'}
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/offline-battle")
+# [MOVED] async def start_offline_battle(data: dict, user: dict = Depends(get_current_user)):
+# [MOVED]     """Start an offline 1v1 challenge. AI picks films for the offline opponent."""
+# [MOVED]     opponent_id = data.get('opponent_id')
+# [MOVED]     film_ids = data.get('film_ids', [])
+# [MOVED]     
+# [MOVED]     if not opponent_id or not film_ids or len(film_ids) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Devi specificare un avversario e 3 film")
+# [MOVED]     
+# [MOVED]     if opponent_id == user['id']:
+# [MOVED]         raise HTTPException(status_code=400, detail="Non puoi sfidare te stesso")
+# [MOVED]     
+# [MOVED]     # Check challenge limits (5/hour, 20/day)
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     one_hour_ago = (now - timedelta(hours=1)).isoformat()
+# [MOVED]     one_day_ago = (now - timedelta(hours=24)).isoformat()
+# [MOVED]     
+# [MOVED]     hourly_count = await db.challenges.count_documents({
+# [MOVED]         'creator_id': user['id'],
+# [MOVED]         'created_at': {'$gte': one_hour_ago}
+# [MOVED]     })
+# [MOVED]     if hourly_count >= CHALLENGE_LIMITS['per_hour']:
+# [MOVED]         raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_hour']} sfide all'ora")
+# [MOVED]     
+# [MOVED]     daily_count = await db.challenges.count_documents({
+# [MOVED]         'creator_id': user['id'],
+# [MOVED]         'created_at': {'$gte': one_day_ago}
+# [MOVED]     })
+# [MOVED]     if daily_count >= CHALLENGE_LIMITS['per_day']:
+# [MOVED]         raise HTTPException(status_code=429, detail=f"Limite sfide raggiunto: massimo {CHALLENGE_LIMITS['per_day']} sfide al giorno")
+# [MOVED]     
+# [MOVED]     # Check opponent exists and accepts offline challenges
+# [MOVED]     opponent = await db.users.find_one({'id': opponent_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'accept_offline_challenges': 1, 'production_house_name': 1})
+# [MOVED]     if not opponent:
+# [MOVED]         raise HTTPException(status_code=404, detail="Avversario non trovato")
+# [MOVED]     
+# [MOVED]     if not opponent.get('accept_offline_challenges', False):
+# [MOVED]         raise HTTPException(status_code=400, detail="Questo giocatore non accetta sfide offline")
+# [MOVED]     
+# [MOVED]     # Verify challenger's films
+# [MOVED]     challenger_films = await db.films.find({'id': {'$in': film_ids}, 'user_id': user['id']}, {'_id': 0}).to_list(3)
+# [MOVED]     if len(challenger_films) != 3:
+# [MOVED]         raise HTTPException(status_code=400, detail="Alcuni film non ti appartengono")
+# [MOVED]     
+# [MOVED]     for f in challenger_films:
+# [MOVED]         f['challenge_skills'] = calculate_film_challenge_skills(f)
+# [MOVED]     
+# [MOVED]     # AI picks best 3 films for opponent (sorted by quality)
+# [MOVED]     opponent_all_films = await db.films.find(
+# [MOVED]         {'user_id': opponent_id}, {'_id': 0}
+# [MOVED]     ).sort('quality_score', -1).to_list(20)
+# [MOVED]     
+# [MOVED]     if len(opponent_all_films) < 3:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"{opponent['nickname']} non ha abbastanza film (minimo 3)")
+# [MOVED]     
+# [MOVED]     # AI strategy: pick top 3 by combined score (quality + revenue + popularity)
+# [MOVED]     for f in opponent_all_films:
+# [MOVED]         f['ai_score'] = f.get('quality_score', 0) * 0.4 + f.get('imdb_rating', 5) * 10 + f.get('popularity_score', 50) * 0.2
+# [MOVED]         f['challenge_skills'] = calculate_film_challenge_skills(f)
+# [MOVED]     
+# [MOVED]     opponent_all_films.sort(key=lambda x: x['ai_score'], reverse=True)
+# [MOVED]     opponent_films = opponent_all_films[:3]
+# [MOVED]     
+# [MOVED]     # Create and run the challenge immediately
+# [MOVED]     challenge_id = str(uuid.uuid4())
+# [MOVED]     
+# [MOVED]     team_a = {
+# [MOVED]         'name': user.get('nickname', 'Sfidante'),
+# [MOVED]         'players': [user['id']],
+# [MOVED]         'films': challenger_films
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     team_b = {
+# [MOVED]         'name': opponent.get('nickname', 'Difensore'),
+# [MOVED]         'players': [opponent_id],
+# [MOVED]         'films': opponent_films
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     battle_result = simulate_challenge(team_a, team_b, '1v1')
+# [MOVED]     
+# [MOVED]     # Save the challenge
+# [MOVED]     challenge = {
+# [MOVED]         'id': challenge_id,
+# [MOVED]         'type': '1v1',
+# [MOVED]         'status': 'completed',
+# [MOVED]         'is_live': False,
+# [MOVED]         'is_offline': True,
+# [MOVED]         'creator_id': user['id'],
+# [MOVED]         'creator_nickname': user.get('nickname', 'Player'),
+# [MOVED]         'creator_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in challenger_films],
+# [MOVED]         'opponent_id': opponent_id,
+# [MOVED]         'opponent_nickname': opponent.get('nickname', 'Player'),
+# [MOVED]         'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'skills': f['challenge_skills']} for f in opponent_films],
+# [MOVED]         'participants': [
+# [MOVED]             {'user_id': user['id'], 'nickname': user.get('nickname'), 'film_ids': film_ids, 'team': 'a', 'ready': True},
+# [MOVED]             {'user_id': opponent_id, 'nickname': opponent.get('nickname'), 'film_ids': [f['id'] for f in opponent_films], 'team': 'b', 'ready': True}
+# [MOVED]         ],
+# [MOVED]         'result': battle_result,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'completed_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.challenges.insert_one(challenge)
+# [MOVED]     
+# [MOVED]     # Calculate rewards — loser penalties reduced by 80% in offline mode
+# [MOVED]     winner_rewards, loser_penalties = calculate_challenge_rewards(battle_result['winner'], '1v1', False, is_online=False)
+# [MOVED]     
+# [MOVED]     # Apply 80% reduction to loser penalties
+# [MOVED]     offline_loser_penalties = {
+# [MOVED]         'xp': loser_penalties['xp'],  # Keep consolation XP
+# [MOVED]         'fame': max(-1, int(loser_penalties['fame'] * 0.2)),  # 80% reduced
+# [MOVED]         'funds': 0,
+# [MOVED]         'quality_bonus': 0,
+# [MOVED]         'attendance_bonus': int(loser_penalties.get('attendance_bonus', 0) * 0.2),  # 80% reduced
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     # Determine winner/loser
+# [MOVED]     if battle_result['winner'] == 'team_a':
+# [MOVED]         winner_ids, loser_ids = [user['id']], [opponent_id]
+# [MOVED]         winner_name = user.get('nickname')
+# [MOVED]         loser_name = opponent.get('nickname')
+# [MOVED]     elif battle_result['winner'] == 'team_b':
+# [MOVED]         winner_ids, loser_ids = [opponent_id], [user['id']]
+# [MOVED]         winner_name = opponent.get('nickname')
+# [MOVED]         loser_name = user.get('nickname')
+# [MOVED]     else:
+# [MOVED]         winner_ids = [user['id'], opponent_id]
+# [MOVED]         loser_ids = []
+# [MOVED]         winner_name = 'Pareggio'
+# [MOVED]         loser_name = None
+# [MOVED]     
+# [MOVED]     # Apply rewards to winners (including CinePass)
+# [MOVED]     cinepass_reward = CINEPASS_REWARDS.get('challenge_win', 2)
+# [MOVED]     for uid in winner_ids:
+# [MOVED]         await db.users.update_one({'id': uid}, {'$inc': {
+# [MOVED]             'total_xp': winner_rewards['xp'], 'fame': winner_rewards['fame'],
+# [MOVED]             'funds': winner_rewards['funds'], 'challenge_wins': 1, 'challenge_total': 1,
+# [MOVED]             'cinepass': cinepass_reward
+# [MOVED]         }})
+# [MOVED]     
+# [MOVED]     # Apply reduced penalties to losers
+# [MOVED]     for uid in loser_ids:
+# [MOVED]         await db.users.update_one({'id': uid}, {'$inc': {
+# [MOVED]             'total_xp': offline_loser_penalties['xp'], 'fame': offline_loser_penalties['fame'],
+# [MOVED]             'challenge_losses': 1, 'challenge_total': 1
+# [MOVED]         }})
+# [MOVED]     
+# [MOVED]     # Build detailed battle report for notifications
+# [MOVED]     rounds_summary = ''
+# [MOVED]     for i, r in enumerate(battle_result.get('rounds', [])[:3]):
+# [MOVED]         skill_name = r.get('skill', f'Round {i+1}')
+# [MOVED]         rounds_summary += f"Round {i+1} ({skill_name}): {'Sfidante' if r.get('winner') == 'team_a' else 'Difensore'} vince | "
+# [MOVED]     
+# [MOVED]     winner_text = f"Vincitore: {winner_name}" if winner_name != 'Pareggio' else 'Risultato: Pareggio!'
+# [MOVED]     
+# [MOVED]     # Notification to challenger (the active player)
+# [MOVED]     await db.notifications.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'type': 'offline_challenge_result',
+# [MOVED]         'title': 'Sfida Offline Completata!',
+# [MOVED]         'message': f'Sfida VS {opponent["nickname"]} (Offline). {winner_text}. {"+"+str(winner_rewards["xp"])+" XP, +"+str(cinepass_reward)+" CinePass" if user["id"] in winner_ids else "+"+str(offline_loser_penalties["xp"])+" XP"}',
+# [MOVED]         'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'path': '/challenges'},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     # Notification to OFFLINE opponent with full battle report
+# [MOVED]     report_films_a = ', '.join([f['title'] for f in challenger_films[:3]])
+# [MOVED]     report_films_b = ', '.join([f['title'] for f in opponent_films[:3]])
+# [MOVED]     
+# [MOVED]     report_msg = (
+# [MOVED]         f"{user.get('nickname')} ti ha sfidato offline!\n"
+# [MOVED]         f"I tuoi film (scelti dall'AI): {report_films_b}\n"
+# [MOVED]         f"Film avversario: {report_films_a}\n"
+# [MOVED]         f"{rounds_summary}\n"
+# [MOVED]         f"{winner_text}."
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     await db.notifications.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': opponent_id,
+# [MOVED]         'type': 'offline_challenge_report',
+# [MOVED]         'title': 'Report Sfida Offline!',
+# [MOVED]         'message': report_msg,
+# [MOVED]         'data': {'challenge_id': challenge_id, 'result': battle_result.get('winner'), 'battle_result': battle_result, 'path': '/challenges'},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'challenge_id': challenge_id,
+# [MOVED]         'result': battle_result,
+# [MOVED]         'winner_name': winner_name,
+# [MOVED]         'rewards': winner_rewards if user['id'] in winner_ids else offline_loser_penalties,
+# [MOVED]         'cinepass_reward': cinepass_reward if user['id'] in winner_ids else 0,
+# [MOVED]         'opponent_films': [{'id': f['id'], 'title': f.get('title'), 'genre': f.get('genre')} for f in opponent_films],
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/challenges/{challenge_id}/resend")
+# [MOVED] async def resend_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Resend notifications for a pending challenge (creator only)."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     challenge = await db.challenges.find_one({'id': challenge_id}, {'_id': 0})
+# [MOVED]     if not challenge:
+# [MOVED]         raise HTTPException(status_code=404, detail="Sfida non trovata")
+# [MOVED]     
+# [MOVED]     if challenge['creator_id'] != user_id:
+# [MOVED]         raise HTTPException(status_code=403, detail="Solo il creatore può riproporre la sfida")
+# [MOVED]     
+# [MOVED]     if challenge['status'] not in ['pending', 'waiting']:
+# [MOVED]         raise HTTPException(status_code=400, detail="Questa sfida non può essere riproposta")
+# [MOVED]     
+# [MOVED]     # Update expiration
+# [MOVED]     new_expiration = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+# [MOVED]     await db.challenges.update_one(
+# [MOVED]         {'id': challenge_id},
+# [MOVED]         {'$set': {'expires_at': new_expiration, 'resent_at': datetime.now(timezone.utc).isoformat()}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # If specific opponent, resend notification
+# [MOVED]     if challenge.get('opponent_id'):
+# [MOVED]         await db.notifications.insert_one({
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': challenge['opponent_id'],
+# [MOVED]             'type': 'challenge_invite',
+# [MOVED]             'title': '⚔️ Sfida Riproposta!',
+# [MOVED]             'message': f'{user.get("nickname", "Un giocatore")} ti ha nuovamente sfidato! Accetta entro 24 ore.',
+# [MOVED]             'data': {'challenge_id': challenge_id, 'challenger': user.get('nickname')},
+# [MOVED]             'read': False,
+# [MOVED]             'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return {'success': True, 'message': 'Sfida riproposta! Scadenza estesa di 24 ore.'}
+# [MOVED] 
 # ==================== CREATOR CONTACT SYSTEM ====================
 
 CREATOR_NICKNAME = "NeoMorpheus"  # The Creator's nickname
@@ -19363,6 +19361,7 @@ app.include_router(cast_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(festivals_router, prefix="/api")
+app.include_router(challenges_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

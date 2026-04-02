@@ -6,7 +6,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-refactor-53.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://game-core-extract.preview.emergentagent.com')
 TEST_EMAIL = "fandrex1@gmail.com"
 TEST_PASSWORD = "Ciaociao1"
 

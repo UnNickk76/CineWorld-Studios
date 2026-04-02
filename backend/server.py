@@ -4043,10 +4043,20 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     
     return FilmResponse(**{k: v for k, v in film.items() if k != '_id'})
 
-@api_router.get("/films/my", response_model=List[FilmResponse])
+@api_router.get("/films/my")
 async def get_my_films(user: dict = Depends(get_current_user)):
-    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).sort('created_at', -1).to_list(100)
-    return [FilmResponse(**f) for f in films]
+    # Only include fields needed for list view
+    list_fields = {
+        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'subtitle': 1, 'poster_url': 1,
+        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+        'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
+        'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
+        'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
+        'opening_day_revenue': 1, 'last_revenue_collected': 1
+    }
+    films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
+    return films
 
 @api_router.get("/films/pending")
 async def get_pending_films(user: dict = Depends(get_current_user)):
@@ -4634,9 +4644,15 @@ async def regenerate_film_poster(film_id: str, user: dict = Depends(get_current_
 
 @api_router.get("/films/my/featured")
 async def get_my_featured_films(user: dict = Depends(get_current_user), limit: int = 4):
-    """Get user's top films sorted by attendance/popularity for dashboard featuring.
-    Uses a rotation system based on: total_revenue, audience_satisfaction, likes_count, and recency."""
-    films = await db.films.find({'user_id': user['id']}, {'_id': 0}).to_list(100)
+    """Get user's top films sorted by attendance/popularity for dashboard featuring."""
+    featured_fields = {
+        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
+        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+        'audience_satisfaction': 1, 'created_at': 1, 'released_at': 1, 
+        'release_date': 1, 'subtitle': 1
+    }
+    films = await db.films.find({'user_id': user['id']}, featured_fields).to_list(100)
     
     if not films:
         return []
@@ -4677,11 +4693,7 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     # Sort by featuring score (descending)
     films.sort(key=lambda f: f.get('_featuring_score', 0), reverse=True)
     
-    # Remove the temporary score field and return top films
-    for film in films:
-        film.pop('_featuring_score', None)
-    
-    return [FilmResponse(**f) for f in films[:limit]]
+    return films[:limit]
 
 @api_router.get("/films/my/for-sequel")
 async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
@@ -9148,8 +9160,17 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     uid = user['id']
     
-    # Parallel DB queries
-    films_task = db.films.find({'user_id': uid}, {'_id': 0}).to_list(100)
+    # Parallel DB queries - use lightweight projections to avoid huge response
+    films_light_fields = {
+        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1,
+        'genre': 1, 'status': 1, 'total_revenue': 1, 'realistic_box_office': 1,
+        'likes_count': 1, 'virtual_likes': 1, 'quality_score': 1,
+        'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
+        'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
+        'current_week': 1, 'opening_day_revenue': 1, 'last_revenue_collected': 1,
+        'subtitle': 1
+    }
+    films_task = db.films.find({'user_id': uid}, films_light_fields).to_list(100)
     infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
     challenges_task = db.challenges.find(
         {'$or': [{'challenger_id': uid}, {'challenged_id': uid}]},
@@ -9158,9 +9179,10 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
-    shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, {'_id': 0}).to_list(50)
-    my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, {'_id': 0}).sort('created_at', -1).to_list(10)
-    my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, {'_id': 0}).sort('created_at', -1).to_list(10)
+    shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
+    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
+    my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
+    my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
     recent_releases_task = db.films.find(
         {'status': 'in_theaters'},
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
@@ -19666,25 +19688,31 @@ async def serve_trailer(filename: str):
 
 @app.get("/api/posters/{filename}")
 async def serve_poster(filename: str):
-    """Serve poster files from MongoDB (persistent) with disk cache fallback."""
-    # First: check disk cache (fastest)
-    poster_path = os.path.join("/app/backend/static/posters", filename)
-    if os.path.isfile(poster_path):
-        ext = filename.rsplit('.', 1)[-1].lower()
-        media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/png')
-        return FileResponse(poster_path, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    """Serve poster files from disk cache or MongoDB. Tries alternate extensions."""
+    poster_dir = "/app/backend/static/posters"
+    base, ext = (filename.rsplit('.', 1) + ['png'])[:2]
+    alt_ext = 'png' if ext.lower() in ('jpg', 'jpeg') else 'jpg'
+    candidates = [filename, f"{base}.{alt_ext}"]
     
-    # Second: check MongoDB (persistent across deployments)
-    data, content_type = await poster_storage.get_poster(filename)
-    if data:
-        # Cache to disk for future requests
-        try:
-            os.makedirs("/app/backend/static/posters", exist_ok=True)
-            with open(poster_path, 'wb') as f:
-                f.write(data)
-        except Exception:
-            pass
-        return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    # First: check disk cache (fastest) - try both extensions
+    for candidate in candidates:
+        poster_path = os.path.join(poster_dir, candidate)
+        if os.path.isfile(poster_path):
+            cext = candidate.rsplit('.', 1)[-1].lower()
+            media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(cext, 'image/png')
+            return FileResponse(poster_path, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+    
+    # Second: check MongoDB - try both extensions
+    for candidate in candidates:
+        data, content_type = await poster_storage.get_poster(candidate)
+        if data:
+            try:
+                os.makedirs(poster_dir, exist_ok=True)
+                with open(os.path.join(poster_dir, candidate), 'wb') as f:
+                    f.write(data)
+            except Exception:
+                pass
+            return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
     
     raise HTTPException(status_code=404, detail="Poster non trovato")
 

@@ -24,7 +24,7 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 ## DB Config
 - MONGO_URL=mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld
-- DB_NAME=cineworld (default "test" in database.py)
+- DB_NAME=cineworld
 - JWT_SECRET=cineworld-studio-secret-key-2024-secure
 
 ## Completed
@@ -33,8 +33,14 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - [2026-04-01] Health check fix, Startup refactor, Poster regeneration endpoints
 - [2026-04-01] Bug fixes: /series/my collection, production loops, uploads directory
 - [2026-04-01] database.py: clean config, auth login: bcrypt.checkpw direct
-- [2026-04-02] **LOGIN FIX**: Root cause was 2.7MB base64 avatar in user document. Added persist_base64_avatar() to convert base64 to file. Login: 29s/2.7MB → 0.7s/990B
-- [2026-04-02] **POSTER COMPRESSION**: Auto-compression in poster_storage.py (800x1200 JPEG q82). Compressed 44 existing posters: 38MB → 3MB (92% reduction). Updated DB refs .png → .jpg. Also fixed avatar generation to save directly to file.
+- [2026-04-02] **LOGIN FIX**: Root cause: 2.7MB base64 avatar. Added persist_base64_avatar(). Login 29s/2.7MB → 0.7s/990B
+- [2026-04-02] **POSTER COMPRESSION**: Auto-compression in poster_storage.py (800x1200 JPEG q82) for NEW posters only. Compressed 44 existing disk posters: 38MB → 3MB
+- [2026-04-02] **API RESPONSE OPTIMIZATION**: Root cause of missing films/series/anime: MongoDB responses too large (daily_revenues 60KB/film, cast 15KB, attendance_history 21KB). Added inclusive projections to /films/my, /dashboard/batch, /films/my/featured excluding heavy fields for list views. Results: /films/my 1.4MB→31KB (0.86s), /dashboard/batch 321KB→13KB (1.4s), /featured 18KB→4.8KB (0.66s). Film detail page still returns all fields.
+- [2026-04-02] **POSTER ENDPOINT HARDENED**: Now tries both .png and .jpg extensions for fallback serving
+- [2026-04-02] **DB POSTER URLs RESTORED**: Reverted poster_url changes (.png→.jpg→original) using production backup as source of truth
+
+## IMPORTANT: DB Sync Issue
+The .it production site uses data that includes 23 film posters and 4 series posters NOT present in MongoDB Atlas. These were only on the .it server's local disk. Migration from .it to Atlas/preview/Railway requires syncing these files. The .it DB is the source of truth.
 
 ## Upcoming (P1)
 - Sistema "Previsioni Festival"

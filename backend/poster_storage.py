@@ -38,19 +38,16 @@ def compress_poster(image_bytes: bytes) -> tuple[bytes, str]:
 
 async def save_poster(filename: str, image_bytes: bytes, content_type: str = 'image/jpeg'):
     """Save poster image bytes to MongoDB and optionally to disk cache.
-    Auto-compresses to JPEG ≤800x1200."""
+    Auto-compresses large images (>200KB) to JPEG for efficiency."""
     if _db is None:
         logging.error("poster_storage: DB not initialized")
-        return
+        return filename
     
     original_size = len(image_bytes)
-    image_bytes, content_type = compress_poster(image_bytes)
-    # Switch extension to .jpg
-    name_base = filename.rsplit('.', 1)[0]
-    filename = f"{name_base}.jpg"
-    
-    if original_size != len(image_bytes):
-        logging.info(f"poster_storage: compressed {name_base} {original_size:,} -> {len(image_bytes):,} bytes")
+    # Only compress if larger than 200KB (new AI-generated posters are typically 1-2MB)
+    if original_size > 200 * 1024:
+        image_bytes, content_type = compress_poster(image_bytes)
+        logging.info(f"poster_storage: compressed {filename} {original_size:,} -> {len(image_bytes):,} bytes")
     
     await _db.poster_files.update_one(
         {'filename': filename},

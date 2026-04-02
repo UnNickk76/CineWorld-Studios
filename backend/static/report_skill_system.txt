@@ -1,0 +1,326 @@
+================================================================================
+  CINEWORLD STUDIO'S — REPORT SISTEMA SKILL (Analisi Completa)
+  Data: Febbraio 2026 | Stato: READ-ONLY (nessuna modifica effettuata)
+================================================================================
+
+
+1. LISTA COMPLETA SKILL GLOBALI
+================================================================================
+
+Nel progetto esistono 4 sistemi di skill separati, ognuno per un tipo di cast.
+Ogni dizionario ha 13 skill (non 20).
+Esiste inoltre un sistema parallelo con 10 skill diverse per l'agenzia.
+
+
+A. ACTOR_SKILLS (13 skill) — cast_system.py:13-27
+--------------------------------------------------------------------------------
+  Key                 | Nome IT
+  --------------------|---------------------------
+  drama               | Dramma
+  comedy              | Commedia
+  action              | Azione
+  romance             | Romantico
+  horror              | Horror
+  sci_fi              | Fantascienza
+  voice_acting        | Doppiaggio
+  improvisation       | Improvvisazione
+  physical_acting     | Recitazione Fisica
+  emotional_depth     | Profondita' Emotiva
+  charisma            | Carisma
+  method_acting       | Metodo Stanislavskij
+  timing              | Senso del Tempo
+
+
+B. DIRECTOR_SKILLS (13 skill) — cast_system.py:29-43
+--------------------------------------------------------------------------------
+  Key                 | Nome IT
+  --------------------|---------------------------
+  vision              | Visione Artistica
+  leadership          | Leadership
+  actor_direction     | Direzione Attori
+  visual_style        | Stile Visivo
+  storytelling        | Narrazione
+  technical           | Tecnica
+  innovation          | Innovazione
+  pacing              | Ritmo
+  atmosphere          | Atmosfera
+  casting_sense       | Senso del Casting
+  editing_instinct    | Istinto di Montaggio
+  world_building      | Costruzione Mondi
+  budget_management   | Gestione Budget
+
+
+C. SCREENWRITER_SKILLS (13 skill) — cast_system.py:45-59
+--------------------------------------------------------------------------------
+  Key                      | Nome IT
+  -------------------------|---------------------------
+  dialogue                 | Dialoghi
+  plot_structure           | Struttura Trama
+  character_development    | Sviluppo Personaggi
+  originality              | Originalita'
+  adaptation               | Adattamento
+  pacing                   | Ritmo Narrativo
+  world_building           | Creazione Mondi
+  emotional_impact         | Impatto Emotivo
+  humor_writing            | Scrittura Umoristica
+  suspense_craft           | Costruzione Suspense
+  subtext                  | Sottotesto
+  theme_depth              | Profondita' Tematica
+  research                 | Ricerca
+
+
+D. COMPOSER_SKILLS (13 skill) — cast_system.py:61-75
+--------------------------------------------------------------------------------
+  Key                      | Nome IT
+  -------------------------|---------------------------
+  melodic                  | Composizione Melodica
+  orchestration            | Orchestrazione
+  emotional_scoring        | Musica Emotiva
+  genre_versatility        | Versatilita' Generi
+  sound_design             | Sound Design
+  theme_development        | Sviluppo Temi
+  rhythm                   | Ritmo
+  harmony                  | Armonia
+  electronic_production    | Produzione Elettronica
+  leitmotif                | Leitmotiv
+  ambient_scoring          | Musica Ambientale
+  mixing                   | Missaggio
+  vocal_arrangements       | Arrangiamenti Vocali
+
+
+E. ACTOR_SKILL_NAMES — SISTEMA PARALLELO in casting_agency.py:33-37
+--------------------------------------------------------------------------------
+  10 skill con nomi completamente diversi (inglese, non codificati):
+
+  Acting, Emotional Range, Action Sequences, Comedy Timing,
+  Drama, Voice Acting, Physical Acting, Improvisation,
+  Chemistry, Star Power
+
+  Usato SOLO per:
+  - Attori dell'agenzia (collection: agency_actors)
+  - Attori generati proceduralmente nel series_pipeline.py:807
+
+
+F. CHALLENGE_SKILLS — challenge_system.py:12-21
+--------------------------------------------------------------------------------
+  8 skill per FILM (non per persona), scala 1-9:
+
+  Key              | Nome IT          | Attack Weight | Defense Weight
+  -----------------|------------------|---------------|---------------
+  direction        | Regia            | 0.8           | 0.5
+  cinematography   | Fotografia       | 0.6           | 0.7
+  screenplay       | Sceneggiatura    | 0.9           | 0.4
+  acting           | Recitazione      | 0.7           | 0.6
+  soundtrack       | Colonna Sonora   | 0.5           | 0.8
+  effects          | Effetti Speciali | 0.85          | 0.3
+  editing          | Montaggio        | 0.6           | 0.75
+  charisma         | Carisma          | 0.7           | 0.65
+
+  Queste sono skill del FILM FINITO, calcolate da quality_score,
+  imdb_rating, popularity_score, ecc. NON correlate direttamente
+  alle skill dei cast member.
+
+
+
+2. COME VENGONO USATE LE SKILL
+================================================================================
+
+FILM (film_pipeline.py)
+--------------------------------------------------------------------------------
+- Calcolo qualita' (riga 3390-3410): Le skill dei cast member vengono
+  usate come MEDIA GENERICA:
+    avg = sum(person['skills'].values()) / max(1, len(person['skills']))
+  Non si guarda QUALE skill ha il membro, solo la media aritmetica
+  di tutte le skill. Vale per regista, sceneggiatore, attori e compositore.
+
+- Director Vision (riga 3486-3489): Media skill regista usata come
+  leggero bias sulla gaussiana random.
+
+- Soundtrack (riga 3748-3756): Media skill compositore usata come
+  moltiplicatore day-1/2/3 del revenue.
+
+- Auto-fill cast (riga 1929): Usa GENRE_SKILL_MAPPING per scegliere
+  cast appropriato al genere via ensure_skills.
+
+
+SERIE/ANIME (series_pipeline.py)
+--------------------------------------------------------------------------------
+- Le skill vengono APPIATTITE in un singolo valore avg_skill (riga 902):
+    avg_skill = int(sum(skills.values()) / max(1, len(skills)))
+  Salvato come campo 'skill' nel cast entry della serie.
+  Le singole skill NON vengono usate.
+
+
+SCENEGGIATURE EMERGENTI (emerging_screenplays.py)
+--------------------------------------------------------------------------------
+- Mappa genere -> singola skill dello sceneggiatore (riga 233-241):
+    action -> suspense_craft
+    comedy -> humor_writing
+    drama -> emotional_impact
+    horror -> suspense_craft
+    sci_fi -> world_building
+    romance -> emotional_impact
+    thriller -> suspense_craft
+    animation -> originality
+    documentary -> research
+    fantasy -> world_building
+    musical -> emotional_impact
+    western -> character_development
+    war -> emotional_impact
+    noir -> dialogue
+    adventure -> plot_structure
+    biographical -> research
+  Usato per calcolare il rating IMDb della storia.
+
+
+CHALLENGE/PVP (challenge_system.py)
+--------------------------------------------------------------------------------
+- Le CHALLENGE_SKILLS sono skill del film finito, non del cast.
+  Calcolate da metriche del film (quality, revenue, likes...).
+
+
+SCUOLA DI RECITAZIONE (acting_school.py)
+--------------------------------------------------------------------------------
+- Usa ACTOR_SKILLS da cast_system.py per generare skill iniziali
+  e finali degli allievi. Coerente col sistema principale.
+
+
+
+3. MAPPA GENERE -> SKILL
+================================================================================
+
+A. GENRE_SKILL_MAPPING — cast_system.py:81-98 (Attori)
+--------------------------------------------------------------------------------
+  Genere       | Skill rilevanti
+  -------------|------------------------------------------
+  action       | action, physical_acting
+  comedy       | comedy, timing, improvisation
+  drama        | drama, emotional_depth, method_acting
+  horror       | horror, physical_acting
+  sci_fi       | sci_fi, voice_acting
+  romance      | romance, emotional_depth, charisma
+  thriller     | drama, action, emotional_depth
+  animation    | voice_acting, comedy, timing
+  documentary  | drama, charisma
+  fantasy      | drama, action, physical_acting
+  musical      | voice_acting, comedy, timing
+  western      | action, drama, physical_acting
+  war          | drama, action, emotional_depth
+  noir         | drama, emotional_depth
+  adventure    | action, charisma, physical_acting
+  biographical | drama, method_acting, emotional_depth
+
+  Usata in:
+  - calculate_cast_film_bonus() (bonus/malus preview)
+  - auto_fill_cast() (film_pipeline)
+
+
+B. genre_skill_map — emerging_screenplays.py:233 (Sceneggiatori)
+--------------------------------------------------------------------------------
+  Mappa genere -> singola skill dello sceneggiatore (vedi sezione 2).
+
+
+C. Nessuna mappa genere->skill per registi e compositori.
+
+
+
+4. STRUTTURA ATTUALE ATTORI — IL SISTEMA "8 su 13"
+================================================================================
+
+cast_system.py:78 -> SKILLS_PER_MEMBER = 8
+
+Come funziona (generate_variable_skills, riga 495-525):
+- Pool disponibile: 13 skill per tipo di cast
+- Ogni membro riceve esattamente 8 skill (scelte casualmente dal pool di 13)
+- Valori: 0-100 con distribuzione realistica:
+    0.5% near-zero (1-5)
+    4.5% very low (6-20)
+    10%  low (21-35)
+    25%  below average (36-50)
+    30%  average (51-65)
+    18%  good (66-80)
+    8%   very good (81-90)
+    4%   excellent (91-100)
+
+Verifica: Il sistema 8 su 13 e' RISPETTATO nella generazione
+(cast_system.py), nella scuola di recitazione (acting_school.py),
+e nel pool people.
+
+ECCEZIONE CRITICA: La scuola di recitazione (acting_school.py:79-92)
+genera final_skills con TUTTE le 13 skill, non 8:
+
+    def generate_final_skills(hidden_talent):
+        all_skills = list(ACTOR_SKILLS.keys())
+        skills = {}
+        for skill in all_skills:  # <-- TUTTE le 13!
+            ...
+        return skills
+
+Un attore che esce dalla scuola ha 13 skill, non 8.
+Questo VIOLA il sistema "8 su 13".
+
+
+
+5. INCONGRUENZE TROVATE
+================================================================================
+
+#1 — CRITICA: Due sistemi di skill attori completamente separati
+--------------------------------------------------------------------------------
+ACTOR_SKILLS (13 skill codificate: drama, comedy...) in cast_system.py
+vs
+ACTOR_SKILL_NAMES (10 skill inglesi: Acting, Emotional Range...)
+in casting_agency.py.
+
+Gli attori nella collection 'people' hanno le prime,
+gli attori in 'agency_actors' hanno le seconde.
+SONO INCOMPATIBILI.
+
+
+#2 — ALTA: Scuola di recitazione viola 8/13
+--------------------------------------------------------------------------------
+generate_final_skills() genera tutte 13 skill.
+Attori diplomati hanno 13 skill, non 8.
+
+
+#3 — MEDIA: Skill non usate individualmente nei film
+--------------------------------------------------------------------------------
+La qualita' del film usa solo avg(skills).
+Le skill individuali servono solo per il bonus/malus
+dell'anteprima (cast/bonus-preview), ma NON nel calcolo
+effettivo della qualita' (calculate_quality_score).
+
+
+#4 — MEDIA: Nessuna mappa genere->skill per registi e compositori
+--------------------------------------------------------------------------------
+Solo gli attori hanno GENRE_SKILL_MAPPING.
+Registi e compositori sono valutati solo sulla media totale,
+indipendentemente dal genere del film.
+
+
+#5 — ALTA: Serie pipeline usa skill dell'agenzia
+--------------------------------------------------------------------------------
+series_pipeline.py:807 importa generate_full_skills e
+ACTOR_SKILL_NAMES dall'agenzia, generando attori con il
+sistema delle 10 skill inglesi, incompatibile con attori
+da 'people' che usano le 13 skill codificate.
+
+
+#6 — ALTA: Licenziamento attore agenzia -> pool globale senza conversione
+--------------------------------------------------------------------------------
+fire_actor() in casting_agency.py:367-386 copia le skill
+dell'attore nel pool 'people' SENZA CONVERTIRE da
+ACTOR_SKILL_NAMES a ACTOR_SKILLS.
+L'attore finisce nel pool globale con skill tipo
+{'Acting': 65} invece di {'drama': 65}.
+
+
+#7 — BASSA: CHALLENGE_SKILLS disconnesse dal cast
+--------------------------------------------------------------------------------
+Le 8 skill dei challenge sono derivate da metriche del film,
+non dalle skill dei cast member.
+Design probabilmente voluto, ma opaco.
+
+
+================================================================================
+  FINE REPORT
+================================================================================

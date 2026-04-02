@@ -71,7 +71,7 @@ async def get_my_infrastructure(user: dict = Depends(get_current_user)):
     """Get player's owned infrastructure."""
     infrastructure = await db.infrastructure.find(
         {'owner_id': user['id']},
-        {'_id': 0}
+        {'_id': 0, 'films_showing': 0, 'tour_reviews': 0, 'revenue_history': 0, 'attendance_history': 0}
     ).to_list(100)
     
     # Group by type

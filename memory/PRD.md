@@ -45,6 +45,8 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 - **PERFORMANCE FIX (CineBoard)**: Ottimizzati `cineboard/now-playing` e `cineboard/hall-of-fame` in `routes/dashboard.py`. Aggiunta projection mirata (esclusi `daily_revenues` 63KB, `attendance_history` 21KB, `cast`, `screenplay`, `ai_interactions`, `hourly_revenues`, `cinema_distribution` per film). Rimosso `liked_by` dalla projection principale, sostituito con query parallela via `asyncio.gather`. Aggiunta cache TTL 60s per hall-of-fame. Aggiunti indici MongoDB `(status, cineboard_score)` e `liked_by`. Rimosso dead code (codice duplicato) alla fine di dashboard.py. **now-playing: 65.5s → 1.2s (53x)**, **hall-of-fame: 101.6s → 1.2s (85x)**. (2026-04-02)
 
+- **MODULARIZATION Step 11 (Premiere/Tour)**: Moved 8 endpoints from server.py → routes/premiere.py (new). Includes: /premiere/invite, /premiere/invites, /premiere/view/{invite_id}, /tour/featured, /tour/cinema/{cinema_id}, /tour/cinema/{cinema_id}/visit, /tour/cinema/{cinema_id}/review, /tour/my-visits. Also moved: PremierInviteRequest model. Dependencies: INFRASTRUCTURE_TYPES, calculate_tour_rating from game_systems. Old code commented out. (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB

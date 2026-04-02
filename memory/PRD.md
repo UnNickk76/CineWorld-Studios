@@ -27,7 +27,7 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - DB_NAME=cineworld (default "test" in database.py)
 - JWT_SECRET=cineworld-studio-secret-key-2024-secure
 
-## Completed (this session)
+## Completed
 - [2026-04-01] Production data extraction (13 users, 110 films, 86 posters, festivals, challenges, etc.)
 - [2026-04-01] Infrastructure recovery: NeoMorpheus 12 items, Emilians 7 items, TV stations, series
 - [2026-04-01] Admin export endpoint: GET /api/admin/export-db
@@ -39,13 +39,14 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - [2026-04-01] SagasSeriesPage: poster thumbnails + "Rigenera Locandina" buttons
 - [2026-04-01] uploads directory: os.makedirs at server start + StaticFiles mount
 - [2026-04-01] Production loop fix: finalize_production, release_production, prevent_series_loop utilities
-- [2026-04-01] database.py: connection timeouts (2s), clean config
+- [2026-04-01] database.py: clean config, no strict timeouts
 - [2026-04-01] auth login: bcrypt.checkpw direct + error logging
+- [2026-04-02] **LOGIN FIX**: Root cause was 2.7MB base64 avatar stored in user document. Login response was 2.7MB taking 29s (axios 12s timeout = ERR_ABORTED). Fix: persist_base64_avatar() converts base64 to file in /uploads/avatars/, updates DB. Login now returns 990 bytes in 0.7s. Also fixed avatar generation to save directly to file.
 
 ## Upcoming (P1)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
 
 ## Backlog (P2+)
-- Contest Page mobile layout (broken, recurrence 13+)
+- Contest Page mobile layout (broken, recurrence 14+)
 - Velion features, CinePass+Stripe, Push notifications, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory

@@ -23,6 +23,35 @@ from models import (
 )
 from pydantic import BaseModel
 
+
+async def persist_base64_avatar(user_dict: dict) -> str:
+    """If avatar_url is a base64 data URI, save to file and return the file URL.
+    Also updates the DB so this conversion only happens once."""
+    avatar_url = user_dict.get('avatar_url', '') or ''
+    if not avatar_url.startswith('data:image'):
+        return avatar_url
+    try:
+        header, b64data = avatar_url.split(',', 1)
+        ext = 'png'
+        if 'jpeg' in header or 'jpg' in header:
+            ext = 'jpg'
+        elif 'webp' in header:
+            ext = 'webp'
+        avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
+        os.makedirs(avatar_dir, exist_ok=True)
+        filename = f"{user_dict.get('id', uuid.uuid4().hex)}.{ext}"
+        filepath = os.path.join(avatar_dir, filename)
+        raw = base64.b64decode(b64data)
+        with open(filepath, 'wb') as f:
+            f.write(raw)
+        file_url = f"/uploads/avatars/{filename}"
+        await db.users.update_one({'id': user_dict['id']}, {'$set': {'avatar_url': file_url}})
+        logging.info(f"Converted base64 avatar to file for user {user_dict.get('nickname')}: {file_url}")
+        return file_url
+    except Exception as e:
+        logging.error(f"Failed to persist base64 avatar: {e}")
+        return avatar_url
+
 router = APIRouter()
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
@@ -132,6 +161,10 @@ async def login(credentials: UserLogin):
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
+        
+        # Persist base64 avatar to file if needed (prevents 2MB+ responses)
+        avatar_url = await persist_base64_avatar(user)
+        user['avatar_url'] = avatar_url
         
         # Build safe user response - ensure all required fields have defaults
         safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
@@ -314,6 +347,10 @@ async def get_me(user: dict = Depends(get_current_user)):
         if cinepass_bonus > 0:
             user['cinepass'] = user.get('cinepass', 0) + cinepass_bonus
         
+        # Persist base64 avatar to file if needed
+        avatar_url = await persist_base64_avatar(user)
+        user['avatar_url'] = avatar_url
+        
         safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
         safe_fields.setdefault('production_house_name', 'My Studio')
         safe_fields.setdefault('owner_name', user.get('nickname', 'Player'))
@@ -493,9 +530,15 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
         images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
         
         if images and len(images) > 0:
-            image_base64 = base64.b64encode(images[0]).decode('utf-8')
-            avatar_url = f"data:image/png;base64,{image_base64}"
-            return {'avatar_url': avatar_url, 'prompt': prompt}
+            # Save directly to file instead of returning huge base64
+            avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
+            os.makedirs(avatar_dir, exist_ok=True)
+            filename = f"{user['id']}.png"
+            filepath = os.path.join(avatar_dir, filename)
+            with open(filepath, 'wb') as f:
+                f.write(images[0])
+            file_url = f"/uploads/avatars/{filename}"
+            return {'avatar_url': file_url, 'prompt': prompt}
         else:
             raise HTTPException(status_code=500, detail="Failed to generate avatar")
     except Exception as e:

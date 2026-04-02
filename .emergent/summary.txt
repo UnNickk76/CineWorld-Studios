@@ -1,23 +1,23 @@
 <analysis>**original_problem_statement**: 
-The user originally needed to migrate production data to MongoDB Atlas and fix a frontend login bug ( due to timeouts). After successfully fixing the login bug (by converting heavy 2.7MB base64 avatars to disk files), fixing dashboard timeouts (using MongoDB projections to exclude heavy fields), and optimizing Atlas storage (reducing from 318MB to 77MB by deleting unused databases and compacting collections), the user requested a **gradual, step-by-step modularization of **.
+The user requested a **gradual, step-by-step modularization of **.
 PRODUCT REQUIREMENTS: 
 Modularize  into dedicated files inside  safely. Follow a strict ONE STEP AT A TIME rule. Move endpoints, comment out the old ones in , test, and wait for explicit user confirmation before proceeding to the next group. Do NOT use the testing agent (to save credits).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-A full-stack React + FastAPI application. The backend database and login flow have been highly optimized (response times dropped from >30s to <1s). The backend entry point () is currently very bloated (~315 endpoints) and is actively undergoing a strict step-by-step refactoring process to move routes into the  directory.
+A full-stack React + FastAPI application. The backend  is undergoing a massive, strict step-by-step refactoring process to move routes into the  directory. Steps 1 through 6 have been successfully completed (moving Cast, Film Drafts, Series, Users/Chat, Festivals, and Challenges). Step 7 (AI/Poster/Trailer) is currently underway.
 
 **Last working item**: 
-    - Last item agent was working: Step 1 of the  modularization process. Specifically, the agent was instructed to move the **Cast/People** group (23 endpoints such as , ) into a new file . 
+    - Last item agent was working: Step 7 of the  modularization process. Specifically, the agent was instructed to move the **AI / Poster / Trailer** group (16 endpoints) into a new file . 
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use?: manual testing by curl and frontend screenshot tool (Do NOT use testing subagent).
+    - Which testing method agent to use?: manual testing by curl (Do NOT use testing subagent).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
   Issue 1: 20 film posters are missing/returning 404 (P1)
-     - Attempted fixes: Successfully synced 4 TV series posters from the  server, but discovered 20 film posters do not exist on the  server either.
+     - Attempted fixes: Investigated in previous sessions, posters must be regenerated via AI.
      - Next debug checklist: Inform the user that they must be regenerated via the AI generation feature.
      - Why fix this issue and what will be achieved with the fix?: Restores missing UI assets for legacy films.
      - Status: USER VERIFICATION PENDING
@@ -25,16 +25,16 @@ A full-stack React + FastAPI application. The backend database and login flow ha
      - Should Test frontend/backend/both after fix?: Both
 
 **In progress Task List**: 
-  Task 1: Modularize Cast/People endpoints from  to  (P0)
-     - Where to resume: Create . Define . Move the 23 Cast/People endpoints from  into this new file, changing  to . In , add  and . **COMMENT OUT** (do not delete) the old endpoints in .
-     - What will be achieved with this?: First safe step in breaking down the massive  file without breaking functionality.
+  Task 1: Modularize AI/Poster/Trailer endpoints from  to  (P0)
+     - Where to resume: Create . Define . Move the 16 AI/Poster/Trailer endpoints and their corresponding Pydantic models (, , , ) from  into this new file, changing  to . **CRITICAL**: Ensure  and all OpenAI/integration imports are copied to . In , add  and . **COMMENT OUT** (do not delete) the old endpoints in .
+     - What will be achieved with this?: Step 7 of the  modularization without breaking AI functionality.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix?: Both (Test via curl and screenshot of the cast/agency page).
+     - Should Test frontend/backend/both after fix?: Backend (Test via curl).
      - Blocked on something: None.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Modularize the remaining ~290 endpoints in  (ONLY proceed group by group after user approval).
+    - (P1) Modularize the remaining ~150-175 endpoints in  (ONLY proceed group by group after user approval).
     - (P1) Sistema Previsioni Festival (Betting on festival winners).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
@@ -42,10 +42,12 @@ A full-stack React + FastAPI application. The backend database and login flow ha
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Converted Base64 avatars to physical disk files to fix  login timeouts (DONE)
-- Excluded heavy fields (, , etc.) from  and  using MongoDB projection, dropping response times from 53s to 0.8s (DONE)
-- Removed  from  to fix deploy conflicts with  (DONE)
-- Compacted MongoDB Atlas collections and dropped unused databases (, , ), reducing storage from 318MB to 77MB (DONE)
+- Modularizzazione Step 1: Cast/People →  (DONE)
+- Modularizzazione Step 2: Film Drafts & Pre-Films →  (DONE)
+- Modularizzazione Step 3: Series/Saga →  (DONE)
+- Modularizzazione Step 4: Users/Chat/Social → , ,  (DONE)
+- Modularizzazione Step 5: Festivals →  (DONE)
+- Modularizzazione Step 6: Challenges/PVP →  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -60,23 +62,30 @@ None.
 
 **Key Technical Concepts**
 - Full-stack React + FastAPI application.
-- SWR for React data fetching (aggressive caching/prefetching).
-- MongoDB Atlas (Highly optimized projections).
-- Static file serving for images to bypass Base64 DB bloat.
+- SWR for React data fetching.
+- MongoDB Atlas.
 
 **key DB schema**
   - : 
   - : 
-  - : Compressed image storage in DB.
+  - : 
+  - : 
 
 **changes in tech stack**
-  -  dependency has been strictly removed. Only standard  is used for auth.
-  - Image handling now prefers saving to disk (, ) and serving static URLs.
+  - Continuous backend architectural shift from monolithic  to router-based modularization. 
 
 **All files of reference**
-  -  (Source of endpoints to move)
+  -  
   -  (Target file to create)
-  -  (To be kept updated)
+  -  (Updated)
+  -  (Updated)
+  -  (Updated)
+  -  (Created)
+  -  (Created)
+  -  (Updated)
+  -  (Created)
+  -  (Created)
+  -  (Updated after each step)
 
 **Areas that need refactoring**
   -  (Actively being refactored right now).
@@ -84,30 +93,32 @@ None.
 **key api endpoints**
   - 
   - 
+  - 
 
 **Critical Info for New Agent**
   - **Language**: You MUST respond in Italian.
-  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  and  instead.
-  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead**. You must only move the Cast/People endpoints (23 endpoints) to  right now. After moving them, you must **comment out** the old code in , test it, summarize the result, and explicitly ask the user if they want to proceed to the next group. Do not delete the commented code yet.
+  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  instead.
+  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead**. You must only move the AI / Poster / Trailer endpoints to  right now. Watch out for  imports, Pydantic models, and the  variable which MUST be ported over to the new file so OpenAI generations do not break.
   - **Env Load**: Avoid messing with  overrides as it breaks the emergent deployment environment.
 
 **documents and test reports created in this job**
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. User: Asked if doing 3 database maintenance actions (compacting, dropping duplicates) was safe and cost 0 credits.
-2. Agent: Executed the compact scripts and deleted 4 unused DBs. Fixed a JWT  bug.
-3. User: Pointed out Atlas still showed 316MB.
-4. Agent: Dropped , ,  DBs to reduce storage to 77MB.
-5. User: Verified it worked and asked if databases were globally synced.
-6. Agent: Confirmed DB is globally synced in real-time, but code deployments are separate.
-7. User: Instructed the agent to start modularizing  safely, group by group. Asked for an inventory first.
-8. Agent: Generated a list of all 315 endpoints remaining in .
-9. User: Ordered the agent to start ONLY with the Cast/People (23 endpoints). Described strict step-by-step rules: move to , comment out originals, add router to , deploy, test, stop, and wait for confirmation.
-*Pending Human Action*: None. The agent must execute the Cast/People migration.
+1. User: Step 4 - Move Users/Chat/Social (26 endpoints).
+2. Agent: Extracted 26 endpoints into 3 files. Tested successfully.
+3. User: Step 5 - Move Festivals (23 endpoints).
+4. Agent: Extracted 35 endpoints (including custom) to . Fixed missing  import. Tested successfully.
+5. User: Step 5 - Move Festivals (Accidental duplicate message).
+6. Agent: Informed user Step 5 is already done, asked for the next group.
+7. User: Step 6 - Move Challenges/PVP (19 endpoints).
+8. Agent: Extracted 22 endpoints to . Fixed missing constants (). Tested successfully.
+9. User: Step 7 - Move AI / Poster / Trailer (16 endpoints) to . Make sure  and config are correctly copied.
+10. Agent: Started finding AI endpoints, but was interrupted before writing .
+*Pending Human Action*: None. The agent must execute the AI / Poster / Trailer migration.
 
 **Project Health Check:**
-- Functional, currently undergoing major architectural refactoring.
+- Functional, actively undergoing major architectural refactoring (monolith teardown).
 
 **3rd Party Integrations**
   - OpenAI GPT-4o-mini (Text Generation) — uses Emergent LLM Key
@@ -125,17 +136,19 @@ None.
   - Admin Test:  / 
 
 **What agent forgot to execute**
-The agent was directly interrupted before it could write the code to create  and move the 23 Cast/People endpoints out of .
+The agent was directly interrupted before it could write the code to create  and move the 16 AI endpoints out of .
 
 **Debugging checklist for current issue**
-    Task: Move Cast/People endpoints from  to .
+    Task: Move AI / Poster / Trailer endpoints from  to .
     Backend files to check: 
-    -  (Locate , , and related cast endpoints).
+    -  
     -  (Create this file).
     Steps:
-    1. Extract the 23 endpoints.
-    2. Add necessary imports to  (, , , , , etc.).
-    3. Update decorators to .
-    4. Comment out the original blocks in .
-    5. Import and include  in .
-    6. Test via  to ensure  still returns 200.</analysis>
+    1. Extract the 16 AI endpoints (e.g., , , , ).
+    2. Extract the related models (, , , ).
+    3. Create  with .
+    4. **CRITICAL**: Add  and  to .
+    5. Update decorators to .
+    6. Comment out the original blocks and models in .
+    7. Add  and  in .
+    8. Test via  to ensure  or similar endpoints still return 200.</analysis>

@@ -4502,266 +4502,266 @@ async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
     result.sort(key=lambda x: x['total_revenue'], reverse=True)
     return {'films': result}
 
-# ==================== SAGAS & TV SERIES ====================
-
-SAGA_REQUIRED_LEVEL = 15
-SAGA_REQUIRED_FAME = 100
-SERIES_REQUIRED_LEVEL = 20
-SERIES_REQUIRED_FAME = 200
-ANIME_REQUIRED_LEVEL = 25
-ANIME_REQUIRED_FAME = 300
-
-class CreateSequelRequest(BaseModel):
-    original_film_id: str
-    title: str
-    screenplay: str
-    screenplay_source: str = 'manual'
-
-class CreateSeriesRequest(BaseModel):
-    title: str
-    genre: str
-    episodes_count: int = 10
-    episode_length: int = 45  # minutes
-    synopsis: str
-    series_type: str = 'tv_series'  # tv_series or anime
-
-@api_router.get("/saga/can-create")
-async def can_create_saga(user: dict = Depends(get_current_user)):
-    """Check if user meets requirements to create sagas/sequels."""
-    level_info = get_level_from_xp(user.get('total_xp', 0))
-    fame = user.get('fame', 0)
-    
-    can_create = level_info['level'] >= SAGA_REQUIRED_LEVEL and fame >= SAGA_REQUIRED_FAME
-    
-    return {
-        'can_create': can_create,
-        'required_level': SAGA_REQUIRED_LEVEL,
-        'required_fame': SAGA_REQUIRED_FAME,
-        'current_level': level_info['level'],
-        'current_fame': fame
-    }
-
-@api_router.get("/films/{film_id}/can-create-sequel")
-async def can_create_sequel(film_id: str, user: dict = Depends(get_current_user)):
-    """Check if user can create a sequel for this film."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
-    
-    level_info = get_level_from_xp(user.get('total_xp', 0))
-    fame = user.get('fame', 0)
-    
-    # Count existing sequels
-    existing_sequels = await db.films.count_documents({'saga_parent_id': film_id})
-    
-    can_create = (
-        level_info['level'] >= SAGA_REQUIRED_LEVEL and 
-        fame >= SAGA_REQUIRED_FAME and
-        existing_sequels < 5  # Max 5 sequels per saga
-    )
-    
-    return {
-        'can_create': can_create,
-        'required_level': SAGA_REQUIRED_LEVEL,
-        'required_fame': SAGA_REQUIRED_FAME,
-        'current_level': level_info['level'],
-        'current_fame': fame,
-        'existing_sequels': existing_sequels,
-        'max_sequels': 5
-    }
-
-@api_router.post("/films/{film_id}/create-sequel")
-async def create_sequel(film_id: str, request: CreateSequelRequest, user: dict = Depends(get_current_user)):
-    """Create a sequel to an existing film (part of a saga)."""
-    original = await db.films.find_one({'id': film_id, 'user_id': user['id']})
-    if not original:
-        raise HTTPException(status_code=404, detail="Film originale non trovato")
-    
-    level_info = get_level_from_xp(user.get('total_xp', 0))
-    fame = user.get('fame', 0)
-    
-    if level_info['level'] < SAGA_REQUIRED_LEVEL:
-        raise HTTPException(status_code=403, detail=f"Richiesto livello {SAGA_REQUIRED_LEVEL}")
-    if fame < SAGA_REQUIRED_FAME:
-        raise HTTPException(status_code=403, detail=f"Richiesta fama {SAGA_REQUIRED_FAME}")
-    
-    # Count sequels
-    sequel_number = await db.films.count_documents({'saga_parent_id': film_id}) + 2
-    if sequel_number > 6:
-        raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
-    
-    # Create sequel with inherited properties and bonus
-    quality_bonus = min(20, original.get('quality_score', 50) * 0.2)  # 20% of original quality as bonus
-    
-    sequel = {
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'title': request.title,
-        'genre': original['genre'],
-        'subgenres': original.get('subgenres', []),
-        'release_date': datetime.now(timezone.utc).isoformat(),
-        'weeks_in_theater': 2,  # Reduced from 4 to ~17 days (40% less)
-        'actual_weeks_in_theater': 0,
-        'sponsor': original.get('sponsor'),
-        'equipment_package': original.get('equipment_package'),
-        'locations': original.get('locations', []),
-        'screenwriter': original.get('screenwriter'),
-        'director': original.get('director'),
-        'cast': original.get('cast', []),
-        'extras_count': original.get('extras_count', 0),
-        'screenplay': request.screenplay,
-        'screenplay_source': request.screenplay_source,
-        'poster_url': original.get('poster_url'),
-        'total_budget': int(original.get('total_budget', 1000000) * 1.2),  # 20% more budget
-        'status': 'in_theaters',
-        'quality_score': min(100, original.get('quality_score', 50) + quality_bonus),
-        'audience_satisfaction': 50 + random.randint(-5, 15),
-        'likes_count': 0,
-        'box_office': {},
-        'daily_revenues': [],
-        'opening_day_revenue': 0,
-        'total_revenue': 0,
-        # Saga fields
-        'is_sequel': True,
-        'saga_parent_id': film_id,
-        'saga_number': sequel_number,
-        'saga_title': f"{original['title']} Saga",
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Calculate opening revenue
-    base_revenue = 1000
-    quality_multiplier = sequel['quality_score'] ** 1.5
-    saga_bonus = 1.3  # 30% bonus for sequels
-    sequel['opening_day_revenue'] = int(base_revenue * quality_multiplier * saga_bonus * random.uniform(0.8, 1.2))
-    sequel['total_revenue'] = sequel['opening_day_revenue']
-    
-    await db.films.insert_one(sequel)
-    
-    # Update original as saga parent
-    await db.films.update_one(
-        {'id': film_id},
-        {'$set': {'is_saga_parent': True, 'saga_title': f"{original['title']} Saga"}}
-    )
-    
-    # Award XP
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'total_xp': 150, 'funds': -sequel['total_budget']}}
-    )
-    
-    return {'success': True, 'sequel_id': sequel['id'], 'saga_number': sequel_number}
-
-@api_router.get("/series/can-create")
-async def can_create_series(series_type: str = 'tv_series', user: dict = Depends(get_current_user)):
-    """Check if user can create a TV series or anime."""
-    level_info = get_level_from_xp(user.get('total_xp', 0))
-    fame = user.get('fame', 0)
-    
-    if series_type == 'anime':
-        required_level = ANIME_REQUIRED_LEVEL
-        required_fame = ANIME_REQUIRED_FAME
-    else:
-        required_level = SERIES_REQUIRED_LEVEL
-        required_fame = SERIES_REQUIRED_FAME
-    
-    return {
-        'can_create': level_info['level'] >= required_level and fame >= required_fame,
-        'required_level': required_level,
-        'required_fame': required_fame,
-        'current_level': level_info['level'],
-        'current_fame': fame,
-        'series_type': series_type
-    }
-
-@api_router.post("/series/create")
-async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
-    """Create a TV series or anime."""
-    level_info = get_level_from_xp(user.get('total_xp', 0))
-    fame = user.get('fame', 0)
-    
-    if request.series_type == 'anime':
-        required_level = ANIME_REQUIRED_LEVEL
-        required_fame = ANIME_REQUIRED_FAME
-    else:
-        required_level = SERIES_REQUIRED_LEVEL
-        required_fame = SERIES_REQUIRED_FAME
-    
-    if level_info['level'] < required_level:
-        raise HTTPException(status_code=403, detail=f"Richiesto livello {required_level}")
-    if fame < required_fame:
-        raise HTTPException(status_code=403, detail=f"Richiesta fama {required_fame}")
-    
-    # Calculate budget
-    episode_cost = 50000 if request.series_type == 'tv_series' else 30000  # Anime cheaper per episode
-    total_budget = episode_cost * request.episodes_count
-    
-    if user.get('funds', 0) < total_budget:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_budget:,}")
-    
-    series = {
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'title': request.title,
-        'genre': request.genre,
-        'series_type': request.series_type,
-        'episodes_count': request.episodes_count,
-        'episode_length': request.episode_length,
-        'synopsis': request.synopsis,
-        'status': 'in_production',
-        'quality_score': random.randint(40, 80),
-        'total_budget': total_budget,
-        'total_revenue': 0,
-        'likes_count': 0,
-        'episodes_released': 0,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.series.insert_one(series)
-    
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'total_xp': 200, 'funds': -total_budget}}
-    )
-    
-    return {'success': True, 'series_id': series['id'], 'budget': total_budget}
-
-@api_router.get("/series/my")
-async def get_my_series(user: dict = Depends(get_current_user)):
-    """Get user's TV series and anime."""
-    series = await db.tv_series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
-    return {'series': series}
-
-@api_router.get("/series/{series_id}")
-async def get_series_detail(series_id: str, user: dict = Depends(get_current_user)):
-    """Get a single series/anime detail. Accessible by any authenticated user."""
-    series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
-    if not series:
-        raise HTTPException(status_code=404, detail="Serie non trovata")
-    
-    series.setdefault('poster_url', None)
-    series.setdefault('cast', [])
-    series.setdefault('quality_score', 0)
-    series.setdefault('total_revenue', 0)
-    series.setdefault('audience', 0)
-    series.setdefault('audience_rating', 0)
-    series.setdefault('audience_comments', [])
-    series.setdefault('release_event', None)
-    series.setdefault('quality_breakdown', {})
-    series.setdefault('num_episodes', 0)
-    series.setdefault('description', '')
-    series.setdefault('genre_name', series.get('genre', ''))
-    series.setdefault('season_number', 1)
-    series.setdefault('production_cost', 0)
-    series.setdefault('cast_total_salary', 0)
-    series.setdefault('screenplay', None)
-    
-    # Get owner info
-    owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
-    series['owner'] = owner
-    
-    return series
-
+# [MOVED TO routes/series_pipeline.py] Sagas & TV Series (8 endpoints + constants + models)
+# Original code commented out below
+# [MOVED] SAGA_REQUIRED_LEVEL = 15
+# [MOVED] SAGA_REQUIRED_FAME = 100
+# [MOVED] SERIES_REQUIRED_LEVEL = 20
+# [MOVED] SERIES_REQUIRED_FAME = 200
+# [MOVED] ANIME_REQUIRED_LEVEL = 25
+# [MOVED] ANIME_REQUIRED_FAME = 300
+# [MOVED] 
+# [MOVED] class CreateSequelRequest(BaseModel):
+# [MOVED]     original_film_id: str
+# [MOVED]     title: str
+# [MOVED]     screenplay: str
+# [MOVED]     screenplay_source: str = 'manual'
+# [MOVED] 
+# [MOVED] class CreateSeriesRequest(BaseModel):
+# [MOVED]     title: str
+# [MOVED]     genre: str
+# [MOVED]     episodes_count: int = 10
+# [MOVED]     episode_length: int = 45  # minutes
+# [MOVED]     synopsis: str
+# [MOVED]     series_type: str = 'tv_series'  # tv_series or anime
+# [MOVED] 
+# [MOVED] @api_router.get("/saga/can-create")
+# [MOVED] async def can_create_saga(user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if user meets requirements to create sagas/sequels."""
+# [MOVED]     level_info = get_level_from_xp(user.get('total_xp', 0))
+# [MOVED]     fame = user.get('fame', 0)
+# [MOVED]     
+# [MOVED]     can_create = level_info['level'] >= SAGA_REQUIRED_LEVEL and fame >= SAGA_REQUIRED_FAME
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'can_create': can_create,
+# [MOVED]         'required_level': SAGA_REQUIRED_LEVEL,
+# [MOVED]         'required_fame': SAGA_REQUIRED_FAME,
+# [MOVED]         'current_level': level_info['level'],
+# [MOVED]         'current_fame': fame
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/films/{film_id}/can-create-sequel")
+# [MOVED] async def can_create_sequel(film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if user can create a sequel for this film."""
+# [MOVED]     film = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film non trovato")
+# [MOVED]     
+# [MOVED]     level_info = get_level_from_xp(user.get('total_xp', 0))
+# [MOVED]     fame = user.get('fame', 0)
+# [MOVED]     
+# [MOVED]     # Count existing sequels
+# [MOVED]     existing_sequels = await db.films.count_documents({'saga_parent_id': film_id})
+# [MOVED]     
+# [MOVED]     can_create = (
+# [MOVED]         level_info['level'] >= SAGA_REQUIRED_LEVEL and 
+# [MOVED]         fame >= SAGA_REQUIRED_FAME and
+# [MOVED]         existing_sequels < 5  # Max 5 sequels per saga
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'can_create': can_create,
+# [MOVED]         'required_level': SAGA_REQUIRED_LEVEL,
+# [MOVED]         'required_fame': SAGA_REQUIRED_FAME,
+# [MOVED]         'current_level': level_info['level'],
+# [MOVED]         'current_fame': fame,
+# [MOVED]         'existing_sequels': existing_sequels,
+# [MOVED]         'max_sequels': 5
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/films/{film_id}/create-sequel")
+# [MOVED] async def create_sequel(film_id: str, request: CreateSequelRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Create a sequel to an existing film (part of a saga)."""
+# [MOVED]     original = await db.films.find_one({'id': film_id, 'user_id': user['id']})
+# [MOVED]     if not original:
+# [MOVED]         raise HTTPException(status_code=404, detail="Film originale non trovato")
+# [MOVED]     
+# [MOVED]     level_info = get_level_from_xp(user.get('total_xp', 0))
+# [MOVED]     fame = user.get('fame', 0)
+# [MOVED]     
+# [MOVED]     if level_info['level'] < SAGA_REQUIRED_LEVEL:
+# [MOVED]         raise HTTPException(status_code=403, detail=f"Richiesto livello {SAGA_REQUIRED_LEVEL}")
+# [MOVED]     if fame < SAGA_REQUIRED_FAME:
+# [MOVED]         raise HTTPException(status_code=403, detail=f"Richiesta fama {SAGA_REQUIRED_FAME}")
+# [MOVED]     
+# [MOVED]     # Count sequels
+# [MOVED]     sequel_number = await db.films.count_documents({'saga_parent_id': film_id}) + 2
+# [MOVED]     if sequel_number > 6:
+# [MOVED]         raise HTTPException(status_code=400, detail="Massimo 5 sequel per saga")
+# [MOVED]     
+# [MOVED]     # Create sequel with inherited properties and bonus
+# [MOVED]     quality_bonus = min(20, original.get('quality_score', 50) * 0.2)  # 20% of original quality as bonus
+# [MOVED]     
+# [MOVED]     sequel = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': request.title,
+# [MOVED]         'genre': original['genre'],
+# [MOVED]         'subgenres': original.get('subgenres', []),
+# [MOVED]         'release_date': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'weeks_in_theater': 2,  # Reduced from 4 to ~17 days (40% less)
+# [MOVED]         'actual_weeks_in_theater': 0,
+# [MOVED]         'sponsor': original.get('sponsor'),
+# [MOVED]         'equipment_package': original.get('equipment_package'),
+# [MOVED]         'locations': original.get('locations', []),
+# [MOVED]         'screenwriter': original.get('screenwriter'),
+# [MOVED]         'director': original.get('director'),
+# [MOVED]         'cast': original.get('cast', []),
+# [MOVED]         'extras_count': original.get('extras_count', 0),
+# [MOVED]         'screenplay': request.screenplay,
+# [MOVED]         'screenplay_source': request.screenplay_source,
+# [MOVED]         'poster_url': original.get('poster_url'),
+# [MOVED]         'total_budget': int(original.get('total_budget', 1000000) * 1.2),  # 20% more budget
+# [MOVED]         'status': 'in_theaters',
+# [MOVED]         'quality_score': min(100, original.get('quality_score', 50) + quality_bonus),
+# [MOVED]         'audience_satisfaction': 50 + random.randint(-5, 15),
+# [MOVED]         'likes_count': 0,
+# [MOVED]         'box_office': {},
+# [MOVED]         'daily_revenues': [],
+# [MOVED]         'opening_day_revenue': 0,
+# [MOVED]         'total_revenue': 0,
+# [MOVED]         # Saga fields
+# [MOVED]         'is_sequel': True,
+# [MOVED]         'saga_parent_id': film_id,
+# [MOVED]         'saga_number': sequel_number,
+# [MOVED]         'saga_title': f"{original['title']} Saga",
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     # Calculate opening revenue
+# [MOVED]     base_revenue = 1000
+# [MOVED]     quality_multiplier = sequel['quality_score'] ** 1.5
+# [MOVED]     saga_bonus = 1.3  # 30% bonus for sequels
+# [MOVED]     sequel['opening_day_revenue'] = int(base_revenue * quality_multiplier * saga_bonus * random.uniform(0.8, 1.2))
+# [MOVED]     sequel['total_revenue'] = sequel['opening_day_revenue']
+# [MOVED]     
+# [MOVED]     await db.films.insert_one(sequel)
+# [MOVED]     
+# [MOVED]     # Update original as saga parent
+# [MOVED]     await db.films.update_one(
+# [MOVED]         {'id': film_id},
+# [MOVED]         {'$set': {'is_saga_parent': True, 'saga_title': f"{original['title']} Saga"}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # Award XP
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'total_xp': 150, 'funds': -sequel['total_budget']}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {'success': True, 'sequel_id': sequel['id'], 'saga_number': sequel_number}
+# [MOVED] 
+# [MOVED] @api_router.get("/series/can-create")
+# [MOVED] async def can_create_series(series_type: str = 'tv_series', user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if user can create a TV series or anime."""
+# [MOVED]     level_info = get_level_from_xp(user.get('total_xp', 0))
+# [MOVED]     fame = user.get('fame', 0)
+# [MOVED]     
+# [MOVED]     if series_type == 'anime':
+# [MOVED]         required_level = ANIME_REQUIRED_LEVEL
+# [MOVED]         required_fame = ANIME_REQUIRED_FAME
+# [MOVED]     else:
+# [MOVED]         required_level = SERIES_REQUIRED_LEVEL
+# [MOVED]         required_fame = SERIES_REQUIRED_FAME
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'can_create': level_info['level'] >= required_level and fame >= required_fame,
+# [MOVED]         'required_level': required_level,
+# [MOVED]         'required_fame': required_fame,
+# [MOVED]         'current_level': level_info['level'],
+# [MOVED]         'current_fame': fame,
+# [MOVED]         'series_type': series_type
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/series/create")
+# [MOVED] async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Create a TV series or anime."""
+# [MOVED]     level_info = get_level_from_xp(user.get('total_xp', 0))
+# [MOVED]     fame = user.get('fame', 0)
+# [MOVED]     
+# [MOVED]     if request.series_type == 'anime':
+# [MOVED]         required_level = ANIME_REQUIRED_LEVEL
+# [MOVED]         required_fame = ANIME_REQUIRED_FAME
+# [MOVED]     else:
+# [MOVED]         required_level = SERIES_REQUIRED_LEVEL
+# [MOVED]         required_fame = SERIES_REQUIRED_FAME
+# [MOVED]     
+# [MOVED]     if level_info['level'] < required_level:
+# [MOVED]         raise HTTPException(status_code=403, detail=f"Richiesto livello {required_level}")
+# [MOVED]     if fame < required_fame:
+# [MOVED]         raise HTTPException(status_code=403, detail=f"Richiesta fama {required_fame}")
+# [MOVED]     
+# [MOVED]     # Calculate budget
+# [MOVED]     episode_cost = 50000 if request.series_type == 'tv_series' else 30000  # Anime cheaper per episode
+# [MOVED]     total_budget = episode_cost * request.episodes_count
+# [MOVED]     
+# [MOVED]     if user.get('funds', 0) < total_budget:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${total_budget:,}")
+# [MOVED]     
+# [MOVED]     series = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': request.title,
+# [MOVED]         'genre': request.genre,
+# [MOVED]         'series_type': request.series_type,
+# [MOVED]         'episodes_count': request.episodes_count,
+# [MOVED]         'episode_length': request.episode_length,
+# [MOVED]         'synopsis': request.synopsis,
+# [MOVED]         'status': 'in_production',
+# [MOVED]         'quality_score': random.randint(40, 80),
+# [MOVED]         'total_budget': total_budget,
+# [MOVED]         'total_revenue': 0,
+# [MOVED]         'likes_count': 0,
+# [MOVED]         'episodes_released': 0,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.series.insert_one(series)
+# [MOVED]     
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'total_xp': 200, 'funds': -total_budget}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {'success': True, 'series_id': series['id'], 'budget': total_budget}
+# [MOVED] 
+# [MOVED] @api_router.get("/series/my")
+# [MOVED] async def get_my_series(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get user's TV series and anime."""
+# [MOVED]     series = await db.tv_series.find({'user_id': user['id']}, {'_id': 0}).to_list(50)
+# [MOVED]     return {'series': series}
+# [MOVED] 
+# [MOVED] @api_router.get("/series/{series_id}")
+# [MOVED] async def get_series_detail(series_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get a single series/anime detail. Accessible by any authenticated user."""
+# [MOVED]     series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
+# [MOVED]     if not series:
+# [MOVED]         raise HTTPException(status_code=404, detail="Serie non trovata")
+# [MOVED]     
+# [MOVED]     series.setdefault('poster_url', None)
+# [MOVED]     series.setdefault('cast', [])
+# [MOVED]     series.setdefault('quality_score', 0)
+# [MOVED]     series.setdefault('total_revenue', 0)
+# [MOVED]     series.setdefault('audience', 0)
+# [MOVED]     series.setdefault('audience_rating', 0)
+# [MOVED]     series.setdefault('audience_comments', [])
+# [MOVED]     series.setdefault('release_event', None)
+# [MOVED]     series.setdefault('quality_breakdown', {})
+# [MOVED]     series.setdefault('num_episodes', 0)
+# [MOVED]     series.setdefault('description', '')
+# [MOVED]     series.setdefault('genre_name', series.get('genre', ''))
+# [MOVED]     series.setdefault('season_number', 1)
+# [MOVED]     series.setdefault('production_cost', 0)
+# [MOVED]     series.setdefault('cast_total_salary', 0)
+# [MOVED]     series.setdefault('screenplay', None)
+# [MOVED]     
+# [MOVED]     # Get owner info
+# [MOVED]     owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
+# [MOVED]     series['owner'] = owner
+# [MOVED]     
+# [MOVED]     return series
+# [MOVED] 
 
 # ==================== FILM RANKINGS (CineBoard) ====================
 
@@ -5414,14 +5414,14 @@ async def permanently_delete_film_project(project_id: str, user: dict = Depends(
     return {'message': f'Progetto "{project.get("title", "")}" eliminato definitivamente', 'deleted': True}
 
 
-@api_router.delete("/series/{series_id}/permanent")
-async def permanently_delete_series(series_id: str, user: dict = Depends(get_current_user)):
-    """Permanently delete a TV series or anime. Irreversible."""
-    series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
-    if not series:
-        raise HTTPException(status_code=404, detail="Serie non trovata o non di tua proprieta'")
-    await db.tv_series.delete_one({'id': series_id})
-    return {'message': f'"{series.get("title", "")}" eliminato definitivamente', 'deleted': True}
+# [MOVED] @api_router.delete("/series/{series_id}/permanent")
+# [MOVED] async def permanently_delete_series(series_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Permanently delete a TV series or anime. Irreversible."""
+# [MOVED]     series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+# [MOVED]     if not series:
+# [MOVED]         raise HTTPException(status_code=404, detail="Serie non trovata o non di tua proprieta'")
+# [MOVED]     await db.tv_series.delete_one({'id': series_id})
+# [MOVED]     return {'message': f'"{series.get("title", "")}" eliminato definitivamente', 'deleted': True}
 @api_router.get("/advertising/platforms")
 async def get_ad_platforms():
     """Get available advertising platforms"""

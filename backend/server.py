@@ -1119,75 +1119,12 @@ class FilmCreate(BaseModel):
     # Studio draft system
     studio_draft_id: Optional[str] = None
 
-class FilmDraft(BaseModel):
-    """Model for saving incomplete film drafts."""
-    title: Optional[str] = ""
-    subtitle: Optional[str] = None  # Optional subtitle
-    genre: Optional[str] = ""
-    subgenres: List[str] = []
-    release_date: Optional[str] = ""
-    weeks_in_theater: Optional[int] = 1
-    sponsor_id: Optional[str] = None
-    equipment_package: Optional[str] = ""
-    locations: List[str] = []
-    location_days: Dict[str, int] = {}
-    screenwriter_id: Optional[str] = ""
-    screenwriter_ids: List[str] = []  # Multiple screenwriters (1-5)
-    director_id: Optional[str] = ""
-    actors: List[Dict[str, Any]] = []
-    extras_count: Optional[int] = 0
-    extras_cost: Optional[float] = 0
-    screenplay: Optional[str] = ""
-    screenplay_source: Optional[str] = "original"
-    poster_url: Optional[str] = None
-    poster_prompt: Optional[str] = None
-    ad_duration_seconds: Optional[int] = 0
-    ad_revenue: Optional[float] = 0
-    current_step: int = 1  # Which wizard step the user was on
-    paused_reason: Optional[str] = "paused"  # paused, error, incomplete
-    # Sequel system
-    is_sequel: bool = False
-    sequel_parent_id: Optional[str] = None
-    # Emerging screenplay system
-    emerging_screenplay_id: Optional[str] = None
-    emerging_screenplay: Optional[Dict[str, Any]] = None
-    emerging_option: Optional[str] = None  # 'full_package' or 'screenplay_only'
-
-# ============== PRE-ENGAGEMENT MODELS ==============
-
-class PreFilmCreate(BaseModel):
-    """Model for creating a pre-film (draft with pre-engaged cast)."""
-    title: str
-    subtitle: Optional[str] = None  # Optional subtitle for sequels
-    genre: str
-    screenplay_draft: str  # ~100 chars brief idea
-    # Sequel system
-    is_sequel: bool = False
-    sequel_parent_id: Optional[str] = None  # ID of the original film
-
-class PreEngagementRequest(BaseModel):
-    """Request to pre-engage a cast member."""
-    pre_film_id: str
-    cast_type: str  # screenwriter, director, composer, actor
-    cast_id: str
-    offered_fee: float  # The fee offered for pre-engagement
-
-class RenegotiateRequest(BaseModel):
-    """Request to renegotiate after rejection."""
-    pre_film_id: Optional[str] = None
-    film_id: Optional[str] = None  # For classic film creation
-    cast_type: str
-    cast_id: str
-    new_offer: float
-    negotiation_id: str  # ID of the pending negotiation
-
-class ReleaseCastRequest(BaseModel):
-    """Request to release pre-engaged cast."""
-    pre_film_id: str
-    cast_type: str
-    cast_id: str
-
-# ============== END PRE-ENGAGEMENT MODELS ==============
+# [MOVED TO routes/film_pipeline.py] FilmDraft, PreFilmCreate, PreEngagementRequest, RenegotiateRequest, ReleaseCastRequest models
+# class FilmDraft(BaseModel): ...  # Moved to routes/film_pipeline.py
+# class PreFilmCreate(BaseModel): ...  # Moved to routes/film_pipeline.py
+# class PreEngagementRequest(BaseModel): ...  # Moved to routes/film_pipeline.py
+# class RenegotiateRequest(BaseModel): ...  # Moved to routes/film_pipeline.py (renamed PreFilmNegotiateRequest)
+# class ReleaseCastRequest(BaseModel): ...  # Moved to routes/film_pipeline.py
 
 class FilmResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2601,824 +2538,824 @@ async def perform_skill_boost_action(film_id: str, user: dict = Depends(get_curr
     }
 
 
-# ==================== FILM DRAFTS (INCOMPLETE FILMS) ====================
-
-@api_router.post("/films/drafts")
-async def save_film_draft(draft_data: FilmDraft, user: dict = Depends(get_current_user)):
-    """Save or update a film draft (paused/incomplete film)."""
-    user_id = user['id']
-    
-    # Check if there's an existing draft with this title or create new
-    existing_draft = None
-    if draft_data.title:
-        existing_draft = await db.film_drafts.find_one({
-            'user_id': user_id, 
-            'title': draft_data.title
-        })
-    
-    draft = {
-        'user_id': user_id,
-        'title': draft_data.title or f"Bozza_{datetime.now().strftime('%Y%m%d_%H%M')}",
-        'genre': draft_data.genre,
-        'subgenres': draft_data.subgenres,
-        'release_date': draft_data.release_date,
-        'weeks_in_theater': draft_data.weeks_in_theater,
-        'sponsor_id': draft_data.sponsor_id,
-        'equipment_package': draft_data.equipment_package,
-        'locations': draft_data.locations,
-        'location_days': draft_data.location_days,
-        'screenwriter_id': draft_data.screenwriter_id,
-        'screenwriter_ids': draft_data.screenwriter_ids,
-        'director_id': draft_data.director_id,
-        'actors': draft_data.actors,
-        'extras_count': draft_data.extras_count,
-        'extras_cost': draft_data.extras_cost,
-        'screenplay': draft_data.screenplay,
-        'screenplay_source': draft_data.screenplay_source,
-        'poster_url': draft_data.poster_url,
-        'poster_prompt': draft_data.poster_prompt,
-        'ad_duration_seconds': draft_data.ad_duration_seconds,
-        'ad_revenue': draft_data.ad_revenue,
-        'current_step': draft_data.current_step,
-        'paused_reason': draft_data.paused_reason,
-        'emerging_screenplay_id': draft_data.emerging_screenplay_id,
-        'emerging_screenplay': draft_data.emerging_screenplay,
-        'emerging_option': draft_data.emerging_option,
-        'updated_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    if existing_draft:
-        # Update existing draft
-        await db.film_drafts.update_one(
-            {'_id': existing_draft['_id']},
-            {'$set': draft}
-        )
-        draft['id'] = existing_draft.get('id', str(existing_draft['_id']))
-    else:
-        # Create new draft
-        draft['id'] = str(uuid.uuid4())
-        draft['created_at'] = datetime.now(timezone.utc).isoformat()
-        await db.film_drafts.insert_one(draft)
-    
-    return {
-        'success': True,
-        'message': 'Bozza salvata con successo',
-        'draft_id': draft['id']
-    }
-
-@api_router.get("/films/drafts")
-async def get_film_drafts(user: dict = Depends(get_current_user)):
-    """Get all film drafts for the current user."""
-    user_id = user['id']
-    
-    drafts = await db.film_drafts.find(
-        {'user_id': user_id},
-        {'_id': 0}
-    ).sort('updated_at', -1).to_list(50)
-    
-    # Enrich with cast/crew names
-    for draft in drafts:
-        # Get director name
-        if draft.get('director_id'):
-            director = await db.people.find_one({'id': draft['director_id']}, {'_id': 0, 'name': 1})
-            draft['director_name'] = director.get('name', 'Unknown') if director else None
-        
-        # Get screenwriter name
-        if draft.get('screenwriter_id'):
-            sw = await db.people.find_one({'id': draft['screenwriter_id']}, {'_id': 0, 'name': 1})
-            draft['screenwriter_name'] = sw.get('name', 'Unknown') if sw else None
-        
-        # Count actors
-        draft['actors_count'] = len(draft.get('actors', []))
-        
-        # Get genre display name
-        draft['genre_display'] = GENRES.get(draft.get('genre', ''), {}).get('name', draft.get('genre', 'N/A'))
-    
-    return {'drafts': drafts, 'count': len(drafts)}
-
-@api_router.get("/films/drafts/{draft_id}")
-async def get_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
-    """Get a specific film draft."""
-    draft = await db.film_drafts.find_one(
-        {'id': draft_id, 'user_id': user['id']},
-        {'_id': 0}
-    )
-    
-    if not draft:
-        raise HTTPException(status_code=404, detail="Bozza non trovata")
-    
-    return draft
-
-@api_router.delete("/films/drafts/{draft_id}")
-async def delete_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
-    """Delete a film draft."""
-    result = await db.film_drafts.delete_one({
-        'id': draft_id,
-        'user_id': user['id']
-    })
-    
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Bozza non trovata")
-    
-    return {'success': True, 'message': 'Bozza eliminata'}
-
-@api_router.post("/films/drafts/{draft_id}/resume")
-async def resume_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
-    """Mark a draft as being resumed (for tracking)."""
-    draft = await db.film_drafts.find_one(
-        {'id': draft_id, 'user_id': user['id']},
-        {'_id': 0}
-    )
-    
-    if not draft:
-        raise HTTPException(status_code=404, detail="Bozza non trovata")
-    
-    # Return the full draft data for the frontend to load
-    return {
-        'success': True,
-        'draft': draft
-    }
-
-
+# [MOVED TO routes/film_pipeline.py] Film Drafts & Pre-Films (16 endpoints)
+# Original code commented out below
+# [MOVED] @api_router.post("/films/drafts")
+# [MOVED] async def save_film_draft(draft_data: FilmDraft, user: dict = Depends(get_current_user)):
+# [MOVED]     """Save or update a film draft (paused/incomplete film)."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     # Check if there's an existing draft with this title or create new
+# [MOVED]     existing_draft = None
+# [MOVED]     if draft_data.title:
+# [MOVED]         existing_draft = await db.film_drafts.find_one({
+# [MOVED]             'user_id': user_id, 
+# [MOVED]             'title': draft_data.title
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     draft = {
+# [MOVED]         'user_id': user_id,
+# [MOVED]         'title': draft_data.title or f"Bozza_{datetime.now().strftime('%Y%m%d_%H%M')}",
+# [MOVED]         'genre': draft_data.genre,
+# [MOVED]         'subgenres': draft_data.subgenres,
+# [MOVED]         'release_date': draft_data.release_date,
+# [MOVED]         'weeks_in_theater': draft_data.weeks_in_theater,
+# [MOVED]         'sponsor_id': draft_data.sponsor_id,
+# [MOVED]         'equipment_package': draft_data.equipment_package,
+# [MOVED]         'locations': draft_data.locations,
+# [MOVED]         'location_days': draft_data.location_days,
+# [MOVED]         'screenwriter_id': draft_data.screenwriter_id,
+# [MOVED]         'screenwriter_ids': draft_data.screenwriter_ids,
+# [MOVED]         'director_id': draft_data.director_id,
+# [MOVED]         'actors': draft_data.actors,
+# [MOVED]         'extras_count': draft_data.extras_count,
+# [MOVED]         'extras_cost': draft_data.extras_cost,
+# [MOVED]         'screenplay': draft_data.screenplay,
+# [MOVED]         'screenplay_source': draft_data.screenplay_source,
+# [MOVED]         'poster_url': draft_data.poster_url,
+# [MOVED]         'poster_prompt': draft_data.poster_prompt,
+# [MOVED]         'ad_duration_seconds': draft_data.ad_duration_seconds,
+# [MOVED]         'ad_revenue': draft_data.ad_revenue,
+# [MOVED]         'current_step': draft_data.current_step,
+# [MOVED]         'paused_reason': draft_data.paused_reason,
+# [MOVED]         'emerging_screenplay_id': draft_data.emerging_screenplay_id,
+# [MOVED]         'emerging_screenplay': draft_data.emerging_screenplay,
+# [MOVED]         'emerging_option': draft_data.emerging_option,
+# [MOVED]         'updated_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     if existing_draft:
+# [MOVED]         # Update existing draft
+# [MOVED]         await db.film_drafts.update_one(
+# [MOVED]             {'_id': existing_draft['_id']},
+# [MOVED]             {'$set': draft}
+# [MOVED]         )
+# [MOVED]         draft['id'] = existing_draft.get('id', str(existing_draft['_id']))
+# [MOVED]     else:
+# [MOVED]         # Create new draft
+# [MOVED]         draft['id'] = str(uuid.uuid4())
+# [MOVED]         draft['created_at'] = datetime.now(timezone.utc).isoformat()
+# [MOVED]         await db.film_drafts.insert_one(draft)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': 'Bozza salvata con successo',
+# [MOVED]         'draft_id': draft['id']
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/films/drafts")
+# [MOVED] async def get_film_drafts(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all film drafts for the current user."""
+# [MOVED]     user_id = user['id']
+# [MOVED]     
+# [MOVED]     drafts = await db.film_drafts.find(
+# [MOVED]         {'user_id': user_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('updated_at', -1).to_list(50)
+# [MOVED]     
+# [MOVED]     # Enrich with cast/crew names
+# [MOVED]     for draft in drafts:
+# [MOVED]         # Get director name
+# [MOVED]         if draft.get('director_id'):
+# [MOVED]             director = await db.people.find_one({'id': draft['director_id']}, {'_id': 0, 'name': 1})
+# [MOVED]             draft['director_name'] = director.get('name', 'Unknown') if director else None
+# [MOVED]         
+# [MOVED]         # Get screenwriter name
+# [MOVED]         if draft.get('screenwriter_id'):
+# [MOVED]             sw = await db.people.find_one({'id': draft['screenwriter_id']}, {'_id': 0, 'name': 1})
+# [MOVED]             draft['screenwriter_name'] = sw.get('name', 'Unknown') if sw else None
+# [MOVED]         
+# [MOVED]         # Count actors
+# [MOVED]         draft['actors_count'] = len(draft.get('actors', []))
+# [MOVED]         
+# [MOVED]         # Get genre display name
+# [MOVED]         draft['genre_display'] = GENRES.get(draft.get('genre', ''), {}).get('name', draft.get('genre', 'N/A'))
+# [MOVED]     
+# [MOVED]     return {'drafts': drafts, 'count': len(drafts)}
+# [MOVED] 
+# [MOVED] @api_router.get("/films/drafts/{draft_id}")
+# [MOVED] async def get_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get a specific film draft."""
+# [MOVED]     draft = await db.film_drafts.find_one(
+# [MOVED]         {'id': draft_id, 'user_id': user['id']},
+# [MOVED]         {'_id': 0}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     if not draft:
+# [MOVED]         raise HTTPException(status_code=404, detail="Bozza non trovata")
+# [MOVED]     
+# [MOVED]     return draft
+# [MOVED] 
+# [MOVED] @api_router.delete("/films/drafts/{draft_id}")
+# [MOVED] async def delete_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Delete a film draft."""
+# [MOVED]     result = await db.film_drafts.delete_one({
+# [MOVED]         'id': draft_id,
+# [MOVED]         'user_id': user['id']
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     if result.deleted_count == 0:
+# [MOVED]         raise HTTPException(status_code=404, detail="Bozza non trovata")
+# [MOVED]     
+# [MOVED]     return {'success': True, 'message': 'Bozza eliminata'}
+# [MOVED] 
+# [MOVED] @api_router.post("/films/drafts/{draft_id}/resume")
+# [MOVED] async def resume_film_draft(draft_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Mark a draft as being resumed (for tracking)."""
+# [MOVED]     draft = await db.film_drafts.find_one(
+# [MOVED]         {'id': draft_id, 'user_id': user['id']},
+# [MOVED]         {'_id': 0}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     if not draft:
+# [MOVED]         raise HTTPException(status_code=404, detail="Bozza non trovata")
+# [MOVED]     
+# [MOVED]     # Return the full draft data for the frontend to load
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'draft': draft
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] 
 # ==================== PRE-FILM & PRE-ENGAGEMENT SYSTEM ====================
-
-PRE_FILM_DURATION_DAYS = 20  # Pre-film expires after 20 days
-PRE_ENGAGEMENT_ADVANCE_PERCENT = 30  # 30% advance payment
-
-def calculate_release_penalty(cast_member: dict, days_since_engagement: int) -> float:
-    """Calculate penalty for releasing pre-engaged cast (10-60% based on fame + time)."""
-    fame = cast_member.get('fame', 50)
-    
-    # Base penalty from fame (10-40%)
-    fame_penalty = 10 + (fame / 100) * 30  # 10% at 0 fame, 40% at 100 fame
-    
-    # Time penalty (0-20% based on how long they've been engaged)
-    time_penalty = min(20, days_since_engagement * 1)  # +1% per day, max 20%
-    
-    total_penalty = fame_penalty + time_penalty
-    return min(60, max(10, total_penalty))  # Clamp between 10-60%
-
-@api_router.post("/pre-films")
-async def create_pre_film(data: PreFilmCreate, user: dict = Depends(get_current_user)):
-    """Create a pre-film (draft with basic info for pre-engagement)."""
-    if len(data.screenplay_draft) > 200:
-        raise HTTPException(status_code=400, detail="La bozza sceneggiatura deve essere max 200 caratteri")
-    
-    if len(data.screenplay_draft) < 20:
-        raise HTTPException(status_code=400, detail="La bozza sceneggiatura deve essere almeno 20 caratteri")
-    
-    # Validate genre
-    if data.genre not in GENRES:
-        raise HTTPException(status_code=400, detail="Genere non valido")
-    
-    # Sequel validation: subtitle is required for sequels
-    if data.is_sequel:
-        if not data.subtitle:
-            raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
-        if not data.sequel_parent_id:
-            raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
-        
-        # Verify parent film exists and belongs to user
-        parent = await db.films.find_one({'id': data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
-        if not parent:
-            raise HTTPException(status_code=404, detail="Parent film not found")
-    
-    pre_film = {
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'title': data.title,
-        'subtitle': data.subtitle,  # Optional subtitle for sequels
-        'genre': data.genre,
-        'screenplay_draft': data.screenplay_draft,
-        'status': 'active',  # active, expired, converted, abandoned
-        'pre_engaged_cast': {
-            'screenwriter': None,
-            'director': None,
-            'composer': None,
-            'actors': []
-        },
-        'total_advance_paid': 0,
-        # Sequel fields
-        'is_sequel': data.is_sequel,
-        'sequel_parent_id': data.sequel_parent_id,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'expires_at': (datetime.now(timezone.utc) + timedelta(days=PRE_FILM_DURATION_DAYS)).isoformat()
-    }
-    
-    await db.pre_films.insert_one(pre_film)
-    
-    return {
-        'success': True,
-        'pre_film_id': pre_film['id'],
-        'message': f'Pre-film creato! Hai {PRE_FILM_DURATION_DAYS} giorni per completarlo.',
-        'expires_at': pre_film['expires_at']
-    }
-
-@api_router.get("/pre-films")
-async def get_my_pre_films(user: dict = Depends(get_current_user)):
-    """Get all pre-films for current user."""
-    pre_films = await db.pre_films.find(
-        {'user_id': user['id'], 'status': {'$in': ['active', 'expired']}},
-        {'_id': 0}
-    ).sort('created_at', -1).to_list(50)
-    
-    # Enrich with cast info
-    for pf in pre_films:
-        cast = pf.get('pre_engaged_cast', {})
-        
-        # Get screenwriter info
-        if cast.get('screenwriter'):
-            sw = await db.people.find_one({'id': cast['screenwriter']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
-            if sw:
-                cast['screenwriter']['name'] = sw.get('name', 'Unknown')
-                cast['screenwriter']['fame'] = sw.get('fame', 50)
-        
-        # Get director info
-        if cast.get('director'):
-            dir_info = await db.people.find_one({'id': cast['director']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
-            if dir_info:
-                cast['director']['name'] = dir_info.get('name', 'Unknown')
-                cast['director']['fame'] = dir_info.get('fame', 50)
-        
-        # Get composer info
-        if cast.get('composer'):
-            comp = await db.people.find_one({'id': cast['composer']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
-            if comp:
-                cast['composer']['name'] = comp.get('name', 'Unknown')
-                cast['composer']['fame'] = comp.get('fame', 50)
-        
-        # Get actors info
-        for actor in cast.get('actors', []):
-            act = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1, 'fame': 1})
-            if act:
-                actor['name'] = act.get('name', 'Unknown')
-                actor['fame'] = act.get('fame', 50)
-        
-        # Check if expired
-        expires_at = datetime.fromisoformat(pf['expires_at'].replace('Z', '+00:00'))
-        pf['is_expired'] = datetime.now(timezone.utc) > expires_at
-        pf['days_remaining'] = max(0, (expires_at - datetime.now(timezone.utc)).days)
-    
-    return {'pre_films': pre_films, 'count': len(pre_films)}
-
-@api_router.get("/pre-films/{pre_film_id}")
-async def get_pre_film(pre_film_id: str, user: dict = Depends(get_current_user)):
-    """Get a specific pre-film."""
-    pre_film = await db.pre_films.find_one(
-        {'id': pre_film_id, 'user_id': user['id']},
-        {'_id': 0}
-    )
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    # Enrich with full cast details
-    cast = pre_film.get('pre_engaged_cast', {})
-    for cast_type in ['screenwriter', 'director', 'composer']:
-        if cast.get(cast_type):
-            person = await db.people.find_one({'id': cast[cast_type]['id']}, {'_id': 0})
-            if person:
-                cast[cast_type]['details'] = person
-    
-    for actor in cast.get('actors', []):
-        person = await db.people.find_one({'id': actor['id']}, {'_id': 0})
-        if person:
-            actor['details'] = person
-    
-    return pre_film
-
-@api_router.post("/pre-films/{pre_film_id}/engage")
-async def pre_engage_cast(pre_film_id: str, request: PreEngagementRequest, user: dict = Depends(get_current_user)):
-    """Pre-engage a cast member for a pre-film."""
-    # CinePass check
-    await spend_cinepass(user['id'], CINEPASS_COSTS['pre_engagement'], user.get('cinepass', 100))
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    if pre_film['status'] != 'active':
-        raise HTTPException(status_code=400, detail="Questo pre-film non è più attivo")
-    
-    # Check if expired
-    expires_at = datetime.fromisoformat(pre_film['expires_at'].replace('Z', '+00:00'))
-    if datetime.now(timezone.utc) > expires_at:
-        await db.pre_films.update_one({'id': pre_film_id}, {'$set': {'status': 'expired'}})
-        raise HTTPException(status_code=400, detail="Pre-film scaduto")
-    
-    # Get cast member
-    cast_member = await db.people.find_one({'id': request.cast_id}, {'_id': 0})
-    if not cast_member:
-        raise HTTPException(status_code=404, detail="Cast non trovato")
-    
-    # Validate cast type
-    valid_types = ['screenwriter', 'director', 'composer', 'actor']
-    if request.cast_type not in valid_types:
-        raise HTTPException(status_code=400, detail="Tipo cast non valido")
-    
-    if cast_member['type'] != request.cast_type:
-        raise HTTPException(status_code=400, detail=f"Questo cast non è un {request.cast_type}")
-    
-    # Check if already pre-engaged by this user for another pre-film (actors only)
-    if request.cast_type == 'actor':
-        existing = await db.pre_films.find_one({
-            'user_id': user['id'],
-            'id': {'$ne': pre_film_id},
-            'status': 'active',
-            'pre_engaged_cast.actors.id': request.cast_id
-        })
-        if existing:
-            raise HTTPException(status_code=400, detail="Questo attore è già pre-ingaggiato per un altro tuo pre-film")
-    
-    # Calculate advance payment (30% of offered fee)
-    advance_payment = request.offered_fee * (PRE_ENGAGEMENT_ADVANCE_PERCENT / 100)
-    
-    # Check funds
-    if user['funds'] < advance_payment:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Serve anticipo di ${advance_payment:,.0f}")
-    
-    # Check if cast accepts (based on fame, offer vs expected)
-    expected_fee = cast_member.get('fee', 50000)
-    fame = cast_member.get('fame', 50)
-    
-    # Acceptance logic
-    offer_ratio = request.offered_fee / expected_fee
-    acceptance_chance = min(95, max(5, offer_ratio * 70 + (100 - fame) * 0.2))
-    
-    accepted = random.random() * 100 < acceptance_chance
-    
-    if not accepted:
-        # Create negotiation record for potential renegotiation
-        negotiation = {
-            'id': str(uuid.uuid4()),
-            'user_id': user['id'],
-            'pre_film_id': pre_film_id,
-            'cast_type': request.cast_type,
-            'cast_id': request.cast_id,
-            'cast_name': cast_member['name'],
-            'original_offer': request.offered_fee,
-            'expected_fee': expected_fee,
-            'status': 'rejected',  # rejected, renegotiating, accepted, final_rejected
-            'rejection_count': 1,
-            'can_renegotiate': True,
-            'requested_fee': expected_fee * (1.1 + random.random() * 0.3),  # 110-140% of expected
-            'created_at': datetime.now(timezone.utc).isoformat()
-        }
-        await db.negotiations.insert_one(negotiation)
-        
-        return {
-            'success': False,
-            'accepted': False,
-            'message': f"{cast_member['name']} ha rifiutato l'offerta di ${request.offered_fee:,.0f}",
-            'negotiation_id': negotiation['id'],
-            'can_renegotiate': True,
-            'requested_fee': negotiation['requested_fee'],
-            'cast_name': cast_member['name']
-        }
-    
-    # Accepted - deduct advance and add to pre-engaged cast
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -advance_payment}})
-    
-    engagement_data = {
-        'id': request.cast_id,
-        'offered_fee': request.offered_fee,
-        'advance_paid': advance_payment,
-        'engaged_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    if request.cast_type == 'actor':
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {
-                '$push': {'pre_engaged_cast.actors': engagement_data},
-                '$inc': {'total_advance_paid': advance_payment}
-            }
-        )
-    else:
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {
-                '$set': {f'pre_engaged_cast.{request.cast_type}': engagement_data},
-                '$inc': {'total_advance_paid': advance_payment}
-            }
-        )
-    
-    return {
-        'success': True,
-        'accepted': True,
-        'message': f"{cast_member['name']} ha accettato! Anticipo di ${advance_payment:,.0f} pagato.",
-        'advance_paid': advance_payment,
-        'remaining_fee': request.offered_fee - advance_payment
-    }
-
-@api_router.post("/negotiations/{negotiation_id}/renegotiate")
-async def renegotiate_cast(negotiation_id: str, request: RenegotiateRequest, user: dict = Depends(get_current_user)):
-    """Attempt to renegotiate with a cast member who rejected."""
-    negotiation = await db.negotiations.find_one({'id': negotiation_id, 'user_id': user['id']})
-    
-    if not negotiation:
-        raise HTTPException(status_code=404, detail="Negoziazione non trovata")
-    
-    if not negotiation.get('can_renegotiate'):
-        raise HTTPException(status_code=400, detail="Non è possibile rinegoziare")
-    
-    cast_member = await db.people.find_one({'id': negotiation['cast_id']}, {'_id': 0})
-    if not cast_member:
-        raise HTTPException(status_code=404, detail="Cast non trovato")
-    
-    requested_fee = negotiation.get('requested_fee', cast_member.get('fee', 50000))
-    
-    # Check if new offer meets or exceeds requested fee
-    if request.new_offer >= requested_fee:
-        # Accepted!
-        await db.negotiations.update_one(
-            {'id': negotiation_id},
-            {'$set': {'status': 'accepted', 'final_offer': request.new_offer}}
-        )
-        
-        # If pre-film engagement, add to pre-engaged cast
-        if negotiation.get('pre_film_id'):
-            advance_payment = request.new_offer * (PRE_ENGAGEMENT_ADVANCE_PERCENT / 100)
-            
-            if user['funds'] < advance_payment:
-                raise HTTPException(status_code=400, detail=f"Fondi insufficienti per anticipo ${advance_payment:,.0f}")
-            
-            await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -advance_payment}})
-            
-            engagement_data = {
-                'id': negotiation['cast_id'],
-                'offered_fee': request.new_offer,
-                'advance_paid': advance_payment,
-                'engaged_at': datetime.now(timezone.utc).isoformat()
-            }
-            
-            cast_type = negotiation['cast_type']
-            if cast_type == 'actor':
-                await db.pre_films.update_one(
-                    {'id': negotiation['pre_film_id']},
-                    {
-                        '$push': {'pre_engaged_cast.actors': engagement_data},
-                        '$inc': {'total_advance_paid': advance_payment}
-                    }
-                )
-            else:
-                await db.pre_films.update_one(
-                    {'id': negotiation['pre_film_id']},
-                    {
-                        '$set': {f'pre_engaged_cast.{cast_type}': engagement_data},
-                        '$inc': {'total_advance_paid': advance_payment}
-                    }
-                )
-            
-            return {
-                'success': True,
-                'accepted': True,
-                'message': f"{cast_member['name']} ha accettato la nuova offerta!",
-                'advance_paid': advance_payment
-            }
-        
-        return {
-            'success': True,
-            'accepted': True,
-            'message': f"{cast_member['name']} ha accettato!"
-        }
-    
-    # Offer not enough - second rejection
-    rejection_count = negotiation.get('rejection_count', 1) + 1
-    
-    # After second rejection, 50% chance they refuse definitively
-    if rejection_count >= 2 and random.random() < 0.5:
-        await db.negotiations.update_one(
-            {'id': negotiation_id},
-            {'$set': {'status': 'final_rejected', 'can_renegotiate': False, 'rejection_count': rejection_count}}
-        )
-        return {
-            'success': False,
-            'accepted': False,
-            'final_rejection': True,
-            'message': f"{cast_member['name']} ha rifiutato definitivamente. Non vuole più trattare."
-        }
-    
-    # Can still negotiate - update requested fee (slightly higher)
-    new_requested = requested_fee * (1.05 + random.random() * 0.1)  # 5-15% higher
-    
-    await db.negotiations.update_one(
-        {'id': negotiation_id},
-        {
-            '$set': {
-                'status': 'renegotiating',
-                'requested_fee': new_requested,
-                'rejection_count': rejection_count,
-                'last_offer': request.new_offer
-            }
-        }
-    )
-    
-    return {
-        'success': False,
-        'accepted': False,
-        'final_rejection': False,
-        'message': f"{cast_member['name']} vuole di più.",
-        'can_renegotiate': True,
-        'requested_fee': new_requested,
-        'rejection_count': rejection_count
-    }
-
-@api_router.post("/pre-films/{pre_film_id}/release")
-async def release_pre_engaged_cast(pre_film_id: str, request: ReleaseCastRequest, user: dict = Depends(get_current_user)):
-    """Release a pre-engaged cast member (with penalty)."""
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    cast = pre_film.get('pre_engaged_cast', {})
-    
-    # Find the engaged cast member
-    if request.cast_type == 'actor':
-        engaged = next((a for a in cast.get('actors', []) if a['id'] == request.cast_id), None)
-    else:
-        engaged = cast.get(request.cast_type)
-        if engaged and engaged.get('id') != request.cast_id:
-            engaged = None
-    
-    if not engaged:
-        raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
-    
-    # Get cast member info for penalty calculation
-    cast_member = await db.people.find_one({'id': request.cast_id}, {'_id': 0})
-    if not cast_member:
-        raise HTTPException(status_code=404, detail="Cast non trovato")
-    
-    # Calculate days since engagement
-    engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
-    days_engaged = (datetime.now(timezone.utc) - engaged_at).days
-    
-    # Calculate penalty
-    penalty_percent = calculate_release_penalty(cast_member, days_engaged)
-    penalty_amount = engaged['offered_fee'] * (penalty_percent / 100)
-    
-    # The advance is already lost, penalty is additional
-    # But we cap it so user doesn't pay more than the original fee
-    total_cost = engaged['advance_paid']  # Advance already paid and lost
-    additional_penalty = max(0, penalty_amount - engaged['advance_paid'])
-    
-    # Check funds for additional penalty
-    if additional_penalty > 0 and user['funds'] < additional_penalty:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti per la penale aggiuntiva di ${additional_penalty:,.0f}")
-    
-    # Deduct additional penalty
-    if additional_penalty > 0:
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -additional_penalty}})
-    
-    # Remove from pre-engaged cast
-    if request.cast_type == 'actor':
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {'$pull': {'pre_engaged_cast.actors': {'id': request.cast_id}}}
-        )
-    else:
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {'$set': {f'pre_engaged_cast.{request.cast_type}': None}}
-        )
-    
-    return {
-        'success': True,
-        'message': f"{cast_member['name']} è stato rilasciato.",
-        'penalty_percent': penalty_percent,
-        'advance_lost': engaged['advance_paid'],
-        'additional_penalty': additional_penalty,
-        'total_cost': engaged['advance_paid'] + additional_penalty
-    }
-
-@api_router.get("/pre-films/public/expired")
-async def get_expired_pre_films(user: dict = Depends(get_current_user)):
-    """Get all expired pre-films (public board of abandoned ideas)."""
-    # First, update expired pre-films
-    now = datetime.now(timezone.utc).isoformat()
-    await db.pre_films.update_many(
-        {'status': 'active', 'expires_at': {'$lt': now}},
-        {'$set': {'status': 'expired'}}
-    )
-    
-    # Get expired pre-films (excluding user's own)
-    expired = await db.pre_films.find(
-        {'status': 'expired', 'user_id': {'$ne': user['id']}},
-        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'screenplay_draft': 1, 'user_id': 1, 'created_at': 1}
-    ).sort('created_at', -1).to_list(100)
-    
-    # Add creator info
-    for pf in expired:
-        creator = await db.users.find_one({'id': pf['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
-        if creator:
-            pf['creator_nickname'] = creator.get('nickname', 'Unknown')
-            pf['creator_production_house'] = creator.get('production_house_name', '')
-        del pf['user_id']
-    
-    return {'expired_ideas': expired, 'count': len(expired)}
-
-@api_router.post("/pre-films/{pre_film_id}/convert")
-async def convert_pre_film_to_draft(pre_film_id: str, user: dict = Depends(get_current_user)):
-    """Convert a pre-film to a full film draft for completion."""
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    if pre_film['status'] != 'active':
-        raise HTTPException(status_code=400, detail="Solo i pre-film attivi possono essere convertiti")
-    
-    # Create a draft with pre-film data
-    draft = {
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'title': pre_film['title'],
-        'subtitle': pre_film.get('subtitle'),  # Pass subtitle for sequels
-        'genre': pre_film['genre'],
-        'screenplay': pre_film['screenplay_draft'],
-        'screenplay_source': 'original',
-        'from_pre_film': True,
-        'pre_film_id': pre_film_id,
-        'pre_engaged_cast': pre_film.get('pre_engaged_cast', {}),
-        'current_step': 1,
-        'paused_reason': 'from_pre_engagement',
-        # Sequel fields
-        'is_sequel': pre_film.get('is_sequel', False),
-        'sequel_parent_id': pre_film.get('sequel_parent_id'),
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'updated_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.film_drafts.insert_one(draft)
-    
-    # Mark pre-film as converted
-    await db.pre_films.update_one(
-        {'id': pre_film_id},
-        {'$set': {'status': 'converted', 'converted_to_draft_id': draft['id']}}
-    )
-    
-    return {
-        'success': True,
-        'draft_id': draft['id'],
-        'message': 'Pre-film convertito in bozza. Puoi ora completare la creazione del film.'
-    }
-
+# [MOVED] 
+# [MOVED] PRE_FILM_DURATION_DAYS = 20  # Pre-film expires after 20 days
+# [MOVED] PRE_ENGAGEMENT_ADVANCE_PERCENT = 30  # 30% advance payment
+# [MOVED] 
+# [MOVED] def calculate_release_penalty(cast_member: dict, days_since_engagement: int) -> float:
+# [MOVED]     """Calculate penalty for releasing pre-engaged cast (10-60% based on fame + time)."""
+# [MOVED]     fame = cast_member.get('fame', 50)
+# [MOVED]     
+# [MOVED]     # Base penalty from fame (10-40%)
+# [MOVED]     fame_penalty = 10 + (fame / 100) * 30  # 10% at 0 fame, 40% at 100 fame
+# [MOVED]     
+# [MOVED]     # Time penalty (0-20% based on how long they've been engaged)
+# [MOVED]     time_penalty = min(20, days_since_engagement * 1)  # +1% per day, max 20%
+# [MOVED]     
+# [MOVED]     total_penalty = fame_penalty + time_penalty
+# [MOVED]     return min(60, max(10, total_penalty))  # Clamp between 10-60%
+# [MOVED] 
+# [MOVED] @api_router.post("/pre-films")
+# [MOVED] async def create_pre_film(data: PreFilmCreate, user: dict = Depends(get_current_user)):
+# [MOVED]     """Create a pre-film (draft with basic info for pre-engagement)."""
+# [MOVED]     if len(data.screenplay_draft) > 200:
+# [MOVED]         raise HTTPException(status_code=400, detail="La bozza sceneggiatura deve essere max 200 caratteri")
+# [MOVED]     
+# [MOVED]     if len(data.screenplay_draft) < 20:
+# [MOVED]         raise HTTPException(status_code=400, detail="La bozza sceneggiatura deve essere almeno 20 caratteri")
+# [MOVED]     
+# [MOVED]     # Validate genre
+# [MOVED]     if data.genre not in GENRES:
+# [MOVED]         raise HTTPException(status_code=400, detail="Genere non valido")
+# [MOVED]     
+# [MOVED]     # Sequel validation: subtitle is required for sequels
+# [MOVED]     if data.is_sequel:
+# [MOVED]         if not data.subtitle:
+# [MOVED]             raise HTTPException(status_code=400, detail="Il sottotitolo è obbligatorio per i sequel")
+# [MOVED]         if not data.sequel_parent_id:
+# [MOVED]             raise HTTPException(status_code=400, detail="Parent film ID is required for sequels")
+# [MOVED]         
+# [MOVED]         # Verify parent film exists and belongs to user
+# [MOVED]         parent = await db.films.find_one({'id': data.sequel_parent_id, 'user_id': user['id']}, {'_id': 0, 'id': 1, 'title': 1})
+# [MOVED]         if not parent:
+# [MOVED]             raise HTTPException(status_code=404, detail="Parent film not found")
+# [MOVED]     
+# [MOVED]     pre_film = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': data.title,
+# [MOVED]         'subtitle': data.subtitle,  # Optional subtitle for sequels
+# [MOVED]         'genre': data.genre,
+# [MOVED]         'screenplay_draft': data.screenplay_draft,
+# [MOVED]         'status': 'active',  # active, expired, converted, abandoned
+# [MOVED]         'pre_engaged_cast': {
+# [MOVED]             'screenwriter': None,
+# [MOVED]             'director': None,
+# [MOVED]             'composer': None,
+# [MOVED]             'actors': []
+# [MOVED]         },
+# [MOVED]         'total_advance_paid': 0,
+# [MOVED]         # Sequel fields
+# [MOVED]         'is_sequel': data.is_sequel,
+# [MOVED]         'sequel_parent_id': data.sequel_parent_id,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'expires_at': (datetime.now(timezone.utc) + timedelta(days=PRE_FILM_DURATION_DAYS)).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.pre_films.insert_one(pre_film)
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'pre_film_id': pre_film['id'],
+# [MOVED]         'message': f'Pre-film creato! Hai {PRE_FILM_DURATION_DAYS} giorni per completarlo.',
+# [MOVED]         'expires_at': pre_film['expires_at']
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/pre-films")
+# [MOVED] async def get_my_pre_films(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all pre-films for current user."""
+# [MOVED]     pre_films = await db.pre_films.find(
+# [MOVED]         {'user_id': user['id'], 'status': {'$in': ['active', 'expired']}},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(50)
+# [MOVED]     
+# [MOVED]     # Enrich with cast info
+# [MOVED]     for pf in pre_films:
+# [MOVED]         cast = pf.get('pre_engaged_cast', {})
+# [MOVED]         
+# [MOVED]         # Get screenwriter info
+# [MOVED]         if cast.get('screenwriter'):
+# [MOVED]             sw = await db.people.find_one({'id': cast['screenwriter']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
+# [MOVED]             if sw:
+# [MOVED]                 cast['screenwriter']['name'] = sw.get('name', 'Unknown')
+# [MOVED]                 cast['screenwriter']['fame'] = sw.get('fame', 50)
+# [MOVED]         
+# [MOVED]         # Get director info
+# [MOVED]         if cast.get('director'):
+# [MOVED]             dir_info = await db.people.find_one({'id': cast['director']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
+# [MOVED]             if dir_info:
+# [MOVED]                 cast['director']['name'] = dir_info.get('name', 'Unknown')
+# [MOVED]                 cast['director']['fame'] = dir_info.get('fame', 50)
+# [MOVED]         
+# [MOVED]         # Get composer info
+# [MOVED]         if cast.get('composer'):
+# [MOVED]             comp = await db.people.find_one({'id': cast['composer']['id']}, {'_id': 0, 'name': 1, 'fame': 1})
+# [MOVED]             if comp:
+# [MOVED]                 cast['composer']['name'] = comp.get('name', 'Unknown')
+# [MOVED]                 cast['composer']['fame'] = comp.get('fame', 50)
+# [MOVED]         
+# [MOVED]         # Get actors info
+# [MOVED]         for actor in cast.get('actors', []):
+# [MOVED]             act = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1, 'fame': 1})
+# [MOVED]             if act:
+# [MOVED]                 actor['name'] = act.get('name', 'Unknown')
+# [MOVED]                 actor['fame'] = act.get('fame', 50)
+# [MOVED]         
+# [MOVED]         # Check if expired
+# [MOVED]         expires_at = datetime.fromisoformat(pf['expires_at'].replace('Z', '+00:00'))
+# [MOVED]         pf['is_expired'] = datetime.now(timezone.utc) > expires_at
+# [MOVED]         pf['days_remaining'] = max(0, (expires_at - datetime.now(timezone.utc)).days)
+# [MOVED]     
+# [MOVED]     return {'pre_films': pre_films, 'count': len(pre_films)}
+# [MOVED] 
+# [MOVED] @api_router.get("/pre-films/{pre_film_id}")
+# [MOVED] async def get_pre_film(pre_film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get a specific pre-film."""
+# [MOVED]     pre_film = await db.pre_films.find_one(
+# [MOVED]         {'id': pre_film_id, 'user_id': user['id']},
+# [MOVED]         {'_id': 0}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     # Enrich with full cast details
+# [MOVED]     cast = pre_film.get('pre_engaged_cast', {})
+# [MOVED]     for cast_type in ['screenwriter', 'director', 'composer']:
+# [MOVED]         if cast.get(cast_type):
+# [MOVED]             person = await db.people.find_one({'id': cast[cast_type]['id']}, {'_id': 0})
+# [MOVED]             if person:
+# [MOVED]                 cast[cast_type]['details'] = person
+# [MOVED]     
+# [MOVED]     for actor in cast.get('actors', []):
+# [MOVED]         person = await db.people.find_one({'id': actor['id']}, {'_id': 0})
+# [MOVED]         if person:
+# [MOVED]             actor['details'] = person
+# [MOVED]     
+# [MOVED]     return pre_film
+# [MOVED] 
+# [MOVED] @api_router.post("/pre-films/{pre_film_id}/engage")
+# [MOVED] async def pre_engage_cast(pre_film_id: str, request: PreEngagementRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Pre-engage a cast member for a pre-film."""
+# [MOVED]     # CinePass check
+# [MOVED]     await spend_cinepass(user['id'], CINEPASS_COSTS['pre_engagement'], user.get('cinepass', 100))
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     if pre_film['status'] != 'active':
+# [MOVED]         raise HTTPException(status_code=400, detail="Questo pre-film non è più attivo")
+# [MOVED]     
+# [MOVED]     # Check if expired
+# [MOVED]     expires_at = datetime.fromisoformat(pre_film['expires_at'].replace('Z', '+00:00'))
+# [MOVED]     if datetime.now(timezone.utc) > expires_at:
+# [MOVED]         await db.pre_films.update_one({'id': pre_film_id}, {'$set': {'status': 'expired'}})
+# [MOVED]         raise HTTPException(status_code=400, detail="Pre-film scaduto")
+# [MOVED]     
+# [MOVED]     # Get cast member
+# [MOVED]     cast_member = await db.people.find_one({'id': request.cast_id}, {'_id': 0})
+# [MOVED]     if not cast_member:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato")
+# [MOVED]     
+# [MOVED]     # Validate cast type
+# [MOVED]     valid_types = ['screenwriter', 'director', 'composer', 'actor']
+# [MOVED]     if request.cast_type not in valid_types:
+# [MOVED]         raise HTTPException(status_code=400, detail="Tipo cast non valido")
+# [MOVED]     
+# [MOVED]     if cast_member['type'] != request.cast_type:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Questo cast non è un {request.cast_type}")
+# [MOVED]     
+# [MOVED]     # Check if already pre-engaged by this user for another pre-film (actors only)
+# [MOVED]     if request.cast_type == 'actor':
+# [MOVED]         existing = await db.pre_films.find_one({
+# [MOVED]             'user_id': user['id'],
+# [MOVED]             'id': {'$ne': pre_film_id},
+# [MOVED]             'status': 'active',
+# [MOVED]             'pre_engaged_cast.actors.id': request.cast_id
+# [MOVED]         })
+# [MOVED]         if existing:
+# [MOVED]             raise HTTPException(status_code=400, detail="Questo attore è già pre-ingaggiato per un altro tuo pre-film")
+# [MOVED]     
+# [MOVED]     # Calculate advance payment (30% of offered fee)
+# [MOVED]     advance_payment = request.offered_fee * (PRE_ENGAGEMENT_ADVANCE_PERCENT / 100)
+# [MOVED]     
+# [MOVED]     # Check funds
+# [MOVED]     if user['funds'] < advance_payment:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Serve anticipo di ${advance_payment:,.0f}")
+# [MOVED]     
+# [MOVED]     # Check if cast accepts (based on fame, offer vs expected)
+# [MOVED]     expected_fee = cast_member.get('fee', 50000)
+# [MOVED]     fame = cast_member.get('fame', 50)
+# [MOVED]     
+# [MOVED]     # Acceptance logic
+# [MOVED]     offer_ratio = request.offered_fee / expected_fee
+# [MOVED]     acceptance_chance = min(95, max(5, offer_ratio * 70 + (100 - fame) * 0.2))
+# [MOVED]     
+# [MOVED]     accepted = random.random() * 100 < acceptance_chance
+# [MOVED]     
+# [MOVED]     if not accepted:
+# [MOVED]         # Create negotiation record for potential renegotiation
+# [MOVED]         negotiation = {
+# [MOVED]             'id': str(uuid.uuid4()),
+# [MOVED]             'user_id': user['id'],
+# [MOVED]             'pre_film_id': pre_film_id,
+# [MOVED]             'cast_type': request.cast_type,
+# [MOVED]             'cast_id': request.cast_id,
+# [MOVED]             'cast_name': cast_member['name'],
+# [MOVED]             'original_offer': request.offered_fee,
+# [MOVED]             'expected_fee': expected_fee,
+# [MOVED]             'status': 'rejected',  # rejected, renegotiating, accepted, final_rejected
+# [MOVED]             'rejection_count': 1,
+# [MOVED]             'can_renegotiate': True,
+# [MOVED]             'requested_fee': expected_fee * (1.1 + random.random() * 0.3),  # 110-140% of expected
+# [MOVED]             'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         }
+# [MOVED]         await db.negotiations.insert_one(negotiation)
+# [MOVED]         
+# [MOVED]         return {
+# [MOVED]             'success': False,
+# [MOVED]             'accepted': False,
+# [MOVED]             'message': f"{cast_member['name']} ha rifiutato l'offerta di ${request.offered_fee:,.0f}",
+# [MOVED]             'negotiation_id': negotiation['id'],
+# [MOVED]             'can_renegotiate': True,
+# [MOVED]             'requested_fee': negotiation['requested_fee'],
+# [MOVED]             'cast_name': cast_member['name']
+# [MOVED]         }
+# [MOVED]     
+# [MOVED]     # Accepted - deduct advance and add to pre-engaged cast
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -advance_payment}})
+# [MOVED]     
+# [MOVED]     engagement_data = {
+# [MOVED]         'id': request.cast_id,
+# [MOVED]         'offered_fee': request.offered_fee,
+# [MOVED]         'advance_paid': advance_payment,
+# [MOVED]         'engaged_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     if request.cast_type == 'actor':
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {
+# [MOVED]                 '$push': {'pre_engaged_cast.actors': engagement_data},
+# [MOVED]                 '$inc': {'total_advance_paid': advance_payment}
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     else:
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {
+# [MOVED]                 '$set': {f'pre_engaged_cast.{request.cast_type}': engagement_data},
+# [MOVED]                 '$inc': {'total_advance_paid': advance_payment}
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'accepted': True,
+# [MOVED]         'message': f"{cast_member['name']} ha accettato! Anticipo di ${advance_payment:,.0f} pagato.",
+# [MOVED]         'advance_paid': advance_payment,
+# [MOVED]         'remaining_fee': request.offered_fee - advance_payment
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/negotiations/{negotiation_id}/renegotiate")
+# [MOVED] async def renegotiate_cast(negotiation_id: str, request: RenegotiateRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Attempt to renegotiate with a cast member who rejected."""
+# [MOVED]     negotiation = await db.negotiations.find_one({'id': negotiation_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not negotiation:
+# [MOVED]         raise HTTPException(status_code=404, detail="Negoziazione non trovata")
+# [MOVED]     
+# [MOVED]     if not negotiation.get('can_renegotiate'):
+# [MOVED]         raise HTTPException(status_code=400, detail="Non è possibile rinegoziare")
+# [MOVED]     
+# [MOVED]     cast_member = await db.people.find_one({'id': negotiation['cast_id']}, {'_id': 0})
+# [MOVED]     if not cast_member:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato")
+# [MOVED]     
+# [MOVED]     requested_fee = negotiation.get('requested_fee', cast_member.get('fee', 50000))
+# [MOVED]     
+# [MOVED]     # Check if new offer meets or exceeds requested fee
+# [MOVED]     if request.new_offer >= requested_fee:
+# [MOVED]         # Accepted!
+# [MOVED]         await db.negotiations.update_one(
+# [MOVED]             {'id': negotiation_id},
+# [MOVED]             {'$set': {'status': 'accepted', 'final_offer': request.new_offer}}
+# [MOVED]         )
+# [MOVED]         
+# [MOVED]         # If pre-film engagement, add to pre-engaged cast
+# [MOVED]         if negotiation.get('pre_film_id'):
+# [MOVED]             advance_payment = request.new_offer * (PRE_ENGAGEMENT_ADVANCE_PERCENT / 100)
+# [MOVED]             
+# [MOVED]             if user['funds'] < advance_payment:
+# [MOVED]                 raise HTTPException(status_code=400, detail=f"Fondi insufficienti per anticipo ${advance_payment:,.0f}")
+# [MOVED]             
+# [MOVED]             await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -advance_payment}})
+# [MOVED]             
+# [MOVED]             engagement_data = {
+# [MOVED]                 'id': negotiation['cast_id'],
+# [MOVED]                 'offered_fee': request.new_offer,
+# [MOVED]                 'advance_paid': advance_payment,
+# [MOVED]                 'engaged_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             }
+# [MOVED]             
+# [MOVED]             cast_type = negotiation['cast_type']
+# [MOVED]             if cast_type == 'actor':
+# [MOVED]                 await db.pre_films.update_one(
+# [MOVED]                     {'id': negotiation['pre_film_id']},
+# [MOVED]                     {
+# [MOVED]                         '$push': {'pre_engaged_cast.actors': engagement_data},
+# [MOVED]                         '$inc': {'total_advance_paid': advance_payment}
+# [MOVED]                     }
+# [MOVED]                 )
+# [MOVED]             else:
+# [MOVED]                 await db.pre_films.update_one(
+# [MOVED]                     {'id': negotiation['pre_film_id']},
+# [MOVED]                     {
+# [MOVED]                         '$set': {f'pre_engaged_cast.{cast_type}': engagement_data},
+# [MOVED]                         '$inc': {'total_advance_paid': advance_payment}
+# [MOVED]                     }
+# [MOVED]                 )
+# [MOVED]             
+# [MOVED]             return {
+# [MOVED]                 'success': True,
+# [MOVED]                 'accepted': True,
+# [MOVED]                 'message': f"{cast_member['name']} ha accettato la nuova offerta!",
+# [MOVED]                 'advance_paid': advance_payment
+# [MOVED]             }
+# [MOVED]         
+# [MOVED]         return {
+# [MOVED]             'success': True,
+# [MOVED]             'accepted': True,
+# [MOVED]             'message': f"{cast_member['name']} ha accettato!"
+# [MOVED]         }
+# [MOVED]     
+# [MOVED]     # Offer not enough - second rejection
+# [MOVED]     rejection_count = negotiation.get('rejection_count', 1) + 1
+# [MOVED]     
+# [MOVED]     # After second rejection, 50% chance they refuse definitively
+# [MOVED]     if rejection_count >= 2 and random.random() < 0.5:
+# [MOVED]         await db.negotiations.update_one(
+# [MOVED]             {'id': negotiation_id},
+# [MOVED]             {'$set': {'status': 'final_rejected', 'can_renegotiate': False, 'rejection_count': rejection_count}}
+# [MOVED]         )
+# [MOVED]         return {
+# [MOVED]             'success': False,
+# [MOVED]             'accepted': False,
+# [MOVED]             'final_rejection': True,
+# [MOVED]             'message': f"{cast_member['name']} ha rifiutato definitivamente. Non vuole più trattare."
+# [MOVED]         }
+# [MOVED]     
+# [MOVED]     # Can still negotiate - update requested fee (slightly higher)
+# [MOVED]     new_requested = requested_fee * (1.05 + random.random() * 0.1)  # 5-15% higher
+# [MOVED]     
+# [MOVED]     await db.negotiations.update_one(
+# [MOVED]         {'id': negotiation_id},
+# [MOVED]         {
+# [MOVED]             '$set': {
+# [MOVED]                 'status': 'renegotiating',
+# [MOVED]                 'requested_fee': new_requested,
+# [MOVED]                 'rejection_count': rejection_count,
+# [MOVED]                 'last_offer': request.new_offer
+# [MOVED]             }
+# [MOVED]         }
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': False,
+# [MOVED]         'accepted': False,
+# [MOVED]         'final_rejection': False,
+# [MOVED]         'message': f"{cast_member['name']} vuole di più.",
+# [MOVED]         'can_renegotiate': True,
+# [MOVED]         'requested_fee': new_requested,
+# [MOVED]         'rejection_count': rejection_count
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/pre-films/{pre_film_id}/release")
+# [MOVED] async def release_pre_engaged_cast(pre_film_id: str, request: ReleaseCastRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Release a pre-engaged cast member (with penalty)."""
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     cast = pre_film.get('pre_engaged_cast', {})
+# [MOVED]     
+# [MOVED]     # Find the engaged cast member
+# [MOVED]     if request.cast_type == 'actor':
+# [MOVED]         engaged = next((a for a in cast.get('actors', []) if a['id'] == request.cast_id), None)
+# [MOVED]     else:
+# [MOVED]         engaged = cast.get(request.cast_type)
+# [MOVED]         if engaged and engaged.get('id') != request.cast_id:
+# [MOVED]             engaged = None
+# [MOVED]     
+# [MOVED]     if not engaged:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
+# [MOVED]     
+# [MOVED]     # Get cast member info for penalty calculation
+# [MOVED]     cast_member = await db.people.find_one({'id': request.cast_id}, {'_id': 0})
+# [MOVED]     if not cast_member:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato")
+# [MOVED]     
+# [MOVED]     # Calculate days since engagement
+# [MOVED]     engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
+# [MOVED]     days_engaged = (datetime.now(timezone.utc) - engaged_at).days
+# [MOVED]     
+# [MOVED]     # Calculate penalty
+# [MOVED]     penalty_percent = calculate_release_penalty(cast_member, days_engaged)
+# [MOVED]     penalty_amount = engaged['offered_fee'] * (penalty_percent / 100)
+# [MOVED]     
+# [MOVED]     # The advance is already lost, penalty is additional
+# [MOVED]     # But we cap it so user doesn't pay more than the original fee
+# [MOVED]     total_cost = engaged['advance_paid']  # Advance already paid and lost
+# [MOVED]     additional_penalty = max(0, penalty_amount - engaged['advance_paid'])
+# [MOVED]     
+# [MOVED]     # Check funds for additional penalty
+# [MOVED]     if additional_penalty > 0 and user['funds'] < additional_penalty:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti per la penale aggiuntiva di ${additional_penalty:,.0f}")
+# [MOVED]     
+# [MOVED]     # Deduct additional penalty
+# [MOVED]     if additional_penalty > 0:
+# [MOVED]         await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -additional_penalty}})
+# [MOVED]     
+# [MOVED]     # Remove from pre-engaged cast
+# [MOVED]     if request.cast_type == 'actor':
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {'$pull': {'pre_engaged_cast.actors': {'id': request.cast_id}}}
+# [MOVED]         )
+# [MOVED]     else:
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {'$set': {f'pre_engaged_cast.{request.cast_type}': None}}
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f"{cast_member['name']} è stato rilasciato.",
+# [MOVED]         'penalty_percent': penalty_percent,
+# [MOVED]         'advance_lost': engaged['advance_paid'],
+# [MOVED]         'additional_penalty': additional_penalty,
+# [MOVED]         'total_cost': engaged['advance_paid'] + additional_penalty
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.get("/pre-films/public/expired")
+# [MOVED] async def get_expired_pre_films(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all expired pre-films (public board of abandoned ideas)."""
+# [MOVED]     # First, update expired pre-films
+# [MOVED]     now = datetime.now(timezone.utc).isoformat()
+# [MOVED]     await db.pre_films.update_many(
+# [MOVED]         {'status': 'active', 'expires_at': {'$lt': now}},
+# [MOVED]         {'$set': {'status': 'expired'}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # Get expired pre-films (excluding user's own)
+# [MOVED]     expired = await db.pre_films.find(
+# [MOVED]         {'status': 'expired', 'user_id': {'$ne': user['id']}},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'screenplay_draft': 1, 'user_id': 1, 'created_at': 1}
+# [MOVED]     ).sort('created_at', -1).to_list(100)
+# [MOVED]     
+# [MOVED]     # Add creator info
+# [MOVED]     for pf in expired:
+# [MOVED]         creator = await db.users.find_one({'id': pf['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+# [MOVED]         if creator:
+# [MOVED]             pf['creator_nickname'] = creator.get('nickname', 'Unknown')
+# [MOVED]             pf['creator_production_house'] = creator.get('production_house_name', '')
+# [MOVED]         del pf['user_id']
+# [MOVED]     
+# [MOVED]     return {'expired_ideas': expired, 'count': len(expired)}
+# [MOVED] 
+# [MOVED] @api_router.post("/pre-films/{pre_film_id}/convert")
+# [MOVED] async def convert_pre_film_to_draft(pre_film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Convert a pre-film to a full film draft for completion."""
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     if pre_film['status'] != 'active':
+# [MOVED]         raise HTTPException(status_code=400, detail="Solo i pre-film attivi possono essere convertiti")
+# [MOVED]     
+# [MOVED]     # Create a draft with pre-film data
+# [MOVED]     draft = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'title': pre_film['title'],
+# [MOVED]         'subtitle': pre_film.get('subtitle'),  # Pass subtitle for sequels
+# [MOVED]         'genre': pre_film['genre'],
+# [MOVED]         'screenplay': pre_film['screenplay_draft'],
+# [MOVED]         'screenplay_source': 'original',
+# [MOVED]         'from_pre_film': True,
+# [MOVED]         'pre_film_id': pre_film_id,
+# [MOVED]         'pre_engaged_cast': pre_film.get('pre_engaged_cast', {}),
+# [MOVED]         'current_step': 1,
+# [MOVED]         'paused_reason': 'from_pre_engagement',
+# [MOVED]         # Sequel fields
+# [MOVED]         'is_sequel': pre_film.get('is_sequel', False),
+# [MOVED]         'sequel_parent_id': pre_film.get('sequel_parent_id'),
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'updated_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.film_drafts.insert_one(draft)
+# [MOVED]     
+# [MOVED]     # Mark pre-film as converted
+# [MOVED]     await db.pre_films.update_one(
+# [MOVED]         {'id': pre_film_id},
+# [MOVED]         {'$set': {'status': 'converted', 'converted_to_draft_id': draft['id']}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'draft_id': draft['id'],
+# [MOVED]         'message': 'Pre-film convertito in bozza. Puoi ora completare la creazione del film.'
+# [MOVED]     }
+# [MOVED] 
 # Check for cast rescission (cast decides to leave if too much time passes)
-CAST_PATIENCE_DAYS = 15  # After 15 days, cast may want to rescind
-
-@api_router.get("/pre-films/{pre_film_id}/check-rescissions")
-async def check_cast_rescissions(pre_film_id: str, user: dict = Depends(get_current_user)):
-    """Check if any pre-engaged cast wants to rescind due to waiting too long."""
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    rescissions = []
-    cast = pre_film.get('pre_engaged_cast', {})
-    now = datetime.now(timezone.utc)
-    
-    # Check each cast member
-    for cast_type in ['screenwriter', 'director', 'composer']:
-        engaged = cast.get(cast_type)
-        if engaged:
-            engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
-            days_waiting = (now - engaged_at).days
-            
-            if days_waiting >= CAST_PATIENCE_DAYS:
-                # Cast member may want to rescind (probability increases with time)
-                rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
-                
-                if random.random() * 100 < rescind_chance:
-                    cast_member = await db.people.find_one({'id': engaged['id']}, {'_id': 0, 'name': 1})
-                    rescissions.append({
-                        'cast_type': cast_type,
-                        'cast_id': engaged['id'],
-                        'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
-                        'days_waiting': days_waiting,
-                        'advance_to_refund': engaged['advance_paid']
-                    })
-    
-    # Check actors
-    for actor in cast.get('actors', []):
-        engaged_at = datetime.fromisoformat(actor['engaged_at'].replace('Z', '+00:00'))
-        days_waiting = (now - engaged_at).days
-        
-        if days_waiting >= CAST_PATIENCE_DAYS:
-            rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
-            
-            if random.random() * 100 < rescind_chance:
-                cast_member = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1})
-                rescissions.append({
-                    'cast_type': 'actor',
-                    'cast_id': actor['id'],
-                    'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
-                    'days_waiting': days_waiting,
-                    'advance_to_refund': actor['advance_paid']
-                })
-    
-    return {'rescissions': rescissions, 'count': len(rescissions)}
-
-@api_router.post("/pre-films/{pre_film_id}/process-rescission")
-async def process_cast_rescission(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
-    """Process a cast rescission - refund the advance to the producer."""
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    cast = pre_film.get('pre_engaged_cast', {})
-    
-    # Find the engaged cast member
-    if cast_type == 'actor':
-        engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
-    else:
-        engaged = cast.get(cast_type)
-        if engaged and engaged.get('id') != cast_id:
-            engaged = None
-    
-    if not engaged:
-        raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
-    
-    # Refund the advance
-    refund_amount = engaged['advance_paid']
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': refund_amount}})
-    
-    # Remove from pre-engaged cast
-    if cast_type == 'actor':
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {
-                '$pull': {'pre_engaged_cast.actors': {'id': cast_id}},
-                '$inc': {'total_advance_paid': -refund_amount}
-            }
-        )
-    else:
-        await db.pre_films.update_one(
-            {'id': pre_film_id},
-            {
-                '$set': {f'pre_engaged_cast.{cast_type}': None},
-                '$inc': {'total_advance_paid': -refund_amount}
-            }
-        )
-    
-    cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0, 'name': 1})
-    
-    return {
-        'success': True,
-        'message': f"{cast_member.get('name', 'Il cast')} ha rescisso il contratto. Anticipo di ${refund_amount:,.0f} rimborsato.",
-        'refund': refund_amount
-    }
-
+# [MOVED] CAST_PATIENCE_DAYS = 15  # After 15 days, cast may want to rescind
+# [MOVED] 
+# [MOVED] @api_router.get("/pre-films/{pre_film_id}/check-rescissions")
+# [MOVED] async def check_cast_rescissions(pre_film_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if any pre-engaged cast wants to rescind due to waiting too long."""
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     rescissions = []
+# [MOVED]     cast = pre_film.get('pre_engaged_cast', {})
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     
+# [MOVED]     # Check each cast member
+# [MOVED]     for cast_type in ['screenwriter', 'director', 'composer']:
+# [MOVED]         engaged = cast.get(cast_type)
+# [MOVED]         if engaged:
+# [MOVED]             engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
+# [MOVED]             days_waiting = (now - engaged_at).days
+# [MOVED]             
+# [MOVED]             if days_waiting >= CAST_PATIENCE_DAYS:
+# [MOVED]                 # Cast member may want to rescind (probability increases with time)
+# [MOVED]                 rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
+# [MOVED]                 
+# [MOVED]                 if random.random() * 100 < rescind_chance:
+# [MOVED]                     cast_member = await db.people.find_one({'id': engaged['id']}, {'_id': 0, 'name': 1})
+# [MOVED]                     rescissions.append({
+# [MOVED]                         'cast_type': cast_type,
+# [MOVED]                         'cast_id': engaged['id'],
+# [MOVED]                         'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
+# [MOVED]                         'days_waiting': days_waiting,
+# [MOVED]                         'advance_to_refund': engaged['advance_paid']
+# [MOVED]                     })
+# [MOVED]     
+# [MOVED]     # Check actors
+# [MOVED]     for actor in cast.get('actors', []):
+# [MOVED]         engaged_at = datetime.fromisoformat(actor['engaged_at'].replace('Z', '+00:00'))
+# [MOVED]         days_waiting = (now - engaged_at).days
+# [MOVED]         
+# [MOVED]         if days_waiting >= CAST_PATIENCE_DAYS:
+# [MOVED]             rescind_chance = min(80, (days_waiting - CAST_PATIENCE_DAYS) * 5 + 20)
+# [MOVED]             
+# [MOVED]             if random.random() * 100 < rescind_chance:
+# [MOVED]                 cast_member = await db.people.find_one({'id': actor['id']}, {'_id': 0, 'name': 1})
+# [MOVED]                 rescissions.append({
+# [MOVED]                     'cast_type': 'actor',
+# [MOVED]                     'cast_id': actor['id'],
+# [MOVED]                     'cast_name': cast_member.get('name', 'Unknown') if cast_member else 'Unknown',
+# [MOVED]                     'days_waiting': days_waiting,
+# [MOVED]                     'advance_to_refund': actor['advance_paid']
+# [MOVED]                 })
+# [MOVED]     
+# [MOVED]     return {'rescissions': rescissions, 'count': len(rescissions)}
+# [MOVED] 
+# [MOVED] @api_router.post("/pre-films/{pre_film_id}/process-rescission")
+# [MOVED] async def process_cast_rescission(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Process a cast rescission - refund the advance to the producer."""
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     cast = pre_film.get('pre_engaged_cast', {})
+# [MOVED]     
+# [MOVED]     # Find the engaged cast member
+# [MOVED]     if cast_type == 'actor':
+# [MOVED]         engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
+# [MOVED]     else:
+# [MOVED]         engaged = cast.get(cast_type)
+# [MOVED]         if engaged and engaged.get('id') != cast_id:
+# [MOVED]             engaged = None
+# [MOVED]     
+# [MOVED]     if not engaged:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
+# [MOVED]     
+# [MOVED]     # Refund the advance
+# [MOVED]     refund_amount = engaged['advance_paid']
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': refund_amount}})
+# [MOVED]     
+# [MOVED]     # Remove from pre-engaged cast
+# [MOVED]     if cast_type == 'actor':
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {
+# [MOVED]                 '$pull': {'pre_engaged_cast.actors': {'id': cast_id}},
+# [MOVED]                 '$inc': {'total_advance_paid': -refund_amount}
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     else:
+# [MOVED]         await db.pre_films.update_one(
+# [MOVED]             {'id': pre_film_id},
+# [MOVED]             {
+# [MOVED]                 '$set': {f'pre_engaged_cast.{cast_type}': None},
+# [MOVED]                 '$inc': {'total_advance_paid': -refund_amount}
+# [MOVED]             }
+# [MOVED]         )
+# [MOVED]     
+# [MOVED]     cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0, 'name': 1})
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f"{cast_member.get('name', 'Il cast')} ha rescisso il contratto. Anticipo di ${refund_amount:,.0f} rimborsato.",
+# [MOVED]         'refund': refund_amount
+# [MOVED]     }
+# [MOVED] 
 # Endpoint to dismiss pre-engaged cast during film creation (with penalty info)
-@api_router.post("/pre-films/{pre_film_id}/dismiss-cast")
-async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
-    """Dismiss a pre-engaged cast member when creating the actual film (congedare)."""
-    pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
-    
-    if not pre_film:
-        raise HTTPException(status_code=404, detail="Pre-film non trovato")
-    
-    cast = pre_film.get('pre_engaged_cast', {})
-    
-    # Find the engaged cast member
-    if cast_type == 'actor':
-        engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
-    else:
-        engaged = cast.get(cast_type)
-        if engaged and engaged.get('id') != cast_id:
-            engaged = None
-    
-    if not engaged:
-        raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
-    
-    # Get cast member info
-    cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0})
-    if not cast_member:
-        raise HTTPException(status_code=404, detail="Cast non trovato")
-    
-    # Calculate penalty
-    engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
-    days_engaged = (datetime.now(timezone.utc) - engaged_at).days
-    
-    penalty_percent = calculate_release_penalty(cast_member, days_engaged)
-    penalty_amount = engaged['offered_fee'] * (penalty_percent / 100)
-    
-    # Advance already paid, calculate additional penalty
-    additional_penalty = max(0, penalty_amount - engaged['advance_paid'])
-    
-    return {
-        'cast_name': cast_member['name'],
-        'penalty_percent': penalty_percent,
-        'advance_lost': engaged['advance_paid'],
-        'additional_penalty': additional_penalty,
-        'total_cost': engaged['advance_paid'] + additional_penalty,
-        'message': f"Congedando {cast_member['name']} perderai l'anticipo di ${engaged['advance_paid']:,.0f}" + 
-                   (f" e pagherai una penale aggiuntiva di ${additional_penalty:,.0f}" if additional_penalty > 0 else "") +
-                   f" (Penale totale: {penalty_percent:.0f}%)"
-    }
-
+# [MOVED] @api_router.post("/pre-films/{pre_film_id}/dismiss-cast")
+# [MOVED] async def dismiss_pre_engaged_cast_for_film(pre_film_id: str, cast_type: str, cast_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Dismiss a pre-engaged cast member when creating the actual film (congedare)."""
+# [MOVED]     pre_film = await db.pre_films.find_one({'id': pre_film_id, 'user_id': user['id']})
+# [MOVED]     
+# [MOVED]     if not pre_film:
+# [MOVED]         raise HTTPException(status_code=404, detail="Pre-film non trovato")
+# [MOVED]     
+# [MOVED]     cast = pre_film.get('pre_engaged_cast', {})
+# [MOVED]     
+# [MOVED]     # Find the engaged cast member
+# [MOVED]     if cast_type == 'actor':
+# [MOVED]         engaged = next((a for a in cast.get('actors', []) if a['id'] == cast_id), None)
+# [MOVED]     else:
+# [MOVED]         engaged = cast.get(cast_type)
+# [MOVED]         if engaged and engaged.get('id') != cast_id:
+# [MOVED]             engaged = None
+# [MOVED]     
+# [MOVED]     if not engaged:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato nel pre-film")
+# [MOVED]     
+# [MOVED]     # Get cast member info
+# [MOVED]     cast_member = await db.people.find_one({'id': cast_id}, {'_id': 0})
+# [MOVED]     if not cast_member:
+# [MOVED]         raise HTTPException(status_code=404, detail="Cast non trovato")
+# [MOVED]     
+# [MOVED]     # Calculate penalty
+# [MOVED]     engaged_at = datetime.fromisoformat(engaged['engaged_at'].replace('Z', '+00:00'))
+# [MOVED]     days_engaged = (datetime.now(timezone.utc) - engaged_at).days
+# [MOVED]     
+# [MOVED]     penalty_percent = calculate_release_penalty(cast_member, days_engaged)
+# [MOVED]     penalty_amount = engaged['offered_fee'] * (penalty_percent / 100)
+# [MOVED]     
+# [MOVED]     # Advance already paid, calculate additional penalty
+# [MOVED]     additional_penalty = max(0, penalty_amount - engaged['advance_paid'])
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'cast_name': cast_member['name'],
+# [MOVED]         'penalty_percent': penalty_percent,
+# [MOVED]         'advance_lost': engaged['advance_paid'],
+# [MOVED]         'additional_penalty': additional_penalty,
+# [MOVED]         'total_cost': engaged['advance_paid'] + additional_penalty,
+# [MOVED]         'message': f"Congedando {cast_member['name']} perderai l'anticipo di ${engaged['advance_paid']:,.0f}" + 
+# [MOVED]                    (f" e pagherai una penale aggiuntiva di ${additional_penalty:,.0f}" if additional_penalty > 0 else "") +
+# [MOVED]                    f" (Penale totale: {penalty_percent:.0f}%)"
+# [MOVED]     }
+# [MOVED] 
 # ==================== END PRE-FILM & PRE-ENGAGEMENT SYSTEM ====================
 
 

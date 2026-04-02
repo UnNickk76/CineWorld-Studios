@@ -1,9 +1,11 @@
 FROM node:20-alpine AS frontend-build
+RUN apk add --no-cache python3 make g++
 WORKDIR /app/frontend
-COPY frontend/package.json ./
-RUN npm install --legacy-peer-deps
 COPY frontend/ ./
+RUN npm install --legacy-peer-deps
 ENV CI=false
+ENV NODE_OPTIONS=--max_old_space_size=4096
+ENV ENABLE_HEALTH_CHECK=false
 RUN REACT_APP_BACKEND_URL="" npm run build
 
 FROM python:3.11-slim

@@ -97,6 +97,7 @@ from routes.economy import router as economy_router
 from routes.dashboard import router as dashboard_router
 from routes.dashboard import initialize_release_notes as _init_release_notes
 from routes.dashboard import initialize_system_notes as _init_system_notes
+from routes.dashboard import calculate_cineboard_score
 from routes.premiere import router as premiere_router
 from routes.coming_soon import router as coming_soon_router
 from routes.major import router as major_router

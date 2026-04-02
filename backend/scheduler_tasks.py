@@ -102,6 +102,14 @@ async def update_all_films_revenue():
                     total_rev_share += sp.get('rev_share', 0.0)
                 total_rev_share = min(total_rev_share, 0.50)  # Cap at 50%
                 
+                # STEP 5 (La Prima): Premiere hype boost (first 3 days) + decay after
+                premiere = film.get('premiere', {})
+                premiere_boost = 0.0
+                premiere_decay = 1.0
+                if premiere.get('enabled') and premiere.get('initial_hype_boost', 0) > 0:
+                    premiere_boost = premiere['initial_hype_boost']
+                    premiere_decay = premiere.get('decay_factor', 0.90)
+                
                 for day in range(int(days_in_theater) + 1):
                     decay = daily_decay ** day
                     # Opening weekend boost (first 3 days)
@@ -123,6 +131,17 @@ async def update_all_films_revenue():
                     # Subtract sponsor rev_share
                     daily_revenue *= (1 - total_rev_share)
                     
+                    # Apply La Prima premiere boost/decay
+                    if premiere_boost > 0:
+                        if day < 3:
+                            daily_revenue *= (1 + premiere_boost)
+                        else:
+                            # Decay: boost shrinks each day after day 3
+                            days_after = day - 3
+                            residual = premiere_boost * (premiere_decay ** days_after)
+                            if residual > 0.005:
+                                daily_revenue *= (1 + residual)
+                    
                     if day < int(days_in_theater):
                         realistic_box_office += daily_revenue
                     else:
@@ -141,6 +160,15 @@ async def update_all_films_revenue():
                     if day < 3 and total_marketing_boost > 1.0:
                         est_daily *= total_marketing_boost
                     est_daily *= (1 - total_rev_share)
+                    # La Prima premiere boost/decay
+                    if premiere_boost > 0:
+                        if day < 3:
+                            est_daily *= (1 + premiere_boost)
+                        else:
+                            days_after = day - 3
+                            residual = premiere_boost * (premiere_decay ** days_after)
+                            if residual > 0.005:
+                                est_daily *= (1 + residual)
                     estimated_final += est_daily
                 estimated_final = int(estimated_final)
                 

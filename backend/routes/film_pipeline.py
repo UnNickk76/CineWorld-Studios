@@ -3802,6 +3802,20 @@ async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     await db.films.insert_one(film_doc)
     film_doc.pop('_id', None)
 
+    # STEP 6: Trigger La Prima premiere event if configured
+    premiere_result = None
+    if project.get('premiere', {}).get('enabled') and project.get('premiere', {}).get('city'):
+        try:
+            from routes.la_prima import trigger_premiere_event
+            premiere_result = await trigger_premiere_event(film_id, user['id'])
+            # Copy premiere data to released film for revenue pipeline
+            await db.films.update_one(
+                {'id': film_id},
+                {'$set': {'premiere': project.get('premiere', {})}}
+            )
+        except Exception as e:
+            logging.warning(f"Premiere event trigger failed: {e}")
+
     # Save release cinematic data for "Rivivi il rilascio" feature
     release_cinematic = {
         'film_id': film_id,

@@ -235,6 +235,122 @@ async def calculate_premiere_impact(film_project: dict, city: dict, datetime_str
     }
 
 
+# === STEP 6: PREMIERE EVENT GENERATION ===
+
+import random
+
+PREMIERE_OUTCOMES = {
+    'standing_ovation': {'min_boost': 0.25, 'event_type': 'premiere_standing_ovation', 'hype_bonus': 15},
+    'warm_reception': {'min_boost': 0.15, 'event_type': 'premiere_warm_reception', 'hype_bonus': 8},
+    'mixed_reaction': {'min_boost': 0.07, 'event_type': 'premiere_mixed_reaction', 'hype_bonus': 2},
+    'lukewarm': {'min_boost': 0.0, 'event_type': 'premiere_lukewarm', 'hype_bonus': -3},
+}
+
+
+def determine_premiere_outcome(initial_hype_boost: float) -> str:
+    """Determine the premiere event outcome based on impact score.
+    Some randomness added so it's not purely deterministic."""
+    roll = random.random()
+
+    if initial_hype_boost >= 0.25:
+        # High boost: 60% ovation, 30% warm, 10% mixed
+        if roll < 0.60:
+            return 'standing_ovation'
+        elif roll < 0.90:
+            return 'warm_reception'
+        else:
+            return 'mixed_reaction'
+    elif initial_hype_boost >= 0.15:
+        # Medium-high: 25% ovation, 45% warm, 25% mixed, 5% lukewarm
+        if roll < 0.25:
+            return 'standing_ovation'
+        elif roll < 0.70:
+            return 'warm_reception'
+        elif roll < 0.95:
+            return 'mixed_reaction'
+        else:
+            return 'lukewarm'
+    elif initial_hype_boost >= 0.07:
+        # Medium: 5% ovation, 30% warm, 45% mixed, 20% lukewarm
+        if roll < 0.05:
+            return 'standing_ovation'
+        elif roll < 0.35:
+            return 'warm_reception'
+        elif roll < 0.80:
+            return 'mixed_reaction'
+        else:
+            return 'lukewarm'
+    else:
+        # Low: 0% ovation, 10% warm, 40% mixed, 50% lukewarm
+        if roll < 0.10:
+            return 'warm_reception'
+        elif roll < 0.50:
+            return 'mixed_reaction'
+        else:
+            return 'lukewarm'
+
+
+async def trigger_premiere_event(film_id: str, user_id: str):
+    """Generate the premiere event when a film with La Prima gets released.
+    Called from the release pipeline or scheduler."""
+    project = await db.film_projects.find_one(
+        {'id': film_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'premiere': 1, 'genre': 1, 'hype_score': 1}
+    )
+    if not project:
+        return None
+
+    premiere = project.get('premiere', {})
+    if not premiere.get('enabled') or not premiere.get('city'):
+        return None
+
+    # Already triggered
+    if premiere.get('outcome'):
+        return premiere['outcome']
+
+    boost = premiere.get('initial_hype_boost', 0)
+    outcome_key = determine_premiere_outcome(boost)
+    outcome_data = PREMIERE_OUTCOMES[outcome_key]
+
+    # Update premiere with outcome
+    await db.film_projects.update_one(
+        {'id': film_id},
+        {'$set': {
+            'premiere.outcome': outcome_key,
+        }}
+    )
+
+    # Apply hype bonus/malus
+    hype_change = outcome_data['hype_bonus']
+    if hype_change != 0:
+        await db.film_projects.update_one(
+            {'id': film_id},
+            {'$inc': {'hype_score': hype_change}}
+        )
+
+    # Create notification via the existing engine
+    try:
+        from notification_engine import create_game_notification
+        await create_game_notification(
+            user_id=user_id,
+            event_type=outcome_data['event_type'],
+            content_id=film_id,
+            content_title=project.get('title', '?'),
+            extra_data={'title': project.get('title', '?'), 'city': premiere['city']},
+            force=True,
+        )
+    except Exception as e:
+        logger.warning(f"Premiere notification failed: {e}")
+
+    logger.info(f"Premiere event for '{project.get('title')}': {outcome_key} (hype change: {hype_change:+d})")
+
+    return {
+        'outcome': outcome_key,
+        'hype_change': hype_change,
+        'city': premiere['city'],
+    }
+
+
 # === ENDPOINTS ===
 
 @router.post("/enable/{film_id}")

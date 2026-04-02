@@ -83,6 +83,50 @@ TEMPLATES = {
         ]
     },
     # FILM RELEASED
+    'premiere_standing_ovation': {
+        'severity': SEVERITY_POSITIVE,
+        'icon': 'star',
+        'color': 'gold',
+        'source': 'CineWorld Premiere',
+        'templates': [
+            'Standing ovation alla Prima di "{title}" a {city}! Il pubblico e\' in delirio!',
+            'Trionfo a {city}! La Prima di "{title}" conquista la sala con una standing ovation!',
+            'Applausi scroscianti a {city}: la Prima di "{title}" e\' un evento memorabile!',
+        ]
+    },
+    'premiere_warm_reception': {
+        'severity': SEVERITY_POSITIVE,
+        'icon': 'thumbs-up',
+        'color': 'green',
+        'source': 'CineWorld Premiere',
+        'templates': [
+            'Accoglienza calorosa per "{title}" a {city}. Il pubblico apprezza!',
+            'La Prima di "{title}" a {city} va bene: applausi e sorrisi in sala.',
+            'Buona accoglienza a {city} per la Prima di "{title}". I critici sono favorevoli.',
+        ]
+    },
+    'premiere_mixed_reaction': {
+        'severity': SEVERITY_IMPORTANT,
+        'icon': 'minus-circle',
+        'color': 'orange',
+        'source': 'CineWorld Premiere',
+        'templates': [
+            'Pubblico diviso alla Prima di "{title}" a {city}. Reazioni contrastanti.',
+            'La Prima di "{title}" a {city} divide la platea: chi ama e chi no.',
+            'Reazioni miste a {city}: la Prima di "{title}" non convince tutti.',
+        ]
+    },
+    'premiere_lukewarm': {
+        'severity': SEVERITY_IMPORTANT,
+        'icon': 'meh',
+        'color': 'gray',
+        'source': 'CineWorld Premiere',
+        'templates': [
+            'Accoglienza tiepida per "{title}" a {city}. La sala reagisce con educazione.',
+            'La Prima di "{title}" a {city} non entusiasma. Applausi di cortesia.',
+            'Pochi brividi a {city}: la Prima di "{title}" passa senza emozioni forti.',
+        ]
+    },
     'high_revenue': {
         'severity': SEVERITY_POSITIVE,
         'icon': 'trending-up',
@@ -281,6 +325,7 @@ def _render_template(event_type: str, title: str, data: dict = None) -> str:
         'event_title': data.get('event_title', 'Evento imprevisto'),
         'event_desc': data.get('event_desc', ''),
         'boycott_type': data.get('boycott_type', 'sabotaggio anonimo'),
+        'city': data.get('city', ''),
     }
     
     for key, val in replacements.items():

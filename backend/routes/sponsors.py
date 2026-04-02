@@ -234,9 +234,9 @@ async def add_sponsor_to_project(req: AddSponsorRequest, user=Depends(get_curren
 
     valid_statuses = SPONSORABLE_STATUSES.get(req.project_type, [])
 
-    # Find project
+    # Find project (include hype_score for deal calculation)
     query = {'id': req.project_id, 'user_id': user['id']}
-    project = await collection.find_one(query, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'sponsors': 1, 'type': 1})
+    project = await collection.find_one(query, {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'sponsors': 1, 'type': 1, 'hype_score': 1, 'genre': 1})
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
 
@@ -265,29 +265,69 @@ async def add_sponsor_to_project(req: AddSponsorRequest, user=Depends(get_curren
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor non trovato")
 
+    # === STEP 3: DEAL CALCULATION ===
+    hype = project.get('hype_score', 0)
+    base_offer = sponsor['base_offer']
+
+    # STEP 5: Memory bonus/malus from past collaborations
+    memory_modifier = 1.0
+    memory_note = None
+    if sponsor.get('collaborations', 0) > 0:
+        avg_perf = sponsor.get('avg_performance', 0)
+        if avg_perf > 70:
+            memory_modifier = 1.0 + (avg_perf - 70) / 200  # up to +15%
+            memory_note = f"Sponsor soddisfatto (+{(memory_modifier - 1) * 100:.0f}% offerta)"
+        elif avg_perf < 40:
+            memory_modifier = 1.0 - (40 - avg_perf) / 200  # down to -20%
+            memory_note = f"Sponsor insoddisfatto ({(memory_modifier - 1) * 100:.0f}% offerta)"
+
+    # Genre affinity bonus (+10% if sponsor has affinity for project genre)
+    genre_bonus = 1.10 if project.get('genre') in sponsor.get('genre_affinity', []) else 1.0
+
+    deal_value = int(base_offer * (1 + hype / 100) * memory_modifier * genre_bonus)
+
     # Build sponsor entry for project
     sponsor_entry = {
         'sponsor_id': sponsor['id'],
         'name': sponsor['name'],
         'tier': sponsor['tier'],
-        'base_offer': sponsor['base_offer'],
+        'base_offer': base_offer,
+        'deal_value': deal_value,
         'rev_share': sponsor['rev_share'],
         'marketing_boost': sponsor['marketing_boost'],
         'reputation': sponsor['reputation'],
+        'genre_match': project.get('genre') in sponsor.get('genre_affinity', []),
+        'hype_at_signing': hype,
+        'memory_modifier': round(memory_modifier, 3),
+        'memory_note': memory_note,
         'added_at': datetime.now(timezone.utc).isoformat(),
     }
 
-    # Update project
+    # Update project: push sponsor + add deal_value to user funds
     await collection.update_one(
         {'id': req.project_id, 'user_id': user['id']},
         {'$push': {'sponsors': sponsor_entry}}
     )
 
-    logger.info(f"Sponsor {sponsor['name']} added to {req.project_type} '{project.get('title')}'")
+    # Credit deal_value to user funds
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': deal_value}}
+    )
+
+    logger.info(f"Sponsor {sponsor['name']} deal ${deal_value:,} for {req.project_type} '{project.get('title')}' (hype={hype}, memory={memory_modifier:.2f})")
 
     return {
         'message': f"Sponsor {sponsor['name']} aggiunto al progetto",
         'sponsor': sponsor_entry,
+        'deal_value': deal_value,
+        'deal_breakdown': {
+            'base_offer': base_offer,
+            'hype_multiplier': round(1 + hype / 100, 2),
+            'memory_modifier': round(memory_modifier, 3),
+            'genre_bonus': genre_bonus,
+            'final_deal': deal_value,
+        },
         'total_sponsors': len(current_sponsors) + 1
     }
 
@@ -396,4 +436,97 @@ async def get_available_sponsors_for_project(
         'sponsors': all_sponsors,
         'count': len(all_sponsors),
         'project_genre': genre
+    }
+
+
+# === STEP 5: SPONSOR MEMORY SYSTEM ===
+
+async def record_sponsor_performance(film: dict):
+    """Called when a film ends its theater run. Records performance for each sponsor.
+    
+    Performance score = (total_revenue / deal_value) * 50, capped at 100.
+    A film that earns 2x the deal_value = performance 100 (perfect).
+    A film that earns 0.5x = performance 25 (poor).
+    """
+    sponsors = film.get('sponsors', [])
+    if not sponsors:
+        return
+
+    film_id = film.get('id', '')
+    film_title = film.get('title', '?')
+    total_revenue = film.get('total_revenue', 0)
+    quality = film.get('quality_score', 50)
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    for sp in sponsors:
+        sponsor_id = sp.get('sponsor_id')
+        if not sponsor_id:
+            continue
+
+        deal_value = sp.get('deal_value', sp.get('base_offer', 1))
+        if deal_value <= 0:
+            deal_value = 1
+
+        # Performance: revenue relative to deal_value
+        roi_ratio = total_revenue / deal_value
+        performance = min(100, max(0, int(roi_ratio * 50)))
+
+        # Save deal record
+        deal_record = {
+            'id': str(uuid.uuid4()),
+            'sponsor_id': sponsor_id,
+            'sponsor_name': sp.get('name', '?'),
+            'film_id': film_id,
+            'film_title': film_title,
+            'project_type': 'film',
+            'deal_value': deal_value,
+            'rev_share': sp.get('rev_share', 0),
+            'total_revenue': total_revenue,
+            'quality_score': quality,
+            'performance': performance,
+            'created_at': now_str,
+        }
+        await db.sponsor_deals.insert_one(deal_record)
+
+        # Update sponsor memory (running average)
+        sponsor = await db.sponsors.find_one({'id': sponsor_id}, {'_id': 0, 'collaborations': 1, 'avg_performance': 1})
+        if sponsor:
+            old_count = sponsor.get('collaborations', 0)
+            old_avg = sponsor.get('avg_performance', 0)
+            new_count = old_count + 1
+            new_avg = ((old_avg * old_count) + performance) / new_count
+
+            await db.sponsors.update_one(
+                {'id': sponsor_id},
+                {'$set': {
+                    'collaborations': new_count,
+                    'avg_performance': round(new_avg, 1),
+                    'last_collaboration': now_str,
+                }}
+            )
+            logger.info(f"Sponsor {sp.get('name')} performance={performance} for '{film_title}' (avg now {new_avg:.1f}, total {new_count} deals)")
+
+
+@router.get("/history/{sponsor_id}")
+async def get_sponsor_history(sponsor_id: str, user=Depends(get_current_user)):
+    """Get full collaboration history for a sponsor."""
+    sponsor = await db.sponsors.find_one({'id': sponsor_id}, {'_id': 0})
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor non trovato")
+
+    deals = await db.sponsor_deals.find(
+        {'sponsor_id': sponsor_id}, {'_id': 0}
+    ).sort('created_at', -1).limit(20).to_list(20)
+
+    return {
+        'sponsor': sponsor,
+        'deals': deals,
+        'total_deals': sponsor.get('collaborations', 0),
+        'avg_performance': sponsor.get('avg_performance', 0),
+        'memory_status': (
+            'neutro' if sponsor.get('collaborations', 0) == 0
+            else 'positivo' if sponsor.get('avg_performance', 0) > 70
+            else 'negativo' if sponsor.get('avg_performance', 0) < 40
+            else 'neutro'
+        )
     }

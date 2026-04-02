@@ -3,70 +3,55 @@
 ## Problema Originale
 Gioco browser-based di simulazione studio cinematografico. Full-stack React + FastAPI + MongoDB.
 
-## Refactoring in corso
-Modularizzazione graduale di `server.py` in route files separati. Attualmente a Step 14 (GAME CORE: films, film_engagement, production_studio) — **PAUSED**.
-
 ## Architettura
 ```
 /app/backend/
 ├── server.py (monolite in refactoring)
-├── cast_system.py (generazione cast, ACTOR_SKILLS, GENRE_SKILL_MAPPING)
+├── cast_system.py (ACTOR_SKILLS, GENRE_SKILL_MAPPING)
 ├── challenge_system.py
 ├── game_systems.py
-├── emerging_screenplays.py
+├── scheduler_tasks.py (revenue giornaliero, sponsor impact)
 ├── database.py
 ├── routes/
-│   ├── cast.py
-│   ├── casting_agency.py
-│   ├── acting_school.py
-│   ├── film_pipeline.py
-│   ├── series_pipeline.py
-│   ├── sequel_pipeline.py
-│   ├── cinepass.py
-│   ├── films.py (creato, da popolare — Step 14)
-│   ├── film_engagement.py (creato, da popolare — Step 14)
+│   ├── sponsors.py (NEW — sistema sponsor completo)
+│   ├── cast.py, casting_agency.py, acting_school.py
+│   ├── film_pipeline.py (quality genre-aware)
+│   ├── series_pipeline.py, sequel_pipeline.py
+│   ├── cinepass.py, films.py, film_engagement.py
 │   └── ... (altre route)
 /app/frontend/ (React)
 ```
 
-## Integrazioni 3rd Party
-- OpenAI GPT-4o-mini (Text Generation) — Emergent LLM Key
-- OpenAI GPT-Image-1 (Image Generation) — Emergent LLM Key
+## Integrazioni
+- OpenAI GPT-4o-mini (Text) + GPT-Image-1 (Image) — Emergent LLM Key
 - MongoDB Atlas
 
 ## Completato
 
-### Skill System Refactoring (Apr 2026)
-- **STEP 1**: Unificazione sistema skill attori — rimosso ACTOR_SKILL_NAMES (10 skill inglesi), ora usa SOLO ACTOR_SKILLS (13 skill codificate). Aggiunto LEGACY_SKILL_MAPPING + conversione on-read. Migrati 6 documenti DB legacy.
-- **STEP 2**: Fix scuola di recitazione — generate_final_skills() ora genera 8 skill su 13 (non 13 su 13). Initial skills sono sottoinsieme delle final.
-- **STEP 3**: Skill reali nella qualità film — formula genre-aware (70% genre_avg + 30% full_avg) invece di media generica. Debug log + advanced_factors._skill_debug.
-- **STEP 4**: Verifica coerenza — corretti game_systems.py, cinepass.py, server.py (SKILL_TYPES + enrollment scuola). Zero documenti legacy rimasti.
+### Sistema Sponsor (Apr 2026)
+- **STEP 1**: Modello sponsor con tier A/B/C, 48 sponsor generati, 3 endpoint (list, detail, stats)
+- **STEP 2**: Aggiunta/rimozione sponsor ai progetti (max 6, solo in status validi), ordinamento per affinità genere
+- **STEP 3**: Calcolo deal — `deal_value = base_offer × (1 + hype/100) × memory_modifier × genre_bonus`. Deal accreditato ai fondi utente
+- **STEP 4**: Impatto economico — marketing_boost sui primi 3 giorni, rev_share sottratto giornalmente. Applicato in scheduler_tasks.py
+- **STEP 5**: Memoria sponsor — storico deal in `sponsor_deals`, avg_performance aggiornata, bonus/malus su offerte future (+15% max se positivo, -20% se negativo)
 
-### Report generati
-- `/api/static/report_skill_system.txt` — Analisi pre-refactoring
-- `/api/static/report_skill_refactoring.txt` — Report post-refactoring
+### Skill System Refactoring (Apr 2026)
+- Unificazione su ACTOR_SKILLS (13 skill, 8 per membro)
+- Fix scuola recitazione (8/13)
+- Quality film genre-aware (70% genre + 30% full)
+- Zero legacy rimasti
 
 ## In Progress
 - Step 14 Modularizzazione GAME CORE (PAUSED)
 
 ## Backlog (P1)
-- 20 poster film mancanti/404 (rigenerazione AI)
+- 20 poster film mancanti/404
 - Modularizzazione endpoint rimanenti in server.py
 - Sistema "Previsioni Festival"
 - Marketplace diritti TV/Anime
 
 ## Backlog (P2+)
-- Contest Page Mobile Layout rotto (ricorrente 14+)
-- Velion Mood Indicator
-- Chat Evolution
-- CinePass + Stripe
-- Push notifications
-- Velion Levels
-- RBAC
-- Eventi globali
-- Guerre tra Major
-- Velion AI Memory
-
-## Credenziali Test
-- User: fandrex1@gmail.com / Ciaociao1
-- Admin: test@cineworld.com / test123
+- Contest Page Mobile Layout rotto
+- Velion features (Mood, Chat, Levels, AI Memory)
+- CinePass + Stripe, Push notifications, RBAC
+- Eventi globali, Guerre tra Major

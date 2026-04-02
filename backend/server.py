@@ -5246,7 +5246,14 @@ async def withdraw_film(film_id: str, user: dict = Depends(get_current_user)):
         {'id': film_id},
         {'$set': {'status': 'withdrawn'}}
     )
-    
+
+    # Record sponsor performance when film ends
+    try:
+        from routes.sponsors import record_sponsor_performance
+        await record_sponsor_performance(film)
+    except Exception as e:
+        logging.warning(f"Sponsor performance recording failed: {e}")
+
     return {'message': 'Film withdrawn from theaters', 'status': 'withdrawn'}
 
 
@@ -16013,7 +16020,14 @@ async def early_withdraw_film(film_id: str, user: dict = Depends(get_current_use
             'days_early': days_early
         }}
     )
-    
+
+    # Record sponsor performance when film ends
+    try:
+        from routes.sponsors import record_sponsor_performance
+        await record_sponsor_performance(film)
+    except Exception as e:
+        logging.warning(f"Sponsor performance recording failed: {e}")
+
     # Apply penalties
     current_fame = user.get('fame', 50)
     new_fame = int(max(0, current_fame - fame_penalty))

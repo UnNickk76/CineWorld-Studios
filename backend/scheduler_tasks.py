@@ -92,6 +92,16 @@ async def update_all_films_revenue():
                 
                 # Calculate cumulative box office with quality-based decay
                 realistic_box_office = 0
+                
+                # STEP 4: Sponsor impact — marketing_boost (first 3 days) + rev_share (daily)
+                sponsors = film.get('sponsors', [])
+                total_marketing_boost = 1.0
+                total_rev_share = 0.0
+                for sp in sponsors:
+                    total_marketing_boost *= sp.get('marketing_boost', 1.0)
+                    total_rev_share += sp.get('rev_share', 0.0)
+                total_rev_share = min(total_rev_share, 0.50)  # Cap at 50%
+                
                 for day in range(int(days_in_theater) + 1):
                     decay = daily_decay ** day
                     # Opening weekend boost (first 3 days)
@@ -106,6 +116,13 @@ async def update_all_films_revenue():
                     
                     daily_revenue = opening_day * decay * quality_multiplier * imdb_boost * day_boost
                     
+                    # Apply sponsor marketing boost on first 3 days
+                    if day < 3 and total_marketing_boost > 1.0:
+                        daily_revenue *= total_marketing_boost
+                    
+                    # Subtract sponsor rev_share
+                    daily_revenue *= (1 - total_rev_share)
+                    
                     if day < int(days_in_theater):
                         realistic_box_office += daily_revenue
                     else:
@@ -114,13 +131,17 @@ async def update_all_films_revenue():
                 
                 realistic_box_office = int(realistic_box_office)
                 
-                # Estimated final (17 days run)
+                # Estimated final (17 days run) — includes sponsor impact
                 max_days = 17
                 estimated_final = 0
                 for day in range(max_days):
                     decay = daily_decay ** day
                     day_boost = 2.5 if day == 0 else 1.8 if day < 3 else 1.2 if day < 7 else 1.0
-                    estimated_final += opening_day * decay * quality_multiplier * imdb_boost * day_boost
+                    est_daily = opening_day * decay * quality_multiplier * imdb_boost * day_boost
+                    if day < 3 and total_marketing_boost > 1.0:
+                        est_daily *= total_marketing_boost
+                    est_daily *= (1 - total_rev_share)
+                    estimated_final += est_daily
                 estimated_final = int(estimated_final)
                 
                 # Track hourly revenue for daily leaderboard

@@ -51,12 +51,14 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 - **MODULARIZATION Step 14 (Game Core — Films, Engagement, Production Studio)**: Moved ~57 endpoints from server.py → 3 new route files. `routes/films.py` (28 endpoints): POST /films, GET /films/my, /films/pending, /films/shooting, /films/shooting/config, POST /films/{id}/start-shooting, /films/{id}/end-shooting-early, /films/{id}/release, GET /films/my/featured, /films/my/for-sequel, /films/cinema-journal, /films/available-for-rental, /films/my-available, /films/{id}/release-cinematic, /films/{id}, /films/{id}/distribution, DELETE /films/{id}, /films/{id}/permanent, /film-projects/{id}/permanent, GET /films/{id}/duration-status, POST /films/{id}/extend, /films/{id}/early-withdraw, GET /films/{id}/rerelease-status, POST /films/{id}/rerelease, /films/{id}/check-star-discoveries, /films/{id}/evolve-cast-skills, GET /films/{id}/event-bonus, GET /distribution/config + process_shooting_progress scheduler function + models (StartShootingRequest, FilmReleaseRequest). `routes/film_engagement.py` (15 endpoints): GET /films/{id}/actions, POST /films/{id}/action/create-star, /films/{id}/action/skill-boost, /films/{id}/user-rating, GET /films/{id}/ratings, /advertising/platforms, POST /films/{id}/advertise, /films/{id}/rate, /films/{id}/comment, GET /films/{id}/comments, /films/{id}/virtual-audience, POST /films/{id}/update-virtual-audience, GET /films/reviews-board, /films/{id}/tier-expectations. `routes/production_studio.py` (9 endpoints): GET /production-studio/status, /production-studios/unlock-status, POST /production-studio/pre-production/{id}, /production-studio/remaster/{id}, GET /production-studio/casting, POST /production-studio/casting/hire, /production-studio/generate-draft, GET /production-studio/drafts, DELETE /production-studio/drafts/{id} + models (PreProductionRequest, CastingHireRequest, StudioDraftRequest). Router ordering: film_engagement_router before films_router to prevent {film_id} from capturing static paths. Old code commented out. server.py ~17084 lines, ~9620 [MOVED] lines. (2026-04-02)
 
+- **MODULARIZATION Step 15 (Events + Stars)**: Moved 5 endpoints from server.py → 2 new route files. `routes/events.py` (2): GET /events/active, GET /events/all. `routes/stars.py` (3): POST /stars/{id}/hire, GET /stars/hired, DELETE /stars/hired/{id}. Dependencies: game_systems (WORLD_EVENTS, get_active_world_events). 4 endpoint già spostati nello Step 14 (event-bonus, actions, create-star, skill-boost) lasciati nei file attuali. Old code commented out. (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
 
 ## Upcoming (P1)
-- Modularizzazione server.py — Step 15+ (attendere indicazioni utente per il prossimo gruppo)
+- Modularizzazione server.py — Step 16+ (attendere indicazioni utente per il prossimo gruppo)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
 

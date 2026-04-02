@@ -107,6 +107,8 @@ from routes.films import router as films_router
 from routes.films import process_shooting_progress as _films_process_shooting
 from routes.film_engagement import router as film_engagement_router
 from routes.production_studio import router as production_studio_router
+from routes.events import router as events_router
+from routes.stars import router as stars_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -5506,74 +5508,77 @@ def calculate_imdb_rating(film: dict) -> float:
 #     
 #     return {'news': news}
 # 
-@api_router.post("/stars/{star_id}/hire")
-async def hire_star(star_id: str, user: dict = Depends(get_current_user)):
-    """Hire a discovered star for your next film"""
-    # Check if star exists and is discovered
-    star = await db.people.find_one({'id': star_id, 'is_discovered_star': True}, {'_id': 0})
-    if not star:
-        raise HTTPException(status_code=404, detail="Star non trovata o non è una stella scoperta")
-    
-    # Check if already hired by this user
-    existing = await db.hired_stars.find_one({'user_id': user['id'], 'star_id': star_id})
-    if existing:
-        raise HTTPException(status_code=400, detail="Hai già ingaggiato questa star")
-    
-    # Calculate cost
-    base_cost = 100000
-    fame_mult = 1 + (star.get('fame_score', 50) / 100)
-    skill_avg = sum(star.get('skills', {}).values()) / max(len(star.get('skills', {})), 1)
-    skill_mult = 1 + (skill_avg / 100)
-    hire_cost = int(base_cost * fame_mult * skill_mult * star.get('stars', 3))
-    
-    # Check funds
-    if user['funds'] < hire_cost:
-        raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${hire_cost:,}")
-    
-    # Deduct funds and save hire
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -hire_cost}})
-    
-    await db.hired_stars.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': user['id'],
-        'star_id': star_id,
-        'star_name': star['name'],
-        'star_type': star['type'],
-        'hire_cost': hire_cost,
-        'hired_at': datetime.now(timezone.utc).isoformat(),
-        'used': False  # Will be set to True when used in a film
-    })
-    
-    return {
-        'success': True,
-        'message': f"{star['name']} ingaggiata per ${hire_cost:,}! Sarà disponibile nel tuo prossimo film.",
-        'hire_cost': hire_cost
-    }
+# [MOVED TO routes/stars.py]
+# [MOVED] @api_router.post("/stars/{star_id}/hire")
+# [MOVED] async def hire_star(star_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Hire a discovered star for your next film"""
+# [MOVED]     # Check if star exists and is discovered
+# [MOVED]     star = await db.people.find_one({'id': star_id, 'is_discovered_star': True}, {'_id': 0})
+# [MOVED]     if not star:
+# [MOVED]         raise HTTPException(status_code=404, detail="Star non trovata o non è una stella scoperta")
+# [MOVED]     
+# [MOVED]     # Check if already hired by this user
+# [MOVED]     existing = await db.hired_stars.find_one({'user_id': user['id'], 'star_id': star_id})
+# [MOVED]     if existing:
+# [MOVED]         raise HTTPException(status_code=400, detail="Hai già ingaggiato questa star")
+# [MOVED]     
+# [MOVED]     # Calculate cost
+# [MOVED]     base_cost = 100000
+# [MOVED]     fame_mult = 1 + (star.get('fame_score', 50) / 100)
+# [MOVED]     skill_avg = sum(star.get('skills', {}).values()) / max(len(star.get('skills', {})), 1)
+# [MOVED]     skill_mult = 1 + (skill_avg / 100)
+# [MOVED]     hire_cost = int(base_cost * fame_mult * skill_mult * star.get('stars', 3))
+# [MOVED]     
+# [MOVED]     # Check funds
+# [MOVED]     if user['funds'] < hire_cost:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${hire_cost:,}")
+# [MOVED]     
+# [MOVED]     # Deduct funds and save hire
+# [MOVED]     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -hire_cost}})
+# [MOVED]     
+# [MOVED]     await db.hired_stars.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'star_id': star_id,
+# [MOVED]         'star_name': star['name'],
+# [MOVED]         'star_type': star['type'],
+# [MOVED]         'hire_cost': hire_cost,
+# [MOVED]         'hired_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]         'used': False  # Will be set to True when used in a film
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'success': True,
+# [MOVED]         'message': f"{star['name']} ingaggiata per ${hire_cost:,}! Sarà disponibile nel tuo prossimo film.",
+# [MOVED]         'hire_cost': hire_cost
+# [MOVED]     }
 
-@api_router.get("/stars/hired")
-async def get_hired_stars(user: dict = Depends(get_current_user)):
-    """Get list of stars hired by the user (not yet used)"""
-    hired = await db.hired_stars.find(
-        {'user_id': user['id'], 'used': False},
-        {'_id': 0}
-    ).to_list(100)
-    
-    # Get full star details
-    for hire in hired:
-        star = await db.people.find_one({'id': hire['star_id']}, {'_id': 0})
-        if star:
-            hire['star_details'] = star
-    
-    return {'hired_stars': hired}
+# [MOVED TO routes/stars.py]
+# [MOVED] @api_router.get("/stars/hired")
+# [MOVED] async def get_hired_stars(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get list of stars hired by the user (not yet used)"""
+# [MOVED]     hired = await db.hired_stars.find(
+# [MOVED]         {'user_id': user['id'], 'used': False},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).to_list(100)
+# [MOVED]     
+# [MOVED]     # Get full star details
+# [MOVED]     for hire in hired:
+# [MOVED]         star = await db.people.find_one({'id': hire['star_id']}, {'_id': 0})
+# [MOVED]         if star:
+# [MOVED]             hire['star_details'] = star
+# [MOVED]     
+# [MOVED]     return {'hired_stars': hired}
 
-@api_router.delete("/stars/hired/{hire_id}")
-async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user)):
-    """Release a hired star (no refund)"""
-    result = await db.hired_stars.delete_one({'id': hire_id, 'user_id': user['id']})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Ingaggio non trovato")
-    
-    return {'success': True, 'message': 'Star rilasciata'}
+# [MOVED TO routes/stars.py]
+# [MOVED] @api_router.delete("/stars/hired/{hire_id}")
+# [MOVED] async def release_hired_star(hire_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Release a hired star (no refund)"""
+# [MOVED]     result = await db.hired_stars.delete_one({'id': hire_id, 'user_id': user['id']})
+# [MOVED]     if result.deleted_count == 0:
+# [MOVED]         raise HTTPException(status_code=404, detail="Ingaggio non trovato")
+# [MOVED]     
+# [MOVED]     return {'success': True, 'message': 'Star rilasciata'}
 
 # ==================== RELEASE NOTES ====================
 
@@ -16567,19 +16572,21 @@ async def get_global_leaderboard(limit: int = 50):
 # [MOVED] 
 # ==================== WORLD EVENTS ====================
 
-@api_router.get("/events/active")
-async def get_active_events():
-    """Get currently active world events."""
-    events = get_active_world_events()
-    return {
-        'events': events,
-        'count': len(events)
-    }
+# [MOVED TO routes/events.py]
+# [MOVED] @api_router.get("/events/active")
+# [MOVED] async def get_active_events():
+# [MOVED]     """Get currently active world events."""
+# [MOVED]     events = get_active_world_events()
+# [MOVED]     return {
+# [MOVED]         'events': events,
+# [MOVED]         'count': len(events)
+# [MOVED]     }
 
-@api_router.get("/events/all")
-async def get_all_events():
-    """Get all possible world events."""
-    return list(WORLD_EVENTS.values())
+# [MOVED TO routes/events.py]
+# [MOVED] @api_router.get("/events/all")
+# [MOVED] async def get_all_events():
+# [MOVED]     """Get all possible world events."""
+# [MOVED]     return list(WORLD_EVENTS.values())
 
 # [MOVED] @api_router.get("/films/{film_id}/event-bonus")
 # [MOVED] async def get_film_event_bonus(film_id: str, user: dict = Depends(get_current_user)):
@@ -16858,6 +16865,8 @@ app.include_router(emerging_screenplays_router, prefix="/api")
 app.include_router(film_engagement_router, prefix="/api")
 app.include_router(films_router, prefix="/api")
 app.include_router(production_studio_router, prefix="/api")
+app.include_router(events_router, prefix="/api")
+app.include_router(stars_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

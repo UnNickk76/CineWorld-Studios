@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://debug-login-fix-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://actor-refactor.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "fandrex1@gmail.com"

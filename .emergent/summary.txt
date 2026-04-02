@@ -1,14 +1,141 @@
-<analysis>passlibcurlpasslibbcryptbcrypt.checkpw()socketTimeoutMSdatabase.pyNetworkTimeoutcurlpasslibbcrypt.checkpw()__about__serverSelectionTimeoutMSsocketTimeoutMScurlaccess_tokenREACT_APP_BACKEND_URL/app/backend/routes/auth.py/app/frontend/src/App.js/app/backup_produzione/GET /api/admin/export-dbGET /api/series/myPOST /api/series/{id}/generate-posterSagasSeriesPage.jsx/healthasyncio.create_task()server.py/uploadspasslib
-/app/
-├── Dockerfile (Multi-stage)
-├── railway.toml
-├── backend/
-│   ├── server.py (API routes, SPA fallback mount, background startup tasks)
-│   ├── database.py (MongoDB Atlas connection without strict timeouts)
-│   ├── routes/
-│   │   ├── auth.py (Login logic using bcrypt)
-│   │   ├── series_pipeline.py (Poster generation logic)
-│   └── scripts/ (Extraction and backup scripts)
-└── frontend/
-    └── src/pages/SagasSeriesPage.jsx (UI for series and poster generation)
-bcryptuserspasswordinfrastructuretv_seriespasslibbcrypt 4.1.3AttributeError: module 'bcrypt' has no attribute '__about__'bcrypt.checkpw()/app/backend/database.pyAsyncIOMotorClient/app/backend/routes/auth.pyloginbcryptLOGIN STARTLOGIN USER FOUND/app/backend/server.py@app.on_event(startup)/health/uploads/app/frontend/src/pages/SagasSeriesPage.jsxonClickserver.pyPOST /api/auth/loginGET /healthGET /api/admin/export-dbPOST /api/series/{id}/generate-posterPOST /api/anime/{id}/generate-postertesting_agent_v3_forkcurlaccess_token/app/memory/PRD.md/app/memory/test_credentials.md/app/backup_produzione/ALL_DATA.jsondatabase.pydb = client.get_default_database()passlibaccess_token.itrequirements.txt0.0.0.0/0MONGO_URLpasslibbcryptpasslibfandrex1@gmail.comCiaociao1test@cineworld.comtest123</analysis>
+<analysis>**original_problem_statement**: 
+The user originally needed to migrate production data to MongoDB Atlas and fix a frontend login bug ( due to timeouts). After successfully fixing the login bug (by converting heavy 2.7MB base64 avatars to disk files), fixing dashboard timeouts (using MongoDB projections to exclude heavy fields), and optimizing Atlas storage (reducing from 318MB to 77MB by deleting unused databases and compacting collections), the user requested a **gradual, step-by-step modularization of **.
+PRODUCT REQUIREMENTS: 
+Modularize  into dedicated files inside  safely. Follow a strict ONE STEP AT A TIME rule. Move endpoints, comment out the old ones in , test, and wait for explicit user confirmation before proceeding to the next group. Do NOT use the testing agent (to save credits).
+
+**User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
+
+**what currently exists?** 
+A full-stack React + FastAPI application. The backend database and login flow have been highly optimized (response times dropped from >30s to <1s). The backend entry point () is currently very bloated (~315 endpoints) and is actively undergoing a strict step-by-step refactoring process to move routes into the  directory.
+
+**Last working item**: 
+    - Last item agent was working: Step 1 of the  modularization process. Specifically, the agent was instructed to move the **Cast/People** group (23 endpoints such as , ) into a new file . 
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use?: manual testing by curl and frontend screenshot tool (Do NOT use testing subagent).
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**: 
+  Issue 1: 20 film posters are missing/returning 404 (P1)
+     - Attempted fixes: Successfully synced 4 TV series posters from the  server, but discovered 20 film posters do not exist on the  server either.
+     - Next debug checklist: Inform the user that they must be regenerated via the AI generation feature.
+     - Why fix this issue and what will be achieved with the fix?: Restores missing UI assets for legacy films.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Both
+
+**In progress Task List**: 
+  Task 1: Modularize Cast/People endpoints from  to  (P0)
+     - Where to resume: Create . Define . Move the 23 Cast/People endpoints from  into this new file, changing  to . In , add  and . **COMMENT OUT** (do not delete) the old endpoints in .
+     - What will be achieved with this?: First safe step in breaking down the massive  file without breaking functionality.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix?: Both (Test via curl and screenshot of the cast/agency page).
+     - Blocked on something: None.
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - (P1) Modularize the remaining ~290 endpoints in  (ONLY proceed group by group after user approval).
+    - (P1) Sistema Previsioni Festival (Betting on festival winners).
+    - (P1) Marketplace for TV/Anime rights.
+    Future Tasks:
+    - (P2) Contest Page Mobile Layout Is Broken.
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory.
+
+**Completed work in this session**
+- Converted Base64 avatars to physical disk files to fix  login timeouts (DONE)
+- Excluded heavy fields (, , etc.) from  and  using MongoDB projection, dropping response times from 53s to 0.8s (DONE)
+- Removed  from  to fix deploy conflicts with  (DONE)
+- Compacted MongoDB Atlas collections and dropped unused databases (, , ), reducing storage from 318MB to 77MB (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+None.
+
+**Known issue recurrence from previous fork**
+  - Contest Page Mobile Layout Is Broken
+  - Recurrence count: 14
+  - Status: NOT STARTED
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- Full-stack React + FastAPI application.
+- SWR for React data fetching (aggressive caching/prefetching).
+- MongoDB Atlas (Highly optimized projections).
+- Static file serving for images to bypass Base64 DB bloat.
+
+**key DB schema**
+  - : 
+  - : 
+  - : Compressed image storage in DB.
+
+**changes in tech stack**
+  -  dependency has been strictly removed. Only standard  is used for auth.
+  - Image handling now prefers saving to disk (, ) and serving static URLs.
+
+**All files of reference**
+  -  (Source of endpoints to move)
+  -  (Target file to create)
+  -  (To be kept updated)
+
+**Areas that need refactoring**
+  -  (Actively being refactored right now).
+
+**key api endpoints**
+  - 
+  - 
+
+**Critical Info for New Agent**
+  - **Language**: You MUST respond in Italian.
+  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  and  instead.
+  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead**. You must only move the Cast/People endpoints (23 endpoints) to  right now. After moving them, you must **comment out** the old code in , test it, summarize the result, and explicitly ask the user if they want to proceed to the next group. Do not delete the commented code yet.
+  - **Env Load**: Avoid messing with  overrides as it breaks the emergent deployment environment.
+
+**documents and test reports created in this job**
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+1. User: Asked if doing 3 database maintenance actions (compacting, dropping duplicates) was safe and cost 0 credits.
+2. Agent: Executed the compact scripts and deleted 4 unused DBs. Fixed a JWT  bug.
+3. User: Pointed out Atlas still showed 316MB.
+4. Agent: Dropped , ,  DBs to reduce storage to 77MB.
+5. User: Verified it worked and asked if databases were globally synced.
+6. Agent: Confirmed DB is globally synced in real-time, but code deployments are separate.
+7. User: Instructed the agent to start modularizing  safely, group by group. Asked for an inventory first.
+8. Agent: Generated a list of all 315 endpoints remaining in .
+9. User: Ordered the agent to start ONLY with the Cast/People (23 endpoints). Described strict step-by-step rules: move to , comment out originals, add router to , deploy, test, stop, and wait for confirmation.
+*Pending Human Action*: None. The agent must execute the Cast/People migration.
+
+**Project Health Check:**
+- Functional, currently undergoing major architectural refactoring.
+
+**3rd Party Integrations**
+  - OpenAI GPT-4o-mini (Text Generation) — uses Emergent LLM Key
+  - OpenAI GPT-Image-1 (Image Generation) — uses Emergent LLM Key
+  - MongoDB Atlas (Database) — requires User API Key/URI
+
+**Testing status**
+  - Testing agent used after significant changes: NO (Forbidden by user)
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: None currently.
+
+**Credentials to test flow:**
+  - User:  / 
+  - Admin Test:  / 
+
+**What agent forgot to execute**
+The agent was directly interrupted before it could write the code to create  and move the 23 Cast/People endpoints out of .
+
+**Debugging checklist for current issue**
+    Task: Move Cast/People endpoints from  to .
+    Backend files to check: 
+    -  (Locate , , and related cast endpoints).
+    -  (Create this file).
+    Steps:
+    1. Extract the 23 endpoints.
+    2. Add necessary imports to  (, , , , , etc.).
+    3. Update decorators to .
+    4. Comment out the original blocks in .
+    5. Import and include  in .
+    6. Test via  to ensure  still returns 200.</analysis>

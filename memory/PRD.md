@@ -30,12 +30,14 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 - **DEPLOY FIX (MONGO_URL)**: database.py reads MONGO_URL via dotenv_values() to bypass Emergent's env override + load_dotenv(override=True) for JWT_SECRET etc.
 - **STORAGE OPTIMIZATION**: MongoDB Atlas 357MB → 50MB (86% reduction). Compressed poster binary data in MongoDB + drop/recreate collections to reclaim dead space (cinema_news 89MB→0MB, poster_files 206MB→9MB)
 - **DIAGNOSTIC ENDPOINT**: GET /api/debug/login-check for deployment debugging
+- **MODULARIZATION Step 1 (Cast/People)**: Moved 17 Cast/People endpoints from server.py → routes/cast.py. Includes: /actors, /directors, /screenwriters, /composers, /cast/available, /cast/search-advanced, /cast/skill-list, /cast/offer, /cast/rejections, /cast/renegotiate, /cast/skills, /cast/initialize, /cast/stats, /cast/new-arrivals, /cast/bonus-preview, /cast/affinity-preview, /actor-roles. Also moved: REJECTION_REASONS, ACTOR_ROLES constants, calculate_rejection_chance(), initialize_cast_pool_if_needed(). Old code commented out in server.py (not deleted).
 
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB
 
 ## Upcoming (P1)
+- Modularizzazione server.py — prossimi gruppi (dopo conferma utente per ogni step)
 - Sistema "Previsioni Festival"
 - Marketplace TV/Anime rights
 

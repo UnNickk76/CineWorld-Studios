@@ -88,6 +88,8 @@ from routes.pvp import router as pvp_router
 from routes.pvp_cinema import router as pvp_cinema_router
 from routes.velion import router as velion_router, init as velion_init
 from routes.cast import router as cast_router, initialize_cast_pool_if_needed as _cast_init_pool
+from routes.users import router as users_router
+from routes.chat import router as chat_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -9347,608 +9349,610 @@ async def collect_all_revenue(user: dict = Depends(get_current_user)):
         'films_collected': films_collected,
         'infra_collected': infra_collected,
         'xp_earned': max(1, total_collected // 5000) if total_collected > 0 else 0,
-        'message': f'Riscossi ${total_collected:,} totali!' if total_collected > 0 else 'Nessun incasso da riscuotere al momento.'
     }
 
+# [MOVED TO routes/users.py + routes/chat.py] Users & Chat endpoints (22 endpoints)
+# Original code commented out below
+# [MOVED] 
 # Online Users Tracking
-from game_state import online_users, CHAT_BOTS  # Shared state
-
-@api_router.post("/users/heartbeat")
-async def user_heartbeat(user: dict = Depends(get_current_user)):
-    """Update user's online status"""
-    online_users[user['id']] = {
-        'id': user['id'],
-        'nickname': user['nickname'],
-        'avatar_url': user.get('avatar_url'),
-        'production_house_name': user.get('production_house_name'),
-        'level': user.get('level', 1),
-        'last_seen': datetime.now(timezone.utc).isoformat()
-    }
-    return {'status': 'ok'}
-
-@api_router.get("/users/online")
-async def get_online_users(user: dict = Depends(get_current_user)):
-    """Get list of online users (active in last 5 minutes) + chat bots"""
-    now = datetime.now(timezone.utc)
-    active_users = []
-    expired = []
-    
-    for user_id, data in online_users.items():
-        last_seen = datetime.fromisoformat(data['last_seen'].replace('Z', '+00:00'))
-        if (now - last_seen).total_seconds() < 300:  # 5 minutes
-            if user_id != user['id']:
-                active_users.append(data)
-        else:
-            expired.append(user_id)
-    
-    # Clean up expired users
-    for uid in expired:
-        del online_users[uid]
-    
-    # Add chat bots (always online)
-    for bot in CHAT_BOTS:
-        active_users.append({
-            'id': bot['id'],
-            'nickname': bot['nickname'],
-            'avatar_url': bot['avatar_url'],
-            'is_bot': True,
-            'is_moderator': bot.get('is_moderator', False),
-            'role': bot.get('role', 'bot'),
-            'is_online': True
-        })
-    
-    return active_users
-
-
-@api_router.get("/users/presence")
-async def get_users_with_presence(user: dict = Depends(get_current_user)):
-    """Get all users with 3-state presence: online (green), recent (yellow), offline (red)."""
-    now = datetime.now(timezone.utc)
-    all_users_db = await db.users.find(
-        {'id': {'$ne': user['id']}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'last_active': 1}
-    ).limit(200).to_list(200)
-
-    result = []
-    for u in all_users_db:
-        uid = u.get('id')
-        if uid in online_users:
-            last_seen_str = online_users[uid].get('last_seen', '')
-            try:
-                last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
-                diff = (now - last_seen).total_seconds()
-            except Exception:
-                diff = 9999
-            if diff < 300:
-                u['presence'] = 'online'
-            elif diff < 1800:
-                u['presence'] = 'recent'
-            else:
-                u['presence'] = 'offline'
-        else:
-            u['presence'] = 'offline'
-        result.append(u)
-
-    # Sort: online first, then recent, then offline
-    order = {'online': 0, 'recent': 1, 'offline': 2}
-    result.sort(key=lambda x: (order.get(x['presence'], 3), (x.get('nickname') or '').lower()))
-
-    # Add bots at top
-    bots = []
-    for bot in CHAT_BOTS:
-        bots.append({
-            'id': bot['id'],
-            'nickname': bot['nickname'],
-            'avatar_url': bot['avatar_url'],
-            'is_bot': True,
-            'is_moderator': bot.get('is_moderator', False),
-            'role': bot.get('role', 'bot'),
-            'presence': 'online',
-            'production_house_name': bot.get('role', 'Bot')
-        })
-
-    return {'users': bots + result}
-
-@api_router.get("/chat/bots")
-async def get_chat_bots():
-    """Get list of chat moderator bots"""
-    return CHAT_BOTS
-
+# [MOVED] from game_state import online_users, CHAT_BOTS  # Shared state
+# [MOVED] 
+# [MOVED] @api_router.post("/users/heartbeat")
+# [MOVED] async def user_heartbeat(user: dict = Depends(get_current_user)):
+# [MOVED]     """Update user's online status"""
+# [MOVED]     online_users[user['id']] = {
+# [MOVED]         'id': user['id'],
+# [MOVED]         'nickname': user['nickname'],
+# [MOVED]         'avatar_url': user.get('avatar_url'),
+# [MOVED]         'production_house_name': user.get('production_house_name'),
+# [MOVED]         'level': user.get('level', 1),
+# [MOVED]         'last_seen': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     return {'status': 'ok'}
+# [MOVED] 
+# [MOVED] @api_router.get("/users/online")
+# [MOVED] async def get_online_users(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get list of online users (active in last 5 minutes) + chat bots"""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     active_users = []
+# [MOVED]     expired = []
+# [MOVED]     
+# [MOVED]     for user_id, data in online_users.items():
+# [MOVED]         last_seen = datetime.fromisoformat(data['last_seen'].replace('Z', '+00:00'))
+# [MOVED]         if (now - last_seen).total_seconds() < 300:  # 5 minutes
+# [MOVED]             if user_id != user['id']:
+# [MOVED]                 active_users.append(data)
+# [MOVED]         else:
+# [MOVED]             expired.append(user_id)
+# [MOVED]     
+# [MOVED]     # Clean up expired users
+# [MOVED]     for uid in expired:
+# [MOVED]         del online_users[uid]
+# [MOVED]     
+# [MOVED]     # Add chat bots (always online)
+# [MOVED]     for bot in CHAT_BOTS:
+# [MOVED]         active_users.append({
+# [MOVED]             'id': bot['id'],
+# [MOVED]             'nickname': bot['nickname'],
+# [MOVED]             'avatar_url': bot['avatar_url'],
+# [MOVED]             'is_bot': True,
+# [MOVED]             'is_moderator': bot.get('is_moderator', False),
+# [MOVED]             'role': bot.get('role', 'bot'),
+# [MOVED]             'is_online': True
+# [MOVED]         })
+# [MOVED]     
+# [MOVED]     return active_users
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @api_router.get("/users/presence")
+# [MOVED] async def get_users_with_presence(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all users with 3-state presence: online (green), recent (yellow), offline (red)."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     all_users_db = await db.users.find(
+# [MOVED]         {'id': {'$ne': user['id']}},
+# [MOVED]         {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'last_active': 1}
+# [MOVED]     ).limit(200).to_list(200)
+# [MOVED] 
+# [MOVED]     result = []
+# [MOVED]     for u in all_users_db:
+# [MOVED]         uid = u.get('id')
+# [MOVED]         if uid in online_users:
+# [MOVED]             last_seen_str = online_users[uid].get('last_seen', '')
+# [MOVED]             try:
+# [MOVED]                 last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+# [MOVED]                 diff = (now - last_seen).total_seconds()
+# [MOVED]             except Exception:
+# [MOVED]                 diff = 9999
+# [MOVED]             if diff < 300:
+# [MOVED]                 u['presence'] = 'online'
+# [MOVED]             elif diff < 1800:
+# [MOVED]                 u['presence'] = 'recent'
+# [MOVED]             else:
+# [MOVED]                 u['presence'] = 'offline'
+# [MOVED]         else:
+# [MOVED]             u['presence'] = 'offline'
+# [MOVED]         result.append(u)
+# [MOVED] 
+# [MOVED]     # Sort: online first, then recent, then offline
+# [MOVED]     order = {'online': 0, 'recent': 1, 'offline': 2}
+# [MOVED]     result.sort(key=lambda x: (order.get(x['presence'], 3), (x.get('nickname') or '').lower()))
+# [MOVED] 
+# [MOVED]     # Add bots at top
+# [MOVED]     bots = []
+# [MOVED]     for bot in CHAT_BOTS:
+# [MOVED]         bots.append({
+# [MOVED]             'id': bot['id'],
+# [MOVED]             'nickname': bot['nickname'],
+# [MOVED]             'avatar_url': bot['avatar_url'],
+# [MOVED]             'is_bot': True,
+# [MOVED]             'is_moderator': bot.get('is_moderator', False),
+# [MOVED]             'role': bot.get('role', 'bot'),
+# [MOVED]             'presence': 'online',
+# [MOVED]             'production_house_name': bot.get('role', 'Bot')
+# [MOVED]         })
+# [MOVED] 
+# [MOVED]     return {'users': bots + result}
+# [MOVED] 
+# [MOVED] @api_router.get("/chat/bots")
+# [MOVED] async def get_chat_bots():
+# [MOVED]     """Get list of chat moderator bots"""
+# [MOVED]     return CHAT_BOTS
+# [MOVED] 
 # User Routes - IMPORTANT: specific routes must come before parameterized routes
-
-@api_router.get("/users/search")
-async def search_users(q: str, user: dict = Depends(get_current_user)):
-    users = await db.users.find(
-        {'nickname': {'$regex': q, '$options': 'i'}, 'id': {'$ne': user['id']}},
-        {'_id': 0, 'password': 0, 'email': 0}
-    ).limit(20).to_list(20)
-    
-    # Add online status
-    for u in users:
-        u['is_online'] = u['id'] in online_users
-    
-    return users
-
-@api_router.get("/users/all")
-async def get_all_users(user: dict = Depends(get_current_user)):
-    """Get all users for chat"""
-    users = await db.users.find(
-        {'id': {'$ne': user['id']}},
-        {'_id': 0, 'password': 0, 'email': 0}
-    ).limit(100).to_list(100)
-    
-    for u in users:
-        u['is_online'] = u['id'] in online_users
-    
-    return users
-
-
-@api_router.get("/users/all-players")
-async def get_all_players(user: dict = Depends(get_current_user)):
-    """Get all players with online/recently-active/offline status."""
-    now = datetime.now(timezone.utc)
-    all_users = await db.users.find(
-        {'id': {'$ne': user['id']}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'accept_offline_challenges': 1, 'last_active': 1}
-    ).limit(200).to_list(200)
-    
-    for u in all_users:
-        user_id = u['id']
-        # Check in-memory online tracking
-        if user_id in online_users:
-            last_seen_str = online_users[user_id].get('last_seen', '')
-            try:
-                last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
-                seconds_ago = (now - last_seen).total_seconds()
-            except Exception:
-                seconds_ago = 9999
-            
-            if seconds_ago < 300:  # Active in last 5 minutes
-                u['online_status'] = 'online'
-                u['is_online'] = True
-            elif seconds_ago < 600:  # Active 5-10 minutes ago
-                u['online_status'] = 'recently'
-                u['is_online'] = False
-            else:
-                u['online_status'] = 'offline'
-                u['is_online'] = False
-        else:
-            # Check DB last_active field
-            last_active = u.get('last_active')
-            if last_active:
-                try:
-                    la = datetime.fromisoformat(str(last_active).replace('Z', '+00:00'))
-                    seconds_ago = (now - la).total_seconds()
-                    if seconds_ago < 300:
-                        u['online_status'] = 'online'
-                        u['is_online'] = True
-                    elif seconds_ago < 600:
-                        u['online_status'] = 'recently'
-                        u['is_online'] = False
-                    else:
-                        u['online_status'] = 'offline'
-                        u['is_online'] = False
-                except Exception:
-                    u['online_status'] = 'offline'
-                    u['is_online'] = False
-            else:
-                u['online_status'] = 'offline'
-                u['is_online'] = False
-    
-    # Sort: online first, then recently, then offline
-    status_order = {'online': 0, 'recently': 1, 'offline': 2}
-    all_users.sort(key=lambda x: (status_order.get(x.get('online_status', 'offline'), 2), x.get('nickname', '').lower()))
-    
-    return all_users
-
-
+# [MOVED] 
+# [MOVED] @api_router.get("/users/search")
+# [MOVED] async def search_users(q: str, user: dict = Depends(get_current_user)):
+# [MOVED]     users = await db.users.find(
+# [MOVED]         {'nickname': {'$regex': q, '$options': 'i'}, 'id': {'$ne': user['id']}},
+# [MOVED]         {'_id': 0, 'password': 0, 'email': 0}
+# [MOVED]     ).limit(20).to_list(20)
+# [MOVED]     
+# [MOVED]     # Add online status
+# [MOVED]     for u in users:
+# [MOVED]         u['is_online'] = u['id'] in online_users
+# [MOVED]     
+# [MOVED]     return users
+# [MOVED] 
+# [MOVED] @api_router.get("/users/all")
+# [MOVED] async def get_all_users(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all users for chat"""
+# [MOVED]     users = await db.users.find(
+# [MOVED]         {'id': {'$ne': user['id']}},
+# [MOVED]         {'_id': 0, 'password': 0, 'email': 0}
+# [MOVED]     ).limit(100).to_list(100)
+# [MOVED]     
+# [MOVED]     for u in users:
+# [MOVED]         u['is_online'] = u['id'] in online_users
+# [MOVED]     
+# [MOVED]     return users
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @api_router.get("/users/all-players")
+# [MOVED] async def get_all_players(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all players with online/recently-active/offline status."""
+# [MOVED]     now = datetime.now(timezone.utc)
+# [MOVED]     all_users = await db.users.find(
+# [MOVED]         {'id': {'$ne': user['id']}},
+# [MOVED]         {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'accept_offline_challenges': 1, 'last_active': 1}
+# [MOVED]     ).limit(200).to_list(200)
+# [MOVED]     
+# [MOVED]     for u in all_users:
+# [MOVED]         user_id = u['id']
+# [MOVED]         # Check in-memory online tracking
+# [MOVED]         if user_id in online_users:
+# [MOVED]             last_seen_str = online_users[user_id].get('last_seen', '')
+# [MOVED]             try:
+# [MOVED]                 last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+# [MOVED]                 seconds_ago = (now - last_seen).total_seconds()
+# [MOVED]             except Exception:
+# [MOVED]                 seconds_ago = 9999
+# [MOVED]             
+# [MOVED]             if seconds_ago < 300:  # Active in last 5 minutes
+# [MOVED]                 u['online_status'] = 'online'
+# [MOVED]                 u['is_online'] = True
+# [MOVED]             elif seconds_ago < 600:  # Active 5-10 minutes ago
+# [MOVED]                 u['online_status'] = 'recently'
+# [MOVED]                 u['is_online'] = False
+# [MOVED]             else:
+# [MOVED]                 u['online_status'] = 'offline'
+# [MOVED]                 u['is_online'] = False
+# [MOVED]         else:
+# [MOVED]             # Check DB last_active field
+# [MOVED]             last_active = u.get('last_active')
+# [MOVED]             if last_active:
+# [MOVED]                 try:
+# [MOVED]                     la = datetime.fromisoformat(str(last_active).replace('Z', '+00:00'))
+# [MOVED]                     seconds_ago = (now - la).total_seconds()
+# [MOVED]                     if seconds_ago < 300:
+# [MOVED]                         u['online_status'] = 'online'
+# [MOVED]                         u['is_online'] = True
+# [MOVED]                     elif seconds_ago < 600:
+# [MOVED]                         u['online_status'] = 'recently'
+# [MOVED]                         u['is_online'] = False
+# [MOVED]                     else:
+# [MOVED]                         u['online_status'] = 'offline'
+# [MOVED]                         u['is_online'] = False
+# [MOVED]                 except Exception:
+# [MOVED]                     u['online_status'] = 'offline'
+# [MOVED]                     u['is_online'] = False
+# [MOVED]             else:
+# [MOVED]                 u['online_status'] = 'offline'
+# [MOVED]                 u['is_online'] = False
+# [MOVED]     
+# [MOVED]     # Sort: online first, then recently, then offline
+# [MOVED]     status_order = {'online': 0, 'recently': 1, 'offline': 2}
+# [MOVED]     all_users.sort(key=lambda x: (status_order.get(x.get('online_status', 'offline'), 2), x.get('nickname', '').lower()))
+# [MOVED]     
+# [MOVED]     return all_users
+# [MOVED] 
+# [MOVED] 
 # Parameterized user route - must be AFTER specific routes
-@api_router.get("/users/{user_id}")
-async def get_user_profile(user_id: str, user: dict = Depends(get_current_user)):
-    profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
-    if not profile:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
-    
-    films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(10)
-    profile['recent_films'] = films
-    profile['is_online'] = user_id in online_users
-    
-    return profile
-
-@api_router.get("/users/{user_id}/social-card")
-async def get_user_social_card(user_id: str, user: dict = Depends(get_current_user)):
-    """Lightweight social card: user info + last 12 films with like status."""
-    profile = await db.users.find_one(
-        {'id': user_id},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'fame': 1}
-    )
-    if not profile:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
-
-    uid = user.get('id')
-    is_online = user_id in online_users
-
-    # Last 12 films (most recent first) with minimal fields
-    films = await db.films.find(
-        {'user_id': user_id, 'status': {'$in': ['released', 'in_theaters', 'ended', 'producing', 'pre_production']}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'likes_count': 1, 'liked_by': 1, 'quality_score': 1, 'status': 1}
-    ).sort('created_at', -1).limit(12).to_list(12)
-
-    for f in films:
-        liked_by = f.pop('liked_by', []) or []
-        f['user_liked'] = uid in liked_by
-
-    # Friendship check
-    is_friend = bool(await db.friendships.find_one({
-        '$or': [
-            {'user_id': uid, 'friend_id': user_id},
-            {'user_id': user_id, 'friend_id': uid}
-        ]
-    }))
-    pending_req = bool(await db.friend_requests.find_one({
-        'from_user_id': uid, 'to_user_id': user_id, 'status': 'pending'
-    }))
-
-    return {
-        'user': profile,
-        'is_online': is_online,
-        'is_own_profile': user_id == uid,
-        'films': films,
-        'friend_status': 'friends' if is_friend else 'pending' if pending_req else 'none'
-    }
-
-
-@api_router.get("/users/{user_id}/full-profile")
-async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_user)):
-    """Get full detailed profile of a user including all stats and films."""
-    profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
-    if not profile:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
-    
-    # Get all films
-    all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(100)
-    
-    # Calculate detailed stats
-    total_films = len(all_films)
-    total_revenue = sum(f.get('total_revenue', f.get('revenue', 0)) or 0 for f in all_films)
-    total_likes = sum(f.get('likes_count', f.get('likes', 0)) or 0 for f in all_films)
-    total_views = sum(f.get('views', 0) or 0 for f in all_films)
-    avg_quality = sum(f.get('quality_score', f.get('quality', 0)) or 0 for f in all_films) / total_films if total_films > 0 else 0
-    
-    # Genre breakdown
-    genre_counts = {}
-    for f in all_films:
-        genre = f.get('genre', 'unknown')
-        genre_counts[genre] = genre_counts.get(genre, 0) + 1
-    
-    # Best performing film
-    best_film = max(all_films, key=lambda x: x.get('revenue', 0)) if all_films else None
-    
-    # Awards count
-    awards = profile.get('awards', [])
-    
-    # Infrastructure count
-    infrastructure = profile.get('infrastructure', [])
-    
-    return {
-        'user': profile,
-        'is_online': user_id in online_users,
-        'is_own_profile': user_id == user['id'],
-        'stats': {
-            'total_films': total_films,
-            'total_revenue': total_revenue,
-            'total_likes': total_likes,
-            'total_views': total_views,
-            'avg_quality': round(avg_quality, 1),
-            'awards_count': len(awards),
-            'infrastructure_count': len(infrastructure),
-            'level': profile.get('level', 1),
-            'xp': profile.get('xp', 0),
-            'fame': profile.get('fame', 0),
-            'funds': profile.get('funds', 0)
-        },
-        'genre_breakdown': genre_counts,
-        'best_film': best_film,
-        'recent_films': all_films[:10],
-        'all_films': all_films,
-        'awards': awards,
-        'infrastructure': infrastructure
-    }
-
+# [MOVED] @api_router.get("/users/{user_id}")
+# [MOVED] async def get_user_profile(user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]     if not profile:
+# [MOVED]         raise HTTPException(status_code=404, detail="Utente non trovato")
+# [MOVED]     
+# [MOVED]     films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(10)
+# [MOVED]     profile['recent_films'] = films
+# [MOVED]     profile['is_online'] = user_id in online_users
+# [MOVED]     
+# [MOVED]     return profile
+# [MOVED] 
+# [MOVED] @api_router.get("/users/{user_id}/social-card")
+# [MOVED] async def get_user_social_card(user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Lightweight social card: user info + last 12 films with like status."""
+# [MOVED]     profile = await db.users.find_one(
+# [MOVED]         {'id': user_id},
+# [MOVED]         {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'fame': 1}
+# [MOVED]     )
+# [MOVED]     if not profile:
+# [MOVED]         raise HTTPException(status_code=404, detail="Utente non trovato")
+# [MOVED] 
+# [MOVED]     uid = user.get('id')
+# [MOVED]     is_online = user_id in online_users
+# [MOVED] 
+# [MOVED]     # Last 12 films (most recent first) with minimal fields
+# [MOVED]     films = await db.films.find(
+# [MOVED]         {'user_id': user_id, 'status': {'$in': ['released', 'in_theaters', 'ended', 'producing', 'pre_production']}},
+# [MOVED]         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'likes_count': 1, 'liked_by': 1, 'quality_score': 1, 'status': 1}
+# [MOVED]     ).sort('created_at', -1).limit(12).to_list(12)
+# [MOVED] 
+# [MOVED]     for f in films:
+# [MOVED]         liked_by = f.pop('liked_by', []) or []
+# [MOVED]         f['user_liked'] = uid in liked_by
+# [MOVED] 
+# [MOVED]     # Friendship check
+# [MOVED]     is_friend = bool(await db.friendships.find_one({
+# [MOVED]         '$or': [
+# [MOVED]             {'user_id': uid, 'friend_id': user_id},
+# [MOVED]             {'user_id': user_id, 'friend_id': uid}
+# [MOVED]         ]
+# [MOVED]     }))
+# [MOVED]     pending_req = bool(await db.friend_requests.find_one({
+# [MOVED]         'from_user_id': uid, 'to_user_id': user_id, 'status': 'pending'
+# [MOVED]     }))
+# [MOVED] 
+# [MOVED]     return {
+# [MOVED]         'user': profile,
+# [MOVED]         'is_online': is_online,
+# [MOVED]         'is_own_profile': user_id == uid,
+# [MOVED]         'films': films,
+# [MOVED]         'friend_status': 'friends' if is_friend else 'pending' if pending_req else 'none'
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @api_router.get("/users/{user_id}/full-profile")
+# [MOVED] async def get_user_full_profile(user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get full detailed profile of a user including all stats and films."""
+# [MOVED]     profile = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]     if not profile:
+# [MOVED]         raise HTTPException(status_code=404, detail="Utente non trovato")
+# [MOVED]     
+# [MOVED]     # Get all films
+# [MOVED]     all_films = await db.films.find({'user_id': user_id}, {'_id': 0}).to_list(100)
+# [MOVED]     
+# [MOVED]     # Calculate detailed stats
+# [MOVED]     total_films = len(all_films)
+# [MOVED]     total_revenue = sum(f.get('total_revenue', f.get('revenue', 0)) or 0 for f in all_films)
+# [MOVED]     total_likes = sum(f.get('likes_count', f.get('likes', 0)) or 0 for f in all_films)
+# [MOVED]     total_views = sum(f.get('views', 0) or 0 for f in all_films)
+# [MOVED]     avg_quality = sum(f.get('quality_score', f.get('quality', 0)) or 0 for f in all_films) / total_films if total_films > 0 else 0
+# [MOVED]     
+# [MOVED]     # Genre breakdown
+# [MOVED]     genre_counts = {}
+# [MOVED]     for f in all_films:
+# [MOVED]         genre = f.get('genre', 'unknown')
+# [MOVED]         genre_counts[genre] = genre_counts.get(genre, 0) + 1
+# [MOVED]     
+# [MOVED]     # Best performing film
+# [MOVED]     best_film = max(all_films, key=lambda x: x.get('revenue', 0)) if all_films else None
+# [MOVED]     
+# [MOVED]     # Awards count
+# [MOVED]     awards = profile.get('awards', [])
+# [MOVED]     
+# [MOVED]     # Infrastructure count
+# [MOVED]     infrastructure = profile.get('infrastructure', [])
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'user': profile,
+# [MOVED]         'is_online': user_id in online_users,
+# [MOVED]         'is_own_profile': user_id == user['id'],
+# [MOVED]         'stats': {
+# [MOVED]             'total_films': total_films,
+# [MOVED]             'total_revenue': total_revenue,
+# [MOVED]             'total_likes': total_likes,
+# [MOVED]             'total_views': total_views,
+# [MOVED]             'avg_quality': round(avg_quality, 1),
+# [MOVED]             'awards_count': len(awards),
+# [MOVED]             'infrastructure_count': len(infrastructure),
+# [MOVED]             'level': profile.get('level', 1),
+# [MOVED]             'xp': profile.get('xp', 0),
+# [MOVED]             'fame': profile.get('fame', 0),
+# [MOVED]             'funds': profile.get('funds', 0)
+# [MOVED]         },
+# [MOVED]         'genre_breakdown': genre_counts,
+# [MOVED]         'best_film': best_film,
+# [MOVED]         'recent_films': all_films[:10],
+# [MOVED]         'all_films': all_films,
+# [MOVED]         'awards': awards,
+# [MOVED]         'infrastructure': infrastructure
+# [MOVED]     }
+# [MOVED] 
 # Chat System
-@api_router.get("/chat/rooms")
-async def get_chat_rooms(user: dict = Depends(get_current_user)):
-    public_rooms = await db.chat_rooms.find({'is_private': False}, {'_id': 0}).to_list(50)
-    private_rooms = await db.chat_rooms.find({
-        'is_private': True,
-        'participant_ids': user['id']
-    }, {'_id': 0}).to_list(50)
-    
-    # Add other participant info for private rooms
-    for room in private_rooms:
-        other_id = next((pid for pid in room['participant_ids'] if pid != user['id']), None)
-        if other_id:
-            other_user = await db.users.find_one({'id': other_id}, {'_id': 0, 'password': 0, 'email': 0})
-            if other_user:
-                room['other_user'] = other_user
-                room['other_user']['is_online'] = other_id in online_users
-            else:
-                room['other_user'] = {'nickname': 'Utente rimosso', 'is_online': False}
-        
-        # Get last message
-        last_msg = await db.chat_messages.find_one(
-            {'room_id': room['id']},
-            {'_id': 0},
-            sort=[('created_at', -1)]
-        )
-        room['last_message'] = last_msg
-        
-        # Count unread (simplified - messages after last read)
-        room['unread_count'] = 0
-    
-    # Sort private rooms by last message date (most recent first)
-    private_rooms.sort(
-        key=lambda r: (r.get('last_message') or {}).get('created_at', ''),
-        reverse=True
-    )
-
-    return {'public': public_rooms, 'private': private_rooms}
-
-@api_router.post("/chat/rooms")
-async def create_chat_room(room_data: ChatRoomCreate, user: dict = Depends(get_current_user)):
-    room = {
-        'id': str(uuid.uuid4()),
-        'name': room_data.name,
-        'is_private': room_data.is_private,
-        'participant_ids': [user['id']] + room_data.participant_ids,
-        'created_by': user['id'],
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.chat_rooms.insert_one(room)
-    return {k: v for k, v in room.items() if k != '_id'}
-
-@api_router.post("/chat/direct/{target_user_id}")
-async def start_direct_chat(target_user_id: str, user: dict = Depends(get_current_user)):
-    """Start or get existing direct chat with another user"""
-    # Check if target user exists
-    target_user = await db.users.find_one({'id': target_user_id}, {'_id': 0, 'password': 0, 'email': 0})
-    if not target_user:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
-    
-    # Check if private chat already exists
-    existing_room = await db.chat_rooms.find_one({
-        'is_private': True,
-        'participant_ids': {'$all': [user['id'], target_user_id], '$size': 2}
-    }, {'_id': 0})
-    
-    if existing_room:
-        existing_room['other_user'] = target_user
-        existing_room['other_user']['is_online'] = target_user_id in online_users
-        return existing_room
-    
-    # Create new private chat
-    room = {
-        'id': str(uuid.uuid4()),
-        'name': f"DM: {user['nickname']} & {target_user['nickname']}",
-        'is_private': True,
-        'participant_ids': [user['id'], target_user_id],
-        'created_by': user['id'],
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.chat_rooms.insert_one(room)
-    
-    room_response = {k: v for k, v in room.items() if k != '_id'}
-    room_response['other_user'] = target_user
-    room_response['other_user']['is_online'] = target_user_id in online_users
-    
-    return room_response
-
-@api_router.get("/chat/rooms/{room_id}/messages")
-async def get_room_messages(room_id: str, limit: int = 50, user: dict = Depends(get_current_user)):
-    messages = await db.chat_messages.find(
-        {'room_id': room_id},
-        {'_id': 0}
-    ).sort('created_at', -1).limit(limit).to_list(limit)
-    
-    for msg in messages:
-        sid = msg.get('sender_id')
-        if sid:
-            sender = await db.users.find_one({'id': sid}, {'_id': 0, 'password': 0, 'email': 0})
-            msg['sender'] = sender
-        else:
-            msg['sender'] = None
-    
-    return messages[::-1]
-
-@api_router.post("/chat/messages")
-async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_current_user)):
-    message = {
-        'id': str(uuid.uuid4()),
-        'room_id': msg_data.room_id,
-        'sender_id': user['id'],
-        'content': msg_data.content,
-        'message_type': msg_data.message_type,
-        'image_url': msg_data.image_url,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    await db.chat_messages.insert_one(message)
-    
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'messages_sent': 1, 'interaction_score': 0.1}}
-    )
-    
-    await sio.emit('new_message', {
-        **{k: v for k, v in message.items() if k != '_id'},
-        'sender': {k: v for k, v in user.items() if k not in ['password', '_id', 'email']}
-    }, room=msg_data.room_id)
-    
-    # Create notification for private messages
-    room = await db.chat_rooms.find_one({'id': msg_data.room_id})
-    if room and room.get('is_private'):
-        # Find the other participant
-        participants = room.get('participant_ids', room.get('participants', []))
-        recipient_id = next((p for p in participants if p != user['id']), None)
-        if recipient_id:
-            # Throttle: only notify if no unread private_message notif from this sender exists
-            existing_notif = await db.notifications.find_one({
-                'user_id': recipient_id,
-                'type': 'private_message',
-                'data.sender_id': user['id'],
-                'read': False
-            })
-            if not existing_notif:
-                content_preview = msg_data.content[:50] if msg_data.content else ('Immagine' if msg_data.message_type == 'image' else '')
-                notif = create_notification(
-                    user_id=recipient_id,
-                    notification_type='private_message',
-                    title=f"Messaggio da {user.get('nickname', '?')}",
-                    message=content_preview or 'Nuovo messaggio',
-                    data={'sender_id': user['id'], 'sender_nickname': user.get('nickname'), 'room_id': msg_data.room_id},
-                    link='/chat'
-                )
-                await db.notifications.insert_one(notif)
-    elif room and not room.get('is_private', True):
-        # Bot response triggers
-        content_lower = msg_data.content.lower()
-        user_lang = user.get('language', 'en')
-        
-        # Check for bot mentions or keywords
-        bot_response = None
-        responding_bot = None
-        
-        # CineMaster responds to greetings and help requests
-        if any(word in content_lower for word in ['ciao', 'hello', 'hi', 'help', 'aiuto', 'hola', 'bonjour', 'hallo']):
-            responding_bot = CHAT_BOTS[0]  # CineMaster
-            welcome_msgs = responding_bot['welcome_messages']
-            bot_response = welcome_msgs.get(user_lang, welcome_msgs['en'])
-        
-        # FilmGuide responds with tips when asked
-        elif any(word in content_lower for word in ['tip', 'consiglio', 'how', 'come', 'help', 'suggest']):
-            responding_bot = CHAT_BOTS[1]  # FilmGuide
-            tips = responding_bot['tips']
-            tip_list = tips.get(user_lang, tips['en'])
-            bot_response = random.choice(tip_list)
-        
-        # Send bot response if triggered
-        if bot_response and responding_bot:
-            import asyncio
-            await asyncio.sleep(1)  # Small delay for natural feel
-            bot_message = {
-                'id': str(uuid.uuid4()),
-                'room_id': msg_data.room_id,
-                'sender_id': responding_bot['id'],
-                'content': bot_response,
-                'message_type': 'text',
-                'image_url': None,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
-            await db.chat_messages.insert_one(bot_message)
-            await sio.emit('new_message', {
-                **{k: v for k, v in bot_message.items() if k != '_id'},
-                'sender': {
-                    'id': responding_bot['id'],
-                    'nickname': responding_bot['nickname'],
-                    'avatar_url': responding_bot['avatar_url'],
-                    'is_bot': True,
-                    'is_moderator': responding_bot.get('is_moderator', False)
-                }
-            }, room=msg_data.room_id)
-    
-    return {k: v for k, v in message.items() if k != '_id'}
-
-
-@api_router.delete("/chat/messages/{message_id}/image")
-async def delete_chat_image(message_id: str, user: dict = Depends(get_current_user)):
-    """Delete an image message within 2 minutes of sending. Replaces with 'Immagine eliminata'."""
-    msg = await db.chat_messages.find_one({'id': message_id})
-    if not msg:
-        raise HTTPException(status_code=404, detail="Messaggio non trovato")
-    if msg.get('sender_id') != user.get('id'):
-        raise HTTPException(status_code=403, detail="Puoi eliminare solo i tuoi messaggi")
-    if msg.get('message_type') != 'image':
-        raise HTTPException(status_code=400, detail="Solo le immagini possono essere eliminate")
-
-    # Check 2-minute window
-    created = msg.get('created_at', '')
-    try:
-        created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
-    except Exception:
-        raise HTTPException(status_code=400, detail="Timestamp non valido")
-
-    elapsed = (datetime.now(timezone.utc) - created_dt).total_seconds()
-    if elapsed > 120:
-        raise HTTPException(status_code=400, detail="Tempo scaduto (max 2 minuti)")
-
-    # Replace image with deletion notice
-    await db.chat_messages.update_one(
-        {'id': message_id},
-        {'$set': {'message_type': 'text', 'content': 'Immagine eliminata', 'image_url': None, 'deleted': True}}
-    )
-
-    return {'success': True, 'message': 'Immagine eliminata'}
-
-
+# [MOVED] @api_router.get("/chat/rooms")
+# [MOVED] async def get_chat_rooms(user: dict = Depends(get_current_user)):
+# [MOVED]     public_rooms = await db.chat_rooms.find({'is_private': False}, {'_id': 0}).to_list(50)
+# [MOVED]     private_rooms = await db.chat_rooms.find({
+# [MOVED]         'is_private': True,
+# [MOVED]         'participant_ids': user['id']
+# [MOVED]     }, {'_id': 0}).to_list(50)
+# [MOVED]     
+# [MOVED]     # Add other participant info for private rooms
+# [MOVED]     for room in private_rooms:
+# [MOVED]         other_id = next((pid for pid in room['participant_ids'] if pid != user['id']), None)
+# [MOVED]         if other_id:
+# [MOVED]             other_user = await db.users.find_one({'id': other_id}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]             if other_user:
+# [MOVED]                 room['other_user'] = other_user
+# [MOVED]                 room['other_user']['is_online'] = other_id in online_users
+# [MOVED]             else:
+# [MOVED]                 room['other_user'] = {'nickname': 'Utente rimosso', 'is_online': False}
+# [MOVED]         
+# [MOVED]         # Get last message
+# [MOVED]         last_msg = await db.chat_messages.find_one(
+# [MOVED]             {'room_id': room['id']},
+# [MOVED]             {'_id': 0},
+# [MOVED]             sort=[('created_at', -1)]
+# [MOVED]         )
+# [MOVED]         room['last_message'] = last_msg
+# [MOVED]         
+# [MOVED]         # Count unread (simplified - messages after last read)
+# [MOVED]         room['unread_count'] = 0
+# [MOVED]     
+# [MOVED]     # Sort private rooms by last message date (most recent first)
+# [MOVED]     private_rooms.sort(
+# [MOVED]         key=lambda r: (r.get('last_message') or {}).get('created_at', ''),
+# [MOVED]         reverse=True
+# [MOVED]     )
+# [MOVED] 
+# [MOVED]     return {'public': public_rooms, 'private': private_rooms}
+# [MOVED] 
+# [MOVED] @api_router.post("/chat/rooms")
+# [MOVED] async def create_chat_room(room_data: ChatRoomCreate, user: dict = Depends(get_current_user)):
+# [MOVED]     room = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'name': room_data.name,
+# [MOVED]         'is_private': room_data.is_private,
+# [MOVED]         'participant_ids': [user['id']] + room_data.participant_ids,
+# [MOVED]         'created_by': user['id'],
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.chat_rooms.insert_one(room)
+# [MOVED]     return {k: v for k, v in room.items() if k != '_id'}
+# [MOVED] 
+# [MOVED] @api_router.post("/chat/direct/{target_user_id}")
+# [MOVED] async def start_direct_chat(target_user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Start or get existing direct chat with another user"""
+# [MOVED]     # Check if target user exists
+# [MOVED]     target_user = await db.users.find_one({'id': target_user_id}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]     if not target_user:
+# [MOVED]         raise HTTPException(status_code=404, detail="Utente non trovato")
+# [MOVED]     
+# [MOVED]     # Check if private chat already exists
+# [MOVED]     existing_room = await db.chat_rooms.find_one({
+# [MOVED]         'is_private': True,
+# [MOVED]         'participant_ids': {'$all': [user['id'], target_user_id], '$size': 2}
+# [MOVED]     }, {'_id': 0})
+# [MOVED]     
+# [MOVED]     if existing_room:
+# [MOVED]         existing_room['other_user'] = target_user
+# [MOVED]         existing_room['other_user']['is_online'] = target_user_id in online_users
+# [MOVED]         return existing_room
+# [MOVED]     
+# [MOVED]     # Create new private chat
+# [MOVED]     room = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'name': f"DM: {user['nickname']} & {target_user['nickname']}",
+# [MOVED]         'is_private': True,
+# [MOVED]         'participant_ids': [user['id'], target_user_id],
+# [MOVED]         'created_by': user['id'],
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.chat_rooms.insert_one(room)
+# [MOVED]     
+# [MOVED]     room_response = {k: v for k, v in room.items() if k != '_id'}
+# [MOVED]     room_response['other_user'] = target_user
+# [MOVED]     room_response['other_user']['is_online'] = target_user_id in online_users
+# [MOVED]     
+# [MOVED]     return room_response
+# [MOVED] 
+# [MOVED] @api_router.get("/chat/rooms/{room_id}/messages")
+# [MOVED] async def get_room_messages(room_id: str, limit: int = 50, user: dict = Depends(get_current_user)):
+# [MOVED]     messages = await db.chat_messages.find(
+# [MOVED]         {'room_id': room_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).limit(limit).to_list(limit)
+# [MOVED]     
+# [MOVED]     for msg in messages:
+# [MOVED]         sid = msg.get('sender_id')
+# [MOVED]         if sid:
+# [MOVED]             sender = await db.users.find_one({'id': sid}, {'_id': 0, 'password': 0, 'email': 0})
+# [MOVED]             msg['sender'] = sender
+# [MOVED]         else:
+# [MOVED]             msg['sender'] = None
+# [MOVED]     
+# [MOVED]     return messages[::-1]
+# [MOVED] 
+# [MOVED] @api_router.post("/chat/messages")
+# [MOVED] async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_current_user)):
+# [MOVED]     message = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'room_id': msg_data.room_id,
+# [MOVED]         'sender_id': user['id'],
+# [MOVED]         'content': msg_data.content,
+# [MOVED]         'message_type': msg_data.message_type,
+# [MOVED]         'image_url': msg_data.image_url,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     await db.chat_messages.insert_one(message)
+# [MOVED]     
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$inc': {'messages_sent': 1, 'interaction_score': 0.1}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     await sio.emit('new_message', {
+# [MOVED]         **{k: v for k, v in message.items() if k != '_id'},
+# [MOVED]         'sender': {k: v for k, v in user.items() if k not in ['password', '_id', 'email']}
+# [MOVED]     }, room=msg_data.room_id)
+# [MOVED]     
+# [MOVED]     # Create notification for private messages
+# [MOVED]     room = await db.chat_rooms.find_one({'id': msg_data.room_id})
+# [MOVED]     if room and room.get('is_private'):
+# [MOVED]         # Find the other participant
+# [MOVED]         participants = room.get('participant_ids', room.get('participants', []))
+# [MOVED]         recipient_id = next((p for p in participants if p != user['id']), None)
+# [MOVED]         if recipient_id:
+# [MOVED]             # Throttle: only notify if no unread private_message notif from this sender exists
+# [MOVED]             existing_notif = await db.notifications.find_one({
+# [MOVED]                 'user_id': recipient_id,
+# [MOVED]                 'type': 'private_message',
+# [MOVED]                 'data.sender_id': user['id'],
+# [MOVED]                 'read': False
+# [MOVED]             })
+# [MOVED]             if not existing_notif:
+# [MOVED]                 content_preview = msg_data.content[:50] if msg_data.content else ('Immagine' if msg_data.message_type == 'image' else '')
+# [MOVED]                 notif = create_notification(
+# [MOVED]                     user_id=recipient_id,
+# [MOVED]                     notification_type='private_message',
+# [MOVED]                     title=f"Messaggio da {user.get('nickname', '?')}",
+# [MOVED]                     message=content_preview or 'Nuovo messaggio',
+# [MOVED]                     data={'sender_id': user['id'], 'sender_nickname': user.get('nickname'), 'room_id': msg_data.room_id},
+# [MOVED]                     link='/chat'
+# [MOVED]                 )
+# [MOVED]                 await db.notifications.insert_one(notif)
+# [MOVED]     elif room and not room.get('is_private', True):
+# [MOVED]         # Bot response triggers
+# [MOVED]         content_lower = msg_data.content.lower()
+# [MOVED]         user_lang = user.get('language', 'en')
+# [MOVED]         
+# [MOVED]         # Check for bot mentions or keywords
+# [MOVED]         bot_response = None
+# [MOVED]         responding_bot = None
+# [MOVED]         
+# [MOVED]         # CineMaster responds to greetings and help requests
+# [MOVED]         if any(word in content_lower for word in ['ciao', 'hello', 'hi', 'help', 'aiuto', 'hola', 'bonjour', 'hallo']):
+# [MOVED]             responding_bot = CHAT_BOTS[0]  # CineMaster
+# [MOVED]             welcome_msgs = responding_bot['welcome_messages']
+# [MOVED]             bot_response = welcome_msgs.get(user_lang, welcome_msgs['en'])
+# [MOVED]         
+# [MOVED]         # FilmGuide responds with tips when asked
+# [MOVED]         elif any(word in content_lower for word in ['tip', 'consiglio', 'how', 'come', 'help', 'suggest']):
+# [MOVED]             responding_bot = CHAT_BOTS[1]  # FilmGuide
+# [MOVED]             tips = responding_bot['tips']
+# [MOVED]             tip_list = tips.get(user_lang, tips['en'])
+# [MOVED]             bot_response = random.choice(tip_list)
+# [MOVED]         
+# [MOVED]         # Send bot response if triggered
+# [MOVED]         if bot_response and responding_bot:
+# [MOVED]             import asyncio
+# [MOVED]             await asyncio.sleep(1)  # Small delay for natural feel
+# [MOVED]             bot_message = {
+# [MOVED]                 'id': str(uuid.uuid4()),
+# [MOVED]                 'room_id': msg_data.room_id,
+# [MOVED]                 'sender_id': responding_bot['id'],
+# [MOVED]                 'content': bot_response,
+# [MOVED]                 'message_type': 'text',
+# [MOVED]                 'image_url': None,
+# [MOVED]                 'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]             }
+# [MOVED]             await db.chat_messages.insert_one(bot_message)
+# [MOVED]             await sio.emit('new_message', {
+# [MOVED]                 **{k: v for k, v in bot_message.items() if k != '_id'},
+# [MOVED]                 'sender': {
+# [MOVED]                     'id': responding_bot['id'],
+# [MOVED]                     'nickname': responding_bot['nickname'],
+# [MOVED]                     'avatar_url': responding_bot['avatar_url'],
+# [MOVED]                     'is_bot': True,
+# [MOVED]                     'is_moderator': responding_bot.get('is_moderator', False)
+# [MOVED]                 }
+# [MOVED]             }, room=msg_data.room_id)
+# [MOVED]     
+# [MOVED]     return {k: v for k, v in message.items() if k != '_id'}
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @api_router.delete("/chat/messages/{message_id}/image")
+# [MOVED] async def delete_chat_image(message_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Delete an image message within 2 minutes of sending. Replaces with 'Immagine eliminata'."""
+# [MOVED]     msg = await db.chat_messages.find_one({'id': message_id})
+# [MOVED]     if not msg:
+# [MOVED]         raise HTTPException(status_code=404, detail="Messaggio non trovato")
+# [MOVED]     if msg.get('sender_id') != user.get('id'):
+# [MOVED]         raise HTTPException(status_code=403, detail="Puoi eliminare solo i tuoi messaggi")
+# [MOVED]     if msg.get('message_type') != 'image':
+# [MOVED]         raise HTTPException(status_code=400, detail="Solo le immagini possono essere eliminate")
+# [MOVED] 
+# [MOVED]     # Check 2-minute window
+# [MOVED]     created = msg.get('created_at', '')
+# [MOVED]     try:
+# [MOVED]         created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
+# [MOVED]     except Exception:
+# [MOVED]         raise HTTPException(status_code=400, detail="Timestamp non valido")
+# [MOVED] 
+# [MOVED]     elapsed = (datetime.now(timezone.utc) - created_dt).total_seconds()
+# [MOVED]     if elapsed > 120:
+# [MOVED]         raise HTTPException(status_code=400, detail="Tempo scaduto (max 2 minuti)")
+# [MOVED] 
+# [MOVED]     # Replace image with deletion notice
+# [MOVED]     await db.chat_messages.update_one(
+# [MOVED]         {'id': message_id},
+# [MOVED]         {'$set': {'message_type': 'text', 'content': 'Immagine eliminata', 'image_url': None, 'deleted': True}}
+# [MOVED]     )
+# [MOVED] 
+# [MOVED]     return {'success': True, 'message': 'Immagine eliminata'}
+# [MOVED] 
+# [MOVED] 
 # ==================== MODERATION / REPORTS ====================
-
-class ReportRequest(BaseModel):
-    target_type: str  # 'message', 'image', 'user'
-    target_id: str
-    reason: str = ''
-
-
-@api_router.post("/reports")
-async def create_report(req: ReportRequest, user: dict = Depends(get_current_user)):
-    """Report a message, image, or user."""
-    if req.target_type not in ('message', 'image', 'user'):
-        raise HTTPException(status_code=400, detail="Tipo non valido (message/image/user)")
-
-    # Prevent duplicate reports
-    existing = await db.reports.find_one({
-        'reporter_id': user['id'],
-        'target_type': req.target_type,
-        'target_id': req.target_id
-    })
-    if existing:
-        raise HTTPException(status_code=400, detail="Hai gia segnalato questo contenuto")
-
-    # Build report with context snapshot
-    report = {
-        'id': str(uuid.uuid4()),
-        'reporter_id': user['id'],
-        'reporter_nickname': user.get('nickname', '?'),
-        'target_type': req.target_type,
-        'target_id': req.target_id,
-        'reason': req.reason,
-        'status': 'pending',  # pending / resolved / dismissed
-        'created_at': datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Snapshot the reported content
-    if req.target_type in ('message', 'image'):
-        msg = await db.chat_messages.find_one({'id': req.target_id}, {'_id': 0})
-        if msg:
-            report['snapshot'] = {
-                'content': msg.get('content', ''),
-                'image_url': msg.get('image_url'),
-                'message_type': msg.get('message_type'),
-                'sender_id': msg.get('sender_id'),
-                'sender_nickname': (msg.get('sender') or {}).get('nickname', '?'),
-                'room_id': msg.get('room_id'),
-                'sent_at': msg.get('created_at'),
-            }
-            # Re-fetch sender nickname if not embedded
-            if report['snapshot']['sender_nickname'] == '?':
-                sender = await db.users.find_one({'id': msg.get('sender_id')}, {'_id': 0, 'nickname': 1})
-                if sender:
-                    report['snapshot']['sender_nickname'] = sender.get('nickname', '?')
-    elif req.target_type == 'user':
-        target_user = await db.users.find_one({'id': req.target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
-        if target_user:
-            report['snapshot'] = {'nickname': target_user.get('nickname'), 'email': target_user.get('email')}
-
-    await db.reports.insert_one(report)
-    return {'success': True, 'report_id': report['id']}
+# [MOVED] 
+# [MOVED] class ReportRequest(BaseModel):
+# [MOVED]     target_type: str  # 'message', 'image', 'user'
+# [MOVED]     target_id: str
+# [MOVED]     reason: str = ''
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @api_router.post("/reports")
+# [MOVED] async def create_report(req: ReportRequest, user: dict = Depends(get_current_user)):
+# [MOVED]     """Report a message, image, or user."""
+# [MOVED]     if req.target_type not in ('message', 'image', 'user'):
+# [MOVED]         raise HTTPException(status_code=400, detail="Tipo non valido (message/image/user)")
+# [MOVED] 
+# [MOVED]     # Prevent duplicate reports
+# [MOVED]     existing = await db.reports.find_one({
+# [MOVED]         'reporter_id': user['id'],
+# [MOVED]         'target_type': req.target_type,
+# [MOVED]         'target_id': req.target_id
+# [MOVED]     })
+# [MOVED]     if existing:
+# [MOVED]         raise HTTPException(status_code=400, detail="Hai gia segnalato questo contenuto")
+# [MOVED] 
+# [MOVED]     # Build report with context snapshot
+# [MOVED]     report = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'reporter_id': user['id'],
+# [MOVED]         'reporter_nickname': user.get('nickname', '?'),
+# [MOVED]         'target_type': req.target_type,
+# [MOVED]         'target_id': req.target_id,
+# [MOVED]         'reason': req.reason,
+# [MOVED]         'status': 'pending',  # pending / resolved / dismissed
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat(),
+# [MOVED]     }
+# [MOVED] 
+# [MOVED]     # Snapshot the reported content
+# [MOVED]     if req.target_type in ('message', 'image'):
+# [MOVED]         msg = await db.chat_messages.find_one({'id': req.target_id}, {'_id': 0})
+# [MOVED]         if msg:
+# [MOVED]             report['snapshot'] = {
+# [MOVED]                 'content': msg.get('content', ''),
+# [MOVED]                 'image_url': msg.get('image_url'),
+# [MOVED]                 'message_type': msg.get('message_type'),
+# [MOVED]                 'sender_id': msg.get('sender_id'),
+# [MOVED]                 'sender_nickname': (msg.get('sender') or {}).get('nickname', '?'),
+# [MOVED]                 'room_id': msg.get('room_id'),
+# [MOVED]                 'sent_at': msg.get('created_at'),
+# [MOVED]             }
+# [MOVED]             # Re-fetch sender nickname if not embedded
+# [MOVED]             if report['snapshot']['sender_nickname'] == '?':
+# [MOVED]                 sender = await db.users.find_one({'id': msg.get('sender_id')}, {'_id': 0, 'nickname': 1})
+# [MOVED]                 if sender:
+# [MOVED]                     report['snapshot']['sender_nickname'] = sender.get('nickname', '?')
+# [MOVED]     elif req.target_type == 'user':
+# [MOVED]         target_user = await db.users.find_one({'id': req.target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
+# [MOVED]         if target_user:
+# [MOVED]             report['snapshot'] = {'nickname': target_user.get('nickname'), 'email': target_user.get('email')}
+# [MOVED] 
+# [MOVED]     await db.reports.insert_one(report)
+# [MOVED]     return {'success': True, 'report_id': report['id']}
 
 
 @api_router.get("/admin/reports")
@@ -10649,73 +10653,73 @@ CHAT_IMAGE_MAX_SIZE = 5 * 1024 * 1024  # 5MB
 CHAT_IMAGE_ALLOWED_MIME = {'image/jpeg', 'image/png', 'image/webp'}
 CHAT_IMAGES_DIR = '/app/backend/static/chat_images'
 os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
-
-
-@api_router.post("/chat/upload-image")
-async def chat_upload_image(
-    file: UploadFile = FastAPIFile(...),
-    user: dict = Depends(get_current_user)
-):
-    """Upload an image for chat. Returns URL to use in a chat message."""
-    # Validate MIME
-    content_type = file.content_type or ''
-    if content_type not in CHAT_IMAGE_ALLOWED_MIME:
-        raise HTTPException(status_code=400, detail=f"Solo immagini JPG, PNG, WEBP. Ricevuto: {content_type}")
-
-    # Read and validate size
-    data = await file.read()
-    if len(data) > CHAT_IMAGE_MAX_SIZE:
-        raise HTTPException(status_code=400, detail=f"Immagine troppo grande (max {CHAT_IMAGE_MAX_SIZE // (1024*1024)}MB)")
-    if len(data) < 100:
-        raise HTTPException(status_code=400, detail="File troppo piccolo o vuoto")
-
-    # Generate unique filename
-    ext = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp'}.get(content_type, 'jpg')
-    filename = f"chat_{user['id'][:8]}_{uuid.uuid4().hex[:12]}.{ext}"
-
-    # Save to disk
-    filepath = os.path.join(CHAT_IMAGES_DIR, filename)
-    with open(filepath, 'wb') as f:
-        f.write(data)
-
-    # Also persist to MongoDB for cross-deployment persistence
-    await db.chat_images.insert_one({
-        'filename': filename,
-        'data': data,
-        'content_type': content_type,
-        'size': len(data),
-        'user_id': user['id'],
-        'created_at': datetime.now(timezone.utc).isoformat()
-    })
-
-    image_url = f"/api/chat-images/{filename}"
-    return {'image_url': image_url, 'filename': filename}
-
-
-@app.get("/api/chat-images/{filename}")
-async def serve_chat_image(filename: str):
-    """Serve chat images from disk cache or MongoDB."""
-    filepath = os.path.join(CHAT_IMAGES_DIR, filename)
-    if os.path.isfile(filepath):
-        ext = filename.rsplit('.', 1)[-1].lower()
-        media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/jpeg')
-        return FileResponse(filepath, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
-
-    # Fallback: MongoDB
-    doc = await db.chat_images.find_one({'filename': filename})
-    if doc and doc.get('data'):
-        try:
-            os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
-            with open(filepath, 'wb') as f:
-                f.write(doc['data'])
-        except Exception:
-            pass
-        return Response(content=doc['data'], media_type=doc.get('content_type', 'image/jpeg'),
-                        headers={"Cache-Control": "public, max-age=604800, immutable"})
-
-    raise HTTPException(status_code=404, detail="Immagine non trovata")
-
-
+# [MOVED TO routes/chat.py] chat/upload-image + chat-images serve
+# [MOVED] 
+# [MOVED] @api_router.post("/chat/upload-image")
+# [MOVED] async def chat_upload_image(
+# [MOVED]     file: UploadFile = FastAPIFile(...),
+# [MOVED]     user: dict = Depends(get_current_user)
+# [MOVED] ):
+# [MOVED]     """Upload an image for chat. Returns URL to use in a chat message."""
+# [MOVED]     # Validate MIME
+# [MOVED]     content_type = file.content_type or ''
+# [MOVED]     if content_type not in CHAT_IMAGE_ALLOWED_MIME:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Solo immagini JPG, PNG, WEBP. Ricevuto: {content_type}")
+# [MOVED] 
+# [MOVED]     # Read and validate size
+# [MOVED]     data = await file.read()
+# [MOVED]     if len(data) > CHAT_IMAGE_MAX_SIZE:
+# [MOVED]         raise HTTPException(status_code=400, detail=f"Immagine troppo grande (max {CHAT_IMAGE_MAX_SIZE // (1024*1024)}MB)")
+# [MOVED]     if len(data) < 100:
+# [MOVED]         raise HTTPException(status_code=400, detail="File troppo piccolo o vuoto")
+# [MOVED] 
+# [MOVED]     # Generate unique filename
+# [MOVED]     ext = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp'}.get(content_type, 'jpg')
+# [MOVED]     filename = f"chat_{user['id'][:8]}_{uuid.uuid4().hex[:12]}.{ext}"
+# [MOVED] 
+# [MOVED]     # Save to disk
+# [MOVED]     filepath = os.path.join(CHAT_IMAGES_DIR, filename)
+# [MOVED]     with open(filepath, 'wb') as f:
+# [MOVED]         f.write(data)
+# [MOVED] 
+# [MOVED]     # Also persist to MongoDB for cross-deployment persistence
+# [MOVED]     await db.chat_images.insert_one({
+# [MOVED]         'filename': filename,
+# [MOVED]         'data': data,
+# [MOVED]         'content_type': content_type,
+# [MOVED]         'size': len(data),
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     })
+# [MOVED] 
+# [MOVED]     image_url = f"/api/chat-images/{filename}"
+# [MOVED]     return {'image_url': image_url, 'filename': filename}
+# [MOVED] 
+# [MOVED] 
+# [MOVED] @app.get("/api/chat-images/{filename}")
+# [MOVED] async def serve_chat_image(filename: str):
+# [MOVED]     """Serve chat images from disk cache or MongoDB."""
+# [MOVED]     filepath = os.path.join(CHAT_IMAGES_DIR, filename)
+# [MOVED]     if os.path.isfile(filepath):
+# [MOVED]         ext = filename.rsplit('.', 1)[-1].lower()
+# [MOVED]         media_type = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp'}.get(ext, 'image/jpeg')
+# [MOVED]         return FileResponse(filepath, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, immutable"})
+# [MOVED] 
+# [MOVED]     # Fallback: MongoDB
+# [MOVED]     doc = await db.chat_images.find_one({'filename': filename})
+# [MOVED]     if doc and doc.get('data'):
+# [MOVED]         try:
+# [MOVED]             os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
+# [MOVED]             with open(filepath, 'wb') as f:
+# [MOVED]                 f.write(doc['data'])
+# [MOVED]         except Exception:
+# [MOVED]             pass
+# [MOVED]         return Response(content=doc['data'], media_type=doc.get('content_type', 'image/jpeg'),
+# [MOVED]                         headers={"Cache-Control": "public, max-age=604800, immutable"})
+# [MOVED] 
+# [MOVED]     raise HTTPException(status_code=404, detail="Immagine non trovata")
+# [MOVED] 
+# [MOVED] 
 # AI Endpoints
 @api_router.post("/ai/screenplay")
 async def generate_screenplay(request: ScreenplayRequest, user: dict = Depends(get_current_user)):
@@ -14492,18 +14496,18 @@ async def get_festival_notifications(timezone: str = 'Europe/Rome', language: st
     
     return {'notifications': sorted(notifications, key=lambda x: -x['priority'])}
 
-@api_router.post("/users/set-timezone")
-async def set_user_timezone(timezone: str, user: dict = Depends(get_current_user)):
-    """Save user's preferred timezone."""
-    try:
-        pytz.timezone(timezone)  # Validate
-    except:
-        raise HTTPException(status_code=400, detail="Invalid timezone")
-    
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$set': {'timezone': timezone}}
-    )
+# [MOVED TO routes/users.py] /users/set-timezone
+# [MOVED] async def set_user_timezone(timezone: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Save user's preferred timezone."""
+# [MOVED]     try:
+# [MOVED]         pytz.timezone(timezone)  # Validate
+# [MOVED]     except:
+# [MOVED]         raise HTTPException(status_code=400, detail="Invalid timezone")
+# [MOVED]     
+# [MOVED]     await db.users.update_one(
+# [MOVED]         {'id': user['id']},
+# [MOVED]         {'$set': {'timezone': timezone}}
+# [MOVED]     )
     return {'success': True, 'timezone': timezone}
 
 @api_router.get("/timezones")
@@ -16347,104 +16351,104 @@ async def contact_creator(data: ContactCreatorRequest, user: dict = Depends(get_
     
     return {'success': True, 'message': 'Messaggio inviato al Creator!'}
 
-@api_router.get("/creator/messages")
-async def get_creator_messages(user: dict = Depends(get_current_user)):
-    """Get all messages sent to Creator (Creator only)."""
-    if user.get('nickname') != CREATOR_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo il Creator può accedere a questa sezione")
-    
-    messages = await db.creator_messages.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
-    
-    unread_count = sum(1 for m in messages if m.get('status') == 'unread')
-    
-    return {
-        'messages': messages,
-        'unread_count': unread_count,
-        'total': len(messages)
-    }
-
-@api_router.post("/creator/messages/{message_id}/reply")
-async def reply_to_message(message_id: str, reply: str = Body(..., embed=True), user: dict = Depends(get_current_user)):
-    """Reply to a player message (Creator only)."""
-    if user.get('nickname') != CREATOR_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo il Creator può rispondere")
-    
-    message = await db.creator_messages.find_one({'id': message_id}, {'_id': 0})
-    if not message:
-        raise HTTPException(status_code=404, detail="Messaggio non trovato")
-    
-    # Update message with reply
-    await db.creator_messages.update_one(
-        {'id': message_id},
-        {'$set': {
-            'status': 'replied',
-            'reply': reply,
-            'replied_at': datetime.now(timezone.utc).isoformat()
-        }}
-    )
-    
-    # Send reply as a system chat message to the player (in general chat for visibility)
-    chat_message = {
-        'id': str(uuid.uuid4()),
-        'room_id': 'general',
-        'user_id': user['id'],
-        'user': {
-            'id': user['id'],
-            'nickname': f"{CREATOR_NICKNAME} (Creator)",
-            'avatar_url': user.get('avatar_url', ''),
-            'production_house_name': 'CineWorld Creator'
-        },
-        'content': f"Risposta a @{message.get('from_nickname', 'Player')}:\n\n{reply}",
-        'message_type': 'creator_reply',
-        'original_message_id': message_id,
-        'target_user_id': message['from_user_id'],
-        'created_at': datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.chat_messages.insert_one(chat_message)
-    
-    # Also send a notification
-    await db.notifications.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': message['from_user_id'],
-        'type': 'creator_reply',
-        'title': '🎬 Risposta dal Creator!',
-        'message': f'{CREATOR_NICKNAME} ha risposto al tuo messaggio: "{message["subject"]}"',
-        'data': {'action': 'navigate', 'path': '/chat'},
-        'read': False,
-        'created_at': datetime.now(timezone.utc).isoformat()
-    })
-    
-    return {'success': True, 'message': 'Risposta inviata!'}
-
-@api_router.post("/creator/messages/{message_id}/mark-read")
-async def mark_message_read(message_id: str, user: dict = Depends(get_current_user)):
-    """Mark a message as read (Creator only)."""
-    if user.get('nickname') != CREATOR_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo il Creator può accedere")
-    
-    await db.creator_messages.update_one(
-        {'id': message_id},
-        {'$set': {'status': 'read'}}
-    )
-    
-    return {'success': True}
-
-@api_router.get("/user/is-creator")
-async def check_is_creator(user: dict = Depends(get_current_user)):
-    """Check if current user is the Creator."""
-    return {
-        'is_creator': user.get('nickname') == CREATOR_NICKNAME,
-        'creator_nickname': CREATOR_NICKNAME
-    }
-
+# [MOVED TO routes/social.py + routes/users.py] creator/messages + user/is-creator
+# [MOVED] async def get_creator_messages(user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all messages sent to Creator (Creator only)."""
+# [MOVED]     if user.get('nickname') != CREATOR_NICKNAME:
+# [MOVED]         raise HTTPException(status_code=403, detail="Solo il Creator può accedere a questa sezione")
+# [MOVED]     
+# [MOVED]     messages = await db.creator_messages.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
+# [MOVED]     
+# [MOVED]     unread_count = sum(1 for m in messages if m.get('status') == 'unread')
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'messages': messages,
+# [MOVED]         'unread_count': unread_count,
+# [MOVED]         'total': len(messages)
+# [MOVED]     }
+# [MOVED] 
+# [MOVED] @api_router.post("/creator/messages/{message_id}/reply")
+# [MOVED] async def reply_to_message(message_id: str, reply: str = Body(..., embed=True), user: dict = Depends(get_current_user)):
+# [MOVED]     """Reply to a player message (Creator only)."""
+# [MOVED]     if user.get('nickname') != CREATOR_NICKNAME:
+# [MOVED]         raise HTTPException(status_code=403, detail="Solo il Creator può rispondere")
+# [MOVED]     
+# [MOVED]     message = await db.creator_messages.find_one({'id': message_id}, {'_id': 0})
+# [MOVED]     if not message:
+# [MOVED]         raise HTTPException(status_code=404, detail="Messaggio non trovato")
+# [MOVED]     
+# [MOVED]     # Update message with reply
+# [MOVED]     await db.creator_messages.update_one(
+# [MOVED]         {'id': message_id},
+# [MOVED]         {'$set': {
+# [MOVED]             'status': 'replied',
+# [MOVED]             'reply': reply,
+# [MOVED]             'replied_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]         }}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     # Send reply as a system chat message to the player (in general chat for visibility)
+# [MOVED]     chat_message = {
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'room_id': 'general',
+# [MOVED]         'user_id': user['id'],
+# [MOVED]         'user': {
+# [MOVED]             'id': user['id'],
+# [MOVED]             'nickname': f"{CREATOR_NICKNAME} (Creator)",
+# [MOVED]             'avatar_url': user.get('avatar_url', ''),
+# [MOVED]             'production_house_name': 'CineWorld Creator'
+# [MOVED]         },
+# [MOVED]         'content': f"Risposta a @{message.get('from_nickname', 'Player')}:\n\n{reply}",
+# [MOVED]         'message_type': 'creator_reply',
+# [MOVED]         'original_message_id': message_id,
+# [MOVED]         'target_user_id': message['from_user_id'],
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     }
+# [MOVED]     
+# [MOVED]     await db.chat_messages.insert_one(chat_message)
+# [MOVED]     
+# [MOVED]     # Also send a notification
+# [MOVED]     await db.notifications.insert_one({
+# [MOVED]         'id': str(uuid.uuid4()),
+# [MOVED]         'user_id': message['from_user_id'],
+# [MOVED]         'type': 'creator_reply',
+# [MOVED]         'title': '🎬 Risposta dal Creator!',
+# [MOVED]         'message': f'{CREATOR_NICKNAME} ha risposto al tuo messaggio: "{message["subject"]}"',
+# [MOVED]         'data': {'action': 'navigate', 'path': '/chat'},
+# [MOVED]         'read': False,
+# [MOVED]         'created_at': datetime.now(timezone.utc).isoformat()
+# [MOVED]     })
+# [MOVED]     
+# [MOVED]     return {'success': True, 'message': 'Risposta inviata!'}
+# [MOVED] 
+# [MOVED] @api_router.post("/creator/messages/{message_id}/mark-read")
+# [MOVED] async def mark_message_read(message_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Mark a message as read (Creator only)."""
+# [MOVED]     if user.get('nickname') != CREATOR_NICKNAME:
+# [MOVED]         raise HTTPException(status_code=403, detail="Solo il Creator può accedere")
+# [MOVED]     
+# [MOVED]     await db.creator_messages.update_one(
+# [MOVED]         {'id': message_id},
+# [MOVED]         {'$set': {'status': 'read'}}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     return {'success': True}
+# [MOVED] 
+# [MOVED] @api_router.get("/user/is-creator")
+# [MOVED] async def check_is_creator(user: dict = Depends(get_current_user)):
+# [MOVED]     """Check if current user is the Creator."""
+# [MOVED]     return {
+# [MOVED]         'is_creator': user.get('nickname') == CREATOR_NICKNAME,
+# [MOVED]         'creator_nickname': CREATOR_NICKNAME
+# [MOVED]     }
+# [MOVED] 
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
-
-CUSTOM_FESTIVAL_MIN_LEVEL = 1  # Nessun livello minimo - sempre possibile
-CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
-CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base (legacy, unused now)
-CUSTOM_FESTIVAL_CINEPASS_COST = 3  # CinePass richiesti per creare
-
+# [MOVED] 
+# [MOVED] CUSTOM_FESTIVAL_MIN_LEVEL = 1  # Nessun livello minimo - sempre possibile
+# [MOVED] CUSTOM_FESTIVAL_PARTICIPATION_MIN_LEVEL = 5  # Livello minimo per partecipare
+# [MOVED] CUSTOM_FESTIVAL_BASE_COST = 500000  # $500K base (legacy, unused now)
+# [MOVED] CUSTOM_FESTIVAL_CINEPASS_COST = 3  # CinePass richiesti per creare
+# [MOVED] 
 def calculate_custom_festival_cost(creator_level: int) -> int:
     """Costo polinomiale per creare un festival basato sul livello.
     ~$25K a livello 1, ~$3M a livello 67, ~$11M a livello 200."""
@@ -16950,16 +16954,16 @@ async def get_active_ceremonies(user: dict = Depends(get_current_user)):
     ).to_list(10)
     return {'ceremonies': live_customs}
 
-@api_router.get("/users/{user_id}/badges")
-async def get_user_badges(user_id: str, user: dict = Depends(get_current_user)):
-    """Get all festival badges for a user."""
-    badges = await db.festival_badges.find(
-        {'user_id': user_id},
-        {'_id': 0}
-    ).sort('created_at', -1).to_list(50)
-    return {'badges': badges}
-
-@api_router.get("/leaderboard/global")
+# [MOVED TO routes/users.py] /users/{user_id}/badges
+# [MOVED] async def get_user_badges(user_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get all festival badges for a user."""
+# [MOVED]     badges = await db.festival_badges.find(
+# [MOVED]         {'user_id': user_id},
+# [MOVED]         {'_id': 0}
+# [MOVED]     ).sort('created_at', -1).to_list(50)
+# [MOVED]     return {'badges': badges}
+# [MOVED] 
+# [MOVED] @api_router.get("/leaderboard/global")
 async def get_global_leaderboard(limit: int = 50):
     """Get global leaderboard."""
     users = await db.users.find(
@@ -17472,39 +17476,39 @@ async def get_cineboard_tv_stations_daily(user: dict = Depends(get_current_user)
     return {'stations': results}
 
 
-@api_router.get("/players/{player_id}/profile")
-async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
-    """Get public profile of another player."""
-    player = await db.users.find_one(
-        {'id': player_id},
-        {'_id': 0, 'password': 0, 'email': 0}
-    )
-    
-    if not player:
-        raise HTTPException(status_code=404, detail="Player not found")
-    
-    # Get player stats
-    films = await db.films.find({'user_id': player_id}, {'_id': 0}).to_list(100)
-    infrastructure = await db.infrastructure.find({'owner_id': player_id}, {'_id': 0}).to_list(50)
-    
-    level_info = get_level_from_xp(player.get('total_xp', 0))
-    fame_tier = get_fame_tier(player.get('fame', 50))
-    
-    return {
-        'id': player['id'],
-        'nickname': player.get('nickname'),
-        'production_house_name': player.get('production_house_name'),
-        'avatar_url': player.get('avatar_url'),
-        'level': level_info['level'],
-        'level_info': level_info,
-        'fame': player.get('fame', 50),
-        'fame_tier': fame_tier,
-        'films_count': len(films),
-        'infrastructure_count': len(infrastructure),
-        'total_likes_received': player.get('total_likes_received', 0),
-        'leaderboard_score': calculate_leaderboard_score(player),
-        'created_at': player.get('created_at')
-    }
+# [MOVED TO routes/users.py] /players/{player_id}/profile
+# [MOVED] async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
+# [MOVED]     """Get public profile of another player."""
+# [MOVED]     player = await db.users.find_one(
+# [MOVED]         {'id': player_id},
+# [MOVED]         {'_id': 0, 'password': 0, 'email': 0}
+# [MOVED]     )
+# [MOVED]     
+# [MOVED]     if not player:
+# [MOVED]         raise HTTPException(status_code=404, detail="Player not found")
+# [MOVED]     
+# [MOVED]     # Get player stats
+# [MOVED]     films = await db.films.find({'user_id': player_id}, {'_id': 0}).to_list(100)
+# [MOVED]     infrastructure = await db.infrastructure.find({'owner_id': player_id}, {'_id': 0}).to_list(50)
+# [MOVED]     
+# [MOVED]     level_info = get_level_from_xp(player.get('total_xp', 0))
+# [MOVED]     fame_tier = get_fame_tier(player.get('fame', 50))
+# [MOVED]     
+# [MOVED]     return {
+# [MOVED]         'id': player['id'],
+# [MOVED]         'nickname': player.get('nickname'),
+# [MOVED]         'production_house_name': player.get('production_house_name'),
+# [MOVED]         'avatar_url': player.get('avatar_url'),
+# [MOVED]         'level': level_info['level'],
+# [MOVED]         'level_info': level_info,
+# [MOVED]         'fame': player.get('fame', 50),
+# [MOVED]         'fame_tier': fame_tier,
+# [MOVED]         'films_count': len(films),
+# [MOVED]         'infrastructure_count': len(infrastructure),
+# [MOVED]         'total_likes_received': player.get('total_likes_received', 0),
+# [MOVED]         'leaderboard_score': calculate_leaderboard_score(player),
+# [MOVED]         'created_at': player.get('created_at')
+# [MOVED]     }
 
 # ==================== HOURLY REVENUE SYSTEM ====================
 
@@ -19355,6 +19359,8 @@ app.include_router(pvp_cinema_router, prefix="/api")
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

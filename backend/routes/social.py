@@ -187,3 +187,136 @@ async def get_social_stats(user: dict = Depends(get_current_user)):
         'following_count': following_count,
         'major': major_membership
     }
+
+
+# ==================== REPORTS (moved from server.py) ====================
+
+from pydantic import BaseModel as _ReportBaseModel
+
+class ReportRequest(_ReportBaseModel):
+    target_type: str  # 'message', 'image', 'user'
+    target_id: str
+    reason: str = ''
+
+
+@router.post("/reports")
+async def create_report(req: ReportRequest, user: dict = Depends(get_current_user)):
+    """Report a message, image, or user."""
+    if req.target_type not in ('message', 'image', 'user'):
+        raise HTTPException(status_code=400, detail="Tipo non valido (message/image/user)")
+
+    existing = await db.reports.find_one({
+        'reporter_id': user['id'],
+        'target_type': req.target_type,
+        'target_id': req.target_id
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Hai gia segnalato questo contenuto")
+
+    report = {
+        'id': str(uuid.uuid4()),
+        'reporter_id': user['id'],
+        'reporter_nickname': user.get('nickname', '?'),
+        'target_type': req.target_type,
+        'target_id': req.target_id,
+        'reason': req.reason,
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    if req.target_type in ('message', 'image'):
+        msg = await db.chat_messages.find_one({'id': req.target_id}, {'_id': 0})
+        if msg:
+            report['snapshot'] = {
+                'content': msg.get('content', ''),
+                'image_url': msg.get('image_url'),
+                'message_type': msg.get('message_type'),
+                'sender_id': msg.get('sender_id'),
+                'sender_nickname': (msg.get('sender') or {}).get('nickname', '?'),
+                'room_id': msg.get('room_id'),
+                'sent_at': msg.get('created_at'),
+            }
+            if report['snapshot']['sender_nickname'] == '?':
+                sender = await db.users.find_one({'id': msg.get('sender_id')}, {'_id': 0, 'nickname': 1})
+                if sender:
+                    report['snapshot']['sender_nickname'] = sender.get('nickname', '?')
+    elif req.target_type == 'user':
+        target_user = await db.users.find_one({'id': req.target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
+        if target_user:
+            report['snapshot'] = {'nickname': target_user.get('nickname'), 'email': target_user.get('email')}
+
+    await db.reports.insert_one(report)
+    return {'success': True, 'report_id': report['id']}
+
+
+# ==================== CREATOR MESSAGES (moved from server.py) ====================
+
+CREATOR_NICKNAME = "NeoMorpheus"
+
+
+@router.get("/creator/messages")
+async def get_creator_messages(user: dict = Depends(get_current_user)):
+    """Get messages sent to the Creator from players (only the Creator can view)."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creatore può vedere i messaggi dei giocatori")
+
+    messages = await db.creator_messages.find(
+        {},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(100)
+
+    for msg in messages:
+        sender = await db.users.find_one({'id': msg.get('sender_id')}, {'_id': 0, 'nickname': 1, 'avatar_url': 1, 'level': 1})
+        msg['sender'] = sender or {'nickname': 'Unknown'}
+
+    return {'messages': messages}
+
+
+@router.post("/creator/messages/{message_id}/reply")
+async def reply_to_creator_message(message_id: str, reply_data: dict, user: dict = Depends(get_current_user)):
+    """Creator replies to a player's message."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creatore può rispondere")
+
+    message = await db.creator_messages.find_one({'id': message_id})
+    if not message:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato")
+
+    reply_text = reply_data.get('reply', '')
+    if not reply_text:
+        raise HTTPException(status_code=400, detail="Risposta vuota")
+
+    await db.creator_messages.update_one(
+        {'id': message_id},
+        {'$set': {
+            'reply': reply_text,
+            'replied_at': datetime.now(timezone.utc).isoformat(),
+            'replied_by': user['id'],
+            'status': 'replied'
+        }}
+    )
+
+    notification = create_notification(
+        user_id=message['sender_id'],
+        notification_type='creator_reply',
+        title='Risposta dal Creatore',
+        message=f'Il Creatore ha risposto al tuo messaggio: "{reply_text[:100]}"',
+        data={'message_id': message_id},
+        link='/creator-messages'
+    )
+    await db.notifications.insert_one(notification)
+
+    return {'success': True, 'message': 'Risposta inviata'}
+
+
+@router.post("/creator/messages/{message_id}/mark-read")
+async def mark_creator_message_read(message_id: str, user: dict = Depends(get_current_user)):
+    """Mark a creator message as read."""
+    if user.get('nickname') != CREATOR_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo il Creatore")
+
+    await db.creator_messages.update_one(
+        {'id': message_id},
+        {'$set': {'read': True, 'read_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {'success': True}

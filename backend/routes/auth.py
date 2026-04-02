@@ -113,8 +113,7 @@ async def register(user_data: UserCreate):
 async def login(credentials: UserLogin):
     try:
         print("LOGIN START")
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        import bcrypt as _bcrypt
 
         logging.info(f"Login attempt for: {credentials.email}")
         user = await db.users.find_one({'email': credentials.email}, {'_id': 0})
@@ -125,7 +124,7 @@ async def login(credentials: UserLogin):
         
         print("LOGIN USER FOUND")
 
-        if not pwd_context.verify(credentials.password, user["password"]):
+        if not _bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
             logging.warning(f"Login failed: wrong password for {credentials.email}")
             raise HTTPException(status_code=401, detail="Credenziali errate")
         

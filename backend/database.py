@@ -7,15 +7,9 @@ load_dotenv(Path(__file__).parent / '.env')
 
 MONGO_URL = os.environ.get("MONGO_URL")
 
-client = AsyncIOMotorClient(
-    MONGO_URL,
-    serverSelectionTimeoutMS=5000,
-    connectTimeoutMS=5000,
-    socketTimeoutMS=5000,
-    maxPoolSize=10
-)
+client = AsyncIOMotorClient(MONGO_URL)
 
 try:
     db = client.get_default_database()
-except:
+except Exception:
     db = client["cineworld"]

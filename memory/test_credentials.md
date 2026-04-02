@@ -1,27 +1,9 @@
-# CineMaster - Test Credentials
+# Test Credentials
 
-## Main Admin Account (Production)
+## User Account
 - Email: fandrex1@gmail.com
-- Password: Fandrel2776
-- Nickname: NeoMorpheus
-- Role: Admin (cineadmin badge)
+- Password: Ciaociao1
 
-## Emilians Account
-- Email: emiliano.andreola1@gmail.com
-- Password: Emiliano.77
-- Nickname: Emilians
-
-## Test Admin Account
+## Admin Account
 - Email: test@cineworld.com
 - Password: test123
-- Nickname: TestAdmin
-- Role: Admin (cineadmin badge)
-
-## Other Users (Migrated from Production)
-- Password temporanea per tutti gli altri utenti: CineWorld2026!
-- Utenti: Alesi 1927, Ambranata, Benny, Gianni Lelli, Hawkeye96, Kira.94, Lorenzo88, Matt Spielberg, Roxy, fabbro, mic
-
-## MongoDB Atlas
-- MONGO_URL: mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld?retryWrites=true&w=majority
-- DB_NAME: cineworld
-- JWT_SECRET: cineworld-studio-secret-key-2024-secure

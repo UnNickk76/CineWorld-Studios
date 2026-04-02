@@ -1,63 +1,72 @@
-# CineMaster - Product Requirements Document
+# CineWorld Studio's — PRD
 
-## Original Problem Statement
-Full-stack cinematic management game (React + FastAPI + MongoDB).
+## Problema Originale
+Gioco browser-based di simulazione studio cinematografico. Full-stack React + FastAPI + MongoDB.
 
-## Architecture
-- Frontend: React (CRA + craco) + Tailwind CSS v3 + Shadcn UI + Framer Motion
-- Backend: FastAPI + MongoDB Atlas
-- 3rd Party: OpenAI GPT-4o-mini, GPT-Image-1 via Emergent LLM Key, APScheduler
-- Deploy: Emergent native (.it) + Railway (test)
+## Refactoring in corso
+Modularizzazione graduale di `server.py` in route files separati. Attualmente a Step 14 (GAME CORE: films, film_engagement, production_studio) — **PAUSED**.
 
-## Credentials
-- Admin account: fandrex1@gmail.com / Fandrel2776
-- Emilians account: emiliano.andreola1@gmail.com / Emiliano.77
-- Test admin: test@cineworld.com / test123
-- Other users temporary password: CineWorld2026!
+## Architettura
+```
+/app/backend/
+├── server.py (monolite in refactoring)
+├── cast_system.py (generazione cast, ACTOR_SKILLS, GENRE_SKILL_MAPPING)
+├── challenge_system.py
+├── game_systems.py
+├── emerging_screenplays.py
+├── database.py
+├── routes/
+│   ├── cast.py
+│   ├── casting_agency.py
+│   ├── acting_school.py
+│   ├── film_pipeline.py
+│   ├── series_pipeline.py
+│   ├── sequel_pipeline.py
+│   ├── cinepass.py
+│   ├── films.py (creato, da popolare — Step 14)
+│   ├── film_engagement.py (creato, da popolare — Step 14)
+│   └── ... (altre route)
+/app/frontend/ (React)
+```
 
-## DB Config
-- MONGO_URL read via dotenv_values() directly from .env (override=True for load_dotenv)
-- Atlas: mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld
-- JWT_SECRET=cineworld-studio-secret-key-2024-secure
+## Integrazioni 3rd Party
+- OpenAI GPT-4o-mini (Text Generation) — Emergent LLM Key
+- OpenAI GPT-Image-1 (Image Generation) — Emergent LLM Key
+- MongoDB Atlas
 
-## Completed (this session 2026-04-02)
-- **LOGIN FIX**: Base64 avatar 2.7MB → file on disk. Login 29s → 0.7s
-- **API OPTIMIZATION**: Inclusive projections for list endpoints. /films/my 1.4MB→31KB, /dashboard/batch 321KB→13KB
-- **POSTER COMPRESSION**: Auto-compression for new posters (800x1200 JPEG q82). Compressed 44 disk posters: 38MB→3MB
-- **POSTER SYNC**: Downloaded 4 missing series posters from .it site
-- **POSTER ENDPOINT**: Fallback .png/.jpg extension handling
-- **DEPLOY FIX (passlib)**: Removed passlib==1.7.4 from requirements.txt (incompatible with bcrypt 4.1.3)
-- **DEPLOY FIX (MONGO_URL)**: database.py reads MONGO_URL via dotenv_values() to bypass Emergent's env override + load_dotenv(override=True) for JWT_SECRET etc.
-- **STORAGE OPTIMIZATION**: MongoDB Atlas 357MB → 50MB (86% reduction). Compressed poster binary data in MongoDB + drop/recreate collections to reclaim dead space (cinema_news 89MB→0MB, poster_files 206MB→9MB)
-- **DIAGNOSTIC ENDPOINT**: GET /api/debug/login-check for deployment debugging
-- **MODULARIZATION Step 1 (Cast/People)**: Moved 17 Cast/People endpoints from server.py → routes/cast.py. Includes: /actors, /directors, /screenwriters, /composers, /cast/available, /cast/search-advanced, /cast/skill-list, /cast/offer, /cast/rejections, /cast/renegotiate, /cast/skills, /cast/initialize, /cast/stats, /cast/new-arrivals, /cast/bonus-preview, /cast/affinity-preview, /actor-roles. Also moved: REJECTION_REASONS, ACTOR_ROLES constants, calculate_rejection_chance(), initialize_cast_pool_if_needed(). Old code commented out in server.py (not deleted).
-- **MODULARIZATION Step 2 (Film Drafts & Pre-Films)**: Moved 16 endpoints from server.py → routes/film_pipeline.py. Includes: /films/drafts (CRUD + resume), /pre-films (CRUD + engage, release, convert, check-rescissions, process-rescission, dismiss-cast, public/expired), /negotiations/{id}/renegotiate. Also moved: FilmDraft, PreFilmCreate, PreEngagementRequest, ReleaseCastRequest models + PRE_FILM_DURATION_DAYS, PRE_ENGAGEMENT_ADVANCE_PERCENT, CAST_PATIENCE_DAYS constants + calculate_release_penalty(). RenegotiateRequest renamed to PreFilmNegotiateRequest (avoids naming conflict). Old code commented out.
+## Completato
 
-- **MODULARIZATION Step 3 (Series/Saga)**: Moved 8 endpoints from server.py → routes/series_pipeline.py. Includes: /saga/can-create, /films/{id}/can-create-sequel, /films/{id}/create-sequel, /series/can-create, /series/create, /series/my, /series/{id}, /series/{id}/permanent. Also moved: SAGA/SERIES/ANIME_REQUIRED constants, CreateSequelRequest, CreateSeriesRequest models. Old code commented out.
-- **MODULARIZATION Step 4 (Users/Chat/Social)**: Moved 26 endpoints. Users (13) → routes/users.py (new): /users/heartbeat, /users/online, /users/presence, /users/search, /users/all, /users/all-players, /users/{id}, /users/{id}/social-card, /users/{id}/full-profile, /users/set-timezone, /users/{id}/badges, /players/{id}/profile, /user/is-creator. Chat (9) → routes/chat.py (new): /chat/bots, /chat/rooms (GET+POST), /chat/direct/{id}, /chat/rooms/{id}/messages, /chat/messages, /chat/messages/{id}/image (DELETE), /chat/upload-image, /chat-images/{filename}. Social (4) → routes/social.py (append): /reports, /creator/messages (GET+reply+mark-read). Old code commented out.
-- **MODULARIZATION Step 5 (Festivals)**: Moved 35 endpoints from server.py → routes/festivals.py (new). Old code commented out.
-- **MODULARIZATION Step 6 (Challenges/PVP)**: Moved 22 endpoints from server.py → routes/challenges.py (new). Includes: daily/weekly challenges (GET + claim), PVP (send, respond, submit-result, pending), challenge system (types, skills, my-films, create, join, waiting, my, leaderboard, limits, detail, stats, cancel, toggle-offline, offline-battle, resend). Also moved: ChallengeRequest, ChallengeResponse, ChallengeCreate models. Old code commented out.
+### Skill System Refactoring (Apr 2026)
+- **STEP 1**: Unificazione sistema skill attori — rimosso ACTOR_SKILL_NAMES (10 skill inglesi), ora usa SOLO ACTOR_SKILLS (13 skill codificate). Aggiunto LEGACY_SKILL_MAPPING + conversione on-read. Migrati 6 documenti DB legacy.
+- **STEP 2**: Fix scuola di recitazione — generate_final_skills() ora genera 8 skill su 13 (non 13 su 13). Initial skills sono sottoinsieme delle final.
+- **STEP 3**: Skill reali nella qualità film — formula genre-aware (70% genre_avg + 30% full_avg) invece di media generica. Debug log + advanced_factors._skill_debug.
+- **STEP 4**: Verifica coerenza — corretti game_systems.py, cinepass.py, server.py (SKILL_TYPES + enrollment scuola). Zero documenti legacy rimasti.
 
-- **MODULARIZATION Step 7 (AI/Poster/Trailer)**: Moved 15 route decorators (14 endpoint functions) + 1 background task from server.py → routes/ai.py (new, 1054 lines). Includes: /ai/screenplay, /ai/poster/start, /ai/poster/status/{task_id}, /ai/poster, /ai/translate, /ai/soundtrack-description, /ai/generate-trailer, /ai/trailer-cost, /trailers/{film_id}.mp4, /films/{film_id}/trailer-status, /films/{film_id}/reset-trailer, /films/{film_id}/poster, /series/{series_id}/generate-poster, /anime/{series_id}/generate-poster, /films/{film_id}/regenerate-poster. Also moved: ScreenplayRequest, PosterRequest, TranslationRequest, SoundtrackRequest, TrailerRequest models + POSTER_GENRE_THEMES, POSTER_DEFAULT_THEMES, POSTER_PATTERNS, GENRE_POSTER_IMAGES constants + _overlay_poster_text(), _generate_fallback_poster(), generate_trailer_task_sora2() helpers + poster_tasks dict. EMERGENT_LLM_KEY properly ported. Old code commented out. server.py: 19589→18592 lines. Also fixed pre-existing bug: added `from game_state import online_users` import in server.py.
-- **MODULARIZATION Step 9 (Economy/Revenue)**: Moved 13 endpoints from server.py → routes/economy.py (new, 1015 lines). Includes: /stats/detailed, /statistics/global, /statistics/my, /dashboard/batch, /revenue/pending-all, /revenue/collect-all, /films/{film_id}/hourly-revenue, /films/{film_id}/process-hourly-revenue, /films/process-all-hourly, /player/rating-stats, /catchup/process, /activity/heartbeat, /admin/add-cinepass. Dependencies imported from game_systems. Old code commented out. server.py now ~18594 lines.
+### Report generati
+- `/api/static/report_skill_system.txt` — Analisi pre-refactoring
+- `/api/static/report_skill_refactoring.txt` — Report post-refactoring
 
-- **MODULARIZATION Step 10 (Dashboard/Stats)**: Moved 20 endpoints from server.py → routes/dashboard.py (new, 1771 lines). Includes: /cineboard/attendance, /cinema-news, /discovered-stars, /journal/virtual-reviews, /journal/other-news, /release-notes (GET), /release-notes (POST creator), /release-notes/unread-count, /release-notes/mark-read, /admin/release-notes (POST), /leaderboard/local/{country}, /cineboard/now-playing, /cineboard/hall-of-fame, /cineboard/daily, /cineboard/weekly, /cineboard/series-weekly, /cineboard/anime-weekly, /cineboard/tv-stations-alltime, /cineboard/tv-stations-weekly, /cineboard/tv-stations-daily. Also moved: RELEASE_NOTES data, DEFAULT_SYSTEM_NOTES, TTLCache class, calculate_cineboard_score(), NewReleaseNote model, initialize_release_notes(), initialize_system_notes(). Old code commented out. 18/20 endpoints return 200 OK; 2 (now-playing, hall-of-fame) are slow due to pre-existing heavy MongoDB queries (not a regression). (2026-04-02)
+## In Progress
+- Step 14 Modularizzazione GAME CORE (PAUSED)
 
-- **PERFORMANCE FIX (CineBoard)**: Ottimizzati `cineboard/now-playing` e `cineboard/hall-of-fame` in `routes/dashboard.py`. Aggiunta projection mirata (esclusi `daily_revenues` 63KB, `attendance_history` 21KB, `cast`, `screenplay`, `ai_interactions`, `hourly_revenues`, `cinema_distribution` per film). Rimosso `liked_by` dalla projection principale, sostituito con query parallela via `asyncio.gather`. Aggiunta cache TTL 60s per hall-of-fame. Aggiunti indici MongoDB `(status, cineboard_score)` e `liked_by`. Rimosso dead code (codice duplicato) alla fine di dashboard.py. **now-playing: 65.5s → 1.2s (53x)**, **hall-of-fame: 101.6s → 1.2s (85x)**. (2026-04-02)
-
-- **MODULARIZATION Step 11 (Premiere/Tour)**: Moved 8 endpoints from server.py → routes/premiere.py (new). Includes: /premiere/invite, /premiere/invites, /premiere/view/{invite_id}, /tour/featured, /tour/cinema/{cinema_id}, /tour/cinema/{cinema_id}/visit, /tour/cinema/{cinema_id}/review, /tour/my-visits. Also moved: PremierInviteRequest model. Dependencies: INFRASTRUCTURE_TYPES, calculate_tour_rating from game_systems. Old code commented out. (2026-04-02)
-
-- **MODULARIZATION Step 12 (Coming Soon + Major + Emerging Screenplays)**: Moved 16 endpoints from server.py → 3 new route files. `routes/coming_soon.py` (5): hype, interact, details, investigate-boycott, speed-up + helpers/constants. `routes/major.py` (5): my, create, invite, accept, challenge + models. `routes/emerging_screenplays.py` (6): list, count, mark-seen, detail, accept, admin/diagnose-screenplay + expire_old_screenplays. Old code commented out. (2026-04-02)
-
-## 20 Film Posters Missing
-These posters don't exist anywhere (404 on .it too). Need AI regeneration:
-- Referenced by films but never backed up to MongoDB
-
-## Upcoming (P1)
-- Modularizzazione server.py — Step 11+ (attendere indicazioni utente per il prossimo gruppo)
+## Backlog (P1)
+- 20 poster film mancanti/404 (rigenerazione AI)
+- Modularizzazione endpoint rimanenti in server.py
 - Sistema "Previsioni Festival"
-- Marketplace TV/Anime rights
+- Marketplace diritti TV/Anime
 
 ## Backlog (P2+)
-- Contest Page mobile layout (broken, recurrence 14+)
-- Velion features, CinePass+Stripe, Push notifications, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory
+- Contest Page Mobile Layout rotto (ricorrente 14+)
+- Velion Mood Indicator
+- Chat Evolution
+- CinePass + Stripe
+- Push notifications
+- Velion Levels
+- RBAC
+- Eventi globali
+- Guerre tra Major
+- Velion AI Memory
+
+## Credenziali Test
+- User: fandrex1@gmail.com / Ciaociao1
+- Admin: test@cineworld.com / test123

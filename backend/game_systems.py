@@ -887,19 +887,13 @@ def generate_student_actor() -> dict:
     genders = ['male', 'female']
     gender = random.choice(genders)
     
-    # Random skill distribution (1-4 for beginners)
-    skills = {
-        'Acting': random.randint(1, 4),
-        'Emotional Range': random.randint(1, 4),
-        'Action Sequences': random.randint(1, 4),
-        'Comedy Timing': random.randint(1, 4),
-        'Drama': random.randint(1, 4),
-        'Voice Acting': random.randint(1, 4),
-        'Physical Acting': random.randint(1, 4),
-        'Improvisation': random.randint(1, 4),
-        'Chemistry': random.randint(1, 4),
-        'Star Power': random.randint(1, 3),
-    }
+    # Random skill distribution (1-4 for beginners) — unified ACTOR_SKILLS
+    from cast_system import ACTOR_SKILLS
+    all_skill_keys = list(ACTOR_SKILLS.keys())
+    chosen_skills = random.sample(all_skill_keys, 8)
+    skills = {}
+    for sk in chosen_skills:
+        skills[sk] = random.randint(1, 4)
     
     # Random potential (how much they can grow)
     potential = random.uniform(0.5, 1.0)  # 50-100% of max potential

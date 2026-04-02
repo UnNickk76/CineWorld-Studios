@@ -1,0 +1,120 @@
+================================================================================
+  CINEWORLD STUDIO'S — REPORT COERENZA SISTEMA SKILL (Post-Refactoring)
+  Data: Febbraio 2026 | Stato: Tutti gli step completati
+================================================================================
+
+
+STEP 1 — UNIFICAZIONE SISTEMA SKILL (Completato)
+================================================================================
+
+Rimosso: ACTOR_SKILL_NAMES (10 skill inglesi in casting_agency.py)
+Usato ora: SOLO ACTOR_SKILLS (13 skill codificate in cast_system.py)
+
+Conversioni applicate:
+  Acting           -> drama
+  Emotional Range  -> emotional_depth
+  Action Sequences -> action
+  Comedy Timing    -> comedy
+  Drama            -> drama (merge con Acting, prende max)
+  Voice Acting     -> voice_acting
+  Physical Acting  -> physical_acting
+  Improvisation    -> improvisation
+  Chemistry        -> charisma
+  Star Power       -> charisma (merge con Chemistry, prende max)
+
+File modificati:
+  - casting_agency.py: rimosso ACTOR_SKILL_NAMES, aggiunto LEGACY_SKILL_MAPPING,
+    convert_legacy_skills(), convert_legacy_skill_caps(). generate_full_skills()
+    ora usa ACTOR_SKILLS. Conversione on-read per retrocompatibilita'.
+  - series_pipeline.py: rimosso import ACTOR_SKILL_NAMES.
+
+Dati DB migrati: 2 attori in people + 4 in agency_actors convertiti.
+Rimanenti legacy: 0.
+
+
+STEP 2 — FIX SCUOLA DI RECITAZIONE (Completato)
+================================================================================
+
+Problema: generate_final_skills() generava TUTTE 13 skill (non 8).
+Fix: Ora genera esattamente 8 skill su 13 (come cast_system.py).
+     generate_initial_skills() genera 3-5 skill come sottoinsieme delle 8 finali.
+
+File modificato: acting_school.py
+
+
+STEP 3 — ATTIVAZIONE SKILL REALI NELLA QUALITA' FILM (Completato)
+================================================================================
+
+Problema: Calcolo qualita' usava solo avg(tutte le skill).
+Fix: Ora usa formula genre-aware:
+     blended_skill = genre_avg * 0.7 + full_avg * 0.3
+
+     - genre_avg = media delle skill rilevanti al genere (da GENRE_SKILL_MAPPING)
+     - full_avg = media di tutte le skill
+     - Fallback: skill mancante = 0
+
+Impatto:
+  - Attore specializzato nel genere: premiato (+20-30 punti)
+  - Attore non specializzato: penalizzato (-20-45 punti)
+  - Regista e Compositore: invariati (full avg, nessun genre mapping)
+
+Debug: Log dettagliato + advanced_factors._skill_debug nella risposta.
+
+File modificato: film_pipeline.py
+
+
+STEP 4 — VERIFICA COERENZA (Completato)
+================================================================================
+
+Punti legacy corretti:
+  - game_systems.py: generate_student_actor() ora usa ACTOR_SKILLS (8 su 13)
+  - cinepass.py: skill_key_map semplificato (solo chiavi nuove)
+  - server.py: SKILL_TYPES aggiornato con chiavi unificate
+  - server.py: Enrollment scuola usa ACTOR_SKILLS (8 su 13)
+
+Dati DB migrati:
+  - 2 attori legacy in 'people' convertiti
+  - 4 attori legacy in 'agency_actors' convertiti
+  - 0 documenti legacy rimasti
+
+Report finale:
+  - People (attori): 2355, tutti con skill nuove
+  - Agency actors: 4, tutti con skill nuove
+  - Attori con num skill != 8: 0
+  - Sistema skill: COERENTE in tutti i file
+
+
+SISTEMA SKILL UNIFICATO — RIFERIMENTO
+================================================================================
+
+Pool skill (13 totali, 8 assegnate per membro):
+  drama, comedy, action, romance, horror, sci_fi,
+  voice_acting, improvisation, physical_acting,
+  emotional_depth, charisma, method_acting, timing
+
+Definito in: cast_system.py (ACTOR_SKILLS, riga 13-27)
+Usato in: cast_system.py, casting_agency.py, acting_school.py,
+           film_pipeline.py, series_pipeline.py, game_systems.py,
+           cinepass.py, server.py
+
+Mappa genere -> skill (GENRE_SKILL_MAPPING, cast_system.py:81-98):
+  action       -> action, physical_acting
+  comedy       -> comedy, timing, improvisation
+  drama        -> drama, emotional_depth, method_acting
+  horror       -> horror, physical_acting
+  sci_fi       -> sci_fi, voice_acting
+  romance      -> romance, emotional_depth, charisma
+  thriller     -> drama, action, emotional_depth
+  animation    -> voice_acting, comedy, timing
+  documentary  -> drama, charisma
+  fantasy      -> drama, action, physical_acting
+  musical      -> voice_acting, comedy, timing
+  western      -> action, drama, physical_acting
+  war          -> drama, action, emotional_depth
+  noir         -> drama, emotional_depth
+  adventure    -> action, charisma, physical_acting
+  biographical -> drama, method_acting, emotional_depth
+
+================================================================================
+  FINE REPORT
+================================================================================

@@ -1045,9 +1045,9 @@ EQUIPMENT_PACKAGES = [
 ]
 
 SKILL_TYPES = {
-    'actor': ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing', 'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation', 'Chemistry', 'Star Power'],
-    'director': ['Vision', 'Leadership', 'Technical', 'Storytelling', 'Actor Direction', 'Visual Style', 'Pacing', 'Innovation', 'Budget Management', 'Award Potential'],
-    'screenwriter': ['Dialogue', 'Plot Structure', 'Character Development', 'Originality', 'Genre Mastery', 'Pacing', 'Emotional Impact', 'Commercial Appeal', 'Adaptation', 'World Building']
+    'actor': ['drama', 'comedy', 'action', 'romance', 'horror', 'sci_fi', 'voice_acting', 'improvisation', 'physical_acting', 'emotional_depth', 'charisma', 'method_acting', 'timing'],
+    'director': ['vision', 'leadership', 'technical', 'storytelling', 'actor_direction', 'visual_style', 'pacing', 'innovation', 'budget_management', 'atmosphere', 'casting_sense', 'editing_instinct', 'world_building'],
+    'screenwriter': ['dialogue', 'plot_structure', 'character_development', 'originality', 'adaptation', 'pacing', 'world_building', 'emotional_impact', 'humor_writing', 'suspense_craft', 'subtext', 'theme_depth', 'research']
 }
 
 # Pydantic Models
@@ -11291,12 +11291,12 @@ async def hire_from_casting(req: CastingHireRequest, user: dict = Depends(get_cu
         base_skill = target['skill']  # 50-95 range from casting agency
         age = target.get('age', random.randint(18, 55))
         
-        # Initial skills on 0-100 scale (starting from casting agency skill level with variance)
+        # Initial skills on 0-100 scale — unified ACTOR_SKILLS (8 out of 13)
+        from cast_system import ACTOR_SKILLS
+        all_skill_keys = list(ACTOR_SKILLS.keys())
+        chosen_skills = random.sample(all_skill_keys, 8)
         initial_skills = {}
-        skill_names = ['Acting', 'Emotional Range', 'Action Sequences', 'Comedy Timing',
-                       'Drama', 'Voice Acting', 'Physical Acting', 'Improvisation',
-                       'Chemistry', 'Star Power']
-        for sk in skill_names:
+        for sk in chosen_skills:
             variance = random.randint(-15, 10)
             initial_skills[sk] = max(5, min(95, base_skill - 20 + variance))
         

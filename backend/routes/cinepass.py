@@ -600,13 +600,13 @@ async def _generate_cast_match():
     skill_to_test = random.choice(['drama', 'comedy', 'action', 'romance', 'horror'])
     skill_names = {'drama': 'Dramma', 'comedy': 'Commedia', 'action': 'Azione', 'romance': 'Romantico', 'horror': 'Horror'}
     
-    # Map skill to actual skill key names (actors might have different key formats)
+    # Map skill to actual skill key names (unified ACTOR_SKILLS format)
     skill_key_map = {
-        'drama': ['Drama', 'drama', 'Dramma'],
-        'comedy': ['Comedy Timing', 'comedy', 'Commedia'],
-        'action': ['Action Sequences', 'action', 'Azione'],
-        'romance': ['Chemistry', 'romance', 'Romantico', 'Emotional Range'],
-        'horror': ['Drama', 'horror', 'Horror', 'Emotional Range']
+        'drama': ['drama'],
+        'comedy': ['comedy'],
+        'action': ['action'],
+        'romance': ['romance'],
+        'horror': ['horror']
     }
     
     def get_skill_value(actor, skill):

@@ -1,12 +1,14 @@
-<analysis>///apiMONGO_URLcurlMONGO_URLmongodb://localhost:27017/api/users/all/api/films/allcineworld/app/backend/requestsaiohttpFandrex1@gmail.comFandrel2776GETDockerfilenpm installnpm run buildemergentintegrations--extra-index-urlREACT_APP_BACKEND_URL=server.py@app.get(/)app.mount(/, StaticFiles(..., html=True))database.pyMONGO_URLposter_storage.migrate_disk_to_db()
+<analysis>passlibcurlpasslibbcryptbcrypt.checkpw()socketTimeoutMSdatabase.pyNetworkTimeoutcurlpasslibbcrypt.checkpw()__about__serverSelectionTimeoutMSsocketTimeoutMScurlaccess_tokenREACT_APP_BACKEND_URL/app/backend/routes/auth.py/app/frontend/src/App.js/app/backup_produzione/GET /api/admin/export-dbGET /api/series/myPOST /api/series/{id}/generate-posterSagasSeriesPage.jsx/healthasyncio.create_task()server.py/uploadspasslib
 /app/
-├── Dockerfile (Multi-stage: builds React, installs Python reqs, runs uvicorn)
-├── railway.toml (Forces Railway to use Dockerfile)
+├── Dockerfile (Multi-stage)
+├── railway.toml
 ├── backend/
-│   ├── server.py (API routes + StaticFiles mount for React SPA)
-│   ├── database.py (MongoDB Atlas connection)
-│   └── .env (Contains Atlas MONGO_URL)
+│   ├── server.py (API routes, SPA fallback mount, background startup tasks)
+│   ├── database.py (MongoDB Atlas connection without strict timeouts)
+│   ├── routes/
+│   │   ├── auth.py (Login logic using bcrypt)
+│   │   ├── series_pipeline.py (Poster generation logic)
+│   └── scripts/ (Extraction and backup scripts)
 └── frontend/
-    ├── build/ (Generated via npm run build in Docker)
-    └── postcss.config.js (Reverted to standard Tailwind v3)
-index.html//apiusersfilmsfilm_projectstv_series/app/Dockerfilenpmyarn/app/railway.toml/app/backend/server.py/StaticFiles/app/backend/database.pyos.getenv(MONGO_URL)server.pyGET /GET /healthPOST /api/auth/logintesting_agent_v3_forkFandrex1@gmail.comFandrel2776mongodumpserver.py@app.get(/)app.mount/app/memory/PRD.md/app/memory/test_credentials.md//.envFandrex1@gmail.comFandrel2776fandrex1@gmail.comCiaociao1Fandrex1@gmail.comFandrel2776</analysis>
+    └── src/pages/SagasSeriesPage.jsx (UI for series and poster generation)
+bcryptuserspasswordinfrastructuretv_seriespasslibbcrypt 4.1.3AttributeError: module 'bcrypt' has no attribute '__about__'bcrypt.checkpw()/app/backend/database.pyAsyncIOMotorClient/app/backend/routes/auth.pyloginbcryptLOGIN STARTLOGIN USER FOUND/app/backend/server.py@app.on_event(startup)/health/uploads/app/frontend/src/pages/SagasSeriesPage.jsxonClickserver.pyPOST /api/auth/loginGET /healthGET /api/admin/export-dbPOST /api/series/{id}/generate-posterPOST /api/anime/{id}/generate-postertesting_agent_v3_forkcurlaccess_token/app/memory/PRD.md/app/memory/test_credentials.md/app/backup_produzione/ALL_DATA.jsondatabase.pydb = client.get_default_database()passlibaccess_token.itrequirements.txt0.0.0.0/0MONGO_URLpasslibbcryptpasslibfandrex1@gmail.comCiaociao1test@cineworld.comtest123</analysis>

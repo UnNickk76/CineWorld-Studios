@@ -33,11 +33,16 @@ def get_training_duration(hidden_talent: float) -> int:
     # talent 0.0 -> 20 days, talent 1.0 -> 10 days
     return int(20 - (hidden_talent * 10))
 
-# Generate initial skills (3-5 out of 8, low values 5-25)
-def generate_initial_skills():
-    all_skills = list(ACTOR_SKILLS.keys())
-    num_visible = random.randint(3, 5)
-    chosen = random.sample(all_skills, num_visible)
+# Generate initial skills (3-5 out of the 8 final skills, low values 5-25)
+def generate_initial_skills(final_skill_keys: list = None):
+    if final_skill_keys:
+        # Pick a subset of the final skills as initially visible
+        num_visible = random.randint(3, min(5, len(final_skill_keys)))
+        chosen = random.sample(final_skill_keys, num_visible)
+    else:
+        all_skills = list(ACTOR_SKILLS.keys())
+        num_visible = random.randint(3, 5)
+        chosen = random.sample(all_skills, num_visible)
     skills = {}
     for skill in chosen:
         skills[skill] = random.randint(5, 25)
@@ -75,11 +80,12 @@ def calculate_current_skills(trainee: dict) -> dict:
     
     return current
 
-# Generate final skills based on talent
+# Generate final skills based on talent (exactly 8 out of 13, matching cast_system)
 def generate_final_skills(hidden_talent: float) -> dict:
     all_skills = list(ACTOR_SKILLS.keys())
+    chosen = random.sample(all_skills, 8)
     skills = {}
-    for skill in all_skills:
+    for skill in chosen:
         # Base range: 20-60 for low talent, 40-95 for high talent
         base_min = int(20 + hidden_talent * 30)
         base_max = int(50 + hidden_talent * 45)
@@ -235,6 +241,8 @@ async def get_available_recruits(user: dict = Depends(get_current_user)):
         hidden_talent = round(random.uniform(0.1, 1.0), 2)
         initial_skills = generate_initial_skills()
         final_skills = generate_final_skills(hidden_talent)
+        # Ensure initial skills are a subset of final skills
+        initial_skills = generate_initial_skills(final_skill_keys=list(final_skills.keys()))
         
         # Promising assessment (partially correlated with talent, but not perfectly)
         talent_noise = random.uniform(-0.2, 0.2)

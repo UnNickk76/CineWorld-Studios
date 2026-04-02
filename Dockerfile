@@ -1,7 +1,6 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json ./
-COPY frontend/yarn.lock ./
 RUN npm install --legacy-peer-deps
 COPY frontend/ ./
 ENV CI=false

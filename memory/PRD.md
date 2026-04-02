@@ -47,6 +47,8 @@ Full-stack cinematic management game (React + FastAPI + MongoDB).
 
 - **MODULARIZATION Step 11 (Premiere/Tour)**: Moved 8 endpoints from server.py → routes/premiere.py (new). Includes: /premiere/invite, /premiere/invites, /premiere/view/{invite_id}, /tour/featured, /tour/cinema/{cinema_id}, /tour/cinema/{cinema_id}/visit, /tour/cinema/{cinema_id}/review, /tour/my-visits. Also moved: PremierInviteRequest model. Dependencies: INFRASTRUCTURE_TYPES, calculate_tour_rating from game_systems. Old code commented out. (2026-04-02)
 
+- **MODULARIZATION Step 12 (Coming Soon + Major + Emerging Screenplays)**: Moved 16 endpoints from server.py → 3 new route files. `routes/coming_soon.py` (5): hype, interact, details, investigate-boycott, speed-up + helpers/constants. `routes/major.py` (5): my, create, invite, accept, challenge + models. `routes/emerging_screenplays.py` (6): list, count, mark-seen, detail, accept, admin/diagnose-screenplay + expire_old_screenplays. Old code commented out. (2026-04-02)
+
 ## 20 Film Posters Missing
 These posters don't exist anywhere (404 on .it too). Need AI regeneration:
 - Referenced by films but never backed up to MongoDB

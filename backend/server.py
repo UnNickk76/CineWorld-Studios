@@ -144,6 +144,40 @@ api_router = APIRouter(prefix="/api")
 def api_health():
     return {"status": "ok"}
 
+@api_router.get("/debug/login-check")
+async def debug_login_check():
+    """Diagnostic endpoint to check login dependencies."""
+    checks = {}
+    try:
+        import bcrypt as _bcrypt
+        checks['bcrypt_import'] = 'ok'
+        checks['bcrypt_version'] = _bcrypt.__version__
+    except Exception as e:
+        checks['bcrypt_import'] = f'FAIL: {repr(e)}'
+    
+    try:
+        import passlib
+        checks['passlib_installed'] = f'YES v{passlib.__version__} (SHOULD NOT BE HERE!)'
+    except ImportError:
+        checks['passlib_installed'] = 'no (correct)'
+    
+    try:
+        from database import db
+        user = await db.users.find_one({}, {'_id': 0, 'email': 1})
+        checks['mongodb'] = f'ok (found user: {user.get("email", "?")[:10]}...)' if user else 'ok (empty collection)'
+    except Exception as e:
+        checks['mongodb'] = f'FAIL: {repr(e)}'
+    
+    try:
+        import bcrypt as _b
+        test_hash = _b.hashpw(b'test', _b.gensalt())
+        result = _b.checkpw(b'test', test_hash)
+        checks['bcrypt_checkpw'] = f'ok (result={result})'
+    except Exception as e:
+        checks['bcrypt_checkpw'] = f'FAIL: {repr(e)}'
+    
+    return checks
+
 @api_router.get("/download-dump")
 async def download_dump():
     dump_path = "/app/cinemaster_dump.zip"

@@ -1231,15 +1231,7 @@ export default function AdminPage() {
         {activeTab === 'reports' && <ReportsTab api={api} />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
-        {activeTab === 'maintenance' && (
-          <div data-testid="db-debug-wrapper" className="mt-4">
-            {isAdmin ? (
-              <DbManagementCard api={api} />
-            ) : (
-              <p className="text-xs text-red-500 bg-red-500/10 p-2 rounded">Debug: isAdmin={String(isAdmin)} | nickname={user?.nickname} | role={user?.role}</p>
-            )}
-          </div>
-        )}
+        {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} />}
       </div>
     </div>
   );

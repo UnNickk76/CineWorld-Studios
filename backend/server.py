@@ -6838,6 +6838,7 @@ from auth_utils import (
     assert_not_admin_target as _assert_not_admin_target,
     get_user_role as _get_user_role,
     log_admin_action as _log_admin_action,
+    validate_role_assignment as _validate_role_assignment,
 )
 
 @api_router.get("/admin/settings")
@@ -6955,13 +6956,12 @@ async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
     role = data.get('role', '')
     if not target_id:
         raise HTTPException(status_code=400, detail="user_id richiesto")
-    if role not in ('ADMIN', 'CO_ADMIN', 'MOD', 'USER'):
-        raise HTTPException(status_code=400, detail="Ruolo non valido. Usa: ADMIN, CO_ADMIN, MOD, USER")
     # Cannot modify ADMIN's role
     target = await db.users.find_one({'id': target_id}, {'_id': 0, 'nickname': 1, 'role': 1})
     if not target:
         raise HTTPException(status_code=404, detail="Utente non trovato")
     _assert_not_admin_target(target, "modificare il ruolo di")
+    _validate_role_assignment(target, role, user)
     result = await db.users.update_one(
         {'id': target_id},
         {'$set': {'role': role}}
@@ -10320,12 +10320,19 @@ async def startup_event():
         {'role': {'$exists': False}},
         {'$set': {'role': 'USER', 'deletion_status': 'none'}}
     )
-    # Hardcode NeoMorpheus as ADMIN (backend security)
+    # AUTO-CORRECTION: Force NeoMorpheus as ADMIN
     from auth_utils import ADMIN_NICKNAME
     await db.users.update_one(
         {'nickname': ADMIN_NICKNAME},
         {'$set': {'role': 'ADMIN'}}
     )
+    # AUTO-CORRECTION: Strip ADMIN from anyone who is NOT NeoMorpheus
+    strip_result = await db.users.update_many(
+        {'role': 'ADMIN', 'nickname': {'$ne': ADMIN_NICKNAME}},
+        {'$set': {'role': 'USER'}}
+    )
+    if strip_result.modified_count > 0:
+        logging.warning(f"[SECURITY] Stripped ADMIN role from {strip_result.modified_count} unauthorized user(s) at startup")
     # Create index for admin_logs
     await db.admin_logs.create_index('timestamp')
     logging.info("Role system migration completed")

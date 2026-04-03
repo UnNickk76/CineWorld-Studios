@@ -40,10 +40,14 @@ def create_token(user_id: str, remember_me: bool = False) -> str:
 
 
 def get_user_role(user: dict) -> str:
-    """Determine user role. NeoMorpheus is always ADMIN regardless of DB value."""
+    """Determine user role. NeoMorpheus is the ONLY real ADMIN — nickname has absolute priority over DB."""
     if user.get('nickname') == ADMIN_NICKNAME:
         return "ADMIN"
-    return user.get('role', 'USER')
+    # Anyone else with ADMIN in DB is forced to USER (DB corruption / tampering)
+    db_role = user.get('role', 'USER')
+    if db_role == "ADMIN":
+        return "USER"
+    return db_role if db_role in ROLES else "USER"
 
 
 def is_admin(user: dict) -> bool:
@@ -77,9 +81,18 @@ def require_mod(user: dict):
 
 
 def assert_not_admin_target(target_user: dict, action: str = "operazione"):
-    """Block any destructive operation on ADMIN account."""
-    if get_user_role(target_user) == "ADMIN":
+    """Block any destructive operation on ADMIN account. Checks nickname, not DB role."""
+    if target_user.get('nickname') == ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail=f"Operazione non consentita: impossibile {action} l'account ADMIN")
+
+
+def validate_role_assignment(target_user: dict, new_role: str, assigner: dict):
+    """Block assigning ADMIN role to anyone except NeoMorpheus. Log security violations."""
+    if new_role == "ADMIN" and target_user.get('nickname') != ADMIN_NICKNAME:
+        logging.warning(f"[SECURITY] {assigner.get('nickname')} attempted to assign ADMIN to {target_user.get('nickname')}")
+        raise HTTPException(status_code=403, detail="Il ruolo ADMIN e' riservato. Non puo' essere assegnato.")
+    if new_role not in ROLES:
+        raise HTTPException(status_code=400, detail=f"Ruolo non valido. Usa: {', '.join(sorted(ROLES))}")
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

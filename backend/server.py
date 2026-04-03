@@ -17077,7 +17077,8 @@ if not os.path.exists("uploads"):
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
-app.mount("/", StaticFiles(directory=_build_dir or "/app/frontend/build", html=True), name="frontend")
+if _build_dir:
+    app.mount("/", StaticFiles(directory=_build_dir, html=True), name="frontend")
 
 app.add_middleware(
     CORSMiddleware,

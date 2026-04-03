@@ -162,6 +162,27 @@ api_router = APIRouter(prefix="/api")
 def api_health():
     return {"status": "ok"}
 
+@api_router.get("/debug/db-check")
+async def debug_db_check():
+    """Temporary diagnostic: which MongoDB is this instance using?"""
+    from database import MONGO_URL
+    # Mask password
+    import re
+    masked = re.sub(r'://([^:]+):([^@]+)@', r'://\1:***@', MONGO_URL or '')
+    try:
+        user_count = await db.users.count_documents({})
+        film_count = await db.films.count_documents({})
+        sample = await db.users.find_one({'email': 'fandrex1@gmail.com'}, {'_id': 0, 'funds': 1, 'nickname': 1})
+    except Exception as e:
+        return {"mongo_url_masked": masked, "error": str(e)}
+    return {
+        "mongo_url_masked": masked,
+        "db_name": db.name,
+        "users": user_count,
+        "films": film_count,
+        "sample_user": sample
+    }
+
 @api_router.get("/debug/login-check")
 async def debug_login_check():
     """Diagnostic endpoint to check login dependencies."""

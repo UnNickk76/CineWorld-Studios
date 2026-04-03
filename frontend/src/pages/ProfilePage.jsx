@@ -416,6 +416,7 @@ const ProfilePage = () => {
             <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-yellow-500" /> Generate AI Avatar
             </DialogTitle>
+            <DialogDescription className="text-xs text-gray-400">Descrivi il tuo avatar e generalo con AI</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

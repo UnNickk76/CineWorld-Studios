@@ -421,7 +421,7 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
 
     # Validate datetime format
     try:
-        dt = datetime.fromisoformat(req.datetime_str.replace('Z', '+00:00'))
+        datetime.fromisoformat(req.datetime_str.replace('Z', '+00:00'))
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato datetime non valido. Usa ISO 8601")
 
@@ -477,13 +477,24 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
 
 @router.get("/status/{film_id}")
 async def get_premiere_status(film_id: str, user=Depends(get_current_user)):
-    """Get La Prima status for a film."""
+    """Get La Prima status for a film. Checks both film_projects and films collections."""
     project = await db.film_projects.find_one(
         {'id': film_id, 'user_id': user['id']},
         {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1}
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Progetto film non trovato")
+        # Fallback: check released films collection
+        project = await db.films.find_one(
+            {'id': film_id, 'user_id': user['id']},
+            {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1}
+        )
+    if not project:
+        return {
+            'film_id': film_id,
+            'premiere': default_premiere(),
+            'can_enable': False,
+            'eligible_statuses': list(PREMIERE_ELIGIBLE_STATUSES),
+        }
 
     premiere = project.get('premiere', default_premiere())
     can_enable = (

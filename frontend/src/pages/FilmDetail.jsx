@@ -677,6 +677,11 @@ const FilmDetail = () => {
             </Card>
           )}
 
+          {/* La Prima (Premiere) Section */}
+          {film.type !== 'serie' && film.type !== 'anime' && (
+            <LaPremiereSection film={film} api={api} isOwner={isOwner} onUpdate={loadFilm} />
+          )}
+
           {/* Cinema Distribution Section - Where the film is showing */}
           {distribution && distribution.current_cinemas > 0 && (
             <Card className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30">

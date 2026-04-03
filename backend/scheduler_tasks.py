@@ -14,9 +14,17 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database connection
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
+from dotenv import load_dotenv, dotenv_values
+from pathlib import Path
+
+# Load .env with override to ensure Atlas DB is used in all environments
+_env_path = Path(__file__).parent / '.env'
+load_dotenv(_env_path, override=True)
+_env_values = dotenv_values(_env_path)
+
+# Database connection - prioritize .env file values
+MONGO_URL = _env_values.get('MONGO_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+DB_NAME = _env_values.get('DB_NAME') or os.environ.get('DB_NAME', 'cineworld')
 
 # Create a separate client for scheduler tasks
 scheduler_client = AsyncIOMotorClient(MONGO_URL)

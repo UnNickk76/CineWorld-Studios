@@ -17078,7 +17078,17 @@ if not os.path.exists("uploads"):
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
 if _build_dir:
-    app.mount("/", StaticFiles(directory=_build_dir, html=True), name="frontend")
+    app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="frontend_static")
+
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve React SPA - catch all non-API routes."""
+        file_path = os.path.join(_build_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_build_dir, "index.html"))
 
 app.add_middleware(
     CORSMiddleware,

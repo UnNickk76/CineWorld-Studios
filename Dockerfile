@@ -8,6 +8,7 @@ ENV CI=false
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS=--max_old_space_size=4096
 ENV ENABLE_HEALTH_CHECK=false
+ENV REACT_APP_BACKEND_URL=""
 RUN npm run build
 
 FROM python:3.11-slim

@@ -3,16 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
-/* ─── Tab constants ─── */
-const TABS = [
+/* ─── Tab config by role ─── */
+const ADMIN_TABS = [
   { id: 'users', label: 'Gestione Utenti', icon: Users },
   { id: 'films', label: 'Gestione Film', icon: Film },
+  { id: 'roles', label: 'Gestione Ruoli', icon: UserCog },
+  { id: 'reports', label: 'Segnalazioni', icon: Flag },
+  { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
+  { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+];
+
+const COADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
 ];
@@ -889,20 +896,253 @@ function MaintenanceTab({ api }) {
   );
 }
 
+/* ─── Roles Management Tab (ADMIN only) ─── */
+function RolesTab({ api }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const searchUsers = useCallback(async (q) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/admin/search-users?q=${encodeURIComponent(q)}`);
+      setUsers(res.data.users || []);
+    } catch { toast.error('Errore ricerca'); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { searchUsers(''); }, [searchUsers]);
+
+  const setRole = async (userId, nickname, role) => {
+    setActionLoading(userId);
+    try {
+      await api.post('/admin/set-user-role', { user_id: userId, role });
+      toast.success(`${nickname} impostato come ${role}`);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const ROLE_COLORS = {
+    'ADMIN': 'bg-red-500/20 text-red-400 border-red-500/30',
+    'CO_ADMIN': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    'MOD': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'USER': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  };
+
+  return (
+    <div className="space-y-3" data-testid="admin-roles-tab">
+      <form onSubmit={(e) => { e.preventDefault(); searchUsers(searchQuery); }}>
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Cerca utente..."
+              className="w-full bg-[#111113] border border-gray-800 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-600 focus:border-amber-500/50 focus:outline-none"
+              data-testid="roles-search-input" />
+          </div>
+          <Button type="submit" size="sm" className="bg-amber-600 hover:bg-amber-700 text-xs px-3" disabled={loading}
+            data-testid="roles-search-btn">
+            {loading ? '...' : 'Cerca'}
+          </Button>
+        </div>
+      </form>
+
+      <div className="space-y-1.5 max-h-[65vh] overflow-y-auto" data-testid="roles-user-list">
+        {users.map(u => {
+          const role = u.role || 'USER';
+          const isNeo = u.nickname === 'NeoMorpheus';
+          return (
+            <Card key={u.id} className={`bg-[#111113] border-white/5 ${isNeo ? 'border-red-500/30' : ''}`} data-testid={`role-user-${u.nickname}`}>
+              <CardContent className="p-2.5 flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500/20 to-red-500/20 flex items-center justify-center text-xs font-bold text-amber-400 flex-shrink-0">
+                  {u.nickname?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">{u.nickname}</p>
+                  <p className="text-[9px] text-gray-500 truncate">{u.email}</p>
+                </div>
+                <Badge className={`text-[8px] h-5 px-2 ${ROLE_COLORS[role] || ROLE_COLORS.USER}`}>{role}</Badge>
+                {!isNeo && (
+                  <div className="flex gap-1 flex-shrink-0">
+                    {['CO_ADMIN', 'MOD', 'USER'].map(r => (
+                      <button key={r}
+                        disabled={actionLoading === u.id || role === r}
+                        onClick={() => setRole(u.id, u.nickname, r)}
+                        className={`px-1.5 py-0.5 rounded text-[8px] font-semibold transition-all disabled:opacity-30 ${
+                          role === r ? 'bg-white/10 text-white' : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-white'
+                        }`}
+                        data-testid={`set-role-${u.nickname}-${r}`}>
+                        {r === 'CO_ADMIN' ? 'Co-Admin' : r === 'MOD' ? 'Mod' : 'User'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isNeo && <span className="text-[8px] text-red-400 font-bold flex-shrink-0">PROTETTO</span>}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Deletions Tab (ADMIN only) ─── */
+function DeletionsTab({ api }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const loadRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/deletion-requests');
+      setRequests(res.data.requests || []);
+    } catch { toast.error('Errore caricamento richieste'); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { loadRequests(); }, [loadRequests]);
+
+  const handleAction = async (userId, action) => {
+    setActionLoading(`${userId}-${action}`);
+    try {
+      await api.post(`/admin/deletion/${userId}/${action}`);
+      const msgs = {
+        'approve': 'Countdown 10 giorni avviato',
+        'reject': 'Richiesta rifiutata (cooldown 5 giorni)',
+        'final-approve': 'Account eliminato definitivamente',
+        'final-reject': 'Cancellazione annullata',
+      };
+      toast.success(msgs[action] || 'Azione completata');
+      loadRequests();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionLoading(null); }
+  };
+
+  const STATUS_CONFIG = {
+    'requested': { label: 'Richiesta', color: 'bg-yellow-500/20 text-yellow-400', icon: Clock },
+    'countdown_active': { label: 'Countdown', color: 'bg-orange-500/20 text-orange-400', icon: Clock },
+    'user_confirmed': { label: 'Confermato', color: 'bg-red-500/20 text-red-400', icon: AlertTriangle },
+    'final_pending': { label: 'In Attesa Finale', color: 'bg-red-500/30 text-red-300', icon: AlertTriangle },
+  };
+
+  return (
+    <div className="space-y-3" data-testid="admin-deletions-tab">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-gray-500">{requests.length} richieste in corso</p>
+        <Button size="sm" variant="outline" className="text-[10px] h-6 border-gray-700 text-gray-400"
+          onClick={loadRequests} disabled={loading} data-testid="deletions-refresh-btn">
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Aggiorna'}
+        </Button>
+      </div>
+
+      {requests.length === 0 && !loading ? (
+        <div className="text-center py-8">
+          <CheckCircle className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+          <p className="text-xs text-gray-600">Nessuna richiesta di cancellazione in corso</p>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[65vh] overflow-y-auto" data-testid="deletions-list">
+          {requests.map(r => {
+            const cfg = STATUS_CONFIG[r.deletion_status] || { label: r.deletion_status, color: 'bg-gray-500/20 text-gray-400', icon: Clock };
+            const StatusIcon = cfg.icon;
+            const countdownEnd = r.deletion_countdown_end ? new Date(r.deletion_countdown_end) : null;
+            const daysLeft = countdownEnd ? Math.max(0, Math.ceil((countdownEnd - new Date()) / (1000*60*60*24))) : null;
+
+            return (
+              <Card key={r.id} className="bg-[#111113] border-white/5" data-testid={`deletion-card-${r.id}`}>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-red-500/10 flex items-center justify-center text-xs font-bold text-red-400">
+                        {r.nickname?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-white">{r.nickname}</p>
+                        <p className="text-[9px] text-gray-500">{r.email}</p>
+                      </div>
+                    </div>
+                    <Badge className={`text-[8px] h-5 ${cfg.color}`}>
+                      <StatusIcon className="w-3 h-3 mr-0.5" />{cfg.label}
+                    </Badge>
+                  </div>
+
+                  {r.deletion_reason && (
+                    <p className="text-[10px] text-gray-400 bg-black/30 rounded px-2 py-1">Motivo: "{r.deletion_reason}"</p>
+                  )}
+
+                  {r.deletion_requested_by_name && (
+                    <p className="text-[9px] text-gray-500">Richiesto da: <span className="text-amber-400">{r.deletion_requested_by_name}</span></p>
+                  )}
+
+                  {daysLeft !== null && r.deletion_status === 'countdown_active' && (
+                    <p className="text-[10px] text-orange-400 font-semibold">Countdown: {daysLeft} giorni rimanenti</p>
+                  )}
+
+                  {/* Actions based on status */}
+                  <div className="flex gap-1.5 pt-1">
+                    {r.deletion_status === 'requested' && (
+                      <>
+                        <Button size="sm" className="bg-red-600 hover:bg-red-700 text-[10px] h-6 px-2 flex-1"
+                          onClick={() => handleAction(r.id, 'approve')}
+                          disabled={!!actionLoading} data-testid={`deletion-approve-${r.id}`}>
+                          <CheckCircle className="w-3 h-3 mr-0.5" /> Approva (10gg)
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-[10px] h-6 px-2 flex-1 border-gray-700 text-gray-400"
+                          onClick={() => handleAction(r.id, 'reject')}
+                          disabled={!!actionLoading} data-testid={`deletion-reject-${r.id}`}>
+                          <Ban className="w-3 h-3 mr-0.5" /> Rifiuta
+                        </Button>
+                      </>
+                    )}
+                    {(r.deletion_status === 'user_confirmed' || r.deletion_status === 'final_pending') && (
+                      <>
+                        <Button size="sm" className="bg-red-600 hover:bg-red-700 text-[10px] h-6 px-2 flex-1"
+                          onClick={() => handleAction(r.id, 'final-approve')}
+                          disabled={!!actionLoading} data-testid={`deletion-final-approve-${r.id}`}>
+                          <Trash2 className="w-3 h-3 mr-0.5" /> Elimina Definitivamente
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-[10px] h-6 px-2 flex-1 border-gray-700 text-gray-400"
+                          onClick={() => handleAction(r.id, 'final-reject')}
+                          disabled={!!actionLoading} data-testid={`deletion-final-reject-${r.id}`}>
+                          <XCircle className="w-3 h-3 mr-0.5" /> Annulla
+                        </Button>
+                      </>
+                    )}
+                    {r.deletion_status === 'countdown_active' && (
+                      <p className="text-[9px] text-gray-500 italic">In attesa della scadenza del countdown...</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState('users');
   const isAdmin = user?.nickname === 'NeoMorpheus';
+  const isCoadmin = user?.role === 'CO_ADMIN';
+  const hasAccess = isAdmin || isCoadmin;
+  const tabs = isAdmin ? ADMIN_TABS : COADMIN_TABS;
+  const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'reports');
 
-  if (!isAdmin) {
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4">
         <Card className="bg-[#111113] border-red-500/30 max-w-sm w-full">
           <CardContent className="p-6 text-center">
             <Shield className="w-10 h-10 mx-auto mb-3 text-red-500/50" />
             <p className="text-sm text-red-400 font-semibold">Accesso Negato</p>
-            <p className="text-xs text-gray-500 mt-1">Solo gli amministratori possono accedere a questa pagina.</p>
+            <p className="text-xs text-gray-500 mt-1">Permessi insufficienti per accedere a questa pagina.</p>
           </CardContent>
         </Card>
       </div>
@@ -914,36 +1154,49 @@ export default function AdminPage() {
       <div className="max-w-[1600px] mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center gap-2.5 mb-1">
-          <div className="p-2 bg-red-500/15 rounded-lg"><Shield className="w-5 h-5 text-red-400" /></div>
-          <div>
-            <h1 className="text-lg font-black text-white tracking-tight">Pannello Admin</h1>
-            <p className="text-[10px] text-gray-500">Gestione utenti, film, denaro e crediti</p>
+          <div className={`p-2 rounded-lg ${isAdmin ? 'bg-red-500/15' : 'bg-amber-500/15'}`}>
+            <Shield className={`w-5 h-5 ${isAdmin ? 'text-red-400' : 'text-amber-400'}`} />
           </div>
+          <div>
+            <h1 className="text-lg font-black text-white tracking-tight">
+              {isAdmin ? 'Pannello Admin' : 'Pannello Co-Admin'}
+            </h1>
+            <p className="text-[10px] text-gray-500">
+              {isAdmin ? 'Controllo completo del sistema' : 'Segnalazioni e manutenzione'}
+            </p>
+          </div>
+          <Badge className={`ml-auto text-[9px] h-5 ${isAdmin ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+            {isAdmin ? 'ADMIN' : 'CO_ADMIN'}
+          </Badge>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 bg-[#111113] rounded-lg p-1 border border-white/5" data-testid="admin-tabs">
-          {TABS.map(tab => {
+        {/* Tabs — scroll orizzontale su mobile */}
+        <div className="flex gap-1 bg-[#111113] rounded-lg p-1 border border-white/5 overflow-x-auto scrollbar-hide" data-testid="admin-tabs">
+          {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
-                  isActive ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+                  isActive
+                    ? (isAdmin ? 'bg-red-600 text-white' : 'bg-amber-600 text-white')
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`}
                 data-testid={`admin-tab-${tab.id}`}>
                 <Icon className="w-3.5 h-3.5" />
-                {tab.label}
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );
           })}
         </div>
 
         {/* Tab content */}
-        {activeTab === 'users' && <UsersTab api={api} />}
-        {activeTab === 'films' && <FilmsTab api={api} />}
+        {activeTab === 'users' && isAdmin && <UsersTab api={api} />}
+        {activeTab === 'films' && isAdmin && <FilmsTab api={api} />}
+        {activeTab === 'roles' && isAdmin && <RolesTab api={api} />}
         {activeTab === 'reports' && <ReportsTab api={api} />}
+        {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
       </div>
     </div>

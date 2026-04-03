@@ -579,7 +579,10 @@ function ReportsTab({ api }) {
 }
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
-function MaintenanceTab({ api, isAdmin }) {
+function MaintenanceTab({ api, isAdmin: isAdminProp }) {
+  const { user } = useContext(AuthContext);
+  // Double-check: use context directly as fallback for prop
+  const isAdmin = isAdminProp || user?.nickname === 'NeoMorpheus';
   const [username, setUsername] = useState('');
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
@@ -783,7 +786,7 @@ function MaintenanceTab({ api, isAdmin }) {
       )}
 
       {/* ─── Gestione Database (ADMIN only) ─── */}
-      {isAdmin && (
+      {isAdmin ? (
         <Card className="bg-[#111113] border-indigo-500/30" data-testid="db-management-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-indigo-400 flex items-center gap-2">
@@ -920,7 +923,7 @@ function MaintenanceTab({ api, isAdmin }) {
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

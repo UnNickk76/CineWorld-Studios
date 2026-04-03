@@ -95,10 +95,31 @@ def _diagnose_project(project: dict, project_type: str) -> dict:
         flag = 'BROKEN'
         issues.append(f'Stato "{status}" non valido nella pipeline')
     else:
+        # --- LOOP DETECTION: current_step == previous_step ---
+        previous_step = project.get('previous_step')
+        if previous_step and status == previous_step:
+            flag = 'LOOP'
+            issues.append(f'Loop rilevato: step attuale "{status}" uguale al precedente')
+
+        # --- TIMER STUCK DETECTION: scheduled_release_at scaduto ma progetto non avanzato ---
+        sra = project.get('scheduled_release_at')
+        if sra and status in ('coming_soon', 'concept'):
+            try:
+                release_dt = datetime.fromisoformat(str(sra).replace('Z', '+00:00'))
+                if release_dt.tzinfo is None:
+                    release_dt = release_dt.replace(tzinfo=timezone.utc)
+                if now >= release_dt:
+                    if flag == 'OK':
+                        flag = 'STUCK'
+                    issues.append(f'Timer scaduto ({sra[:16]}) ma progetto ancora in "{status}"')
+            except Exception:
+                pass
+
         # Check for missing data at current step
         missing = _check_missing_data(project, project_type, status)
         if missing:
-            flag = 'INCOMPLETE'
+            if flag == 'OK':
+                flag = 'INCOMPLETE'
             issues.extend(missing)
 
         # Check for stuck (idle > 48h)
@@ -284,6 +305,7 @@ async def _auto_fix(coll, project: dict, ptype: str, now_str: str) -> dict:
     if ptype == 'film' and status in FILM_LEGACY_MAP:
         new_status = FILM_LEGACY_MAP[status]
         update['status'] = new_status
+        update['previous_step'] = status
         fixes.append(f'Stato legacy "{status}" → "{new_status}"')
 
     # Fill missing genre
@@ -330,7 +352,7 @@ async def _force_step(coll, project: dict, ptype: str, now_str: str) -> dict:
     if not next_step:
         raise HTTPException(status_code=400, detail=f"Nessuno step successivo per lo stato '{status}'")
 
-    await coll.update_one({'id': pid}, {'$set': {'status': next_step, 'updated_at': now_str}})
+    await coll.update_one({'id': pid}, {'$set': {'status': next_step, 'previous_step': status, 'updated_at': now_str}})
     return {'old_status': status, 'new_status': next_step, 'message': f'Avanzato: {status} → {next_step}'}
 
 
@@ -357,6 +379,7 @@ async def _complete_project(coll, project: dict, ptype: str, now_str: str) -> di
 
     update = {
         'status': 'completed',
+        'previous_step': status,
         'quality_score': quality,
         'completed_at': now_str,
         'updated_at': now_str,
@@ -388,5 +411,5 @@ async def _reset_step(coll, project: dict, ptype: str, now_str: str) -> dict:
     if not prev_step:
         raise HTTPException(status_code=400, detail=f"Nessuno step precedente per lo stato '{status}'")
 
-    await coll.update_one({'id': pid}, {'$set': {'status': prev_step, 'updated_at': now_str}})
+    await coll.update_one({'id': pid}, {'$set': {'status': prev_step, 'previous_step': status, 'updated_at': now_str}})
     return {'old_status': status, 'new_status': prev_step, 'message': f'Riportato: {status} → {prev_step}'}

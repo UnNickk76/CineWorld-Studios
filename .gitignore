@@ -960,3 +960,7 @@ frontend/node_modules/.cache/default-development/2.pack_
 # Environment files
 *.env
 *.env.*
+
+# Allow .env files for backend and frontend (needed for deployment)
+!backend/.env
+!frontend/.env

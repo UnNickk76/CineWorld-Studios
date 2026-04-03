@@ -25,21 +25,28 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 router = APIRouter()
 
 # === VALID STATE TRANSITIONS ===
-VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'casting', 'sponsor', 'ciak', 'produzione', 'prima', 'uscita', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release', 'ready_for_casting', 'screenplay', 'pre_production', 'shooting'}
 
 VALID_FILM_TRANSITIONS = {
     'draft': {'proposed', 'discarded'},
-    'proposed': {'coming_soon', 'casting', 'discarded'},
-    'coming_soon': {'ready_for_casting', 'casting', 'completed', 'discarded'},
-    'ready_for_casting': {'casting', 'discarded'},
-    'casting': {'screenplay', 'discarded'},
-    'screenplay': {'pre_production', 'discarded'},
-    'pre_production': {'shooting', 'discarded'},
-    'shooting': {'completed', 'released', 'discarded'},
+    'proposed': {'coming_soon', 'discarded'},
+    'coming_soon': {'casting', 'discarded'},
+    'casting': {'sponsor', 'discarded'},
+    'sponsor': {'ciak', 'discarded'},
+    'ciak': {'produzione', 'discarded'},
+    'produzione': {'prima', 'discarded'},
+    'prima': {'uscita', 'discarded'},
+    'uscita': {'completed', 'discarded'},
     'completed': {'released'},
     'released': set(),
     'discarded': set(),
     'abandoned': set(),
+    # Legacy statuses - allow forward transition only
+    'ready_for_casting': {'casting', 'discarded'},
+    'screenplay': {'sponsor', 'ciak', 'discarded'},
+    'pre_production': {'ciak', 'produzione', 'discarded'},
+    'shooting': {'produzione', 'completed', 'discarded'},
+    'pending_release': {'uscita', 'completed', 'discarded'},
 }
 
 def validate_film_transition(current_status: str, target_status: str) -> bool:
@@ -265,6 +272,9 @@ STEP_CINEPASS = {
     'creation': 1,
     'proposal': 1,
     'casting': 2,
+    'sponsor': 2,
+    'ciak': 3,
+    'produzione': 3,
     'screenplay': 2,
     'pre_production': 3,
     'shooting': 3
@@ -644,9 +654,11 @@ async def get_pipeline_counts(user: dict = Depends(get_current_user)):
         'proposed': counts.get('proposed', 0) + counts.get('coming_soon', 0) + counts.get('ready_for_casting', 0),
         'coming_soon': counts.get('coming_soon', 0),
         'casting': counts.get('casting', 0),
-        'screenplay': counts.get('screenplay', 0),
-        'pre_production': counts.get('pre_production', 0),
-        'shooting': shooting_count,
+        'sponsor': counts.get('sponsor', 0) + counts.get('screenplay', 0),
+        'ciak': counts.get('ciak', 0) + counts.get('pre_production', 0),
+        'produzione': counts.get('produzione', 0) + shooting_count,
+        'prima': counts.get('prima', 0),
+        'uscita': counts.get('uscita', 0) + counts.get('pending_release', 0),
         'max_simultaneous': get_max_films(level),
         'total_active': sum(counts.values())
     }
@@ -824,6 +836,7 @@ async def diagnose_lost_films(user: dict = Depends(get_current_user)):
         status_counts[s] = status_counts.get(s, 0) + 1
 
     active_states = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
+                     'sponsor', 'ciak', 'produzione', 'prima', 'uscita',
                      'screenplay', 'pre_production', 'shooting', 'pending_release', 'remastering'}
     active_projects = [p for p in projects if p.get('status') in active_states]
     completed_projects = [p for p in projects if p.get('status') in ('completed', 'released')]
@@ -897,6 +910,7 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
         users_map = {u['id']: u.get('nickname', '?') for u in users_list}
 
     active_states = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
+                     'sponsor', 'ciak', 'produzione', 'prima', 'uscita',
                      'screenplay', 'pre_production', 'shooting', 'pending_release', 'remastering'}
 
     for f in all_projects:
@@ -947,7 +961,7 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
                         release_dt = release_dt.replace(tzinfo=timezone.utc)
                     if now >= release_dt:
                         cs_type = f.get('coming_soon_type')
-                        target = 'pending_release' if cs_type == 'pre_release' else 'ready_for_casting'
+                        target = 'uscita' if cs_type == 'pre_release' else 'casting'
                         await db.film_projects.update_one(
                             {'id': pid},
                             {'$set': {'status': target, 'rescued': True, 'rescued_at': now_str,
@@ -1277,7 +1291,7 @@ async def rescue_lost_films(user: dict = Depends(get_current_user)):
             reason = f'Scartato dopo Coming Soon (status={status})'
         
         if needs_rescue:
-            new_status = 'ready_for_casting'
+            new_status = 'casting'
             # Always clean auto-release fake data when rescuing from completed
             unset_fields = {}
             if status in ('completed', 'released'):
@@ -1340,18 +1354,18 @@ async def check_coming_soon_status(project_id: str, user: dict = Depends(get_cur
         remaining = (release_dt - now).total_seconds()
         return {'advanced': False, 'reason': 'timer_not_expired', 'seconds_remaining': remaining}
     
-    # Timer expired - advance to ready_for_casting
+    # Timer expired - advance to casting
     if project.get('coming_soon_type') == 'pre_casting':
         await db.film_projects.update_one(
             {'id': project_id},
             {'$set': {
-                'status': 'ready_for_casting',
+                'status': 'casting',
                 'coming_soon_completed': True,
                 'coming_soon_completed_at': now.isoformat(),
                 'updated_at': now.isoformat()
             }}
         )
-        return {'advanced': True, 'new_status': 'ready_for_casting'}
+        return {'advanced': True, 'new_status': 'casting'}
     
     return {'advanced': False, 'reason': 'not_pre_casting'}
 
@@ -1878,7 +1892,8 @@ async def improve_film(project_id: str, req: ImproveRequest, user: dict = Depend
 async def get_pipeline_badges(user: dict = Depends(get_current_user)):
     """Get badge counts for each sub-category in Produci."""
     uid = user['id']
-    active_statuses = {'draft', 'proposed', 'casting', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'ready_for_casting', 'pending_release'}
+    active_statuses = {'draft', 'proposed', 'casting', 'sponsor', 'ciak', 'produzione', 'prima', 'uscita',
+                       'screenplay', 'pre_production', 'shooting', 'coming_soon', 'ready_for_casting', 'pending_release'}
 
     projects = await db.film_projects.find(
         {'user_id': uid, 'status': {'$in': list(active_statuses)}},
@@ -2268,12 +2283,12 @@ async def advance_to_screenplay(project_id: str, user: dict = Depends(get_curren
             logging.error(f"Fail-safe auto-fill in advance-to-screenplay: {e}")
 
     from routes.cinepass import spend_cinepass
-    cp_cost = STEP_CINEPASS['screenplay']
+    cp_cost = STEP_CINEPASS.get('sponsor', 2)
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
 
     update_fields = {
-        'status': 'screenplay',
-        'cinepass_paid.screenplay': cp_cost,
+        'status': 'sponsor',
+        'cinepass_paid.sponsor': cp_cost,
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
     
@@ -2856,13 +2871,13 @@ async def advance_to_preproduction(project_id: str, user: dict = Depends(get_cur
         raise HTTPException(status_code=400, detail="Devi prima completare la sceneggiatura")
     
     from routes.cinepass import spend_cinepass
-    cp_cost = STEP_CINEPASS['pre_production']
+    cp_cost = STEP_CINEPASS.get('ciak', 3)
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 0))
 
     # Auto-set screenplay from pre_screenplay for full_package
     update_fields = {
-        'status': 'pre_production',
-        'cinepass_paid.pre_production': cp_cost,
+        'status': 'ciak',
+        'cinepass_paid.ciak': cp_cost,
         'updated_at': datetime.now(timezone.utc).isoformat()
     }
     if is_full_package and not project.get('screenplay'):
@@ -2873,7 +2888,7 @@ async def advance_to_preproduction(project_id: str, user: dict = Depends(get_cur
         {'id': project_id},
         {'$set': update_fields}
     )
-    return {'success': True, 'message': f'"{project["title"]}" in Pre-Produzione!'}
+    return {'success': True, 'message': f'"{project["title"]}" in Ciak!'}
 
 
 # ==================== PHASE 2: PRE-PRODUCTION ====================
@@ -3026,19 +3041,19 @@ async def start_shooting(project_id: str, user: dict = Depends(get_current_user)
     await db.film_projects.update_one(
         {'id': project_id},
         {'$set': {
-            'status': 'shooting',
+            'status': 'produzione',
             'shooting_started_at': now.isoformat(),
             'shooting_days': base_days,
             'shooting_day_current': 0,
             'shooting_completed': False,
-            'cinepass_paid.shooting': cp_cost,
+            'cinepass_paid.produzione': cp_cost,
             'updated_at': now.isoformat()
         }}
     )
 
     return {
         'success': True,
-        'message': f'Ciak! Si Gira! "{project["title"]}" in ripresa per {base_days} giorni!',
+        'message': f'Ciak! Si Gira! "{project["title"]}" in Produzione per {base_days} giorni!',
         'shooting_days': base_days
     }
 
@@ -3358,14 +3373,14 @@ Scrivi 2-3 paragrafi in italiano. Massimo 150 parole. Sii drammatico e coinvolge
 async def release_film(project_id: str, user: dict = Depends(get_current_user)):
     """Release a completed film to theaters. Shows cost summary."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['shooting', 'pending_release']}},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['produzione', 'shooting', 'pending_release', 'prima', 'uscita']}},
         {'_id': 0}
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto non trovato")
 
-    # Check shooting is complete (skip for pending_release - already past shooting)
-    if project.get('status') == 'shooting' and not project.get('shooting_completed'):
+    # Check shooting is complete (skip for pending_release/prima/uscita - already past shooting)
+    if project.get('status') in ('produzione', 'shooting') and not project.get('shooting_completed'):
         started = datetime.fromisoformat(project['shooting_started_at'].replace('Z', '+00:00'))
         total_days = project.get('shooting_days', 5)
         hours_elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 3600

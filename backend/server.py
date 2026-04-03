@@ -135,10 +135,10 @@ from social_system import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection - use database.py as single source of truth
+from database import db as _shared_db, client as _shared_client, MONGO_URL as _shared_mongo_url
+client = _shared_client
+db = _shared_db
 poster_storage.init_db(db)
 
 # JWT Config

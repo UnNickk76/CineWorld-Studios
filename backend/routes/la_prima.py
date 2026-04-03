@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/la-prima", tags=["la-prima"])
 
 # Status in cui è possibile attivare La Prima
-PREMIERE_ELIGIBLE_STATUSES = {'coming_soon', 'completed', 'pending_release'}
+PREMIERE_ELIGIBLE_STATUSES = {'prima', 'coming_soon', 'completed', 'pending_release', 'uscita'}
 
 # === PREMIERE CITIES ===
 # weight: importanza globale (0.0-1.0) — NASCOSTO al frontend

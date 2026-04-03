@@ -578,320 +578,205 @@ function ReportsTab({ api }) {
   );
 }
 
-/* ─── Maintenance Tab ─── */
+/* ─── Maintenance Tab (Rewritten — Advanced) ─── */
 function MaintenanceTab({ api }) {
-  const [repairLoading, setRepairLoading] = useState(false);
-  const [repairResult, setRepairResult] = useState(null);
-  const [diagLoading, setDiagLoading] = useState(false);
-  const [diagResult, setDiagResult] = useState(null);
-  const [rescueLoading, setRescueLoading] = useState(false);
-  const [rescueResult, setRescueResult] = useState(null);
-  const [forceFixLoading, setForceFixLoading] = useState(false);
-  const [forceFixNickname, setForceFixNickname] = useState('');
-  const [forceFixResult, setForceFixResult] = useState(null);
+  const [username, setUsername] = useState('');
+  const [projects, setProjects] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [targetUser, setTargetUser] = useState('');
 
-  const repairDatabase = async () => {
-    setRepairLoading(true);
-    setRepairResult(null);
+  const searchProjects = async (nick) => {
+    if (!nick.trim()) return;
+    setLoading(true);
+    setProjects([]);
+    setStats(null);
     try {
-      const res = await api.post('/admin/repair-database');
-      setRepairResult(res.data);
-      if (res.data.total_fixed > 0) {
-        toast.success(`${res.data.total_fixed} problemi logici risolti!`);
-      } else {
-        toast.success('Nessun problema logico trovato');
-      }
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore durante la riparazione');
-    } finally {
-      setRepairLoading(false);
-    }
+      const res = await api.get(`/admin/maintenance/projects?username=${encodeURIComponent(nick.trim())}`);
+      setProjects(res.data.projects || []);
+      setTargetUser(res.data.user || nick);
+      setStats({ total: res.data.total, broken: res.data.broken, stuck: res.data.stuck, incomplete: res.data.incomplete });
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore ricerca'); }
+    finally { setLoading(false); }
   };
 
-  const diagnoseScreenplay = async () => {
-    setDiagLoading(true);
-    setDiagResult(null);
+  const execAction = async (projectId, projectType, action) => {
+    const key = `${projectId}-${action}`;
+    setActionLoading(key);
     try {
-      const res = await api.get('/admin/diagnose-screenplay');
-      setDiagResult(res.data);
-      toast.success(`Diagnostica: ${res.data.films_in_screenplay} film, ${res.data.series_in_screenplay} serie`);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore diagnostica');
-    } finally {
-      setDiagLoading(false);
-    }
+      const res = await api.post('/admin/maintenance/fix-project', { project_id: projectId, project_type: projectType, action });
+      const d = res.data;
+      if (action === 'auto_fix') toast.success(`Auto-fix: ${(d.fixes || []).join(', ')}`);
+      else if (action === 'force_step') toast.success(d.message || 'Step avanzato');
+      else if (action === 'complete_project') toast.success(d.message || 'Progetto completato');
+      else if (action === 'reset_step') toast.success(d.message || 'Step precedente');
+      searchProjects(targetUser);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore azione'); }
+    finally { setActionLoading(null); }
   };
 
-  const actionLabels = {
-    'proposed': 'Reset a Proposta',
-    'concept': 'Reset a Concept',
-    'discarded': 'Scartato',
-    'ready_for_casting': 'Recuperato → Ready for Casting',
+  const FLAG_CONFIG = {
+    'OK': { label: 'OK', color: 'bg-green-500/20 text-green-400', border: 'border-green-500/20' },
+    'STUCK': { label: 'FERMO', color: 'bg-yellow-500/20 text-yellow-400', border: 'border-yellow-500/30' },
+    'LOOP': { label: 'LOOP', color: 'bg-orange-500/20 text-orange-400', border: 'border-orange-500/30' },
+    'INCOMPLETE': { label: 'INCOMPLETO', color: 'bg-purple-500/20 text-purple-400', border: 'border-purple-500/30' },
+    'BROKEN': { label: 'ROTTO', color: 'bg-red-500/20 text-red-400', border: 'border-red-500/30' },
   };
 
-  const categoryLabels = {
-    'films_invalid_status': 'Film - Stato invalido',
-    'films_stuck_casting': 'Film - Bloccati in Casting',
-    'films_stuck_screenplay': 'Film - Bloccati in Sceneggiatura',
-    'films_stuck_preproduction': 'Film - Bloccati in Pre-Produzione',
-    'films_stuck_coming_soon': 'Film - Coming Soon scaduti',
-    'films_missing_basics': 'Film - Dati base mancanti',
-    'films_completed_without_production': 'Film - Completati senza produzione (recuperati)',
-    'series_invalid_status': 'Serie - Stato invalido',
-    'series_stuck_casting': 'Serie - Bloccate in Casting',
-    'series_stuck_screenplay': 'Serie - Bloccate in Sceneggiatura',
-    'series_stuck_production': 'Serie - Bloccate in Produzione',
-    'series_stuck_coming_soon': 'Serie - Coming Soon scaduti',
-    'series_missing_basics': 'Serie - Dati base mancanti',
-  };
-
-  const rescueFilmsForUser = async () => {
-    if (!forceFixNickname.trim()) { toast.error('Inserisci nickname'); return; }
-    setForceFixLoading(true);
-    setForceFixResult(null);
-    try {
-      const res = await api.post('/admin/rescue-user-films', { nickname: forceFixNickname.trim() });
-      setForceFixResult(res.data);
-      if (res.data.rescued_count > 0) {
-        toast.success(`${res.data.rescued_count} film recuperati per ${forceFixNickname}!`);
-      } else {
-        toast.info('Nessun film perso trovato per questo utente.');
-      }
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setForceFixLoading(false);
-    }
+  const TYPE_CONFIG = {
+    'film': { label: 'Film', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    'serie': { label: 'Serie TV', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    'anime': { label: 'Anime', color: 'text-pink-400', bg: 'bg-pink-500/10' },
   };
 
   return (
     <div className="space-y-4" data-testid="maintenance-tab">
-      <Card className="bg-[#111113] border-yellow-500/30">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
-            <Wrench className="w-4 h-4" />
-            Riparazione Database Avanzata
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Analizza TUTTI i progetti nel database e verifica la <span className="text-yellow-400 font-semibold">coerenza logica del flusso</span>:
+      {/* Search */}
+      <Card className="bg-[#111113] border-amber-500/20">
+        <CardContent className="p-3 space-y-2">
+          <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <Search className="w-3.5 h-3.5" /> Cerca Progetti Utente
           </p>
-          <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
-            <li>Film in Casting senza proposte → reset a Proposta</li>
-            <li>Film in Sceneggiatura senza cast completo → reset a Proposta</li>
-            <li>Film in Sceneggiatura senza sinossi/genere → reset a Proposta</li>
-            <li>Film in Pre-Produzione senza sceneggiatura → reset a Proposta</li>
-            <li>Coming Soon con timer scaduto mai rilasciati → sbloccati</li>
-            <li>Serie senza cast/genere/episodi nelle fasi avanzate → reset</li>
-            <li>Progetti con stati invalidi o dati base mancanti → scartati</li>
-          </ul>
-          <Button
-            onClick={repairDatabase}
-            disabled={repairLoading}
-            className="bg-yellow-600 hover:bg-yellow-700 text-black font-semibold w-full"
-            data-testid="repair-database-btn"
-          >
-            {repairLoading ? (
-              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analisi e riparazione in corso...</>
-            ) : (
-              <><Wrench className="w-4 h-4 mr-2" /> Analizza e Ripara Database</>
-            )}
-          </Button>
+          <form onSubmit={(e) => { e.preventDefault(); searchProjects(username); }} className="flex gap-2">
+            <input type="text" value={username} onChange={e => setUsername(e.target.value)}
+              placeholder="Nickname utente..."
+              className="flex-1 bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-amber-500/50 focus:outline-none"
+              data-testid="maint-search-input" />
+            <Button type="submit" size="sm" className="bg-amber-600 hover:bg-amber-700 text-xs px-4" disabled={loading || !username.trim()}
+              data-testid="maint-search-btn">
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Analizza'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-          {repairResult && (
-            <div className="space-y-3">
-              {/* Stats summary */}
-              <Card className="border border-blue-500/30 bg-blue-500/5">
-                <CardContent className="p-3">
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-lg font-black text-white">{repairResult.films_analyzed ?? 0}</p>
-                      <p className="text-[9px] text-gray-500">Film analizzati</p>
+      {/* Stats summary */}
+      {stats && (
+        <div className="grid grid-cols-4 gap-2" data-testid="maint-stats">
+          {[
+            { label: 'Totale', value: stats.total, color: 'text-white' },
+            { label: 'Rotti', value: stats.broken, color: stats.broken > 0 ? 'text-red-400' : 'text-gray-500' },
+            { label: 'Fermi', value: stats.stuck, color: stats.stuck > 0 ? 'text-yellow-400' : 'text-gray-500' },
+            { label: 'Incompleti', value: stats.incomplete, color: stats.incomplete > 0 ? 'text-purple-400' : 'text-gray-500' },
+          ].map(s => (
+            <div key={s.label} className="bg-[#111113] border border-white/5 rounded-lg p-2 text-center">
+              <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
+              <p className="text-[8px] text-gray-500">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Project cards — mobile-first vertical layout */}
+      {projects.length > 0 && (
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto pb-2" data-testid="maint-projects">
+          <p className="text-[10px] text-gray-500">{projects.length} progetti per <span className="text-white font-semibold">{targetUser}</span></p>
+          {projects.map(p => {
+            const fc = FLAG_CONFIG[p.flag] || FLAG_CONFIG.OK;
+            const tc = TYPE_CONFIG[p.type] || TYPE_CONFIG.film;
+            const progress = p.pipeline_total > 0 ? Math.round((p.pipeline_index / (p.pipeline_total - 1)) * 100) : 0;
+
+            return (
+              <Card key={p.id} className={`bg-[#0e0e10] ${fc.border}`} data-testid={`maint-project-${p.id}`}>
+                <CardContent className="p-3 space-y-2">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${tc.bg} ${tc.color}`}>{tc.label}</span>
+                        <Badge className={`text-[8px] h-4 ${fc.color}`}>{fc.label}</Badge>
+                        {p.is_legacy && <span className="text-[7px] text-orange-400 bg-orange-500/10 px-1 rounded">LEGACY</span>}
+                      </div>
+                      <p className="text-xs font-semibold text-white mt-1 truncate">{p.title}</p>
                     </div>
-                    <div>
-                      <p className="text-lg font-black text-white">{repairResult.series_analyzed ?? 0}</p>
-                      <p className="text-[9px] text-gray-500">Serie analizzate</p>
+                    <span className="text-[9px] text-gray-500 flex-shrink-0 whitespace-nowrap">{p.idle_text}</span>
+                  </div>
+
+                  {/* Status + progress bar */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-gray-400">
+                        Step: <span className="text-white font-semibold">{p.status}</span>
+                        {p.next_step && <span className="text-gray-600"> → {p.next_step}</span>}
+                      </span>
+                      <span className="text-gray-500">{progress}%</span>
                     </div>
-                    <div>
-                      <p className={`text-lg font-black ${repairResult.total_fixed > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
-                        {repairResult.total_fixed}
-                      </p>
-                      <p className="text-[9px] text-gray-500">Problemi risolti</p>
+                    <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-amber-500 to-red-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
                     </div>
+                  </div>
+
+                  {/* Issues */}
+                  {p.issues.length > 0 && (
+                    <div className="space-y-0.5">
+                      {p.issues.map((issue, i) => (
+                        <p key={i} className="text-[9px] text-gray-400 flex items-start gap-1">
+                          <AlertTriangle className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+                          {issue}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Data indicators */}
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { label: 'Cast', ok: p.has_cast },
+                      { label: 'Genere', ok: p.has_genre },
+                      { label: 'Script', ok: p.has_screenplay },
+                      { label: 'Poster', ok: p.has_poster },
+                    ].map(d => (
+                      <span key={d.label} className={`text-[8px] px-1.5 py-0.5 rounded ${d.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {d.ok ? <CheckCircle className="w-2.5 h-2.5 inline mr-0.5" /> : <XCircle className="w-2.5 h-2.5 inline mr-0.5" />}
+                        {d.label}
+                      </span>
+                    ))}
+                    {p.quality_score != null && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400">Q: {Math.round(p.quality_score)}%</span>
+                    )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-[9px] h-7"
+                      onClick={() => execAction(p.id, p.type, 'auto_fix')}
+                      disabled={!!actionLoading} data-testid={`maint-autofix-${p.id}`}>
+                      {actionLoading === `${p.id}-auto_fix` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wrench className="w-3 h-3 mr-0.5" />}
+                      Fix Automatico
+                    </Button>
+                    <Button size="sm" className="bg-blue-700 hover:bg-blue-600 text-[9px] h-7"
+                      onClick={() => execAction(p.id, p.type, 'force_step')}
+                      disabled={!!actionLoading || !p.next_step} data-testid={`maint-force-${p.id}`}>
+                      {actionLoading === `${p.id}-force_step` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 mr-0.5" />}
+                      Forza Step
+                    </Button>
+                    <Button size="sm" className="bg-amber-700 hover:bg-amber-600 text-[9px] h-7"
+                      onClick={() => execAction(p.id, p.type, 'complete_project')}
+                      disabled={!!actionLoading} data-testid={`maint-complete-${p.id}`}>
+                      {actionLoading === `${p.id}-complete_project` ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-0.5" />}
+                      Completa
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-[9px] h-7 border-gray-700 text-gray-400 hover:bg-white/5"
+                      onClick={() => execAction(p.id, p.type, 'reset_step')}
+                      disabled={!!actionLoading || !p.prev_step} data-testid={`maint-reset-${p.id}`}>
+                      {actionLoading === `${p.id}-reset_step` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-0.5" />}
+                      Reset Step
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
+            );
+          })}
+        </div>
+      )}
 
-              {/* Detailed report */}
-              {repairResult.total_fixed > 0 && repairResult.report && (
-                <Card className="border border-yellow-500/20 bg-yellow-500/5">
-                  <CardContent className="p-3 space-y-3">
-                    <p className="text-xs font-bold text-yellow-400">Dettaglio riparazioni:</p>
-                    {Object.entries(repairResult.report).map(([key, items]) => (
-                      items.length > 0 && (
-                        <div key={key} className="space-y-1">
-                          <p className="text-[10px] text-yellow-400 font-semibold">{categoryLabels[key] || key} ({items.length})</p>
-                          {items.map((item, i) => (
-                            <div key={i} className="bg-black/30 rounded px-2 py-1.5 space-y-0.5">
-                              <p className="text-[10px] text-white font-medium">{item.title || item.id}</p>
-                              <p className="text-[9px] text-gray-500">{item.reason}</p>
-                              <Badge className={`text-[8px] ${item.action === 'discarded' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                                {actionLabels[item.action] || item.action}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
-
-              {repairResult.total_fixed === 0 && (
-                <Card className="border border-green-500/20 bg-green-500/5">
-                  <CardContent className="p-3 text-center">
-                    <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-1" />
-                    <p className="text-xs text-green-400 font-semibold">Tutti i progetti sono logicamente coerenti</p>
-                    <p className="text-[9px] text-gray-500 mt-1">{repairResult.total_analyzed} progetti analizzati, nessun blocco trovato</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* RECUPERO FILM PERSI PER UTENTE */}
-      <Card className="bg-[#111113] border-red-500/30">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-red-400 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            Recupero Film Persi (per Utente)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Cerca e recupera film "spariti" per un utente specifico. Trova film che sono stati <span className="text-red-400 font-semibold">completati automaticamente</span> dal scheduler senza passare dal casting/produzione, o bloccati dopo Coming Soon.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Nickname utente"
-              value={forceFixNickname}
-              onChange={e => setForceFixNickname(e.target.value)}
-              className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-500"
-              data-testid="rescue-nickname-input"
-            />
-            <Button
-              onClick={rescueFilmsForUser}
-              disabled={forceFixLoading || !forceFixNickname.trim()}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs"
-              data-testid="rescue-films-btn"
-            >
-              {forceFixLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recupera'}
-            </Button>
-          </div>
-          
-          {forceFixResult && (
-            <Card className={`border ${forceFixResult.rescued_count > 0 ? 'border-green-500/30 bg-green-500/5' : 'border-gray-700 bg-gray-800/30'}`}>
-              <CardContent className="p-3 space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                  <div>
-                    <p className="text-lg font-black text-white">{forceFixResult.total_projects_scanned}</p>
-                    <p className="text-[9px] text-gray-500">Progetti scansionati</p>
-                  </div>
-                  <div>
-                    <p className={`text-lg font-black ${forceFixResult.rescued_count > 0 ? 'text-green-400' : 'text-gray-400'}`}>{forceFixResult.rescued_count}</p>
-                    <p className="text-[9px] text-gray-500">Film recuperati</p>
-                  </div>
-                </div>
-                {forceFixResult.rescued_films?.length > 0 && (
-                  <div className="space-y-1.5 mt-2">
-                    <p className="text-xs font-bold text-green-400">Film recuperati:</p>
-                    {forceFixResult.rescued_films.map((f, i) => (
-                      <div key={i} className="bg-black/40 rounded px-2 py-1.5">
-                        <p className="text-[10px] text-white font-medium">{f.title}</p>
-                        <p className="text-[9px] text-gray-500">{f.old_status} → {f.new_status}</p>
-                        <p className="text-[8px] text-gray-600">{f.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {forceFixResult.rescued_count === 0 && (
-                  <div className="text-center">
-                    <CheckCircle className="w-5 h-5 text-gray-500 mx-auto mb-1" />
-                    <p className="text-xs text-gray-400">Nessun film perso trovato per questo utente</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* DIAGNOSTICA SCENEGGIATURA */}
-      <Card className="bg-[#111113] border-cyan-500/30">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-cyan-400 flex items-center gap-2">
-            <Eye className="w-4 h-4" />
-            Diagnostica Sceneggiatura
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-gray-400">Mostra tutti i dati dei film/serie in fase sceneggiatura per identificare dati corrotti o formati inattesi.</p>
-          <Button
-            onClick={diagnoseScreenplay}
-            disabled={diagLoading}
-            className="bg-cyan-600 hover:bg-cyan-700 text-black font-semibold w-full"
-            data-testid="diagnose-screenplay-btn"
-          >
-            {diagLoading ? (
-              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analisi in corso...</>
-            ) : (
-              <><Eye className="w-4 h-4 mr-2" /> Analizza Film in Sceneggiatura</>
-            )}
-          </Button>
-
-          {diagResult && (
-            <div className="space-y-2">
-              <p className="text-xs text-white font-semibold">{diagResult.films_in_screenplay} film + {diagResult.series_in_screenplay} serie in sceneggiatura</p>
-              {(diagResult.films || []).map((f, i) => (
-                <Card key={i} className="border border-gray-700 bg-black/30">
-                  <CardContent className="p-2 space-y-1">
-                    <p className="text-[10px] text-white font-bold">{f.title || '?'}</p>
-                    <div className="grid grid-cols-2 gap-1 text-[9px]">
-                      <p className="text-gray-500">ID: <span className="text-gray-300">{f.id?.slice(0,8)}...</span></p>
-                      <p className="text-gray-500">Genere: <span className="text-gray-300">{f.genre || 'N/A'}</span></p>
-                      <p className="text-gray-500">screenplay_type: <span className={`font-mono ${f.screenplay_type === 'str' ? 'text-green-400' : f.screenplay_type === 'NoneType' ? 'text-yellow-400' : 'text-red-400'}`}>{f.screenplay_type}</span></p>
-                      <p className="text-gray-500">screenplay_mode: <span className="text-gray-300">{f.screenplay_mode || 'N/A'}</span></p>
-                      <p className="text-gray-500">cast_type: <span className="text-gray-300">{f.cast_type}</span></p>
-                      <p className="text-gray-500">has_cast: <span className={f.has_cast ? 'text-green-400' : 'text-red-400'}>{f.has_cast ? 'Si' : 'No'}</span></p>
-                      <p className="text-gray-500">has_poster: <span className={f.has_poster ? 'text-green-400' : 'text-yellow-400'}>{f.has_poster ? 'Si' : 'No'}</span></p>
-                      <p className="text-gray-500">emerging: <span className="text-gray-300">{f.from_emerging_screenplay ? 'Si' : 'No'}</span></p>
-                    </div>
-                    {f.screenplay_value_preview && (
-                      <p className="text-[8px] text-gray-500 bg-black/30 p-1 rounded font-mono truncate">{f.screenplay_value_preview}</p>
-                    )}
-                    <p className="text-[8px] text-gray-600">Keys: {(f.all_keys || []).join(', ')}</p>
-                  </CardContent>
-                </Card>
-              ))}
-              {(diagResult.series || []).map((s, i) => (
-                <Card key={`s-${i}`} className="border border-blue-700/30 bg-black/30">
-                  <CardContent className="p-2 space-y-1">
-                    <p className="text-[10px] text-blue-400 font-bold">[Serie] {s.title || '?'}</p>
-                    <div className="grid grid-cols-2 gap-1 text-[9px]">
-                      <p className="text-gray-500">screenplay_type: <span className={`font-mono ${s.screenplay_type === 'dict' ? 'text-green-400' : 'text-red-400'}`}>{s.screenplay_type}</span></p>
-                      <p className="text-gray-500">cast_type: <span className="text-gray-300">{s.cast_type}</span></p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {stats && projects.length === 0 && !loading && (
+        <div className="text-center py-8">
+          <CheckCircle className="w-8 h-8 text-green-500/40 mx-auto mb-2" />
+          <p className="text-xs text-gray-500">Nessun progetto attivo per <span className="text-white">{targetUser}</span></p>
+        </div>
+      )}
     </div>
   );
 }

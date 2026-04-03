@@ -1,136 +1,133 @@
-<analysis>**original_problem_statement**: 
-The user is requesting a **gradual, step-by-step modularization of **. 
-PRODUCT REQUIREMENTS: 
-Modularize  into dedicated files inside  safely without modifying existing business logic or database queries. Follow a strict ONE STEP AT A TIME rule. Move endpoints, comment out old ones in , test, and wait for explicit user confirmation. Do NOT use the testing agent. 
-Currently, the user has requested **STEP 14 — Modularizzazione GAME CORE** (moving film production, release, coming soon, hype, ratings, etc. into three new files: , , ).
+<analysis><handoff summary>
+**original_problem_statement**: 
+L'utente ha originariamente richiesto il completamento del sistema La Prima (Step 7 e 8). Successivamente, ha richiesto il fix della build React su Railway (problemi di memoria e dipendenze ), la risoluzione di un errore 404 su refresh dell'app (SPA routing), e l'allineamento del database (il deploy Emergent puntava a un DB interno invece che ad Atlas). Infine, ha richiesto un rework completo e rigoroso della pipeline dei film ( →  →  →  →  →  →  → ), vietando i ritorni a fasi precedenti.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-A full-stack React + FastAPI application. The backend  is undergoing a massive, strict step-by-step refactoring process. In this session, the agent successfully completed Steps 11 and 12, resolved critical MongoDB payload size bugs that were crashing the frontend (26.7MB payloads down to 13KB), and fixed import-related 500 errors. Step 13 was verified as already completed in a past session. The agent has just begun Step 14 by viewing  to isolate the  endpoints.
+Un'applicazione full-stack React + FastAPI + MongoDB. Il sistema La Prima (Premiere) è ora completo sia lato backend che frontend. La pipeline di produzione dei film è stata riscritta per seguire un flusso strettamente lineare (senza fallback). Il Dockerfile è stato ottimizzato per Railway. Il sistema di connessione al database è stato centralizzato in  imponendo l'uso rigoroso della variabile d'ambiente  senza hardcoded fallbacks per prevenire disallineamenti tra ambienti.
 
 **Last working item**: 
-    - Last item agent was working: Step 14 of the  modularization process. The agent is tasked with creating , , and , and moving the respective endpoints out of . The agent was currently reading the film CRUD and lifecycle endpoints in  to prepare for the first extraction to .
-    - Status: IN PROGRESS
-    - Agent Testing Done: N (Extraction hasn't happened yet)
-    - Which testing method agent to use?: manual testing by curl. **(CRITICAL: Do NOT use testing subagent, as explicitly forbidden by user to save credits).**
-    - User Testing Done: N
+    - Last item agent was working: Diagnosticare perché il deploy nativo di Emergent non riflettesse le ultime modifiche al codice e al DB. L'agente ha creato un endpoint  e ha scoperto (tramite screenshot dell'utente) che l'ambiente nativo Emergent inietta variabili d'ambiente proprie che sovrascrivono il codice. Ha istruito l'utente a configurare  e  manualmente nella Home tab della piattaforma Emergent.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y (su preview)
+    - Which testing method agent to use?: Frontend/Backend testing agent + manual validation
+    - User Testing Done: N (l'utente deve impostare le env vars nell'interfaccia e confermare)
 
 **All Pending/In progress Issue list**: 
-  Issue 1: 20 film posters are missing/returning 404 (P1)
-     - Attempted fixes: Investigated in previous sessions, posters must be regenerated via AI.
-     - Next debug checklist: Inform the user that they must be regenerated via the AI generation feature.
-     - Why fix this issue and what will be achieved with the fix?: Restores missing UI assets for legacy films.
+  Issue 1: TV Series pipeline in loop infinito (P0)
+     - Attempted fixes: L'agente si è concentrato sul refactoring della pipeline dei film (), ma l'utente ha segnalato che Le serie TV restano in loop infinito. L'agente non ha ancora investigato la logica specifica delle serie TV per adattarla al nuovo flusso o correggere il loop.
+     - Next debug checklist: Controllare i file relativi alle serie TV (es.  o simili) e lo scheduler () per identificare dove le serie TV si bloccano. Verificare se usano i vecchi status o se mancano transizioni per uscire dal loop.
+     - Why fix this issue and what will be achieved with the fix?: Sbloccherà la progressione delle serie TV per i giocatori, evitando bug bloccanti nel gameplay.
+     - Status: NOT STARTED
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Both
+
+  Issue 2: 20 film posters are missing/returning 404 (P1)
+     - Attempted fixes: Investigato in sessioni precedenti, devono essere rigenerati via AI.
+     - Next debug checklist: Informare l'utente che devono essere rigenerati tramite la feature AI.
+     - Why fix this issue and what will be achieved with the fix?: Ripristina gli asset UI mancanti per i film legacy.
      - Status: USER VERIFICATION PENDING
      - Is recurring issue?: N
      - Should Test frontend/backend/both after fix?: Both
 
 **In progress Task List**: 
-  Task 1: Complete Step 14 - Modularize GAME CORE endpoints (P0)
-     - Where to resume: Create , , and . Move the endpoints exactly as requested by the user, update imports in , comment out the old endpoints, and test via . 
-     - What will be achieved with this?: Continuation of the massive  refactoring without breaking business logic.
-     - Status: IN PROGRESS
+  Task 1: Riprendere Step 14 - Modularizzare GAME CORE endpoints (P1)
+     - Where to resume: Riprendere lo spostamento degli endpoint in , , e  non appena l'utente lo richiederà. 
+     - What will be achieved with this?: Continuazione del refactoring di .
+     - Status: PAUSED
      - Should Test frontend/backend/both after fix?: Backend (via curl)
-     - Blocked on something: Nothing, ready to extract to .
+     - Blocked on something: Attesa fine fix urgenti (pipeline e allineamento DB).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Modularize the remaining endpoints in  (Wait for user instructions on the next group after Step 14).
-    - (P1) Sistema Previsioni Festival (Betting on festival winners).
+    - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
     - (P2) Contest Page Mobile Layout Is Broken.
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- MINI FIX: MongoDB Query Optimization for  and  (DONE - execution time dropped from 65s+ to 1.2s cold / 0.1s cached)
-- Modularizzazione Step 11: Premiere/Tour →  (DONE - 8 endpoints moved)
-- Modularizzazione Step 12: Coming Soon/Major/Emerging Screenplays → , ,  (DONE - 16 endpoints moved)
-- BUG FIX: 500 error on  caused by missing  import in  after Step 10 (DONE)
-- BUG FIX: Infinite loading/timeouts on  and  caused by massive MongoDB payloads (26.7MB) returning full embedded film documents and arrays. Fixed using  to exclude  and  for revenues (DONE)
-- Modularizzazione Step 13: Verified already completed as  (DONE)
+- Completato UI Frontend per La Prima in  e verificato backend rules (DONE)
+- Ottimizzato  per build Railway (aggiunto  in dependencies, fix memory crash, configurato catch-all route in  per SPA 404 on refresh) (DONE)
+- Refactoring completo della Film Pipeline: nuovo flusso rigido  →  →  →  →  →  →  →  implementato in  (DONE)
+- Centralizzazione e blindatura della connessione MongoDB in  eliminando fallback hardcodati locali (DONE)
+- Creato endpoint  per verifica variabili ambiente in runtime (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-None.
+   Issue 1: TV Series Pipeline Loop
+   - Debug checklist: Verificare l'avanzamento degli stati per le Serie TV dopo le recenti modifiche alla pipeline dei film. Controllare se le Serie TV utilizzano gli stessi endpoint dei film o logiche dedicate nello scheduler.
+   - Why to solve this issue and what will be achieved with this: Evita il blocco del gioco per i contenuti seriali.
+   - Should Test frontend/backend/both after fix: Entrambi
+   - Is recurring issue: N
 
 **Known issue recurrence from previous fork**
   - Contest Page Mobile Layout Is Broken
-  - Recurrence count: 14+
+  - Recurrence count: 16+
   - Status: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- Full-stack React + FastAPI application.
-- MongoDB Atlas with heavy reliance on projections and  to avoid memory/timeout issues.
-- FastApi APIRouter for modularization.
+FastAPI, React, MongoDB. Il build React viene gestito tramite un  custom con flag  per limiti di memoria. Le transizioni della pipeline ora sono strettamente sequenziali e definite in .
 
 **key DB schema**
-  - : 
-  - : 
-  - : 
+  - :  (Gli status validi sono stati pesantemente modificati)
 
 **changes in tech stack**
-  - Continuous backend architectural shift from monolithic  to router-based modularization.
+  - Modifica alla configurazione  del frontend per includere forzatamente  (risolveva un bug della build), poi aggiornato ad  o rimosso l'override per evitare il crash di .
 
 **All files of reference**
-  -  (Actively modified)
-  -  (Pending creation)
-  -  (Pending creation)
-  -  (Pending creation)
-  -  (Updated)
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**
-  -  (Ongoing step-by-step refactoring).
+  - Logica delle TV Series/Anime: probabile necessità di allineare gli step a quelli dei film per evitare il loop infinito segnalato dall'utente.
 
 **key api endpoints**
-  - 
-  - 
-  - 
+  -  (Nuovo)
+  - Tutte le rotte in  (Fortemente modificate)
 
 **Critical Info for New Agent**
-  - **Language**: You MUST respond in Italian.
-  - **Testing Subagent**: DO NOT use  under any circumstances (User explicitly forbade it to save credits). Use  and  logs instead.
-  - **Refactoring Protocol**: The user is extremely strict about the refactoring process. **DO NOT skip ahead** or touch logic. Move endpoints, verify dependencies/imports, comment out old ones in , and test via curl. 
-  - **Watch out for missing imports**: When extracting blocks of code from , double-check that you leave behind or import necessary helper functions (e.g., , ,  from , etc.) so you don't cause  500 crashes.
-  - **MongoDB Payloads**: Be very careful not to accidentally return massive arrays or embedded documents (like , ) without limits/projections, as it crashes the frontend.
+  - Il deploy nativo di Emergent inietta le proprie variabili d'ambiente  e , bypassando  o fallback nel codice. L'utente DEVE impostare manualmente  per Atlas nella UI di Emergent per allineare i DB.
+  - L'agente ha modificato in modo radicale la pipeline dei film ( →  →  →  →  →  →  → ). L'utente lamenta però che (sul deploy attuale) mancano fasi Casting e Sponsor e le serie TV sono in loop. Verifica che queste modifiche non abbiano introdotto regressioni sulle serie TV.
+  - Non modificare il database e la UI. Concentrati su risolvere l'issue del loop sulle serie TV (se confermato nel codice aggiornato).
 
 **documents and test reports created in this job**
-  - 
+  -  (Updated)
+  -  (Updated with Atlas verified password)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. User: BUG FIX — Film detail error, cineboard loading infinito, infrastrutture vuoto.
-2. Agent: (Diagnosed  on  and fixed it. Pointed out infrastructure was empty due to test user account, and cineboard was a cold-cache timeout).
-3. User: Cineboard and Infrastrutture still not loading. Check router and frontend paths.
-4. Agent: (Identified the true root cause:  was returning a 26.7 MB payload because  was fetching huge embedded  arrays. Fixed by adjusting projections and using  on revenues. Times dropped to <1s).
-5. User: Quick question: Can you enter Railway URLs with credentials?
-6. Agent: Explained it can only hit public URLs or use  for authenticated API calls, but cannot bypass Railway auth screens like a browser.
-7. User: Vabbè adesso non serve... sempre solo curiosità!
-8. Agent: Asked user to dictate the next step.
-9. User: STEP 13 — Modularizzazione Friends / Followers / Social Core
-10. Agent: Noticed that Step 13 was already completed previously ( exists with 16 endpoints).
-11. User: Procediamo con Step 14. Voglio modularizzare il GAME CORE: routes/films.py, routes/film_engagement.py, routes/production_studio.py. Lascia Events e Stars in server.py. Fammi prima un riepilogo di quali endpoint sono coinvolti.
-
-*Pending Human Action*: None. The agent has started gathering the endpoints for Step 14 and needs to complete moving them to the three requested files.
+1. User: Richiede di rimuovere tutti i fallback in  e usare rigorosamente . Crashare se manca.
+2. Agent: Aggiorna . Avvia backend. Mostra che parte in preview.
+3. User: Chiede di verificare il  in preview vs deploy . Se diversi, forzare l'uso del .
+4. Agent: Crea endpoint  per diagnosticare il problema nel deploy.
+5. User: (Pending / Implied via screenshot) Carica screenshot di . L'utente nota che la Pipeline su  manca delle fasi Sponsor/Casting (codice non aggiornato) e le serie TV restano in loop infinito. Chiede di verificare che il codice deployato sia identico alla preview e sistemare il loop.
+6. Agent: Spiega all'utente che il deploy  usa il DB di default di Emergent perché il file env non basta. Chiede all'utente di aggiungere le env variables nella dashboard UI di Emergent.
 
 **Project Health Check:**
-- All endpoints tested so far are working perfectly, payload sizes highly optimized.
+Broken (Deploy environments out of sync due to platform env var injection; TV Series reportedly stuck in pipeline loops).
 
 **3rd Party Integrations**
-  - OpenAI GPT-4o-mini (Text Generation) — uses Emergent LLM Key
-  - OpenAI GPT-Image-1 (Image Generation) — uses Emergent LLM Key
-  - MongoDB Atlas (Database) — requires User API Key/URI
+  - Nessuna aggiunta in questa sessione.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Forbidden by user)
+  - Testing agent used after significant changes: NO (Usato manuale / CURL / Screenshot tool intensivamente).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None currently.
+  - Known regressions: TV Series Pipeline (Potenziale loop infinito introdotto o non risolto dal refactor della pipeline film).
 
 **Credentials to test flow:**
-  - User:  / 
-  - Admin Test:  / 
+  - Vedi  (L'account di test principale  ha la password aggiornata per Atlas, non più la vecchia copia locale).
 
 **What agent forgot to execute**
-The agent was asked to provide a summary of the endpoints involved for Step 14 and wait for confirmation, but context limit hit right as it was analyzing  lines. Next agent must list the planned endpoints for , , and , present them to the user, and ask for confirmation before modifying code.</analysis>
+L'agente ha aggiornato  secondo le rigide regole richieste, ma l'utente ha menzionato esplicitamente nell'ultimo task Le serie TV restano in loop infinito. L'agente ha individuato la causa del disallineamento dei DB, ma **ha dimenticato di ispezionare il codice relativo alla pipeline delle Serie TV** per correggere o verificare l'esistenza del loop. Questo deve essere il prossimo step immediato.
+</handoff summary></analysis>

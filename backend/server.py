@@ -162,6 +162,27 @@ api_router = APIRouter(prefix="/api")
 def api_health():
     return {"status": "ok"}
 
+@api_router.get("/debug/db-check")
+async def debug_db_check():
+    """Temporary diagnostic: which MongoDB is this instance using?"""
+    from database import MONGO_URL
+    # Mask password
+    import re
+    masked = re.sub(r'://([^:]+):([^@]+)@', r'://\1:***@', MONGO_URL or '')
+    try:
+        user_count = await db.users.count_documents({})
+        film_count = await db.films.count_documents({})
+        sample = await db.users.find_one({'email': 'fandrex1@gmail.com'}, {'_id': 0, 'funds': 1, 'nickname': 1})
+    except Exception as e:
+        return {"mongo_url_masked": masked, "error": str(e)}
+    return {
+        "mongo_url_masked": masked,
+        "db_name": db.name,
+        "users": user_count,
+        "films": film_count,
+        "sample_user": sample
+    }
+
 @api_router.get("/debug/login-check")
 async def debug_login_check():
     """Diagnostic endpoint to check login dependencies."""
@@ -6808,6 +6829,18 @@ def get_next_version():
 # 
 ADMIN_NICKNAME = "NeoMorpheus"
 
+# Import role helpers from auth_utils
+from auth_utils import (
+    is_admin as _is_admin,
+    is_co_admin_or_above as _is_co_admin_or_above,
+    require_admin as _require_admin,
+    require_co_admin as _require_co_admin,
+    assert_not_admin_target as _assert_not_admin_target,
+    get_user_role as _get_user_role,
+    log_admin_action as _log_admin_action,
+    validate_role_assignment as _validate_role_assignment,
+)
+
 @api_router.get("/admin/settings")
 async def get_admin_settings(user: dict = Depends(get_current_user)):
     """Get global game settings (admin only)."""
@@ -6917,20 +6950,71 @@ async def mark_donation_popup_seen(user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/set-user-role")
 async def set_user_role(data: dict, user: dict = Depends(get_current_user)):
-    """Assign a role to a user (admin only). Roles: moderator, vip, tester, etc."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin può assegnare ruoli")
+    """Assign a role to a user (ADMIN only). Roles: ADMIN, CO_ADMIN, MOD, USER."""
+    _require_admin(user)
     target_id = data.get('user_id')
     role = data.get('role', '')
     if not target_id:
         raise HTTPException(status_code=400, detail="user_id richiesto")
+    # Cannot modify ADMIN's role
+    target = await db.users.find_one({'id': target_id}, {'_id': 0, 'nickname': 1, 'role': 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    _assert_not_admin_target(target, "modificare il ruolo di")
+    _validate_role_assignment(target, role, user)
     result = await db.users.update_one(
         {'id': target_id},
         {'$set': {'role': role}}
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Utente non trovato")
+    await _log_admin_action('set_user_role', user, target_id, {'new_role': role, 'old_role': target.get('role', 'USER')})
     return {'success': True, 'user_id': target_id, 'role': role}
+
+
+# ==================== CO_ADMIN ENDPOINTS ====================
+
+@api_router.post("/admin/reset-user")
+async def admin_reset_user(data: dict, user: dict = Depends(get_current_user)):
+    """Reset a user's game progress (CO_ADMIN or above). Cannot reset ADMIN."""
+    _require_co_admin(user)
+    target_id = data.get('user_id')
+    if not target_id:
+        raise HTTPException(status_code=400, detail="user_id richiesto")
+    target = await db.users.find_one({'id': target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'role': 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    _assert_not_admin_target(target, "resettare")
+    # Reset game progress only (keep auth data intact)
+    await db.users.update_one({'id': target_id}, {'$set': {
+        'funds': 50000000,
+        'xp': 0,
+        'fame': 0,
+        'level': 1,
+        'cinepass': 100,
+        'login_streak': 0,
+        'last_streak_date': None,
+    }})
+    await _log_admin_action('reset_user', user, target_id, {'target_nickname': target.get('nickname')})
+    return {'success': True, 'message': f"Account {target.get('nickname')} resettato", 'user_id': target_id}
+
+@api_router.post("/admin/change-user-password")
+async def admin_change_user_password(data: dict, user: dict = Depends(get_current_user)):
+    """Change a user's password (CO_ADMIN or above). Cannot change ADMIN password."""
+    _require_co_admin(user)
+    target_id = data.get('user_id')
+    new_password = data.get('new_password', '')
+    if not target_id:
+        raise HTTPException(status_code=400, detail="user_id richiesto")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="La password deve avere almeno 6 caratteri")
+    target = await db.users.find_one({'id': target_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'role': 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    _assert_not_admin_target(target, "cambiare la password di")
+    hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    await db.users.update_one({'id': target_id}, {'$set': {'password': hashed}})
+    await _log_admin_action('change_user_password', user, target_id, {'target_nickname': target.get('nickname')})
+    return {'success': True, 'message': f"Password di {target.get('nickname')} aggiornata", 'user_id': target_id}
+
 
 @api_router.post("/admin/add-money")
 async def admin_add_money(data: dict, user: dict = Depends(get_current_user)):
@@ -7020,9 +7104,8 @@ async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user
 
 @api_router.get("/admin/search-users")
 async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)):
-    """Search users by nickname (admin only)."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin")
+    """Search users by nickname (CO_ADMIN or above)."""
+    _require_co_admin(user)
     query = {}
     if q:
         query = {'nickname': {'$regex': q, '$options': 'i'}}
@@ -7039,14 +7122,14 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
 @api_router.delete("/admin/delete-user/{user_id}")
 async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)):
     """Delete a user and ALL associated data (admin only). IRREVERSIBLE."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin")
+    _require_admin(user)
     if user_id == user.get('id'):
         raise HTTPException(status_code=400, detail="Non puoi eliminare te stesso")
 
-    target = await db.users.find_one({'id': user_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1})
+    target = await db.users.find_one({'id': user_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'role': 1})
     if not target:
         raise HTTPException(status_code=404, detail="Utente non trovato")
+    _assert_not_admin_target(target, "eliminare")
 
     deleted_content = {}
     collections = await db.list_collection_names()
@@ -7984,11 +8067,11 @@ async def vote_suggestion(suggestion_id: str, user: dict = Depends(get_current_u
         return {'success': True, 'action': 'added', 'message': 'Voto aggiunto!'}
 
 @api_router.get("/admin/feedback-summary")
-async def get_feedback_summary():
+async def get_feedback_summary(user: dict = Depends(get_current_user)):
     """
-    Get summary of all suggestions and bug reports for admin review.
-    This endpoint returns data formatted for the Agent to display.
+    Get summary of all suggestions and bug reports (CO_ADMIN or above).
     """
+    _require_co_admin(user)
     suggestions = await db.suggestions.find(
         {'status': {'$in': ['pending', 'under_review']}},
         {'_id': 0}
@@ -9773,9 +9856,8 @@ async def get_film_tier_expectations(film_id: str, user: dict = Depends(get_curr
 
 @api_router.get("/admin/reports")
 async def admin_get_reports(status: str = 'pending', user: dict = Depends(get_current_user)):
-    """Get all reports (admin only)."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin")
+    """Get all reports (CO_ADMIN or above)."""
+    _require_co_admin(user)
 
     query = {}
     if status and status != 'all':
@@ -9787,9 +9869,8 @@ async def admin_get_reports(status: str = 'pending', user: dict = Depends(get_cu
 
 @api_router.post("/admin/reports/{report_id}/resolve")
 async def admin_resolve_report(report_id: str, action: str = 'dismiss', user: dict = Depends(get_current_user)):
-    """Resolve a report: dismiss or delete_content."""
-    if user.get('nickname') != ADMIN_NICKNAME:
-        raise HTTPException(status_code=403, detail="Solo l'admin")
+    """Resolve a report: dismiss or delete_content (CO_ADMIN or above)."""
+    _require_co_admin(user)
 
     report = await db.reports.find_one({'id': report_id}, {'_id': 0})
     if not report:
@@ -10232,6 +10313,29 @@ async def startup_event():
         {'cinepass': {'$exists': False}},
         {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
     )
+    
+    # === ROLE SYSTEM MIGRATION ===
+    # Set default role for users without one
+    await db.users.update_many(
+        {'role': {'$exists': False}},
+        {'$set': {'role': 'USER', 'deletion_status': 'none'}}
+    )
+    # AUTO-CORRECTION: Force NeoMorpheus as ADMIN
+    from auth_utils import ADMIN_NICKNAME
+    await db.users.update_one(
+        {'nickname': ADMIN_NICKNAME},
+        {'$set': {'role': 'ADMIN'}}
+    )
+    # AUTO-CORRECTION: Strip ADMIN from anyone who is NOT NeoMorpheus
+    strip_result = await db.users.update_many(
+        {'role': 'ADMIN', 'nickname': {'$ne': ADMIN_NICKNAME}},
+        {'$set': {'role': 'USER'}}
+    )
+    if strip_result.modified_count > 0:
+        logging.warning(f"[SECURITY] Stripped ADMIN role from {strip_result.modified_count} unauthorized user(s) at startup")
+    # Create index for admin_logs
+    await db.admin_logs.create_index('timestamp')
+    logging.info("Role system migration completed")
     
     # One-time migrations (fast DB updates)
     await run_startup_migrations()

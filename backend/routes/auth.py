@@ -14,7 +14,9 @@ import resend
 
 from database import db
 from auth_utils import (
-    hash_password, verify_password, create_token, get_current_user
+    hash_password, verify_password, create_token, get_current_user,
+    get_user_role, is_admin, assert_not_admin_target, ADMIN_NICKNAME,
+    log_admin_action
 )
 from models import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
@@ -116,6 +118,8 @@ async def register(user_data: UserCreate):
         'cinepass': 100,
         'login_streak': 0,
         'last_streak_date': None,
+        'role': 'USER',
+        'deletion_status': 'none',
     }
     
     await db.users.insert_one(user)
@@ -168,6 +172,9 @@ async def login(credentials: UserLogin):
         
         # Build safe user response - ensure all required fields have defaults
         safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
+        # Inject computed role
+        safe_fields['role'] = get_user_role(user)
+        safe_fields.setdefault('deletion_status', 'none')
         # Ensure critical fields exist with defaults
         safe_fields.setdefault('production_house_name', 'My Studio')
         safe_fields.setdefault('owner_name', user.get('nickname', 'Player'))
@@ -287,6 +294,12 @@ async def reset_password(request: PasswordResetConfirm):
     if not token_doc:
         raise HTTPException(status_code=400, detail="Token non valido o scaduto")
     
+    # Block password reset for ADMIN account
+    target_user = await db.users.find_one({'id': token_doc['user_id']}, {'_id': 0, 'nickname': 1, 'role': 1})
+    if target_user and get_user_role(target_user) == "ADMIN":
+        await db.recovery_tokens.delete_one({'token': request.token})
+        raise HTTPException(status_code=403, detail="Operazione non consentita: impossibile resettare la password dell'account ADMIN")
+    
     expires_at = datetime.fromisoformat(token_doc['expires_at'].replace('Z', '+00:00'))
     if datetime.now(timezone.utc) > expires_at:
         await db.recovery_tokens.delete_one({'token': request.token})
@@ -352,6 +365,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         user['avatar_url'] = avatar_url
         
         safe_fields = {k: v for k, v in user.items() if k not in ['password', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
+        safe_fields['role'] = get_user_role(user)
+        safe_fields.setdefault('deletion_status', 'none')
         safe_fields.setdefault('production_house_name', 'My Studio')
         safe_fields.setdefault('owner_name', user.get('nickname', 'Player'))
         safe_fields.setdefault('language', 'it')
@@ -411,6 +426,8 @@ class ChangePasswordRequest(BaseModel):
 
 @router.post("/auth/change-password")
 async def change_password(request: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    # ADMIN password cannot be changed via game
+    assert_not_admin_target(user, "cambiare password")
     if not verify_password(request.current_password, user['password']):
         raise HTTPException(status_code=400, detail="Password attuale non corretta")
     if len(request.new_password) < 6:
@@ -433,6 +450,9 @@ class ResetConfirmRequest(BaseModel):
 
 @router.post("/auth/reset/request")
 async def request_reset(user: dict = Depends(get_current_user)):
+    # ADMIN cannot be reset
+    assert_not_admin_target(user, "resettare")
+    
     confirm_token = str(uuid.uuid4())
     expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
     
@@ -454,6 +474,9 @@ async def request_reset(user: dict = Depends(get_current_user)):
 
 @router.post("/auth/reset/confirm")
 async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_current_user)):
+    # ADMIN cannot be reset
+    assert_not_admin_target(user, "resettare")
+    
     reset_token = await db.reset_tokens.find_one({'user_id': user['id'], 'token': request.confirm_token})
     
     if not reset_token:

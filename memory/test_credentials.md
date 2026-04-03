@@ -2,7 +2,7 @@
 
 ## User Account (Atlas - cineworld)
 - Email: fandrex1@gmail.com
-- Password: [stessa password usata su cineworld-studios.it — diversa dalla copia locale]
+- Password: Fandrel2776
 
 ## DB Info (Production)
 - DB_NAME: cineworld

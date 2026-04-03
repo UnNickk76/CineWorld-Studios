@@ -26,9 +26,7 @@ _env_values = dotenv_values(_env_path)
 MONGO_URL = _env_values.get('MONGO_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = _env_values.get('DB_NAME') or os.environ.get('DB_NAME', 'cineworld')
 
-# Create a separate client for scheduler tasks
-scheduler_client = AsyncIOMotorClient(MONGO_URL)
-scheduler_db = scheduler_client[DB_NAME]
+from database import db as scheduler_db, client as scheduler_client
 
 
 async def cleanup_expired_rejections():

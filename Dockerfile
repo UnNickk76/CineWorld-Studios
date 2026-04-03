@@ -2,7 +2,7 @@ FROM node:20-alpine AS frontend-build
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/frontend
 COPY frontend/ ./
-RUN npm install --legacy-peer-deps && npm install ajv@6.12.6
+RUN npm install --legacy-peer-deps
 ENV CI=false
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS=--max_old_space_size=4096

@@ -1,13 +1,9 @@
 # Test Credentials
 
-## User Account
+## User Account (Atlas - cineworld)
 - Email: fandrex1@gmail.com
-- Password: Ciaociao1
+- Password: Fandrel2776
 
-## Admin Account
-- Email: test@cineworld.com
-- Password: test123
-
-## DB Info
-- DB_NAME: test_database
-- MONGO_URL: mongodb://localhost:27017/test_database
+## DB Info (Production)
+- DB_NAME: cineworld
+- MONGO_URL: mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld

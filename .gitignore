@@ -900,3 +900,11 @@ cinemaster_dump.zip
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/2.pack_
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*

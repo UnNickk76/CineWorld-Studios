@@ -2,6 +2,7 @@ FROM node:20-alpine AS frontend-build
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/frontend
 COPY frontend/ ./
+RUN rm -rf node_modules package-lock.json
 RUN npm install --legacy-peer-deps
 ENV CI=false
 ENV GENERATE_SOURCEMAP=false

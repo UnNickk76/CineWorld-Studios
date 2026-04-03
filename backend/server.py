@@ -10254,6 +10254,22 @@ async def startup_event():
         {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
     )
     
+    # === ROLE SYSTEM MIGRATION ===
+    # Set default role for users without one
+    await db.users.update_many(
+        {'role': {'$exists': False}},
+        {'$set': {'role': 'USER', 'deletion_status': 'none'}}
+    )
+    # Hardcode NeoMorpheus as ADMIN (backend security)
+    from auth_utils import ADMIN_NICKNAME
+    await db.users.update_one(
+        {'nickname': ADMIN_NICKNAME},
+        {'$set': {'role': 'ADMIN'}}
+    )
+    # Create index for admin_logs
+    await db.admin_logs.create_index('timestamp')
+    logging.info("Role system migration completed")
+    
     # One-time migrations (fast DB updates)
     await run_startup_migrations()
     

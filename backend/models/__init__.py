@@ -52,6 +52,8 @@ class UserResponse(BaseModel):
     badge: Optional[str] = 'none'
     badge_expiry: Optional[str] = None
     badges: Optional[dict] = None
+    role: Optional[str] = 'USER'
+    deletion_status: Optional[str] = 'none'
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -1,9 +1,14 @@
 # Test Credentials
 
-## User Account (Atlas - cineworld)
+## Admin (NeoMorpheus)
 - Email: fandrex1@gmail.com
 - Password: Fandrel2776
+- Role: ADMIN (hardcoded, non modificabile)
 
-## DB Info (Production)
-- DB_NAME: cineworld
-- MONGO_URL: mongodb+srv://fandrex1_db_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld
+## Co-Admin (TestAdmin)
+- Email: test@cineworld.com
+- Password: TestCoadmin123!
+- Role: CO_ADMIN
+
+## MongoDB Atlas
+- MONGO_URL: mongodb+srv://cineworld_user:Cineworld123@cluster0.6q21tmr.mongodb.net/cineworld

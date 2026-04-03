@@ -653,7 +653,7 @@ function MaintenanceTab({ api }) {
 
       {/* Stats summary */}
       {stats && (
-        <div className="grid grid-cols-4 gap-2" data-testid="maint-stats">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="maint-stats">
           {[
             { label: 'Totale', value: stats.total, color: 'text-white' },
             { label: 'Rotti', value: stats.broken, color: stats.broken > 0 ? 'text-red-400' : 'text-gray-500' },
@@ -1204,20 +1204,20 @@ export default function AdminPage() {
         </div>
 
         {/* Tabs — scroll orizzontale su mobile */}
-        <div className="flex gap-1 bg-[#111113] rounded-lg p-1 border border-white/5 overflow-x-auto scrollbar-hide" data-testid="admin-tabs">
+        <div className="flex gap-1 bg-[#111113] rounded-lg p-1 border border-white/5 overflow-x-auto no-scrollbar" data-testid="admin-tabs">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 min-w-[44px] sm:min-w-0 sm:flex-1 ${
                   isActive
                     ? (isAdmin ? 'bg-red-600 text-white' : 'bg-amber-600 text-white')
                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`}
                 data-testid={`admin-tab-${tab.id}`}>
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );

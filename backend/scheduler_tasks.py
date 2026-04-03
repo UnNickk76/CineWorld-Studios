@@ -778,6 +778,7 @@ async def auto_release_coming_soon():
                     {'id': series['id']},
                     {'$set': {
                         'status': 'ready_for_casting',
+                        'previous_step': 'coming_soon',
                         'coming_soon_completed': True,
                         'coming_soon_completed_at': now_str,
                         'updated_at': now_str,
@@ -886,6 +887,7 @@ async def auto_release_coming_soon():
                     {'id': project['id']},
                     {'$set': {
                         'status': 'ready_for_casting',
+                        'previous_step': 'coming_soon',
                         'coming_soon_completed': True,
                         'coming_soon_completed_at': now_str,
                         'updated_at': now_str,
@@ -1150,7 +1152,7 @@ async def auto_cleanup_corrupted_projects():
     async for f in scheduler_db.film_projects.find({'status': {'$nin': list(VALID_FILM_STATUSES)}}):
         await scheduler_db.film_projects.update_one(
             {'id': f['id']},
-            {'$set': {'status': 'proposed', 'updated_at': now_str,
+            {'$set': {'status': 'proposed', 'previous_step': f.get('status'), 'updated_at': now_str,
                       'rescue_reason': f'auto_cleanup_invalid_status (was: {f.get("status")})',
                       'rescued': True, 'rescued_at': now_str}}
         )
@@ -1160,7 +1162,7 @@ async def auto_cleanup_corrupted_projects():
     async for s in scheduler_db.tv_series.find({'status': {'$nin': list(VALID_SERIES_STATUSES)}}):
         await scheduler_db.tv_series.update_one(
             {'id': s['id']},
-            {'$set': {'status': 'concept', 'updated_at': now_str,
+            {'$set': {'status': 'concept', 'previous_step': s.get('status'), 'updated_at': now_str,
                       'rescue_reason': f'auto_cleanup_invalid_status (was: {s.get("status")})',
                       'rescued': True, 'rescued_at': now_str}}
         )
@@ -1179,7 +1181,7 @@ async def auto_cleanup_corrupted_projects():
         if not cast.get('proposals') and not cast.get('director') and not f.get('cast_proposals'):
             await scheduler_db.film_projects.update_one(
                 {'id': f['id']},
-                {'$set': {'status': 'proposed', 'reset_reason': 'auto_cleanup_missing_cast', 'updated_at': now_str}}
+                {'$set': {'status': 'proposed', 'previous_step': f.get('status'), 'reset_reason': 'auto_cleanup_missing_cast', 'updated_at': now_str}}
             )
             logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) {f['status']} without cast -> proposed")
     

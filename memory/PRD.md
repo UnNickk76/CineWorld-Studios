@@ -1,65 +1,92 @@
-# CineWorld Studio's — PRD
+# CineWorld Studio's — PRD (Product Requirements Document)
 
 ## Problema Originale
-Gioco browser-based di simulazione studio cinematografico. Full-stack React + FastAPI + MongoDB.
+Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline di film, serie TV, anime. React + FastAPI + MongoDB.
 
 ## Architettura
-```
-/app/backend/
-├── server.py (monolite in refactoring)
-├── cast_system.py (ACTOR_SKILLS, GENRE_SKILL_MAPPING)
-├── challenge_system.py
-├── game_systems.py
-├── scheduler_tasks.py (revenue giornaliero, sponsor impact, premiere decay)
-├── database.py (fix deploy: override=False, env priority)
-├── routes/
-│   ├── sponsors.py (sistema sponsor completo)
-│   ├── la_prima.py (sistema premiere completo - backend + frontend)
-│   ├── cast.py, casting_agency.py, acting_school.py
-│   ├── film_pipeline.py (quality genre-aware)
-│   ├── series_pipeline.py, sequel_pipeline.py
-│   ├── cinepass.py, films.py, film_engagement.py
-│   └── ... (altre route)
-/app/frontend/ (React)
-├── src/components/LaPremiereSection.jsx (Premiere UI component)
-├── src/pages/FilmDetail.jsx (integra LaPremiereSection)
-```
+- **Frontend**: React (Vite/CRA), Tailwind CSS, Shadcn UI
+- **Backend**: FastAPI, Motor (async MongoDB)
+- **DB**: MongoDB Atlas (`cineworld`)
+- **Deploy**: Emergent Platform (Preview) + Railway (Production)
 
-## Integrazioni
-- OpenAI GPT-4o-mini (Text) + GPT-Image-1 (Image) — Emergent LLM Key
-- MongoDB Atlas (prod) / Local MongoDB (dev)
+## Step Completati (Sessione Corrente - 3 Apr 2026)
 
-## Completato
+### STEP 1 — Sistema Ruoli ✅
+- Campo `role` aggiunto (ADMIN / CO_ADMIN / MOD / USER)
+- NeoMorpheus = ADMIN hardcoded nel backend
+- Protezioni ADMIN su: reset, cambio password, recovery password
+- Tutti gli utenti esistenti migrati a `role: USER`
 
-### Fix Deploy Railway + Emergent (Apr 2026)
-- **Dockerfile**: Aggiunto `GENERATE_SOURCEMAP=false` per ridurre consumo memoria durante build
-- **database.py**: Fix `load_dotenv(override=False)`, priorità env vars K8s su .env file, fallback DB_NAME da env
-- **server.py**: Fix mount build dir condizionale (evita crash quando build non esiste)
+### STEP EXTRA — Blocco Assoluto ADMIN ✅
+- `get_user_role()` → nickname ha priorità assoluta sul DB
+- `validate_role_assignment()` → blocca creazione ADMIN su non-NeoMorpheus
+- Startup → auto-correzione: strip ADMIN da utenti non autorizzati
+- Log `[SECURITY]` su ogni violazione
 
-### Sistema "La Prima" — Premiere (Apr 2026)
-- **STEP 1-2**: Backend — Modello premiere, 48 città con pesi e generi, calcolo impatto nascosto
-- **STEP 3-4**: Backend — Boost/decay revenue iniziale, sistema outcome (standing_ovation, warm, mixed, lukewarm)
-- **STEP 5-6**: Backend — Sistema eventi notifiche post-prima, integrazione scheduler_tasks
-- **STEP 7**: Frontend — `LaPremiereSection.jsx` completo: enable, configurazione città/data/delay, countdown, outcome, placeholder immagine 16:9. Integrato in FilmDetail.jsx
-- **STEP 8**: Verifica regole — Solo film (no serie/anime), solo status eligibili (coming_soon, completed, pending_release), validazione città, non modificabile dopo setup, errori chiari
+### STEP 2 — Permessi Ruoli ✅
+- ADMIN: pieno controllo
+- CO_ADMIN: reports, search-users, feedback, reset utenti, cambio password utenti
+- CO_ADMIN non può: set-user-role, delete-user, modificare ADMIN
+- MOD: placeholder
+- Nuovi endpoint: `/admin/reset-user`, `/admin/change-user-password`
 
-### Sistema Sponsor (Apr 2026)
-- Modello, endpoint, deal, impatto revenue, memoria performance (Steps 1-5 completi)
+### STEP 3 — Flow Cancellazione Account ✅
+- Flusso completo: requested → countdown_active (10gg) → user_confirmed → final deletion
+- ADMIN approva/rifiuta, cooldown 5 giorni su rifiuto
+- Failsafe: auto-eliminazione se ADMIN non risponde entro 5 giorni
+- Modulo: `routes/deletion.py`
 
-### Skill System Refactoring (Apr 2026)
-- Unificazione ACTOR_SKILLS (13 skill), fix scuola, quality genre-aware
+### STEP 4 — Admin Panel / Co-Admin Panel ✅
+- ADMIN: 6 tab (Utenti, Film, Ruoli, Segnalazioni, Cancellazioni, Manutenzione)
+- CO_ADMIN: 2 tab (Segnalazioni, Manutenzione)
+- Tab Gestione Ruoli: assegna Co-Admin/Mod/User
+- Tab Cancellazioni: gestione richieste con azioni
 
-## In Progress
-- Step 14 Modularizzazione GAME CORE (PAUSED)
+### STEP 5 — Manutenzione Avanzata ✅
+- `routes/maintenance.py`: diagnostica + 4 azioni (auto_fix, force_step, complete_project, reset_step)
+- Loop detection: `status == previous_step` → flag LOOP
+- Timer stuck: `scheduled_release_at` scaduto → flag STUCK
+- `previous_step` tracking in maintenance + scheduler
 
-## Backlog (P1)
+### STEP 5+ — Export/Import DB ✅
+- `GET /admin/db/export` — esporta JSON
+- `POST /admin/db/import-safe` — upsert senza cancellare
+- `POST /admin/db/import-hard` — hard reset con backup + rollback
+- NeoMorpheus protetto in tutti i casi
+- UI: card "Gestione Database" nel tab Manutenzione
+
+### STEP 9 — Fix UI Mobile ✅
+- Scrollbar: `no-scrollbar` class fix
+- Tab touch area: min 44px
+- Stats grid responsive: 2→4 colonne
+- Icone ingrandite su mobile
+
+## File Chiave Modificati
+- `/app/backend/auth_utils.py` — Sistema ruoli completo
+- `/app/backend/models/__init__.py` — UserResponse con role + deletion_status
+- `/app/backend/routes/auth.py` — Protezioni ADMIN
+- `/app/backend/routes/deletion.py` — NUOVO: Flow cancellazione
+- `/app/backend/routes/maintenance.py` — NUOVO: Manutenzione + Export/Import DB
+- `/app/backend/server.py` — Importazioni, migration, scheduler, nuovi endpoint CO_ADMIN
+- `/app/backend/scheduler_tasks.py` — previous_step tracking
+- `/app/frontend/src/pages/AdminPage.jsx` — Pannello Admin/Co-Admin completo
+- `/app/frontend/src/App.js` — Nav CO_ADMIN
+
+## Backlog Prioritizzato
+
+### P0
+- TV Series pipeline loop infinito (segnalato dall'utente, non ancora investigato)
+
+### P1
 - 20 poster film mancanti/404
-- Modularizzazione endpoint rimanenti in server.py
+- Modularizzazione GAME CORE endpoints (paused)
 - Sistema "Previsioni Festival"
 - Marketplace diritti TV/Anime
 
-## Backlog (P2+)
-- Contest Page Mobile Layout rotto
+### P2
+- Contest Page Mobile Layout (16+ segnalazioni)
+
+### P3
 - Velion features (Mood, Chat, Levels, AI Memory)
 - CinePass + Stripe, Push notifications, RBAC
 - Eventi globali, Guerre tra Major

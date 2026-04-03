@@ -439,6 +439,7 @@ const TopNavbar = () => {
     { path: '/system-notes', icon: Megaphone, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
     { path: '/credits', icon: Info, label: 'credits' },
     ...(user?.nickname === 'NeoMorpheus' ? [{ path: '/admin', icon: Shield, label: 'Admin Panel' }] : []),
+    ...(user?.role === 'CO_ADMIN' ? [{ path: '/admin', icon: Shield, label: 'Co-Admin Panel' }] : []),
   ];
 
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {

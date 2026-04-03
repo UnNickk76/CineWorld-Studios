@@ -105,6 +105,8 @@ from routes.emerging_screenplays import router as emerging_screenplays_router
 from routes.emerging_screenplays import expire_old_screenplays
 from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
 from routes.la_prima import router as la_prima_router
+from routes.deletion import router as deletion_router
+from routes.maintenance import router as maintenance_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -10506,6 +10508,15 @@ async def startup_event():
         replace_existing=True
     )
 
+    # Failsafe: auto-delete accounts where ADMIN hasn't responded in 5 days
+    from routes.deletion import check_deletion_failsafe
+    scheduler.add_job(
+        check_deletion_failsafe,
+        CronTrigger(hour=3, minute=0),
+        id='deletion_failsafe',
+        replace_existing=True
+    )
+
     # Start the scheduler
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
@@ -16979,6 +16990,8 @@ app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
 app.include_router(sponsors_router, prefix="/api")
 app.include_router(la_prima_router, prefix="/api")
+app.include_router(deletion_router, prefix="/api")
+app.include_router(maintenance_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

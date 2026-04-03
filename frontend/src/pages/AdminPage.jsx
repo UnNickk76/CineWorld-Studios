@@ -579,20 +579,13 @@ function ReportsTab({ api }) {
 }
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
-function MaintenanceTab({ api, isAdmin: isAdminProp }) {
-  const { user } = useContext(AuthContext);
-  // Double-check: use context directly as fallback for prop
-  const isAdmin = isAdminProp || user?.nickname === 'NeoMorpheus';
+function MaintenanceTab({ api }) {
   const [username, setUsername] = useState('');
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [targetUser, setTargetUser] = useState('');
-  const [importData, setImportData] = useState('');
-  const [confirmText, setConfirmText] = useState('');
-  const [dbLoading, setDbLoading] = useState(null);
-  const [dbResult, setDbResult] = useState(null);
 
   const searchProjects = async (nick) => {
     if (!nick.trim()) return;
@@ -785,145 +778,6 @@ function MaintenanceTab({ api, isAdmin: isAdminProp }) {
         </div>
       )}
 
-      {/* ─── Gestione Database (ADMIN only) ─── */}
-      {isAdmin ? (
-        <Card className="bg-[#111113] border-indigo-500/30" data-testid="db-management-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-indigo-400 flex items-center gap-2">
-              <Wrench className="w-4 h-4" />
-              Gestione Database
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-gray-400">Esporta, importa (safe) o resetta (hard) il database completo.</p>
-
-            {/* EXPORT */}
-            <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
-              disabled={dbLoading === 'export'}
-              data-testid="db-export-btn"
-              onClick={async () => {
-                setDbLoading('export');
-                setDbResult(null);
-                try {
-                  const res = await api.get('/admin/db/export');
-                  const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `cineworld_backup_${new Date().toISOString().slice(0,10)}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  const counts = res.data.counts || {};
-                  toast.success(`Export completato: ${Object.values(counts).reduce((a,b)=>a+b,0)} documenti`);
-                  setDbResult({ type: 'export', counts });
-                } catch (e) { toast.error(e.response?.data?.detail || 'Errore export'); }
-                finally { setDbLoading(null); }
-              }}>
-              {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
-              Esporta DB
-            </Button>
-
-            {dbResult?.type === 'export' && (
-              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-2 text-[10px] text-indigo-300">
-                Esportati: {Object.entries(dbResult.counts).map(([k,v]) => `${k}: ${v}`).join(' | ')}
-              </div>
-            )}
-
-            {/* TEXTAREA JSON */}
-            <textarea
-              placeholder="Incolla qui il JSON del database per import..."
-              value={importData}
-              onChange={(e) => setImportData(e.target.value)}
-              rows={5}
-              className="w-full bg-black/60 text-white text-xs border border-gray-700 p-3 rounded-lg mt-1 placeholder-gray-600 focus:border-indigo-500/50 focus:outline-none font-mono resize-y"
-              data-testid="db-import-textarea"
-            />
-
-            {/* IMPORT SAFE */}
-            <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
-              disabled={dbLoading === 'import-safe' || !importData.trim()}
-              data-testid="db-import-safe-btn"
-              onClick={async () => {
-                setDbLoading('import-safe');
-                setDbResult(null);
-                try {
-                  const parsed = JSON.parse(importData);
-                  const body = parsed.data ? { confirm: 'CONFERMO', data: parsed.data } : { confirm: 'CONFERMO', data: parsed };
-                  const res = await api.post('/admin/db/import-safe', body);
-                  toast.success('Import safe completato');
-                  setDbResult({ type: 'import-safe', stats: res.data.stats });
-                } catch (e) {
-                  if (e instanceof SyntaxError) toast.error('JSON non valido');
-                  else toast.error(e.response?.data?.detail || 'Errore import');
-                }
-                finally { setDbLoading(null); }
-              }}>
-              {dbLoading === 'import-safe' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
-              Import Safe (upsert)
-            </Button>
-
-            {dbResult?.type === 'import-safe' && dbResult.stats && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-[10px] text-emerald-300 space-y-0.5">
-                {Object.entries(dbResult.stats).map(([k,v]) => (
-                  <p key={k}>{k}: +{v.inserted} inseriti, ~{v.updated} aggiornati, -{v.skipped} saltati</p>
-                ))}
-              </div>
-            )}
-
-            {/* IMPORT HARD SEPARATOR */}
-            <div className="border-t border-red-500/20 pt-3 mt-2">
-              <p className="text-[10px] text-red-400 font-bold mb-2 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Hard Reset — Cancella e reimporta tutto
-              </p>
-              <input
-                type="text"
-                placeholder='Scrivi CONFERMO per procedere'
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                className="w-full bg-black/60 text-red-400 text-xs border border-red-500/30 p-2 rounded-lg placeholder-red-800 focus:border-red-500/60 focus:outline-none"
-                data-testid="db-hard-confirm-input"
-              />
-              <Button className="w-full mt-2 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold"
-                disabled={dbLoading === 'import-hard' || !importData.trim() || confirmText !== 'CONFERMO'}
-                data-testid="db-import-hard-btn"
-                onClick={async () => {
-                  if (confirmText !== 'CONFERMO') { toast.error('Devi scrivere CONFERMO'); return; }
-                  setDbLoading('import-hard');
-                  setDbResult(null);
-                  try {
-                    const parsed = JSON.parse(importData);
-                    const body = parsed.data
-                      ? { confirm: 'CONFERMO', data: parsed.data }
-                      : { confirm: 'CONFERMO', data: parsed };
-                    const res = await api.post('/admin/db/import-hard', body);
-                    toast.success('Import HARD completato');
-                    setDbResult({ type: 'import-hard', stats: res.data.stats, backup: res.data.backup_sizes });
-                    setConfirmText('');
-                  } catch (e) {
-                    if (e instanceof SyntaxError) toast.error('JSON non valido');
-                    else toast.error(e.response?.data?.detail || 'Errore import hard');
-                  }
-                  finally { setDbLoading(null); }
-                }}>
-                {dbLoading === 'import-hard' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
-                Import HARD (reset)
-              </Button>
-
-              {dbResult?.type === 'import-hard' && dbResult.stats && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-2 text-[10px] text-red-300 space-y-0.5">
-                  <p className="font-bold">Reset completato:</p>
-                  {Object.entries(dbResult.stats).map(([k,v]) => (
-                    <p key={k}>{k}: {v.deleted} eliminati, {v.inserted} reinseriti</p>
-                  ))}
-                  {dbResult.backup && (
-                    <p className="text-gray-500 mt-1">Backup: {Object.entries(dbResult.backup).map(([k,v]) => `${k}: ${v}`).join(' | ')}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }
@@ -1158,6 +1012,153 @@ function DeletionsTab({ api }) {
   );
 }
 
+/* ─── DB Management Card (rendered directly by AdminPage — bypasses prop issues) ─── */
+function DbManagementCard({ api }) {
+  const [importData, setImportData] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [dbLoading, setDbLoading] = useState(null);
+  const [dbResult, setDbResult] = useState(null);
+
+  return (
+    <Card className="bg-[#111113] border-indigo-500/30" data-testid="db-management-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm text-indigo-400 flex items-center gap-2">
+          <Wrench className="w-4 h-4" />
+          Gestione Database
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-gray-400">Esporta, importa (safe) o resetta (hard) il database completo.</p>
+
+        {/* EXPORT */}
+        <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
+          disabled={dbLoading === 'export'}
+          data-testid="db-export-btn"
+          onClick={async () => {
+            setDbLoading('export');
+            setDbResult(null);
+            try {
+              const res = await api.get('/admin/db/export');
+              const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `cineworld_backup_${new Date().toISOString().slice(0,10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              const counts = res.data.counts || {};
+              toast.success(`Export completato: ${Object.values(counts).reduce((a,b)=>a+b,0)} documenti`);
+              setDbResult({ type: 'export', counts });
+            } catch (e) { toast.error(e.response?.data?.detail || 'Errore export'); }
+            finally { setDbLoading(null); }
+          }}>
+          {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
+          Esporta DB
+        </Button>
+
+        {dbResult?.type === 'export' && (
+          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-2 text-[10px] text-indigo-300">
+            Esportati: {Object.entries(dbResult.counts).map(([k,v]) => `${k}: ${v}`).join(' | ')}
+          </div>
+        )}
+
+        {/* TEXTAREA JSON */}
+        <textarea
+          placeholder="Incolla qui il JSON del database per import..."
+          value={importData}
+          onChange={(e) => setImportData(e.target.value)}
+          rows={5}
+          className="w-full bg-black/60 text-white text-xs border border-gray-700 p-3 rounded-lg mt-1 placeholder-gray-600 focus:border-indigo-500/50 focus:outline-none font-mono resize-y"
+          data-testid="db-import-textarea"
+        />
+
+        {/* IMPORT SAFE */}
+        <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
+          disabled={dbLoading === 'import-safe' || !importData.trim()}
+          data-testid="db-import-safe-btn"
+          onClick={async () => {
+            setDbLoading('import-safe');
+            setDbResult(null);
+            try {
+              const parsed = JSON.parse(importData);
+              const body = parsed.data ? { confirm: 'CONFERMO', data: parsed.data } : { confirm: 'CONFERMO', data: parsed };
+              const res = await api.post('/admin/db/import-safe', body);
+              toast.success('Import safe completato');
+              setDbResult({ type: 'import-safe', stats: res.data.stats });
+            } catch (e) {
+              if (e instanceof SyntaxError) toast.error('JSON non valido');
+              else toast.error(e.response?.data?.detail || 'Errore import');
+            }
+            finally { setDbLoading(null); }
+          }}>
+          {dbLoading === 'import-safe' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+          Import Safe (upsert)
+        </Button>
+
+        {dbResult?.type === 'import-safe' && dbResult.stats && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-[10px] text-emerald-300 space-y-0.5">
+            {Object.entries(dbResult.stats).map(([k,v]) => (
+              <p key={k}>{k}: +{v.inserted} inseriti, ~{v.updated} aggiornati, -{v.skipped} saltati</p>
+            ))}
+          </div>
+        )}
+
+        {/* IMPORT HARD SEPARATOR */}
+        <div className="border-t border-red-500/20 pt-3 mt-2">
+          <p className="text-[10px] text-red-400 font-bold mb-2 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> Hard Reset — Cancella e reimporta tutto
+          </p>
+          <input
+            type="text"
+            placeholder='Scrivi CONFERMO per procedere'
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="w-full bg-black/60 text-red-400 text-xs border border-red-500/30 p-2 rounded-lg placeholder-red-800 focus:border-red-500/60 focus:outline-none"
+            data-testid="db-hard-confirm-input"
+          />
+          <Button className="w-full mt-2 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold"
+            disabled={dbLoading === 'import-hard' || !importData.trim() || confirmText !== 'CONFERMO'}
+            data-testid="db-import-hard-btn"
+            onClick={async () => {
+              if (confirmText !== 'CONFERMO') { toast.error('Devi scrivere CONFERMO'); return; }
+              setDbLoading('import-hard');
+              setDbResult(null);
+              try {
+                const parsed = JSON.parse(importData);
+                const body = parsed.data
+                  ? { confirm: 'CONFERMO', data: parsed.data }
+                  : { confirm: 'CONFERMO', data: parsed };
+                const res = await api.post('/admin/db/import-hard', body);
+                toast.success('Import HARD completato');
+                setDbResult({ type: 'import-hard', stats: res.data.stats, backup: res.data.backup_sizes });
+                setConfirmText('');
+              } catch (e) {
+                if (e instanceof SyntaxError) toast.error('JSON non valido');
+                else toast.error(e.response?.data?.detail || 'Errore import hard');
+              }
+              finally { setDbLoading(null); }
+            }}>
+            {dbLoading === 'import-hard' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+            Import HARD (reset)
+          </Button>
+
+          {dbResult?.type === 'import-hard' && dbResult.stats && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-2 text-[10px] text-red-300 space-y-0.5">
+              <p className="font-bold">Reset completato:</p>
+              {Object.entries(dbResult.stats).map(([k,v]) => (
+                <p key={k}>{k}: {v.deleted} eliminati, {v.inserted} reinseriti</p>
+              ))}
+              {dbResult.backup && (
+                <p className="text-gray-500 mt-1">Backup: {Object.entries(dbResult.backup).map(([k,v]) => `${k}: ${v}`).join(' | ')}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -1229,7 +1230,8 @@ export default function AdminPage() {
         {activeTab === 'roles' && isAdmin && <RolesTab api={api} />}
         {activeTab === 'reports' && <ReportsTab api={api} />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
-        {activeTab === 'maintenance' && <MaintenanceTab api={api} isAdmin={isAdmin} />}
+        {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
+        {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} />}
       </div>
     </div>
   );

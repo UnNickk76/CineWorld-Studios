@@ -260,6 +260,7 @@ class AvatarGenerationRequest(BaseModel):
 class AvatarUpdate(BaseModel):
     avatar_url: str
     avatar_id: Optional[str] = None
+    avatar_source: Optional[str] = None
 
 # ==================== SOCIAL MODELS ====================
 

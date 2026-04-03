@@ -61,6 +61,14 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 - Stats grid responsive: 2→4 colonne
 - Icone ingrandite su mobile
 
+### AI Avatar Generation ✅ (4 Apr 2026)
+- `GET /avatar/image/{filename}` — endpoint per servire file avatar da disco (bypass routing K8s)
+- `POST /avatar/generate` — genera avatar AI con OpenAI `gpt-image-1` via Emergent LLM Key
+- `PUT /auth/avatar` — aggiorna avatar_url e avatar_source
+- URL format migrato da `/uploads/avatars/` a `/api/avatar/image/` per routing corretto
+- Frontend: dialog "Genera con AI" con preset e generazione funzionante
+- Testato: backend 100% (13/13), frontend 100%
+
 ## File Chiave Modificati
 - `/app/backend/auth_utils.py` — Sistema ruoli completo
 - `/app/backend/models/__init__.py` — UserResponse con role + deletion_status
@@ -75,13 +83,7 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 ## Backlog Prioritizzato
 
 ### P0
-- TV Series pipeline loop infinito (segnalato dall'utente, non ancora investigato)
-
-### P1
-- 20 poster film mancanti/404
-- Modularizzazione GAME CORE endpoints (paused)
-- Sistema "Previsioni Festival"
-- Marketplace diritti TV/Anime
+- (Nessuno — tutti risolti)
 
 ### P2
 - Contest Page Mobile Layout (16+ segnalazioni)

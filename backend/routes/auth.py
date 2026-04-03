@@ -2,6 +2,7 @@
 # Registration, Login, Recovery, Profile, Reset, Avatar
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import FileResponse
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
@@ -46,7 +47,7 @@ async def persist_base64_avatar(user_dict: dict) -> str:
         raw = base64.b64decode(b64data)
         with open(filepath, 'wb') as f:
             f.write(raw)
-        file_url = f"/uploads/avatars/{filename}"
+        file_url = f"/api/avatar/image/{filename}"
         await db.users.update_one({'id': user_dict['id']}, {'$set': {'avatar_url': file_url}})
         logging.info(f"Converted base64 avatar to file for user {user_dict.get('nickname')}: {file_url}")
         return file_url
@@ -539,6 +540,16 @@ async def get_avatars():
     }
 
 
+@router.get("/avatar/image/{filename}")
+async def serve_avatar_image(filename: str):
+    """Serve avatar image files from uploads/avatars directory."""
+    avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
+    filepath = os.path.join(avatar_dir, filename)
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    return FileResponse(filepath, media_type="image/png")
+
+
 @router.post("/avatar/generate")
 async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depends(get_current_user)):
     if not EMERGENT_LLM_KEY:
@@ -553,14 +564,13 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
         images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
         
         if images and len(images) > 0:
-            # Save directly to file instead of returning huge base64
             avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
             os.makedirs(avatar_dir, exist_ok=True)
             filename = f"{user['id']}.png"
             filepath = os.path.join(avatar_dir, filename)
             with open(filepath, 'wb') as f:
                 f.write(images[0])
-            file_url = f"/uploads/avatars/{filename}"
+            file_url = f"/api/avatar/image/{filename}"
             return {'avatar_url': file_url, 'prompt': prompt}
         else:
             raise HTTPException(status_code=500, detail="Failed to generate avatar")

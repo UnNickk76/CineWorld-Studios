@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime, timezone, timedelta
 from database import db
-from auth_utils import get_current_user, require_co_admin, log_admin_action
+from auth_utils import get_current_user, require_co_admin, require_admin, log_admin_action, ADMIN_NICKNAME
 import logging
 
 router = APIRouter()
@@ -413,3 +413,150 @@ async def _reset_step(coll, project: dict, ptype: str, now_str: str) -> dict:
 
     await coll.update_one({'id': pid}, {'$set': {'status': prev_step, 'previous_step': status, 'updated_at': now_str}})
     return {'old_status': status, 'new_status': prev_step, 'message': f'Riportato: {status} → {prev_step}'}
+
+
+# ==================== DB EXPORT / IMPORT ====================
+
+# Collections to export/import
+DB_COLLECTIONS = ['users', 'film_projects', 'tv_series']
+
+
+@router.get("/admin/db/export")
+async def export_db(user: dict = Depends(get_current_user)):
+    """Export full DB as JSON (ADMIN only)."""
+    require_admin(user)
+
+    result = {}
+    for coll_name in DB_COLLECTIONS:
+        docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
+        result[coll_name] = docs
+
+    await log_admin_action('db_export', user, details={
+        'collections': DB_COLLECTIONS,
+        'counts': {k: len(v) for k, v in result.items()},
+    })
+    logging.info(f"[ADMIN_DB] export eseguito da {user.get('nickname')} — {sum(len(v) for v in result.values())} documenti")
+
+    return {
+        'success': True,
+        'data': result,
+        'counts': {k: len(v) for k, v in result.items()},
+        'exported_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/admin/db/import-safe")
+async def import_db_safe(payload: dict, user: dict = Depends(get_current_user)):
+    """Import DB via upsert — aggiunge/aggiorna senza cancellare (ADMIN only)."""
+    require_admin(user)
+
+    if payload.get('confirm') != 'CONFERMO':
+        raise HTTPException(status_code=400, detail="Conferma richiesta: inviare confirm='CONFERMO'")
+
+    data = payload.get('data', {})
+    if not data:
+        raise HTTPException(status_code=400, detail="Campo 'data' mancante o vuoto")
+
+    stats = {}
+    for coll_name in DB_COLLECTIONS:
+        docs = data.get(coll_name, [])
+        if not docs:
+            stats[coll_name] = {'inserted': 0, 'updated': 0, 'skipped': 0}
+            continue
+
+        inserted = 0
+        updated = 0
+        skipped = 0
+        for doc in docs:
+            doc_id = doc.get('id')
+            if not doc_id:
+                skipped += 1
+                continue
+
+            # Protect NeoMorpheus from being overwritten
+            if coll_name == 'users' and doc.get('nickname') == ADMIN_NICKNAME:
+                skipped += 1
+                continue
+
+            doc.pop('_id', None)
+            existing = await db[coll_name].find_one({'id': doc_id}, {'_id': 0, 'id': 1})
+            if existing:
+                await db[coll_name].update_one({'id': doc_id}, {'$set': doc})
+                updated += 1
+            else:
+                await db[coll_name].insert_one(doc)
+                inserted += 1
+
+        stats[coll_name] = {'inserted': inserted, 'updated': updated, 'skipped': skipped}
+
+    await log_admin_action('db_import_safe', user, details={'stats': stats})
+    logging.info(f"[ADMIN_DB] import-safe eseguito da {user.get('nickname')} — {stats}")
+
+    return {'success': True, 'stats': stats}
+
+
+@router.post("/admin/db/import-hard")
+async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
+    """Hard reset: cancella e reimporta (ADMIN only). Backup automatico in memoria."""
+    require_admin(user)
+
+    if payload.get('confirm') != 'CONFERMO':
+        raise HTTPException(status_code=400, detail="Conferma richiesta: inviare confirm='CONFERMO'")
+
+    data = payload.get('data', {})
+    if not data:
+        raise HTTPException(status_code=400, detail="Campo 'data' mancante o vuoto")
+
+    # 1. Backup automatico in memoria
+    backup = {}
+    for coll_name in DB_COLLECTIONS:
+        backup[coll_name] = await db[coll_name].find({}, {'_id': 0}).to_list(None)
+    logging.info(f"[ADMIN_DB] Backup in memoria completato: {{{', '.join(f'{k}: {len(v)}' for k, v in backup.items())}}}")
+
+    # 2. Salva NeoMorpheus prima della cancellazione
+    neo_user = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+
+    stats = {}
+    try:
+        for coll_name in DB_COLLECTIONS:
+            docs = data.get(coll_name, [])
+            # Pulisci _id dai documenti importati
+            clean_docs = []
+            for d in docs:
+                d.pop('_id', None)
+                # Skip NeoMorpheus nei dati importati (verrà reinserito dalla copia originale)
+                if coll_name == 'users' and d.get('nickname') == ADMIN_NICKNAME:
+                    continue
+                clean_docs.append(d)
+
+            # Delete all
+            del_result = await db[coll_name].delete_many({})
+            deleted = del_result.deleted_count
+
+            # Re-insert NeoMorpheus first (for users collection)
+            inserted = 0
+            if coll_name == 'users' and neo_user:
+                neo_user.pop('_id', None)
+                await db[coll_name].insert_one(neo_user)
+                inserted += 1
+
+            # Insert imported docs
+            if clean_docs:
+                await db[coll_name].insert_many(clean_docs)
+                inserted += len(clean_docs)
+
+            stats[coll_name] = {'deleted': deleted, 'inserted': inserted}
+
+    except Exception as e:
+        # Rollback from backup
+        logging.error(f"[ADMIN_DB] import-hard FALLITO, eseguo rollback: {e}")
+        for coll_name in DB_COLLECTIONS:
+            await db[coll_name].delete_many({})
+            if backup.get(coll_name):
+                await db[coll_name].insert_many(backup[coll_name])
+        raise HTTPException(status_code=500, detail=f"Import fallito, rollback eseguito: {str(e)}")
+
+    await log_admin_action('db_import_hard', user, details={'stats': stats})
+    logging.info(f"[ADMIN_DB] import-hard eseguito da {user.get('nickname')} — {stats}")
+
+    return {'success': True, 'stats': stats, 'backup_sizes': {k: len(v) for k, v in backup.items()}}

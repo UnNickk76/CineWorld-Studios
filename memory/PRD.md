@@ -11,7 +11,7 @@ Gioco browser-based di simulazione studio cinematografico. Full-stack React + Fa
 ├── challenge_system.py
 ├── game_systems.py
 ├── scheduler_tasks.py (revenue giornaliero, sponsor impact, premiere decay)
-├── database.py
+├── database.py (fix deploy: override=False, env priority)
 ├── routes/
 │   ├── sponsors.py (sistema sponsor completo)
 │   ├── la_prima.py (sistema premiere completo - backend + frontend)
@@ -31,6 +31,11 @@ Gioco browser-based di simulazione studio cinematografico. Full-stack React + Fa
 
 ## Completato
 
+### Fix Deploy Railway + Emergent (Apr 2026)
+- **Dockerfile**: Aggiunto `GENERATE_SOURCEMAP=false` per ridurre consumo memoria durante build
+- **database.py**: Fix `load_dotenv(override=False)`, priorità env vars K8s su .env file, fallback DB_NAME da env
+- **server.py**: Fix mount build dir condizionale (evita crash quando build non esiste)
+
 ### Sistema "La Prima" — Premiere (Apr 2026)
 - **STEP 1-2**: Backend — Modello premiere, 48 città con pesi e generi, calcolo impatto nascosto
 - **STEP 3-4**: Backend — Boost/decay revenue iniziale, sistema outcome (standing_ovation, warm, mixed, lukewarm)
@@ -39,17 +44,10 @@ Gioco browser-based di simulazione studio cinematografico. Full-stack React + Fa
 - **STEP 8**: Verifica regole — Solo film (no serie/anime), solo status eligibili (coming_soon, completed, pending_release), validazione città, non modificabile dopo setup, errori chiari
 
 ### Sistema Sponsor (Apr 2026)
-- **STEP 1**: Modello sponsor con tier A/B/C, 48 sponsor generati, 3 endpoint (list, detail, stats)
-- **STEP 2**: Aggiunta/rimozione sponsor ai progetti (max 6, solo in status validi), ordinamento per affinità genere
-- **STEP 3**: Calcolo deal — `deal_value = base_offer × (1 + hype/100) × memory_modifier × genre_bonus`. Deal accreditato ai fondi utente
-- **STEP 4**: Impatto economico — marketing_boost sui primi 3 giorni, rev_share sottratto giornalmente. Applicato in scheduler_tasks.py
-- **STEP 5**: Memoria sponsor — storico deal in `sponsor_deals`, avg_performance aggiornata, bonus/malus su offerte future (+15% max se positivo, -20% se negativo)
+- Modello, endpoint, deal, impatto revenue, memoria performance (Steps 1-5 completi)
 
 ### Skill System Refactoring (Apr 2026)
-- Unificazione su ACTOR_SKILLS (13 skill, 8 per membro)
-- Fix scuola recitazione (8/13)
-- Quality film genre-aware (70% genre + 30% full)
-- Zero legacy rimasti
+- Unificazione ACTOR_SKILLS (13 skill), fix scuola, quality genre-aware
 
 ## In Progress
 - Step 14 Modularizzazione GAME CORE (PAUSED)

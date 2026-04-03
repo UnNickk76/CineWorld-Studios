@@ -10,23 +10,33 @@ Gioco browser-based di simulazione studio cinematografico. Full-stack React + Fa
 ├── cast_system.py (ACTOR_SKILLS, GENRE_SKILL_MAPPING)
 ├── challenge_system.py
 ├── game_systems.py
-├── scheduler_tasks.py (revenue giornaliero, sponsor impact)
+├── scheduler_tasks.py (revenue giornaliero, sponsor impact, premiere decay)
 ├── database.py
 ├── routes/
-│   ├── sponsors.py (NEW — sistema sponsor completo)
+│   ├── sponsors.py (sistema sponsor completo)
+│   ├── la_prima.py (sistema premiere completo - backend + frontend)
 │   ├── cast.py, casting_agency.py, acting_school.py
 │   ├── film_pipeline.py (quality genre-aware)
 │   ├── series_pipeline.py, sequel_pipeline.py
 │   ├── cinepass.py, films.py, film_engagement.py
 │   └── ... (altre route)
 /app/frontend/ (React)
+├── src/components/LaPremiereSection.jsx (Premiere UI component)
+├── src/pages/FilmDetail.jsx (integra LaPremiereSection)
 ```
 
 ## Integrazioni
 - OpenAI GPT-4o-mini (Text) + GPT-Image-1 (Image) — Emergent LLM Key
-- MongoDB Atlas
+- MongoDB Atlas (prod) / Local MongoDB (dev)
 
 ## Completato
+
+### Sistema "La Prima" — Premiere (Apr 2026)
+- **STEP 1-2**: Backend — Modello premiere, 48 città con pesi e generi, calcolo impatto nascosto
+- **STEP 3-4**: Backend — Boost/decay revenue iniziale, sistema outcome (standing_ovation, warm, mixed, lukewarm)
+- **STEP 5-6**: Backend — Sistema eventi notifiche post-prima, integrazione scheduler_tasks
+- **STEP 7**: Frontend — `LaPremiereSection.jsx` completo: enable, configurazione città/data/delay, countdown, outcome, placeholder immagine 16:9. Integrato in FilmDetail.jsx
+- **STEP 8**: Verifica regole — Solo film (no serie/anime), solo status eligibili (coming_soon, completed, pending_release), validazione città, non modificabile dopo setup, errori chiari
 
 ### Sistema Sponsor (Apr 2026)
 - **STEP 1**: Modello sponsor con tier A/B/C, 48 sponsor generati, 3 endpoint (list, detail, stats)

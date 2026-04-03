@@ -48,6 +48,9 @@ import {
   CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
   Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, MessageCircle
 } from 'lucide-react';
+import { LaPremiereSection } from '../components/LaPremiereSection';
+
+// Fix: pass api instance from context
 import { SKILL_TRANSLATIONS } from '../constants';
 import { LoadingSpinner } from '../components/ErrorBoundary';
 import { ReleaseCinematic } from '../components/ReleaseCinematic';
@@ -672,6 +675,11 @@ const FilmDetail = () => {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* La Prima (Premiere) Section */}
+          {film.type !== 'serie' && film.type !== 'anime' && (
+            <LaPremiereSection film={film} api={api} isOwner={isOwner} onUpdate={loadFilm} />
           )}
 
           {/* Cinema Distribution Section - Where the film is showing */}

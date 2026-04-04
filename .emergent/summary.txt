@@ -1,65 +1,59 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-L'utente ha originariamente richiesto il completamento del sistema La Prima (Step 7 e 8). Successivamente, ha richiesto il fix della build React su Railway (problemi di memoria e dipendenze ), la risoluzione di un errore 404 su refresh dell'app (SPA routing), e l'allineamento del database (il deploy Emergent puntava a un DB interno invece che ad Atlas). Infine, ha richiesto un rework completo e rigoroso della pipeline dei film ( →  →  →  →  →  →  → ), vietando i ritorni a fasi precedenti.
+<analysis>**original_problem_statement**: 
+L'utente ha richiesto inizialmente il completamento del sistema La Prima, fix della pipeline film e un pannello amministrativo avanzato. Nelle ultime iterazioni si è concentrato su:
+1. Fix generazione Avatar AI (timeout e visualizzazione URL).
+2. Manutenzione Database: Hard reset, importazione sicura e risoluzione di bug gravi sull'export che causavano crash di memoria.
+3. Creazione di un sistema di export via streaming in formato .
+4. Creazione di backup automatici leggeri () su ogni riavvio del server.
+5. Allineamento e sincronizzazione dati tra il database locale usato dall'istanza in produzione () e il MongoDB Atlas remoto, creando una UI a sottomenu esclusiva per l'ADMIN (NeoMorpheus).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Un'applicazione full-stack React + FastAPI + MongoDB. Il sistema La Prima (Premiere) è ora completo sia lato backend che frontend. La pipeline di produzione dei film è stata riscritta per seguire un flusso strettamente lineare (senza fallback). Il Dockerfile è stato ottimizzato per Railway. Il sistema di connessione al database è stato centralizzato in  imponendo l'uso rigoroso della variabile d'ambiente  senza hardcoded fallbacks per prevenire disallineamenti tra ambienti.
+Un'applicazione full-stack stabile (React + FastAPI + MongoDB). Il backend ora ha un robusto sistema di esportazione in streaming ZIP e caricamento file, bypassando i limiti di RAM. Esiste uno script di auto-backup () su startup. È presente una logica per differenziare il database locale da MongoDB Atlas, con funzionalità di Sync automatico (ogni 30 min) e manuale.
 
 **Last working item**: 
-    - Last item agent was working: Diagnosticare perché il deploy nativo di Emergent non riflettesse le ultime modifiche al codice e al DB. L'agente ha creato un endpoint  e ha scoperto (tramite screenshot dell'utente) che l'ambiente nativo Emergent inietta variabili d'ambiente proprie che sovrascrivono il codice. Ha istruito l'utente a configurare  e  manualmente nella Home tab della piattaforma Emergent.
-    - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: Y (su preview)
-    - Which testing method agent to use?: Frontend/Backend testing agent + manual validation
-    - User Testing Done: N (l'utente deve impostare le env vars nell'interfaccia e confermare)
+    - Last item agent was working: Ristrutturazione completa della  in  per creare un sottomenu dedicato (Dashboard, Import/Export, Sincronizzazione) e implementazione del job in background () per l'auto-sync dei dati dal DB locale a quello Atlas ogni 30 minuti.
+    - Status: TESTING PENDING
+    - Agent Testing Done: N (Le modifiche  sui file sono appena terminate, necessita verifica di build e screenshot).
+    - Which testing method agent to use?: Both (Frontend testing tramite screenshot per visualizzare i nuovi sottomenu; backend logs/curl per testare i nuovi endpoint  e l'APScheduler).
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: TV Series pipeline in loop infinito (P0)
-     - Attempted fixes: L'agente si è concentrato sul refactoring della pipeline dei film (), ma l'utente ha segnalato che Le serie TV restano in loop infinito. L'agente non ha ancora investigato la logica specifica delle serie TV per adattarla al nuovo flusso o correggere il loop.
-     - Next debug checklist: Controllare i file relativi alle serie TV (es.  o simili) e lo scheduler () per identificare dove le serie TV si bloccano. Verificare se usano i vecchi status o se mancano transizioni per uscire dal loop.
-     - Why fix this issue and what will be achieved with the fix?: Sbloccherà la progressione delle serie TV per i giocatori, evitando bug bloccanti nel gameplay.
-     - Status: NOT STARTED
+  Issue 1: Test e Validazione della nuova UI Gestione Database e Auto-Sync (P0)
+     - Attempted fixes: Modificati i file ,  e  per supportare UI a tab (Dashboard/Import-Export/Sync) e un job APScheduler per la sincronizzazione.
+     - Next debug checklist: Verificare che React compili senza errori (eseguire build check). Fare login come NeoMorpheus, navigare nel pannello Manutenzione -> Gestione Database e verificare visivamente i nuovi sottomenu tramite screenshot. Controllare backend logs per assicurarsi che il job  sia partito e non crashi.
+     - Why fix this issue and what will be achieved with the fix?: L'utente ha esplicitamente richiesto questi miglioramenti UI e il sync automatico per evitare la perdita di dati sul . Devono essere garantiti come funzionanti per concludere la richiesta.
+     - Status: TESTING PENDING
      - Is recurring issue?: N
      - Should Test frontend/backend/both after fix?: Both
-
-  Issue 2: 20 film posters are missing/returning 404 (P1)
-     - Attempted fixes: Investigato in sessioni precedenti, devono essere rigenerati via AI.
-     - Next debug checklist: Informare l'utente che devono essere rigenerati tramite la feature AI.
-     - Why fix this issue and what will be achieved with the fix?: Ripristina gli asset UI mancanti per i film legacy.
-     - Status: USER VERIFICATION PENDING
-     - Is recurring issue?: N
-     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-  Task 1: Riprendere Step 14 - Modularizzare GAME CORE endpoints (P1)
-     - Where to resume: Riprendere lo spostamento degli endpoint in , , e  non appena l'utente lo richiederà. 
-     - What will be achieved with this?: Continuazione del refactoring di .
+  Task 1: Modularizzare GAME CORE endpoints - Step 14 (P1)
+     - Where to resume:  (ancora oltre 17k righe). Spostare endpoint in , , ecc.
+     - What will be achieved with this?: Miglioramento netto della leggibilità e manutenibilità.
      - Status: PAUSED
-     - Should Test frontend/backend/both after fix?: Backend (via curl)
-     - Blocked on something: Attesa fine fix urgenti (pipeline e allineamento DB).
+     - Should Test frontend/backend/both after fix?: Backend
+     - Blocked on something: Nessuno
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P1) Modularizzare GAME CORE endpoints (continuazione).
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
-    - (P2) Contest Page Mobile Layout Is Broken.
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, RBAC, Eventi globali, Guerre tra Major, Velion AI Memory.
+    - (P2) Contest Page Mobile Layout Is Broken (Count: 16+).
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Completato UI Frontend per La Prima in  e verificato backend rules (DONE)
-- Ottimizzato  per build Railway (aggiunto  in dependencies, fix memory crash, configurato catch-all route in  per SPA 404 on refresh) (DONE)
-- Refactoring completo della Film Pipeline: nuovo flusso rigido  →  →  →  →  →  →  →  implementato in  (DONE)
-- Centralizzazione e blindatura della connessione MongoDB in  eliminando fallback hardcodati locali (DONE)
-- Creato endpoint  per verifica variabili ambiente in runtime (DONE)
+- Fix Generazione Avatar AI (modificato timeout axios da 12s a 120s e salvataggio URL automatico) (DONE)
+- Fix endpoint Export DB per evitare crash  causati dai file binari (DONE)
+- Refactor completo import/export DB: aggiunto streaming in formato  per export, e file upload via  per import (bypass limiti RAM 54MB) (DONE)
+- Creazione di  per auto-backup leggero () che conserva gli ultimi 5 backup ad ogni startup (DONE)
+- Sincronizzazione massiva e ripristino di 45 film mancanti dal MongoDB locale al MongoDB Atlas remoto (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   Issue 1: TV Series Pipeline Loop
-   - Debug checklist: Verificare l'avanzamento degli stati per le Serie TV dopo le recenti modifiche alla pipeline dei film. Controllare se le Serie TV utilizzano gli stessi endpoint dei film o logiche dedicate nello scheduler.
-   - Why to solve this issue and what will be achieved with this: Evita il blocco del gioco per i contenuti seriali.
-   - Should Test frontend/backend/both after fix: Entrambi
-   - Is recurring issue: N
+N/A (Le issue principali menzionate sulla perdita di dati sono state identificate come difformità tra il MongoDB locale di Emergent e il MongoDB Atlas esterno. Ora sono allineati).
 
 **Known issue recurrence from previous fork**
   - Contest Page Mobile Layout Is Broken
@@ -70,64 +64,68 @@ Un'applicazione full-stack React + FastAPI + MongoDB. Il sistema La Prima (Premi
 
 
 **Key Technical Concepts**
-FastAPI, React, MongoDB. Il build React viene gestito tramite un  custom con flag  per limiti di memoria. Le transizioni della pipeline ora sono strettamente sequenziali e definite in .
+- StreamingResponse FastAPI per prevenire OOM (Out Of Memory) durante i download grossi.
+- APScheduler per crons su background (Auto-backup, Auto-sync tra database).
+- File parsing diretto lato backend (gestione  per import).
+- Autorizzazioni RBAC molto restrittive in React e Backend:  ha accessi DB esclusivi bypassabili da tutti gli altri admin/co-admin.
 
 **key DB schema**
-  - :  (Gli status validi sono stati pesantemente modificati)
+  - Nessuna variazione sostanziale, ma la collection  include dati  binari che vanno esclusi (sanitize) dagli export/sync JSON standard.
 
 **changes in tech stack**
-  - Modifica alla configurazione  del frontend per includere forzatamente  (risolveva un bug della build), poi aggiornato ad  o rimosso l'override per evitare il crash di .
+  - Utilizzo esteso di  e  per stream management nativo.
 
-**All files of reference**
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+**All files of reference** 
+  -  (Estensivamente modificato)
   - 
   - 
   - 
 
 **Areas that need refactoring**
-  - Logica delle TV Series/Anime: probabile necessità di allineare gli step a quelli dei film per evitare il loop infinito segnalato dall'utente.
+  -  sta diventando eccessivamente massiccio e denso. La  potrebbe essere spostata in un componente isolato in .
+  -  richiede spezzettamento endpoint (Task modularizzazione monolite in pausa).
 
 **key api endpoints**
-  -  (Nuovo)
-  - Tutte le rotte in  (Fortemente modificate)
+  -  (Ora ritorna un file ZIP in streaming)
+  -  e  (Via UploadFile formData)
+  -  e  (Nuovi endpoint)
 
-**Critical Info for New Agent**
-  - Il deploy nativo di Emergent inietta le proprie variabili d'ambiente  e , bypassando  o fallback nel codice. L'utente DEVE impostare manualmente  per Atlas nella UI di Emergent per allineare i DB.
-  - L'agente ha modificato in modo radicale la pipeline dei film ( →  →  →  →  →  →  → ). L'utente lamenta però che (sul deploy attuale) mancano fasi Casting e Sponsor e le serie TV sono in loop. Verifica che queste modifiche non abbiano introdotto regressioni sulle serie TV.
-  - Non modificare il database e la UI. Concentrati su risolvere l'issue del loop sulle serie TV (se confermato nel codice aggiornato).
+**Critical Info for New Agent** 
+  - **DOPPIO DATABASE**: L'applicazione di produzione gira con un MongoDB locale mentre la preview usa MongoDB Atlas. Non confondere i due. Il backend riconosce a cosa è connesso e il pannello Admin indica chiaramente quale DB è attivo.
+  - L'ultima operazione effettuata nel backend/frontend è stato lo scaffolding dell'interfaccia UI a Sottomenu per l'AdminPage (Dashboard / Import-Export / Sincronizzazione) e il task in background per la sincronizzazione continua del DB locale verso Atlas. **Questo codice non è stato ancora visivamente validato o testato e-2-e**.
+  - Prima di procedere oltre, avvia una build check, controlla che non ci siano errori React (Hooks, missing imports) e fai degli screenshot. Assicurati che le tab DB Management appaiano solo se l'utente è NeoMorpheus.
+  - Non proporre nuovi task prima di aver validato quest'ultima implementazione in sospeso.
 
 **documents and test reports created in this job**
-  -  (Updated)
-  -  (Updated with Atlas verified password)
+  - Nessuno creato nell'ultima istanza (il precedente era ).
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. User: Richiede di rimuovere tutti i fallback in  e usare rigorosamente . Crashare se manca.
-2. Agent: Aggiorna . Avvia backend. Mostra che parte in preview.
-3. User: Chiede di verificare il  in preview vs deploy . Se diversi, forzare l'uso del .
-4. Agent: Crea endpoint  per diagnosticare il problema nel deploy.
-5. User: (Pending / Implied via screenshot) Carica screenshot di . L'utente nota che la Pipeline su  manca delle fasi Sponsor/Casting (codice non aggiornato) e le serie TV restano in loop infinito. Chiede di verificare che il codice deployato sia identico alla preview e sistemare il loop.
-6. Agent: Spiega all'utente che il deploy  usa il DB di default di Emergent perché il file env non basta. Chiede all'utente di aggiungere le env variables nella dashboard UI di Emergent.
+1. User: Chiede se l'import accetta file zip.
+2. Agent: Implementato il download in  e il parsing dei file  in fase di import.
+3. User: Chiede un riepilogo per creare un sistema per copiare dal DB locale in gioco al DB Atlas esterno per sincronizzarli.
+4. Agent: Pianifica la creazione di un sistema di Sync.
+5. User: Conferma. Scrivi bottoni in italiano.
+6. Agent: Implementa endpoints di sync e bottoni Invia a Atlas / Ricevi da Atlas.
+7. User: Chiede che tutto questo (il bonus login info e i sync) sia esclusivo per NeoMorpheus (ADMIN).
+8. Agent: Conferma.
+9. User: Chiede un design migliore a sottomenù (Dashboard, Import, Sync) visibile in alto a prescindere, con riepilogo dati.
+10. User: (PENDING HUMAN REQUEST) Conferma il design e chiede che il backend supporti l'AUTO-SYNC periodico: Il DB locale (gioco .it) deve sovrascrivere automaticamente il DB Atlas. Agent ha implementato questo, ma la sessione si è chiusa prima del test e validazione finale.
 
 **Project Health Check:**
-Broken (Deploy environments out of sync due to platform env var injection; TV Series reportedly stuck in pipeline loops).
+  - Frontend: Potrebbero esserci warning o errori ESLint pendenti in .
+  - Backend:  è stato appena modificato. Verificare i log supervisor per eventuali Crash su start.
 
-**3rd Party Integrations**
-  - Nessuna aggiunta in questa sessione.
+**3rd Party Integrations** 
+  - OpenAI GPT Image 1 — uses Emergent LLM Key. (Implementato e fixato per gli Avatar).
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Usato manuale / CURL / Screenshot tool intensivamente).
+  - Testing agent used after significant changes: NO (Utilizzato self-test via bash e screenshots fino all'ultima feature pendente).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: TV Series Pipeline (Potenziale loop infinito introdotto o non risolto dal refactor della pipeline film).
+  - Test files created: []
+  - Known regressions: Nessuna.
 
 **Credentials to test flow:**
-  - Vedi  (L'account di test principale  ha la password aggiornata per Atlas, non più la vecchia copia locale).
+  - Consultare  (Usare NeoMorpheus per testare tutto ciò che riguarda il Pannello DB Admin).
 
 **What agent forgot to execute**
-L'agente ha aggiornato  secondo le rigide regole richieste, ma l'utente ha menzionato esplicitamente nell'ultimo task Le serie TV restano in loop infinito. L'agente ha individuato la causa del disallineamento dei DB, ma **ha dimenticato di ispezionare il codice relativo alla pipeline delle Serie TV** per correggere o verificare l'esistenza del loop. Questo deve essere il prossimo step immediato.
-</handoff summary></analysis>
+L'agente non ha completato la fase finale di validazione (tramite test o screenshot) della complessa feature UI a Sottomenu (DbManagementCard in ) e dell'Auto-sync in  e . Questo è il punto di partenza (Issue 1) del nuovo agente. Non tralasciare di controllare se l'auto-sync effettivamente trigghera e se React compila senza crash.</analysis>

@@ -10110,10 +10110,26 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
+    # Log quale DB è connesso
+    mongo_url = os.environ.get("MONGO_URL", "")
+    is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
+    db_type = "ATLAS" if is_atlas else "LOCALE"
+    logging.info(f"[DB] Connesso a: {db_type} — DB: {os.environ.get('DB_NAME', 'cineworld')}")
+
     # Auto-backup DB su avvio
     import asyncio as _asyncio
     from utils.db_backup import create_backup
     _asyncio.create_task(create_backup())
+
+    # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
+    if not is_atlas:
+        from routes.maintenance import auto_sync_to_atlas
+        sync_scheduler = AsyncIOScheduler()
+        sync_scheduler.add_job(auto_sync_to_atlas, IntervalTrigger(minutes=30), id='auto_sync_atlas', replace_existing=True)
+        sync_scheduler.start()
+        logging.info("[AUTO-SYNC] Scheduler attivato: sync locale → Atlas ogni 30 minuti")
+    else:
+        logging.info("[AUTO-SYNC] Non necessario: DB corrente è già Atlas")
 
     pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===

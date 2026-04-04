@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -1013,164 +1013,277 @@ function DeletionsTab({ api }) {
 }
 
 /* ─── DB Management Card (rendered directly by AdminPage — bypasses prop issues) ─── */
-function DbManagementCard({ api }) {
+function DbManagementCard({ api, isAdmin }) {
+  const [subTab, setSubTab] = useState('dashboard');
   const [importFile, setImportFile] = useState(null);
   const [importFileName, setImportFileName] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [dbLoading, setDbLoading] = useState(null);
   const [dbResult, setDbResult] = useState(null);
+  const [syncInfo, setSyncInfo] = useState(null);
+  const [syncConfirm, setSyncConfirm] = useState('');
+
+  // Auto-load sync status on mount (longer timeout for cross-DB count)
+  useEffect(() => {
+    api.get('/admin/db/sync-status', { timeout: 60000 }).then(r => setSyncInfo(r.data)).catch(() => {});
+  }, []);
+
+  const refreshStatus = async () => {
+    setDbLoading('status');
+    try { const r = await api.get('/admin/db/sync-status', { timeout: 60000 }); setSyncInfo(r.data); }
+    catch { toast.error('Errore caricamento stato'); }
+    finally { setDbLoading(null); }
+  };
+
+  // Indicatore colorato
+  const getStatusColor = () => {
+    if (!syncInfo) return { bg: 'bg-gray-500/20', border: 'border-gray-500/30', text: 'text-gray-400', label: 'Caricamento...' };
+    if (!syncInfo.atlas?.connesso) return { bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', label: 'Atlas non raggiungibile' };
+    if (syncInfo.sincronizzati) return { bg: 'bg-green-500/15', border: 'border-green-500/30', text: 'text-green-400', label: 'Sincronizzati' };
+    return { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', label: 'Non sincronizzati' };
+  };
+  const sc = getStatusColor();
+
+  const SUB_TABS = [
+    { id: 'dashboard', label: 'Stato DB' },
+    { id: 'backup', label: 'Backup / Import' },
+    { id: 'sync', label: 'Sincronizzazione' },
+  ];
 
   return (
-    <Card className="bg-[#111113] border-indigo-500/30" data-testid="db-management-card">
-      <CardHeader className="pb-2">
+    <Card className="bg-[#111113] border-indigo-500/30 mt-3" data-testid="db-management-card">
+      <CardHeader className="pb-1">
         <CardTitle className="text-sm text-indigo-400 flex items-center gap-2">
-          <Wrench className="w-4 h-4" />
-          Gestione Database
+          <Wrench className="w-4 h-4" /> Gestione Database
         </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-gray-400">Esporta, importa (safe) o resetta (hard) il database completo.</p>
-
-        {/* EXPORT */}
-        <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
-          disabled={dbLoading === 'export'}
-          data-testid="db-export-btn"
-          onClick={async () => {
-            setDbLoading('export');
-            setDbResult(null);
-            try {
-              const token = localStorage.getItem('cineworld_token');
-              const backendUrl = process.env.REACT_APP_BACKEND_URL;
-              const downloadUrl = `${backendUrl}/api/admin/db/download-backup?token=${token}`;
-              window.open(downloadUrl, '_blank');
-              toast.success('Download backup avviato!');
-            } catch (e) { toast.error('Errore avvio download'); }
-            finally { setDbLoading(null); }
-          }}>
-          {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
-          Scarica Backup
-        </Button>
-
-        {dbResult?.type === 'export' && (
-          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-2 text-[10px] text-indigo-300">
-            Esportati: {Object.entries(dbResult.counts).map(([k,v]) => `${k}: ${v}`).join(' | ')}
-          </div>
-        )}
-
-        {/* TEXTAREA JSON */}
-        <div className="w-full">
-          <input
-            type="file"
-            accept=".json,.zip"
-            id="db-import-file"
-            className="hidden"
-            data-testid="db-import-file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              setImportFile(file);
-              setImportFileName(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
-              toast.success(`File selezionato: ${file.name}`);
-            }}
-          />
-          <label htmlFor="db-import-file">
-            <Button
-              type="button"
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold cursor-pointer"
-              disabled={dbLoading === 'reading'}
-              onClick={() => document.getElementById('db-import-file').click()}
-              data-testid="db-import-file-btn"
-            >
-              <Upload className="w-3 h-3 mr-1" />
-              {dbLoading === 'reading' ? 'Caricamento...' : importFileName ? `${importFileName}` : 'Carica file (.json / .zip)'}
-            </Button>
-          </label>
+        {/* SOTTOMENU */}
+        <div className="flex gap-1 mt-2">
+          {SUB_TABS.map(t => (
+            <button key={t.id} onClick={() => setSubTab(t.id)}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${subTab === t.id ? 'bg-indigo-600 text-white' : 'bg-[#1a1a1d] text-gray-400 hover:text-white hover:bg-[#222]'}`}
+              data-testid={`db-subtab-${t.id}`}
+            >{t.label}</button>
+          ))}
         </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-2">
 
-        {/* IMPORT SAFE */}
-        <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
-          disabled={dbLoading === 'import-safe' || !importFile}
-          data-testid="db-import-safe-btn"
-          onClick={async () => {
-            setDbLoading('import-safe');
-            setDbResult(null);
-            try {
-              const formData = new FormData();
-              formData.append('file', importFile);
-              const res = await api.post('/admin/db/import-file-safe', formData, {
-                timeout: 300000,
-                headers: { 'Content-Type': 'multipart/form-data' }
-              });
-              toast.success('Import safe completato');
-              setDbResult({ type: 'import-safe', stats: res.data.stats });
-            } catch (e) {
-              toast.error(e.response?.data?.detail || 'Errore import');
-            }
-            finally { setDbLoading(null); }
-          }}>
-          {dbLoading === 'import-safe' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
-          Import Safe (upsert)
-        </Button>
-
-        {dbResult?.type === 'import-safe' && dbResult.stats && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-[10px] text-emerald-300 space-y-0.5">
-            {Object.entries(dbResult.stats).map(([k,v]) => (
-              <p key={k}>{k}: +{v.inserted} inseriti, ~{v.updated} aggiornati, -{v.skipped} saltati</p>
-            ))}
+        {/* ━━━ HEADER STATO SEMPRE VISIBILE ━━━ */}
+        <div className={`${sc.bg} border ${sc.border} rounded-lg p-3`}>
+          <div className="flex items-center justify-between mb-2">
+            <p className={`text-xs font-bold ${sc.text} flex items-center gap-1.5`}>
+              <span className={`w-2 h-2 rounded-full ${sc.text === 'text-green-400' ? 'bg-green-400' : sc.text === 'text-yellow-400' ? 'bg-yellow-400' : sc.text === 'text-red-400' ? 'bg-red-400' : 'bg-gray-400'} animate-pulse`} />
+              {sc.label}
+            </p>
+            <button onClick={refreshStatus} disabled={dbLoading === 'status'} className="text-gray-500 hover:text-white transition-colors" data-testid="refresh-status-btn">
+              <RefreshCw className={`w-3.5 h-3.5 ${dbLoading === 'status' ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-        )}
-
-        {/* IMPORT HARD SEPARATOR */}
-        <div className="border-t border-red-500/20 pt-3 mt-2">
-          <p className="text-[10px] text-red-400 font-bold mb-2 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" /> Hard Reset — Cancella e reimporta tutto
-          </p>
-          <input
-            type="text"
-            placeholder='Scrivi CONFERMO per procedere'
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            className="w-full bg-black/60 text-red-400 text-xs border border-red-500/30 p-2 rounded-lg placeholder-red-800 focus:border-red-500/60 focus:outline-none"
-            data-testid="db-hard-confirm-input"
-          />
-          <Button className="w-full mt-2 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold"
-            disabled={dbLoading === 'import-hard' || !importFile || confirmText !== 'CONFERMO'}
-            data-testid="db-import-hard-btn"
-            onClick={async () => {
-              if (confirmText !== 'CONFERMO') { toast.error('Devi scrivere CONFERMO'); return; }
-              setDbLoading('import-hard');
-              setDbResult(null);
-              try {
-                const formData = new FormData();
-                formData.append('file', importFile);
-                const res = await api.post('/admin/db/import-file-hard?confirm=CONFERMO', formData, {
-                  timeout: 300000,
-                  headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                toast.success('Import HARD completato');
-                setDbResult({ type: 'import-hard', stats: res.data.stats });
-                setConfirmText('');
-              } catch (e) {
-                toast.error(e.response?.data?.detail || 'Errore import hard');
-              }
-              finally { setDbLoading(null); }
-            }}>
-            {dbLoading === 'import-hard' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
-            Import HARD (reset)
-          </Button>
-
-          {dbResult?.type === 'import-hard' && dbResult.stats && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-2 text-[10px] text-red-300 space-y-0.5">
-              <p className="font-bold">Reset completato:</p>
-              {Object.entries(dbResult.stats).map(([k,v]) => (
-                <p key={k}>{k}: {v.deleted} eliminati, {v.inserted} reinseriti</p>
-              ))}
-              {dbResult.backup && (
-                <p className="text-gray-500 mt-1">Backup: {Object.entries(dbResult.backup).map(([k,v]) => `${k}: ${v}`).join(' | ')}</p>
-              )}
+          {syncInfo && (
+            <div className="grid grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-black/30 rounded-md p-2">
+                <p className="text-gray-500 mb-1 font-semibold">DB Corrente ({syncInfo.db_corrente?.tipo})</p>
+                <p className="text-white">{syncInfo.db_corrente?.films} Film | {syncInfo.db_corrente?.film_projects} Progetti</p>
+                <p className="text-white">{syncInfo.db_corrente?.tv_series} Serie | {syncInfo.db_corrente?.film_drafts} Bozze</p>
+                <p className="text-white">{syncInfo.db_corrente?.users} Utenti | {syncInfo.db_corrente?.documenti_totali} Tot</p>
+              </div>
+              <div className="bg-black/30 rounded-md p-2">
+                <p className="text-gray-500 mb-1 font-semibold">Atlas {syncInfo.atlas?.connesso ? '' : '(offline)'}</p>
+                <p className="text-white">{syncInfo.atlas?.films} Film | {syncInfo.atlas?.film_projects} Progetti</p>
+                <p className="text-white">{syncInfo.atlas?.tv_series} Serie | {syncInfo.atlas?.film_drafts} Bozze</p>
+                <p className="text-white">{syncInfo.atlas?.users} Utenti | {syncInfo.atlas?.documenti_totali} Tot</p>
+              </div>
             </div>
           )}
+          {syncInfo?.auto_sync && (
+            <p className="text-[9px] text-gray-500 mt-2">
+              Auto-sync: {syncInfo.auto_sync.attivo ? `Attivo (ogni ${syncInfo.auto_sync.intervallo_minuti} min)` : 'Non necessario (gia su Atlas)'}
+              {syncInfo.auto_sync.ultimo_sync && ` | Ultimo: ${new Date(syncInfo.auto_sync.ultimo_sync).toLocaleString('it-IT')}`}
+              {syncInfo.auto_sync.ultimo_errore && <span className="text-red-400"> | Errore: {syncInfo.auto_sync.ultimo_errore}</span>}
+            </p>
+          )}
         </div>
+
+        {/* ━━━ SUB-TAB: STATO DB (dashboard dettagliata) ━━━ */}
+        {subTab === 'dashboard' && syncInfo && (
+          <div className="space-y-2 text-[10px]">
+            <p className="text-xs text-gray-300 font-semibold">Dettaglio collection con dati</p>
+            <div className="bg-black/30 rounded-lg p-2 max-h-56 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-1 sticky top-0 bg-black/80 pb-1 mb-1 border-b border-gray-800">
+                <p className="text-gray-500 font-bold">Collection</p>
+                <p className="text-gray-500 font-bold text-center">Corrente</p>
+                <p className="text-gray-500 font-bold text-center">Atlas</p>
+              </div>
+              {(() => {
+                const localD = syncInfo.db_corrente?.dettaglio || {};
+                const atlasD = syncInfo.atlas?.dettaglio || {};
+                const allKeys = [...new Set([...Object.keys(localD), ...Object.keys(atlasD)])].sort();
+                if (allKeys.length === 0) return <p className="text-gray-600 col-span-3">Nessun dato disponibile</p>;
+                return allKeys.map(k => {
+                  const lv = localD[k] || 0;
+                  const av = atlasD[k] || 0;
+                  const diff = lv !== av;
+                  return (
+                    <div key={k} className={`grid grid-cols-3 gap-1 py-0.5 ${diff ? 'bg-yellow-500/5' : ''}`}>
+                      <p className="text-gray-400 truncate">{k}</p>
+                      <p className="text-white text-center">{lv}</p>
+                      <p className={`text-center ${diff ? 'text-yellow-400 font-bold' : 'text-white'}`}>{av}</p>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+            <p className="text-[9px] text-gray-600">Clicca "Aggiorna" in alto a destra per i dati aggiornati. Le righe gialle indicano differenze.</p>
+          </div>
+        )}
+
+        {/* ━━━ SUB-TAB: BACKUP / IMPORT ━━━ */}
+        {subTab === 'backup' && (
+          <div className="space-y-3">
+            {/* EXPORT */}
+            <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
+              disabled={dbLoading === 'export'} data-testid="db-export-btn"
+              onClick={async () => {
+                setDbLoading('export');
+                try {
+                  const token = localStorage.getItem('cineworld_token');
+                  const backendUrl = process.env.REACT_APP_BACKEND_URL;
+                  window.open(`${backendUrl}/api/admin/db/download-backup?token=${token}`, '_blank');
+                  toast.success('Download backup .zip avviato!');
+                } catch (e) { toast.error('Errore avvio download'); }
+                finally { setDbLoading(null); }
+              }}>
+              {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+              Scarica Backup (.zip)
+            </Button>
+
+            {/* FILE PICKER */}
+            <div className="w-full">
+              <input type="file" accept=".json,.zip" id="db-import-file" className="hidden" data-testid="db-import-file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setImportFile(file);
+                  setImportFileName(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+                  toast.success(`File selezionato: ${file.name}`);
+                }} />
+              <Button type="button" className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold cursor-pointer"
+                onClick={() => document.getElementById('db-import-file').click()} data-testid="db-import-file-btn">
+                <Upload className="w-3 h-3 mr-1" />
+                {importFileName || 'Carica file (.json / .zip)'}
+              </Button>
+            </div>
+
+            {/* IMPORT SAFE */}
+            <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
+              disabled={dbLoading === 'import-safe' || !importFile} data-testid="db-import-safe-btn"
+              onClick={async () => {
+                setDbLoading('import-safe'); setDbResult(null);
+                try {
+                  const fd = new FormData(); fd.append('file', importFile);
+                  const res = await api.post('/admin/db/import-file-safe', fd, { timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } });
+                  toast.success('Import safe completato');
+                  setDbResult({ type: 'import-safe', stats: res.data.stats }); refreshStatus();
+                } catch (e) { toast.error(e.response?.data?.detail || 'Errore import'); }
+                finally { setDbLoading(null); }
+              }}>
+              {dbLoading === 'import-safe' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+              Import Safe (upsert)
+            </Button>
+
+            {dbResult?.type === 'import-safe' && dbResult.stats && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-[10px] text-emerald-300 space-y-0.5">
+                {Object.entries(dbResult.stats).map(([k,v]) => (
+                  <p key={k}>{k}: +{v.inserted} inseriti, ~{v.updated} aggiornati, -{v.skipped} saltati</p>
+                ))}
+              </div>
+            )}
+
+            {/* IMPORT HARD */}
+            <div className="border-t border-red-500/20 pt-3">
+              <p className="text-[10px] text-red-400 font-bold mb-2 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Hard Reset — Cancella e reimporta tutto
+              </p>
+              <input type="text" placeholder='Scrivi CONFERMO per procedere' value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                className="w-full bg-black/60 text-red-400 text-xs border border-red-500/30 p-2 rounded-lg placeholder-red-800 focus:border-red-500/60 focus:outline-none"
+                data-testid="db-hard-confirm-input" />
+              <Button className="w-full mt-2 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold"
+                disabled={dbLoading === 'import-hard' || !importFile || confirmText !== 'CONFERMO'} data-testid="db-import-hard-btn"
+                onClick={async () => {
+                  setDbLoading('import-hard'); setDbResult(null);
+                  try {
+                    const fd = new FormData(); fd.append('file', importFile);
+                    const res = await api.post('/admin/db/import-file-hard?confirm=CONFERMO', fd, { timeout: 300000, headers: { 'Content-Type': 'multipart/form-data' } });
+                    toast.success('Import HARD completato');
+                    setDbResult({ type: 'import-hard', stats: res.data.stats }); setConfirmText(''); refreshStatus();
+                  } catch (e) { toast.error(e.response?.data?.detail || 'Errore import hard'); }
+                  finally { setDbLoading(null); }
+                }}>
+                {dbLoading === 'import-hard' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                Import HARD (reset)
+              </Button>
+
+              {dbResult?.type === 'import-hard' && dbResult.stats && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-2 text-[10px] text-red-300 space-y-0.5">
+                  <p className="font-bold">Reset completato:</p>
+                  {Object.entries(dbResult.stats).map(([k,v]) => (
+                    <p key={k}>{k}: {v.deleted} eliminati, {v.inserted} reinseriti</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ━━━ SUB-TAB: SINCRONIZZAZIONE ━━━ */}
+        {subTab === 'sync' && (
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Button className="flex-1 bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold"
+                disabled={!!dbLoading || syncConfirm !== 'CONFERMO'} data-testid="sync-to-atlas-btn"
+                onClick={async () => {
+                  setDbLoading('sync-to');
+                  try {
+                    const res = await api.post('/admin/db/sync-to-atlas', { confirm: 'CONFERMO' }, { timeout: 300000 });
+                    toast.success(`Inviati a Atlas: ${res.data.documenti_copiati} documenti`);
+                    setSyncConfirm(''); refreshStatus();
+                  } catch (e) { toast.error(e.response?.data?.detail || 'Errore sync'); }
+                  finally { setDbLoading(null); }
+                }}>
+                {dbLoading === 'sync-to' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
+                Invia a Atlas
+              </Button>
+
+              <Button className="flex-1 bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold"
+                disabled={!!dbLoading || syncConfirm !== 'CONFERMO'} data-testid="sync-from-atlas-btn"
+                onClick={async () => {
+                  setDbLoading('sync-from');
+                  try {
+                    const res = await api.post('/admin/db/sync-from-atlas', { confirm: 'CONFERMO' }, { timeout: 300000 });
+                    toast.success(`Ricevuti da Atlas: ${res.data.documenti_copiati} documenti`);
+                    setSyncConfirm(''); refreshStatus();
+                  } catch (e) { toast.error(e.response?.data?.detail || 'Errore sync'); }
+                  finally { setDbLoading(null); }
+                }}>
+                {dbLoading === 'sync-from' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+                Ricevi da Atlas
+              </Button>
+            </div>
+
+            <input placeholder="Scrivi CONFERMO per abilitare sync" value={syncConfirm}
+              onChange={(e) => setSyncConfirm(e.target.value)}
+              className="w-full bg-black/60 text-white text-xs border border-gray-700 p-2 rounded-lg placeholder-gray-600 focus:border-cyan-500/50 focus:outline-none"
+              data-testid="sync-confirm-input" />
+
+            <div className="text-[10px] text-gray-500 space-y-1 bg-black/20 rounded-lg p-2">
+              <p><span className="text-blue-400 font-semibold">Invia a Atlas</span> — Copia tutto dal DB corrente verso il tuo Atlas</p>
+              <p><span className="text-purple-400 font-semibold">Ricevi da Atlas</span> — Copia tutto da Atlas nel DB corrente</p>
+              <p className="text-gray-600">NeoMorpheus viene preservato su entrambi i lati.</p>
+            </div>
+          </div>
+        )}
+
       </CardContent>
     </Card>
   );
@@ -1248,7 +1361,7 @@ export default function AdminPage() {
         {activeTab === 'reports' && <ReportsTab api={api} />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
-        {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} />}
+        {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
       </div>
     </div>
   );

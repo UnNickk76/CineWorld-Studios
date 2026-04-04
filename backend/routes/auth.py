@@ -587,3 +587,74 @@ async def update_user_avatar(avatar_data: AvatarUpdate, user: dict = Depends(get
     )
     updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
     return updated_user
+
+
+# ==================== GUEST LOGIN ====================
+
+@router.post("/auth/guest-login")
+async def guest_login(request: dict):
+    nickname = request.get("nickname")
+
+    if not nickname or len(nickname.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Nickname non valido")
+
+    # Controllo nickname unico
+    existing = await db.users.find_one({"nickname": nickname})
+    if existing:
+        raise HTTPException(status_code=400, detail="Nickname già in uso")
+
+    avatar_url = generate_default_avatar(nickname, 'other')
+
+    user_data = {
+        "id": str(uuid.uuid4()),
+        "nickname": nickname,
+        "email": None,
+        "password": None,
+        "is_guest": True,
+        "production_house_name": f"{nickname} Studios",
+        "owner_name": nickname,
+        "language": "it",
+        "age": 18,
+        "gender": "other",
+        "avatar_url": avatar_url,
+        "avatar_id": "generated",
+        "avatar_source": "auto",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_active": datetime.now(timezone.utc).isoformat(),
+        "likeability_score": 50.0,
+        "interaction_score": 50.0,
+        "character_score": 50.0,
+        "total_likes_given": 0,
+        "total_likes_received": 0,
+        "messages_sent": 0,
+        "daily_challenges": {},
+        "weekly_challenges": {},
+        "mini_game_cooldowns": {},
+        "mini_game_sessions": {},
+        "funds": 10000000.0,
+        "cinepass": 100,
+        "fame": 0,
+        "total_xp": 0,
+        "total_lifetime_revenue": 0,
+        "leaderboard_score": 0,
+        "level": 0,
+        "accept_offline_challenges": True,
+        "login_streak": 0,
+        "last_streak_date": None,
+        "role": "USER",
+        "deletion_status": "none",
+    }
+
+    await db.users.insert_one(user_data)
+
+    token = create_token(user_data["id"])
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_data["id"],
+            "username": nickname,
+            "is_guest": True
+        }
+    }

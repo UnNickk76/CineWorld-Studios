@@ -48,6 +48,12 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 - Rimossa protezione NeoMorpheus nel sync (causava mancato aggiornamento soldi/crediti)
 - Ora "Invia a Atlas" e "Ricevi da Atlas" copiano TUTTO fedelmente, incluso NeoMorpheus
 
+### Guest Login (4 Apr 2026) — COMPLETATO
+- Creato `models/user.py` con campo `is_guest: bool = False`
+- Endpoint `POST /api/auth/guest-login` in `routes/auth.py`
+- Accesso rapido con solo nickname, genera user completo con valori base gioco
+- Validazione nickname (min 3 char) e unicità
+
 ## File Chiave
 - `/app/backend/server.py` — Main server (17k+ righe, da modularizzare)
 - `/app/backend/routes/maintenance.py` — DB management, sync, export/import

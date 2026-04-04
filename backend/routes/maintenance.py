@@ -1,7 +1,7 @@
 # CineWorld Studio's - Advanced Maintenance System
 # Diagnose and fix stuck/broken/looping projects for films, series, anime
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone, timedelta
 from database import db
@@ -573,6 +573,92 @@ async def download_backup(token: str = Query(..., description="JWT token per aut
         headers={"Content-Disposition": f'attachment; filename="backup_{timestamp}.json"'}
     )
 
+
+
+
+@router.post("/admin/db/import-file-safe")
+async def import_file_safe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Import DB da file JSON upload — upsert senza cancellare (ADMIN only)."""
+    require_admin(user)
+    content = await file.read()
+    try:
+        raw = json.loads(content)
+    except Exception:
+        raise HTTPException(status_code=400, detail="File JSON non valido")
+
+    data = raw.get("data", raw)
+    stats = {}
+    for coll_name, docs in data.items():
+        if not isinstance(docs, list):
+            continue
+        logging.info(f"[IMPORT-FILE-SAFE] {coll_name}: {len(docs)} docs")
+        inserted, updated, skipped = 0, 0, 0
+        for doc in docs:
+            doc_id = doc.get('id')
+            if not doc_id:
+                skipped += 1
+                continue
+            if coll_name == 'users' and doc.get('nickname') == ADMIN_NICKNAME:
+                skipped += 1
+                continue
+            doc.pop('_id', None)
+            existing = await db[coll_name].find_one({'id': doc_id}, {'_id': 0, 'id': 1})
+            if existing:
+                await db[coll_name].update_one({'id': doc_id}, {'$set': doc})
+                updated += 1
+            else:
+                await db[coll_name].insert_one(doc)
+                inserted += 1
+        stats[coll_name] = {'inserted': inserted, 'updated': updated, 'skipped': skipped}
+    return {'success': True, 'stats': stats}
+
+
+@router.post("/admin/db/import-file-hard")
+async def import_file_hard(file: UploadFile = File(...), confirm: str = Query(...), user: dict = Depends(get_current_user)):
+    """Hard reset da file JSON upload — cancella e reimporta (ADMIN only)."""
+    require_admin(user)
+    if confirm != 'CONFERMO':
+        raise HTTPException(status_code=400, detail="Conferma richiesta: ?confirm=CONFERMO")
+
+    content = await file.read()
+    try:
+        raw = json.loads(content)
+    except Exception:
+        raise HTTPException(status_code=400, detail="File JSON non valido")
+
+    data = raw.get("data", raw)
+    neo_user = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+
+    stats = {}
+    for coll_name, docs in data.items():
+        if not isinstance(docs, list):
+            continue
+        clean_docs = []
+        for d in docs:
+            if not isinstance(d, dict):
+                continue
+            d.pop('_id', None)
+            if coll_name == 'users' and d.get('nickname') == ADMIN_NICKNAME:
+                continue
+            clean_docs.append(d)
+
+        del_result = await db[coll_name].delete_many({})
+        deleted = del_result.deleted_count
+
+        inserted = 0
+        if coll_name == 'users' and neo_user:
+            neo_copy = {k: v for k, v in neo_user.items() if k != '_id'}
+            await db[coll_name].insert_one(neo_copy)
+            inserted += 1
+
+        if clean_docs:
+            await db[coll_name].insert_many(clean_docs)
+            inserted += len(clean_docs)
+
+        stats[coll_name] = {'deleted': deleted, 'inserted': inserted}
+        logging.info(f"[IMPORT-FILE-HARD] {coll_name}: {deleted} deleted, {inserted} inserted")
+
+    return {'success': True, 'stats': stats}
 
 
 @router.post("/admin/db/import-safe")

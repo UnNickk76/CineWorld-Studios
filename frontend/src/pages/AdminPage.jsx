@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -1019,6 +1019,8 @@ function DbManagementCard({ api }) {
   const [confirmText, setConfirmText] = useState('');
   const [dbLoading, setDbLoading] = useState(null);
   const [dbResult, setDbResult] = useState(null);
+  const [syncInfo, setSyncInfo] = useState(null);
+  const [syncConfirm, setSyncConfirm] = useState('');
 
   return (
     <Card className="bg-[#111113] border-indigo-500/30" data-testid="db-management-card">
@@ -1170,6 +1172,85 @@ function DbManagementCard({ api }) {
               )}
             </div>
           )}
+        </div>
+
+        {/* ─── SINCRONIZZAZIONE ATLAS ─── */}
+        <div className="border-t border-gray-700 pt-3 mt-3 space-y-2">
+          <p className="text-[11px] text-cyan-400 font-bold flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" /> Sincronizzazione Atlas
+          </p>
+
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-semibold"
+              disabled={!!dbLoading}
+              data-testid="sync-status-btn"
+              onClick={async () => {
+                setDbLoading('sync-status');
+                setSyncInfo(null);
+                try {
+                  const res = await api.get('/admin/db/sync-status');
+                  setSyncInfo(res.data);
+                } catch (e) { toast.error('Errore verifica stato'); }
+                finally { setDbLoading(null); }
+              }}>
+              {dbLoading === 'sync-status' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Eye className="w-3 h-3 mr-1" />}
+              Stato Sync
+            </Button>
+          </div>
+
+          {syncInfo && (
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-2 text-[10px] text-cyan-200 space-y-1">
+              <p><span className="text-gray-400">DB corrente:</span> {syncInfo.db_corrente?.tipo} — {syncInfo.db_corrente?.documenti_totali} doc, {syncInfo.db_corrente?.films} film, {syncInfo.db_corrente?.users} utenti</p>
+              <p><span className="text-gray-400">Atlas:</span> {syncInfo.atlas?.connesso ? '' : '(Non connesso) '}{syncInfo.atlas?.documenti_totali} doc, {syncInfo.atlas?.films} film, {syncInfo.atlas?.users} utenti</p>
+              <p className={syncInfo.sincronizzati ? 'text-green-400' : 'text-yellow-400'}>
+                {syncInfo.sincronizzati ? 'Sincronizzati' : 'Non sincronizzati'}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold"
+              disabled={!!dbLoading || syncConfirm !== 'CONFERMO'}
+              data-testid="sync-to-atlas-btn"
+              onClick={async () => {
+                setDbLoading('sync-to');
+                try {
+                  const res = await api.post('/admin/db/sync-to-atlas', { confirm: 'CONFERMO' }, { timeout: 300000 });
+                  toast.success(`Sincronizzato verso Atlas: ${res.data.documenti_copiati} documenti`);
+                  setSyncInfo(null);
+                  setSyncConfirm('');
+                } catch (e) { toast.error(e.response?.data?.detail || 'Errore sync'); }
+                finally { setDbLoading(null); }
+              }}>
+              {dbLoading === 'sync-to' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
+              Invia a Atlas
+            </Button>
+
+            <Button className="flex-1 bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold"
+              disabled={!!dbLoading || syncConfirm !== 'CONFERMO'}
+              data-testid="sync-from-atlas-btn"
+              onClick={async () => {
+                setDbLoading('sync-from');
+                try {
+                  const res = await api.post('/admin/db/sync-from-atlas', { confirm: 'CONFERMO' }, { timeout: 300000 });
+                  toast.success(`Sincronizzato da Atlas: ${res.data.documenti_copiati} documenti`);
+                  setSyncInfo(null);
+                  setSyncConfirm('');
+                } catch (e) { toast.error(e.response?.data?.detail || 'Errore sync'); }
+                finally { setDbLoading(null); }
+              }}>
+              {dbLoading === 'sync-from' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+              Ricevi da Atlas
+            </Button>
+          </div>
+
+          <input
+            placeholder="Scrivi CONFERMO per abilitare sync"
+            value={syncConfirm}
+            onChange={(e) => setSyncConfirm(e.target.value)}
+            className="w-full bg-black/60 text-white text-xs border border-gray-700 p-2 rounded-lg placeholder-gray-600 focus:border-cyan-500/50 focus:outline-none"
+            data-testid="sync-confirm-input"
+          />
         </div>
       </CardContent>
     </Card>

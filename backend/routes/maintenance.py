@@ -6,12 +6,16 @@ from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import get_current_user, require_co_admin, require_admin, log_admin_action, ADMIN_NICKNAME
+from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 import json
 import io
 import zipfile
 import tempfile
 import os
+
+ATLAS_MONGO_URL = os.getenv("ATLAS_MONGO_URL")
+ATLAS_DB_NAME = os.getenv("ATLAS_DB_NAME", "cineworld")
 
 router = APIRouter()
 
@@ -999,4 +1003,196 @@ async def fix_all_projects(user: dict = Depends(get_current_user)):
             'previous_step_fixed': sum(consistency_report['missing_previous_step_fixed'].values()),
             'projects_auto_fixed': sum(len(v) for v in auto_fix_report.values()),
         }
+    }
+
+
+# ==================== SINCRONIZZAZIONE DB ====================
+
+EXCLUDED_SYNC_FIELDS = {'poster_blob', 'image_data', 'file_bytes', 'binary'}
+
+
+def _clean_doc(doc):
+    """Rimuovi _id e campi binari pesanti."""
+    doc.pop('_id', None)
+    for field in EXCLUDED_SYNC_FIELDS:
+        doc.pop(field, None)
+    return doc
+
+
+@router.post("/admin/db/sync-to-atlas")
+async def sync_to_atlas(payload: dict, user: dict = Depends(get_current_user)):
+    """Sincronizza DB corrente → Atlas. Copia TUTTO dal DB locale ad Atlas (ADMIN only)."""
+    require_admin(user)
+
+    if payload.get('confirm') != 'CONFERMO':
+        raise HTTPException(status_code=400, detail="Conferma richiesta")
+
+    if not ATLAS_MONGO_URL:
+        raise HTTPException(status_code=500, detail="ATLAS_MONGO_URL non configurato nel .env")
+
+    atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL)
+    atlas_db = atlas_client[ATLAS_DB_NAME]
+
+    # Salva NeoMorpheus da Atlas (per preservare le sue credenziali Atlas)
+    neo_atlas = await atlas_db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+
+    collections = await db.list_collection_names()
+    collections = [c for c in collections if not c.startswith('system.')]
+
+    stats = {}
+    for coll_name in sorted(collections):
+        # Leggi dal DB corrente
+        docs = []
+        async for doc in db[coll_name].find({}):
+            docs.append(_clean_doc(doc))
+
+        # Cancella su Atlas e reinserisci
+        del_result = await atlas_db[coll_name].delete_many({})
+        deleted = del_result.deleted_count
+
+        inserted = 0
+        # Per users: reinserisci NeoMorpheus Atlas prima
+        if coll_name == 'users' and neo_atlas:
+            neo_copy = {k: v for k, v in neo_atlas.items() if k != '_id'}
+            await atlas_db[coll_name].insert_one(neo_copy)
+            inserted += 1
+            # Rimuovi NeoMorpheus dai docs importati per evitare duplicato
+            docs = [d for d in docs if d.get('nickname') != ADMIN_NICKNAME]
+
+        if docs:
+            await atlas_db[coll_name].insert_many(docs)
+            inserted += len(docs)
+
+        stats[coll_name] = {'copiati': inserted, 'eliminati_atlas': deleted}
+        logging.info(f"[SYNC→ATLAS] {coll_name}: {deleted} eliminati, {inserted} inseriti")
+
+    atlas_client.close()
+
+    total_docs = sum(s['copiati'] for s in stats.values())
+    return {
+        'success': True,
+        'direzione': 'DB corrente → Atlas',
+        'collection_sincronizzate': len(stats),
+        'documenti_copiati': total_docs,
+        'stats': stats,
+    }
+
+
+@router.post("/admin/db/sync-from-atlas")
+async def sync_from_atlas(payload: dict, user: dict = Depends(get_current_user)):
+    """Sincronizza Atlas → DB corrente. Copia TUTTO da Atlas al DB locale (ADMIN only)."""
+    require_admin(user)
+
+    if payload.get('confirm') != 'CONFERMO':
+        raise HTTPException(status_code=400, detail="Conferma richiesta")
+
+    if not ATLAS_MONGO_URL:
+        raise HTTPException(status_code=500, detail="ATLAS_MONGO_URL non configurato nel .env")
+
+    atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL)
+    atlas_db = atlas_client[ATLAS_DB_NAME]
+
+    # Salva NeoMorpheus locale (per preservare le sue credenziali locali)
+    neo_local = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+
+    collections = await atlas_db.list_collection_names()
+    collections = [c for c in collections if not c.startswith('system.')]
+
+    stats = {}
+    for coll_name in sorted(collections):
+        # Leggi da Atlas
+        docs = []
+        async for doc in atlas_db[coll_name].find({}):
+            docs.append(_clean_doc(doc))
+
+        # Cancella locale e reinserisci
+        del_result = await db[coll_name].delete_many({})
+        deleted = del_result.deleted_count
+
+        inserted = 0
+        # Per users: reinserisci NeoMorpheus locale prima
+        if coll_name == 'users' and neo_local:
+            neo_copy = {k: v for k, v in neo_local.items() if k != '_id'}
+            await db[coll_name].insert_one(neo_copy)
+            inserted += 1
+            docs = [d for d in docs if d.get('nickname') != ADMIN_NICKNAME]
+
+        if docs:
+            await db[coll_name].insert_many(docs)
+            inserted += len(docs)
+
+        stats[coll_name] = {'copiati': inserted, 'eliminati_locale': deleted}
+        logging.info(f"[SYNC←ATLAS] {coll_name}: {deleted} eliminati, {inserted} inseriti")
+
+    atlas_client.close()
+
+    total_docs = sum(s['copiati'] for s in stats.values())
+    return {
+        'success': True,
+        'direzione': 'Atlas → DB corrente',
+        'collection_sincronizzate': len(stats),
+        'documenti_copiati': total_docs,
+        'stats': stats,
+    }
+
+
+@router.get("/admin/db/sync-status")
+async def sync_status(user: dict = Depends(get_current_user)):
+    """Mostra lo stato di connessione dei database (ADMIN only)."""
+    require_admin(user)
+
+    mongo_url = os.environ.get("MONGO_URL", "")
+    is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
+
+    # Count docs in current DB
+    local_collections = await db.list_collection_names()
+    local_count = 0
+    local_details = {}
+    for c in local_collections:
+        if c.startswith('system.'):
+            continue
+        cnt = await db[c].count_documents({})
+        local_count += cnt
+        if cnt > 0:
+            local_details[c] = cnt
+
+    # Count docs in Atlas
+    atlas_count = 0
+    atlas_details = {}
+    atlas_ok = False
+    if ATLAS_MONGO_URL:
+        try:
+            atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL, serverSelectionTimeoutMS=5000)
+            atlas_db = atlas_client[ATLAS_DB_NAME]
+            atlas_collections = await atlas_db.list_collection_names()
+            for c in atlas_collections:
+                if c.startswith('system.'):
+                    continue
+                cnt = await atlas_db[c].count_documents({})
+                atlas_count += cnt
+                if cnt > 0:
+                    atlas_details[c] = cnt
+            atlas_ok = True
+            atlas_client.close()
+        except Exception as e:
+            atlas_details = {'errore': str(e)}
+
+    return {
+        'db_corrente': {
+            'tipo': 'Atlas' if is_atlas else 'Locale',
+            'documenti_totali': local_count,
+            'collection': len(local_details),
+            'films': local_details.get('films', 0),
+            'film_projects': local_details.get('film_projects', 0),
+            'users': local_details.get('users', 0),
+        },
+        'atlas': {
+            'connesso': atlas_ok,
+            'documenti_totali': atlas_count,
+            'collection': len(atlas_details),
+            'films': atlas_details.get('films', 0),
+            'film_projects': atlas_details.get('film_projects', 0),
+            'users': atlas_details.get('users', 0),
+        },
+        'sincronizzati': local_count == atlas_count and atlas_ok,
     }

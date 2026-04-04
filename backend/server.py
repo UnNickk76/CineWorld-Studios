@@ -10110,6 +10110,12 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
+    # Log quale DB è connesso
+    mongo_url = os.environ.get("MONGO_URL", "")
+    is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
+    db_type = "ATLAS" if is_atlas else "LOCALE"
+    logging.info(f"[DB] Connesso a: {db_type} — DB: {os.environ.get('DB_NAME', 'cineworld')}")
+
     # Auto-backup DB su avvio
     import asyncio as _asyncio
     from utils.db_backup import create_backup

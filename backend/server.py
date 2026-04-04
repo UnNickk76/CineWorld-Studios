@@ -10110,6 +10110,11 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
+    # Auto-backup DB su avvio
+    import asyncio as _asyncio
+    from utils.db_backup import create_backup
+    _asyncio.create_task(create_backup())
+
     pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===
     import shutil

@@ -1144,14 +1144,17 @@ async def sync_status(user: dict = Depends(get_current_user)):
     mongo_url = os.environ.get("MONGO_URL", "")
     is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
 
-    # Count docs in current DB
+    # Count docs in current DB (use estimated_document_count for speed)
     local_collections = await db.list_collection_names()
     local_count = 0
     local_details = {}
     for c in local_collections:
         if c.startswith('system.'):
             continue
-        cnt = await db[c].count_documents({})
+        try:
+            cnt = await db[c].estimated_document_count()
+        except Exception:
+            cnt = 0
         local_count += cnt
         if cnt > 0:
             local_details[c] = cnt
@@ -1168,7 +1171,10 @@ async def sync_status(user: dict = Depends(get_current_user)):
             for c in atlas_collections:
                 if c.startswith('system.'):
                     continue
-                cnt = await atlas_db[c].count_documents({})
+                try:
+                    cnt = await atlas_db[c].estimated_document_count()
+                except Exception:
+                    cnt = 0
                 atlas_count += cnt
                 if cnt > 0:
                     atlas_details[c] = cnt
@@ -1193,6 +1199,7 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'tv_series': local_details.get('tv_series', 0),
             'users': local_details.get('users', 0),
             'sequels': local_details.get('sequels', 0),
+            'dettaglio': local_details,
         },
         'atlas': {
             'connesso': atlas_ok,
@@ -1204,6 +1211,7 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'tv_series': atlas_details.get('tv_series', 0),
             'users': atlas_details.get('users', 0),
             'sequels': atlas_details.get('sequels', 0),
+            'dettaglio': atlas_details if atlas_ok else {},
         },
         'sincronizzati': local_count == atlas_count and atlas_ok,
         'auto_sync': {

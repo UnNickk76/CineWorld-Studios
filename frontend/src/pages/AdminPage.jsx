@@ -1023,14 +1023,14 @@ function DbManagementCard({ api, isAdmin }) {
   const [syncInfo, setSyncInfo] = useState(null);
   const [syncConfirm, setSyncConfirm] = useState('');
 
-  // Auto-load sync status on mount
+  // Auto-load sync status on mount (longer timeout for cross-DB count)
   useEffect(() => {
-    api.get('/admin/db/sync-status').then(r => setSyncInfo(r.data)).catch(() => {});
+    api.get('/admin/db/sync-status', { timeout: 60000 }).then(r => setSyncInfo(r.data)).catch(() => {});
   }, []);
 
   const refreshStatus = async () => {
     setDbLoading('status');
-    try { const r = await api.get('/admin/db/sync-status'); setSyncInfo(r.data); }
+    try { const r = await api.get('/admin/db/sync-status', { timeout: 60000 }); setSyncInfo(r.data); }
     catch { toast.error('Errore caricamento stato'); }
     finally { setDbLoading(null); }
   };
@@ -1108,13 +1108,32 @@ function DbManagementCard({ api, isAdmin }) {
         {subTab === 'dashboard' && syncInfo && (
           <div className="space-y-2 text-[10px]">
             <p className="text-xs text-gray-300 font-semibold">Dettaglio collection con dati</p>
-            <div className="grid grid-cols-3 gap-1 bg-black/30 rounded-lg p-2 max-h-48 overflow-y-auto">
-              <p className="text-gray-500 font-bold">Collection</p>
-              <p className="text-gray-500 font-bold text-center">Corrente</p>
-              <p className="text-gray-500 font-bold text-center">Atlas</p>
-              {/* We need detailed stats — show from syncInfo */}
+            <div className="bg-black/30 rounded-lg p-2 max-h-56 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-1 sticky top-0 bg-black/80 pb-1 mb-1 border-b border-gray-800">
+                <p className="text-gray-500 font-bold">Collection</p>
+                <p className="text-gray-500 font-bold text-center">Corrente</p>
+                <p className="text-gray-500 font-bold text-center">Atlas</p>
+              </div>
+              {(() => {
+                const localD = syncInfo.db_corrente?.dettaglio || {};
+                const atlasD = syncInfo.atlas?.dettaglio || {};
+                const allKeys = [...new Set([...Object.keys(localD), ...Object.keys(atlasD)])].sort();
+                if (allKeys.length === 0) return <p className="text-gray-600 col-span-3">Nessun dato disponibile</p>;
+                return allKeys.map(k => {
+                  const lv = localD[k] || 0;
+                  const av = atlasD[k] || 0;
+                  const diff = lv !== av;
+                  return (
+                    <div key={k} className={`grid grid-cols-3 gap-1 py-0.5 ${diff ? 'bg-yellow-500/5' : ''}`}>
+                      <p className="text-gray-400 truncate">{k}</p>
+                      <p className="text-white text-center">{lv}</p>
+                      <p className={`text-center ${diff ? 'text-yellow-400 font-bold' : 'text-white'}`}>{av}</p>
+                    </div>
+                  );
+                });
+              })()}
             </div>
-            <p className="text-[9px] text-gray-600">Clicca "Aggiorna" in alto a destra per i dati aggiornati.</p>
+            <p className="text-[9px] text-gray-600">Clicca "Aggiorna" in alto a destra per i dati aggiornati. Le righe gialle indicano differenze.</p>
           </div>
         )}
 

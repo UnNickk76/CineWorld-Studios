@@ -10124,8 +10124,6 @@ async def startup_event():
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
     if not is_atlas:
         from routes.maintenance import auto_sync_to_atlas
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from apscheduler.triggers.interval import IntervalTrigger
         sync_scheduler = AsyncIOScheduler()
         sync_scheduler.add_job(auto_sync_to_atlas, IntervalTrigger(minutes=30), id='auto_sync_atlas', replace_existing=True)
         sync_scheduler.start()

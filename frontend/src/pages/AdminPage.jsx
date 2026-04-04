@@ -1061,7 +1061,7 @@ function DbManagementCard({ api }) {
         <div className="w-full">
           <input
             type="file"
-            accept=".json"
+            accept=".json,.zip"
             id="db-import-file"
             className="hidden"
             data-testid="db-import-file"
@@ -1082,7 +1082,7 @@ function DbManagementCard({ api }) {
               data-testid="db-import-file-btn"
             >
               <Upload className="w-3 h-3 mr-1" />
-              {dbLoading === 'reading' ? 'Caricamento...' : importFileName ? `File: ${importFileName}` : 'Carica file JSON'}
+              {dbLoading === 'reading' ? 'Caricamento...' : importFileName ? `${importFileName}` : 'Carica file (.json / .zip)'}
             </Button>
           </label>
         </div>

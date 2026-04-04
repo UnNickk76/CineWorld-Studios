@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -1015,6 +1015,7 @@ function DeletionsTab({ api }) {
 /* ─── DB Management Card (rendered directly by AdminPage — bypasses prop issues) ─── */
 function DbManagementCard({ api }) {
   const [importData, setImportData] = useState('');
+  const [importFileName, setImportFileName] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [dbLoading, setDbLoading] = useState(null);
   const [dbResult, setDbResult] = useState(null);
@@ -1046,8 +1047,8 @@ function DbManagementCard({ api }) {
             } catch (e) { toast.error('Errore avvio download'); }
             finally { setDbLoading(null); }
           }}>
-          {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
-          Esporta DB
+          {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+          Scarica Backup
         </Button>
 
         {dbResult?.type === 'export' && (
@@ -1057,14 +1058,41 @@ function DbManagementCard({ api }) {
         )}
 
         {/* TEXTAREA JSON */}
-        <textarea
-          placeholder="Incolla qui il JSON del database per import..."
-          value={importData}
-          onChange={(e) => setImportData(e.target.value)}
-          rows={5}
-          className="w-full bg-black/60 text-white text-xs border border-gray-700 p-3 rounded-lg mt-1 placeholder-gray-600 focus:border-indigo-500/50 focus:outline-none font-mono resize-y"
-          data-testid="db-import-textarea"
-        />
+        <div className="w-full">
+          <input
+            type="file"
+            accept=".json"
+            id="db-import-file"
+            className="hidden"
+            data-testid="db-import-file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setDbLoading('reading');
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                setImportData(ev.target.result);
+                setImportFileName(file.name);
+                setDbLoading(null);
+                toast.success(`File caricato: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
+              };
+              reader.onerror = () => { toast.error('Errore lettura file'); setDbLoading(null); };
+              reader.readAsText(file);
+            }}
+          />
+          <label htmlFor="db-import-file">
+            <Button
+              type="button"
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold cursor-pointer"
+              disabled={dbLoading === 'reading'}
+              onClick={() => document.getElementById('db-import-file').click()}
+              data-testid="db-import-file-btn"
+            >
+              <Upload className="w-3 h-3 mr-1" />
+              {dbLoading === 'reading' ? 'Caricamento...' : importFileName ? `File: ${importFileName}` : 'Carica file JSON'}
+            </Button>
+          </label>
+        </div>
 
         {/* IMPORT SAFE */}
         <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
@@ -1076,7 +1104,7 @@ function DbManagementCard({ api }) {
             try {
               const parsed = JSON.parse(importData);
               const body = parsed.data ? { confirm: 'CONFERMO', data: parsed.data } : { confirm: 'CONFERMO', data: parsed };
-              const res = await api.post('/admin/db/import-safe', body);
+              const res = await api.post('/admin/db/import-safe', body, { timeout: 120000 });
               toast.success('Import safe completato');
               setDbResult({ type: 'import-safe', stats: res.data.stats });
             } catch (e) {
@@ -1122,7 +1150,7 @@ function DbManagementCard({ api }) {
                 const body = parsed.data
                   ? { confirm: 'CONFERMO', data: parsed.data }
                   : { confirm: 'CONFERMO', data: parsed };
-                const res = await api.post('/admin/db/import-hard', body);
+                const res = await api.post('/admin/db/import-hard', body, { timeout: 120000 });
                 toast.success('Import HARD completato');
                 setDbResult({ type: 'import-hard', stats: res.data.stats, backup: res.data.backup_sizes });
                 setConfirmText('');

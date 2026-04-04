@@ -1038,18 +1038,12 @@ function DbManagementCard({ api }) {
             setDbLoading('export');
             setDbResult(null);
             try {
-              const res = await api.get('/admin/db/export');
-              const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `cineworld_backup_${new Date().toISOString().slice(0,10)}.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-              const counts = res.data.counts || {};
-              toast.success(`Export completato: ${Object.values(counts).reduce((a,b)=>a+b,0)} documenti`);
-              setDbResult({ type: 'export', counts });
-            } catch (e) { toast.error(e.response?.data?.detail || 'Errore export'); }
+              const token = localStorage.getItem('cineworld_token');
+              const backendUrl = process.env.REACT_APP_BACKEND_URL;
+              const downloadUrl = `${backendUrl}/api/admin/db/download-backup?token=${token}`;
+              window.open(downloadUrl, '_blank');
+              toast.success('Download backup avviato!');
+            } catch (e) { toast.error('Errore avvio download'); }
             finally { setDbLoading(null); }
           }}>
           {dbLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}

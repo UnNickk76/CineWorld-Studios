@@ -20,7 +20,7 @@ const OUTCOME_LABELS = {
   lukewarm: { label: 'Accoglienza Tiepida', color: 'text-gray-400', bg: 'bg-gray-500/20 border-gray-500/40' },
 };
 
-export const LaPremiereSection = ({ film, api, isOwner, onUpdate }) => {
+export const LaPremiereSection = ({ film, filmId: filmIdProp, project, api: apiProp, isOwner, onUpdate }) => {
   const [premiereData, setPremiereData] = useState(null);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,11 @@ export const LaPremiereSection = ({ film, api, isOwner, onUpdate }) => {
   const [selectedTime, setSelectedTime] = useState('20:00');
   const [delayDays, setDelayDays] = useState(3);
 
-  const filmId = film?.id;
+  const filmId = filmIdProp || film?.id;
+
+  // Support both: api passed as prop (FilmDetail) or from AuthContext (FilmPipeline)
+  const { api: ctxApi } = React.useContext(require('../contexts').AuthContext);
+  const api = apiProp || ctxApi;
 
   const fetchStatus = useCallback(async () => {
     if (!filmId || !api) return;

@@ -23,6 +23,7 @@ import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
 import { FilmProductionCard } from '../components/FilmProductionCard';
 import FilmPopup from '../components/FilmPopup';
 import { DraftsSection } from '../components/DraftsSection';
+import LaPremiereSection from '../components/LaPremiereSection';
 
 // Haptic feedback utility
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
@@ -2477,6 +2478,15 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
 
               {completed ? (
                 <div className="flex gap-1.5 flex-wrap">
+                  {/* La Prima — solo per film pronti al rilascio */}
+                  {(f.status === 'prima' || f.status === 'pending_release') && (
+                    <div className="w-full mb-1">
+                      <LaPremiereSection
+                        filmId={f.id}
+                        project={f}
+                      />
+                    </div>
+                  )}
                   {f.release_type === 'coming_soon' ? (
                     <div className="w-full space-y-2" data-testid={`release-strategy-${f.id}`}>
                       <p className="text-xs font-bold text-white">Strategia di Uscita</p>

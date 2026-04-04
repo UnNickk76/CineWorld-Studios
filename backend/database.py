@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 
 _env_path = Path(__file__).parent / '.env'
-load_dotenv(_env_path, override=True)
+load_dotenv(_env_path)
 
 MONGO_URL = os.getenv("MONGO_URL")
 

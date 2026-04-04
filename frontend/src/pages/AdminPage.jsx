@@ -1022,23 +1022,30 @@ function DbManagementCard({ api, isAdmin }) {
   const [dbResult, setDbResult] = useState(null);
   const [syncInfo, setSyncInfo] = useState(null);
   const [syncConfirm, setSyncConfirm] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
-  // Auto-load sync status on mount (longer timeout for cross-DB count)
+  // Auto-load sync status on mount
   useEffect(() => {
-    api.get('/admin/db/sync-status', { timeout: 60000 }).then(r => setSyncInfo(r.data)).catch(() => {});
+    setLoadError(false);
+    api.get('/admin/db/sync-status', { timeout: 30000 })
+      .then(r => setSyncInfo(r.data))
+      .catch(() => setLoadError(true));
   }, []);
 
   const refreshStatus = async () => {
     setDbLoading('status');
-    try { const r = await api.get('/admin/db/sync-status', { timeout: 60000 }); setSyncInfo(r.data); }
-    catch { toast.error('Errore caricamento stato'); }
+    setLoadError(false);
+    try { const r = await api.get('/admin/db/sync-status', { timeout: 30000 }); setSyncInfo(r.data); }
+    catch { setLoadError(true); toast.error('Errore caricamento stato DB'); }
     finally { setDbLoading(null); }
   };
 
   // Indicatore colorato
   const getStatusColor = () => {
+    if (loadError) return { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', label: 'Errore connessione' };
     if (!syncInfo) return { bg: 'bg-gray-500/20', border: 'border-gray-500/30', text: 'text-gray-400', label: 'Caricamento...' };
-    if (!syncInfo.atlas?.connesso) return { bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', label: 'Atlas non raggiungibile' };
+    if (syncInfo.atlas?.messaggio) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: syncInfo.atlas.messaggio };
+    if (!syncInfo.atlas?.connesso) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: 'Atlas non raggiungibile' };
     if (syncInfo.sincronizzati) return { bg: 'bg-green-500/15', border: 'border-green-500/30', text: 'text-green-400', label: 'Sincronizzati' };
     return { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', label: 'Non sincronizzati' };
   };
@@ -1088,12 +1095,21 @@ function DbManagementCard({ api, isAdmin }) {
                 <p className="text-white">{syncInfo.db_corrente?.users} Utenti | {syncInfo.db_corrente?.documenti_totali} Tot</p>
               </div>
               <div className="bg-black/30 rounded-md p-2">
-                <p className="text-gray-500 mb-1 font-semibold">Atlas {syncInfo.atlas?.connesso ? '' : '(offline)'}</p>
-                <p className="text-white">{syncInfo.atlas?.films} Film | {syncInfo.atlas?.film_projects} Progetti</p>
-                <p className="text-white">{syncInfo.atlas?.tv_series} Serie | {syncInfo.atlas?.film_drafts} Bozze</p>
-                <p className="text-white">{syncInfo.atlas?.users} Utenti | {syncInfo.atlas?.documenti_totali} Tot</p>
+                <p className="text-gray-500 mb-1 font-semibold">Atlas {syncInfo.atlas?.connesso ? '' : syncInfo.atlas?.messaggio ? `(${syncInfo.atlas.messaggio})` : '(offline)'}</p>
+                {syncInfo.atlas?.connesso ? (
+                  <>
+                    <p className="text-white">{syncInfo.atlas?.films} Film | {syncInfo.atlas?.film_projects} Progetti</p>
+                    <p className="text-white">{syncInfo.atlas?.tv_series} Serie | {syncInfo.atlas?.film_drafts} Bozze</p>
+                    <p className="text-white">{syncInfo.atlas?.users} Utenti | {syncInfo.atlas?.documenti_totali} Tot</p>
+                  </>
+                ) : (
+                  <p className="text-gray-600 text-[9px]">{syncInfo.atlas?.messaggio || 'Non raggiungibile'}</p>
+                )}
               </div>
             </div>
+          )}
+          {loadError && !syncInfo && (
+            <p className="text-[10px] text-red-400 mt-1">Impossibile caricare lo stato. Clicca l'icona di aggiornamento per riprovare.</p>
           )}
           {syncInfo?.auto_sync && (
             <p className="text-[9px] text-gray-500 mt-2">

@@ -135,7 +135,7 @@ from social_system import (
 )
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env', override=True)
+load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection - use database.py as single source of truth
 from database import db as _shared_db, client as _shared_client, MONGO_URL as _shared_mongo_url
@@ -10116,20 +10116,22 @@ async def startup_event():
     db_type = "ATLAS" if is_atlas else "LOCALE"
     logging.info(f"[DB] Connesso a: {db_type} — DB: {os.environ.get('DB_NAME', 'cineworld')}")
 
-    # Auto-backup DB su avvio
-    import asyncio as _asyncio
-    from utils.db_backup import create_backup
-    _asyncio.create_task(create_backup())
+    # Auto-backup DB su avvio (disabilitato — usare export manuale dal pannello admin)
+    # Il backup automatico su startup con DB grandi può causare OOM
+    logging.info("[BACKUP] Auto-backup disabilitato. Usa pannello Admin per export manuale.")
 
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
-    if not is_atlas:
-        from routes.maintenance import auto_sync_to_atlas
-        sync_scheduler = AsyncIOScheduler()
-        sync_scheduler.add_job(auto_sync_to_atlas, IntervalTrigger(minutes=30), id='auto_sync_atlas', replace_existing=True)
-        sync_scheduler.start()
-        logging.info("[AUTO-SYNC] Scheduler attivato: sync locale → Atlas ogni 30 minuti")
-    else:
-        logging.info("[AUTO-SYNC] Non necessario: DB corrente è già Atlas")
+    try:
+        if not is_atlas:
+            from routes.maintenance import auto_sync_to_atlas
+            sync_scheduler = AsyncIOScheduler()
+            sync_scheduler.add_job(auto_sync_to_atlas, IntervalTrigger(minutes=30), id='auto_sync_atlas', replace_existing=True)
+            sync_scheduler.start()
+            logging.info("[AUTO-SYNC] Scheduler attivato: sync locale → Atlas ogni 30 minuti")
+        else:
+            logging.info("[AUTO-SYNC] Non necessario: DB corrente è già Atlas")
+    except Exception as e:
+        logging.error(f"[AUTO-SYNC] Errore avvio scheduler: {e}")
 
     pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===

@@ -66,8 +66,10 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 - `POST /avatar/generate` — genera avatar AI con OpenAI `gpt-image-1` via Emergent LLM Key
 - `PUT /auth/avatar` — aggiorna avatar_url e avatar_source
 - URL format migrato da `/uploads/avatars/` a `/api/avatar/image/` per routing corretto
+- **FIX CRITICO**: Timeout axios esteso a 120s per la generazione (era 12s, causava "Generazione fallita")
+- Auto-salvataggio avatar dopo generazione + feedback "30-60s" sul bottone
 - Frontend: dialog "Genera con AI" con preset e generazione funzionante
-- Testato: backend 100% (13/13), frontend 100%
+- Testato: backend 100%, frontend E2E verificato con screenshot
 
 ## File Chiave Modificati
 - `/app/backend/auth_utils.py` — Sistema ruoli completo

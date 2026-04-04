@@ -544,9 +544,7 @@ def _sanitize_doc(doc):
 
 @router.get("/admin/db/download-backup")
 async def download_backup(token: str = Query(..., description="JWT token per autenticazione")):
-    """Genera backup completo e restituisce file JSON scaricabile. SOLO LETTURA.
-    Usa: /admin/db/download-backup?token=IL_TUO_JWT_TOKEN
-    """
+    """Genera backup completo STREAMING e restituisce file JSON scaricabile. SOLO LETTURA."""
     import jwt as pyjwt
     from auth_utils import JWT_SECRET, JWT_ALGORITHM, get_user_role
 
@@ -564,24 +562,42 @@ async def download_backup(token: str = Query(..., description="JWT token per aut
 
     require_admin(user)
 
-    all_collections = await db.list_collection_names()
-    data = {}
-    for coll_name in sorted(all_collections):
-        if coll_name.startswith('system.'):
-            continue
-        docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
-        data[coll_name] = [_sanitize_doc(d) for d in docs]
-
-    output = {
-        "data": data,
-        "exported_at": datetime.now(timezone.utc).isoformat()
-    }
-
-    json_bytes = json.dumps(output, ensure_ascii=False, default=str).encode('utf-8')
     timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
 
+    async def stream_backup():
+        collections = await db.list_collection_names()
+        collections = sorted([c for c in collections if not c.startswith('system.')])
+
+        yield '{"data":{'
+
+        first_coll = True
+        for coll_name in collections:
+            if not first_coll:
+                yield ','
+            first_coll = False
+
+            yield f'"{coll_name}":['
+
+            first_doc = True
+            async for doc in db[coll_name].find({}):
+                doc.pop('_id', None)
+                doc.pop('poster_blob', None)
+                doc.pop('image_data', None)
+                doc.pop('file_bytes', None)
+                doc.pop('binary', None)
+
+                if not first_doc:
+                    yield ','
+                first_doc = False
+
+                yield json.dumps(doc, default=str, ensure_ascii=False)
+
+            yield ']'
+
+        yield '}}'
+
     return StreamingResponse(
-        io.BytesIO(json_bytes),
+        stream_backup(),
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="backup_{timestamp}.json"'}
     )

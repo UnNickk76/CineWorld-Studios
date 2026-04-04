@@ -10121,6 +10121,18 @@ async def startup_event():
     from utils.db_backup import create_backup
     _asyncio.create_task(create_backup())
 
+    # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
+    if not is_atlas:
+        from routes.maintenance import auto_sync_to_atlas
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.triggers.interval import IntervalTrigger
+        sync_scheduler = AsyncIOScheduler()
+        sync_scheduler.add_job(auto_sync_to_atlas, IntervalTrigger(minutes=30), id='auto_sync_atlas', replace_existing=True)
+        sync_scheduler.start()
+        logging.info("[AUTO-SYNC] Scheduler attivato: sync locale → Atlas ogni 30 minuti")
+    else:
+        logging.info("[AUTO-SYNC] Non necessario: DB corrente è già Atlas")
+
     pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===
     import shutil

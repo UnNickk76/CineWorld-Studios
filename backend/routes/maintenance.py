@@ -1177,6 +1177,11 @@ async def sync_status(user: dict = Depends(get_current_user)):
         except Exception as e:
             atlas_details = {'errore': str(e)}
 
+    # Auto-sync info
+    auto_sync_active = not is_atlas and ATLAS_MONGO_URL
+    last_sync = _auto_sync_state.get('last_sync')
+    last_error = _auto_sync_state.get('last_error')
+
     return {
         'db_corrente': {
             'tipo': 'Atlas' if is_atlas else 'Locale',
@@ -1184,7 +1189,10 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'collection': len(local_details),
             'films': local_details.get('films', 0),
             'film_projects': local_details.get('film_projects', 0),
+            'film_drafts': local_details.get('film_drafts', 0),
+            'tv_series': local_details.get('tv_series', 0),
             'users': local_details.get('users', 0),
+            'sequels': local_details.get('sequels', 0),
         },
         'atlas': {
             'connesso': atlas_ok,
@@ -1192,7 +1200,70 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'collection': len(atlas_details),
             'films': atlas_details.get('films', 0),
             'film_projects': atlas_details.get('film_projects', 0),
+            'film_drafts': atlas_details.get('film_drafts', 0),
+            'tv_series': atlas_details.get('tv_series', 0),
             'users': atlas_details.get('users', 0),
+            'sequels': atlas_details.get('sequels', 0),
         },
         'sincronizzati': local_count == atlas_count and atlas_ok,
+        'auto_sync': {
+            'attivo': auto_sync_active,
+            'intervallo_minuti': 30,
+            'ultimo_sync': last_sync,
+            'ultimo_errore': last_error,
+        }
     }
+
+
+# ==================== AUTO-SYNC ====================
+
+_auto_sync_state = {'last_sync': None, 'last_error': None}
+
+
+async def auto_sync_to_atlas():
+    """Job automatico: sync DB locale → Atlas ogni 30 min (solo se DB corrente è locale)."""
+    mongo_url = os.environ.get("MONGO_URL", "")
+    is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
+
+    if is_atlas:
+        return  # Non serve sync se siamo già su Atlas
+
+    if not ATLAS_MONGO_URL:
+        return
+
+    try:
+        atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL, serverSelectionTimeoutMS=10000)
+        atlas_db = atlas_client[ATLAS_DB_NAME]
+
+        # Preserva NeoMorpheus Atlas
+        neo_atlas = await atlas_db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+
+        collections = await db.list_collection_names()
+        collections = [c for c in collections if not c.startswith('system.')]
+
+        total = 0
+        for coll_name in collections:
+            docs = []
+            async for doc in db[coll_name].find({}):
+                docs.append(_clean_doc(doc))
+
+            await atlas_db[coll_name].delete_many({})
+            inserted = 0
+            if coll_name == 'users' and neo_atlas:
+                neo_copy = {k: v for k, v in neo_atlas.items() if k != '_id'}
+                await atlas_db[coll_name].insert_one(neo_copy)
+                inserted += 1
+                docs = [d for d in docs if d.get('nickname') != ADMIN_NICKNAME]
+            if docs:
+                await atlas_db[coll_name].insert_many(docs)
+                inserted += len(docs)
+            total += inserted
+
+        atlas_client.close()
+        _auto_sync_state['last_sync'] = datetime.now(timezone.utc).isoformat()
+        _auto_sync_state['last_error'] = None
+        logging.info(f"[AUTO-SYNC] Completato: {total} documenti sincronizzati verso Atlas")
+
+    except Exception as e:
+        _auto_sync_state['last_error'] = str(e)
+        logging.error(f"[AUTO-SYNC] Errore: {e}")

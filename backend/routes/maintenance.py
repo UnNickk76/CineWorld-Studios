@@ -484,31 +484,46 @@ async def reset_db(payload: dict, user: dict = Depends(get_current_user)):
 
 @router.get("/admin/db/export")
 async def export_db(user: dict = Depends(get_current_user)):
-    """Export full DB as JSON (ADMIN only). Esporta TUTTE le collection."""
+    """Export full DB as JSON (ADMIN only). SOLO LETTURA — zero scritture."""
     require_admin(user)
 
-    # Esporta tutte le collection nel DB, non solo DB_COLLECTIONS
     all_collections = await db.list_collection_names()
-    result = {}
+    data = {}
+    skipped_collections = []
+
     for coll_name in sorted(all_collections):
         if coll_name.startswith('system.'):
             continue
-        docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
-        if docs:
-            result[coll_name] = docs
+        try:
+            docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
+            # Sanitizza: rimuovi campi bytes che rompono la serializzazione JSON
+            clean_docs = []
+            for doc in docs:
+                clean_doc = _sanitize_doc(doc)
+                clean_docs.append(clean_doc)
+            data[coll_name] = clean_docs
+        except Exception as e:
+            logging.warning(f"[EXPORT] Skip collection {coll_name}: {e}")
+            skipped_collections.append(coll_name)
 
-    await log_admin_action('db_export', user, details={
-        'collections': list(result.keys()),
-        'counts': {k: len(v) for k, v in result.items()},
-    })
-    logging.info(f"[ADMIN_DB] export eseguito da {user.get('nickname')} — {sum(len(v) for v in result.values())} documenti in {len(result)} collection")
+    return {"success": True, "data": data, "skipped": skipped_collections}
 
-    return {
-        'success': True,
-        'data': result,
-        'counts': {k: len(v) for k, v in result.items()},
-        'exported_at': datetime.now(timezone.utc).isoformat(),
-    }
+
+def _sanitize_doc(doc):
+    """Rimuovi campi binari (bytes) dal documento per serializzazione JSON sicura."""
+    if not isinstance(doc, dict):
+        return doc
+    clean = {}
+    for k, v in doc.items():
+        if isinstance(v, bytes):
+            clean[k] = f"<binary:{len(v)}bytes>"
+        elif isinstance(v, dict):
+            clean[k] = _sanitize_doc(v)
+        elif isinstance(v, list):
+            clean[k] = [_sanitize_doc(item) if isinstance(item, dict) else item for item in v if not isinstance(item, bytes)]
+        else:
+            clean[k] = v
+    return clean
 
 
 @router.post("/admin/db/import-safe")
@@ -519,15 +534,25 @@ async def import_db_safe(payload: dict, user: dict = Depends(get_current_user)):
     if payload.get('confirm') != 'CONFERMO':
         raise HTTPException(status_code=400, detail="Conferma richiesta: inviare confirm='CONFERMO'")
 
-    data = payload.get('data', {})
-    if not data:
+    raw_data = payload.get('data', {})
+    if not raw_data:
         raise HTTPException(status_code=400, detail="Campo 'data' mancante o vuoto")
+
+    # Fix: se l'utente passa il JSON export intero (con "success", "data", "counts"),
+    # estrai il vero contenuto da raw_data["data"]
+    if "data" in raw_data and isinstance(raw_data["data"], dict):
+        data = raw_data["data"]
+    else:
+        data = raw_data
 
     stats = {}
     for coll_name, docs in data.items():
-        if not docs or not isinstance(docs, list):
+        if not isinstance(docs, list):
+            continue
+        if not docs:
             stats[coll_name] = {'inserted': 0, 'updated': 0, 'skipped': 0}
             continue
+        logging.info(f"[IMPORT-SAFE] Collection {coll_name}: {len(docs)} docs")
 
         inserted = 0
         updated = 0

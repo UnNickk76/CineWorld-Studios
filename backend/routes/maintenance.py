@@ -2,10 +2,13 @@
 # Diagnose and fix stuck/broken/looping projects for films, series, anime
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import get_current_user, require_co_admin, require_admin, log_admin_action, ADMIN_NICKNAME
 import logging
+import json
+import io
 
 router = APIRouter()
 
@@ -524,6 +527,52 @@ def _sanitize_doc(doc):
         else:
             clean[k] = v
     return clean
+
+
+@router.get("/admin/db/download-backup")
+async def download_backup(token: str = Query(..., description="JWT token per autenticazione")):
+    """Genera backup completo e restituisce file JSON scaricabile. SOLO LETTURA.
+    Usa: /admin/db/download-backup?token=IL_TUO_JWT_TOKEN
+    """
+    import jwt as pyjwt
+    from auth_utils import JWT_SECRET, JWT_ALGORITHM, get_user_role
+
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+        user['role'] = get_user_role(user)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token non valido o scaduto")
+
+    require_admin(user)
+
+    all_collections = await db.list_collection_names()
+    data = {}
+    for coll_name in sorted(all_collections):
+        if coll_name.startswith('system.'):
+            continue
+        docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
+        data[coll_name] = [_sanitize_doc(d) for d in docs]
+
+    output = {
+        "data": data,
+        "exported_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    json_bytes = json.dumps(output, ensure_ascii=False, default=str).encode('utf-8')
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+
+    return StreamingResponse(
+        io.BytesIO(json_bytes),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="backup_{timestamp}.json"'}
+    )
+
 
 
 @router.post("/admin/db/import-safe")

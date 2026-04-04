@@ -487,29 +487,42 @@ async def reset_db(payload: dict, user: dict = Depends(get_current_user)):
 
 @router.get("/admin/db/export")
 async def export_db(user: dict = Depends(get_current_user)):
-    """Export full DB as JSON (ADMIN only). SOLO LETTURA — zero scritture."""
+    """Export full DB as JSON streaming (ADMIN only). SOLO LETTURA — zero scritture. No RAM overload."""
     require_admin(user)
 
-    all_collections = await db.list_collection_names()
-    data = {}
-    skipped_collections = []
+    async def stream_export():
+        collections = await db.list_collection_names()
+        collections = sorted([c for c in collections if not c.startswith('system.')])
 
-    for coll_name in sorted(all_collections):
-        if coll_name.startswith('system.'):
-            continue
-        try:
-            docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
-            # Sanitizza: rimuovi campi bytes che rompono la serializzazione JSON
-            clean_docs = []
-            for doc in docs:
-                clean_doc = _sanitize_doc(doc)
-                clean_docs.append(clean_doc)
-            data[coll_name] = clean_docs
-        except Exception as e:
-            logging.warning(f"[EXPORT] Skip collection {coll_name}: {e}")
-            skipped_collections.append(coll_name)
+        yield '{"success":true,"data":{'
 
-    return {"success": True, "data": data, "skipped": skipped_collections}
+        first_coll = True
+        for coll_name in collections:
+            if not first_coll:
+                yield ','
+            first_coll = False
+
+            yield f'"{coll_name}":['
+
+            first_doc = True
+            async for doc in db[coll_name].find({}):
+                doc.pop('_id', None)
+                doc.pop('poster_blob', None)
+                doc.pop('image_data', None)
+                doc.pop('file_bytes', None)
+                doc.pop('binary', None)
+
+                if not first_doc:
+                    yield ','
+                first_doc = False
+
+                yield json.dumps(doc, default=str, ensure_ascii=False)
+
+            yield ']'
+
+        yield '}}'
+
+    return StreamingResponse(stream_export(), media_type="application/json")
 
 
 def _sanitize_doc(doc):

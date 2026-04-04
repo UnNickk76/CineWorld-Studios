@@ -13,6 +13,7 @@ import io
 import zipfile
 import tempfile
 import os
+import asyncio
 
 ATLAS_MONGO_URL = os.getenv("ATLAS_MONGO_URL")
 ATLAS_DB_NAME = os.getenv("ATLAS_DB_NAME", "cineworld")
@@ -1136,63 +1137,84 @@ async def sync_from_atlas(payload: dict, user: dict = Depends(get_current_user))
     }
 
 
+# ==================== SYNC STATUS CACHE ====================
+_sync_cache = {'data': None, 'ts': 0}
+
+async def _quick_db_stats(target_db):
+    """Conteggio rapido con dbStats + solo collection chiave."""
+    KEY_COLLS = ['films', 'film_projects', 'film_drafts', 'tv_series', 'users', 'sequels', 'anime']
+    details = {}
+    total = 0
+    try:
+        stats = await target_db.command('dbstats')
+        total = stats.get('objects', 0)
+    except Exception:
+        total = -1
+
+    for c in KEY_COLLS:
+        try:
+            cnt = await target_db[c].estimated_document_count()
+            if cnt > 0:
+                details[c] = cnt
+        except Exception:
+            pass
+
+    try:
+        n_colls = len(await target_db.list_collection_names())
+    except Exception:
+        n_colls = 0
+
+    return total, n_colls, details
+
+
 @router.get("/admin/db/sync-status")
 async def sync_status(user: dict = Depends(get_current_user)):
-    """Mostra lo stato di connessione dei database (ADMIN only)."""
+    """Mostra lo stato di connessione dei database (ADMIN only). Cached per 30s."""
     require_admin(user)
+    import time as _t
+
+    # Cache 30 secondi
+    if _sync_cache['data'] and (_t.time() - _sync_cache['ts']) < 30:
+        return _sync_cache['data']
 
     mongo_url = os.environ.get("MONGO_URL", "")
     is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
 
-    # Count docs in current DB (use estimated_document_count for speed)
-    local_collections = await db.list_collection_names()
-    local_count = 0
-    local_details = {}
-    for c in local_collections:
-        if c.startswith('system.'):
-            continue
-        try:
-            cnt = await db[c].estimated_document_count()
-        except Exception:
-            cnt = 0
-        local_count += cnt
-        if cnt > 0:
-            local_details[c] = cnt
+    # Local DB stats (veloce)
+    local_total, local_n_colls, local_details = await _quick_db_stats(db)
 
-    # Count docs in Atlas
-    atlas_count = 0
+    # Atlas stats (con timeout)
+    atlas_total = 0
+    atlas_n_colls = 0
     atlas_details = {}
     atlas_ok = False
-    if ATLAS_MONGO_URL:
+    atlas_msg = None
+    if not ATLAS_MONGO_URL:
+        atlas_msg = "ATLAS_MONGO_URL non configurato"
+    else:
         try:
-            atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL, serverSelectionTimeoutMS=5000)
-            atlas_db = atlas_client[ATLAS_DB_NAME]
-            atlas_collections = await atlas_db.list_collection_names()
-            for c in atlas_collections:
-                if c.startswith('system.'):
-                    continue
-                try:
-                    cnt = await atlas_db[c].estimated_document_count()
-                except Exception:
-                    cnt = 0
-                atlas_count += cnt
-                if cnt > 0:
-                    atlas_details[c] = cnt
+            atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL, serverSelectionTimeoutMS=3000, connectTimeoutMS=3000)
+            atlas_db_conn = atlas_client[ATLAS_DB_NAME]
+            atlas_total, atlas_n_colls, atlas_details = await asyncio.wait_for(
+                _quick_db_stats(atlas_db_conn), timeout=10
+            )
             atlas_ok = True
             atlas_client.close()
+        except asyncio.TimeoutError:
+            atlas_msg = "Timeout connessione Atlas"
         except Exception as e:
-            atlas_details = {'errore': str(e)}
+            atlas_msg = str(e)[:100]
 
     # Auto-sync info
-    auto_sync_active = not is_atlas and ATLAS_MONGO_URL
+    auto_sync_active = not is_atlas and bool(ATLAS_MONGO_URL)
     last_sync = _auto_sync_state.get('last_sync')
     last_error = _auto_sync_state.get('last_error')
 
-    return {
+    result = {
         'db_corrente': {
             'tipo': 'Atlas' if is_atlas else 'Locale',
-            'documenti_totali': local_count,
-            'collection': len(local_details),
+            'documenti_totali': local_total,
+            'collection': local_n_colls,
             'films': local_details.get('films', 0),
             'film_projects': local_details.get('film_projects', 0),
             'film_drafts': local_details.get('film_drafts', 0),
@@ -1203,8 +1225,8 @@ async def sync_status(user: dict = Depends(get_current_user)):
         },
         'atlas': {
             'connesso': atlas_ok,
-            'documenti_totali': atlas_count,
-            'collection': len(atlas_details),
+            'documenti_totali': atlas_total if atlas_ok else 0,
+            'collection': atlas_n_colls if atlas_ok else 0,
             'films': atlas_details.get('films', 0),
             'film_projects': atlas_details.get('film_projects', 0),
             'film_drafts': atlas_details.get('film_drafts', 0),
@@ -1212,8 +1234,9 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'users': atlas_details.get('users', 0),
             'sequels': atlas_details.get('sequels', 0),
             'dettaglio': atlas_details if atlas_ok else {},
+            'messaggio': atlas_msg,
         },
-        'sincronizzati': local_count == atlas_count and atlas_ok,
+        'sincronizzati': local_total == atlas_total and atlas_ok,
         'auto_sync': {
             'attivo': auto_sync_active,
             'intervallo_minuti': 30,
@@ -1221,6 +1244,10 @@ async def sync_status(user: dict = Depends(get_current_user)):
             'ultimo_errore': last_error,
         }
     }
+
+    _sync_cache['data'] = result
+    _sync_cache['ts'] = _t.time()
+    return result
 
 
 # ==================== AUTO-SYNC ====================

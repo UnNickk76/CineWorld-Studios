@@ -1,0 +1,328 @@
+================================================================================
+                    ANALISI COMPLETA PIPELINE FILM - CINEWORLD
+================================================================================
+
+
+1) CREAZIONE FILM
+================================================================================
+
+Esistono DUE sistemi di creazione che coesistono:
+
+
+--- Sistema A: Pipeline Moderna (routes/film_pipeline.py) ---
+
+Endpoint: POST /api/film-pipeline/create (riga 986)
+Flusso: Prima si salva una Bozza (POST /api/film-pipeline/draft), poi si conferma.
+
+Campi salvati nel documento "film_projects":
+
+  Campo                     Valore Iniziale
+  -------------------------------------------------------------------------
+  id                        UUID generato
+  user_id                   ID utente
+  status                    'proposed'
+  release_type              'immediate' o 'coming_soon' (scelto dall'utente)
+  title, genre, subgenres   Input utente
+  pre_screenplay            Testo 100-500 caratteri
+  locations                 Array di location oggetti (costo/giorno, categoria)
+  pre_imdb_score            Calcolato da calculate_pre_imdb() su titolo/genere/trama/location
+  pre_imdb_factors          Breakdown del punteggio
+  hidden_factor             Fattore nascosto per variabilita'
+  cast                      {director: null, screenwriter: null, actors: [], composer: null}
+  cast_proposals            {} (vuoto, si popola in fase casting)
+  costs_paid                {creation: 25000-40000}
+  cinepass_paid             {creation: N} (da STEP_CINEPASS['creation'])
+  hype_score                0
+  scheduled_release_at      null
+  created_at, updated_at    ISO timestamp UTC
+
+File: routes/film_pipeline.py riga 986-1078
+
+
+--- Sistema B: Legacy (server.py) ---
+
+Endpoint: POST /api/films/create (riga 3380 di server.py)
+Questo e' il vecchio sistema monolite. Crea direttamente un documento nella
+collection "films" (non in "film_projects"), con status 'pending_release' e
+campi come weeks_in_theater, equipment_package, ad_revenue, ecc.
+
+
+2) COMING SOON
+================================================================================
+
+--- Come si attiva ---
+
+L'utente sceglie release_type: 'coming_soon' alla creazione. Poi chiama:
+Endpoint: POST /api/film-pipeline/{id}/launch-coming-soon (riga 1125)
+
+Richiede:
+  - Un poster generato (check poster_url obbligatorio)
+  - Un tier: short (2-6h), medium (6-18h), long (18-48h)
+  - Un numero di ore nel range del tier
+
+--- Campi aggiornati ---
+
+  Campo                       Valore
+  -------------------------------------------------------------------------
+  status                      'coming_soon'
+  coming_soon_type            'pre_casting' (il film non ha ancora il cast)
+  coming_soon_tier            'short' / 'medium' / 'long'
+  coming_soon_base_hours      Ore scelte dall'utente
+  coming_soon_final_hours     Base ore +/- quality modifier (pre-IMDb >=8 -> +20%, <=3.5 -> -10%)
+  coming_soon_speedup_used    0.0
+  coming_soon_speedup_cap     20%/40%/60% in base al tier
+  coming_soon_min_hours       final_hours * (1 - speedup_cap)
+  coming_soon_started_at      Timestamp UTC
+  scheduled_release_at        now + final_hours
+  news_events                 Array con evento iniziale
+
+--- Data di uscita ---
+
+SI, e' "scheduled_release_at" (ISO datetime UTC). Rappresenta quando il countdown scade.
+
+--- Sistema Hype ---
+
+SI, esiste in routes/coming_soon.py:
+  - POST /api/coming-soon/{id}/hype -> altri giocatori possono "hypare" il film
+  - hype_score viene incrementato di 1 per ogni voto
+  - hype_voters traccia chi ha votato (no duplicati)
+  - Il sistema ha effetti concreti: al rilascio, hype_bonus = min(hype * 0.05, 8)
+    + bonus base +3 alla qualita' + bonus revenue del +15-40%
+
+
+3) COUNTDOWN / TIMER
+================================================================================
+
+--- Come viene gestito il tempo ---
+
+Il timer e' calcolato FRONTEND-SIDE confrontando now() con scheduled_release_at.
+Non esiste un countdown nel backend.
+
+--- Dove viene salvato ---
+
+"scheduled_release_at" (ISO datetime UTC) nel documento film_projects.
+
+--- Modifiche dinamiche al timer ---
+
+Lo scheduler process_coming_soon_dynamic_events (ogni 20 min, scheduler_tasks.py
+riga 1016) genera eventi casuali (35% probabilita' per check):
+  - Positivi (55%): accorciano il timer (es. -5/10% delle ore)
+  - Negativi (45%): allungano il timer
+  - Rari (5%): effetti drammatici
+  - Anti-frustrazione: min 30% delle ore originali, max 2x
+
+Anche routes/coming_soon.py ha interazioni (POST /api/coming-soon/{id}/interact)
+che modificano hype_score, quality, e delay_hours.
+
+--- Cosa succede allo scadere ---
+
+Lo scheduler auto_release_coming_soon (ogni 5 min, scheduler_tasks.py riga 746)
+controlla tutti i film con status: 'coming_soon':
+
+  - Se coming_soon_type == 'pre_casting':
+    status -> 'ready_for_casting', notifica all'utente. Il film prosegue al casting.
+
+  - Se tipo pre-release (post-shooting):
+    status -> 'pending_release', con bonus hype e strategia applicati.
+
+Il frontend puo' anche chiamare
+POST /api/film-pipeline/{id}/check-coming-soon-status per avanzare immediatamente.
+
+
+4) RILASCIO FILM
+================================================================================
+
+Due endpoint di rilascio:
+
+
+--- Pipeline Moderna: POST /api/film-pipeline/{id}/release (riga 3372) ---
+
+Accetta film con status: produzione, shooting, pending_release, prima, uscita.
+
+Cosa succede nel backend:
+
+  1. Verifica che le riprese siano completate (se in produzione/shooting)
+
+  2. CALCOLO QUALITA' FINALE (~120 righe di logica):
+     pre_imdb x 4.8 + cast skills (genere-aware) + soundtrack + remaster
+     + CGI/VFX + extras + buzz
+
+  3. SISTEMA "ALCHIMIA" - 7+ fattori random:
+     - Visione regista (+/-22)
+     - Pubblico (+/-20)
+     - Chimica cast
+     - Trend genere
+     - Critica
+     - Tempismo mercato
+     - Evento di rilascio dinamico
+
+  4. BONUS COMING SOON: +3 base + fino a +8 da hype
+     PENALITA' IMMEDIATO: -2
+
+  5. Calcolo opening_day_revenue basato su qualita' + fame cast + budget
+     + sponsor + evento
+
+  6. Crea documento nella collection "films" con status 'in_theaters'
+
+  7. Genera recensioni critiche, calcola IMDb rating, calcola film tier
+
+  8. Lancia task AI in background (synopsis + poster se mancante)
+
+  9. Trigger "La Prima" premiere event se configurata
+
+  10. Aggiorna film_projects -> status: 'completed'
+
+  11. Assegna XP e fame all'utente
+
+  12. Invia notifica
+
+Campi che cambiano:
+  - film_projects: status -> 'completed', film_id settato, final_quality, final_tier
+  - Nuovo doc "films": status 'in_theaters', tutti i campi di gioco popolati
+
+
+--- Legacy: POST /api/films/{id}/release (riga 4080 server.py) ---
+
+Per film creati col sistema vecchio.
+Richiede scelta di distribution_zone (national/continental/world).
+
+
+5) EVENTI AUTOMATICI
+================================================================================
+
+--- Al rilascio ---
+
+SI, esiste un sistema di Dynamic Release Events (riga 3140 di film_pipeline.py):
+  - 18 eventi possibili (8 positivi, 6 negativi, 4 neutrali)
+  - Pesati per rarita' (common/uncommon/rare)
+  - La qualita' influenza la probabilita' (film migliori -> piu' eventi positivi)
+  - Ogni evento ha quality_modifier (+/-14) e revenue_modifier (+/-40%)
+
+--- Quando vengono triggerati ---
+
+Al momento esatto del rilascio, dentro la funzione release_film().
+L'evento viene generato da generate_release_event() e applicato subito
+alla qualita' e al revenue.
+
+--- Post-rilascio: Scheduler Tasks ---
+
+  Task                                  Frequenza     File
+  -------------------------------------------------------------------------
+  update_all_films_revenue              Ogni 10 min   scheduler_tasks.py:32
+  update_film_attendance                Ogni 10 min   scheduler_tasks.py:234
+  update_cinema_revenue                 Ogni 2 ore    scheduler_tasks.py:513
+  process_shooting_progress             Ogni 1 ora    server.py:4000
+  auto_release_coming_soon              Ogni 5 min    scheduler_tasks.py:746
+  process_coming_soon_dynamic_events    Ogni 20 min   scheduler_tasks.py:1016
+  auto_cleanup_corrupted_projects       Ogni 30 min   scheduler_tasks.py:1146
+
+
+6) DISTRIBUZIONE / POST-USCITA
+================================================================================
+
+--- Il film resta in sala? Quanto? ---
+
+SI. Il film ha status 'in_theaters'.
+
+  - Pipeline moderna: max_days = max(14, quality/3 + random(7,21))
+    Un film da qualita' 90 resta ~51-60 giorni
+    Uno da qualita' 40 resta ~20-34 giorni
+
+  - Legacy: weeks_in_theater definito dall'utente alla creazione
+    (default 2 settimane = ~14 giorni)
+
+  - Revenue: calcolato ogni 10 min dallo scheduler con formula di decadimento
+    esponenziale basata su qualita' (daily_decay da 0.88 a 0.985)
+
+--- Settimane cinema ---
+
+SI, esiste il concetto:
+  - weeks_in_theater nel doc films
+  - GET /api/films/{id}/duration-status: calcola se il film va esteso o ritirato
+  - POST /api/films/{id}/extend: max 1 estensione, max 3 giorni extra
+  - POST /api/films/{id}/early-withdraw: ritiro anticipato con penalita' fame e revenue
+  - DELETE /api/films/{id}: ritiro standard (status -> 'withdrawn')
+
+--- Re-release ---
+
+SI, in server.py riga 16186:
+  - GET /api/films/{id}/rerelease-status: check se puo' tornare in sala (attesa 7 giorni)
+  - POST /api/films/{id}/rerelease: costo 30% del budget originale, rimette 'in_theaters'
+
+--- Passaggio a TV ---
+
+NO, NON ESISTE una logica automatica di passaggio da cinema a TV/streaming.
+Il film resta in_theaters -> withdrawn o completed.
+Non c'e' un flusso TV post-sala.
+
+
+7) FILE COINVOLTI
+================================================================================
+
+--- BACKEND ---
+
+  File                              Ruolo
+  -------------------------------------------------------------------------
+  routes/film_pipeline.py           Cuore della pipeline: creazione, bozze,
+  (5148 righe)                      coming soon launch, casting, sponsor,
+                                    pre-produzione, shooting, release,
+                                    eventi, quality calc
+
+  routes/coming_soon.py             Hype system, interazioni, speedup,
+  (658 righe)                       lista pubblica coming soon
+
+  routes/la_prima.py                Premiere system (setup, calcolo impatto,
+                                    trigger evento)
+
+  routes/premiere.py                Inviti premiere, Cinema Tour system
+
+  routes/casting_agency.py          Bonus agency actors
+
+  routes/cinepass.py                Gestione spesa CinePass per step pipeline
+
+  routes/sponsors.py                Performance sponsor post-film
+
+  server.py                         Legacy create_film, release_film,
+  (17.253 righe)                    distribution, extend, withdraw, re-release,
+                                    shooting progress scheduler, film detail
+
+  scheduler_tasks.py                Revenue update, attendance update,
+  (1189 righe)                      auto-release coming soon, dynamic events,
+                                    cleanup corrupted projects
+
+  cast_system.py                    Generazione cast, GENRE_SKILL_MAPPING
+
+  models/__init__.py                Modelli Pydantic (FilmCreate, FilmResponse, ecc.)
+
+
+--- FRONTEND ---
+
+  File                              Ruolo
+  -------------------------------------------------------------------------
+  pages/FilmPipeline.jsx            Pagina principale multi-step della pipeline
+  pages/FilmDetail.jsx              Dettaglio singolo film rilasciato
+  pages/MyFilms.jsx                 Lista "I Miei Film"
+  pages/FilmMarketplace.jsx         Marketplace film scartati
+  pages/FilmDrafts.jsx              Gestione bozze
+  pages/EmergingScreenplays.jsx     Sceneggiature emergenti acquistabili
+  components/ComingSoonSection.jsx  UI Coming Soon con timer e interazioni
+  components/FilmProductionCard.jsx Card film in produzione
+  components/FilmPopup.jsx          Popup dettagli film
+  components/ReleaseModeSelector.jsx Selettore Immediato/Coming Soon
+  components/DraftsSection.jsx      Sezione bozze
+
+
+================================================================================
+RIEPILOGO STATI PIPELINE
+================================================================================
+
+  draft -> proposed -> coming_soon -> ready_for_casting -> casting -> sponsor
+  -> ciak/pre_production -> produzione/shooting -> prima -> uscita/pending_release
+  -> completed
+
+La pipeline ha 10+ stati, e' gestita principalmente in film_pipeline.py con
+supporto scheduler in scheduler_tasks.py e legacy in server.py.
+
+Non esiste passaggio automatico cinema -> TV.
+
+================================================================================

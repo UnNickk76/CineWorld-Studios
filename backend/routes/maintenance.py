@@ -530,8 +530,25 @@ def _sanitize_doc(doc):
 
 
 @router.get("/admin/db/download-backup")
-async def download_backup(user: dict = Depends(get_current_user)):
-    """Genera backup completo e restituisce file JSON scaricabile. SOLO LETTURA."""
+async def download_backup(token: str = Query(..., description="JWT token per autenticazione")):
+    """Genera backup completo e restituisce file JSON scaricabile. SOLO LETTURA.
+    Usa: /admin/db/download-backup?token=IL_TUO_JWT_TOKEN
+    """
+    import jwt as pyjwt
+    from auth_utils import JWT_SECRET, JWT_ALGORITHM, get_user_role
+
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+        user['role'] = get_user_role(user)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token non valido o scaduto")
+
     require_admin(user)
 
     all_collections = await db.list_collection_names()

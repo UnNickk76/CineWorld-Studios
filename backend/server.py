@@ -10116,13 +10116,9 @@ async def startup_event():
     db_type = "ATLAS" if is_atlas else "LOCALE"
     logging.info(f"[DB] Connesso a: {db_type} — DB: {os.environ.get('DB_NAME', 'cineworld')}")
 
-    # Auto-backup DB su avvio (protetto per non bloccare startup)
-    try:
-        import asyncio as _asyncio
-        from utils.db_backup import create_backup
-        _asyncio.create_task(create_backup())
-    except Exception as e:
-        logging.error(f"[BACKUP] Errore avvio backup: {e}")
+    # Auto-backup DB su avvio (disabilitato — usare export manuale dal pannello admin)
+    # Il backup automatico su startup con DB grandi può causare OOM
+    logging.info("[BACKUP] Auto-backup disabilitato. Usa pannello Admin per export manuale.")
 
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
     try:

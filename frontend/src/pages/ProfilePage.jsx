@@ -194,10 +194,14 @@ const ProfilePage = () => {
     if (!aiPrompt.trim()) { toast.error('Inserisci una descrizione'); return; }
     setGeneratingAi(true);
     try {
-      const res = await api.post('/avatar/generate', { prompt: aiPrompt, style: 'portrait' });
-      setCustomAvatarUrl(res.data.avatar_url);
+      const res = await api.post('/avatar/generate', { prompt: aiPrompt, style: 'portrait' }, { timeout: 120000 });
+      const newUrl = res.data.avatar_url;
+      setCustomAvatarUrl(newUrl);
+      // Auto-save the generated avatar
+      await api.put('/auth/avatar', { avatar_url: newUrl, avatar_source: 'ai' });
+      await refreshUser();
       setShowAiGenerator(false);
-      toast.success('Avatar generato!');
+      toast.success('Avatar generato e salvato!');
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Generazione fallita');
     } finally {
@@ -441,7 +445,7 @@ const ProfilePage = () => {
               disabled={generatingAi || !aiPrompt.trim()} 
               className="w-full bg-yellow-500 text-black h-9"
             >
-              {generatingAi ? 'Generando...' : 'Genera Avatar'}
+              {generatingAi ? 'Generando... (30-60s)' : 'Genera Avatar'}
             </Button>
           </div>
         </DialogContent>

@@ -1014,7 +1014,7 @@ function DeletionsTab({ api }) {
 
 /* ─── DB Management Card (rendered directly by AdminPage — bypasses prop issues) ─── */
 function DbManagementCard({ api }) {
-  const [importData, setImportData] = useState('');
+  const [importFile, setImportFile] = useState(null);
   const [importFileName, setImportFileName] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [dbLoading, setDbLoading] = useState(null);
@@ -1068,16 +1068,9 @@ function DbManagementCard({ api }) {
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              setDbLoading('reading');
-              const reader = new FileReader();
-              reader.onload = (ev) => {
-                setImportData(ev.target.result);
-                setImportFileName(file.name);
-                setDbLoading(null);
-                toast.success(`File caricato: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
-              };
-              reader.onerror = () => { toast.error('Errore lettura file'); setDbLoading(null); };
-              reader.readAsText(file);
+              setImportFile(file);
+              setImportFileName(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+              toast.success(`File selezionato: ${file.name}`);
             }}
           />
           <label htmlFor="db-import-file">
@@ -1096,20 +1089,22 @@ function DbManagementCard({ api }) {
 
         {/* IMPORT SAFE */}
         <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
-          disabled={dbLoading === 'import-safe' || !importData.trim()}
+          disabled={dbLoading === 'import-safe' || !importFile}
           data-testid="db-import-safe-btn"
           onClick={async () => {
             setDbLoading('import-safe');
             setDbResult(null);
             try {
-              const parsed = JSON.parse(importData);
-              const body = parsed.data ? { confirm: 'CONFERMO', data: parsed.data } : { confirm: 'CONFERMO', data: parsed };
-              const res = await api.post('/admin/db/import-safe', body, { timeout: 120000 });
+              const formData = new FormData();
+              formData.append('file', importFile);
+              const res = await api.post('/admin/db/import-file-safe', formData, {
+                timeout: 300000,
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
               toast.success('Import safe completato');
               setDbResult({ type: 'import-safe', stats: res.data.stats });
             } catch (e) {
-              if (e instanceof SyntaxError) toast.error('JSON non valido');
-              else toast.error(e.response?.data?.detail || 'Errore import');
+              toast.error(e.response?.data?.detail || 'Errore import');
             }
             finally { setDbLoading(null); }
           }}>
@@ -1139,24 +1134,24 @@ function DbManagementCard({ api }) {
             data-testid="db-hard-confirm-input"
           />
           <Button className="w-full mt-2 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold"
-            disabled={dbLoading === 'import-hard' || !importData.trim() || confirmText !== 'CONFERMO'}
+            disabled={dbLoading === 'import-hard' || !importFile || confirmText !== 'CONFERMO'}
             data-testid="db-import-hard-btn"
             onClick={async () => {
               if (confirmText !== 'CONFERMO') { toast.error('Devi scrivere CONFERMO'); return; }
               setDbLoading('import-hard');
               setDbResult(null);
               try {
-                const parsed = JSON.parse(importData);
-                const body = parsed.data
-                  ? { confirm: 'CONFERMO', data: parsed.data }
-                  : { confirm: 'CONFERMO', data: parsed };
-                const res = await api.post('/admin/db/import-hard', body, { timeout: 120000 });
+                const formData = new FormData();
+                formData.append('file', importFile);
+                const res = await api.post('/admin/db/import-file-hard?confirm=CONFERMO', formData, {
+                  timeout: 300000,
+                  headers: { 'Content-Type': 'multipart/form-data' }
+                });
                 toast.success('Import HARD completato');
-                setDbResult({ type: 'import-hard', stats: res.data.stats, backup: res.data.backup_sizes });
+                setDbResult({ type: 'import-hard', stats: res.data.stats });
                 setConfirmText('');
               } catch (e) {
-                if (e instanceof SyntaxError) toast.error('JSON non valido');
-                else toast.error(e.response?.data?.detail || 'Errore import hard');
+                toast.error(e.response?.data?.detail || 'Errore import hard');
               }
               finally { setDbLoading(null); }
             }}>

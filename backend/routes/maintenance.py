@@ -1034,9 +1034,6 @@ async def sync_to_atlas(payload: dict, user: dict = Depends(get_current_user)):
     atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL)
     atlas_db = atlas_client[ATLAS_DB_NAME]
 
-    # Salva NeoMorpheus da Atlas (per preservare le sue credenziali Atlas)
-    neo_atlas = await atlas_db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
-
     collections = await db.list_collection_names()
     collections = [c for c in collections if not c.startswith('system.')]
 
@@ -1047,19 +1044,11 @@ async def sync_to_atlas(payload: dict, user: dict = Depends(get_current_user)):
         async for doc in db[coll_name].find({}):
             docs.append(_clean_doc(doc))
 
-        # Cancella su Atlas e reinserisci
+        # Cancella su Atlas e reinserisci TUTTO (incluso NeoMorpheus)
         del_result = await atlas_db[coll_name].delete_many({})
         deleted = del_result.deleted_count
 
         inserted = 0
-        # Per users: reinserisci NeoMorpheus Atlas prima
-        if coll_name == 'users' and neo_atlas:
-            neo_copy = {k: v for k, v in neo_atlas.items() if k != '_id'}
-            await atlas_db[coll_name].insert_one(neo_copy)
-            inserted += 1
-            # Rimuovi NeoMorpheus dai docs importati per evitare duplicato
-            docs = [d for d in docs if d.get('nickname') != ADMIN_NICKNAME]
-
         if docs:
             await atlas_db[coll_name].insert_many(docs)
             inserted += len(docs)
@@ -1093,9 +1082,6 @@ async def sync_from_atlas(payload: dict, user: dict = Depends(get_current_user))
     atlas_client = AsyncIOMotorClient(ATLAS_MONGO_URL)
     atlas_db = atlas_client[ATLAS_DB_NAME]
 
-    # Salva NeoMorpheus locale (per preservare le sue credenziali locali)
-    neo_local = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
-
     collections = await atlas_db.list_collection_names()
     collections = [c for c in collections if not c.startswith('system.')]
 
@@ -1106,18 +1092,11 @@ async def sync_from_atlas(payload: dict, user: dict = Depends(get_current_user))
         async for doc in atlas_db[coll_name].find({}):
             docs.append(_clean_doc(doc))
 
-        # Cancella locale e reinserisci
+        # Cancella locale e reinserisci TUTTO (incluso NeoMorpheus)
         del_result = await db[coll_name].delete_many({})
         deleted = del_result.deleted_count
 
         inserted = 0
-        # Per users: reinserisci NeoMorpheus locale prima
-        if coll_name == 'users' and neo_local:
-            neo_copy = {k: v for k, v in neo_local.items() if k != '_id'}
-            await db[coll_name].insert_one(neo_copy)
-            inserted += 1
-            docs = [d for d in docs if d.get('nickname') != ADMIN_NICKNAME]
-
         if docs:
             await db[coll_name].insert_many(docs)
             inserted += len(docs)

@@ -9,6 +9,9 @@ from auth_utils import get_current_user, require_co_admin, require_admin, log_ad
 import logging
 import json
 import io
+import zipfile
+import tempfile
+import os
 
 router = APIRouter()
 
@@ -544,7 +547,7 @@ def _sanitize_doc(doc):
 
 @router.get("/admin/db/download-backup")
 async def download_backup(token: str = Query(..., description="JWT token per autenticazione")):
-    """Genera backup completo STREAMING e restituisce file JSON scaricabile. SOLO LETTURA."""
+    """Genera backup completo come file .zip scaricabile. SOLO LETTURA."""
     import jwt as pyjwt
     from auth_utils import JWT_SECRET, JWT_ALGORITHM, get_user_role
 
@@ -562,21 +565,23 @@ async def download_backup(token: str = Query(..., description="JWT token per aut
 
     require_admin(user)
 
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now(timezone.utc).strftime('%d%m_%Y_%H%M')
+    zip_filename = f"backup_{timestamp}.zip"
+    json_filename = f"backup_{timestamp}.json"
 
-    async def stream_backup():
+    # Scrivi JSON su file temporaneo (evita RAM piena)
+    tmp_json = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+    try:
         collections = await db.list_collection_names()
         collections = sorted([c for c in collections if not c.startswith('system.')])
 
-        yield '{"data":{'
-
+        tmp_json.write('{"data":{')
         first_coll = True
         for coll_name in collections:
             if not first_coll:
-                yield ','
+                tmp_json.write(',')
             first_coll = False
-
-            yield f'"{coll_name}":['
+            tmp_json.write(f'"{coll_name}":[')
 
             first_doc = True
             async for doc in db[coll_name].find({}):
@@ -587,35 +592,63 @@ async def download_backup(token: str = Query(..., description="JWT token per aut
                 doc.pop('binary', None)
 
                 if not first_doc:
-                    yield ','
+                    tmp_json.write(',')
                 first_doc = False
+                tmp_json.write(json.dumps(doc, default=str, ensure_ascii=False))
 
-                yield json.dumps(doc, default=str, ensure_ascii=False)
+            tmp_json.write(']')
+        tmp_json.write('}}')
+        tmp_json.close()
 
-            yield ']'
+        # Crea ZIP dal file JSON
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.write(tmp_json.name, json_filename)
+        zip_buffer.seek(0)
 
-        yield '}}'
+    finally:
+        os.unlink(tmp_json.name)
 
     return StreamingResponse(
-        stream_backup(),
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="backup_{timestamp}.json"'}
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
     )
 
 
 
 
-@router.post("/admin/db/import-file-safe")
-async def import_file_safe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    """Import DB da file JSON upload — upsert senza cancellare (ADMIN only)."""
-    require_admin(user)
+async def _extract_json_from_upload(file: UploadFile) -> dict:
+    """Estrae dati JSON da file .zip o .json upload."""
     content = await file.read()
-    try:
-        raw = json.loads(content)
-    except Exception:
-        raise HTTPException(status_code=400, detail="File JSON non valido")
+    filename = (file.filename or '').lower()
+
+    if filename.endswith('.zip'):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                json_files = [n for n in zf.namelist() if n.endswith('.json')]
+                if not json_files:
+                    raise HTTPException(status_code=400, detail="Nessun file .json trovato nel .zip")
+                json_content = zf.read(json_files[0])
+                raw = json.loads(json_content)
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="File .zip non valido")
+    else:
+        try:
+            raw = json.loads(content)
+        except Exception:
+            raise HTTPException(status_code=400, detail="File JSON non valido")
 
     data = raw.get("data", raw)
+    return data
+
+
+
+@router.post("/admin/db/import-file-safe")
+async def import_file_safe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Import DB da file .json o .zip — upsert senza cancellare (ADMIN only)."""
+    require_admin(user)
+    data = await _extract_json_from_upload(file)
     stats = {}
     for coll_name, docs in data.items():
         if not isinstance(docs, list):
@@ -644,18 +677,12 @@ async def import_file_safe(file: UploadFile = File(...), user: dict = Depends(ge
 
 @router.post("/admin/db/import-file-hard")
 async def import_file_hard(file: UploadFile = File(...), confirm: str = Query(...), user: dict = Depends(get_current_user)):
-    """Hard reset da file JSON upload — cancella e reimporta (ADMIN only)."""
+    """Hard reset da file .json o .zip — cancella e reimporta (ADMIN only)."""
     require_admin(user)
     if confirm != 'CONFERMO':
         raise HTTPException(status_code=400, detail="Conferma richiesta: ?confirm=CONFERMO")
 
-    content = await file.read()
-    try:
-        raw = json.loads(content)
-    except Exception:
-        raise HTTPException(status_code=400, detail="File JSON non valido")
-
-    data = raw.get("data", raw)
+    data = await _extract_json_from_upload(file)
     neo_user = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
 
     stats = {}

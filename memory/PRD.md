@@ -49,11 +49,18 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 - `previous_step` tracking in maintenance + scheduler
 
 ### STEP 5+ — Export/Import DB ✅
-- `GET /admin/db/export` — esporta JSON
-- `POST /admin/db/import-safe` — upsert senza cancellare
-- `POST /admin/db/import-hard` — hard reset con backup + rollback
+- `GET /admin/db/export` — esporta JSON di TUTTE le collection
+- `POST /admin/db/import-safe` — upsert senza cancellare (tutte le collection nel payload)
+- `POST /admin/db/import-hard` — hard reset con backup + rollback (tutte le collection nel payload)
+- `POST /admin/db/reset` — RESET COMPLETO: svuota tutte le 69 collection, preserva NeoMorpheus
 - NeoMorpheus protetto in tutti i casi
 - UI: card "Gestione Database" nel tab Manutenzione
+
+### Fix Inconsistenze DB ✅ (4 Apr 2026)
+- `POST /admin/maintenance/fix-all` — fix completo: duplicati + stati invalidi + previous_step
+- `fix_inconsistent_projects()`: trova duplicati (title+user_id), rimuove i più vecchi; reset stati invalidi; set previous_step default
+- Auto-fix applicato a tutti i progetti attivi dopo il fix consistenza
+- Validato: 0 duplicati, 0 stati invalidi, 0 previous_step mancanti
 
 ### STEP 9 — Fix UI Mobile ✅
 - Scrollbar: `no-scrollbar` class fix

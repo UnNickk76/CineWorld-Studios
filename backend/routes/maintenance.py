@@ -417,25 +417,91 @@ async def _reset_step(coll, project: dict, ptype: str, now_str: str) -> dict:
 
 # ==================== DB EXPORT / IMPORT ====================
 
-# Collections to export/import
-DB_COLLECTIONS = ['users', 'film_projects', 'tv_series']
+# Collections to export/import — ALL game collections
+DB_COLLECTIONS = [
+    'users', 'film_projects', 'tv_series', 'films', 'film_drafts', 'film_comments', 'film_ratings',
+    'pre_films', 'sequels', 'people', 'poster_files',
+    'challenges', 'chat_messages', 'chat_rooms', 'chat_images',
+    'cinema_news', 'cinepass_contests', 'coming_soon_interactions',
+    'emerging_screenplays', 'emittente_broadcasts', 'events',
+    'festival_awards', 'festival_editions', 'festival_votes', 'festivals',
+    'follows', 'friendships', 'infrastructure', 'likes',
+    'major_invites', 'major_members', 'majors',
+    'notifications', 'reports', 'sponsor_deals', 'sponsors',
+    'tv_stations', 'velion_prefs', 'virtual_reviews',
+    'agency_actors', 'agency_recruits_log', 'casting_hires',
+    'hired_stars', 'negotiations', 'rejections',
+    'pvp_arena_actions', 'pvp_challenges', 'minigame_versus',
+    'acting_school_recruits', 'acting_school_trainees',
+    'casting_school_students', 'casting_weekly_pool', 'cast_pool',
+    'ceremony_viewers', 'premiere_history', 'purchased_screenplays',
+    'scout_screenplay_pool', 'scout_talent_pool', 'studio_drafts', 'suggestions',
+    'system_config', 'system_notes', 'release_notes', 'admin_logs',
+    'box_office_wars', 'regen_tasks',
+]
+
+
+@router.post("/admin/db/reset")
+async def reset_db(payload: dict, user: dict = Depends(get_current_user)):
+    """RESET COMPLETO: cancella TUTTE le collection, mantiene SOLO NeoMorpheus (ADMIN only)."""
+    require_admin(user)
+
+    if payload.get('confirm') != 'CONFERMO_RESET':
+        raise HTTPException(status_code=400, detail="Conferma richiesta: inviare confirm='CONFERMO_RESET'")
+
+    # 1. Salva NeoMorpheus
+    neo_user = await db.users.find_one({'nickname': ADMIN_NICKNAME}, {'_id': 0})
+    if not neo_user:
+        raise HTTPException(status_code=500, detail="NeoMorpheus non trovato nel DB!")
+
+    # 2. Ottieni TUTTE le collection nel DB
+    all_collections = await db.list_collection_names()
+    stats = {}
+
+    for coll_name in all_collections:
+        if coll_name.startswith('system.'):
+            continue
+        try:
+            del_result = await db[coll_name].delete_many({})
+            stats[coll_name] = del_result.deleted_count
+        except Exception as e:
+            stats[coll_name] = f'error: {str(e)}'
+
+    # 3. Reinserisci NeoMorpheus
+    neo_user.pop('_id', None)
+    await db.users.insert_one(neo_user)
+
+    await log_admin_action('db_reset_complete', user, details={'stats': stats})
+    logging.info(f"[ADMIN_DB] RESET COMPLETO da {user.get('nickname')} — {len(stats)} collection svuotate, NeoMorpheus preservato")
+
+    return {
+        'success': True,
+        'collections_cleared': len(stats),
+        'stats': stats,
+        'neo_preserved': True,
+    }
 
 
 @router.get("/admin/db/export")
 async def export_db(user: dict = Depends(get_current_user)):
-    """Export full DB as JSON (ADMIN only)."""
+    """Export full DB as JSON (ADMIN only). Esporta TUTTE le collection."""
     require_admin(user)
 
+    # Esporta tutte le collection nel DB, non solo DB_COLLECTIONS
+    all_collections = await db.list_collection_names()
     result = {}
-    for coll_name in DB_COLLECTIONS:
+    for coll_name in sorted(all_collections):
+        if coll_name.startswith('system.'):
+            continue
         docs = await db[coll_name].find({}, {'_id': 0}).to_list(None)
-        result[coll_name] = docs
+        if docs:
+            result[coll_name] = docs
 
     await log_admin_action('db_export', user, details={
-        'collections': DB_COLLECTIONS,
+        'collections': list(result.keys()),
         'counts': {k: len(v) for k, v in result.items()},
     })
-    logging.info(f"[ADMIN_DB] export eseguito da {user.get('nickname')} — {sum(len(v) for v in result.values())} documenti")
+    logging.info(f"[ADMIN_DB] export eseguito da {user.get('nickname')} — {sum(len(v) for v in result.values())} documenti in {len(result)} collection")
 
     return {
         'success': True,
@@ -447,7 +513,7 @@ async def export_db(user: dict = Depends(get_current_user)):
 
 @router.post("/admin/db/import-safe")
 async def import_db_safe(payload: dict, user: dict = Depends(get_current_user)):
-    """Import DB via upsert — aggiunge/aggiorna senza cancellare (ADMIN only)."""
+    """Import DB via upsert — aggiunge/aggiorna senza cancellare (ADMIN only). Gestisce TUTTE le collection nel payload."""
     require_admin(user)
 
     if payload.get('confirm') != 'CONFERMO':
@@ -458,9 +524,8 @@ async def import_db_safe(payload: dict, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Campo 'data' mancante o vuoto")
 
     stats = {}
-    for coll_name in DB_COLLECTIONS:
-        docs = data.get(coll_name, [])
-        if not docs:
+    for coll_name, docs in data.items():
+        if not docs or not isinstance(docs, list):
             stats[coll_name] = {'inserted': 0, 'updated': 0, 'skipped': 0}
             continue
 
@@ -497,7 +562,7 @@ async def import_db_safe(payload: dict, user: dict = Depends(get_current_user)):
 
 @router.post("/admin/db/import-hard")
 async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
-    """Hard reset: cancella e reimporta (ADMIN only). Backup automatico in memoria."""
+    """Hard reset: cancella TUTTE le collection presenti nel payload e reimporta (ADMIN only). Backup automatico."""
     require_admin(user)
 
     if payload.get('confirm') != 'CONFERMO':
@@ -507,9 +572,12 @@ async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
     if not data:
         raise HTTPException(status_code=400, detail="Campo 'data' mancante o vuoto")
 
+    # Determina le collection da importare (tutte quelle nel payload)
+    import_collections = list(data.keys())
+
     # 1. Backup automatico in memoria
     backup = {}
-    for coll_name in DB_COLLECTIONS:
+    for coll_name in import_collections:
         backup[coll_name] = await db[coll_name].find({}, {'_id': 0}).to_list(None)
     logging.info(f"[ADMIN_DB] Backup in memoria completato: {{{', '.join(f'{k}: {len(v)}' for k, v in backup.items())}}}")
 
@@ -518,18 +586,20 @@ async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
 
     stats = {}
     try:
-        for coll_name in DB_COLLECTIONS:
+        for coll_name in import_collections:
             docs = data.get(coll_name, [])
             # Pulisci _id dai documenti importati
             clean_docs = []
             for d in docs:
+                if not isinstance(d, dict):
+                    continue
                 d.pop('_id', None)
                 # Skip NeoMorpheus nei dati importati (verrà reinserito dalla copia originale)
                 if coll_name == 'users' and d.get('nickname') == ADMIN_NICKNAME:
                     continue
                 clean_docs.append(d)
 
-            # Delete all
+            # Delete all in this collection
             del_result = await db[coll_name].delete_many({})
             deleted = del_result.deleted_count
 
@@ -550,7 +620,7 @@ async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
     except Exception as e:
         # Rollback from backup
         logging.error(f"[ADMIN_DB] import-hard FALLITO, eseguo rollback: {e}")
-        for coll_name in DB_COLLECTIONS:
+        for coll_name in import_collections:
             await db[coll_name].delete_many({})
             if backup.get(coll_name):
                 await db[coll_name].insert_many(backup[coll_name])
@@ -560,3 +630,157 @@ async def import_db_hard(payload: dict, user: dict = Depends(get_current_user)):
     logging.info(f"[ADMIN_DB] import-hard eseguito da {user.get('nickname')} — {stats}")
 
     return {'success': True, 'stats': stats, 'backup_sizes': {k: len(v) for k, v in backup.items()}}
+
+
+# ==================== FIX INCONSISTENT PROJECTS ====================
+
+VALID_FILM_STATUSES = set(FILM_PIPELINE) | FILM_TERMINAL | set(FILM_LEGACY_MAP.keys())
+VALID_SERIES_STATUSES = set(SERIES_PIPELINE) | SERIES_TERMINAL
+
+
+async def fix_inconsistent_projects() -> dict:
+    """
+    Trova e corregge problemi nel DB:
+    1. Film duplicati (stesso title + user_id) → mantiene il più recente
+    2. Stati invalidi → reset a "concept"/"draft"
+    3. previous_step mancante → set default
+    """
+    now_str = datetime.now(timezone.utc).isoformat()
+    report = {
+        'duplicates_removed': {'film_projects': 0, 'films': 0, 'tv_series': 0},
+        'invalid_status_fixed': {'film_projects': 0, 'films': 0, 'tv_series': 0},
+        'missing_previous_step_fixed': {'film_projects': 0, 'films': 0, 'tv_series': 0},
+        'details': [],
+    }
+
+    # --- 1. DUPLICATI ---
+    # film_projects
+    pipeline_dup = [
+        {'$group': {
+            '_id': {'title': '$title', 'user_id': '$user_id'},
+            'count': {'$sum': 1},
+            'ids': {'$push': '$id'},
+            'updated_ats': {'$push': '$updated_at'},
+        }},
+        {'$match': {'count': {'$gt': 1}}}
+    ]
+
+    for coll_name, default_status in [('film_projects', 'draft'), ('films', 'released'), ('tv_series', 'concept')]:
+        async for dup in db[coll_name].aggregate(pipeline_dup):
+            ids = dup['ids']
+            # Trova il più recente per updated_at
+            docs = await db[coll_name].find({'id': {'$in': ids}}, {'_id': 0, 'id': 1, 'updated_at': 1, 'created_at': 1}).to_list(None)
+            if len(docs) < 2:
+                continue
+
+            def sort_key(d):
+                dt_str = d.get('updated_at') or d.get('created_at') or ''
+                try:
+                    return datetime.fromisoformat(str(dt_str).replace('Z', '+00:00'))
+                except Exception:
+                    return datetime.min.replace(tzinfo=timezone.utc)
+
+            docs.sort(key=sort_key, reverse=True)
+            keep_id = docs[0]['id']
+            remove_ids = [d['id'] for d in docs[1:]]
+
+            if remove_ids:
+                del_result = await db[coll_name].delete_many({'id': {'$in': remove_ids}})
+                report['duplicates_removed'][coll_name] += del_result.deleted_count
+                title = dup['_id'].get('title', '?')
+                report['details'].append(f'[{coll_name}] Rimossi {del_result.deleted_count} duplicati di "{title}", mantenuto id={keep_id}')
+
+    # --- 2. STATI INVALIDI ---
+    # film_projects: status non in pipeline valida → reset a "draft"
+    async for fp in db.film_projects.find({}, {'_id': 0, 'id': 1, 'status': 1, 'title': 1}):
+        status = fp.get('status', '')
+        if status and status not in VALID_FILM_STATUSES:
+            await db.film_projects.update_one({'id': fp['id']}, {'$set': {'status': 'draft', 'previous_step': status, 'updated_at': now_str}})
+            report['invalid_status_fixed']['film_projects'] += 1
+            report['details'].append(f'[film_projects] "{fp.get("title","?")}" stato invalido "{status}" → "draft"')
+
+    # films (released collection): stati invalidi
+    async for f in db.films.find({}, {'_id': 0, 'id': 1, 'status': 1, 'title': 1}):
+        status = f.get('status', '')
+        if status and status not in VALID_FILM_STATUSES and status not in ('in_theaters', 'ended'):
+            await db.films.update_one({'id': f['id']}, {'$set': {'status': 'released', 'updated_at': now_str}})
+            report['invalid_status_fixed']['films'] += 1
+            report['details'].append(f'[films] "{f.get("title","?")}" stato invalido "{status}" → "released"')
+
+    # tv_series: stati invalidi
+    async for s in db.tv_series.find({}, {'_id': 0, 'id': 1, 'status': 1, 'title': 1}):
+        status = s.get('status', '')
+        if status and status not in VALID_SERIES_STATUSES:
+            await db.tv_series.update_one({'id': s['id']}, {'$set': {'status': 'concept', 'previous_step': status, 'updated_at': now_str}})
+            report['invalid_status_fixed']['tv_series'] += 1
+            report['details'].append(f'[tv_series] "{s.get("title","?")}" stato invalido "{status}" → "concept"')
+
+    # --- 3. PREVIOUS_STEP MANCANTE ---
+    for coll_name in ['film_projects', 'tv_series']:
+        result = await db[coll_name].update_many(
+            {'previous_step': {'$exists': False}},
+            {'$set': {'previous_step': None}}
+        )
+        report['missing_previous_step_fixed'][coll_name] = result.modified_count
+        if result.modified_count > 0:
+            report['details'].append(f'[{coll_name}] Aggiunto previous_step a {result.modified_count} progetti')
+
+    logging.info(f"[MAINTENANCE] fix_inconsistent_projects completato: {report}")
+    return report
+
+
+@router.post("/admin/maintenance/fix-all")
+async def fix_all_projects(user: dict = Depends(get_current_user)):
+    """Esegue fix_inconsistent_projects + auto_fix su tutti i progetti non completati (ADMIN only)."""
+    require_admin(user)
+
+    # 1. Fix inconsistenze (duplicati, stati invalidi, previous_step)
+    consistency_report = await fix_inconsistent_projects()
+
+    # 2. Auto-fix su tutti i progetti attivi
+    auto_fix_report = {'film_projects': [], 'tv_series': []}
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    # Film projects
+    async for fp in db.film_projects.find(
+        {'status': {'$nin': list(FILM_TERMINAL)}},
+        {'_id': 0}
+    ):
+        result = await _auto_fix(db.film_projects, fp, 'film', now_str)
+        if result['fixes'] != ['Nessun problema da correggere']:
+            auto_fix_report['film_projects'].append({
+                'id': fp['id'],
+                'title': fp.get('title', '?'),
+                'fixes': result['fixes'],
+            })
+
+    # TV Series
+    async for s in db.tv_series.find(
+        {'status': {'$nin': list(SERIES_TERMINAL)}},
+        {'_id': 0}
+    ):
+        ptype = 'anime' if s.get('type') == 'anime' else 'serie'
+        result = await _auto_fix(db.tv_series, s, ptype, now_str)
+        if result['fixes'] != ['Nessun problema da correggere']:
+            auto_fix_report['tv_series'].append({
+                'id': s['id'],
+                'title': s.get('title', '?'),
+                'fixes': result['fixes'],
+            })
+
+    await log_admin_action('maintenance_fix_all', user, details={
+        'consistency': {k: v for k, v in consistency_report.items() if k != 'details'},
+        'auto_fixes': {k: len(v) for k, v in auto_fix_report.items()},
+    })
+
+    return {
+        'success': True,
+        'consistency_report': consistency_report,
+        'auto_fix_report': auto_fix_report,
+        'summary': {
+            'duplicates_removed': sum(consistency_report['duplicates_removed'].values()),
+            'invalid_statuses_fixed': sum(consistency_report['invalid_status_fixed'].values()),
+            'previous_step_fixed': sum(consistency_report['missing_previous_step_fixed'].values()),
+            'projects_auto_fixed': sum(len(v) for v in auto_fix_report.values()),
+        }
+    }

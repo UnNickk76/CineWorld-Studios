@@ -4,108 +4,71 @@
 Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline di film, serie TV, anime. React + FastAPI + MongoDB.
 
 ## Architettura
-- **Frontend**: React (Vite/CRA), Tailwind CSS, Shadcn UI
+- **Frontend**: React (CRA + Craco), Tailwind CSS, Shadcn UI
 - **Backend**: FastAPI, Motor (async MongoDB)
-- **DB**: MongoDB Atlas (`cineworld`)
-- **Deploy**: Emergent Platform (Preview) + Railway (Production)
+- **DB**: MongoDB Atlas (`cineworld`) + Emergent Managed DB (.it)
+- **Deploy**: Emergent Platform (.it) + Railway (backup)
 
 ## Step Completati
 
-### STEP 1 — Sistema Ruoli
-- Campo `role` aggiunto (ADMIN / CO_ADMIN / MOD / USER)
-- NeoMorpheus = ADMIN hardcoded nel backend
-- Protezioni ADMIN su: reset, cambio password, recovery password
-- Tutti gli utenti esistenti migrati a `role: USER`
+### Sistema Ruoli & Sicurezza ADMIN
+- NeoMorpheus = ADMIN hardcoded, intoccabile da codice e in game
+- RBAC: ADMIN / CO_ADMIN / MOD / USER
+- Auto-correzione ruoli su startup
+- Blocco assoluto creazione altri ADMIN
 
-### STEP EXTRA — Blocco Assoluto ADMIN
-- `get_user_role()` -> nickname ha priorita assoluta sul DB
-- `validate_role_assignment()` -> blocca creazione ADMIN su non-NeoMorpheus
-- Startup -> auto-correzione: strip ADMIN da utenti non autorizzati
-- Log `[SECURITY]` su ogni violazione
+### Pannello Admin
+- 6 tab ADMIN: Utenti, Film, Ruoli, Segnalazioni, Cancellazioni, Manutenzione
+- 2 tab CO_ADMIN: Segnalazioni, Manutenzione
+- Flow cancellazione account completo (10gg countdown + failsafe)
 
-### STEP 2 — Permessi Ruoli
-- ADMIN: pieno controllo
-- CO_ADMIN: reports, search-users, feedback, reset utenti, cambio password utenti
-- CO_ADMIN non puo: set-user-role, delete-user, modificare ADMIN
-- MOD: placeholder
-- Nuovi endpoint: `/admin/reset-user`, `/admin/change-user-password`
-
-### STEP 3 — Flow Cancellazione Account
-- Flusso completo: requested -> countdown_active (10gg) -> user_confirmed -> final deletion
-- ADMIN approva/rifiuta, cooldown 5 giorni su rifiuto
-- Failsafe: auto-eliminazione se ADMIN non risponde entro 5 giorni
-- Modulo: `routes/deletion.py`
-
-### STEP 4 — Admin Panel / Co-Admin Panel
-- ADMIN: 6 tab (Utenti, Film, Ruoli, Segnalazioni, Cancellazioni, Manutenzione)
-- CO_ADMIN: 2 tab (Segnalazioni, Manutenzione)
-- Tab Gestione Ruoli: assegna Co-Admin/Mod/User
-- Tab Cancellazioni: gestione richieste con azioni
-
-### STEP 5 — Manutenzione Avanzata
-- `routes/maintenance.py`: diagnostica + 4 azioni (auto_fix, force_step, complete_project, reset_step)
-- Loop detection: `status == previous_step` -> flag LOOP
-- Timer stuck: `scheduled_release_at` scaduto -> flag STUCK
-- `previous_step` tracking in maintenance + scheduler
-
-### STEP 5+ — Export/Import DB (Streaming ZIP)
-- `GET /admin/db/export` — esporta ZIP streaming di TUTTE le collection (bypass RAM limits)
-- `POST /admin/db/import-file-safe` — upsert senza cancellare (FormData upload)
-- `POST /admin/db/import-file-hard` — hard reset con backup + rollback (FormData upload)
-- `POST /admin/db/reset` — RESET COMPLETO: svuota tutte le 69 collection, preserva NeoMorpheus
-
-### Fix Inconsistenze DB
-- `POST /admin/maintenance/fix-all` — fix completo: duplicati + stati invalidi + previous_step
-- Auto-fix applicato a tutti i progetti attivi dopo il fix consistenza
-
-### STEP 9 — Fix UI Mobile
-- Scrollbar: `no-scrollbar` class fix
-- Tab touch area: min 44px
-- Stats grid responsive: 2->4 colonne
+### Manutenzione & Diagnostica
+- Loop/stuck detection per progetti
+- Auto-fix, force_step, complete_project, reset_step
+- Export/Import DB in streaming ZIP (bypass RAM limits)
 
 ### AI Avatar Generation
-- `GET /avatar/image/{filename}` — endpoint per servire file avatar da disco
-- `POST /avatar/generate` — genera avatar AI con OpenAI `gpt-image-1` via Emergent LLM Key
-- `PUT /auth/avatar` — aggiorna avatar_url e avatar_source
-- Timeout axios esteso a 120s per la generazione
+- OpenAI `gpt-image-1` via Emergent LLM Key
+- Timeout 120s, salvataggio URL automatico
 
-### Auto-Backup DB (4 Apr 2026)
-- `backend/utils/db_backup.py` per auto-backup leggero (`.json.gz`)
-- Conserva gli ultimi 5 backup ad ogni startup
-- Eseguito automaticamente su ogni avvio del server
+### Pannello DB Management (4 Apr 2026) — COMPLETATO E TESTATO
+- 3 sub-tab: Stato DB / Backup-Import / Sincronizzazione
+- Sync-status con `dbStats` + cache 30s (3s vs 17s precedenti)
+- Gestione errore elegante (no più "Caricamento..." infinito)
+- Visibile SOLO per NeoMorpheus
 
-### Pannello DB Management con Sottomenu (4 Apr 2026) - TESTATO OK
-- `DbManagementCard` ristrutturata con 3 sub-tab: Stato DB / Backup-Import / Sincronizzazione
-- **Stato DB**: mostra header stato sync (verde/giallo/rosso) + tabella dettaglio per-collection con confronto Corrente vs Atlas
-- **Backup / Import**: Scarica ZIP, Upload file, Import Safe (upsert), Import Hard (reset)
-- **Sincronizzazione**: Invia a Atlas / Ricevi da Atlas con conferma CONFERMO
-- Visibile SOLO per NeoMorpheus (admin)
-- Endpoint `/api/admin/db/sync-status` con estimated_document_count per performance
-- APScheduler auto-sync locale->Atlas ogni 30 min (attivo solo se DB locale, non su preview)
-- Backend protetto: CO_ADMIN riceve "Solo ADMIN puo' eseguire questa operazione"
+### Fix Deploy Emergent (4 Apr 2026) — COMPLETATO
+- `.gitignore` ricostruito (era 1095 righe malformate → 70 righe pulite)
+- `DISABLE_ESLINT_PLUGIN=true` per build con CI=true
+- `load_dotenv()` senza `override=True`
+- Backup automatico su startup disabilitato (previene OOM)
+- Startup robusto con try/except
+
+### Fix Sincronizzazione Completa (4 Apr 2026) — COMPLETATO
+- Rimossa protezione NeoMorpheus nel sync (causava mancato aggiornamento soldi/crediti)
+- Ora "Invia a Atlas" e "Ricevi da Atlas" copiano TUTTO fedelmente, incluso NeoMorpheus
 
 ## File Chiave
-- `/app/backend/auth_utils.py` — Sistema ruoli completo
-- `/app/backend/models/__init__.py` — UserResponse con role + deletion_status
-- `/app/backend/routes/auth.py` — Protezioni ADMIN, Avatar AI
+- `/app/backend/server.py` — Main server (17k+ righe, da modularizzare)
+- `/app/backend/routes/maintenance.py` — DB management, sync, export/import
+- `/app/backend/routes/auth.py` — Auth, Avatar AI
 - `/app/backend/routes/deletion.py` — Flow cancellazione
-- `/app/backend/routes/maintenance.py` — Manutenzione + Export/Import DB + Sync
-- `/app/backend/server.py` — Importazioni, migration, scheduler, APScheduler
-- `/app/backend/utils/db_backup.py` — Auto-backup
-- `/app/frontend/src/pages/AdminPage.jsx` — Pannello Admin/Co-Admin completo
+- `/app/backend/auth_utils.py` — Sistema ruoli
+- `/app/backend/utils/db_backup.py` — Backup utility
+- `/app/frontend/src/pages/AdminPage.jsx` — Pannello Admin completo
 - `/app/frontend/src/contexts/index.jsx` — Auth context, API instance
 
 ## Backlog Prioritizzato
 
-### P1
-- Modularizzazione GAME CORE endpoints da `server.py` (17k+ righe)
+### P1 — Prossimi
+- Modularizzazione GAME CORE endpoints da `server.py` (17k+ righe → route files)
 - Sistema "Previsioni Festival" (Scommesse sui vincitori)
 - Marketplace for TV/Anime rights
 
 ### P2
 - Contest Page Mobile Layout (16+ segnalazioni)
 
-### P3
+### P3 — Futuro
 - Velion features (Mood, Chat, Levels, AI Memory)
-- CinePass + Stripe, Push notifications, RBAC
+- CinePass + Stripe, Push notifications
 - Eventi globali, Guerre tra Major

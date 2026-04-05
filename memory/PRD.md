@@ -11,29 +11,29 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 ## Funzionalità Implementate
 
 ### Core Game
-- Pipeline film a 6 step (layout cinematografico immersivo con animazioni CSS)
+- Pipeline film a 6 step (layout cinematografico immersivo)
 - Guest login
 - Dashboard con sezioni: La Prima, Prossimamente, Ultimi Aggiornamenti
-- CineBoard con classifiche: Film, Serie, Anime, TV Stations, **La Prima**
+- CineBoard con classifiche: Film, Serie, Anime, TV Stations, La Prima
+
+### Content Template Unico (Completato — 2026-04-05)
+- **Template-based fullscreen** per Film/Serie/Anime usando `content-template.jpg` come sfondo
+- **Stato "IN PROGRAMMAZIONE"**: poster, titolo, genere, cinema, incassi, like, commenti, azioni, recensioni, trailer
+- **Stato "COMING SOON"**: poster, titolo, genere, hype, sinossi (no incassi/spettatori)
+- **Sub-popup cinematici** (stile oro/nero CSS, no template):
+  - Commenti → popup completo con avatar, nomi, testo, rating
+  - Sceneggiatura → popup testo
+  - Cast & Crew → popup lista con avatar e ruoli
+  - Trailer → popup (funzionalità in sviluppo)
+- **Azioni proprietario**: Incassa Ora, Crea Stella, Boost Crew
+- **Recensioni**: Variety, Empire, The Hollywood Reporter (generate da qualità/hype)
+- **Integrato in** FilmDetail.jsx e SeriesDetail.jsx
 
 ### La Prima (Completata — 2026-04-05)
-- **Backend**: Endpoint enable/setup/live/active/rankings/cities in `routes/la_prima.py`
-- **Frontend Dashboard**: `LaPrimaSection` con layout **orizzontale scrollabile**, card compatte da 140px
-- **Popup cinematografico**: `LaPrimaPopup` con template dorato/nero
-  - Badge "LIVE ORA" pulsante
-  - Count-up animato su hype e spettatori
-  - Micro-jitter spettatori ogni 5-8s con delta "+X spettatori negli ultimi minuti"
-  - Reazioni pubblico random (12 frasi, rotazione ogni 8-12s)
-  - Grafico trend bezier con punti colorati (oro=positivo, rosso=negativo)
-  - Particelle CSS (3 tipi: rise, drift, twinkle)
-  - Ingresso cinematografico (scale 0.94→1, 350ms)
-  - Glow dorato sui bordi, tende rosse laterali, spotlight
-  - Brand "CineWorld Studio's" in fondo
-- **CineBoard La Prima**: 3 tab (Spettatori Live, Spettatori Totali, Media Mista)
-
-### Fix e Ripristini (2026-04-05)
-- Film "K" ripristinato nella collection `films` (era in `film_projects` completed ma mai inserito in `films`)
-- Card La Prima compattata da full-width a 140px con scroll orizzontale
+- Backend: endpoint enable/setup/live/active/rankings/cities
+- Dashboard: LaPrimaSection con scroll orizzontale, card compatte 140px
+- Popup TEMPLATE-BASED con dati live, animazioni CSS, reazioni pubblico
+- CineBoard La Prima: 3 tab classifiche
 
 ## Backlog Prioritizzato
 
@@ -43,9 +43,9 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 - [x] Redesign FilmPipeline (6 step cinematografico)
 - [x] Fix endpoint /api/coming-soon
 - [x] La Prima: backend + Dashboard + CineBoard + Popup LIVE
-- [x] La Prima: miglioramenti visivi LIVE (animazioni, count-up, reazioni)
-- [x] La Prima: card compatta scrollabile orizzontalmente
-- [x] Ripristino film K perso
+- [x] Content Template unico per Film/Serie/Anime
+- [x] Sub-popup cinematici (Commenti, Sceneggiatura, Cast, Trailer)
+- [x] Ripristino film K
 
 ### P1 (Prossimi)
 - [ ] Modularizzazione server.py (17k+ righe)
@@ -56,11 +56,6 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 - [ ] Contest Page Mobile Layout (16+ segnalazioni)
 
 ### P3 (Futuro)
-- [ ] Velion Mood Indicator
-- [ ] Chat Evolution
-- [ ] CinePass + Stripe
-- [ ] Push notifications
-- [ ] Velion Levels
-- [ ] Eventi globali
-- [ ] Guerre tra Major
-- [ ] Velion AI Memory
+- [ ] Velion Mood Indicator, Chat Evolution, CinePass+Stripe
+- [ ] Push notifications, Velion Levels, Eventi globali
+- [ ] Guerre tra Major, Velion AI Memory

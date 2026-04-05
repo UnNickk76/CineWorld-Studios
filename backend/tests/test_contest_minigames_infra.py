@@ -13,7 +13,7 @@ from datetime import datetime
 # Use the production URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://prima-live.preview.emergentagent.com"
+    BASE_URL = "https://premiere-ui-fix.preview.emergentagent.com"
 
 # Test credentials
 TEST_USER_EMAIL = "testpopup@test.com"

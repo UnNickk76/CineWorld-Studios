@@ -991,10 +991,11 @@ const TopNavbar = () => {
                 <div className="grid grid-cols-3 gap-2">
                   {/* Film - Always available */}
                   <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
                     onClick={() => { navigate('/create-film'); setShowProductionMenu(false); }}
                     data-testid="prod-menu-film"
                   >
+                    {productionUnlocks?.pipeline_counts?.film > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.film}</span>}
                     <Camera className="w-5 h-5" />
                     <span className="text-[10px] font-bold leading-tight">Film</span>
                   </button>
@@ -1021,6 +1022,7 @@ const TopNavbar = () => {
                     data-testid="prod-menu-series"
                   >
                     {!productionUnlocks?.has_studio_serie_tv && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    {productionUnlocks?.has_studio_serie_tv && productionUnlocks?.pipeline_counts?.series > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.series}</span>}
                     <Tv className="w-5 h-5" />
                     <span className="text-[10px] font-bold leading-tight">Serie TV</span>
                   </button>
@@ -1038,6 +1040,7 @@ const TopNavbar = () => {
                     data-testid="prod-menu-anime"
                   >
                     {!productionUnlocks?.has_studio_anime && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
+                    {productionUnlocks?.has_studio_anime && productionUnlocks?.pipeline_counts?.anime > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.anime}</span>}
                     <Sparkles className="w-5 h-5" />
                     <span className="text-[10px] font-bold leading-tight">Anime</span>
                   </button>

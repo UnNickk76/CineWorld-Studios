@@ -247,6 +247,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     ).sort('created_at', -1).to_list(50)
     pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
+    series_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
+    anime_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
     series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
@@ -257,8 +259,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
     ).sort('released_at', -1).to_list(10)
 
-    films, infrastructure, challenges, pending_films, pipeline_projects, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
+    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
     )
 
     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
@@ -339,6 +341,31 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         pipeline_counts[s] = pipeline_counts.get(s, 0) + 1
     pipeline_total = sum(pipeline_counts.values())
 
+    # Per-type pipeline counts for PRODUCI badges
+    series_pipeline_total = len(series_pipeline)
+    anime_pipeline_total = len(anime_pipeline)
+
+    # Fix stuck projects inline: advance expired timers
+    now_fix = datetime.now(timezone.utc)
+    for p in pipeline_projects:
+        if p.get('status') == 'coming_soon' and p.get('scheduled_release_at'):
+            try:
+                sra = p['scheduled_release_at']
+                release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+                if release_dt.tzinfo is None:
+                    release_dt = release_dt.replace(tzinfo=timezone.utc)
+                if now_fix >= release_dt:
+                    cs_type = p.get('coming_soon_type', 'pre_casting')
+                    target = 'ready_for_casting' if cs_type == 'pre_casting' else 'pending_release'
+                    await db.film_projects.update_one(
+                        {'id': p['id'], 'status': 'coming_soon'},
+                        {'$set': {'status': target, 'previous_step': 'coming_soon',
+                                  'coming_soon_completed': True, 'coming_soon_completed_at': now_fix.isoformat(),
+                                  'updated_at': now_fix.isoformat()}}
+                    )
+            except Exception:
+                pass
+
     has_studio = any(i.get('type') == 'production_studio' for i in infrastructure)
 
     return {
@@ -378,7 +405,9 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'has_studio': has_studio,
         'shooting_films': shooting_films,
         'pipeline_counts': pipeline_counts,
-        'pipeline_total': pipeline_total
+        'pipeline_total': pipeline_total,
+        'series_pipeline_total': series_pipeline_total,
+        'anime_pipeline_total': anime_pipeline_total
     }
 
 

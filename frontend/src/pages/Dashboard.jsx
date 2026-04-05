@@ -86,6 +86,8 @@ const Dashboard = () => {
   // Shooting system
   const [shootingFilms, setShootingFilms] = useState([]);
   const [pipelineCount, setPipelineCount] = useState(0);
+  const [seriesPipelineCount, setSeriesPipelineCount] = useState(0);
+  const [animePipelineCount, setAnimePipelineCount] = useState(0);
   const [shootingPopup, setShootingPopup] = useState(null);
   const [shootingDays, setShootingDays] = useState(5);
   const [shootingConfig, setShootingConfig] = useState(null);
@@ -226,6 +228,8 @@ const Dashboard = () => {
     setHasStudio(d.has_studio || false);
     setShootingFilms(d.shooting_films || []);
     setPipelineCount(d.pipeline_total || 0);
+    setSeriesPipelineCount(d.series_pipeline_total || 0);
+    setAnimePipelineCount(d.anime_pipeline_total || 0);
   }, [batchData]);
 
   useEffect(() => {
@@ -1041,7 +1045,7 @@ const Dashboard = () => {
           <CardContent className="p-2 sm:p-3 flex items-center gap-3">
             <div className="p-2 sm:p-2.5 bg-yellow-500 rounded-lg"><Clapperboard className="w-5 h-5 sm:w-6 sm:h-6 text-black" /></div>
             <div><h3 className="font-['Bebas_Neue'] text-lg sm:text-xl">{language === 'it' ? 'Produci!' : 'Produce!'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Nuova produzione' : 'New production'}</p></div>
-            {pipelineCount > 0 && <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">{pipelineCount}</span>}
+            {(pipelineCount + seriesPipelineCount + animePipelineCount) > 0 && <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">{pipelineCount + seriesPipelineCount + animePipelineCount}</span>}
           </CardContent>
         </Card>
         {/* MERCATO */}

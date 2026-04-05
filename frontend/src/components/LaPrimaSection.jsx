@@ -52,7 +52,31 @@ export function LaPrimaSection({ compact = false }) {
     );
   }
 
-  if (events.length === 0) return null;
+  if (events.length === 0) {
+    return (
+      <div data-testid="la-prima-section">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-red-400" />
+            <span className="text-red-400">LA PRIMA</span>
+          </h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/social?view=la-prima')}
+            className="h-6 text-[10px] text-red-400 hover:text-red-300 px-2"
+            data-testid="la-prima-see-all-btn"
+          >
+            Classifiche <ChevronRight className="w-3 h-3 ml-0.5" />
+          </Button>
+        </div>
+        <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-white/5 rounded-lg p-4 text-center">
+          <Film className="w-6 h-6 text-gray-600 mx-auto mb-1" />
+          <p className="text-xs text-gray-500">Nessuna première in programma</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="la-prima-section">

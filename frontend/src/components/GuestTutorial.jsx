@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef, useCallback } from 'rea
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Sparkles, X, ChevronRight, UserPlus, ChevronDown } from 'lucide-react';
+import { Camera, Sparkles, X, ChevronRight, UserPlus, ArrowUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -17,12 +17,14 @@ const STEPS = {
   },
   1: {
     title: 'Produci il tuo primo film',
-    text: 'Clicca su PRODUCI FILM nella barra in alto per iniziare.',
-    target: '[data-testid="nav-Produci Film"], [data-testid="nav-Produce Film"], [href="/create-film"]',
+    text: 'Clicca su PRODUCI per iniziare!',
+    // Multiple selectors: top nav + bottom nav + any matching element
+    target: '[data-testid="nav-Produci Film"], [data-testid="nav-Produce Film"], [href="/create-film"], [data-testid="bottom-nav-produci"]',
+    arrowDir: 'up',
   },
   2: {
-    title: 'Scegli il tipo',
-    text: 'Perfetto! Ora segui la procedura per creare il tuo primo film. Scegli genere e titolo!',
+    title: 'Crea il tuo film',
+    text: 'Scegli il genere e dai un titolo al tuo primo film!',
     target: null,
   },
   3: {
@@ -33,7 +35,8 @@ const STEPS = {
   4: {
     title: 'Velocizzazione gratuita!',
     text: 'Hai 3 velocizzazioni GRATIS! Usale per accelerare il timer.',
-    target: '[data-testid="speedup-btn"]',
+    target: '[data-testid^="speedup-"]',
+    arrowDir: 'up',
   },
   5: {
     title: 'Ottimo lavoro!',
@@ -48,24 +51,30 @@ const STEPS = {
   },
 };
 
-// ─── INLINE STYLES (no external CSS needed) ───
-const glowKeyframes = `
-@keyframes tutorialPulseGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.6), 0 0 20px rgba(255,215,0,0.3), 0 0 40px rgba(255,215,0,0.15); transform: scale(1); }
-  50% { box-shadow: 0 0 12px rgba(255,215,0,0.9), 0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.25); transform: scale(1.03); }
-}
-@keyframes tutorialFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(6px); }
-}
-.tutorial-target-glow {
-  position: relative;
-  z-index: 96 !important;
-  pointer-events: auto !important;
-  animation: tutorialPulseGlow 1.5s ease-in-out infinite !important;
-  border-radius: 12px;
-}
-`;
+// ─── INLINE KEYFRAMES ───
+const injectStyles = () => {
+  if (document.getElementById('tutorial-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'tutorial-styles';
+  s.textContent = `
+    @keyframes tutGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(255,215,0,0.7), 0 0 25px rgba(255,215,0,0.4), 0 0 50px rgba(255,215,0,0.2); transform: scale(1); }
+      50% { box-shadow: 0 0 15px rgba(255,215,0,1), 0 0 35px rgba(255,215,0,0.6), 0 0 70px rgba(255,215,0,0.3); transform: scale(1.04); }
+    }
+    @keyframes tutArrowBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .tut-target-active {
+      position: relative !important;
+      z-index: 110 !important;
+      pointer-events: auto !important;
+      animation: tutGlow 1.5s ease-in-out infinite !important;
+      border-radius: 12px !important;
+    }
+  `;
+  document.head.appendChild(s);
+};
 
 export function GuestTutorial() {
   const { user, api, refreshUser } = useContext(AuthContext);
@@ -78,81 +87,22 @@ export function GuestTutorial() {
   const [convertForm, setConvertForm] = useState({ email: '', password: '', nickname: '' });
   const [converting, setConverting] = useState(false);
   const [targetRect, setTargetRect] = useState(null);
-  const [transitioning, setTransitioning] = useState(false);
-  const arrowRef = useRef(null);
-  const styleRef = useRef(null);
+  const targetElRef = useRef(null);
 
-  // Inject keyframes once
-  useEffect(() => {
-    if (!styleRef.current) {
-      const s = document.createElement('style');
-      s.textContent = glowKeyframes;
-      document.head.appendChild(s);
-      styleRef.current = s;
-    }
-    return () => { if (styleRef.current) { styleRef.current.remove(); styleRef.current = null; } };
-  }, []);
+  // Inject CSS once
+  useEffect(() => { injectStyles(); return () => { const s = document.getElementById('tutorial-styles'); if (s) s.remove(); }; }, []);
 
-  // Sync step from user
-  useEffect(() => {
-    if (user?.tutorial_step !== undefined) setStep(user.tutorial_step);
-  }, [user?.tutorial_step]);
-
-  // ─── SPOTLIGHT: find target, scroll, glow ───
-  const updateSpotlight = useCallback(() => {
-    // Cleanup previous glow
-    document.querySelectorAll('.tutorial-target-glow').forEach(el => el.classList.remove('tutorial-target-glow'));
-
-    const cfg = STEPS[step];
-    if (!cfg?.target || minimized) { setTargetRect(null); return; }
-
-    // Try each selector
-    const selectors = cfg.target.split(',').map(s => s.trim());
-    let el = null;
-    for (const sel of selectors) {
-      el = document.querySelector(sel);
-      if (el) break;
-    }
-
-    if (!el) { setTargetRect(null); return; }
-
-    // Scroll into view
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Apply glow after scroll settles
-    setTimeout(() => {
-      el.classList.add('tutorial-target-glow');
-      const rect = el.getBoundingClientRect();
-      setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-
-      // Vibrate on mobile
-      if (navigator.vibrate) navigator.vibrate(30);
-    }, 250);
-  }, [step, minimized]);
-
-  useEffect(() => {
-    setTransitioning(true);
-    const t = setTimeout(() => { setTransitioning(false); updateSpotlight(); }, 300);
-    return () => clearTimeout(t);
-  }, [step, updateSpotlight]);
-
-  // Re-calc on resize/scroll
-  useEffect(() => {
-    const onUpdate = () => updateSpotlight();
-    window.addEventListener('resize', onUpdate);
-    window.addEventListener('scroll', onUpdate, true);
-    return () => { window.removeEventListener('resize', onUpdate); window.removeEventListener('scroll', onUpdate, true); };
-  }, [updateSpotlight]);
+  // Sync step
+  useEffect(() => { if (user?.tutorial_step !== undefined) setStep(user.tutorial_step); }, [user?.tutorial_step]);
 
   // Don't show if not guest or tutorial completed
   if (!user?.is_guest || user?.tutorial_completed) return null;
   if (!visible) return null;
 
   const msg = STEPS[step] || STEPS[0];
-  const hasTarget = !!msg.target && !!targetRect;
-  const showOverlay = step >= 1 && step <= 5 && !minimized;
+  const showOverlay = step >= 1 && step <= 5 && !minimized && msg.target;
 
-  // ─── LOGIC (unchanged) ───
+  // ─── LOGIC ───
   const advanceStep = async (newStep) => {
     try {
       await api.post('/auth/tutorial-step', { step: newStep });
@@ -162,7 +112,7 @@ export function GuestTutorial() {
   };
 
   const skipTutorial = async () => {
-    document.querySelectorAll('.tutorial-target-glow').forEach(el => el.classList.remove('tutorial-target-glow'));
+    document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
     try {
       await api.post('/auth/tutorial-skip');
       refreshUser();
@@ -171,56 +121,80 @@ export function GuestTutorial() {
   };
 
   const handleConvert = async () => {
-    if (!convertForm.email || convertForm.password.length < 6) {
-      toast.error('Compila email e password (min 6 caratteri)');
-      return;
-    }
+    if (!convertForm.email || convertForm.password.length < 6) { toast.error('Compila email e password (min 6 caratteri)'); return; }
     setConverting(true);
     try {
       const res = await api.post('/auth/convert', convertForm);
       localStorage.removeItem('cineworld_guest_start');
       if (res.data.access_token) localStorage.setItem('cineworld_token', res.data.access_token);
       refreshUser();
-      toast.success('Account registrato! I tuoi progressi sono salvi');
+      toast.success('Account registrato!');
       setShowConvert(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Errore nella registrazione');
-    } finally {
-      setConverting(false);
-    }
+      toast.error(err.response?.data?.detail || 'Errore');
+    } finally { setConverting(false); }
   };
 
   // Auto-advance on navigation
+  // eslint-disable-next-line
+  useEffect(() => { if (step === 1 && location.pathname === '/create-film') advanceStep(2); }, [location.pathname, step]);
+
+  // ─── SPOTLIGHT: find + glow + scroll ───
+  // eslint-disable-next-line
   useEffect(() => {
-    if (step === 1 && location.pathname === '/create-film') advanceStep(2);
-  }, [location.pathname, step]);
+    // Cleanup
+    document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
+    setTargetRect(null);
+    targetElRef.current = null;
+
+    if (!msg.target || minimized) return;
+
+    const findAndHighlight = () => {
+      const selectors = msg.target.split(',').map(s => s.trim());
+      let el = null;
+      for (const sel of selectors) {
+        el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) break; // visible element
+        el = null;
+      }
+      if (!el) return;
+
+      targetElRef.current = el;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      setTimeout(() => {
+        el.classList.add('tut-target-active');
+        const rect = el.getBoundingClientRect();
+        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 300);
+    };
+
+    // Delay to let page render
+    const t1 = setTimeout(findAndHighlight, 500);
+    const t2 = setTimeout(findAndHighlight, 1500); // retry
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [step, minimized, msg.target]);
 
   // ═══════════ RENDER ═══════════
 
-  // Conversion modal at step 6
+  // Conversion modal
   if (showConvert) {
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm" data-testid="guest-tutorial-convert">
-        <motion.div
-          initial={{ scale: 0.85, opacity: 0, y: 30 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-          className="bg-[#0d0d0f] border border-yellow-500/30 rounded-2xl max-w-sm w-[90%] mx-4 overflow-hidden"
-        >
+        <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          className="bg-[#0d0d0f] border border-yellow-500/30 rounded-2xl max-w-sm w-[90%] mx-4 overflow-hidden">
           <div className="bg-gradient-to-b from-yellow-500/20 to-transparent p-5 text-center">
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-              className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-3"
-            >
+            <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-3">
               <Sparkles className="w-7 h-7 text-yellow-400" />
             </motion.div>
             <h3 className="font-['Bebas_Neue'] text-xl text-yellow-300">Hai creato il tuo primo film!</h3>
-            <p className="text-xs text-gray-400 mt-1">Vuoi salvare i tuoi progressi e continuare?</p>
+            <p className="text-xs text-gray-400 mt-1">Vuoi salvare i tuoi progressi?</p>
           </div>
           <div className="px-5 pb-5 space-y-2.5">
             <Input placeholder="Email" type="email" value={convertForm.email} onChange={e => setConvertForm(p => ({...p, email: e.target.value}))} className="h-9 bg-white/5 border-white/10 text-sm" data-testid="tutorial-convert-email" />
-            <Input placeholder="Password (min 6 caratteri)" type="password" value={convertForm.password} onChange={e => setConvertForm(p => ({...p, password: e.target.value}))} className="h-9 bg-white/5 border-white/10 text-sm" data-testid="tutorial-convert-password" />
+            <Input placeholder="Password (min 6)" type="password" value={convertForm.password} onChange={e => setConvertForm(p => ({...p, password: e.target.value}))} className="h-9 bg-white/5 border-white/10 text-sm" data-testid="tutorial-convert-password" />
             <Input placeholder="Nickname" value={convertForm.nickname} onChange={e => setConvertForm(p => ({...p, nickname: e.target.value}))} className="h-9 bg-white/5 border-white/10 text-sm" data-testid="tutorial-convert-nickname" />
             <Button className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold h-9" disabled={converting || !convertForm.email || convertForm.password.length < 6} onClick={handleConvert} data-testid="tutorial-convert-submit">
               <UserPlus className="w-4 h-4 mr-2" />{converting ? 'Registrazione...' : 'Registrati'}
@@ -232,137 +206,105 @@ export function GuestTutorial() {
     );
   }
 
-  // Minimized Velion
+  // Minimized
   if (minimized) {
     return (
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        className="fixed bottom-20 right-3 z-[100] w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500/30 to-amber-600/20 border border-yellow-500/40 flex items-center justify-center shadow-lg shadow-yellow-500/20"
-        onClick={() => setMinimized(false)}
-        data-testid="tutorial-velion-minimized"
-      >
-        <span className="text-yellow-400 font-bold text-lg">V</span>
-        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-pulse" />
+      <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
+        className="fixed bottom-24 right-3 z-[120] w-14 h-14 rounded-full bg-gradient-to-br from-yellow-500/40 to-amber-600/30 border-2 border-yellow-500/50 flex items-center justify-center"
+        style={{ boxShadow: '0 0 20px rgba(255,215,0,0.4), 0 0 40px rgba(255,215,0,0.15)' }}
+        onClick={() => setMinimized(false)} data-testid="tutorial-velion-minimized">
+        <span className="text-yellow-400 font-bold text-xl">V</span>
+        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full animate-pulse text-[8px] font-bold flex items-center justify-center text-white">{step + 1}</span>
       </motion.button>
     );
   }
 
-  // ─── MAIN TUTORIAL RENDER ───
   return (
     <>
-      {/* ───── OVERLAY SCURO con pointer-events bloccati ───── */}
+      {/* ───── OVERLAY (step 1-5 with target) ───── */}
       <AnimatePresence>
         {showOverlay && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[90] pointer-events-auto"
-            style={{ background: 'rgba(0,0,0,0.75)' }}
-            data-testid="tutorial-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[100]"
+            style={{ background: 'rgba(0,0,0,0.7)', pointerEvents: 'auto' }}
             onClick={e => e.stopPropagation()}
+            data-testid="tutorial-overlay"
           />
         )}
       </AnimatePresence>
 
-      {/* ───── SPOTLIGHT HOLE + GLOW RING ───── */}
-      {hasTarget && !transitioning && (
+      {/* ───── ANIMATED ARROW pointing to target ───── */}
+      {targetRect && !minimized && (
         <div
-          className="fixed z-[95] pointer-events-none rounded-xl"
+          className="fixed z-[115] pointer-events-none flex flex-col items-center"
           style={{
-            top: targetRect.top - 6,
-            left: targetRect.left - 6,
-            width: targetRect.width + 12,
-            height: targetRect.height + 12,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.75)',
-          }}
-          data-testid="tutorial-spotlight"
-        >
-          {/* Animated glow ring */}
-          <div
-            className="absolute inset-0 rounded-xl"
-            style={{
-              animation: 'tutorialPulseGlow 1.5s ease-in-out infinite',
-              boxShadow: '0 0 12px rgba(255,215,0,0.8), 0 0 30px rgba(255,215,0,0.4), inset 0 0 8px rgba(255,215,0,0.2)',
-              border: '2px solid rgba(255,215,0,0.6)',
-            }}
-          />
-        </div>
-      )}
-
-      {/* ───── ANIMATED ARROW ───── */}
-      {hasTarget && !transitioning && (
-        <div
-          ref={arrowRef}
-          className="fixed z-[96] pointer-events-none"
-          style={{
-            top: targetRect.top + targetRect.height + 8,
-            left: targetRect.left + targetRect.width / 2 - 14,
-            animation: 'tutorialFloat 1.2s ease-in-out infinite',
-            filter: 'drop-shadow(0 0 8px rgba(255,215,0,0.7))',
+            top: targetRect.top + targetRect.height + 4,
+            left: targetRect.left + targetRect.width / 2 - 20,
+            animation: 'tutArrowBounce 1s ease-in-out infinite',
+            filter: 'drop-shadow(0 0 10px rgba(255,215,0,0.8))',
           }}
           data-testid="tutorial-arrow"
         >
-          <ChevronDown className="w-7 h-7 text-yellow-400" strokeWidth={3} style={{ transform: 'rotate(180deg)' }} />
+          <ArrowUp className="w-10 h-10 text-yellow-400" strokeWidth={3} />
         </div>
       )}
 
-      {/* ───── VELION PANEL ───── */}
+      {/* ───── VELION GUIDE PANEL ───── */}
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
+        initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.15 }}
-        className="fixed bottom-20 left-3 right-3 z-[100] sm:left-auto sm:right-4 sm:max-w-xs"
+        transition={{ type: 'spring', damping: 22, stiffness: 200, delay: 0.1 }}
+        className="fixed left-2 right-2 z-[120]"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 70px)' }}
         data-testid="tutorial-velion-panel"
       >
-        <div className="bg-[#0d0d0f]/95 backdrop-blur-md border border-yellow-500/25 rounded-2xl shadow-2xl shadow-yellow-500/10 overflow-hidden">
+        <div
+          className="bg-[#0a0a0c]/95 backdrop-blur-lg border border-yellow-500/40 rounded-2xl overflow-hidden"
+          style={{ boxShadow: '0 0 25px rgba(255,215,0,0.25), 0 -4px 30px rgba(0,0,0,0.8)' }}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-yellow-500/15 to-amber-500/5 border-b border-yellow-500/15">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-md shadow-yellow-500/30">
-                <span className="text-black font-bold text-xs">V</span>
+          <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border-b border-yellow-500/20">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg"
+                style={{ boxShadow: '0 0 12px rgba(255,215,0,0.5)' }}
+              >
+                <span className="text-black font-black text-sm">V</span>
               </div>
-              <span className="text-yellow-400 font-['Bebas_Neue'] text-sm tracking-wider">VELION</span>
-              <span className="text-[8px] text-yellow-500/60 bg-yellow-500/10 px-1.5 py-0.5 rounded-full font-medium">{step + 1}/7</span>
+              <div>
+                <span className="text-yellow-400 font-['Bebas_Neue'] text-base tracking-wider leading-none">VELION</span>
+                <span className="ml-2 text-[9px] text-yellow-500/70 bg-yellow-500/10 px-1.5 py-0.5 rounded-full font-bold">{step + 1}/7</span>
+              </div>
             </div>
-            <div className="flex items-center gap-0.5">
-              <button onClick={() => setMinimized(true)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-yellow-400 rounded transition-colors">
-                <ChevronRight className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1">
+              <button onClick={() => setMinimized(true)} className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-yellow-400 rounded-lg transition-colors">
+                <ChevronRight className="w-4 h-4" />
               </button>
-              <button onClick={skipTutorial} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 rounded transition-colors" data-testid="tutorial-skip-btn">
-                <X className="w-3.5 h-3.5" />
+              <button onClick={skipTutorial} className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-400 rounded-lg transition-colors" data-testid="tutorial-skip-btn">
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Body */}
-          <div className="p-3">
+          <div className="px-3.5 py-3">
             <AnimatePresence mode="wait">
-              <motion.div
-                key={step}
-                initial={{ opacity: 0, x: 15 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -15 }}
-                transition={{ duration: 0.25 }}
-              >
-                <p className="text-yellow-300 font-semibold text-sm mb-0.5">{msg.title}</p>
-                <p className="text-gray-400 text-xs leading-relaxed">{msg.text}</p>
+              <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                <p className="text-yellow-300 font-bold text-[15px] mb-0.5">{msg.title}</p>
+                <p className="text-gray-300 text-xs leading-relaxed">{msg.text}</p>
               </motion.div>
             </AnimatePresence>
 
-            {/* Action button for step 0 */}
+            {/* Step 0 action button */}
             {step === 0 && msg.action && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                 <Button
-                  className="mt-3 w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black hover:from-yellow-400 hover:to-amber-400 h-8 text-xs font-bold shadow-lg shadow-yellow-500/20"
+                  className="mt-3 w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black hover:from-yellow-400 hover:to-amber-400 h-10 text-sm font-bold shadow-lg shadow-yellow-500/25 rounded-xl"
                   onClick={() => advanceStep(1)}
                   data-testid="tutorial-start-btn"
                 >
-                  <Camera className="w-3.5 h-3.5 mr-1.5" />
+                  <Camera className="w-4 h-4 mr-2" />
                   {msg.action}
                 </Button>
               </motion.div>
@@ -371,12 +313,9 @@ export function GuestTutorial() {
             {/* Progress bar */}
             <div className="flex items-center gap-1 mt-3">
               {[0,1,2,3,4,5,6].map(s => (
-                <div
-                  key={s}
-                  className={`h-1 rounded-full transition-all duration-500 ${
-                    s === step ? 'flex-[2] bg-yellow-400' : s < step ? 'flex-1 bg-yellow-500/40' : 'flex-1 bg-white/5'
-                  }`}
-                />
+                <div key={s} className={`h-1.5 rounded-full transition-all duration-500 ${
+                  s === step ? 'flex-[2.5] bg-gradient-to-r from-yellow-400 to-amber-500' : s < step ? 'flex-1 bg-yellow-500/40' : 'flex-1 bg-white/8'
+                }`} />
               ))}
             </div>
           </div>

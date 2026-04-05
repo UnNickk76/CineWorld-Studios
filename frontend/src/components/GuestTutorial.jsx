@@ -178,7 +178,7 @@ export function GuestTutorial() {
     );
   }
 
-  // ═══════ TARGET STEPS (1, 4): Panel at TOP so it doesn't block interaction area ═══════
+  // ═══════ TARGET STEPS (1, 4): Large Velion + bubble, all pointer-events:none ═══════
   if (hasTarget) {
     return (
       <>
@@ -200,47 +200,60 @@ export function GuestTutorial() {
           );
         })()}
 
-        {/* TOP PANEL: Compact speech + Velion character */}
-        <motion.div
-          initial={{ y: -60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-          className="fixed top-0 left-0 right-0 z-[120] pointer-events-none"
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-          data-testid="tutorial-velion-panel"
-        >
-          <div className="relative mx-2 mt-1">
-            {/* Speech bubble */}
-            <div className="pointer-events-auto bg-[#0a0a0c]/95 backdrop-blur-lg border border-yellow-500/25 rounded-2xl overflow-hidden" style={{ boxShadow: '0 4px 30px rgba(0,0,0,0.6)' }}>
-              <div className="flex items-center gap-2.5 px-3 py-2.5">
-                {/* Small Velion avatar */}
-                <motion.div className="flex-shrink-0 w-12 h-12 relative" {...velionAnim}>
-                  <img src="/velion-tutorial.png" alt="Velion" className="w-full h-full object-contain" style={{ animation: 'velionFloat 2.5s ease-in-out infinite' }} />
-                </motion.div>
-                {/* Text */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-cyan-400 font-['Bebas_Neue'] text-xs tracking-widest">VELION</span>
-                    <span className="text-[7px] text-cyan-500/50 bg-cyan-500/10 px-1 py-0.5 rounded-full font-bold">{step + 1}/7</span>
+        {/* LARGE VELION + SPEECH BUBBLE — upper area, all pointer-events: none */}
+        <div className="fixed inset-0 z-[120] pointer-events-none" data-testid="tutorial-velion-panel">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 0.1 }}
+            className="absolute left-0 right-0 px-2"
+            style={{ top: '15%' }}
+          >
+            <div className="relative" style={{ height: 190 }}>
+              {/* LARGE VELION CHARACTER — right side */}
+              <motion.div
+                key={`velion-tgt-${step}`}
+                initial={{ opacity: 0, scale: 0.6, x: 50 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                transition={{ type: 'spring', damping: 16, stiffness: 150, delay: 0.25 }}
+                className="absolute bottom-0 right-0"
+                style={{ width: 130, zIndex: 2 }}
+              >
+                <motion.img src="/velion-tutorial.png" alt="Velion"
+                  className="w-full h-auto object-contain select-none"
+                  style={{ animation: 'velionFloat 2.5s ease-in-out infinite' }}
+                  {...velionAnim}
+                />
+              </motion.div>
+
+              {/* SPEECH BUBBLE — left side */}
+              <div className="absolute left-0 top-2" style={{ width: 'calc(100% - 140px)', zIndex: 3 }}>
+                <div className="bg-[#0a0a0c]/95 backdrop-blur-lg border border-yellow-500/25 rounded-2xl overflow-hidden"
+                  style={{ boxShadow: '0 0 20px rgba(255,215,0,0.12), 0 4px 30px rgba(0,0,0,0.6)' }}>
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-cyan-400 font-['Bebas_Neue'] text-xs tracking-widest">VELION</span>
+                      <span className="text-[7px] text-cyan-500/50 bg-cyan-500/10 px-1 py-0.5 rounded-full font-bold">{step + 1}/7</span>
+                    </div>
+                    <div className="flex items-center gap-0.5 pointer-events-auto">
+                      <button onClick={() => setMinimized(true)} className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-cyan-400 text-[10px]">_</button>
+                      <button onClick={skipTutorial} className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-red-400" data-testid="tutorial-skip-btn"><X className="w-3 h-3" /></button>
+                    </div>
                   </div>
-                  <p className="text-white font-bold text-[13px] leading-tight">{msg.title}</p>
-                  <p className="text-gray-400 text-[10px] leading-tight">{msg.text}</p>
+                  <div className="px-3 py-2">
+                    <p className="text-white font-bold text-[13px] leading-tight">{msg.title}</p>
+                    <p className="text-gray-400 text-[11px] leading-relaxed">{msg.text}</p>
+                    <div className="flex items-center gap-0.5 mt-2">
+                      {[0,1,2,3,4,5,6].map(s => (
+                        <div key={s} className={`h-0.5 rounded-full transition-all duration-500 ${s === step ? 'flex-[2.5] bg-gradient-to-r from-cyan-400 to-blue-500' : s < step ? 'flex-1 bg-cyan-500/30' : 'flex-1 bg-white/5'}`} />
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                {/* Controls */}
-                <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-                  <button onClick={() => setMinimized(true)} className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-cyan-400 text-[10px]">_</button>
-                  <button onClick={skipTutorial} className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-red-400" data-testid="tutorial-skip-btn"><X className="w-3 h-3" /></button>
-                </div>
-              </div>
-              {/* Progress */}
-              <div className="flex items-center gap-0.5 px-3 pb-2">
-                {[0,1,2,3,4,5,6].map(s => (
-                  <div key={s} className={`h-0.5 rounded-full transition-all duration-500 ${s === step ? 'flex-[2.5] bg-gradient-to-r from-cyan-400 to-blue-500' : s < step ? 'flex-1 bg-cyan-500/30' : 'flex-1 bg-white/5'}`} />
-                ))}
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </>
     );
   }

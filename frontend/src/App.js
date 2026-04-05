@@ -156,6 +156,48 @@ const VelionMenuControl = () => {
   );
 };
 
+// ─── GUEST REGISTER BADGE ────────────────────────────────────
+const GuestRegisterBadge = ({ onRegister }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem('cw_guest_reg_tooltip');
+    if (!seen) {
+      setShowTooltip(true);
+      const t = setTimeout(() => { setShowTooltip(false); localStorage.setItem('cw_guest_reg_tooltip', '1'); }, 5000);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  return (
+    <div className="fixed bottom-[88px] right-3 z-[90]" data-testid="guest-register-badge">
+      <AnimatePresence>
+        {showTooltip && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.9 }}
+            className="absolute bottom-full right-0 mb-2 bg-[#111] border border-red-500/30 rounded-lg px-3 py-2 whitespace-nowrap shadow-lg shadow-red-500/10"
+          >
+            <p className="text-[10px] text-white font-medium">Salva i tuoi progressi registrandoti!</p>
+            <div className="absolute bottom-[-5px] right-4 w-2.5 h-2.5 bg-[#111] border-r border-b border-red-500/30 rotate-45" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <motion.button
+        onClick={onRegister}
+        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full pl-3 pr-3.5 py-2 shadow-lg shadow-red-600/30 transition-colors"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        data-testid="guest-register-btn"
+      >
+        <UserPlus className="w-3.5 h-3.5" />
+        <span className="text-[11px] font-bold tracking-wide">Registrati</span>
+      </motion.button>
+    </div>
+  );
+};
+
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -1843,6 +1885,12 @@ const TopNavbar = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Guest Registration Button - always visible for guest users */}
+      {user?.is_guest && (
+        <GuestRegisterBadge onRegister={() => setShowGuestConvertModal(true)} />
+      )}
+
       {showDonatePopup && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
           <div 

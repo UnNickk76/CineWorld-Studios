@@ -10496,6 +10496,29 @@ async def startup_event():
         replace_existing=True
     )
     
+    # Every 6 hours: Cleanup stale guest users (inactive > 24h)
+    async def cleanup_stale_guests():
+        try:
+            from routes.auth import _delete_guest_data
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            stale_guests = await db.users.find(
+                {'is_guest': True, 'updated_at': {'$lt': cutoff}},
+                {'_id': 0, 'id': 1}
+            ).to_list(100)
+            for g in stale_guests:
+                await _delete_guest_data(g['id'])
+            if stale_guests:
+                logging.info(f"[SCHEDULER] Cleaned up {len(stale_guests)} stale guest users")
+        except Exception as e:
+            logging.error(f"[SCHEDULER] Guest cleanup error: {e}")
+
+    scheduler.add_job(
+        cleanup_stale_guests,
+        IntervalTrigger(hours=6),
+        id='cleanup_stale_guests',
+        replace_existing=True
+    )
+
     # Every 2 hours: Generate new emerging screenplays and expire old ones
     async def emerging_screenplays_task():
         try:

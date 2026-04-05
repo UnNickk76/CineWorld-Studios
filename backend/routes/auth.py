@@ -812,3 +812,42 @@ async def guest_login(request: dict):
             "is_guest": True
         }
     }
+
+
+# ─── GUEST LOGOUT & DATA CLEANUP ───────────────────────────────────────
+
+async def _delete_guest_data(user_id: str):
+    """Delete all data associated with a guest user."""
+    collections = await db.list_collection_names()
+    deleted = {}
+    skip = {'users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations'}
+    for coll_name in sorted(collections):
+        if coll_name in skip:
+            continue
+        try:
+            result = await db[coll_name].delete_many({'user_id': user_id})
+            if result.deleted_count > 0:
+                deleted[coll_name] = result.deleted_count
+        except Exception:
+            pass
+    # Clean friendships/follows
+    await db.friendships.delete_many({'$or': [{'user_id': user_id}, {'friend_id': user_id}]})
+    await db.follows.delete_many({'$or': [{'follower_id': user_id}, {'following_id': user_id}]})
+    # Clean likes/ratings on their films
+    user_films = await db.films.find({'user_id': user_id}, {'_id': 0, 'id': 1}).to_list(500)
+    film_ids = [f['id'] for f in user_films if 'id' in f]
+    if film_ids:
+        await db.likes.delete_many({'film_id': {'$in': film_ids}})
+        await db.film_ratings.delete_many({'film_id': {'$in': film_ids}})
+    # Delete the user
+    await db.users.delete_one({'id': user_id})
+    return deleted
+
+
+@router.post("/auth/guest-logout")
+async def guest_logout(user: dict = Depends(get_current_user)):
+    """Logout a guest user and delete all their data."""
+    if not user.get('is_guest'):
+        return {'success': True, 'message': 'Non sei un utente guest, logout normale'}
+    deleted = await _delete_guest_data(user['id'])
+    return {'success': True, 'deleted': deleted}

@@ -197,12 +197,17 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // If guest, call backend to delete guest data before clearing local state
+    if (user?.is_guest) {
+      try { await api.post('/auth/guest-logout'); } catch {}
+    }
     localStorage.removeItem('cineworld_token');
+    localStorage.removeItem('cw_guest_reg_tooltip');
     setToken(null);
     setUser(null);
     clearApiCache();
-  }, []);
+  }, [user?.is_guest]);
 
   // Keep logoutRef in sync for interceptor
   logoutRef.current = logout;

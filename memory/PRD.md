@@ -66,7 +66,9 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Tutorial Guest completo 11 step: guida passo-passo dalla Dashboard al rilascio film con auto-advance, Velion grande in posizione variabile, form mai bloccato (2026-04-05)
 - [x] Step finale celebrativo (Step 10): Velion grande con anello dorato pulsante, particelle scintillanti animate, titolo "Congratulazioni!" gradient dorato, messaggio completo multilinea (Serie TV, Arena, Chat, etc.), "CineWorld Studio's!!!", bottone "Continua l'avventura!" → layout ottimizzato mobile con whitespace-pre-line (2026-04-05)
 
-- [x] Fix tutorial auto-advance: selettori aggiornati per lista proposte E vista cinematica (gen-poster/popup-gen-poster, launch-cs/popup-launch-cs, speedup/popup-speedup). Aggiunto auto-advance step 9→10 per Coming Soon completato (2026-04-05)
+- [x] Bottone "Registrati" fisso per utenti guest: badge rosso CTA con pulse, posizionato sopra bottom nav, apre modale conversione esistente. Tooltip prima volta "Salva i tuoi progressi". Nascosto per utenti registrati (2026-04-05)
+- [x] Backend guest-logout: endpoint POST /auth/guest-logout cancella tutti i dati guest (progetti, film, follows, friendships, likes, ratings, utente). Task schedulato ogni 6h per pulizia guest inattivi >24h (2026-04-05)
+- [x] Frontend logout modificato: per guest chiama /auth/guest-logout prima di cancellare token locale (2026-04-05)
 - [x] Fix target illuminazione: Step 3→release-mode-selector, Step 5→pre-screenplay-input, Steps 7-9→selettori doppi (2026-04-05)
 - [x] Speedup nella vista cinematica: aggiunta velocizzazione al HypeStep in FilmPopup.jsx con GRATIS per guest (2026-04-05)
 

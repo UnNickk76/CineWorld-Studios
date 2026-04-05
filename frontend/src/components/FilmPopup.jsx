@@ -416,6 +416,7 @@ function HypeStep({ film, api, onRefresh, refreshUser, countdown }) {
   const [hours, setHours] = useState(4);
   const [loading, setLoading] = useState(false);
   const [advLoading, setAdvLoading] = useState(false);
+  const [speedupLoading, setSpeedupLoading] = useState(null);
 
   const TIERS = [
     { id: 'short', label: 'Breve', range: '2-6h', icon: Zap, color: 'yellow', steps: [2, 3, 4, 5, 6] },
@@ -464,8 +465,23 @@ function HypeStep({ film, api, onRefresh, refreshUser, countdown }) {
   }
 
   if (isActive) {
+    const speedupTiers = [
+      { pct: 25, cost: 10, label: '-25%', color: 'yellow' },
+      { pct: 75, cost: 20, label: '-75%', color: 'orange' },
+      { pct: 100, cost: 30, label: 'ISTANTANEO', color: 'red' },
+    ];
+    const isFree = (film.free_speedups || 0) > 0;
+    const doSpeedup = async (pct) => {
+      setSpeedupLoading(pct);
+      try {
+        const res = await api.post(`/projects/${film.id}/speedup`, { percent: pct });
+        toast.success(res.data.message || `Velocizzato del ${pct}%!`);
+        onRefresh(); refreshUser();
+      } catch (e) { toast.error(e.response?.data?.detail || 'Errore speedup'); }
+      finally { setSpeedupLoading(null); }
+    };
     return (
-      <div className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5 text-center space-y-1.5" data-testid={`popup-hype-active-${film.id}`}>
+      <div className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5 space-y-2" data-testid={`popup-hype-active-${film.id}`}>
         <div className="flex items-center justify-center gap-1.5">
           <Flame className="w-4 h-4 text-orange-400 animate-pulse" />
           <span className="text-xs font-bold text-orange-400">Coming Soon attivo</span>
@@ -480,7 +496,33 @@ function HypeStep({ film, api, onRefresh, refreshUser, countdown }) {
             <span className="text-[10px] text-orange-400">Hype: {film.hype_score}</span>
           </div>
         )}
-        <p className="text-[8px] text-gray-600">In attesa... il casting iniziera' dopo il Coming Soon</p>
+        <p className="text-[8px] text-gray-600 text-center">In attesa... il casting iniziera' dopo il Coming Soon</p>
+        {/* Speedup buttons */}
+        <div className="pt-1.5 border-t border-orange-500/10">
+          <p className="text-[8px] text-gray-500 text-center mb-1.5">Velocizza il timer</p>
+          <div className="grid grid-cols-3 gap-1">
+            {speedupTiers.map(t => (
+              <button key={t.pct}
+                className={`p-1.5 rounded-lg border text-center transition-all hover:scale-[1.02] active:scale-95 ${
+                  t.color === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/15' :
+                  t.color === 'orange' ? 'border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/15' :
+                  'border-red-500/30 bg-red-500/5 hover:bg-red-500/15'
+                }`}
+                disabled={speedupLoading === t.pct}
+                onClick={() => doSpeedup(t.pct)}
+                data-testid={`popup-speedup-${t.pct}-${film.id}`}>
+                <Zap className={`w-3 h-3 mx-auto mb-0.5 ${
+                  t.color === 'yellow' ? 'text-yellow-400' : t.color === 'orange' ? 'text-orange-400' : 'text-red-400'
+                }`} />
+                <span className={`text-[9px] font-bold block ${
+                  t.color === 'yellow' ? 'text-yellow-300' : t.color === 'orange' ? 'text-orange-300' : 'text-red-300'
+                }`}>{t.label}</span>
+                <span className="text-[7px] text-gray-500">{isFree ? 'GRATIS' : `${t.cost} CP`}</span>
+              </button>
+            ))}
+          </div>
+          {isFree && <p className="text-[8px] text-green-400 text-center mt-1">{film.free_speedups} velocizzazioni gratuite rimaste</p>}
+        </div>
       </div>
     );
   }

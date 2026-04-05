@@ -9,7 +9,7 @@ export default function SeriesDetail() {
   const { id } = useParams();
   
   return (
-    <div className="pt-16 pb-20 px-3 flex items-center justify-center min-h-screen" data-testid="series-detail-page">
+    <div className="pt-14 pb-16 px-3 flex items-center justify-center min-h-screen" data-testid="series-detail-page">
       <ContentTemplate filmId={id} contentType="series" />
     </div>
   );

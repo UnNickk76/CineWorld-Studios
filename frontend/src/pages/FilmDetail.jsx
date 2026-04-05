@@ -9,7 +9,7 @@ const FilmDetail = () => {
   const { id } = useParams();
   
   return (
-    <div className="pt-16 pb-20 px-3 flex items-center justify-center min-h-screen" data-testid="film-detail-page">
+    <div className="pt-14 pb-16 px-3 flex items-center justify-center min-h-screen" data-testid="film-detail-page">
       <ContentTemplate filmId={id} contentType="film" />
     </div>
   );

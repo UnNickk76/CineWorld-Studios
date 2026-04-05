@@ -397,11 +397,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
                 {/* === COMMENTS === */}
                 <div className="ct-comments" data-testid="ct-comments">
-                  {/* Header row: title + avatars + count */}
                   <div className="ct-comments-header">
-                    <span className="ct-comments-title">Commenti</span>
+                    <span className="ct-comments-title">COMMENTI</span>
                     <div className="ct-comments-avatars">
-                      {comments.slice(0, 8).map((c, i) => (
+                      {comments.slice(0, 5).map((c, i) => (
                         <img
                           key={i}
                           src={c.reviewer?.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=va${i}`}
@@ -415,9 +414,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                       +{comments.length} &gt;
                     </span>
                   </div>
-
-                  {/* Comment rows */}
-                  {comments.slice(0, 4).map((c, i) => (
+                  {comments.slice(0, 3).map((c, i) => (
                     <div key={i} className="ct-comment-item" onClick={() => setShowComments(true)}>
                       <img
                         src={c.reviewer?.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=rev${i}`}
@@ -432,10 +429,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                       <span className="ct-comment-arrow"><ChevronRight /></span>
                     </div>
                   ))}
-                  {comments.length > 4 && (
-                    <div style={{ textAlign: 'center', color: '#6a5a3a', fontSize: 10, paddingTop: 2 }}>...</div>
-                  )}
                 </div>
+
+                {/* === GOLDEN DIVIDER === */}
+                <div className="ct-gold-divider" />
 
                 {/* === ACTIONS (owner only) === */}
                 <div className="ct-actions" data-testid="ct-actions">
@@ -446,7 +443,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                     data-testid="ct-action-collect"
                   >
                     {performing === 'collect' ? <Loader2 size={12} className="animate-spin" /> : <DollarSign />}
-                    Incassa Ora
+                    INCASSA ORA
                   </button>
                   <button
                     className="ct-action-btn"
@@ -455,7 +452,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                     data-testid="ct-action-star"
                   >
                     {performing === 'star' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles />}
-                    Crea Stella
+                    CREA STELLA
                   </button>
                   <button
                     className="ct-action-btn"
@@ -464,13 +461,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                     data-testid="ct-action-boost"
                   >
                     {performing === 'boost' ? <Loader2 size={12} className="animate-spin" /> : <Users />}
-                    Boost Crew &gt;
+                    BOOST CREW &gt;
                   </button>
                 </div>
-
-                {isOwner && (
-                  <div className="ct-actions-note">Opzioni solo per il proprietario del film...</div>
-                )}
 
                 {/* === REVIEWS === */}
                 <div className="ct-reviews" data-testid="ct-reviews">
@@ -480,6 +473,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                       <div className="ct-review-quote">{r.quote}</div>
                     </div>
                   ))}
+                </div>
+
+                {/* === TRAMA === */}
+                <div className="ct-trama" data-testid="ct-trama">
+                  <div className="ct-trama-content">
+                    {film.screenplay || film.pre_screenplay || film.description || 'Trama non ancora disponibile per questo contenuto.'}
+                  </div>
                 </div>
 
                 {/* === FOOTER === */}

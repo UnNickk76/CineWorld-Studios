@@ -59,6 +59,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Verifica sblocco "Le Mie TV!" → confermato funzionante (API e UI OK) (2026-04-05)
 - [x] Fix Coming Soon timer: transizioni forward-only, no reset a idea/proposed (2026-04-05)
 - [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
+- [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 
 ### P1 (Importante)
 - [ ] Modularizzazione server.py (17k+ righe)

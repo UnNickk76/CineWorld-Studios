@@ -72,6 +72,9 @@ const injectStyles = () => {
       animation: tutGlow 1.5s ease-in-out infinite !important;
       border-radius: 12px !important;
     }
+    .tut-parent-lifted {
+      z-index: 105 !important;
+    }
   `;
   document.head.appendChild(s);
 };
@@ -111,8 +114,9 @@ export function GuestTutorial() {
   // ─── SPOTLIGHT: find + glow + scroll ───
   // eslint-disable-next-line
   useEffect(() => {
-    // Cleanup
+    // Cleanup previous
     document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
+    document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted'));
     setTargetRect(null);
     targetElRef.current = null;
 
@@ -133,6 +137,15 @@ export function GuestTutorial() {
 
       setTimeout(() => {
         el.classList.add('tut-target-active');
+        // Lift parent stacking contexts so target is above the overlay
+        let parent = el.parentElement;
+        while (parent && parent !== document.body) {
+          const style = getComputedStyle(parent);
+          if (style.position === 'fixed' || style.position === 'absolute' || style.position === 'sticky') {
+            parent.classList.add('tut-parent-lifted');
+          }
+          parent = parent.parentElement;
+        }
         const rect = el.getBoundingClientRect();
         setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
         if (navigator.vibrate) navigator.vibrate(30);
@@ -142,7 +155,11 @@ export function GuestTutorial() {
     // Delay to let page render
     const t1 = setTimeout(findAndHighlight, 500);
     const t2 = setTimeout(findAndHighlight, 1500); // retry
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted'));
+    };
   }, [step, minimized, msg.target, isActive]);
 
   // Don't show if not guest or tutorial completed
@@ -159,6 +176,7 @@ export function GuestTutorial() {
 
   const skipTutorial = async () => {
     document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
+    document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted'));
     try {
       await api.post('/auth/tutorial-skip');
       refreshUser();
@@ -215,10 +233,10 @@ export function GuestTutorial() {
   if (minimized) {
     return (
       <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
-        className="fixed bottom-24 right-3 z-[120] w-14 h-14 rounded-full bg-gradient-to-br from-yellow-500/40 to-amber-600/30 border-2 border-yellow-500/50 flex items-center justify-center"
-        style={{ boxShadow: '0 0 20px rgba(255,215,0,0.4), 0 0 40px rgba(255,215,0,0.15)' }}
+        className="fixed bottom-24 right-3 z-[120] w-14 h-14 rounded-full border-2 border-cyan-500/50 flex items-center justify-center overflow-hidden"
+        style={{ boxShadow: '0 0 20px rgba(0,180,255,0.4), 0 0 40px rgba(0,180,255,0.15)', background: 'radial-gradient(circle, rgba(0,30,60,0.9) 40%, #0d0d10 100%)' }}
         onClick={() => setMinimized(false)} data-testid="tutorial-velion-minimized">
-        <span className="text-yellow-400 font-bold text-xl">V</span>
+        <img src="/velion.png" alt="Velion" className="w-12 h-12 object-contain" style={{ filter: 'brightness(1.3)' }} />
         <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full animate-pulse text-[8px] font-bold flex items-center justify-center text-white">{step + 1}</span>
       </motion.button>
     );
@@ -285,10 +303,16 @@ export function GuestTutorial() {
           <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border-b border-yellow-500/20">
             <div className="flex items-center gap-2.5">
               <div
-                className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg"
-                style={{ boxShadow: '0 0 12px rgba(255,215,0,0.5)' }}
+                className="w-10 h-10 rounded-full relative flex-shrink-0"
+                style={{ boxShadow: '0 0 14px rgba(0,180,255,0.5)' }}
               >
-                <span className="text-black font-black text-sm">V</span>
+                <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(0,30,60,0.9) 40%, transparent 100%)' }} />
+                <img
+                  src="/velion.png"
+                  alt="Velion"
+                  className="w-full h-full object-contain rounded-full relative z-10"
+                  style={{ filter: 'brightness(1.3) contrast(1.2)' }}
+                />
               </div>
               <div>
                 <span className="text-yellow-400 font-['Bebas_Neue'] text-base tracking-wider leading-none">VELION</span>

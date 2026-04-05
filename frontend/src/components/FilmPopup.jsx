@@ -1462,3 +1462,66 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
     </Dialog>
   );
 }
+
+
+// ═══════════════════════════════════════════
+// INLINE VIEW (Full-page, no Dialog wrapper)
+// Used by cinematic FilmPipeline layout
+// ═══════════════════════════════════════════
+export function FilmInlineView({ film, onRefresh, countdown }) {
+  const { api, refreshUser } = useContext(AuthContext);
+  const [stepOverride, setStepOverride] = useState(null);
+
+  useEffect(() => { setStepOverride(null); }, [film?.id, film?.status]);
+
+  if (!film) return null;
+
+  const naturalStep = getCurrentStepId(film);
+  const currentStep = stepOverride || naturalStep;
+  const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
+  const isImmediate = !isCS;
+  const isLaunched = ['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
+
+  const handleStepClick = (stepId) => {
+    if (isLaunched) { toast.error('Non puoi modificare un film già in produzione.'); return; }
+    setStepOverride(stepId === naturalStep ? null : stepId);
+  };
+
+  const renderStepContent = () => {
+    if (stepOverride && stepOverride !== naturalStep) {
+      if (stepOverride === 'proposta') return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} isReview={true} />;
+      if (stepOverride === 'poster') return <PosterStep film={film} api={api} onRefresh={onRefresh} />;
+      if (stepOverride === 'hype') return <HypeStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} countdown={countdown} />;
+    }
+    if (isImmediate && film.status === 'proposed') return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (currentStep === 'poster') return <PosterStep film={film} api={api} onRefresh={onRefresh} />;
+    if (currentStep === 'hype') return <HypeStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} countdown={countdown} />;
+    if (currentStep === 'casting' && film.status === 'casting') return <CastingStepContent film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (currentStep === 'casting' && film.status === 'ready_for_casting') return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (currentStep === 'script') return <ScreenplayStepContent film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (currentStep === 'produzione') return <ProductionStepContent film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (currentStep === 'uscita') return <ReleaseStepContent film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    if (film.status === 'ready_for_casting') return <ProposedAdvanceStep film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />;
+    return <p className="text-[10px] text-gray-500 text-center py-4">Stato: {film.status}</p>;
+  };
+
+  return (
+    <div className="step-section-enter" data-testid={`film-inline-${film.id}`}>
+      {/* Step content */}
+      <div className="mt-2">
+        {renderStepContent()}
+      </div>
+
+      {/* Improvement Panel */}
+      {['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
+        <ImprovementPanel film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />
+      )}
+
+      {/* Discard */}
+      <DiscardButton film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />
+    </div>
+  );
+}
+
+// Named exports for external use
+export { getCurrentStepId };

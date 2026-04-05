@@ -48,11 +48,21 @@ Sistema di gioco "CineWorld" — app di produzione cinematografica con pipeline 
 - Rimossa protezione NeoMorpheus nel sync (causava mancato aggiornamento soldi/crediti)
 - Ora "Invia a Atlas" e "Ricevi da Atlas" copiano TUTTO fedelmente, incluso NeoMorpheus
 
-### Guest Login (4 Apr 2026) — COMPLETATO
-- Creato `models/user.py` con campo `is_guest: bool = False`
-- Endpoint `POST /api/auth/guest-login` in `routes/auth.py`
-- Accesso rapido con solo nickname, genera user completo con valori base gioco
-- Validazione nickname (min 3 char) e unicità
+### Redesign Cinematografico Pipeline Film (5 Apr 2026) — COMPLETATO
+- Pipeline trasformata da form gestionale a esperienza cinematografica immersiva
+- 6 step visivi: IDEA → HYPE → CAST → PRODUZIONE → LA PRIMA → USCITA
+- Film carousel (un film alla volta, stile slideshow)
+- Full-page step sections con sfondi cinematografici placeholder
+- Eliminato popup Dialog, sostituito con vista inline full-page
+- Step bar con colori e glow per stato corrente/completato/bloccato
+- La Prima preview evocativa (testi come "Presentato a Cannes")
+- Placeholder per effetti cinema (tappeto rosso, luci, proiettore)
+- CSS dedicato: cinematic-pipeline.css
+
+### Fix Status Sponsor Frontend/Backend (5 Apr 2026) — COMPLETATO
+- FilmPopup.jsx: aggiunto mapping `sponsor` → step `script` in getCurrentStepId
+- film_pipeline.py: endpoint write-screenplay e advance-to-preproduction ora accettano status `sponsor`
+- Film bloccati in status `sponsor` ora proseguono correttamente nella pipeline
 
 ## File Chiave
 - `/app/backend/server.py` — Main server (17k+ righe, da modularizzare)

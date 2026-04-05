@@ -16,14 +16,15 @@ import {
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame,
-  Lock, Rocket, Palette, Lightbulb, FileText, Save
+  Lock, Rocket, Palette, Lightbulb, FileText, Save, ChevronLeft
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
 import { FilmProductionCard } from '../components/FilmProductionCard';
-import FilmPopup from '../components/FilmPopup';
+import FilmPopup, { FilmInlineView } from '../components/FilmPopup';
 import { DraftsSection } from '../components/DraftsSection';
 import LaPremiereSection from '../components/LaPremiereSection';
+import '../styles/cinematic-pipeline.css';
 
 // Haptic feedback utility
 const haptic = (pattern = [10]) => { try { navigator?.vibrate?.(pattern); } catch {} };
@@ -2986,7 +2987,276 @@ const PlaceholderTab = ({ icon: Icon, name }) => (
   </div>
 );
 
-// ============ MAIN PAGE (NEW FILM-CENTRIC UX) ============
+// ============ CINEMATIC STEP CONSTANTS ============
+const CINEMATIC_STEPS = [
+  { id: 'idea', label: 'IDEA', icon: Lightbulb, color: 'yellow', statuses: ['draft', 'proposed'] },
+  { id: 'hype', label: 'HYPE', icon: Flame, color: 'orange', statuses: ['coming_soon', 'ready_for_casting'] },
+  { id: 'cast', label: 'CAST', icon: Users, color: 'cyan', statuses: ['casting'] },
+  { id: 'produzione', label: 'PRODUZIONE', icon: Clapperboard, color: 'blue', statuses: ['sponsor', 'screenplay', 'pre_production', 'ciak', 'shooting'] },
+  { id: 'la-prima', label: 'LA PRIMA', icon: Sparkles, color: 'gold', statuses: ['prima'] },
+  { id: 'uscita', label: 'USCITA', icon: Rocket, color: 'green', statuses: ['pending_release', 'uscita'] },
+];
+
+const getCinematicStepIndex = (status) => {
+  for (let i = 0; i < CINEMATIC_STEPS.length; i++) {
+    if (CINEMATIC_STEPS[i].statuses.includes(status)) return i;
+  }
+  return 0;
+};
+
+const STEP_BG_MAP = {
+  idea: 'idea-bg',
+  hype: 'hype-bg',
+  cast: 'casting-bg',
+  produzione: 'production-bg',
+  'la-prima': 'premiere-bg',
+  uscita: 'release-bg',
+};
+
+const STEP_COLORS = {
+  yellow: { active: 'border-yellow-500 bg-yellow-500/15 text-yellow-400', dot: 'bg-yellow-500', line: 'bg-yellow-500/40', glow: 'shadow-yellow-500/20' },
+  orange: { active: 'border-orange-500 bg-orange-500/15 text-orange-400', dot: 'bg-orange-500', line: 'bg-orange-500/40', glow: 'shadow-orange-500/20' },
+  cyan: { active: 'border-cyan-500 bg-cyan-500/15 text-cyan-400', dot: 'bg-cyan-500', line: 'bg-cyan-500/40', glow: 'shadow-cyan-500/20' },
+  blue: { active: 'border-blue-500 bg-blue-500/15 text-blue-400', dot: 'bg-blue-500', line: 'bg-blue-500/40', glow: 'shadow-blue-500/20' },
+  gold: { active: 'border-[#C6A55C] bg-[#C6A55C]/15 text-[#C6A55C]', dot: 'bg-[#C6A55C]', line: 'bg-[#C6A55C]/40', glow: 'shadow-[#C6A55C]/20' },
+  green: { active: 'border-emerald-500 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-500', line: 'bg-emerald-500/40', glow: 'shadow-emerald-500/20' },
+};
+
+// Evocative preview texts for La Prima
+const PREMIERE_VIBES = [
+  { city: 'Cannes', text: '"Presentato al Festival di Cannes"', vibe: 'Sotto le stelle della Croisette' },
+  { city: 'Venezia', text: '"Notte di gala a Venezia"', vibe: 'Il Lido trattiene il respiro' },
+  { city: 'Roma', text: '"Anteprima al Cinema Barberini"', vibe: 'La Capitale si ferma per il tuo film' },
+  { city: 'Berlino', text: '"Berlinale — World Premiere"', vibe: 'L\'Orso d\'Oro ti attende' },
+  { city: 'Los Angeles', text: '"Hollywood — Red Carpet Night"', vibe: 'Le luci di Sunset Boulevard brillano per te' },
+  { city: 'Tokyo', text: '"Premiere esclusiva a Shibuya"', vibe: 'Il cinema incontra la cultura pop' },
+];
+
+// ─── Cinematic Step Bar Component ───
+const CinematicStepBar = ({ currentStepIndex }) => (
+  <div className="flex items-center justify-center gap-0 px-2 py-3" data-testid="cinematic-step-bar">
+    {CINEMATIC_STEPS.map((step, i) => {
+      const Icon = step.icon;
+      const colors = STEP_COLORS[step.color];
+      const isCurrent = i === currentStepIndex;
+      const isCompleted = i < currentStepIndex;
+      const isLocked = i > currentStepIndex;
+
+      return (
+        <React.Fragment key={step.id}>
+          {i > 0 && (
+            <div className={`step-connector ${isCompleted ? colors.line : 'bg-gray-800'}`} />
+          )}
+          <div className={`flex flex-col items-center gap-0.5 ${isCurrent ? '' : ''}`}>
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+              isCurrent ? `${colors.active} step-active-glow` :
+              isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
+              'border-gray-800 bg-gray-900/50 text-gray-700'
+            }`}>
+              {isCompleted ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Icon className={`w-3.5 h-3.5 ${isCurrent ? '' : ''}`} />
+              )}
+            </div>
+            <span className={`text-[7px] sm:text-[8px] font-bold tracking-widest uppercase ${
+              isCurrent ? (step.color === 'gold' ? 'text-[#C6A55C]' : `text-${step.color}-400`) :
+              isCompleted ? 'text-emerald-500/70' :
+              'text-gray-700'
+            }`}>
+              {step.label}
+            </span>
+          </div>
+        </React.Fragment>
+      );
+    })}
+  </div>
+);
+
+// ─── Film Carousel Component ───
+const FilmCarousel = ({ films, selectedId, onSelect, onNew, countdowns }) => (
+  <div className="mb-3">
+    <div className="film-carousel">
+      {/* New Film Card */}
+      <button
+        onClick={onNew}
+        className="carousel-film-card flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-yellow-600/30 bg-yellow-600/5 hover:border-yellow-500/50 hover:bg-yellow-500/10 min-h-[160px]"
+        data-testid="carousel-new-film"
+      >
+        <div className="w-10 h-10 rounded-full bg-yellow-600/10 flex items-center justify-center mb-2">
+          <Pencil className="w-4 h-4 text-yellow-500" />
+        </div>
+        <span className="text-[10px] font-bold text-yellow-500/80 tracking-wide">NUOVO</span>
+        <span className="text-[8px] text-yellow-600/50">FILM</span>
+      </button>
+
+      {/* Film Cards */}
+      {films.map(f => {
+        const isSelected = f.id === selectedId;
+        const stepIdx = getCinematicStepIndex(f.status);
+        const step = CINEMATIC_STEPS[stepIdx];
+        const colors = STEP_COLORS[step.color];
+        return (
+          <button
+            key={f.id}
+            onClick={() => onSelect(f)}
+            className={`carousel-film-card rounded-lg border overflow-hidden ${
+              isSelected ? `active border-[#C6A55C]/60` : 'border-gray-800 hover:border-gray-600'
+            }`}
+            data-testid={`carousel-film-${f.id}`}
+          >
+            {/* Poster area */}
+            <div className="w-full h-[100px] bg-gray-900 relative overflow-hidden">
+              {f.poster_url ? (
+                <img
+                  src={f.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${f.poster_url}` : f.poster_url}
+                  alt="" className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                  <Film className="w-6 h-6 text-gray-700" />
+                </div>
+              )}
+              {/* Status badge */}
+              <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-wide ${colors.active}`}>
+                {step.label}
+              </div>
+              {/* Countdown overlay */}
+              {countdowns[f.id] && (
+                <div className="absolute bottom-0 inset-x-0 bg-black/70 text-center py-0.5">
+                  <span className="text-[8px] text-orange-400 font-mono">{countdowns[f.id]}</span>
+                </div>
+              )}
+            </div>
+            {/* Info */}
+            <div className="p-1.5 bg-[#0D0D0F]">
+              <p className="text-[10px] font-bold text-white truncate">{f.title}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
+                <span className="text-[9px] text-yellow-400 font-bold">{f.pre_imdb_score}</span>
+                <span className="text-[8px] text-gray-600 truncate">{f.genre}</span>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+// ─── Step Section Wrapper ───
+const StepSection = ({ stepId, title, subtitle, children }) => (
+  <div className="relative rounded-xl border border-gray-800/50 overflow-hidden mb-4 step-section-enter" data-testid={`step-section-${stepId}`}>
+    {/* Cinematic background placeholder */}
+    <div className={`cinematic-bg-placeholder ${STEP_BG_MAP[stepId] || ''}`}>
+      {stepId === 'la-prima' && <div className="projector-beam" />}
+      {stepId === 'la-prima' && <div className="red-carpet-gradient absolute inset-0" />}
+    </div>
+    {/* Content */}
+    <div className="relative z-10 p-4">
+      {title && (
+        <div className="mb-4">
+          <h2 className={`font-['Bebas_Neue'] text-xl sm:text-2xl tracking-wide ${
+            stepId === 'la-prima' ? 'gold-shimmer-text' : 'text-white'
+          }`}>
+            {title}
+          </h2>
+          {subtitle && <p className="text-[10px] text-gray-500 mt-0.5">{subtitle}</p>}
+        </div>
+      )}
+      {children}
+    </div>
+  </div>
+);
+
+// ─── Film Header (Cinematic) ───
+const CinematicFilmHeader = ({ film }) => (
+  <div className="flex items-start gap-3 mb-3 p-3 rounded-xl bg-black/40 border border-gray-800/50" data-testid="cinematic-film-header">
+    {/* Poster */}
+    <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-gray-700/50 shadow-lg">
+      {film.poster_url ? (
+        <img
+          src={film.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${film.poster_url}` : film.poster_url}
+          alt="" className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+          <Film className="w-5 h-5 text-gray-600" />
+        </div>
+      )}
+    </div>
+    {/* Info */}
+    <div className="flex-1 min-w-0">
+      <h2 className="font-['Bebas_Neue'] text-lg sm:text-xl text-white tracking-wide truncate">{film.title}</h2>
+      <p className="text-[10px] text-gray-500">{film.genre} &bull; {film.subgenre || film.subgenres?.join(', ')}</p>
+      <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-0.5">
+          <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+          <span className={`text-sm font-bold ${film.pre_imdb_score >= 7 ? 'text-emerald-400' : film.pre_imdb_score >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {film.pre_imdb_score}
+          </span>
+        </div>
+        {film.hype_score > 0 && (
+          <div className="flex items-center gap-0.5">
+            <Flame className="w-3 h-3 text-orange-400" />
+            <span className="text-[10px] text-orange-400 font-bold">{film.hype_score}</span>
+          </div>
+        )}
+        {film.release_type && (
+          <Badge className={`text-[8px] h-4 ${film.release_type === 'coming_soon' ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'}`}>
+            {film.release_type === 'coming_soon' ? 'Coming Soon' : 'Immediato'}
+          </Badge>
+        )}
+      </div>
+      {film.pre_screenplay && (
+        <p className="text-[9px] text-gray-600 mt-1 line-clamp-2 italic">"{film.pre_screenplay}"</p>
+      )}
+    </div>
+  </div>
+);
+
+// ─── La Prima Preview Section ───
+const LaPrimaPreview = ({ film }) => {
+  const vibe = PREMIERE_VIBES[Math.floor(Math.abs(film.title?.charCodeAt(0) || 0) % PREMIERE_VIBES.length)];
+  const premiereCity = film.premiere?.city;
+  const matchedVibe = premiereCity ? PREMIERE_VIBES.find(v => v.city === premiereCity) : null;
+  const displayVibe = matchedVibe || vibe;
+
+  return (
+    <div className="text-center py-6">
+      {/* Evocative text */}
+      <p className="premiere-evocative text-lg sm:text-xl font-['Bebas_Neue'] tracking-widest text-[#C6A55C]">
+        {displayVibe.text}
+      </p>
+      <p className="text-[10px] text-[#C6A55C]/50 mt-1 italic">
+        {displayVibe.vibe}
+      </p>
+      {/* Placeholder cinema effects */}
+      <div className="flex items-center justify-center gap-6 mt-4 opacity-30">
+        <div className="text-center">
+          <div className="w-8 h-8 mx-auto rounded-full border border-[#C6A55C]/30 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-[#C6A55C]" />
+          </div>
+          <p className="text-[7px] text-[#C6A55C]/60 mt-1">Tappeto Rosso</p>
+        </div>
+        <div className="text-center">
+          <div className="w-8 h-8 mx-auto rounded-full border border-[#C6A55C]/30 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-[#C6A55C]" />
+          </div>
+          <p className="text-[7px] text-[#C6A55C]/60 mt-1">Luci</p>
+        </div>
+        <div className="text-center">
+          <div className="w-8 h-8 mx-auto rounded-full border border-[#C6A55C]/30 flex items-center justify-center">
+            <Play className="w-4 h-4 text-[#C6A55C]" />
+          </div>
+          <p className="text-[7px] text-[#C6A55C]/60 mt-1">Proiettore</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============ MAIN PAGE (CINEMATIC LAYOUT) ============
 const FilmPipeline = () => {
   const { api, refreshUser, cachedGet } = useContext(AuthContext);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -2998,29 +3268,25 @@ const FilmPipeline = () => {
   const [showCreation, setShowCreation] = useState(false);
   const [badges, setBadges] = useState({});
 
-  // SWR: instant load from cache
   const { data: pipelineData, mutate: refreshPipeline } = useSWR('/film-pipeline/all');
   const { data: badgesData } = useSWR('/film-pipeline/badges');
-  
+
   useEffect(() => {
     if (badgesData?.badges) setBadges(badgesData.badges);
   }, [badgesData]);
 
   const loadFilms = useCallback(async () => {
     try {
-      // Use SWR cached data first
       const data = pipelineData || (await api.get('/film-pipeline/all')).data;
       const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
       setFilms(safe);
-      
-      // Auto-rescue: find and restore incorrectly completed films
       try {
         const rescueRes = await api.post('/film-pipeline/rescue-lost-films');
         if (rescueRes.data?.rescued_count > 0) {
           toast.success(`${rescueRes.data.rescued_count} film recuperati!`);
           refreshPipeline();
         }
-      } catch (e) { /* rescue is best-effort */ }
+      } catch (e) { /* best-effort */ }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [api, pipelineData, refreshPipeline]);
@@ -3044,14 +3310,11 @@ const FilmPipeline = () => {
     const filmId = searchParams.get('film');
     if (filmId && films.length > 0) {
       const f = films.find(p => p.id === filmId);
-      if (f) {
-        setSelectedFilm(f);
-        setSearchParams({}, { replace: true }); // Clean URL
-      }
+      if (f) { setSelectedFilm(f); setSearchParams({}, { replace: true }); }
     }
   }, [searchParams, films, setSearchParams]);
 
-  // Countdown timer for coming soon films
+  // Countdown timer
   useEffect(() => {
     const update = () => {
       const now = new Date();
@@ -3065,13 +3328,8 @@ const FilmPipeline = () => {
             cd[f.id] = `${h}h ${m}m`;
           } else {
             cd[f.id] = null;
-            // Auto-advance: timer expired, call backend to transition
             api.post(`/film-pipeline/${f.id}/check-coming-soon-status`).then(res => {
-              if (res.data?.advanced) {
-                loadFilms();
-                refreshCounts();
-                toast.success(`"${f.title}" - Coming Soon completato! Puoi procedere al Casting.`);
-              }
+              if (res.data?.advanced) { loadFilms(); refreshCounts(); toast.success(`"${f.title}" - Coming Soon completato!`); }
             }).catch(() => {});
           }
         }
@@ -3081,160 +3339,199 @@ const FilmPipeline = () => {
     update();
     const i = setInterval(update, 10000);
     return () => clearInterval(i);
-  }, [films]);
+  }, [films, api, loadFilms, refreshCounts]);
 
-  const handleRefresh = () => {
-    loadFilms().then(() => {
-      // Update the selectedFilm data if popup is open
-      if (selectedFilm) {
-        setSelectedFilm(prev => {
-          if (!prev) return null;
-          return null; // Close popup to refresh, re-open handled in next render
-        });
-      }
-    });
+  const handleRefresh = async () => {
+    refreshPipeline();
+    const res = await api.get('/film-pipeline/all');
+    const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
+    setFilms(safe);
+    if (selectedFilm) {
+      const updated = safe.find(f => f.id === selectedFilm.id);
+      if (updated) setSelectedFilm(updated);
+      else setSelectedFilm(null);
+    }
     refreshCounts();
   };
 
-  // Re-open popup after refresh if the film still exists
-  const handlePopupRefresh = async () => {
-    try {
-      refreshPipeline();
-      const res = await api.get('/film-pipeline/all');
-      const safe = (res.data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
-      setFilms(safe);
-      if (selectedFilm) {
-        const updated = safe.find(f => f.id === selectedFilm.id);
-        if (updated) setSelectedFilm(updated);
-        else setSelectedFilm(null); // Film was discarded or completed
-      }
-    } catch (e) { console.error(e); }
-    refreshCounts();
+  const handleCreationDone = () => {
+    handleRefresh();
+    setShowCreation(false);
+  };
+
+  const currentStepIndex = selectedFilm ? getCinematicStepIndex(selectedFilm.status) : 0;
+  const currentCinematicStep = selectedFilm ? CINEMATIC_STEPS[currentStepIndex] : null;
+
+  // Determine step section title
+  const getStepTitle = (stepId) => {
+    switch (stepId) {
+      case 'idea': return ['L\'Idea', 'Dai vita al tuo film'];
+      case 'hype': return ['Hype Machine', 'Crea aspettativa nel pubblico'];
+      case 'cast': return ['Il Cast', 'Assembla la squadra perfetta'];
+      case 'produzione': return ['Produzione', 'Sceneggiatura, Sponsor & Riprese'];
+      case 'la-prima': return ['La Prima', 'L\'anteprima esclusiva'];
+      case 'uscita': return ['Uscita al Cinema', 'Il momento della verità'];
+      default: return ['', ''];
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white p-4 pt-16 pb-20" data-testid="film-pipeline-page">
+    <div className="min-h-screen bg-[#050505] text-white p-3 pt-16 pb-20" data-testid="film-pipeline-page">
       <div className="max-w-lg mx-auto">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-4">
+        {/* ─── Cinematic Header ─── */}
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl text-white">Produci!</h1>
-            <p className="text-[10px] text-gray-500">
-              Film attivi: {counts.total_active || 0}/{counts.max_simultaneous || 2}
+            <h1 className="font-['Bebas_Neue'] text-3xl sm:text-4xl text-white tracking-wide">
+              Produci<span className="text-[#C6A55C]">!</span>
+            </h1>
+            <p className="text-[10px] text-gray-600">
+              Film attivi: <span className="text-gray-400">{counts.total_active || 0}/{counts.max_simultaneous || 2}</span>
             </p>
           </div>
-          <Button
-            onClick={() => setShowCreation(!showCreation)}
-            className={`h-9 px-4 text-xs font-bold transition-all ${
-              showCreation
-                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                : 'bg-yellow-600 hover:bg-yellow-500 text-black'
-            }`}
-            data-testid="toggle-creation-btn"
-          >
-            {showCreation ? (
-              <><X className="w-3.5 h-3.5 mr-1" /> Chiudi</>
-            ) : (
-              <><Pencil className="w-3.5 h-3.5 mr-1" /> Nuovo Film</>
-            )}
-          </Button>
+          {selectedFilm && (
+            <Button
+              onClick={() => { setSelectedFilm(null); setShowCreation(false); }}
+              variant="outline"
+              className="h-8 px-3 text-[10px] border-gray-700 text-gray-400 hover:text-white"
+              data-testid="back-to-carousel-btn"
+            >
+              <ChevronLeft className="w-3 h-3 mr-1" /> Tutti i Film
+            </Button>
+          )}
         </div>
 
-        {/* Creation Form (collapsible) */}
-        {showCreation && (
-          <div className="mb-4">
-            <TabErrorBoundary name="creation">
-              <CreationTab api={api} refreshUser={refreshUser} refreshCounts={() => { handleRefresh(); setShowCreation(false); }} cachedGet={cachedGet} />
-            </TabErrorBoundary>
-          </div>
-        )}
-
-        {/* Drafts / Bozze Section (Safety Net) */}
-        <DraftsSection 
-          api={api} 
-          onResume={(film) => {
-            setSelectedFilm(film);
-            haptic([15]);
-          }}
-          onRefresh={handleRefresh}
-        />
-
-        {/* Film Production List */}
-        {loading ? (
-          <div className="text-center py-12 text-gray-500">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-yellow-500/50" />
-            <p className="text-xs">Caricamento produzioni...</p>
-          </div>
-        ) : films.length === 0 ? (
-          <div className="text-center py-16">
-            <Film className="w-12 h-12 mx-auto mb-3 text-gray-700" />
-            <p className="text-sm text-gray-500 mb-1">Nessun film in produzione</p>
-            <p className="text-[10px] text-gray-600 mb-4">Crea il tuo primo film per iniziare!</p>
-            {!showCreation && (
-              <Button onClick={() => setShowCreation(true)} className="bg-yellow-600 hover:bg-yellow-500 text-black text-xs"
-                data-testid="create-first-film-btn">
-                <Pencil className="w-3.5 h-3.5 mr-1" /> Crea il tuo primo film
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2" data-testid="film-list">
-            <div className="flex items-center gap-2 mb-2">
-              <Film className="w-4 h-4 text-yellow-500" />
-              <h2 className="font-['Bebas_Neue'] text-lg text-gray-300">I tuoi Film</h2>
-              <Badge className="bg-yellow-500/15 text-yellow-400 text-[9px] h-5">{films.length}</Badge>
-            </div>
-            {/* Smart Badges per categoria */}
-            {Object.values(badges).some(v => v > 0) && (
-              <div className="flex flex-wrap gap-1.5 mb-2" data-testid="smart-badges">
-                {[
-                  { key: 'film', label: 'Film', color: 'yellow' },
-                  { key: 'sequel', label: 'Sequel', color: 'blue' },
-                  { key: 'serie_tv', label: 'Serie TV', color: 'purple' },
-                  { key: 'anime', label: 'Anime', color: 'pink' },
-                  { key: 'agenzia', label: 'Agenzia', color: 'cyan' },
-                ].map(cat => badges[cat.key] > 0 && (
-                  <div key={cat.key} className={`relative flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium border
-                    ${cat.color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
-                      cat.color === 'blue' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                      cat.color === 'purple' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
-                      cat.color === 'pink' ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' :
-                      'bg-cyan-500/10 border-cyan-500/20 text-cyan-400'
-                    }`}>
-                    {cat.label}
-                    <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[7px] font-bold">
-                      {badges[cat.key]}
-                    </span>
-                  </div>
-                ))}
+        {/* ─── Film Carousel (always visible when there are films) ─── */}
+        {!selectedFilm && (
+          <>
+            {loading ? (
+              <div className="text-center py-16">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#C6A55C]/50" />
+                <p className="text-xs text-gray-600">Caricamento produzioni...</p>
               </div>
+            ) : (
+              <>
+                {/* Smart Badges */}
+                {Object.values(badges).some(v => v > 0) && (
+                  <div className="flex flex-wrap gap-1.5 mb-2" data-testid="smart-badges">
+                    {[
+                      { key: 'film', label: 'Film', color: 'yellow' },
+                      { key: 'sequel', label: 'Sequel', color: 'blue' },
+                      { key: 'serie_tv', label: 'Serie TV', color: 'purple' },
+                      { key: 'anime', label: 'Anime', color: 'pink' },
+                      { key: 'agenzia', label: 'Agenzia', color: 'cyan' },
+                    ].map(cat => badges[cat.key] > 0 && (
+                      <div key={cat.key} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium border
+                        ${cat.color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                          cat.color === 'blue' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                          cat.color === 'purple' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                          cat.color === 'pink' ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' :
+                          'bg-cyan-500/10 border-cyan-500/20 text-cyan-400'
+                        }`}>
+                        {cat.label}
+                        <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[7px] font-bold">{badges[cat.key]}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <FilmCarousel
+                  films={films}
+                  selectedId={null}
+                  onSelect={(f) => { setSelectedFilm(f); setShowCreation(false); haptic([15]); }}
+                  onNew={() => { setSelectedFilm(null); setShowCreation(true); haptic([10]); }}
+                  countdowns={countdowns}
+                />
+
+                {/* Drafts section */}
+                <DraftsSection
+                  api={api}
+                  onResume={(film) => { setSelectedFilm(film); haptic([15]); }}
+                  onRefresh={handleRefresh}
+                />
+
+                {/* Empty state */}
+                {films.length === 0 && !showCreation && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#C6A55C]/10 flex items-center justify-center">
+                      <Film className="w-7 h-7 text-[#C6A55C]/50" />
+                    </div>
+                    <p className="text-sm text-gray-400 mb-1 font-medium">Il tuo studio è vuoto</p>
+                    <p className="text-[10px] text-gray-600 mb-4">Crea il tuo primo capolavoro cinematografico</p>
+                    <Button onClick={() => setShowCreation(true)} className="bg-[#C6A55C] hover:bg-[#b8953f] text-black text-xs font-bold px-6"
+                      data-testid="create-first-film-btn">
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" /> Crea il tuo primo film
+                    </Button>
+                  </div>
+                )}
+
+                {/* Creation Flow (IDEA Step) */}
+                {showCreation && (
+                  <StepSection stepId="idea" title="L'Idea" subtitle="Dai vita al tuo film">
+                    <TabErrorBoundary name="creation">
+                      <CreationTab api={api} refreshUser={refreshUser} refreshCounts={handleCreationDone} cachedGet={cachedGet} />
+                    </TabErrorBoundary>
+                  </StepSection>
+                )}
+
+                {/* Buzz Section */}
+                <BuzzSection api={api} refreshUser={refreshUser} />
+              </>
             )}
-            {films.map(f => (
-              <FilmProductionCard
-                key={f.id}
-                film={f}
-                countdown={countdowns[f.id]}
-                onClick={() => {
-                  setSelectedFilm(f);
-                  haptic([15]);
-                }}
-              />
-            ))}
-          </div>
+          </>
         )}
 
-        {/* Buzz Section */}
-        <BuzzSection api={api} refreshUser={refreshUser} />
-      </div>
+        {/* ─── Selected Film: Full-Page Cinematic View ─── */}
+        {selectedFilm && (
+          <div className="space-y-0">
+            {/* Film Header */}
+            <CinematicFilmHeader film={selectedFilm} />
 
-      {/* Film Popup */}
-      <FilmPopup
-        film={selectedFilm}
-        open={!!selectedFilm}
-        onClose={() => setSelectedFilm(null)}
-        onRefresh={handlePopupRefresh}
-        countdown={selectedFilm ? countdowns[selectedFilm.id] : null}
-      />
+            {/* 6-Step Cinematic Bar */}
+            <CinematicStepBar currentStepIndex={currentStepIndex} />
+
+            {/* Step Content — full-page section */}
+            {currentCinematicStep && (() => {
+              const [title, subtitle] = getStepTitle(currentCinematicStep.id);
+              return (
+                <StepSection stepId={currentCinematicStep.id} title={title} subtitle={subtitle}>
+                  {/* La Prima special preview */}
+                  {currentCinematicStep.id === 'la-prima' && (
+                    <LaPrimaPreview film={selectedFilm} />
+                  )}
+
+                  {/* La Prima section (for prima and pending_release) */}
+                  {(selectedFilm.status === 'prima' || selectedFilm.status === 'pending_release') && currentCinematicStep.id !== 'uscita' && (
+                    <div className="mb-4">
+                      <LaPremiereSection filmId={selectedFilm.id} project={selectedFilm} />
+                    </div>
+                  )}
+
+                  {/* Production speed-up placeholder */}
+                  {currentCinematicStep.id === 'produzione' && selectedFilm.status === 'shooting' && (
+                    <div className="mb-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-blue-400" />
+                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wide">Avanzamento Rapido</span>
+                        </div>
+                        <Badge className="bg-blue-500/15 text-blue-400 text-[8px] border-blue-500/20">Costo: CinePass</Badge>
+                      </div>
+                      <p className="text-[9px] text-gray-500 mt-1">Accelera le riprese del tuo film con CinePass</p>
+                    </div>
+                  )}
+
+                  {/* Inline Film View (all step content from popup) */}
+                  <FilmInlineView
+                    film={selectedFilm}
+                    onRefresh={handleRefresh}
+                    countdown={countdowns[selectedFilm.id]}
+                  />
+                </StepSection>
+              );
+            })()}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

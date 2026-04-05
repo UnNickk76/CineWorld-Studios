@@ -68,7 +68,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 
 - [x] Bottone "Registrati" fisso per utenti guest: badge rosso CTA con pulse, posizionato sopra bottom nav, apre modale conversione esistente. Tooltip prima volta "Salva i tuoi progressi". Nascosto per utenti registrati (2026-04-05)
 - [x] Conversione progetti guest in marketplace: progetti con status>=production e quality>=40 convertiti (owner=null, is_market=True, production_house="Studio Indipendente", prezzo auto=500k*(1+quality/100)). Resto eliminato. Sicurezza: solo guest (2026-04-05)
-- [x] Frontend logout modificato: per guest chiama /auth/guest-logout prima di cancellare token locale (2026-04-05)
+- [x] Modale conversione guest ad alta conversione: due fasi — Phase 1 "Non perdere il tuo studio" con stats dinamici (film creati, CW$ guadagnati), loss aversion ("Se esci ora, perderai tutto"), CTA giallo/oro con pulse; Phase 2 form registrazione. Animazioni fade-in + haptic + scale. Non bloccante (2026-04-05)
 - [x] Fix tutorial step 1: freccia ora punta su "Film" nel dropdown PRODUCI (target: prod-menu-film, fallback: bottom-nav-produci) (2026-04-05)
 - [x] Nuovo step 7 "Apri il tuo film!": guida utente a cliccare sul film nel carousel dopo creazione proposta. Auto-advance 6→7 rileva form chiuso + film nel carousel (2026-04-05)
 - [x] Tutorial esteso da 12 a 13 step (0-12): backend TUTORIAL_STEPS aggiornato, threshold completamento ≥12 (2026-04-05)

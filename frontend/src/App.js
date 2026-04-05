@@ -156,6 +156,189 @@ const VelionMenuControl = () => {
   );
 };
 
+// ─── GUEST CONVERT MODAL (Loss Aversion) ─────────────────────────
+const GuestConvertModalContent = ({ user, api, form, setForm, converting, setConverting, onSuccess, onDismiss }) => {
+  const [phase, setPhase] = useState('hook'); // 'hook' | 'form'
+  const [stats, setStats] = useState({ films: 0, earnings: 0 });
+
+  useEffect(() => {
+    if (!user) return;
+    const films = user.total_lifetime_revenue > 0 ? Math.max(1, Math.round(user.total_lifetime_revenue / 500000)) : 0;
+    setStats({
+      films: films || (user.funds > 1000000 ? 1 : 0),
+      earnings: user.funds || 0,
+    });
+    // Haptic feedback
+    try { navigator?.vibrate?.([20]); } catch {}
+  }, [user]);
+
+  // Fetch actual film count
+  useEffect(() => {
+    if (!api) return;
+    api.get('/film-pipeline/all').then(r => {
+      const count = r.data?.films?.length || r.data?.length || 0;
+      if (count > 0) setStats(s => ({ ...s, films: count }));
+    }).catch(() => {});
+  }, [api]);
+
+  const formatMoney = (n) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+    return String(n);
+  };
+
+  const handleConvert = async () => {
+    setConverting(true);
+    try {
+      const res = await api.post('/auth/convert', form);
+      localStorage.removeItem('cineworld_guest_start');
+      if (res.data.access_token) localStorage.setItem('cineworld_token', res.data.access_token);
+      toast.success('Account registrato! I tuoi progressi sono salvi');
+      onSuccess();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore nella conversione');
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  if (phase === 'hook') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2 }}
+        className="p-5 text-center"
+      >
+        <DialogTitle className="sr-only">Salva progressi</DialogTitle>
+        <DialogDescription className="sr-only">Registrati per non perdere i tuoi progressi</DialogDescription>
+
+        {/* Icon */}
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+          <Film className="w-7 h-7 text-red-400" />
+        </div>
+
+        {/* Title */}
+        <h2 className="text-lg font-extrabold text-white mb-3">Non perdere il tuo studio</h2>
+
+        {/* Stats - dynamic */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3 space-y-2 text-left">
+          <p className="text-[11px] text-gray-400 mb-2">Hai già iniziato a costruire qualcosa:</p>
+          {stats.films > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <Film className="w-3.5 h-3.5 text-blue-400" />
+              </div>
+              <span className="text-xs text-white"><strong className="text-blue-400">{stats.films}</strong> film creati</span>
+            </div>
+          )}
+          {stats.earnings > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+              </div>
+              <span className="text-xs text-white"><strong className="text-yellow-400">{formatMoney(stats.earnings)}</strong> CW$ guadagnati</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+              <Star className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <span className="text-xs text-white">Studio in <strong className="text-cyan-400">crescita</strong></span>
+          </div>
+        </div>
+
+        {/* Loss warning */}
+        <p className="text-[11px] text-red-400/80 font-medium mb-4">Se esci ora, perderai tutto.</p>
+
+        {/* CTA */}
+        <motion.div
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Button
+            className="w-full h-10 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black font-bold text-sm rounded-xl shadow-lg shadow-yellow-500/20"
+            onClick={() => setPhase('form')}
+            data-testid="guest-convert-save-btn"
+          >
+            Salva progressi
+          </Button>
+        </motion.div>
+
+        <p className="text-[9px] text-gray-600 mt-2 mb-1">Salva i tuoi progressi in pochi secondi</p>
+
+        <button
+          className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors py-1"
+          onClick={onDismiss}
+          data-testid="guest-convert-dismiss"
+        >
+          Continua come ospite
+        </button>
+      </motion.div>
+    );
+  }
+
+  // Phase: form
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2 }}
+      className="p-5"
+    >
+      <DialogTitle className="sr-only">Registrazione</DialogTitle>
+      <DialogDescription className="sr-only">Compila per salvare</DialogDescription>
+
+      <button onClick={() => setPhase('hook')} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 mb-3 transition-colors">
+        <ArrowLeft className="w-3 h-3" /> Indietro
+      </button>
+
+      <h3 className="text-sm font-bold text-white mb-3 text-center">Crea il tuo account</h3>
+
+      <div className="space-y-2.5">
+        <Input
+          placeholder="Email"
+          type="email"
+          value={form.email}
+          onChange={e => setForm(p => ({...p, email: e.target.value}))}
+          className="h-9 bg-white/5 border-white/10 text-sm"
+          data-testid="guest-convert-email"
+        />
+        <Input
+          placeholder="Password (min 6 caratteri)"
+          type="password"
+          value={form.password}
+          onChange={e => setForm(p => ({...p, password: e.target.value}))}
+          className="h-9 bg-white/5 border-white/10 text-sm"
+          data-testid="guest-convert-password"
+        />
+        <Input
+          placeholder="Nickname"
+          value={form.nickname}
+          onChange={e => setForm(p => ({...p, nickname: e.target.value}))}
+          className="h-9 bg-white/5 border-white/10 text-sm"
+          data-testid="guest-convert-nickname"
+        />
+        <Button
+          className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black hover:from-yellow-400 hover:to-amber-400 font-bold h-9 text-sm rounded-xl"
+          disabled={converting || !form.email || !form.password || form.password.length < 6}
+          onClick={handleConvert}
+          data-testid="guest-convert-submit"
+        >
+          {converting ? 'Registrazione...' : 'Salva progressi'}
+        </Button>
+        <button
+          className="w-full text-center text-[10px] text-gray-600 hover:text-gray-400 py-1 transition-colors"
+          onClick={onDismiss}
+          data-testid="guest-convert-dismiss-form"
+        >
+          Continua come ospite
+        </button>
+      </div>
+    </motion.div>
+  );
+};
+
 // ─── GUEST REGISTER BADGE ────────────────────────────────────
 const GuestRegisterBadge = ({ onRegister }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -1817,72 +2000,17 @@ const TopNavbar = () => {
 
       {/* Guest Conversion Modal */}
       <Dialog open={showGuestConvertModal} onOpenChange={setShowGuestConvertModal}>
-        <DialogContent className="max-w-sm bg-[#111] border-yellow-500/30 p-0 overflow-hidden" data-testid="guest-convert-modal">
-          <div className="bg-gradient-to-b from-yellow-500/20 to-transparent p-6 text-center">
-            <Sparkles className="w-10 h-10 text-yellow-400 mx-auto mb-2" />
-            <DialogTitle className="font-['Bebas_Neue'] text-2xl text-yellow-300 mb-1">Ti sta piacendo il gioco?</DialogTitle>
-            <DialogDescription className="text-xs text-gray-400">
-              Salva i tuoi progressi registrandoti ora. Non perderai nulla!
-            </DialogDescription>
-          </div>
-          <div className="px-5 pb-5 space-y-2.5">
-            <Input
-              placeholder="Email"
-              type="email"
-              value={guestConvertForm.email}
-              onChange={e => setGuestConvertForm(p => ({...p, email: e.target.value}))}
-              className="h-9 bg-white/5 border-white/10 text-sm"
-              data-testid="guest-convert-email"
-            />
-            <Input
-              placeholder="Password (min 6 caratteri)"
-              type="password"
-              value={guestConvertForm.password}
-              onChange={e => setGuestConvertForm(p => ({...p, password: e.target.value}))}
-              className="h-9 bg-white/5 border-white/10 text-sm"
-              data-testid="guest-convert-password"
-            />
-            <Input
-              placeholder="Nickname"
-              value={guestConvertForm.nickname}
-              onChange={e => setGuestConvertForm(p => ({...p, nickname: e.target.value}))}
-              className="h-9 bg-white/5 border-white/10 text-sm"
-              data-testid="guest-convert-nickname"
-            />
-            <Button
-              className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold h-9"
-              disabled={guestConverting || !guestConvertForm.email || !guestConvertForm.password || guestConvertForm.password.length < 6}
-              onClick={async () => {
-                setGuestConverting(true);
-                try {
-                  const { convertGuest } = await import('./contexts');
-                  // Use api directly since convertGuest is in the context
-                  const res = await api.post('/auth/convert', guestConvertForm);
-                  localStorage.removeItem('cineworld_guest_start');
-                  if (res.data.access_token) {
-                    localStorage.setItem('cineworld_token', res.data.access_token);
-                  }
-                  refreshUser();
-                  toast.success('Account registrato! I tuoi progressi sono salvi');
-                  setShowGuestConvertModal(false);
-                } catch (err) {
-                  toast.error(err.response?.data?.detail || 'Errore nella conversione');
-                } finally {
-                  setGuestConverting(false);
-                }
-              }}
-              data-testid="guest-convert-submit"
-            >
-              {guestConverting ? 'Registrazione...' : 'Registrati e salva progressi'}
-            </Button>
-            <button
-              className="w-full text-center text-xs text-gray-500 hover:text-gray-300 py-1 transition-colors"
-              onClick={() => setShowGuestConvertModal(false)}
-              data-testid="guest-convert-dismiss"
-            >
-              Continua come ospite
-            </button>
-          </div>
+        <DialogContent className="max-w-[340px] bg-[#0c0c0e] border-yellow-500/20 p-0 overflow-hidden rounded-2xl" data-testid="guest-convert-modal">
+          <GuestConvertModalContent
+            user={user}
+            api={api}
+            form={guestConvertForm}
+            setForm={setGuestConvertForm}
+            converting={guestConverting}
+            setConverting={setGuestConverting}
+            onSuccess={() => { refreshUser(); setShowGuestConvertModal(false); }}
+            onDismiss={() => setShowGuestConvertModal(false)}
+          />
         </DialogContent>
       </Dialog>
 

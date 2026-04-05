@@ -55,6 +55,8 @@ class UserResponse(BaseModel):
     role: Optional[str] = 'USER'
     deletion_status: Optional[str] = 'none'
     is_guest: bool = False
+    tutorial_step: int = 0
+    tutorial_completed: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str

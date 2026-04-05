@@ -46,6 +46,7 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
+import { GuestTutorial } from './components/GuestTutorial';
 
 // Lazy-load pages from separate files for code-splitting
 const ReleaseNotes = React.lazy(() => import('./pages/ReleaseNotes'));
@@ -226,9 +227,10 @@ const TopNavbar = () => {
   const [guestConvertForm, setGuestConvertForm] = useState({ email: '', password: '', nickname: '', production_house_name: '' });
   const [guestConverting, setGuestConverting] = useState(false);
 
-  // Guest conversion timer - show modal after 20 minutes
+  // Guest conversion timer - show modal after 20 minutes (only if tutorial completed)
   useEffect(() => {
     if (!user?.is_guest) return;
+    if (!user?.tutorial_completed) return; // Don't show during tutorial
     const guestStart = parseInt(localStorage.getItem('cineworld_guest_start') || '0');
     const elapsed = Date.now() - guestStart;
     const TWENTY_MIN = 20 * 60 * 1000;
@@ -239,7 +241,7 @@ const TopNavbar = () => {
     }, remaining);
 
     return () => clearTimeout(timer);
-  }, [user?.is_guest]);
+  }, [user?.is_guest, user?.tutorial_completed]);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -1925,8 +1927,9 @@ const ProtectedRoute = ({ children }) => {
     if (!keepOn) toggleVelionMode('off');
   };
 
-  // Auto-show tutorial for new users (only when ON)
+  // Auto-show tutorial for new users (only when ON, skip for guest users with tutorial active)
   useEffect(() => {
+    if (user?.is_guest && !user?.tutorial_completed) return; // Guest tutorial handles this
     if (user && velionMode === 'on' && shouldAutoShowTutorial(tutorialCompleted)) {
       const timer = setTimeout(() => { setVelionTab('tutorial'); setShowTutorial(true); }, 1500);
       return () => clearTimeout(timer);
@@ -2032,8 +2035,11 @@ const ProtectedRoute = ({ children }) => {
         </Dialog>
       )}
 
-      {/* Velion AI Assistant - hidden on chat page on mobile */}
-      {location.pathname !== '/chat' && (
+      {/* Guest Tutorial Guide */}
+      <GuestTutorial />
+
+      {/* Velion AI Assistant - hidden on chat page on mobile AND during guest tutorial */}
+      {location.pathname !== '/chat' && !(user?.is_guest && !user?.tutorial_completed) && (
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}

@@ -1156,9 +1156,7 @@ async def launch_film_coming_soon(project_id: str, req: LaunchComingSoonRequest,
         sign = '+' if quality_mod_pct > 0 else ''
         initial_event['text'] += f" (qualita' {sign}{quality_mod_pct}%)"
 
-    await db.film_projects.update_one(
-        {'id': project_id},
-        {'$set': {
+    update_set = {
             'status': 'coming_soon',
             'coming_soon_type': 'pre_casting',
             'coming_soon_tier': req.tier,
@@ -1172,7 +1170,15 @@ async def launch_film_coming_soon(project_id: str, req: LaunchComingSoonRequest,
             'scheduled_release_at': release_at.isoformat(),
             'news_events': [initial_event],
             'updated_at': now.isoformat()
-        }}
+    }
+
+    # Guest users get 3 free speedups on their first film
+    if user.get('is_guest'):
+        update_set['free_speedups'] = 3
+
+    await db.film_projects.update_one(
+        {'id': project_id},
+        {'$set': update_set}
     )
 
     return {

@@ -1121,6 +1121,8 @@ class UserResponse(BaseModel):
     login_streak: int = 0
     studio_country: Optional[str] = 'IT'
     is_guest: bool = False
+    tutorial_step: int = 0
+    tutorial_completed: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str

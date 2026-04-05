@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
 
-// ─── 11 STEP COMPLETI: dalla Dashboard al rilascio del film ───
+// ─── 12 STEP COMPLETI: dalla Dashboard al rilascio film + finale ───
 const STEPS = [
   /* 0 */ { title: 'Benvenuto!', text: 'Sono Velion, il tuo assistente. Ti guider\u00f2 passo passo nella creazione del tuo primo film!', action: 'Iniziamo!', target: null, position: 'bottom', velionSize: 150 },
   /* 1 */ { title: 'Clicca su PRODUCI', text: 'Apri il menu PRODUCI e seleziona "Film" per iniziare!', target: '[data-testid="bottom-nav-produci"]', position: 'top', velionSize: 120 },
@@ -19,7 +19,8 @@ const STEPS = [
   /* 7 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid^="gen-poster-"]', position: 'top', velionSize: 120 },
   /* 8 */ { title: 'Lancia il Coming Soon!', text: 'Scegli il tier e lancia il Coming Soon per creare aspettativa!', target: '[data-testid^="launch-cs-"]', position: 'top', velionSize: 120 },
   /* 9 */ { title: 'Velocizza GRATIS!', text: 'Hai 3 velocizzazioni gratuite! Usale per accelerare il timer del Coming Soon.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 120 },
-  /* 10 */ { title: 'Complimenti!', text: 'Hai avviato il tuo primo film! Vuoi salvare i progressi e continuare l\'avventura?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
+  /* 10 */ { title: 'Congratulazioni!', text: 'Adesso non ti resta che esplorare tutte le altre sezioni del gioco... CineWorld Studio\'s!!!', action: 'finale', target: null, position: 'center', velionSize: 200 },
+  /* 11 */ { title: 'Registrati', text: 'Vuoi salvare i progressi?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
 ];
 
 // Per-step Velion animations (diverse per ogni step)
@@ -34,6 +35,7 @@ const VELION_ANIMS = [
   { animate: { rotate: [0, -4, 4, 0] }, transition: { duration: 2.2, repeat: Infinity } },
   { animate: { y: [0, -10, 0], scale: [1, 1.04, 1] }, transition: { duration: 2, repeat: Infinity } },
   { animate: { y: [0, -14, 0], rotate: [0, 5, -5, 0] }, transition: { duration: 1.8, repeat: Infinity } },
+  { animate: { y: [0, -20, 0], scale: [1, 1.1, 1], rotate: [0, 8, -8, 0] }, transition: { duration: 2.5, repeat: Infinity } },
   { animate: { scale: [1, 1.03, 1], y: [0, -8, 0] }, transition: { duration: 2.5, repeat: Infinity } },
 ];
 
@@ -45,6 +47,9 @@ const injectStyles = () => {
     @keyframes tutGlow { 0%,100%{box-shadow:0 0 10px rgba(255,215,0,.7),0 0 25px rgba(255,215,0,.4)}50%{box-shadow:0 0 20px rgba(255,215,0,1),0 0 40px rgba(255,215,0,.6),0 0 60px rgba(255,215,0,.3)} }
     @keyframes tutArrowBounce { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
     @keyframes velionFloat { 0%,100%{filter:drop-shadow(0 0 15px rgba(0,180,255,.4)) brightness(1.15)}50%{filter:drop-shadow(0 0 30px rgba(0,180,255,.7)) brightness(1.35)} }
+    @keyframes celebrationPulse { 0%,100%{box-shadow:0 0 30px rgba(255,215,0,.3),0 0 60px rgba(255,215,0,.1)}50%{box-shadow:0 0 60px rgba(255,215,0,.6),0 0 120px rgba(255,215,0,.3)} }
+    @keyframes sparkleFloat { 0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-80px) scale(0);opacity:0} }
+    @keyframes celebrationGlow { 0%,100%{filter:drop-shadow(0 0 25px rgba(255,215,0,.6)) brightness(1.2)}50%{filter:drop-shadow(0 0 50px rgba(255,215,0,1)) drop-shadow(0 0 80px rgba(0,180,255,.5)) brightness(1.5)} }
     .tut-target-active { position:relative!important; z-index:110!important; pointer-events:auto!important; animation:tutGlow 1.5s ease-in-out infinite!important; border-radius:12px!important }
     .tut-parent-lifted { z-index:105!important }
   `;
@@ -73,7 +78,7 @@ export function GuestTutorial() {
 
   // ─── ADVANCE HELPER (memoized) ───
   const advanceStep = useCallback(async (newStep) => {
-    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 10) setShowConvert(true); } catch {}
+    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 11) setShowConvert(true); } catch {}
   }, [api]);
 
   // ─── AUTO-ADVANCE: detect page changes and DOM elements ───
@@ -272,6 +277,131 @@ export function GuestTutorial() {
   );
 
   // ═══════ MAIN RENDER ═══════
+
+  // ═══════ FINALE CELEBRATIVO (Step 10) ═══════
+  if (step === 10) {
+    return (
+      <>
+        {/* Overlay scuro di base */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="fixed inset-0 z-[100]"
+          style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.95) 100%)' }}
+          data-testid="tutorial-finale-overlay"
+        />
+
+        {/* Sparkle particles */}
+        <div className="fixed inset-0 z-[101] pointer-events-none overflow-hidden" data-testid="tutorial-finale-sparkles">
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                width: Math.random() * 6 + 2,
+                height: Math.random() * 6 + 2,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                background: i % 3 === 0 ? '#FFD700' : i % 3 === 1 ? '#00B4FF' : '#FF6B6B',
+              }}
+              animate={{
+                y: [0, -(Math.random() * 200 + 100)],
+                x: [0, (Math.random() - 0.5) * 100],
+                opacity: [0, 1, 1, 0],
+                scale: [0, 1.5, 1, 0],
+              }}
+              transition={{
+                duration: Math.random() * 3 + 2,
+                repeat: Infinity,
+                delay: Math.random() * 2,
+                ease: 'easeOut',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Contenuto centrale */}
+        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center px-4 pointer-events-none" data-testid="tutorial-finale-content">
+
+          {/* Velion GRANDE con glow celebrativo */}
+          <motion.div
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', damping: 12, stiffness: 100, delay: 0.3 }}
+            className="relative mb-4"
+          >
+            <motion.img
+              src="/velion-tutorial.png"
+              alt="Velion"
+              className="w-48 h-48 sm:w-56 sm:h-56 object-contain select-none"
+              style={{ animation: 'celebrationGlow 2s ease-in-out infinite' }}
+              animate={{ y: [0, -20, 0], scale: [1, 1.08, 1], rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              data-testid="tutorial-finale-velion"
+            />
+            {/* Anello dorato pulsante attorno a Velion */}
+            <motion.div
+              className="absolute inset-[-16px] rounded-full border-2 border-yellow-400/40"
+              animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.8, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{ animation: 'celebrationPulse 2s ease-in-out infinite' }}
+            />
+          </motion.div>
+
+          {/* Titolo celebrativo */}
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="text-2xl sm:text-3xl font-extrabold text-center mb-2"
+            style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500, #FF6B35)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+            data-testid="tutorial-finale-title"
+          >
+            Congratulazioni!
+          </motion.h2>
+
+          {/* Messaggio */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9 }}
+            className="bg-[#0a0a0c]/80 backdrop-blur-xl border border-yellow-500/30 rounded-2xl px-5 py-4 max-w-sm text-center"
+            style={{ boxShadow: '0 0 40px rgba(255,215,0,0.15), 0 8px 40px rgba(0,0,0,0.5)' }}
+            data-testid="tutorial-finale-message"
+          >
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              <Sparkles className="w-4 h-4 text-yellow-400" />
+              <span className="text-cyan-400 font-['Bebas_Neue'] text-sm tracking-widest">VELION</span>
+              <Sparkles className="w-4 h-4 text-yellow-400" />
+            </div>
+            <p className="text-white text-sm sm:text-base leading-relaxed font-medium">
+              Adesso non ti resta che esplorare tutte le altre sezioni del gioco...
+            </p>
+            <p className="text-xl sm:text-2xl font-extrabold mt-2"
+              style={{ background: 'linear-gradient(135deg, #00B4FF, #00E5FF, #FFD700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+            >
+              CineWorld Studio's!!!
+            </p>
+          </motion.div>
+
+          {/* Bottone Continua */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.3 }}
+            className="mt-5 pointer-events-auto"
+          >
+            <Button
+              className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400 font-bold px-8 h-11 text-sm rounded-xl shadow-lg shadow-yellow-500/30"
+              onClick={() => advanceStep(11)}
+              data-testid="tutorial-finale-continue-btn"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />Continua l'avventura!
+            </Button>
+          </motion.div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {/* OVERLAY */}

@@ -1,0 +1,156 @@
+<analysis>**original_problem_statement**: 
+Il sistema richiede una serie di interventi mirati su bug critici e nuove funzionalità core: perfezionamento della UI del tutorial Guest su mobile, risoluzione dei problemi di sovrapposizione z-index e stacking context (che rendevano i bottoni non cliccabili), conversione del personaggio Velion in un'immagine grande e prominente al posto di un semplice avatar, ed espansione del tutorial per guidare l'utente passo-passo attraverso TUTTO il form di creazione del primo film (12 step totali). Inoltre, è stato richiesto di modificare il timer di comparsa del popup Dona Ora affinché compaia solo 2 ore dopo il primo login giornaliero (e massimo una volta ogni 24 ore).
+
+**PRODUCT REQUIREMENTS**:
+1. Fix bug sovrapposizione tutorial Guest: rendere l'overlay trasparente ai click () per sbloccare la UI sottostante (es. menu dropdown Produci).
+2. Il tasto Inizia Ora del popup di benvenuto deve collegarsi direttamente al Guest Login.
+3. Rinnovare UI Velion nel tutorial: usare l'immagine  in grande scala, mantenendola sempre visibile ai bordi (fuori dalla nuvoletta di testo), con animazioni differenti per step.
+4. Espandere il tutorial Guest per accompagnare il giocatore lungo l'intera  (Idea, Titolo, Sinossi, Poster, Rilascio, Speedup).
+5. Aggiungere uno step finale celebrativo post-creazione film con un testo specifico e un'animazione di grande impatto.
+6. Modificare la logica del popup donazioni (ritardo di 2h dal login giornaliero, cooldown di 24h).
+
+**User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
+
+**what currently exists?** 
+Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking context su Safari iOS sono stati risolti. Il tasto Inizia Ora effettua correttamente il guest login. L'overlay del tutorial ora fa solo da dimmer visivo senza bloccare l'interfaccia (). Il personaggio Velion appare in grande formato e in posizioni che non ostruiscono l'interfaccia di gioco. Il tutorial è stato espanso lato frontend e backend () per coprire ben 11/12 step che seguono attivamente la creazione del film nella pipeline. Il timer del popup Dona Ora è stato reimpostato con successo (, ).
+
+**Last working item**: 
+    - Last item agent was working: Aggiunta dell'ultimo step del tutorial (Step finale celebrativo post-creazione film) con l'animazione di forte impatto e la frase conclusiva (Adesso non ti resta che esplorare tutte le altre sezioni...). Il codice è stato appena inserito in  tramite  ma non è stato ancora testato.
+    - Status: TESTING PENDING
+    - Agent Testing Done: N
+    - Which testing method agent to use? screenshot tool (emulando la UI e forzando lo step finale per verificare l'impatto visivo). **ATTENZIONE: L'utente ha espressamente vietato l'uso del testing agent (No test agent)**.
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**: 
+  Issue 1: Verificare l'ultimo step del tutorial Guest (P0)
+     - Attempted fixes: Aggiunto lo step celebrativo in  con le stringhe fornite dall'utente.
+     - Next debug checklist:  - Simulare/Avanzare il tutorial fino all'ultimo step ed effettuare uno screenshot per confermare che l'animazione e il testo di Velion siano corretti e visivamente d'impatto.
+     - Why fix this issue and what will be achieved with the fix? È l'ultima richiesta dell'utente per concludere definitivamente il task del tutorial Guest.
+     - Status: TESTING PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? frontend
+     - Blocked on other issue: None
+
+  Issue 2: Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost) silenti (P1)
+     - Attempted fixes: Nessun tentativo effettuato in questa sessione. (Ereditato dall'handoff precedente).
+     - Next debug checklist: Implementare in  o simili gli endpoint per incasso, creazione stella e boost.
+     - Why fix this issue and what will be achieved with the fix? Permette ai giocatori di monetizzare e interagire con le serie TV.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on other issue: None
+
+**In progress Task List**: 
+  Task 1: Modularizzare GAME CORE endpoints (P2)
+     - Where to resume:  (file monolite).
+     - What will be achieved with this? Manutenibilità e riduzione rischio bug.
+     - Status: PAUSED
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on something: Priorità più alte (Bug fix e Task Serie TV).
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - (P1) Endpoint backend Azioni Proprietario Serie TV.
+    - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
+    - (P1) Marketplace for TV/Anime rights.
+    Future Tasks:
+    - (P2) Contest Page Mobile Layout Is Broken (Count: 16+).
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
+
+**Completed work in this session**
+- Fix React Hooks in  (Rendered fewer hooks than expected) (DONE)
+- Fix freccia direzionale tutorial, posizionamento dinamico e z-index (DONE)
+- Collegamento bottone Inizia ora a  in  (DONE)
+- Fix bug Produci! non cliccabile (stacking context / pointer-events bypass su overlay) (DONE)
+- Ristrutturazione layout Tutorial: Velion come immagine grande () dinamica e staccata dalla nuvoletta di testo (DONE)
+- Espansione del tutorial Guest da 6 a 11 step interattivi (backend  e frontend ) (DONE)
+- Modifica Timer Popup Dona Ora (2h delay dal login, 24h cooldown) in  e  (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+- Nessuno di nuovo identificato oltre a quelli in pending (Azioni Serie TV).
+
+**Known issue recurrence from previous fork**
+  - Contest Page Mobile Layout Is Broken
+  - Recurrence count: 16+
+  - Status: NOT STARTED
+
+**Code Architecture**
+- Frontend: ,  (Gestione UI/UX logica step tutorial Guest), ,  (Form creazione e step mapping).
+- Backend:  (Endpoint popup donazioni),  (Gestione step tutorial nel DB).
+
+**Key Technical Concepts**
+- **Guest Tutorial**: Usa React Refs () per posizionare l'highlight. L'overlay ha  per evitare di bloccare dropdown e form sottostanti (fondamentale per iOS Safari).
+- **Donation Popup Delay**: Tracciato via  e  nel , più flag nel DB per il cooldown delle 24 ore.
+
+**key DB schema**
+  - : aggiornata logica per  (ora scala fino a >10) e introdotto salvataggio/aggiornamento di .
+
+**changes in tech stack**
+  - Nessuno in particolare.
+
+**All files of reference** 
+  -  (Core per la UI del tutorial, z-index, Velion layout, animazioni)
+  -  (Aggiunti data-testid per auto-advance del tutorial)
+  -  (Logica ritardo popup donazioni)
+  -  (Fix bottone Inizia Ora)
+  -  (Endpoint )
+  -  (Aggiornato costanti  a 11)
+
+**Areas that need refactoring**
+  -  (Monolite da sfoltire).
+
+**key api endpoints**
+  - 
+  - 
+  - 
+
+**Critical Info for New Agent** 
+- **IL CLIENTE HA VIETATO L'UTILIZZO DEL TESTING AGENT (No test agent).** Qualsiasi test deve essere fatto manualmente tramite , bash o Python.
+- Tutte le comunicazioni con l'utente devono essere in **Italiano**.
+- L'overlay del tutorial NON deve mai avere pointer-events o bloccherà i menu a discesa della piattaforma. Lasciarlo come .
+- Velion deve essere sempre mostrato grande (con la sua immagine in ) e non come una piccola V chiusa in un cerchio.
+
+**documents and test reports created in this job**
+  - N/A (Modificato regolarmente PRD.md).
+
+**Last 10 User Messages and any pending HUMAN messages** 
+1. *User*: (Immagini) Il tasto produci non è cliccabile.
+2. *Agent*: [Modifica overlay a pointer-events: none per rimuovere il blocco. Test OK].
+3. *User*: (Immagini) La nuvoletta blocca lo step successivo, spostala in alto quando c'è un target. Anche Velion deve essere animato nel form conversione.
+4. *Agent*: [Sposta Velion in alto e resetta z-index. Test OK].
+5. *User*: (Immagini) No assolutamente, Velion deve tornare GRANDE e all'ESTERNO della nuvoletta.
+6. *Agent*: [Rimodella l'UI, Velion grande a destra e nuvoletta al centro-alto. Test OK].
+7. *User*: (Immagine) Quando compare il dona ora blocca, farlo comparire 2 ore dopo login giornaliero, 1 volta nelle 24h.
+8. *Agent*: [Modifica App.js e server.py per il nuovo timer].
+9. *User*: (Immagini) Quando si clicca su film, si deve cominciare la creazione e bisogna essere seguiti passo-passo da Velion.
+10. *Agent*: [Estende tutorial a 11 step, mappa la Pipeline dei film].
+11. *User*: Appena finita la produzione del primo film, aggiungi un ultimo step tutorial con Velion in grande e un animazione visiva magari di forte impatto e con l’ultima nuvoletta che dica: “Adesso non ti resta che esplorare tutte le altre sezioni del gioco... CineWorld Studio’s!!!” **(PENDING: L'agente ha appena scritto il codice, ma il test con screenshot per confermare l'esito finale non è stato fatto. Usa screenshot per verificare che lo step finale si veda correttamente)**.
+
+**Project Health Check:**
+- Broken: None
+- Mocked: Nessuno
+
+**3rd Party Integrations** 
+- Stripe (Esistente)
+- Altri da implementare (nessuno aggiunto in questa sessione).
+
+**Testing status**
+  - Testing agent used after significant changes: NO (L'utente l'ha proibito).
+  - Troubleshoot agent used after agent stuck in loop: NO.
+  - Test files created: []
+  - Known regressions: Nessuna.
+
+**Credentials to test flow:**
+  - Procedere con opzione Prova senza registrarti dalla landing (Guest Login).
+
+**What agent forgot to execute**
+- L'agente ha iniettato il codice dello step finale celebrativo nel file  ma non ha testato l'interfaccia via screenshot prima di concludere per validare che l'animazione sia corretta e il testo formattato in maniera chiara.
+
+**Debugging checklist for current issue**
+    Issue: Verificare e chiudere l'aggiunta dell'ultimo step del tutorial.
+    Frontend files to check: 
+    Next Steps:
+    1. Utilizzare bash script o procedere manualmente tramite API per spingere l'account guest allo step finale del tutorial (Step 11).
+    2. Prendere uno screenshot della pagina.
+    3. Verificare che l'animazione di Velion sia visivamente d'impatto (come richiesto) e che il messaggio di chiusura sia leggibile e corretto.
+    4. Effettuare la finish completando così l'ultima iterazione del task Tutorial Guest.</analysis>

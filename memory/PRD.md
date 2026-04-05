@@ -31,12 +31,13 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - Fix performance: virtual-reviews da 30s → 1s (batch query)
 - Rimossa chiamata cinema-journal (troppo lenta)
 
-### Sistema Guest (DONE — 2026-04-05)
-- Endpoint `POST /api/auth/guest` crea utente ospite con 10M fondi + 100 CinePass
-- Endpoint `POST /api/auth/convert` migra account guest a registrato (preserva progressi)
-- Bottone "Prova senza registrarti" nella pagina login
-- Timer conversione 20 min con modale "Ti sta piacendo il gioco?"
-- Campo `is_guest` nel modello utente per identificare gli ospiti
+### Sistema Guest con Tutorial Guidato (DONE — 2026-04-05)
+- Guest user creation con is_guest, tutorial_step (0-6), tutorial_completed
+- Endpoint tutorial-step, tutorial-skip, convert account
+- Componente GuestTutorial.jsx con Velion assistente (7 step guidati)
+- Free speedups (3 gratis) per il primo film del guest
+- Modale conversione account a fine tutorial
+- Timer conversione 20min attivo SOLO dopo completamento tutorial
 - Fix popup Cast & Crew: mostra il ruolo (Protagonista, Supporto, Co-Protagonista...) invece del numero progressivo
 - Gestito sia film (`role_in_film`) che serie (`role`) dato che il cast arriva come array piatto
 

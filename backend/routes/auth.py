@@ -134,6 +134,8 @@ async def create_guest():
         'role': 'USER',
         'deletion_status': 'none',
         'is_guest': True,
+        'tutorial_step': 0,
+        'tutorial_completed': False,
         'guest_created_at': datetime.now(timezone.utc).isoformat(),
     }
 
@@ -167,6 +169,7 @@ async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_curr
         'password': hashed,
         'nickname': data.nickname or user.get('nickname'),
         'is_guest': False,
+        'tutorial_completed': True,
         'converted_at': now_str,
         'updated_at': now_str,
     }
@@ -182,6 +185,49 @@ async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_curr
 
     logging.info(f"Guest {user['id']} converted to full user: {data.email}")
     return {'access_token': token, 'user': updated_user, 'success': True}
+
+
+# Tutorial steps: 0=welcome, 1=click_produci, 2=select_film, 3=start_coming_soon, 4=use_speedup, 5=watch_progress, 6=complete
+TUTORIAL_STEPS = {0, 1, 2, 3, 4, 5, 6}
+
+
+class TutorialStepRequest(BaseModel):
+    step: int
+
+
+@router.post("/auth/tutorial-step")
+async def advance_tutorial(data: TutorialStepRequest, user: dict = Depends(get_current_user)):
+    """Advance guest tutorial to the next step."""
+    if not user.get('is_guest'):
+        return {'tutorial_step': -1, 'tutorial_completed': True}
+
+    if data.step not in TUTORIAL_STEPS:
+        raise HTTPException(400, "Step non valido")
+
+    current = user.get('tutorial_step', 0)
+    if data.step <= current and data.step != 6:
+        return {'tutorial_step': current, 'tutorial_completed': user.get('tutorial_completed', False)}
+
+    update = {'tutorial_step': data.step, 'updated_at': datetime.now(timezone.utc).isoformat()}
+    if data.step >= 6:
+        update['tutorial_completed'] = True
+
+    await db.users.update_one({'id': user['id']}, {'$set': update})
+    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= 6}
+
+
+@router.post("/auth/tutorial-skip")
+async def skip_tutorial(user: dict = Depends(get_current_user)):
+    """Skip the tutorial entirely."""
+    if not user.get('is_guest'):
+        return {'success': True}
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'tutorial_step': 6, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {'success': True, 'tutorial_completed': True}
+
+
 
 @router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):

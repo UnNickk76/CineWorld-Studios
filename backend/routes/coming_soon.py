@@ -680,6 +680,11 @@ async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: d
 
     cost = SPEEDUP_TIERS[req.percent]
 
+    # Check if guest with free speedups
+    is_free = False
+    free_speedups = project.get('free_speedups', 0) if project else 0
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1, 'is_guest': 1})
+
     # Try film_projects first, then tv_series
     project = await db.film_projects.find_one(
         {'id': content_id, 'user_id': user['id']},
@@ -708,11 +713,16 @@ async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: d
     if not sra:
         raise HTTPException(400, "Nessun timer attivo per questo progetto")
 
-    # Check CinePass
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
-    user_cp = u.get('cinepass', 0) or 0
-    if user_cp < cost:
-        raise HTTPException(400, f"Servono {cost} CinePass (hai {user_cp})")
+    # Check free speedups (guest tutorial)
+    free_speedups = project.get('free_speedups', 0)
+    if free_speedups > 0:
+        is_free = True
+        cost = 0
+    else:
+        # Check CinePass
+        user_cp = u.get('cinepass', 0) or 0
+        if user_cp < cost:
+            raise HTTPException(400, f"Servono {cost} CinePass (hai {user_cp})")
 
     # Calculate reduction
     now = datetime.now(timezone.utc)
@@ -737,12 +747,17 @@ async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: d
     elif project.get('remaster_end_at') and status == 'remastering':
         timer_field = 'remaster_end_at'
 
-    # Deduct CinePass and update timer
-    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cost}})
+    # Deduct CinePass or free speedup
+    update_ops = {}
+    if is_free:
+        await collection.update_one({'id': content_id}, {'$inc': {'free_speedups': -1}})
+    else:
+        await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cost}})
 
     reduction_hours = reduction.total_seconds() / 3600
+    label = "GRATIS" if is_free else f"{cost} CP"
     event = {
-        'text': f"Velocizzazione {req.percent}%! -{reduction_hours:.1f}h ({cost} CP)",
+        'text': f"Velocizzazione {req.percent}%! -{reduction_hours:.1f}h ({label})",
         'type': 'positive',
         'effect_hours': -round(reduction_hours, 1),
         'created_at': now.isoformat()

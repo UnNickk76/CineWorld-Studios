@@ -3562,9 +3562,11 @@ const FilmPipeline = () => {
                 {/* Creation Flow (IDEA Step) */}
                 {showCreation && (
                   <StepSection stepId="idea" title="L'Idea" subtitle="Dai vita al tuo film">
+                    <div data-testid="creation-form-active">
                     <TabErrorBoundary name="creation">
                       <CreationTab api={api} refreshUser={refreshUser} refreshCounts={handleCreationDone} cachedGet={cachedGet} />
                     </TabErrorBoundary>
+                    </div>
                   </StepSection>
                 )}
 

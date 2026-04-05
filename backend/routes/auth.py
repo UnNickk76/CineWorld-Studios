@@ -188,7 +188,7 @@ async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_curr
 
 
 # Tutorial steps: 0=welcome, 1=click_produci, 2=select_film, 3=start_coming_soon, 4=use_speedup, 5=watch_progress, 6=complete
-TUTORIAL_STEPS = {0, 1, 2, 3, 4, 5, 6}
+TUTORIAL_STEPS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
 
 class TutorialStepRequest(BaseModel):
@@ -209,11 +209,11 @@ async def advance_tutorial(data: TutorialStepRequest, user: dict = Depends(get_c
         return {'tutorial_step': current, 'tutorial_completed': user.get('tutorial_completed', False)}
 
     update = {'tutorial_step': data.step, 'updated_at': datetime.now(timezone.utc).isoformat()}
-    if data.step >= 6:
+    if data.step >= 10:
         update['tutorial_completed'] = True
 
     await db.users.update_one({'id': user['id']}, {'$set': update})
-    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= 6}
+    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= 10}
 
 
 @router.post("/auth/tutorial-skip")
@@ -223,7 +223,7 @@ async def skip_tutorial(user: dict = Depends(get_current_user)):
         return {'success': True}
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'tutorial_step': 6, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+        {'$set': {'tutorial_step': 10, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
     )
     return {'success': True, 'tutorial_completed': True}
 

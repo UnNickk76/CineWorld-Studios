@@ -3149,11 +3149,56 @@ const StepSection = ({ stepId, title, subtitle, children }) => (
   <div className="relative rounded-xl border border-gray-800/50 overflow-hidden mb-4 step-section-enter" data-testid={`step-section-${stepId}`}>
     {/* Cinematic background placeholder */}
     <div className={`cinematic-bg-placeholder ${STEP_BG_MAP[stepId] || ''}`}>
-      {stepId === 'la-prima' && <div className="projector-beam" />}
-      {stepId === 'la-prima' && <div className="red-carpet-gradient absolute inset-0" />}
+      {/* PRODUZIONE — Film strip + grain + light leak */}
+      {stepId === 'produzione' && (
+        <>
+          <div className="film-strip-top" />
+          <div className="film-strip-bottom" />
+          <div className="film-grain" />
+          <div className="reel-light-leak" />
+        </>
+      )}
+      {/* LA PRIMA — Red carpet + flashes + spotlight + stars */}
+      {stepId === 'la-prima' && (
+        <>
+          <div className="red-carpet-anim" />
+          <div className="carpet-shine" />
+          <div className="gold-spotlight" />
+          <div className="flash-overlay">
+            <div className="flash-burst flash-1" />
+            <div className="flash-burst flash-2" />
+            <div className="flash-burst flash-3" />
+            <div className="flash-burst flash-4" />
+            <div className="flash-burst flash-5" />
+          </div>
+          <div className="star-particles">
+            <div className="star-particle sp-1" />
+            <div className="star-particle sp-2" />
+            <div className="star-particle sp-3" />
+            <div className="star-particle sp-4" />
+            <div className="star-particle sp-5" />
+            <div className="star-particle sp-6" />
+          </div>
+        </>
+      )}
+      {/* USCITA — Projector + dust + screen glow + vignette */}
+      {stepId === 'uscita' && (
+        <>
+          <div className="projector-cone" />
+          <div className="screen-glow" />
+          <div className="cinema-vignette" />
+          <div className="dust-particles">
+            <div className="dust d-1" />
+            <div className="dust d-2" />
+            <div className="dust d-3" />
+            <div className="dust d-4" />
+            <div className="dust d-5" />
+          </div>
+        </>
+      )}
     </div>
     {/* Content */}
-    <div className="relative z-10 p-4">
+    <div className={`relative z-10 ${stepId === 'produzione' ? 'py-6 px-4' : 'p-4'}`}>
       {title && (
         <div className="mb-4">
           <h2 className={`font-['Bebas_Neue'] text-xl sm:text-2xl tracking-wide ${

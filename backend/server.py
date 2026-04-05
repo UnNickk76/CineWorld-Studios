@@ -1093,7 +1093,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    email: str
+    email: Optional[str] = None
     nickname: str
     production_house_name: str
     owner_name: str
@@ -1120,6 +1120,7 @@ class UserResponse(BaseModel):
     cinepass: int = 100
     login_streak: int = 0
     studio_country: Optional[str] = 'IT'
+    is_guest: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str

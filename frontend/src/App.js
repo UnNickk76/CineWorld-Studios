@@ -222,6 +222,24 @@ const TopNavbar = () => {
   const [showCineboardMenu, setShowCineboardMenu] = useState(false);
   const [showFilmsMenu, setShowFilmsMenu] = useState(false);
   const [loginReward, setLoginReward] = useState(null); // Login Coming Soon reward popup
+  const [showGuestConvertModal, setShowGuestConvertModal] = useState(false);
+  const [guestConvertForm, setGuestConvertForm] = useState({ email: '', password: '', nickname: '', production_house_name: '' });
+  const [guestConverting, setGuestConverting] = useState(false);
+
+  // Guest conversion timer - show modal after 20 minutes
+  useEffect(() => {
+    if (!user?.is_guest) return;
+    const guestStart = parseInt(localStorage.getItem('cineworld_guest_start') || '0');
+    const elapsed = Date.now() - guestStart;
+    const TWENTY_MIN = 20 * 60 * 1000;
+    const remaining = Math.max(TWENTY_MIN - elapsed, 5000);
+
+    const timer = setTimeout(() => {
+      setShowGuestConvertModal(true);
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [user?.is_guest]);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -1736,7 +1754,76 @@ const TopNavbar = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Donate Popup - Shown on every access */}
+      {/* Guest Conversion Modal */}
+      <Dialog open={showGuestConvertModal} onOpenChange={setShowGuestConvertModal}>
+        <DialogContent className="max-w-sm bg-[#111] border-yellow-500/30 p-0 overflow-hidden" data-testid="guest-convert-modal">
+          <div className="bg-gradient-to-b from-yellow-500/20 to-transparent p-6 text-center">
+            <Sparkles className="w-10 h-10 text-yellow-400 mx-auto mb-2" />
+            <DialogTitle className="font-['Bebas_Neue'] text-2xl text-yellow-300 mb-1">Ti sta piacendo il gioco?</DialogTitle>
+            <DialogDescription className="text-xs text-gray-400">
+              Salva i tuoi progressi registrandoti ora. Non perderai nulla!
+            </DialogDescription>
+          </div>
+          <div className="px-5 pb-5 space-y-2.5">
+            <Input
+              placeholder="Email"
+              type="email"
+              value={guestConvertForm.email}
+              onChange={e => setGuestConvertForm(p => ({...p, email: e.target.value}))}
+              className="h-9 bg-white/5 border-white/10 text-sm"
+              data-testid="guest-convert-email"
+            />
+            <Input
+              placeholder="Password (min 6 caratteri)"
+              type="password"
+              value={guestConvertForm.password}
+              onChange={e => setGuestConvertForm(p => ({...p, password: e.target.value}))}
+              className="h-9 bg-white/5 border-white/10 text-sm"
+              data-testid="guest-convert-password"
+            />
+            <Input
+              placeholder="Nickname"
+              value={guestConvertForm.nickname}
+              onChange={e => setGuestConvertForm(p => ({...p, nickname: e.target.value}))}
+              className="h-9 bg-white/5 border-white/10 text-sm"
+              data-testid="guest-convert-nickname"
+            />
+            <Button
+              className="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold h-9"
+              disabled={guestConverting || !guestConvertForm.email || !guestConvertForm.password || guestConvertForm.password.length < 6}
+              onClick={async () => {
+                setGuestConverting(true);
+                try {
+                  const { convertGuest } = await import('./contexts');
+                  // Use api directly since convertGuest is in the context
+                  const res = await api.post('/auth/convert', guestConvertForm);
+                  localStorage.removeItem('cineworld_guest_start');
+                  if (res.data.access_token) {
+                    localStorage.setItem('cineworld_token', res.data.access_token);
+                  }
+                  refreshUser();
+                  toast.success('Account registrato! I tuoi progressi sono salvi');
+                  setShowGuestConvertModal(false);
+                } catch (err) {
+                  toast.error(err.response?.data?.detail || 'Errore nella conversione');
+                } finally {
+                  setGuestConverting(false);
+                }
+              }}
+              data-testid="guest-convert-submit"
+            >
+              {guestConverting ? 'Registrazione...' : 'Registrati e salva progressi'}
+            </Button>
+            <button
+              className="w-full text-center text-xs text-gray-500 hover:text-gray-300 py-1 transition-colors"
+              onClick={() => setShowGuestConvertModal(false)}
+              data-testid="guest-convert-dismiss"
+            >
+              Continua come ospite
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {showDonatePopup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
           <div 

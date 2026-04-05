@@ -24,7 +24,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    email: str
+    email: Optional[str] = None
     nickname: str
     production_house_name: str
     owner_name: str
@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     badges: Optional[dict] = None
     role: Optional[str] = 'USER'
     deletion_status: Optional[str] = 'none'
+    is_guest: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str

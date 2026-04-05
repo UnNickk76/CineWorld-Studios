@@ -75,6 +75,114 @@ def generate_default_avatar(nickname: str, gender: str = 'other') -> str:
 
 # ==================== REGISTRATION & LOGIN ====================
 
+# --- Guest Names Pool ---
+GUEST_ADJECTIVES = ['Audace', 'Geniale', 'Epico', 'Mitico', 'Nobile', 'Astuto', 'Fiero', 'Rapido', 'Leggendario', 'Brillante']
+GUEST_NOUNS = ['Regista', 'Produttore', 'Cineasta', 'Autore', 'Visionario', 'Maestro', 'Artista', 'Creatore', 'Narratore', 'Inventore']
+
+
+class GuestConvertRequest(BaseModel):
+    email: str
+    password: str
+    nickname: str
+    production_house_name: str = ''
+    owner_name: str = ''
+
+
+@router.post("/auth/guest")
+async def create_guest():
+    """Create a guest user with temporary credentials for immediate play."""
+    guest_id = str(uuid.uuid4())
+    short_hex = guest_id.split('-')[0][:6].upper()
+    adj = random.choice(GUEST_ADJECTIVES)
+    noun = random.choice(GUEST_NOUNS)
+    nickname = f"{adj}{noun}_{short_hex}"
+    avatar_url = generate_default_avatar(nickname, 'other')
+
+    user = {
+        'id': guest_id,
+        'email': None,
+        'password': None,
+        'nickname': nickname,
+        'production_house_name': f'Studio {nickname}',
+        'owner_name': nickname,
+        'language': 'it',
+        'age': 18,
+        'gender': 'other',
+        'funds': 10000000.0,
+        'avatar_url': avatar_url,
+        'avatar_id': 'generated',
+        'avatar_source': 'auto',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'likeability_score': 50.0,
+        'interaction_score': 50.0,
+        'character_score': 50.0,
+        'total_likes_given': 0,
+        'total_likes_received': 0,
+        'messages_sent': 0,
+        'daily_challenges': {},
+        'weekly_challenges': {},
+        'mini_game_cooldowns': {},
+        'mini_game_sessions': {},
+        'total_xp': 0,
+        'level': 0,
+        'fame': 50.0,
+        'total_lifetime_revenue': 0,
+        'accept_offline_challenges': True,
+        'cinepass': 100,
+        'login_streak': 0,
+        'last_streak_date': None,
+        'role': 'USER',
+        'deletion_status': 'none',
+        'is_guest': True,
+        'guest_created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    await db.users.insert_one(user)
+
+    token = create_token(guest_id)
+    user_response = {k: v for k, v in user.items() if k not in ['password', '_id', 'daily_challenges', 'weekly_challenges', 'mini_game_cooldowns', 'mini_game_sessions']}
+
+    logging.info(f"Guest user created: {nickname} ({guest_id})")
+    return {'access_token': token, 'user': user_response}
+
+
+@router.post("/auth/convert")
+async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_current_user)):
+    """Convert a guest account to a full registered account."""
+    if not user.get('is_guest'):
+        raise HTTPException(status_code=400, detail="Solo account ospite possono essere convertiti")
+
+    existing = await db.users.find_one({'email': data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email già registrata")
+
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="La password deve avere almeno 6 caratteri")
+
+    hashed = hash_password(data.password)
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    update_fields = {
+        'email': data.email,
+        'password': hashed,
+        'nickname': data.nickname or user.get('nickname'),
+        'is_guest': False,
+        'converted_at': now_str,
+        'updated_at': now_str,
+    }
+    if data.production_house_name:
+        update_fields['production_house_name'] = data.production_house_name
+    if data.owner_name:
+        update_fields['owner_name'] = data.owner_name
+
+    await db.users.update_one({'id': user['id']}, {'$set': update_fields})
+
+    updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
+    token = create_token(user['id'])
+
+    logging.info(f"Guest {user['id']} converted to full user: {data.email}")
+    return {'access_token': token, 'user': updated_user, 'success': True}
+
 @router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
     if user_data.age < 18:

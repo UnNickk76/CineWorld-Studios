@@ -1927,8 +1927,9 @@ const ProtectedRoute = ({ children }) => {
     if (!keepOn) toggleVelionMode('off');
   };
 
-  // Auto-show tutorial for new users (only when ON)
+  // Auto-show tutorial for new users (only when ON, skip for guest users with tutorial active)
   useEffect(() => {
+    if (user?.is_guest && !user?.tutorial_completed) return; // Guest tutorial handles this
     if (user && velionMode === 'on' && shouldAutoShowTutorial(tutorialCompleted)) {
       const timer = setTimeout(() => { setVelionTab('tutorial'); setShowTutorial(true); }, 1500);
       return () => clearTimeout(timer);
@@ -2037,8 +2038,8 @@ const ProtectedRoute = ({ children }) => {
       {/* Guest Tutorial Guide */}
       <GuestTutorial />
 
-      {/* Velion AI Assistant - hidden on chat page on mobile */}
-      {location.pathname !== '/chat' && (
+      {/* Velion AI Assistant - hidden on chat page on mobile AND during guest tutorial */}
+      {location.pathname !== '/chat' && !(user?.is_guest && !user?.tutorial_completed) && (
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}

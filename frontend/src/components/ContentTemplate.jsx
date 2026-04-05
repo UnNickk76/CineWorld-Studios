@@ -30,7 +30,8 @@ const fmtNum = (n) => {
 };
 
 // Generate critic reviews from quality/hype
-const OUTLETS = ['VARIETY', 'EMPIRE', 'HOLLYWOOD R.'];
+const FILM_OUTLETS = ['VARIETY', 'EMPIRE', 'HOLLYWOOD R.'];
+const SERIES_OUTLETS = ['IGN', 'COLLIDER', 'ENTERTAINMENT W.'];
 const POSITIVE_QUOTES = {
   VARIETY: [
     "Un'esperienza cinematografica straordinaria!",
@@ -47,22 +48,43 @@ const POSITIVE_QUOTES = {
     "Un trionfo del cinema contemporaneo",
     "Destinato a diventare un classico",
   ],
+  IGN: [
+    "Intrigante e piena di suspense!",
+    "Una serie che alza il livello del genere",
+    "Da non perdere assolutamente",
+  ],
+  COLLIDER: [
+    "Una serie crime da non perdere!",
+    "Narrativa avvincente e cast perfetto",
+    "Uno show di altissimo livello",
+  ],
+  'ENTERTAINMENT W.': [
+    "Un thriller che tiene incollati alla sedia!",
+    "Televisione di qualita superiore",
+    "Imperdibile dall'inizio alla fine",
+  ],
 };
 const MIXED_QUOTES = {
   VARIETY: ["Ambizioso ma non sempre riuscito", "Ha momenti brillanti e altri meno"],
   EMPIRE: ["Interessante ma con alti e bassi", "Un buon film con qualche difetto"],
   'HOLLYWOOD R.': ["Promettente ma imperfetto", "Merita una visione, con riserve"],
+  IGN: ["Buona premessa ma esecuzione altalenante", "Intrattiene senza sorprendere"],
+  COLLIDER: ["Una serie dignitosa con margini di crescita", "Merita una chance, con riserve"],
+  'ENTERTAINMENT W.': ["Alti e bassi in ogni episodio", "Ha potenziale ma non lo esprime tutto"],
 };
 
-function generateReviews(quality, hype) {
+function generateReviews(quality, hype, contentType) {
+  const outlets = contentType === 'series' ? SERIES_OUTLETS : FILM_OUTLETS;
   const score = (quality || 50) / 10;
-  return OUTLETS.map((outlet) => {
+  return outlets.map((outlet) => {
     const pool = score >= 7 ? POSITIVE_QUOTES[outlet] : MIXED_QUOTES[outlet];
     const idx = Math.floor((hype || 0) % pool.length);
     return { outlet, quote: `"${pool[idx]}"` };
   });
 }
 
+// Helper: extract text from string or {text, generated_at} object
+const toStr = (v) => typeof v === 'string' ? v : (v?.text || v?.content || '');
 // === SUB-POPUP: Comments ===
 function CommentsPopup({ open, onClose, reviews }) {
   return (
@@ -115,7 +137,7 @@ function ScreenplayPopup({ open, onClose, text }) {
             <button className="ct-subpopup-close" onClick={() => onClose(false)}><X size={14} /></button>
           </div>
           <div className="ct-subpopup-body">
-            <div className="ct-sub-screenplay">{text || 'Sceneggiatura non disponibile.'}</div>
+            <div className="ct-sub-screenplay">{toStr(text) || 'Sceneggiatura non disponibile.'}</div>
           </div>
         </div>
       </DialogContent>
@@ -236,7 +258,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
   const isOwner = actions?.is_owner || film?.user_id === user?.id;
   const isComingSoon = film?.status === 'coming_soon' || film?.status === 'pending_release';
-  const isInTheaters = film?.status === 'in_theaters';
+  const isInTheaters = film?.status === 'in_theaters' || film?.status === 'completed';
 
   // Actions
   const doCollect = async () => {
@@ -273,16 +295,26 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     setPerforming(null);
   };
 
-  // Comments from virtual audience
-  const comments = virtualAudience?.reviews || [];
-  const reviews = film ? generateReviews(film.quality_score, film.popularity_score) : [];
+  // Comments from virtual audience (film) or audience_comments (series)
+  const isSeries = contentType === 'series';
+  const rawComments = isSeries
+    ? (film?.audience_comments || [])
+    : (virtualAudience?.reviews || []);
+  // Normalizza formato commenti
+  const comments = rawComments.map((c, i) => ({
+    reviewer: c.reviewer || { name: c.reviewer_name || `Spettatore ${i+1}`, display: c.reviewer_name },
+    text: typeof c === 'string' ? c : (c.text || c.comment || ''),
+    comment: typeof c === 'string' ? c : (c.text || c.comment || ''),
+  }));
+  const reviews = film ? generateReviews(film.quality_score, film.popularity_score, contentType) : [];
+  const templateImg = isSeries ? '/series-template.jpg' : '/content-template.jpg';
 
   const headerText = isComingSoon ? 'COMING SOON' : isInTheaters ? 'IN PROGRAMMAZIONE..' : film?.status?.toUpperCase() || '';
 
   return (
-    <div className="ct-root" data-testid="content-template">
+    <div className={`ct-root ${isSeries ? 'ct-series' : ''}`} data-testid="content-template">
       {/* Template background */}
-      <img src="/content-template.jpg" alt="" className="ct-bg" draggable={false} />
+      <img src={templateImg} alt="" className="ct-bg" draggable={false} />
 
       {/* Overlay */}
       <div className="ct-overlay">
@@ -337,7 +369,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                   </div>
                 )}
                 <div className="ct-cs-synopsis">
-                  {film.pre_screenplay || film.screenplay || film.description || 'Trama non disponibile.'}
+                  {toStr(film.pre_screenplay) || toStr(film.screenplay) || toStr(film.description) || 'Trama non disponibile.'}
                 </div>
               </>
             ) : (
@@ -470,18 +502,26 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                   </button>
                 </div>
 
-                {/* === REVIEWS (Journal Style) === */}
+                {/* === REVIEWS === */}
                 <div className="ct-reviews" data-testid="ct-reviews">
                   {reviews.map((r, i) => {
                     const isVariety = r.outlet === 'VARIETY';
                     const isEmpire = r.outlet === 'EMPIRE';
+                    // Film: card piene con icone. Series: solo citazione (sfondo nel template)
+                    const journalClass = isSeries
+                      ? `ct-journal ct-journal-series ct-journal-s${i}`
+                      : `ct-journal ${isVariety ? 'ct-journal-variety' : isEmpire ? 'ct-journal-empire' : 'ct-journal-thr'}`;
                     return (
-                      <div key={i} className={`ct-review-card ct-journal ${isVariety ? 'ct-journal-variety' : isEmpire ? 'ct-journal-empire' : 'ct-journal-thr'}`}>
-                        <div className="ct-journal-icon">
-                          {isVariety ? <Award size={12} /> : isEmpire ? <Crown size={12} /> : <Newspaper size={12} />}
-                        </div>
-                        <div className="ct-review-outlet">{r.outlet}</div>
-                        <div className="ct-journal-rule" />
+                      <div key={i} className={`ct-review-card ${journalClass}`}>
+                        {!isSeries && (
+                          <>
+                            <div className="ct-journal-icon">
+                              {isVariety ? <Award size={12} /> : isEmpire ? <Crown size={12} /> : <Newspaper size={12} />}
+                            </div>
+                            <div className="ct-review-outlet">{r.outlet}</div>
+                            <div className="ct-journal-rule" />
+                          </>
+                        )}
                         <div className="ct-review-quote">{r.quote}</div>
                       </div>
                     );
@@ -491,7 +531,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                 {/* === TRAMA === */}
                 <div className="ct-trama" data-testid="ct-trama">
                   <div className="ct-trama-content">
-                    {film.screenplay || film.pre_screenplay || film.description || 'Trama non ancora disponibile per questo contenuto.'}
+                    {toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || 'Trama non ancora disponibile per questo contenuto.'}
                   </div>
                 </div>
 
@@ -515,7 +555,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Sub-popups */}
       <CommentsPopup open={showComments} onClose={setShowComments} reviews={comments} />
-      <ScreenplayPopup open={showScreenplay} onClose={setShowScreenplay} text={film?.screenplay} />
+      <ScreenplayPopup open={showScreenplay} onClose={setShowScreenplay} text={toStr(film?.screenplay)} />
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
       <TrailerPopup open={showTrailer} onClose={setShowTrailer} trailerUrl={film?.trailer_url} />
     </div>

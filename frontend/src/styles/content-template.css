@@ -637,3 +637,115 @@
   color: rgba(212,175,55,0.2);
   margin: 0 auto 12px;
 }
+
+
+/* ════════════════════════════════════════════
+   SERIES TEMPLATE OVERRIDES (.ct-series)
+   ════════════════════════════════════════════ */
+
+/* Header badge — blue tones */
+.ct-series .ct-header-badge {
+  top: 2.5%;
+  background: linear-gradient(180deg, rgba(20,40,120,0.7) 0%, rgba(10,20,80,0.5) 60%, rgba(5,10,50,0.3) 100%);
+  border-color: rgba(100,150,255,0.3);
+  border-bottom-color: rgba(100,150,255,0.5);
+  box-shadow: 0 3px 14px rgba(20,40,120,0.4), inset 0 -2px 8px rgba(100,150,255,0.15);
+}
+.ct-series .ct-header-text {
+  color: #a0c8ff;
+  text-shadow: 0 0 10px rgba(100,150,255,0.4), 0 1px 2px rgba(0,0,0,0.6);
+}
+
+/* Close button — same position, blue accent on tap */
+.ct-series .ct-close:active { background: rgba(100,150,255,0.08); }
+
+/* Title/genre/stats — silver/blue tones */
+.ct-series .ct-title { color: #d0e0ff; }
+.ct-series .ct-genre-badge {
+  color: #80a0d0;
+  background: rgba(100,150,255,0.08);
+  border-color: rgba(100,150,255,0.15);
+}
+.ct-series .ct-cinemas { color: #80a0c0; }
+.ct-series .ct-cinemas svg { color: #5090e0; }
+.ct-series .ct-stat-gold { color: #80b0e0; }
+
+/* Comments — blue tones */
+.ct-series .ct-comments-title { color: #5090e0; }
+.ct-series .ct-comments-avatar { border-color: rgba(100,150,255,0.2); }
+.ct-series .ct-comments-more { color: #5090e0; }
+.ct-series .ct-comment-name { color: #80a0d0; }
+.ct-series .ct-comment-avatar { border-color: rgba(100,150,255,0.15); }
+
+/* Gold divider — blue variant */
+.ct-series .ct-gold-divider {
+  background: linear-gradient(90deg, transparent 5%, #5090e0 25%, #80c0ff 50%, #5090e0 75%, transparent 95%);
+  box-shadow: 0 0 6px rgba(80,144,224,0.5), 0 0 14px rgba(80,144,224,0.2);
+}
+
+/* Action buttons — TRANSPARENT (template has them drawn) */
+.ct-series .ct-actions {
+  top: 51%;
+  height: 5%;
+}
+.ct-series .ct-action-btn {
+  background: transparent !important;
+  border: none !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  min-width: 28%;
+}
+.ct-series .ct-action-btn svg { display: none !important; }
+.ct-series .ct-action-btn:hover { background: rgba(100,150,255,0.06) !important; }
+.ct-series .ct-action-btn:disabled { opacity: 0 !important; }
+
+/* Reviews — TRANSPARENT cards (template has outlines drawn) */
+.ct-series .ct-reviews {
+  top: 62%;
+  height: 13%;
+}
+.ct-series .ct-review-card.ct-journal-series {
+  background: transparent;
+  border: none;
+}
+.ct-series .ct-review-quote {
+  font-size: clamp(6px, 1.5vw, 8px);
+  color: #8090b0;
+  margin-top: auto;
+  padding-top: 40%;
+}
+
+/* Trama — blue tones */
+.ct-series .ct-trama {
+  top: 76%;
+  height: 10%;
+  border-color: rgba(100,150,255,0.08);
+  background: rgba(5,10,30,0.2);
+}
+.ct-series .ct-trama-content {
+  color: #7080a0;
+  scrollbar-color: rgba(100,150,255,0.2) transparent;
+}
+.ct-series .ct-trama-content::-webkit-scrollbar-thumb { background: rgba(100,150,255,0.2); }
+
+/* Footer dev text */
+.ct-series .ct-footer-dev {
+  top: 87%;
+  color: #405070;
+}
+.ct-series .ct-footer-dev:hover { color: #6080a0; }
+
+/* Trailer button — TRANSPARENT (template has it drawn) */
+.ct-series .ct-trailer-btn {
+  top: 90%;
+  height: 5%;
+  background: transparent !important;
+  border: none !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+.ct-series .ct-trailer-btn svg { display: none !important; }
+.ct-series .ct-trailer-star { display: none !important; }
+.ct-series .ct-trailer-btn:hover { background: rgba(100,150,255,0.06) !important; }

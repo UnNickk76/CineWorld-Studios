@@ -35,6 +35,15 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - Film "K" recuperato dalla collection films
 - Card La Prima scrollabile orizzontalmente
 
+### Content Template Series (DONE — 2025-04-05)
+- Template series con background `series-template.jpg` (blue/silver theme)
+- Bottoni INCASSA ORA, CREA STELLA, BOOST CREW trasparenti (aree cliccabili)
+- Bottone TRAILER trasparente
+- Reviews: IGN, COLLIDER, ENTERTAINMENT W.
+- Fix `screenplay` oggetto {text, generated_at} normalizzato
+- Fix commenti series {text, sentiment, rating} normalizzati
+- Status "completed" mappato come "IN PROGRAMMAZIONE"
+
 ## Backlog Prioritizzato
 
 ### P0 (Critico)

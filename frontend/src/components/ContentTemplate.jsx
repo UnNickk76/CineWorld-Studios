@@ -149,16 +149,21 @@ function ScreenplayPopup({ open, onClose, text }) {
 function CastPopup({ open, onClose, cast }) {
   const members = [];
   if (cast) {
-    if (cast.director) members.push({ ...cast.director, role: 'Regista' });
-    if (Array.isArray(cast.actors)) {
-      cast.actors.forEach((a) => members.push({ ...a, role: a.role_name || a.role || 'Attore' }));
-    }
-    // Handle dict format
-    Object.entries(cast).forEach(([key, val]) => {
-      if (key !== 'director' && key !== 'actors' && val?.name) {
-        members.push({ ...val, role: key === 'protagonist' ? 'Protagonista' : key === 'antagonist' ? 'Antagonista' : key });
+    if (Array.isArray(cast)) {
+      // Flat array of actors (films use role_in_film, series use role)
+      cast.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
+    } else {
+      if (cast.director) members.push({ ...cast.director, role: 'Regista' });
+      if (Array.isArray(cast.actors)) {
+        cast.actors.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
       }
-    });
+      // Handle dict format
+      Object.entries(cast).forEach(([key, val]) => {
+        if (key !== 'director' && key !== 'actors' && val?.name) {
+          members.push({ ...val, role: key === 'protagonist' ? 'Protagonista' : key === 'antagonist' ? 'Antagonista' : key });
+        }
+      });
+    }
   }
 
   return (

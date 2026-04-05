@@ -1573,14 +1573,15 @@ async def get_coming_soon():
     ).sort('scheduled_release_at', 1)
     series_items = await series_cursor.to_list(50)
     
-    # Films coming soon
+    # Films coming soon + in production (visible until released)
     film_cursor = db.film_projects.find(
-        {'status': 'coming_soon', 'scheduled_release_at': {'$ne': None}},
-        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
+        {'status': {'$in': ['coming_soon', 'ready_for_casting', 'casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'pending_release', 'prima']},
+         'poster_url': {'$ne': None}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
-         'total_boycott_penalty': 1}
-    ).sort('scheduled_release_at', 1)
+         'total_boycott_penalty': 1, 'status': 1, 'release_type': 1, 'pre_imdb_score': 1}
+    ).sort('created_at', -1)
     film_items = await film_cursor.to_list(50)
 
     # Films in remastering

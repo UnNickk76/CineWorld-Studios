@@ -24,19 +24,374 @@
   background: radial-gradient(ellipse at 30% 70%, rgba(6, 182, 212, 0.07) 0%, transparent 50%),
               radial-gradient(ellipse at 70% 20%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
 }
+
+/* ═══════════════════════════════════════════
+   PRODUZIONE — Film Strip Scrolling Effect
+   ═══════════════════════════════════════════ */
 .production-bg {
   background: radial-gradient(ellipse at 50% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
               radial-gradient(ellipse at 20% 80%, rgba(147, 51, 234, 0.04) 0%, transparent 40%);
 }
+
+/* Film strip — top border */
+.film-strip-top, .film-strip-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18px;
+  z-index: 1;
+  overflow: hidden;
+}
+.film-strip-top { top: 0; }
+.film-strip-bottom { bottom: 0; }
+
+.film-strip-top::before, .film-strip-bottom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.85);
+}
+
+/* Sprocket holes — the classic film perforations */
+.film-strip-top::after, .film-strip-bottom::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 200%;
+  height: 10px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 6px,
+    rgba(59, 130, 246, 0.08) 6px,
+    rgba(59, 130, 246, 0.08) 14px,
+    transparent 14px,
+    transparent 24px
+  );
+  animation: filmStripScroll 8s linear infinite;
+}
+
+@keyframes filmStripScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Film grain overlay — subtle noise texture */
+.film-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 128px;
+  animation: grainShift 0.5s steps(4) infinite;
+  mix-blend-mode: overlay;
+}
+
+@keyframes grainShift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Reel light leak — warm light bleeding from the sides */
+.reel-light-leak {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at -5% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 105% 50%, rgba(147, 51, 234, 0.04) 0%, transparent 40%);
+  animation: lightLeak 6s ease-in-out infinite alternate;
+}
+
+@keyframes lightLeak {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+
+/* ═══════════════════════════════════════════
+   LA PRIMA — Red Carpet, Flashes & Gala
+   ═══════════════════════════════════════════ */
 .premiere-bg {
-  background: radial-gradient(ellipse at 50% 30%, rgba(198, 165, 92, 0.14) 0%, transparent 40%),
-              radial-gradient(ellipse at 20% 70%, rgba(180, 30, 30, 0.08) 0%, transparent 50%),
-              radial-gradient(ellipse at 80% 60%, rgba(198, 165, 92, 0.06) 0%, transparent 40%);
+  background: radial-gradient(ellipse at 50% 100%, rgba(120, 10, 10, 0.12) 0%, transparent 50%),
+              radial-gradient(ellipse at 50% 30%, rgba(198, 165, 92, 0.08) 0%, transparent 40%);
 }
+
+/* Animated red carpet flowing from bottom */
+.red-carpet-anim {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    0deg,
+    rgba(139, 0, 0, 0.18) 0%,
+    rgba(139, 0, 0, 0.12) 20%,
+    rgba(139, 0, 0, 0.06) 40%,
+    rgba(139, 0, 0, 0.02) 60%,
+    transparent 80%
+  );
+  animation: carpetPulse 4s ease-in-out infinite;
+}
+
+@keyframes carpetPulse {
+  0%, 100% { opacity: 0.7; width: 38%; }
+  50% { opacity: 1; width: 42%; }
+}
+
+/* Red carpet shine — moving light on the carpet */
+.carpet-shine {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8%;
+  height: 70%;
+  background: linear-gradient(
+    0deg,
+    rgba(198, 165, 92, 0.12) 0%,
+    rgba(198, 165, 92, 0.04) 40%,
+    transparent 70%
+  );
+  animation: carpetShineMove 5s ease-in-out infinite;
+  filter: blur(8px);
+}
+
+@keyframes carpetShineMove {
+  0%, 100% { transform: translateX(-50%) skewX(-5deg); opacity: 0.3; }
+  50% { transform: translateX(30%) skewX(5deg); opacity: 0.8; }
+}
+
+/* Photographer flash effect */
+.flash-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.flash-burst {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: white;
+}
+.flash-burst::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+}
+
+/* Each flash fires at different times for realism */
+.flash-1 {
+  top: 15%;
+  left: 10%;
+  animation: flashPop 4.2s ease-out infinite;
+  animation-delay: 0s;
+}
+.flash-2 {
+  top: 25%;
+  right: 15%;
+  animation: flashPop 3.8s ease-out infinite;
+  animation-delay: 1.3s;
+}
+.flash-3 {
+  top: 10%;
+  left: 35%;
+  animation: flashPop 5.1s ease-out infinite;
+  animation-delay: 2.5s;
+}
+.flash-4 {
+  top: 20%;
+  right: 30%;
+  animation: flashPop 4.6s ease-out infinite;
+  animation-delay: 0.8s;
+}
+.flash-5 {
+  top: 30%;
+  left: 60%;
+  animation: flashPop 3.5s ease-out infinite;
+  animation-delay: 1.9s;
+}
+
+@keyframes flashPop {
+  0%, 6%, 100% { opacity: 0; transform: scale(0.5); }
+  3% { opacity: 1; transform: scale(1.2); }
+  4.5% { opacity: 0.5; transform: scale(1); }
+}
+
+/* Gold spotlight — sweeping from above */
+.gold-spotlight {
+  position: absolute;
+  top: -30%;
+  left: 50%;
+  width: 60%;
+  height: 130%;
+  background: conic-gradient(
+    from 180deg at 50% 0%,
+    transparent 0deg,
+    rgba(198, 165, 92, 0.04) 15deg,
+    rgba(198, 165, 92, 0.07) 20deg,
+    rgba(198, 165, 92, 0.04) 25deg,
+    transparent 40deg,
+    transparent 320deg,
+    rgba(198, 165, 92, 0.04) 335deg,
+    rgba(198, 165, 92, 0.07) 340deg,
+    rgba(198, 165, 92, 0.04) 345deg,
+    transparent 360deg
+  );
+  animation: spotlightSweep 8s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+@keyframes spotlightSweep {
+  0%, 100% { transform: translateX(-50%) rotate(-8deg); }
+  50% { transform: translateX(-50%) rotate(8deg); }
+}
+
+/* Star particles — tiny floating sparkles */
+.star-particles {
+  position: absolute;
+  inset: 0;
+}
+.star-particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(198, 165, 92, 0.6);
+  border-radius: 50%;
+}
+.star-particle::after {
+  content: '';
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 4px; height: 4px;
+  background: radial-gradient(circle, rgba(198,165,92,0.3) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.sp-1 { top: 20%; left: 15%; animation: starFloat 6s ease-in-out infinite; animation-delay: 0s; }
+.sp-2 { top: 35%; right: 20%; animation: starFloat 7s ease-in-out infinite; animation-delay: 1s; }
+.sp-3 { top: 50%; left: 70%; animation: starFloat 5s ease-in-out infinite; animation-delay: 2s; }
+.sp-4 { top: 15%; right: 35%; animation: starFloat 8s ease-in-out infinite; animation-delay: 0.5s; }
+.sp-5 { top: 60%; left: 25%; animation: starFloat 6.5s ease-in-out infinite; animation-delay: 1.5s; }
+.sp-6 { top: 40%; left: 45%; animation: starFloat 7.5s ease-in-out infinite; animation-delay: 3s; }
+
+@keyframes starFloat {
+  0%, 100% { opacity: 0; transform: translateY(0) scale(0.5); }
+  20% { opacity: 1; transform: translateY(-8px) scale(1); }
+  80% { opacity: 0.6; transform: translateY(-16px) scale(0.8); }
+}
+
+
+/* ═══════════════════════════════════════════
+   USCITA — Projector Beam & Cinema Glow
+   ═══════════════════════════════════════════ */
 .release-bg {
-  background: radial-gradient(ellipse at 50% 50%, rgba(234, 179, 8, 0.1) 0%, transparent 50%),
-              radial-gradient(ellipse at 0% 100%, rgba(16, 185, 129, 0.06) 0%, transparent 40%);
+  background: radial-gradient(ellipse at 50% 50%, rgba(234, 179, 8, 0.06) 0%, transparent 50%),
+              radial-gradient(ellipse at 0% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
 }
+
+/* Cinema projector cone */
+.projector-cone {
+  position: absolute;
+  top: -10%;
+  right: -5%;
+  width: 50%;
+  height: 120%;
+  background: conic-gradient(
+    from 230deg at 100% 0%,
+    transparent 0deg,
+    rgba(234, 179, 8, 0.02) 10deg,
+    rgba(234, 179, 8, 0.05) 18deg,
+    rgba(234, 179, 8, 0.02) 26deg,
+    transparent 35deg
+  );
+  animation: projectorFlicker 3s ease-in-out infinite;
+}
+
+@keyframes projectorFlicker {
+  0%, 100% { opacity: 0.6; }
+  30% { opacity: 1; }
+  35% { opacity: 0.7; }
+  40% { opacity: 0.95; }
+  70% { opacity: 0.8; }
+}
+
+/* Dust particles in projector beam */
+.dust-particles {
+  position: absolute;
+  inset: 0;
+}
+.dust {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(234, 179, 8, 0.25);
+  border-radius: 50%;
+}
+.d-1 { top: 25%; right: 15%; animation: dustDrift 7s linear infinite; animation-delay: 0s; }
+.d-2 { top: 40%; right: 25%; animation: dustDrift 9s linear infinite; animation-delay: 1.5s; }
+.d-3 { top: 15%; right: 10%; animation: dustDrift 6s linear infinite; animation-delay: 3s; }
+.d-4 { top: 55%; right: 20%; animation: dustDrift 8s linear infinite; animation-delay: 0.5s; }
+.d-5 { top: 30%; right: 30%; animation: dustDrift 10s linear infinite; animation-delay: 2s; }
+
+@keyframes dustDrift {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  20% { opacity: 0.6; }
+  50% { opacity: 0.3; transform: translate(-20px, 10px) scale(1); }
+  80% { opacity: 0.5; }
+  100% { opacity: 0; transform: translate(-40px, 20px) scale(0.5); }
+}
+
+/* Cinema screen glow — the screen reflecting light */
+.screen-glow {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 40%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(234, 179, 8, 0.06) 0%,
+    rgba(234, 179, 8, 0.02) 40%,
+    transparent 70%
+  );
+  animation: screenPulse 4s ease-in-out infinite;
+  filter: blur(16px);
+}
+
+@keyframes screenPulse {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scaleY(0.95); }
+  50% { opacity: 1; transform: translateX(-50%) scaleY(1.05); }
+}
+
+/* Vignette — darkened edges for cinema feel */
+.cinema-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
+}
+
+
+/* ═══════════════════════════════════════════
+   SHARED UI ELEMENTS
+   ═══════════════════════════════════════════ */
 
 /* Film carousel */
 .film-carousel {
@@ -80,7 +435,7 @@
 /* Premiere evocative text */
 @keyframes premiereGlow {
   0%, 100% { opacity: 0.5; text-shadow: 0 0 8px rgba(198, 165, 92, 0.2); }
-  50% { opacity: 1; text-shadow: 0 0 16px rgba(198, 165, 92, 0.5); }
+  50% { opacity: 1; text-shadow: 0 0 20px rgba(198, 165, 92, 0.6), 0 0 40px rgba(198, 165, 92, 0.2); }
 }
 .premiere-evocative {
   animation: premiereGlow 3s ease-in-out infinite;
@@ -109,24 +464,15 @@
   animation: goldShimmer 4s linear infinite;
 }
 
-/* Projector beam effect (placeholder) */
-@keyframes projectorBeam {
-  0%, 100% { opacity: 0.03; }
-  50% { opacity: 0.08; }
-}
-.projector-beam {
-  position: absolute;
-  top: -20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 120%;
-  height: 140%;
-  background: conic-gradient(from 180deg at 50% -10%, rgba(198,165,92,0.06) 0deg, transparent 40deg, transparent 320deg, rgba(198,165,92,0.06) 360deg);
-  animation: projectorBeam 4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* Red carpet gradient */
-.red-carpet-gradient {
-  background: linear-gradient(180deg, transparent 0%, rgba(139, 0, 0, 0.06) 40%, rgba(139, 0, 0, 0.12) 100%);
+/* Reduced motion — respect user preferences */
+@media (prefers-reduced-motion: reduce) {
+  .film-strip-top::after, .film-strip-bottom::after,
+  .film-grain, .reel-light-leak,
+  .red-carpet-anim, .carpet-shine,
+  .flash-burst, .gold-spotlight,
+  .star-particle, .projector-cone,
+  .dust, .screen-glow,
+  .premiere-evocative, .gold-shimmer-text {
+    animation: none !important;
+  }
 }

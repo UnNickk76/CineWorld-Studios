@@ -31,9 +31,9 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - Fix performance: virtual-reviews da 30s → 1s (batch query)
 - Rimossa chiamata cinema-journal (troppo lenta)
 
-### Bug Fix
-- Film "K" recuperato dalla collection films
-- Card La Prima scrollabile orizzontalmente
+### Cast & Crew Roles Fix (DONE — 2026-04-05)
+- Fix popup Cast & Crew: mostra il ruolo (Protagonista, Supporto, Co-Protagonista...) invece del numero progressivo
+- Gestito sia film (`role_in_film`) che serie (`role`) dato che il cast arriva come array piatto
 
 ### Content Template Series (DONE — 2025-04-05)
 - Template series con background `series-template.jpg` (blue/silver theme)

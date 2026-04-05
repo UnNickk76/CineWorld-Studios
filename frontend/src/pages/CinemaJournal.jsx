@@ -256,7 +256,7 @@ const CinemaJournal = () => {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('live');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Dati riusati dalle API esistenti
   const [myFilms, setMyFilms] = useState([]);
@@ -267,36 +267,28 @@ const CinemaJournal = () => {
   const [virtualReviews, setVirtualReviews] = useState([]);
 
   useEffect(() => {
-    let loaded = 0;
-    const total = 5;
-    const tryLoad = () => { loaded++; if (loaded >= total) setLoading(false); };
-
-    // Carica ogni API indipendentemente — nessuna blocca le altre
+    // Carica ogni API indipendentemente — la UI si popola man mano
     api.get('/films/my').then(r => {
       const my = Array.isArray(r.data) ? r.data : r.data?.films || [];
       setMyFilms(my);
-      setAllFilms(my); // riusa films/my come lista globale (evita cinema-journal lento)
-    }).catch(() => {}).finally(tryLoad);
+      setAllFilms(my);
+    }).catch(() => {});
 
     api.get('/la-prima/active').then(r => {
       setLaPrimaEvents(r.data?.events || []);
-    }).catch(() => {}).finally(tryLoad);
+    }).catch(() => {});
 
     api.get('/cinema-news').then(r => {
       setNews(r.data?.news || []);
-    }).catch(() => {}).finally(tryLoad);
+    }).catch(() => {});
 
     api.get('/journal/other-news').then(r => {
       setOtherNews(r.data?.news || []);
-    }).catch(() => {}).finally(tryLoad);
+    }).catch(() => {});
 
     api.get('/journal/virtual-reviews').then(r => {
       setVirtualReviews(r.data?.reviews || []);
-    }).catch(() => {}).finally(tryLoad);
-
-    // Fallback: mostra la pagina dopo 4 secondi anche se le API lente non rispondono
-    const fallback = setTimeout(() => setLoading(false), 4000);
-    return () => clearTimeout(fallback);
+    }).catch(() => {});
   }, [api]);
 
   // Genera eventi live (FASE 3 — personalizzazione)
@@ -319,17 +311,6 @@ const CinemaJournal = () => {
     { id: 'news',     label: 'NEWS',     icon: Newspaper,      color: 'text-blue-400',   count: mergedNews.length },
     { id: 'pubblico', label: 'PUBBLICO', icon: MessageCircle,  color: 'text-pink-400',   count: virtualReviews.length },
   ];
-
-  if (loading) {
-    return (
-      <div className="pt-16 pb-20 px-3 flex items-center justify-center min-h-screen" data-testid="cinema-journal-loading">
-        <div className="text-center">
-          <Newspaper className="w-8 h-8 text-yellow-500/40 mx-auto mb-3 animate-pulse" />
-          <p className="text-sm text-gray-500">Caricamento Journal...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="pt-14 pb-16 px-3 max-w-lg mx-auto" data-testid="cinema-journal-page">
@@ -372,11 +353,16 @@ const CinemaJournal = () => {
       {/* ── TAB LIVE ── */}
       {tab === 'live' && (
         <div className="space-y-2" data-testid="journal-live-tab">
-          {liveEvents.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Zap className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          {liveEvents.length === 0 && myFilms.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              <Zap className="w-6 h-6 mx-auto mb-2 animate-pulse text-yellow-500/40" />
+              <p className="text-xs">Caricamento eventi live...</p>
+            </div>
+          ) : liveEvents.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              <Zap className="w-6 h-6 mx-auto mb-2 opacity-30" />
               <p className="text-sm">Nessun evento live al momento</p>
-              <p className="text-xs text-gray-600 mt-1">Produci film per vedere aggiornamenti in tempo reale</p>
+              <p className="text-xs text-gray-600 mt-1">Produci film per vedere aggiornamenti</p>
             </div>
           ) : (
             liveEvents.map((e, i) => <LiveCard key={i} event={e} navigate={navigate} />)
@@ -388,9 +374,9 @@ const CinemaJournal = () => {
       {tab === 'news' && (
         <div className="space-y-2" data-testid="journal-news-tab">
           {mergedNews.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Newspaper className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Nessuna news al momento</p>
+            <div className="text-center py-10 text-gray-500">
+              <Newspaper className="w-6 h-6 mx-auto mb-2 animate-pulse text-blue-500/40" />
+              <p className="text-xs">Caricamento news...</p>
             </div>
           ) : (
             mergedNews.map((n, i) => <NewsCard key={i} item={n} navigate={navigate} />)
@@ -402,9 +388,9 @@ const CinemaJournal = () => {
       {tab === 'pubblico' && (
         <div className="space-y-2" data-testid="journal-pubblico-tab">
           {virtualReviews.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Nessuna voce dal pubblico</p>
+            <div className="text-center py-10 text-gray-500">
+              <MessageCircle className="w-6 h-6 mx-auto mb-2 animate-pulse text-pink-500/40" />
+              <p className="text-xs">Caricamento voci dal pubblico...</p>
             </div>
           ) : (
             virtualReviews.slice(0, 30).map((r, i) => <ReviewCard key={i} review={r} navigate={navigate} />)

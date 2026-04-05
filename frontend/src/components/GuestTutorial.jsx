@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef, useCallback } from 'rea
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Sparkles, X, ChevronRight, UserPlus, ArrowUp } from 'lucide-react';
+import { Camera, Sparkles, X, ChevronRight, UserPlus, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -89,18 +89,64 @@ export function GuestTutorial() {
   const [targetRect, setTargetRect] = useState(null);
   const targetElRef = useRef(null);
 
+  const isActive = user?.is_guest && !user?.tutorial_completed && visible;
+  const msg = STEPS[step] || STEPS[0];
+  const showOverlay = isActive && step >= 1 && step <= 5 && !minimized && msg.target;
+
   // Inject CSS once
   useEffect(() => { injectStyles(); return () => { const s = document.getElementById('tutorial-styles'); if (s) s.remove(); }; }, []);
 
   // Sync step
   useEffect(() => { if (user?.tutorial_step !== undefined) setStep(user.tutorial_step); }, [user?.tutorial_step]);
 
-  // Don't show if not guest or tutorial completed
-  if (!user?.is_guest || user?.tutorial_completed) return null;
-  if (!visible) return null;
+  // Auto-advance on navigation
+  // eslint-disable-next-line
+  useEffect(() => {
+    if (!isActive) return;
+    if (step === 1 && location.pathname === '/create-film') {
+      api.post('/auth/tutorial-step', { step: 2 }).then(() => setStep(2)).catch(() => {});
+    }
+  }, [location.pathname, step, isActive, api]);
 
-  const msg = STEPS[step] || STEPS[0];
-  const showOverlay = step >= 1 && step <= 5 && !minimized && msg.target;
+  // ─── SPOTLIGHT: find + glow + scroll ───
+  // eslint-disable-next-line
+  useEffect(() => {
+    // Cleanup
+    document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
+    setTargetRect(null);
+    targetElRef.current = null;
+
+    if (!isActive || !msg.target || minimized) return;
+
+    const findAndHighlight = () => {
+      const selectors = msg.target.split(',').map(s => s.trim());
+      let el = null;
+      for (const sel of selectors) {
+        el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) break; // visible element
+        el = null;
+      }
+      if (!el) return;
+
+      targetElRef.current = el;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      setTimeout(() => {
+        el.classList.add('tut-target-active');
+        const rect = el.getBoundingClientRect();
+        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 300);
+    };
+
+    // Delay to let page render
+    const t1 = setTimeout(findAndHighlight, 500);
+    const t2 = setTimeout(findAndHighlight, 1500); // retry
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [step, minimized, msg.target, isActive]);
+
+  // Don't show if not guest or tutorial completed
+  if (!isActive) return null;
 
   // ─── LOGIC ───
   const advanceStep = async (newStep) => {
@@ -134,47 +180,6 @@ export function GuestTutorial() {
       toast.error(err.response?.data?.detail || 'Errore');
     } finally { setConverting(false); }
   };
-
-  // Auto-advance on navigation
-  // eslint-disable-next-line
-  useEffect(() => { if (step === 1 && location.pathname === '/create-film') advanceStep(2); }, [location.pathname, step]);
-
-  // ─── SPOTLIGHT: find + glow + scroll ───
-  // eslint-disable-next-line
-  useEffect(() => {
-    // Cleanup
-    document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
-    setTargetRect(null);
-    targetElRef.current = null;
-
-    if (!msg.target || minimized) return;
-
-    const findAndHighlight = () => {
-      const selectors = msg.target.split(',').map(s => s.trim());
-      let el = null;
-      for (const sel of selectors) {
-        el = document.querySelector(sel);
-        if (el && el.offsetParent !== null) break; // visible element
-        el = null;
-      }
-      if (!el) return;
-
-      targetElRef.current = el;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      setTimeout(() => {
-        el.classList.add('tut-target-active');
-        const rect = el.getBoundingClientRect();
-        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-        if (navigator.vibrate) navigator.vibrate(30);
-      }, 300);
-    };
-
-    // Delay to let page render
-    const t1 = setTimeout(findAndHighlight, 500);
-    const t2 = setTimeout(findAndHighlight, 1500); // retry
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [step, minimized, msg.target]);
 
   // ═══════════ RENDER ═══════════
 
@@ -234,21 +239,34 @@ export function GuestTutorial() {
         )}
       </AnimatePresence>
 
-      {/* ───── ANIMATED ARROW pointing to target ───── */}
-      {targetRect && !minimized && (
-        <div
-          className="fixed z-[115] pointer-events-none flex flex-col items-center"
-          style={{
-            top: targetRect.top + targetRect.height + 4,
-            left: targetRect.left + targetRect.width / 2 - 20,
-            animation: 'tutArrowBounce 1s ease-in-out infinite',
-            filter: 'drop-shadow(0 0 10px rgba(255,215,0,0.8))',
-          }}
-          data-testid="tutorial-arrow"
-        >
-          <ArrowUp className="w-10 h-10 text-yellow-400" strokeWidth={3} />
-        </div>
-      )}
+      {/* ───── ANIMATED ARROW pointing from Velion to target ───── */}
+      {targetRect && !minimized && (() => {
+        const velionEl = document.querySelector('[data-testid="tutorial-velion-panel"]');
+        const velionRect = velionEl?.getBoundingClientRect();
+        const targetBelow = targetRect.top > (velionRect?.top || 0);
+        // Position arrow just above the target
+        const arrowTop = targetBelow
+          ? targetRect.top - 36
+          : targetRect.top + targetRect.height + 4;
+        const arrowLeft = targetRect.left + targetRect.width / 2 - 16;
+        return (
+          <div
+            className="fixed z-[130] pointer-events-none flex flex-col items-center"
+            style={{
+              top: Math.max(0, Math.min(arrowTop, window.innerHeight - 36)),
+              left: arrowLeft,
+              animation: 'tutArrowBounce 1s ease-in-out infinite',
+              filter: 'drop-shadow(0 0 12px rgba(255,215,0,0.9))',
+            }}
+            data-testid="tutorial-arrow"
+          >
+            {targetBelow
+              ? <ArrowDown className="w-8 h-8 text-yellow-400" strokeWidth={3} />
+              : <ArrowUp className="w-8 h-8 text-yellow-400" strokeWidth={3} />
+            }
+          </div>
+        );
+      })()}
 
       {/* ───── VELION GUIDE PANEL ───── */}
       <motion.div

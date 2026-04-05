@@ -2490,7 +2490,7 @@ async def write_screenplay(project_id: str, req: ScreenplaySubmitRequest, user: 
     """Submit screenplay for a film: AI-generated, pre-only, or manual."""
     import os, logging
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'screenplay'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['screenplay', 'sponsor']}},
         {'_id': 0}
     )
     if not project:
@@ -2859,7 +2859,7 @@ async def generate_poster(project_id: str, req: PosterRequest, user: dict = Depe
 async def advance_to_preproduction(project_id: str, user: dict = Depends(get_current_user)):
     """Move from screenplay to pre-production phase."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'screenplay'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['screenplay', 'sponsor']}},
         {'_id': 0}
     )
     if not project:

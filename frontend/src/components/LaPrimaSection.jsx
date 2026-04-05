@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
-import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Users, Flame, MapPin, Clock, ChevronRight, Eye, Sparkles, Loader2, Film } from 'lucide-react';
@@ -46,12 +45,10 @@ export function LaPrimaSection({ compact = false }) {
 
   if (loading) {
     return (
-      <Card className="bg-gradient-to-r from-red-500/10 to-amber-500/5 border border-red-500/20 animate-pulse" data-testid="la-prima-loading">
-        <CardContent className="p-3 flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
-          <span className="text-xs text-gray-400">Caricamento La Prima...</span>
-        </CardContent>
-      </Card>
+      <div className="bg-gradient-to-r from-red-500/10 to-amber-500/5 border border-red-500/20 rounded-lg animate-pulse p-3 flex items-center justify-center gap-2" data-testid="la-prima-loading">
+        <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
+        <span className="text-xs text-gray-400">Caricamento La Prima...</span>
+      </div>
     );
   }
 
@@ -59,6 +56,7 @@ export function LaPrimaSection({ compact = false }) {
 
   return (
     <div data-testid="la-prima-section">
+      {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-red-400" />
@@ -76,85 +74,73 @@ export function LaPrimaSection({ compact = false }) {
         </Button>
       </div>
 
-      <div className="space-y-2">
-        {events.slice(0, compact ? 3 : 10).map((ev) => (
-          <Card
+      {/* Horizontal scrollable row */}
+      <div
+        className="flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+        data-testid="la-prima-scroll-row"
+      >
+        {events.map((ev) => (
+          <div
             key={ev.film_id}
-            className="bg-[#0E0E10] border-red-500/10 hover:border-red-500/30 transition-all cursor-pointer overflow-hidden"
+            className="flex-shrink-0 w-[140px] rounded-lg bg-[#0E0E10] border border-red-500/10 hover:border-red-500/30 transition-all cursor-pointer overflow-hidden"
             onClick={() => setSelectedFilmId(ev.film_id)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >
-            <CardContent className="p-0">
-              <div className="flex">
-                {/* Poster */}
-                <div className="w-16 h-24 flex-shrink-0 relative">
-                  {posterSrc(ev.poster_url) ? (
-                    <img
-                      src={posterSrc(ev.poster_url)}
-                      alt={ev.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-red-500/10 flex items-center justify-center">
-                      <Film className="w-6 h-6 text-red-400/30" />
-                    </div>
-                  )}
-                  {/* Live pulse */}
-                  <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-red-600/90 rounded px-1 py-0.5">
-                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                    <span className="text-[7px] font-bold text-white">LIVE</span>
-                  </div>
+            {/* Poster */}
+            <div className="relative w-full h-[80px]">
+              {posterSrc(ev.poster_url) ? (
+                <img
+                  src={posterSrc(ev.poster_url)}
+                  alt={ev.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-full h-full bg-red-500/10 flex items-center justify-center">
+                  <Film className="w-6 h-6 text-red-400/30" />
                 </div>
+              )}
+              {/* LIVE badge */}
+              <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-red-600/90 rounded px-1 py-0.5">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                <span className="text-[7px] font-bold text-white">LIVE</span>
+              </div>
+              {/* Gradient overlay */}
+              <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0E0E10] to-transparent" />
+            </div>
 
-                {/* Info */}
-                <div className="flex-1 p-2 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-semibold truncate">{ev.title}</h4>
-                      <p className="text-[9px] text-gray-500 truncate">{ev.owner_name}</p>
-                    </div>
-                    <Badge className="bg-white/5 text-gray-300 text-[8px] h-4 flex-shrink-0">
-                      {ev.genre}
-                    </Badge>
-                  </div>
-
-                  {/* City + Timer */}
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <div className="flex items-center gap-0.5">
-                      <MapPin className="w-2.5 h-2.5 text-amber-400" />
-                      <span className="text-[9px] text-amber-400 font-medium">{ev.city}</span>
-                    </div>
-                    {ev.time_remaining && (
-                      <div className="flex items-center gap-0.5">
-                        <Clock className="w-2.5 h-2.5 text-gray-500" />
-                        <span className="text-[9px] text-gray-500">{ev.time_remaining}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Stats row */}
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <div className="flex items-center gap-1" data-testid={`spectators-current-${ev.film_id}`}>
-                      <Eye className="w-3 h-3 text-cyan-400" />
-                      <span className="text-[10px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
-                      <span className="text-[8px] text-gray-600">ora</span>
-                    </div>
-                    <div className="flex items-center gap-1" data-testid={`spectators-total-${ev.film_id}`}>
-                      <Users className="w-3 h-3 text-purple-400" />
-                      <span className="text-[10px] font-bold text-purple-400">{formatNumber(ev.spectators_total)}</span>
-                      <span className="text-[8px] text-gray-600">tot</span>
-                    </div>
-                    <div className="flex items-center gap-1" data-testid={`hype-live-${ev.film_id}`}>
-                      <Flame className="w-3 h-3 text-orange-400" />
-                      <span className="text-[10px] font-bold text-orange-400">{ev.hype_live}</span>
-                    </div>
-                  </div>
+            {/* Info compact */}
+            <div className="px-2 pb-2 pt-0.5">
+              <h4 className="text-[11px] font-semibold truncate leading-tight">{ev.title}</h4>
+              <div className="flex items-center gap-1 mt-0.5">
+                <MapPin className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
+                <span className="text-[8px] text-amber-400 truncate">{ev.city}</span>
+                {ev.time_remaining && (
+                  <>
+                    <Clock className="w-2.5 h-2.5 text-gray-500 flex-shrink-0 ml-0.5" />
+                    <span className="text-[8px] text-gray-500 truncate">{ev.time_remaining}</span>
+                  </>
+                )}
+              </div>
+              {/* Stats */}
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-0.5" data-testid={`spectators-current-${ev.film_id}`}>
+                  <Eye className="w-2.5 h-2.5 text-cyan-400" />
+                  <span className="text-[9px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
+                </div>
+                <div className="flex items-center gap-0.5" data-testid={`spectators-total-${ev.film_id}`}>
+                  <Users className="w-2.5 h-2.5 text-purple-400" />
+                  <span className="text-[9px] font-bold text-purple-400">{formatNumber(ev.spectators_total)}</span>
+                </div>
+                <div className="flex items-center gap-0.5" data-testid={`hype-live-${ev.film_id}`}>
+                  <Flame className="w-2.5 h-2.5 text-orange-400" />
+                  <span className="text-[9px] font-bold text-orange-400">{ev.hype_live}</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 

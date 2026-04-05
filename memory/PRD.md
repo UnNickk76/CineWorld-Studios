@@ -18,7 +18,7 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 
 ### La Prima (Completata — 2026-04-05)
 - **Backend**: Endpoint enable/setup/live/active/rankings/cities in `routes/la_prima.py`
-- **Frontend Dashboard**: `LaPrimaSection` sopra "Prossimamente", card interattive con poster/stats
+- **Frontend Dashboard**: `LaPrimaSection` con layout **orizzontale scrollabile**, card compatte da 140px
 - **Popup cinematografico**: `LaPrimaPopup` con template dorato/nero
   - Badge "LIVE ORA" pulsante
   - Count-up animato su hype e spettatori
@@ -31,6 +31,10 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
   - Brand "CineWorld Studio's" in fondo
 - **CineBoard La Prima**: 3 tab (Spettatori Live, Spettatori Totali, Media Mista)
 
+### Fix e Ripristini (2026-04-05)
+- Film "K" ripristinato nella collection `films` (era in `film_projects` completed ma mai inserito in `films`)
+- Card La Prima compattata da full-width a 140px con scroll orizzontale
+
 ## Backlog Prioritizzato
 
 ### P0 (Completati)
@@ -39,6 +43,9 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 - [x] Redesign FilmPipeline (6 step cinematografico)
 - [x] Fix endpoint /api/coming-soon
 - [x] La Prima: backend + Dashboard + CineBoard + Popup LIVE
+- [x] La Prima: miglioramenti visivi LIVE (animazioni, count-up, reazioni)
+- [x] La Prima: card compatta scrollabile orizzontalmente
+- [x] Ripristino film K perso
 
 ### P1 (Prossimi)
 - [ ] Modularizzazione server.py (17k+ righe)

@@ -35,7 +35,7 @@ const injectStyles = () => {
   const s = document.createElement('style');
   s.id = 'tutorial-styles';
   s.textContent = `
-    @keyframes tutGlow { 0%,100%{box-shadow:0 0 10px rgba(255,215,0,.7),0 0 25px rgba(255,215,0,.4);transform:scale(1)}50%{box-shadow:0 0 15px rgba(255,215,0,1),0 0 35px rgba(255,215,0,.6);transform:scale(1.04)} }
+    @keyframes tutGlow { 0%,100%{box-shadow:0 0 10px rgba(255,215,0,.7),0 0 25px rgba(255,215,0,.4)}50%{box-shadow:0 0 20px rgba(255,215,0,1),0 0 40px rgba(255,215,0,.6),0 0 60px rgba(255,215,0,.3)} }
     @keyframes tutArrowBounce { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
     @keyframes velionFloat { 0%,100%{filter:drop-shadow(0 0 15px rgba(0,180,255,.4)) brightness(1.15)}50%{filter:drop-shadow(0 0 30px rgba(0,180,255,.7)) brightness(1.35)} }
     .tut-target-active { position:relative!important; z-index:110!important; pointer-events:auto!important; animation:tutGlow 1.5s ease-in-out infinite!important; border-radius:12px!important }
@@ -169,13 +169,12 @@ export function GuestTutorial() {
 
   return (
     <>
-      {/* OVERLAY */}
+      {/* OVERLAY - visual dimmer only, pointer-events disabled so target stays clickable on iOS */}
       <AnimatePresence>
         {showOverlay && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100]"
-            style={{ background: 'rgba(0,0,0,0.75)', pointerEvents: 'auto' }}
-            onClick={e => e.stopPropagation()}
+            className="fixed inset-0 z-[100] pointer-events-none"
+            style={{ background: 'rgba(0,0,0,0.75)' }}
             data-testid="tutorial-overlay"
           />
         )}

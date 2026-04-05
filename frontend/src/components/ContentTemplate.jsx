@@ -297,7 +297,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           onClick={() => navigate(-1)}
           data-testid="ct-close"
           aria-label="Chiudi"
-        />
+        >
+          <X size={18} />
+        </button>
 
         {loading || !film ? (
           <div className="ct-loading">

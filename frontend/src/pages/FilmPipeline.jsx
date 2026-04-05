@@ -811,7 +811,7 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
 
             {/* Step: coming soon active */}
             {step === 'coming_soon_active' && (
-              <div className="p-2 rounded-lg border border-orange-500/20 bg-orange-500/5 text-center space-y-1" data-testid={`cs-active-${p.id}`}>
+              <div className="p-2 rounded-lg border border-orange-500/20 bg-orange-500/5 space-y-2" data-testid={`cs-active-${p.id}`}>
                 <div className="flex items-center justify-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
                   <span className="text-[10px] font-bold text-orange-400">Coming Soon attivo</span>
@@ -826,7 +826,57 @@ const ProposalsTab = ({ api, refreshUser, refreshCounts }) => {
                     <span className="text-[10px] text-orange-400">Hype: {p.hype_score}</span>
                   </div>
                 )}
-                <p className="text-[8px] text-gray-600">In attesa... il casting iniziera' dopo il Coming Soon</p>
+                {/* Speedup Tier Buttons */}
+                <div className="pt-1 border-t border-orange-500/10">
+                  <p className="text-[8px] text-gray-500 text-center mb-1.5">Velocizza il timer</p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { pct: 25, cost: 10, label: '-25%', color: 'yellow' },
+                      { pct: 75, cost: 20, label: '-75%', color: 'orange' },
+                      { pct: 100, cost: 30, label: 'ISTANTANEO', color: 'red' },
+                    ].map(tier => {
+                      const isFree = (p.free_speedups || 0) > 0;
+                      return (
+                        <button
+                          key={tier.pct}
+                          className={`p-1.5 rounded-lg border text-center transition-all hover:scale-[1.02] active:scale-95 ${
+                            tier.color === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/15' :
+                            tier.color === 'orange' ? 'border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/15' :
+                            'border-red-500/30 bg-red-500/5 hover:bg-red-500/15'
+                          }`}
+                          disabled={actionLoading === `speedup-${p.id}-${tier.pct}`}
+                          onClick={async () => {
+                            setActionLoading(`speedup-${p.id}-${tier.pct}`);
+                            try {
+                              const res = await api.post(`/projects/${p.id}/speedup`, { percent: tier.pct });
+                              toast.success(res.data.message || `Velocizzato del ${tier.pct}%!`);
+                              fetch();
+                              refreshUser();
+                            } catch (err) {
+                              toast.error(err.response?.data?.detail || 'Errore speedup');
+                            } finally {
+                              setActionLoading(null);
+                            }
+                          }}
+                          data-testid={`speedup-${tier.pct}-${p.id}`}
+                        >
+                          <Zap className={`w-3 h-3 mx-auto mb-0.5 ${
+                            tier.color === 'yellow' ? 'text-yellow-400' : tier.color === 'orange' ? 'text-orange-400' : 'text-red-400'
+                          }`} />
+                          <span className={`text-[9px] font-bold block ${
+                            tier.color === 'yellow' ? 'text-yellow-300' : tier.color === 'orange' ? 'text-orange-300' : 'text-red-300'
+                          }`}>{tier.label}</span>
+                          <span className="text-[7px] text-gray-500">
+                            {isFree ? 'GRATIS' : `${tier.cost} CP`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(p.free_speedups || 0) > 0 && (
+                    <p className="text-[8px] text-green-400 text-center mt-1">{p.free_speedups} velocizzazioni gratuite rimaste</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -3512,9 +3562,11 @@ const FilmPipeline = () => {
                 {/* Creation Flow (IDEA Step) */}
                 {showCreation && (
                   <StepSection stepId="idea" title="L'Idea" subtitle="Dai vita al tuo film">
+                    <div data-testid="creation-form-active">
                     <TabErrorBoundary name="creation">
                       <CreationTab api={api} refreshUser={refreshUser} refreshCounts={handleCreationDone} cachedGet={cachedGet} />
                     </TabErrorBoundary>
+                    </div>
                   </StepSection>
                 )}
 

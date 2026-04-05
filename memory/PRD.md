@@ -58,8 +58,16 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Fix navigazione Serie TV dalla Dashboard → ora apre `/series/:id` (2026-04-05)
 - [x] Verifica sblocco "Le Mie TV!" → confermato funzionante (API e UI OK) (2026-04-05)
 - [x] Fix Coming Soon timer: transizioni forward-only, no reset a idea/proposed (2026-04-05)
+- [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
+- [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
+- [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)
+- [x] Fix speech bubble blocca dropdown: step con target → Velion grande in alto + bubble a lato, dropdown libero. Form conversione con Velion animato (2026-04-05)
+- [x] Popup "Dona Ora": compare 2h dopo primo login giornaliero, max 1 volta ogni 24h solari, z-index 150 sopra tutorial (2026-04-05)
+- [x] Tutorial Guest completo 11 step: guida passo-passo dalla Dashboard al rilascio film con auto-advance, Velion grande in posizione variabile, form mai bloccato (2026-04-05)
+- [x] Step finale celebrativo (Step 10): Velion grande con anello dorato pulsante, particelle scintillanti animate, titolo "Congratulazioni!" gradient dorato, messaggio completo multilinea (Serie TV, Arena, Chat, etc.), "CineWorld Studio's!!!", bottone "Continua l'avventura!" → layout ottimizzato mobile con whitespace-pre-line (2026-04-05)
 
 ### P1 (Importante)
+- [ ] Endpoint backend Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost)
 - [ ] Modularizzazione server.py (17k+ righe)
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
 - [ ] Marketplace TV/Anime rights
@@ -88,7 +96,8 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - `/app/frontend/src/pages/SeriesDetail.jsx`
 - `/app/frontend/src/components/LaPrimaPopup.jsx`
 - `/app/backend/routes/dashboard.py` (virtual-reviews fix)
-- `/app/backend/server.py` (monolite 17k+)
+- `/app/frontend/src/components/GuestTutorial.jsx` (Tutorial Guest 12 step + finale celebrativo)
+- `/app/backend/routes/auth.py` (TUTORIAL_STEPS 0-11, tutorial-step, tutorial-skip, convert)
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

@@ -1095,7 +1095,7 @@ const Dashboard = () => {
         className={`mb-4 cursor-pointer transition-all ${
           hasEmittenteTV
             ? 'bg-gradient-to-r from-red-500/25 to-red-600/10 border-red-500/30 hover:border-red-500/50'
-            : 'bg-[#1A1A1A] border-white/5 opacity-50 cursor-not-allowed'
+            : 'bg-[#1A1A1A] border-white/10'
         }`}
         onClick={() => {
           if (!hasEmittenteTV) { toast.info(language === 'it' ? 'Sblocca un\'Emittente TV nelle Infrastrutture!' : 'Unlock a TV Broadcaster in Infrastructure!'); return; }
@@ -1151,13 +1151,13 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Le Mie Serie TV - 5 poster row */}
-      {mySeries.length > 0 && (
-        <div className="mb-4" data-testid="my-series-section">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Tv className="w-4 h-4 text-blue-400" />{language === 'it' ? 'LE MIE SERIE TV' : 'MY TV SERIES'}</h2>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-6 text-[10px] text-blue-400 hover:text-blue-300 px-2">Vedi Tutti <ChevronRight className="w-3 h-3 ml-0.5" /></Button>
-          </div>
+      {/* Le Mie Serie TV - 5 poster row - SEMPRE VISIBILE */}
+      <div className="mb-4" data-testid="my-series-section">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Tv className="w-4 h-4 text-blue-400" />{language === 'it' ? 'LE MIE SERIE TV' : 'MY TV SERIES'}</h2>
+          {mySeries.length > 0 && <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-6 text-[10px] text-blue-400 hover:text-blue-300 px-2">Vedi Tutti <ChevronRight className="w-3 h-3 ml-0.5" /></Button>}
+        </div>
+        {mySeries.length > 0 ? (
           <div className="grid grid-cols-5 gap-1.5">
             {mySeries.slice(0, 5).map(s => (
               <div key={s.id} className="cursor-pointer group" onClick={() => navigate(`/series/${s.id}`)} data-testid={`my-series-${s.id}`}>
@@ -1174,8 +1174,13 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-3 text-center">
+            <Tv className="w-5 h-5 text-blue-500/20 mx-auto mb-1" />
+            <p className="text-[10px] text-gray-500">{language === 'it' ? 'Nessuna serie TV ancora. Crea la tua prima serie!' : 'No TV series yet. Create your first series!'}</p>
+          </div>
+        )}
+      </div>
 
       {/* I Miei Anime - 5 poster row */}
       {myAnime.length > 0 && (

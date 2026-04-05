@@ -1,59 +1,56 @@
 <analysis>**original_problem_statement**: 
-Il sistema richiede la finalizzazione della logica visiva per la schermata di dettaglio dei contenuti (Content Template) estendendola anche alle Serie TV tramite un nuovo sfondo dedicato con bottoni trasparenti. È richiesta anche l'ottimizzazione estrema della pagina Cinema Journal nella navbar, divisa in 3 tab (LIVE, NEWS, PUBBLICO), riutilizzando i dati esistenti e migliorando le performance. Infine, occorre risolvere i bug di navigazione dalla Dashboard verso il nuovo template delle Serie TV e sbloccare la sezione Le Mie TV!.
+Il sistema richiede una serie di interventi mirati su bug critici e nuove funzionalità core: perfezionamento della UI del tutorial Guest su mobile, risoluzione dei problemi di sovrapposizione z-index e stacking context (che rendevano i bottoni non cliccabili), conversione del personaggio Velion in un'immagine grande e prominente al posto di un semplice avatar, ed espansione del tutorial per guidare l'utente passo-passo attraverso TUTTO il form di creazione del primo film (12 step totali). Inoltre, è stato richiesto di modificare il timer di comparsa del popup Dona Ora affinché compaia solo 2 ore dopo il primo login giornaliero (e massimo una volta ogni 24 ore).
 
 **PRODUCT REQUIREMENTS**:
-1. Applicare il Content Template alle Serie TV usando un'immagine specifica di sfondo e mappando i dati correttamente (gestendo la diversità dei campi come  e commenti).
-2. Ottimizzare e snellire la pagina  senza creare nuove API, eliminando caricamenti bloccanti e aggiungendo frasi dinamiche personalizzate per l'utente.
-3. Fixare il routing: il click sulle Serie TV nella Dashboard deve portare al nuovo  () e non alla vecchia vista inline ().
-4. Verificare e sbloccare la sezione Le Mie TV! che attualmente risulta bloccata.
+1. Fix bug sovrapposizione tutorial Guest: rendere l'overlay trasparente ai click () per sbloccare la UI sottostante (es. menu dropdown Produci).
+2. Il tasto Inizia Ora del popup di benvenuto deve collegarsi direttamente al Guest Login.
+3. Rinnovare UI Velion nel tutorial: usare l'immagine  in grande scala, mantenendola sempre visibile ai bordi (fuori dalla nuvoletta di testo), con animazioni differenti per step.
+4. Espandere il tutorial Guest per accompagnare il giocatore lungo l'intera  (Idea, Titolo, Sinossi, Poster, Rilascio, Speedup).
+5. Aggiungere uno step finale celebrativo post-creazione film con un testo specifico e un'animazione di grande impatto.
+6. Modificare la logica del popup donazioni (ritardo di 2h dal login giornaliero, cooldown di 24h).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Il  gestisce ora sia i film che le serie TV (). Per le serie TV utilizza  con classi CSS dedicate () che rendono i bottoni interattivi completamente trasparenti (sovrapposti ai disegni dell'immagine). La pagina  è stata rifatta: carica in modo non bloccante, ha 3 tab veloci e la chiamata backend  è stata ottimizzata (N+1 query risolto). È stato individuato il motivo per cui le serie TV non si aprono correttamente dalla Dashboard e perché Le Mie TV risulta bloccata, ma il fix non è ancora stato implementato.
+Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking context su Safari iOS sono stati risolti. Il tasto Inizia Ora effettua correttamente il guest login. L'overlay del tutorial ora fa solo da dimmer visivo senza bloccare l'interfaccia (). Il personaggio Velion appare in grande formato e in posizioni che non ostruiscono l'interfaccia di gioco. Il tutorial è stato espanso lato frontend e backend () per coprire ben 11/12 step che seguono attivamente la creazione del film nella pipeline. Il timer del popup Dona Ora è stato reimpostato con successo (, ).
 
 **Last working item**: 
-    - Last item agent was working: Fix della navigazione per le Serie TV dalla Dashboard (Bug 2) e sblocco della voce Le Mie TV! nella sidebar (Bug 1). L'agente ha appena individuato i file interessati ( e ).
-    - Status: IN PROGRESS
+    - Last item agent was working: Aggiunta dell'ultimo step del tutorial (Step finale celebrativo post-creazione film) con l'animazione di forte impatto e la frase conclusiva (Adesso non ti resta che esplorare tutte le altre sezioni...). Il codice è stato appena inserito in  tramite  ma non è stato ancora testato.
+    - Status: TESTING PENDING
     - Agent Testing Done: N
-    - Which testing method agent to use? screenshot tool
+    - Which testing method agent to use? screenshot tool (emulando la UI e forzando lo step finale per verificare l'impatto visivo). **ATTENZIONE: L'utente ha espressamente vietato l'uso del testing agent (No test agent)**.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Click sulle Serie TV dalla Dashboard (P0)
-     - Attempted fixes: Identificato il problema in  (il div delle mie serie fa ). Nessun codice ancora scritto.
-     - Next debug checklist: Cambiare la navigazione in  riga ~1159 da  a . Assicurarsi che valga per tutte le sezioni che mostrano serie TV.
-     - Why fix this issue and what will be achieved with the fix? L'utente non riesce a vedere il nuovo Content Template per le serie TV appena creato, perché viene reindirizzato alla vecchia interfaccia.
-     - Status: IN PROGRESS
+  Issue 1: Verificare l'ultimo step del tutorial Guest (P0)
+     - Attempted fixes: Aggiunto lo step celebrativo in  con le stringhe fornite dall'utente.
+     - Next debug checklist:  - Simulare/Avanzare il tutorial fino all'ultimo step ed effettuare uno screenshot per confermare che l'animazione e il testo di Velion siano corretti e visivamente d'impatto.
+     - Why fix this issue and what will be achieved with the fix? È l'ultima richiesta dell'utente per concludere definitivamente il task del tutorial Guest.
+     - Status: TESTING PENDING
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? frontend
+     - Blocked on other issue: None
 
-  Issue 2: Sezione Le Mie TV! bloccata (P0)
-     - Attempted fixes: L'agente ha tracciato la dipendenza da  o . 
-     - Next debug checklist: Controllare  e . Verificare se l'utente ha soddisfatto i requisiti o se c'è un bug nell'API  o nel recupero dei permessi.
-     - Why fix this issue and what will be achieved with the fix? L'utente ha completato delle serie ma la sezione dedicata alle TV (Le Mie TV) è ancora bloccata dal lucchetto.
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? sia frontend che backend (verificare le risposte API)
-
-  Issue 3: Azioni Proprietario (Incassa, Crea Stella, Boost) silenti per le Serie TV (P1)
-     - Attempted fixes: I bottoni sono presenti e trasparenti nel , ma gli endpoint  non esistono o sono commentati nel backend.
-     - Next debug checklist: Implementare o sbloccare gli endpoint backend equivalenti a quelli dei film per le serie TV nel  o nei router appropriati, altrimenti i pulsanti falliranno silenziosamente o daranno 404.
-     - Why fix this issue and what will be achieved with the fix? Permette al giocatore di interagire e monetizzare le proprie serie TV come fa con i film.
+  Issue 2: Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost) silenti (P1)
+     - Attempted fixes: Nessun tentativo effettuato in questa sessione. (Ereditato dall'handoff precedente).
+     - Next debug checklist: Implementare in  o simili gli endpoint per incasso, creazione stella e boost.
+     - Why fix this issue and what will be achieved with the fix? Permette ai giocatori di monetizzare e interagire con le serie TV.
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? backend
+     - Blocked on other issue: None
 
 **In progress Task List**: 
-  Task 1: Modularizzare GAME CORE endpoints - Step 14 (P1)
-     - Where to resume:  (file monolite di oltre 17.000 righe).
-     - What will be achieved with this? Manutenibilità del codice e riduzione del rischio di crash.
-     - Status: PAUSED (Priorità ai fix UI/UX richiesti).
+  Task 1: Modularizzare GAME CORE endpoints (P2)
+     - Where to resume:  (file monolite).
+     - What will be achieved with this? Manutenibilità e riduzione rischio bug.
+     - Status: PAUSED
      - Should Test frontend/backend/both after fix? backend
-     - Blocked on something: Completamento feature core e fix correnti.
+     - Blocked on something: Priorità più alte (Bug fix e Task Serie TV).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P1) Endpoint backend Azioni Proprietario Serie TV.
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
@@ -61,14 +58,16 @@ Il  gestisce ora sia i film che le serie TV (). Per le serie TV utilizza  con cl
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Rifinito  per i Film (bottone trailer cyan compatto, ribbon arcuato, stile journal per le recensioni) (DONE)
-- Riscrittura  con 3 tab veloci (LIVE, NEWS, PUBBLICO), caricamento asincrono e non bloccante (DONE)
-- Fix N+1 query issue nel backend per  abbassando il tempo di risposta da 30s a 1s (DONE)
-- Pulsante X del  reso trasparente e cliccabile con area touch estesa (DONE)
-- Applicato  alle Serie TV usando  con bottoni di overlay trasparenti e fixing dei data types discordanti ( come oggetto) (DONE)
+- Fix React Hooks in  (Rendered fewer hooks than expected) (DONE)
+- Fix freccia direzionale tutorial, posizionamento dinamico e z-index (DONE)
+- Collegamento bottone Inizia ora a  in  (DONE)
+- Fix bug Produci! non cliccabile (stacking context / pointer-events bypass su overlay) (DONE)
+- Ristrutturazione layout Tutorial: Velion come immagine grande () dinamica e staccata dalla nuvoletta di testo (DONE)
+- Espansione del tutorial Guest da 6 a 11 step interattivi (backend  e frontend ) (DONE)
+- Modifica Timer Popup Dona Ora (2h delay dal login, 24h cooldown) in  e  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Nessun nuovo issue ignorato. I due issue evidenziati dall'utente nell'ultimo prompt sono attualmente In Progress.
+- Nessuno di nuovo identificato oltre a quelli in pending (Azioni Serie TV).
 
 **Known issue recurrence from previous fork**
   - Contest Page Mobile Layout Is Broken
@@ -76,30 +75,29 @@ Il  gestisce ora sia i film che le serie TV (). Per le serie TV utilizza  con cl
   - Status: NOT STARTED
 
 **Code Architecture**
-
+- Frontend: ,  (Gestione UI/UX logica step tutorial Guest), ,  (Form creazione e step mapping).
+- Backend:  (Endpoint popup donazioni),  (Gestione step tutorial nel DB).
 
 **Key Technical Concepts**
-- **Overlay UI pattern**: Le interfacce di dettaglio si basano su template  di sfondo. I bottoni e i testi sono posizionati tramite coordinate assolute (). Per le Serie TV (), i bottoni interattivi (, , ecc.) sono resi volutamente *trasparenti* tramite CSS (, , ) in modo da cliccare sopra i pulsanti già disegnati nell'immagine di sfondo.
-- **Dati differenziati DB**: Le collection  e  hanno strutture dati leggermente diverse (es:  nelle series è un dict , mentre nei film è stringa.  vs ).
+- **Guest Tutorial**: Usa React Refs () per posizionare l'highlight. L'overlay ha  per evitare di bloccare dropdown e form sottostanti (fondamentale per iOS Safari).
+- **Donation Popup Delay**: Tracciato via  e  nel , più flag nel DB per il cooldown delle 24 ore.
 
 **key DB schema**
-  - Collection  e  (da prestare attenzione ai tipi di dati durante la renderizzazione UI).
-  - Collection .
+  - : aggiornata logica per  (ora scala fino a >10) e introdotto salvataggio/aggiornamento di .
 
 **changes in tech stack**
-  - Nessuna modifica.
+  - Nessuno in particolare.
 
 **All files of reference** 
-  -  (Pulsanti trasparenti, template handling)
-  -  (Regole CSS per film e )
-  -  (File ORA DA MODIFICARE per il routing)
-  -  (Routing e sidebar lock Le Mie TV!)
-  -  (Aggiornato pesantemente per performance)
-  -  (Ottimizzazione query)
+  -  (Core per la UI del tutorial, z-index, Velion layout, animazioni)
+  -  (Aggiunti data-testid per auto-advance del tutorial)
+  -  (Logica ritardo popup donazioni)
+  -  (Fix bottone Inizia Ora)
+  -  (Endpoint )
+  -  (Aggiornato costanti  a 11)
 
 **Areas that need refactoring**
-  -  (+17.000 righe).
-  - Normalizzazione tipi dati tra  e  nel database MongoDB (es. ).
+  -  (Monolite da sfoltire).
 
 **key api endpoints**
   - 
@@ -107,53 +105,52 @@ Il  gestisce ora sia i film che le serie TV (). Per le serie TV utilizza  con cl
   - 
 
 **Critical Info for New Agent** 
-- L'utente vuole comunicare in **Italiano**.
-- Le modifiche UI devono mantenere un approccio ultra-leggero, niente refactor grossi. Niente Testing Agent se l'utente richiede Costo minimo di crediti (usare self-testing/screenshot e Python logs).
-- Riprendi il lavoro dall'analisi del  riga ~1159 (cambia il routing per le serie tv da  a ).
-- Subito dopo, scopri perché  in  e  è falso bloccando la navigazione per le Serie TV dell'utente.
+- **IL CLIENTE HA VIETATO L'UTILIZZO DEL TESTING AGENT (No test agent).** Qualsiasi test deve essere fatto manualmente tramite , bash o Python.
+- Tutte le comunicazioni con l'utente devono essere in **Italiano**.
+- L'overlay del tutorial NON deve mai avere pointer-events o bloccherà i menu a discesa della piattaforma. Lasciarlo come .
+- Velion deve essere sempre mostrato grande (con la sua immagine in ) e non come una piccola V chiusa in un cerchio.
 
 **documents and test reports created in this job**
-  - 
+  - N/A (Modificato regolarmente PRD.md).
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: In programmazione (verde) riposiziona nel riquadro... tasto trailer ridimensiona del 60% e aggiungi icone cinematografiche. Riquadri stile Journal con icone delle testate.
-2. *Agent*: [Implementate e testate modifiche al ContentTemplate per i film]
-3. *User*: Fammi un riepilogo di cosa c'è nella sezione journal nella navbar in alto.
-4. *User*: OBIETTIVO: Creare una versione ULTRA del Journal STEP BY STEP con MINIMO consumo di crediti. FASE 1: analizza. FASE 2: versione ultra light 3 tab (LIVE, NEWS, PUBBLICO)...
-5. *Agent*: [Riscritto il Journal, fixato problema N+1 su ]
-6. *User*: (Immagine fornita) Journal ci mette tanto a caricare e rimane bloccato su Caricamento...
-7. *Agent*: [Rimosso loader bloccante per permettere il render immediato UI]
-8. *User*: (Immagine) La X cerchiata in verde deve essere cliccabile... Se fosse possibile trasparente totale sarebbe meglio.
-9. *Agent*: [Resa la X cliccabile e trasparente]
-10. *User*: (2 Immagini) Applicare template Serie TV come fatto con i film. Bottoni trasparenti. Costo minimo. -> *Agent*: Implementato  per series. -> *User*: **PENDING** LE MIE TV! è bloccato e cliccando sulla serie si apre il vecchio sistema di visione anziché il nuovo template. *(L'agente stava indagando su questo)*.
+1. *User*: (Immagini) Il tasto produci non è cliccabile.
+2. *Agent*: [Modifica overlay a pointer-events: none per rimuovere il blocco. Test OK].
+3. *User*: (Immagini) La nuvoletta blocca lo step successivo, spostala in alto quando c'è un target. Anche Velion deve essere animato nel form conversione.
+4. *Agent*: [Sposta Velion in alto e resetta z-index. Test OK].
+5. *User*: (Immagini) No assolutamente, Velion deve tornare GRANDE e all'ESTERNO della nuvoletta.
+6. *Agent*: [Rimodella l'UI, Velion grande a destra e nuvoletta al centro-alto. Test OK].
+7. *User*: (Immagine) Quando compare il dona ora blocca, farlo comparire 2 ore dopo login giornaliero, 1 volta nelle 24h.
+8. *Agent*: [Modifica App.js e server.py per il nuovo timer].
+9. *User*: (Immagini) Quando si clicca su film, si deve cominciare la creazione e bisogna essere seguiti passo-passo da Velion.
+10. *Agent*: [Estende tutorial a 11 step, mappa la Pipeline dei film].
+11. *User*: Appena finita la produzione del primo film, aggiungi un ultimo step tutorial con Velion in grande e un animazione visiva magari di forte impatto e con l’ultima nuvoletta che dica: “Adesso non ti resta che esplorare tutte le altre sezioni del gioco... CineWorld Studio’s!!!” **(PENDING: L'agente ha appena scritto il codice, ma il test con screenshot per confermare l'esito finale non è stato fatto. Usa screenshot per verificare che lo step finale si veda correttamente)**.
 
 **Project Health Check:**
-- Frontend: Migliorato esteticamente (ContentTemplate Film e Serie) e prestazionalmente (Journal).
-- Backend: Fixato bug prestazionale . Le API d'azione per le serie TV sono ancora mancanti/commentate.
+- Broken: None
+- Mocked: Nessuno
 
 **3rd Party Integrations** 
-  - Nessuna usata nell'ultima sessione.
+- Stripe (Esistente)
+- Altri da implementare (nessuno aggiunto in questa sessione).
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Usato prima che l'utente chiedesse di non usarlo per risparmiare crediti).
-  - Troubleshoot agent used after agent stuck in loop: NO
+  - Testing agent used after significant changes: NO (L'utente l'ha proibito).
+  - Troubleshoot agent used after agent stuck in loop: NO.
   - Test files created: []
-  - Known regressions: Routing Serie TV dalla Dashboard.
+  - Known regressions: Nessuna.
 
 **Credentials to test flow:**
-  - Leggere 
+  - Procedere con opzione Prova senza registrarti dalla landing (Guest Login).
 
 **What agent forgot to execute**
-- Niente di dimenticato, la sessione si è conclusa mentre l'agente stava cercando i file per risolvere il disallineamento dei link delle Serie TV nella Dashboard e il blocco Le Mie TV.
+- L'agente ha iniettato il codice dello step finale celebrativo nel file  ma non ha testato l'interfaccia via screenshot prima di concludere per validare che l'animazione sia corretta e il testo formattato in maniera chiara.
 
 **Debugging checklist for current issue**
-    Issue: Fix Serie TV Navigation and Le Mie TV unlock
-
+    Issue: Verificare e chiudere l'aggiunta dell'ultimo step del tutorial.
     Frontend files to check: 
-    -  (riga ~1159: correggere  in )
-    -  (riga ~420 e ~1048: verificare la variabile  o )
-
-    Backend files to check:
-    -  o  per capire come viene popolato  nel payload utente o dashboard.
-
-    Next step: Modificare il routing nella Dashboard, verificare con screenshot, e risolvere il blocco visivo del menu TV. Utilizzare tool paralleli per editare e testare. NON usare il sub-agent di test come richiesto dall'utente.</analysis>
+    Next Steps:
+    1. Utilizzare bash script o procedere manualmente tramite API per spingere l'account guest allo step finale del tutorial (Step 11).
+    2. Prendere uno screenshot della pagina.
+    3. Verificare che l'animazione di Velion sia visivamente d'impatto (come richiesto) e che il messaggio di chiusura sia leggibile e corretto.
+    4. Effettuare la finish completando così l'ultima iterazione del task Tutorial Guest.</analysis>

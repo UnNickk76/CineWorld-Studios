@@ -1,55 +1,126 @@
-/* La Prima Popup - Cinematic Premiere Event */
+/* La Prima Popup - Cinematic Premiere Event — LIVE EXPERIENCE */
+
+/* === ENTRANCE === */
+@keyframes la-prima-entrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: brightness(0.5);
+  }
+  60% {
+    opacity: 1;
+    filter: brightness(1.05);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
 
 /* === PARTICLES === */
-@keyframes la-prima-float {
-  0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
-  50% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+@keyframes la-prima-rise {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  15% { opacity: 0.8; }
+  85% { opacity: 0.6; }
+  100% { transform: translateY(-120px) translateX(var(--drift, 10px)); opacity: 0; }
 }
 
 @keyframes la-prima-float-slow {
-  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
-  33% { transform: translateY(-15px) translateX(5px); opacity: 0.7; }
-  66% { transform: translateY(-8px) translateX(-3px); opacity: 0.5; }
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.15; }
+  33% { transform: translateY(-18px) translateX(6px); opacity: 0.55; }
+  66% { transform: translateY(-10px) translateX(-4px); opacity: 0.35; }
 }
 
-@keyframes la-prima-shimmer {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 0.8; }
+@keyframes la-prima-twinkle {
+  0%, 100% { opacity: 0.1; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1.3); }
 }
 
 @keyframes la-prima-glow-pulse {
-  0%, 100% { box-shadow: 0 0 15px rgba(212, 175, 55, 0.3), inset 0 0 15px rgba(212, 175, 55, 0.05); }
-  50% { box-shadow: 0 0 25px rgba(212, 175, 55, 0.5), inset 0 0 25px rgba(212, 175, 55, 0.1); }
+  0%, 100% {
+    box-shadow:
+      0 0 12px rgba(212, 175, 55, 0.25),
+      0 0 30px rgba(212, 175, 55, 0.08),
+      inset 0 0 12px rgba(212, 175, 55, 0.04);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(212, 175, 55, 0.45),
+      0 0 50px rgba(212, 175, 55, 0.12),
+      inset 0 0 20px rgba(212, 175, 55, 0.08);
+  }
+}
+
+@keyframes la-prima-outer-glow {
+  0%, 100% {
+    box-shadow: 0 0 40px rgba(212, 175, 55, 0.08), 0 0 80px rgba(212, 175, 55, 0.03);
+  }
+  50% {
+    box-shadow: 0 0 60px rgba(212, 175, 55, 0.15), 0 0 120px rgba(212, 175, 55, 0.06);
+  }
 }
 
 @keyframes la-prima-text-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+  0%, 100% { opacity: 1; text-shadow: 0 0 8px rgba(212, 175, 55, 0.2); }
+  50% { opacity: 0.85; text-shadow: 0 0 14px rgba(212, 175, 55, 0.4); }
 }
 
-@keyframes la-prima-value-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
+@keyframes la-prima-value-glow {
+  0%, 100% { transform: scale(1); text-shadow: 0 0 0 transparent; }
+  50% { transform: scale(1.04); text-shadow: 0 0 8px rgba(240, 230, 200, 0.3); }
+}
+
+@keyframes la-prima-value-flash {
+  0% { background-color: rgba(212, 175, 55, 0.2); }
+  100% { background-color: transparent; }
 }
 
 @keyframes la-prima-line-draw {
-  0% { stroke-dashoffset: 500; }
+  0% { stroke-dashoffset: 600; }
   100% { stroke-dashoffset: 0; }
 }
 
 @keyframes la-prima-dot-pop {
   0% { r: 0; opacity: 0; }
-  100% { r: 4; opacity: 1; }
+  70% { r: 4.5; opacity: 1; }
+  100% { r: 3.5; opacity: 1; }
+}
+
+@keyframes la-prima-dot-breathe {
+  0%, 100% { r: 3.5; opacity: 0.8; }
+  50% { r: 4.5; opacity: 1; }
 }
 
 @keyframes la-prima-curtain-sway {
-  0%, 100% { transform: scaleX(1); }
-  50% { transform: scaleX(1.02); }
+  0%, 100% { transform: scaleX(1); opacity: 0.9; }
+  50% { transform: scaleX(1.03); opacity: 1; }
 }
 
 @keyframes la-prima-spotlight {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.25; }
+  0%, 100% { opacity: 0.12; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.22; transform: translateX(-50%) scale(1.05); }
+}
+
+@keyframes la-prima-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes la-prima-reaction-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes la-prima-countup-flash {
+  0% { color: #fff; text-shadow: 0 0 12px rgba(212, 175, 55, 0.6); }
+  100% { color: #f0e6c8; text-shadow: none; }
+}
+
+@keyframes la-prima-delta-slide {
+  0% { opacity: 0; transform: translateY(6px); }
+  20% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0.6; }
 }
 
 /* === MAIN CONTAINER === */
@@ -61,6 +132,8 @@
   max-width: 420px;
   width: 100%;
   margin: 0 auto;
+  animation: la-prima-entrance 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards,
+             la-prima-outer-glow 5s ease-in-out 0.4s infinite;
 }
 
 /* Particle layer */
@@ -74,24 +147,28 @@
 
 .la-prima-popup .particle {
   position: absolute;
-  width: 3px;
-  height: 3px;
-  background: radial-gradient(circle, #d4af37 0%, transparent 70%);
   border-radius: 50%;
-  animation: la-prima-float-slow 6s ease-in-out infinite;
 }
 
-.la-prima-popup .particle:nth-child(odd) {
-  animation-duration: 8s;
+.la-prima-popup .particle--rise {
   width: 2px;
   height: 2px;
+  background: radial-gradient(circle, #d4af37 0%, transparent 70%);
+  animation: la-prima-rise var(--dur, 7s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  bottom: 0;
 }
 
-.la-prima-popup .particle:nth-child(3n) {
-  animation: la-prima-shimmer 4s ease-in-out infinite;
-  width: 2px;
-  height: 2px;
-  background: #e8d48b;
+.la-prima-popup .particle--drift {
+  background: radial-gradient(circle, #e8d48b 0%, transparent 60%);
+  animation: la-prima-float-slow var(--dur, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.la-prima-popup .particle--twinkle {
+  background: #f5ecd0;
+  animation: la-prima-twinkle var(--dur, 4s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
 }
 
 /* Curtain gradients */
@@ -100,35 +177,44 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 40px;
+  width: 45px;
   z-index: 1;
   pointer-events: none;
-  animation: la-prima-curtain-sway 8s ease-in-out infinite;
+  animation: la-prima-curtain-sway 10s ease-in-out infinite;
 }
 
 .la-prima-popup .curtain-left {
   left: 0;
-  background: linear-gradient(to right, rgba(120, 15, 15, 0.5) 0%, rgba(80, 10, 10, 0.2) 40%, transparent 100%);
+  background: linear-gradient(to right,
+    rgba(110, 12, 12, 0.55) 0%,
+    rgba(80, 10, 10, 0.25) 35%,
+    transparent 100%);
 }
 
 .la-prima-popup .curtain-right {
   right: 0;
-  background: linear-gradient(to left, rgba(120, 15, 15, 0.5) 0%, rgba(80, 10, 10, 0.2) 40%, transparent 100%);
-  animation-delay: -4s;
+  background: linear-gradient(to left,
+    rgba(110, 12, 12, 0.55) 0%,
+    rgba(80, 10, 10, 0.25) 35%,
+    transparent 100%);
+  animation-delay: -5s;
 }
 
 /* Spotlight overlays */
 .la-prima-popup .spotlight-top {
   position: absolute;
-  top: -30px;
+  top: -40px;
   left: 50%;
   transform: translateX(-50%);
-  width: 200px;
-  height: 150px;
-  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.15) 0%, transparent 70%);
+  width: 240px;
+  height: 180px;
+  background: radial-gradient(ellipse at center,
+    rgba(212, 175, 55, 0.14) 0%,
+    rgba(212, 175, 55, 0.04) 40%,
+    transparent 70%);
   z-index: 1;
   pointer-events: none;
-  animation: la-prima-spotlight 5s ease-in-out infinite;
+  animation: la-prima-spotlight 6s ease-in-out infinite;
 }
 
 /* Red carpet gradient at bottom */
@@ -137,8 +223,11 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 80px;
-  background: linear-gradient(to top, rgba(100, 15, 15, 0.35) 0%, rgba(60, 10, 10, 0.15) 40%, transparent 100%);
+  height: 90px;
+  background: linear-gradient(to top,
+    rgba(100, 15, 15, 0.4) 0%,
+    rgba(60, 10, 10, 0.15) 40%,
+    transparent 100%);
   z-index: 1;
   pointer-events: none;
 }
@@ -201,6 +290,35 @@
   border-color: #e8d48b;
 }
 
+/* LIVE badge */
+.la-prima-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  background: rgba(200, 30, 30, 0.2);
+  border: 1px solid rgba(200, 30, 30, 0.4);
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.la-prima-live-badge .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e33;
+  animation: la-prima-badge-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(230, 50, 50, 0.6);
+}
+
+.la-prima-live-badge .live-text {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #e55;
+}
+
 /* Main film card */
 .la-prima-card {
   margin: 12px;
@@ -249,13 +367,20 @@
   gap: 0;
 }
 
+.la-prima-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
 .la-prima-title {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 20px;
   letter-spacing: 1px;
   color: #f0e6c8;
   line-height: 1.1;
-  margin-bottom: 8px;
   text-transform: uppercase;
 }
 
@@ -290,15 +415,40 @@
   font-size: 13px;
   font-family: 'Bebas Neue', sans-serif;
   letter-spacing: 0.5px;
+  transition: color 0.3s;
 }
 
 .la-prima-info-row .value.pulse {
-  animation: la-prima-value-pulse 3s ease-in-out infinite;
+  animation: la-prima-value-glow 3s ease-in-out infinite;
+}
+
+.la-prima-info-row .value.flash {
+  animation: la-prima-countup-flash 0.8s ease-out forwards;
 }
 
 .la-prima-info-row .separator {
   color: rgba(212, 175, 55, 0.3);
   margin: 0 4px;
+}
+
+/* Delta indicator */
+.la-prima-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+  animation: la-prima-delta-slide 1s ease-out forwards;
+}
+
+.la-prima-delta.positive {
+  color: #d4af37;
+}
+
+.la-prima-delta.negative {
+  color: #8a6a5a;
 }
 
 /* Synopsis */
@@ -317,9 +467,34 @@
   -webkit-box-orient: vertical;
 }
 
+/* Audience reaction bar */
+.la-prima-reaction {
+  margin: 6px 12px 0;
+  padding: 5px 10px;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 4px;
+  border-left: 2px solid rgba(212, 175, 55, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.la-prima-reaction .reaction-text {
+  font-size: 10px;
+  color: #b0a070;
+  font-style: italic;
+  animation: la-prima-reaction-in 0.5s ease-out;
+}
+
+.la-prima-reaction .reaction-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
 /* "LA PRIMA IN CORSO!" section */
 .la-prima-live-section {
-  margin: 12px;
+  margin: 10px 12px 12px;
   text-align: center;
 }
 
@@ -390,20 +565,35 @@
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 500;
-  animation: la-prima-line-draw 3s ease-out forwards;
-  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.4));
+  stroke-dasharray: 600;
+  animation: la-prima-line-draw 4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.35));
 }
 
 .la-prima-trend .trend-area {
   fill: url(#goldGradient);
-  opacity: 0.15;
+  opacity: 0.12;
 }
 
 .la-prima-trend .trend-dot {
+  animation: la-prima-dot-pop 0.6s ease-out forwards;
+  filter: drop-shadow(0 0 3px rgba(212, 175, 55, 0.5));
+}
+
+.la-prima-trend .trend-dot.breathe {
+  animation: la-prima-dot-pop 0.6s ease-out forwards, la-prima-dot-breathe 3s ease-in-out 3.5s infinite;
+}
+
+.la-prima-trend .trend-dot--positive {
   fill: #d4af37;
-  animation: la-prima-dot-pop 0.5s ease-out forwards;
-  filter: drop-shadow(0 0 3px rgba(212, 175, 55, 0.6));
+}
+
+.la-prima-trend .trend-dot--negative {
+  fill: #a04030;
+}
+
+.la-prima-trend .trend-dot--neutral {
+  fill: #8a7a5a;
 }
 
 .la-prima-trend .grid-line {

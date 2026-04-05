@@ -62,6 +62,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 - [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)
 - [x] Fix speech bubble blocca dropdown: step con target → Velion grande in alto + bubble a lato, dropdown libero. Form conversione con Velion animato (2026-04-05)
+- [x] Popup "Dona Ora": compare 2h dopo primo login giornaliero, max 1 volta ogni 24h solari, z-index 150 sopra tutorial (2026-04-05)
 
 ### P1 (Importante)
 - [ ] Modularizzazione server.py (17k+ righe)

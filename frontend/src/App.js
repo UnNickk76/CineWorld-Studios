@@ -344,10 +344,26 @@ const TopNavbar = () => {
     return () => { clearInterval(festivalInterval); clearInterval(onlineInterval); clearInterval(popupInterval); };
   }, [api, userTimezone, language]);
 
-  // Show donate popup - once per 24h, tracked by backend (same pattern as LoginRewardPopup)
+  // Show donate popup — 2 hours after first daily login, max once per 24 solar hours
   useEffect(() => {
     if (!user || _donatePopupChecked) return;
     _donatePopupChecked = true;
+
+    // Track daily session start in localStorage
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const storedDay = localStorage.getItem('cineworld_session_day');
+    let sessionStart = parseInt(localStorage.getItem('cineworld_session_start') || '0', 10);
+
+    if (storedDay !== today || !sessionStart) {
+      sessionStart = Date.now();
+      localStorage.setItem('cineworld_session_day', today);
+      localStorage.setItem('cineworld_session_start', sessionStart.toString());
+    }
+
+    const twoHoursMs = 2 * 60 * 60 * 1000; // 2 hours
+    const elapsed = Date.now() - sessionStart;
+    const delay = Math.max(0, twoHoursMs - elapsed);
+
     const checkDonate = async () => {
       try {
         const res = await api.get('/game/donation-popup-check');
@@ -357,14 +373,15 @@ const TopNavbar = () => {
           api.post('/game/donation-popup-seen').catch(() => {});
         }
       } catch {
-        // If endpoint fails (e.g. not logged in), just check donations status
         try {
           const r = await api.get('/game/donations-status');
           setDonationsEnabled(r.data.donations_enabled);
         } catch {}
       }
     };
-    const timer = setTimeout(checkDonate, 2500);
+
+    // If 2h already passed today, check now (with small delay). Otherwise wait.
+    const timer = setTimeout(checkDonate, delay > 0 ? delay : 5000);
     return () => clearTimeout(timer);
   }, [user]);
 
@@ -1827,7 +1844,7 @@ const TopNavbar = () => {
         </DialogContent>
       </Dialog>
       {showDonatePopup && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
           <div 
             className="relative bg-[#111] border border-yellow-500/30 rounded-2xl max-w-sm w-[90%] mx-4 overflow-hidden shadow-2xl shadow-yellow-500/10"
             onClick={(e) => e.stopPropagation()}

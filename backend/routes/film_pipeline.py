@@ -2941,7 +2941,7 @@ async def get_preproduction_films(user: dict = Depends(get_current_user)):
 async def start_remaster(project_id: str, user: dict = Depends(get_current_user)):
     """Start remastering a film in pre-production."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'pre_production'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['pre_production', 'ciak']}},
         {'_id': 0}
     )
     if not project:
@@ -3022,7 +3022,7 @@ async def speed_up_remaster(project_id: str, user: dict = Depends(get_current_us
 async def start_shooting(project_id: str, user: dict = Depends(get_current_user)):
     """Move from pre-production to shooting ('Ciak! Si Gira!')."""
     project = await db.film_projects.find_one(
-        {'id': project_id, 'user_id': user['id'], 'status': 'pre_production'},
+        {'id': project_id, 'user_id': user['id'], 'status': {'$in': ['pre_production', 'ciak']}},
         {'_id': 0}
     )
     if not project:

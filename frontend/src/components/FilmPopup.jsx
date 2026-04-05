@@ -196,6 +196,7 @@ function getCurrentStepId(film) {
     if (s === 'ready_for_casting') return 'casting';
     if (s === 'casting') return 'casting';
     if (s === 'sponsor') return 'script';
+    if (s === 'ciak') return 'produzione';
     if (s === 'screenplay') return 'script';
     if (s === 'pre_production') return 'produzione';
     if (s === 'shooting') return 'uscita';
@@ -205,6 +206,7 @@ function getCurrentStepId(film) {
     if (s === 'ready_for_casting') return 'casting';
     if (s === 'casting') return 'casting';
     if (s === 'sponsor') return 'script';
+    if (s === 'ciak') return 'produzione';
     if (s === 'screenplay') return 'script';
     if (s === 'pre_production') return 'produzione';
     if (s === 'shooting') return 'uscita';
@@ -234,7 +236,7 @@ function FilmStepBar({ film, stepOverride, onStepClick }) {
   const scrollRef = React.useRef(null);
 
   // Can go back to completed steps ONLY if not launched yet
-  const isLaunched = ['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
+  const isLaunched = ['casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -1353,7 +1355,7 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
   const currentStep = stepOverride || naturalStep;
   const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const isImmediate = !isCS;
-  const isLaunched = ['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
+  const isLaunched = ['casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
 
   const handleStepClick = (stepId) => {
     if (isLaunched) {
@@ -1452,7 +1454,7 @@ export default function FilmPopup({ film, open, onClose, onRefresh, countdown })
         </div>
 
         {/* Improvement Panel - shows for films in production */}
-        {['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
+        {['casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
           <ImprovementPanel film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />
         )}
 
@@ -1480,7 +1482,7 @@ export function FilmInlineView({ film, onRefresh, countdown }) {
   const currentStep = stepOverride || naturalStep;
   const isCS = film.release_type === 'coming_soon' || film.status === 'ready_for_casting' || film.status === 'coming_soon';
   const isImmediate = !isCS;
-  const isLaunched = ['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
+  const isLaunched = ['casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'completed', 'released'].includes(film.status);
 
   const handleStepClick = (stepId) => {
     if (isLaunched) { toast.error('Non puoi modificare un film già in produzione.'); return; }
@@ -1513,7 +1515,7 @@ export function FilmInlineView({ film, onRefresh, countdown }) {
       </div>
 
       {/* Improvement Panel */}
-      {['casting', 'sponsor', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
+      {['casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'coming_soon', 'proposed'].includes(film.status) && !stepOverride && (
         <ImprovementPanel film={film} api={api} onRefresh={onRefresh} refreshUser={refreshUser} />
       )}
 

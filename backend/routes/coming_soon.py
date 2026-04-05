@@ -655,3 +655,114 @@ async def speed_up_coming_soon(content_id: str, user: dict = Depends(get_current
         'speedup_cap': cap,
         'message': f"Velocizzato di {reduction_hours:.1f}h per {cost} CP!"
     }
+
+
+# ==================== SPEEDUP TIERS (25% / 75% / 100%) ====================
+
+SPEEDUP_TIERS = {
+    25: 10,   # 25% reduction → 10 CinePass
+    75: 20,   # 75% reduction → 20 CinePass
+    100: 30,  # 100% (instant) → 30 CinePass
+}
+
+SPEEDUP_VALID_STATUSES = {'coming_soon', 'shooting', 'remastering'}
+
+
+class SpeedupTierRequest(BaseModel):
+    percent: int  # 25, 75, or 100
+
+
+@router.post("/projects/{content_id}/speedup")
+async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: dict = Depends(get_current_user)):
+    """Speed up any time-based phase by a fixed percentage tier. Costs CinePass."""
+    if req.percent not in SPEEDUP_TIERS:
+        raise HTTPException(400, "Percentuale non valida. Usa 25, 75 o 100.")
+
+    cost = SPEEDUP_TIERS[req.percent]
+
+    # Try film_projects first, then tv_series
+    project = await db.film_projects.find_one(
+        {'id': content_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    collection = db.film_projects
+    content_type = 'film'
+
+    if not project:
+        project = await db.tv_series.find_one(
+            {'id': content_id, 'user_id': user['id']},
+            {'_id': 0}
+        )
+        collection = db.tv_series
+        content_type = 'series'
+
+    if not project:
+        raise HTTPException(404, "Progetto non trovato")
+
+    status = project.get('status', '')
+    if status not in SPEEDUP_VALID_STATUSES:
+        raise HTTPException(400, f"Speedup non disponibile per lo stato '{status}'")
+
+    # Check timer field
+    sra = project.get('scheduled_release_at') or project.get('shooting_end_at') or project.get('remaster_end_at')
+    if not sra:
+        raise HTTPException(400, "Nessun timer attivo per questo progetto")
+
+    # Check CinePass
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+    user_cp = u.get('cinepass', 0) or 0
+    if user_cp < cost:
+        raise HTTPException(400, f"Servono {cost} CinePass (hai {user_cp})")
+
+    # Calculate reduction
+    now = datetime.now(timezone.utc)
+    release_dt = datetime.fromisoformat(sra.replace('Z', '+00:00'))
+    if release_dt.tzinfo is None:
+        release_dt = release_dt.replace(tzinfo=timezone.utc)
+
+    remaining = release_dt - now
+    if remaining.total_seconds() <= 0:
+        raise HTTPException(400, "Il timer è già scaduto")
+
+    reduction = remaining * (req.percent / 100)
+    new_end = release_dt - reduction
+
+    if new_end <= now:
+        new_end = now + timedelta(minutes=1)
+
+    # Determine which timer field to update
+    timer_field = 'scheduled_release_at'
+    if project.get('shooting_end_at') and status == 'shooting':
+        timer_field = 'shooting_end_at'
+    elif project.get('remaster_end_at') and status == 'remastering':
+        timer_field = 'remaster_end_at'
+
+    # Deduct CinePass and update timer
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cost}})
+
+    reduction_hours = reduction.total_seconds() / 3600
+    event = {
+        'text': f"Velocizzazione {req.percent}%! -{reduction_hours:.1f}h ({cost} CP)",
+        'type': 'positive',
+        'effect_hours': -round(reduction_hours, 1),
+        'created_at': now.isoformat()
+    }
+
+    await collection.update_one(
+        {'id': content_id},
+        {
+            '$set': {timer_field: new_end.isoformat(), 'updated_at': now.isoformat()},
+            '$push': {'news_events': {'$each': [event], '$slice': -20}}
+        }
+    )
+
+    logger.info(f"Speedup {req.percent}% on {content_type} {content_id} ({project.get('title')}) - {reduction_hours:.1f}h for {cost} CP")
+
+    return {
+        'success': True,
+        'cost': cost,
+        'percent': req.percent,
+        'reduction_hours': round(reduction_hours, 1),
+        'new_end_time': new_end.isoformat(),
+        'message': f"Velocizzato del {req.percent}% (-{reduction_hours:.1f}h) per {cost} CP!"
+    }

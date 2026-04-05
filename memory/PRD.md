@@ -31,7 +31,12 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - Fix performance: virtual-reviews da 30s → 1s (batch query)
 - Rimossa chiamata cinema-journal (troppo lenta)
 
-### Cast & Crew Roles Fix (DONE — 2026-04-05)
+### Sistema Guest (DONE — 2026-04-05)
+- Endpoint `POST /api/auth/guest` crea utente ospite con 10M fondi + 100 CinePass
+- Endpoint `POST /api/auth/convert` migra account guest a registrato (preserva progressi)
+- Bottone "Prova senza registrarti" nella pagina login
+- Timer conversione 20 min con modale "Ti sta piacendo il gioco?"
+- Campo `is_guest` nel modello utente per identificare gli ospiti
 - Fix popup Cast & Crew: mostra il ruolo (Protagonista, Supporto, Co-Protagonista...) invece del numero progressivo
 - Gestito sia film (`role_in_film`) che serie (`role`) dato che il cast arriva come array piatto
 

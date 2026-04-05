@@ -56,10 +56,24 @@ const AuthPage = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const { login, register } = useContext(AuthContext);
+  const [guestLoading, setGuestLoading] = useState(false);
+  const { login, register, guestLogin } = useContext(AuthContext);
   const { language, setLanguage } = useContext(LanguageContext);
   const { t } = useTranslations();
   const navigate = useNavigate();
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true);
+    try {
+      await guestLogin();
+      toast.success('Benvenuto ospite! Esplora il gioco liberamente');
+      navigate('/dashboard');
+    } catch (err) {
+      toast.error('Errore nella creazione dell\'account ospite');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     email: '', password: '', nickname: '', production_house_name: '', owner_name: '', 
@@ -328,6 +342,25 @@ const AuthPage = () => {
               >
                 {isLogin ? "Non hai un account? Registrati" : 'Hai già un account? Accedi'}
               </button>
+            </div>
+
+            {/* Guest Login */}
+            <div className="mt-4 pt-3 border-t border-white/10 text-center">
+              <button
+                type="button"
+                className="group flex items-center justify-center gap-2 mx-auto px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-yellow-500/30 transition-all text-sm text-gray-400 hover:text-yellow-400"
+                onClick={handleGuestLogin}
+                disabled={guestLoading}
+                data-testid="guest-login-btn"
+              >
+                {guestLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Gamepad2 className="w-4 h-4 group-hover:text-yellow-400 transition-colors" />
+                )}
+                {guestLoading ? 'Creazione...' : 'Prova senza registrarti'}
+              </button>
+              <p className="text-[9px] text-gray-600 mt-1">Gioca subito, registrati dopo per salvare i progressi</p>
             </div>
           </CardContent>
         </Card>

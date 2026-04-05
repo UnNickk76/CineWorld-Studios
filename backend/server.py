@@ -1093,7 +1093,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    email: str
+    email: Optional[str] = None
     nickname: str
     production_house_name: str
     owner_name: str
@@ -1120,6 +1120,7 @@ class UserResponse(BaseModel):
     cinepass: int = 100
     login_streak: int = 0
     studio_country: Optional[str] = 'IT'
+    is_guest: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -11126,10 +11127,15 @@ async def get_production_studio_status(user: dict = Depends(get_current_user)):
 @api_router.get("/production-studios/unlock-status")
 async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
     """Fast endpoint to check which sub-studios are unlocked. Used by bottom nav."""
-    infra_types = await db.infrastructure.find(
-        {'owner_id': user['id'], 'type': {'$in': ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv']}},
-        {'_id': 0, 'type': 1, 'level': 1, 'id': 1}
-    ).to_list(10)
+    infra_types, film_pipeline_count, series_pipeline_count, anime_pipeline_count = await asyncio.gather(
+        db.infrastructure.find(
+            {'owner_id': user['id'], 'type': {'$in': ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv']}},
+            {'_id': 0, 'type': 1, 'level': 1, 'id': 1}
+        ).to_list(10),
+        db.film_projects.count_documents({'user_id': user['id'], 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}),
+        db.tv_series.count_documents({'user_id': user['id'], 'type': 'tv_series', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}),
+        db.tv_series.count_documents({'user_id': user['id'], 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}),
+    )
     owned = {i['type']: {'level': i.get('level', 1), 'id': i.get('id')} for i in infra_types}
     return {
         'has_production_studio': 'production_studio' in owned,
@@ -11137,6 +11143,12 @@ async def get_studios_unlock_status(user: dict = Depends(get_current_user)):
         'has_studio_anime': 'studio_anime' in owned,
         'has_emittente_tv': 'emittente_tv' in owned,
         'studios': owned,
+        'pipeline_counts': {
+            'film': film_pipeline_count,
+            'series': series_pipeline_count,
+            'anime': anime_pipeline_count,
+            'total': film_pipeline_count + series_pipeline_count + anime_pipeline_count,
+        },
         'requirements': {
             'studio_serie_tv': {'level': 7, 'fame': 60, 'cost': 3000000},
             'studio_anime': {'level': 9, 'fame': 90, 'cost': 4000000},

@@ -175,6 +175,28 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const guestLogin = async () => {
+    const res = await api.post('/auth/guest');
+    localStorage.setItem('cineworld_token', res.data.access_token);
+    localStorage.setItem('cineworld_guest_start', Date.now().toString());
+    setToken(res.data.access_token);
+    setUser(res.data.user);
+    clearApiCache();
+    return res.data;
+  };
+
+  const convertGuest = async (data) => {
+    const res = await api.post('/auth/convert', data);
+    localStorage.removeItem('cineworld_guest_start');
+    if (res.data.access_token) {
+      localStorage.setItem('cineworld_token', res.data.access_token);
+      setToken(res.data.access_token);
+    }
+    setUser(res.data.user);
+    clearApiCache();
+    return res.data;
+  };
+
   const logout = useCallback(() => {
     localStorage.removeItem('cineworld_token');
     setToken(null);
@@ -241,7 +263,7 @@ export const AuthProvider = ({ children }) => {
   }, [user, preloadPages]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>
+    <AuthContext.Provider value={{ user, loading, login, register, guestLogin, convertGuest, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>
       {children}
     </AuthContext.Provider>
   );

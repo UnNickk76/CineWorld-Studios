@@ -312,7 +312,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     comment: typeof c === 'string' ? c : (c.text || c.comment || ''),
   }));
   const reviews = film ? generateReviews(film.quality_score, film.popularity_score, contentType) : [];
-  const templateImg = isSeries ? '/series-template.jpg' : '/content-template.jpg';
+  const templateImg = isSeries ? '/series-template.png' : '/content-template.png';
 
   const headerText = isComingSoon ? 'COMING SOON' : isInTheaters ? 'IN PROGRAMMAZIONE..' : film?.status?.toUpperCase() || '';
 

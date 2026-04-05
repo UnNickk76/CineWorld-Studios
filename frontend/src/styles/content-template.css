@@ -32,16 +32,27 @@
   pointer-events: auto;
 }
 
-/* === HEADER "IN PROGRAMMAZIONE" === */
+/* === HEADER — arched badge inside the ribbon === */
+.ct-header-badge {
+  top: 5.5%;
+  left: 14%;
+  width: 72%;
+  height: 5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px 6px 50% 50% / 6px 6px 100% 100%;
+  background: linear-gradient(180deg, rgba(150,25,15,0.85) 0%, rgba(100,15,8,0.7) 60%, rgba(70,8,3,0.45) 100%);
+  border: 1px solid rgba(212,175,55,0.35);
+  border-bottom: 2px solid rgba(212,175,55,0.5);
+  box-shadow: 0 3px 14px rgba(140,20,10,0.4), inset 0 -2px 8px rgba(212,175,55,0.15);
+}
 .ct-header-text {
-  top: 5.8%;
-  left: 20%;
-  width: 60%;
-  text-align: center;
   font-family: 'Bebas Neue', sans-serif;
   font-size: clamp(13px, 3.5vw, 18px);
-  letter-spacing: 2.5px;
+  letter-spacing: 3px;
   color: #d4af37;
+  text-shadow: 0 0 10px rgba(212,175,55,0.4), 0 1px 2px rgba(0,0,0,0.6);
 }
 
 /* Close button */
@@ -276,11 +287,11 @@
 /* === GOLDEN DIVIDER === */
 .ct-gold-divider {
   top: 51.5%;
-  left: 10%;
-  width: 80%;
+  left: 8%;
+  width: 84%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #d4af37 20%, #f0d060 50%, #d4af37 80%, transparent);
-  box-shadow: 0 0 8px rgba(212,175,55,0.4), 0 0 16px rgba(212,175,55,0.15);
+  background: linear-gradient(90deg, transparent 5%, #d4af37 25%, #f0d060 50%, #d4af37 75%, transparent 95%);
+  box-shadow: 0 0 6px rgba(212,175,55,0.5), 0 0 14px rgba(212,175,55,0.2);
   border-radius: 1px;
 }
 
@@ -323,43 +334,74 @@
 }
 .ct-action-btn svg { width: 12px; height: 12px; }
 
-/* === REVIEWS === */
+/* === REVIEWS — Journal Style === */
 .ct-reviews {
   top: 58.5%;
   left: 6%;
   width: 88%;
-  height: 10%;
+  height: 11%;
   display: flex;
-  gap: 3%;
+  gap: 2.5%;
 }
-.ct-review-card {
+.ct-review-card.ct-journal {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 3px 2px;
+  padding: 4px 3px 3px;
   min-width: 0;
-  border: 1px solid rgba(212,175,55,0.1);
-  border-radius: 4px;
-  background: rgba(10,8,5,0.3);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
 }
+/* Each journal has a unique background tint */
+.ct-journal-variety {
+  background: rgba(160,30,30,0.12);
+  border: 1px solid rgba(180,50,40,0.25);
+}
+.ct-journal-empire {
+  background: rgba(20,20,60,0.18);
+  border: 1px solid rgba(60,60,140,0.25);
+}
+.ct-journal-thr {
+  background: rgba(40,30,10,0.18);
+  border: 1px solid rgba(160,120,40,0.2);
+}
+/* Icon badge */
+.ct-journal-icon {
+  margin-bottom: 1px;
+}
+.ct-journal-variety .ct-journal-icon { color: #e85040; }
+.ct-journal-empire .ct-journal-icon { color: #7080d0; }
+.ct-journal-thr .ct-journal-icon { color: #d4af37; }
+/* Outlet name */
 .ct-review-outlet {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(8px, 2.2vw, 11px);
-  letter-spacing: 1px;
-  color: #d4af37;
-  margin-bottom: 2px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(7px, 1.9vw, 10px);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #e8d8b0;
   white-space: nowrap;
-  border-bottom: 1px solid rgba(212,175,55,0.12);
-  padding-bottom: 2px;
-  width: 100%;
 }
+.ct-journal-variety .ct-review-outlet { color: #f0a0a0; }
+.ct-journal-empire .ct-review-outlet { color: #a0b0e8; }
+.ct-journal-thr .ct-review-outlet { color: #e8d8b0; }
+/* Decorative rule */
+.ct-journal-rule {
+  width: 70%;
+  height: 1px;
+  margin: 2px auto;
+  background: linear-gradient(90deg, transparent, currentColor 30%, currentColor 70%, transparent);
+  opacity: 0.25;
+}
+/* Quote */
 .ct-review-quote {
-  font-size: clamp(6px, 1.8vw, 9px);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(6px, 1.6vw, 8px);
   color: #9a8a6a;
   font-style: italic;
-  line-height: 1.3;
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -405,29 +447,45 @@
 }
 .ct-footer-dev:hover { color: #9a8a6a; }
 
-/* === TRAILER BUTTON (CYAN) === */
+/* === TRAILER BUTTON — compact with cinematic icons + stars === */
+@keyframes ct-star-twinkle {
+  0%, 100% { opacity: 0.5; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
 .ct-trailer-btn {
-  top: 85%;
-  left: 20%;
-  width: 60%;
-  height: 6%;
+  top: 82.5%;
+  left: 28%;
+  width: 44%;
+  height: 4%;
   cursor: pointer;
-  background: transparent;
-  border: 2px solid rgba(0,200,220,0.4);
-  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(0,200,220,0.08) 0%, rgba(0,160,180,0.04) 100%);
+  border: 1.5px solid rgba(0,200,220,0.45);
+  border-radius: 5px;
   z-index: 10;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(14px, 4vw, 22px);
-  letter-spacing: 3px;
+  font-size: clamp(11px, 3vw, 16px);
+  letter-spacing: 2.5px;
   color: #00d4e8;
-  text-shadow: 0 0 10px rgba(0,212,232,0.3);
+  text-shadow: 0 0 8px rgba(0,212,232,0.35);
   transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
+.ct-trailer-btn svg { width: 11px; height: 11px; color: #00d4e8; flex-shrink: 0; }
 .ct-trailer-btn:hover {
-  background: rgba(0,200,220,0.08);
-  border-color: rgba(0,212,232,0.6);
-  box-shadow: 0 0 16px rgba(0,212,232,0.2);
+  background: rgba(0,200,220,0.12);
+  border-color: rgba(0,212,232,0.7);
+  box-shadow: 0 0 12px rgba(0,212,232,0.25);
 }
+.ct-trailer-star {
+  font-size: 8px;
+  color: #00d4e8;
+  animation: ct-star-twinkle 2s ease-in-out infinite;
+}
+.ct-trailer-star-l { animation-delay: 0s; }
+.ct-trailer-star-r { animation-delay: 1s; }
 
 /* === LOADING === */
 .ct-loading {

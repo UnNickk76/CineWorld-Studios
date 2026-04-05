@@ -5,7 +5,8 @@ import { Dialog, DialogContent } from './ui/dialog';
 import { toast } from 'sonner';
 import {
   Film, Star, Flame, Users, DollarSign, Heart, ChevronRight, X, Play,
-  Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2
+  Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
+  Newspaper, Crown, Award, Pen
 } from 'lucide-react';
 import '../styles/content-template.css';
 
@@ -29,7 +30,7 @@ const fmtNum = (n) => {
 };
 
 // Generate critic reviews from quality/hype
-const OUTLETS = ['VARIETY', 'EMPIRE', 'THE HOLLYWOOD REPORTER'];
+const OUTLETS = ['VARIETY', 'EMPIRE', 'HOLLYWOOD R.'];
 const POSITIVE_QUOTES = {
   VARIETY: [
     "Un'esperienza cinematografica straordinaria!",
@@ -41,7 +42,7 @@ const POSITIVE_QUOTES = {
     "Un capolavoro moderno del cinema",
     "Emozionante e visivamente stupendo",
   ],
-  'THE HOLLYWOOD REPORTER': [
+  'HOLLYWOOD R.': [
     "Uno dei migliori film degli ultimi anni",
     "Un trionfo del cinema contemporaneo",
     "Destinato a diventare un classico",
@@ -50,7 +51,7 @@ const POSITIVE_QUOTES = {
 const MIXED_QUOTES = {
   VARIETY: ["Ambizioso ma non sempre riuscito", "Ha momenti brillanti e altri meno"],
   EMPIRE: ["Interessante ma con alti e bassi", "Un buon film con qualche difetto"],
-  'THE HOLLYWOOD REPORTER': ["Promettente ma imperfetto", "Merita una visione, con riserve"],
+  'HOLLYWOOD R.': ["Promettente ma imperfetto", "Merita una visione, con riserve"],
 };
 
 function generateReviews(quality, hype) {
@@ -285,8 +286,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Overlay */}
       <div className="ct-overlay">
-        {/* Header status text */}
-        <div className="ct-header-text" data-testid="ct-header">{headerText}</div>
+        {/* Header status badge — arched inside the ribbon */}
+        <div className="ct-header-badge" data-testid="ct-header">
+          <span className="ct-header-text">{headerText}</span>
+        </div>
 
         {/* Close */}
         <button
@@ -465,14 +468,22 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                   </button>
                 </div>
 
-                {/* === REVIEWS === */}
+                {/* === REVIEWS (Journal Style) === */}
                 <div className="ct-reviews" data-testid="ct-reviews">
-                  {reviews.map((r, i) => (
-                    <div key={i} className="ct-review-card">
-                      <div className="ct-review-outlet">{r.outlet}</div>
-                      <div className="ct-review-quote">{r.quote}</div>
-                    </div>
-                  ))}
+                  {reviews.map((r, i) => {
+                    const isVariety = r.outlet === 'VARIETY';
+                    const isEmpire = r.outlet === 'EMPIRE';
+                    return (
+                      <div key={i} className={`ct-review-card ct-journal ${isVariety ? 'ct-journal-variety' : isEmpire ? 'ct-journal-empire' : 'ct-journal-thr'}`}>
+                        <div className="ct-journal-icon">
+                          {isVariety ? <Award size={12} /> : isEmpire ? <Crown size={12} /> : <Newspaper size={12} />}
+                        </div>
+                        <div className="ct-review-outlet">{r.outlet}</div>
+                        <div className="ct-journal-rule" />
+                        <div className="ct-review-quote">{r.quote}</div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* === TRAMA === */}
@@ -488,7 +499,11 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                 </div>
 
                 <button className="ct-trailer-btn" onClick={() => setShowTrailer(true)} data-testid="ct-trailer-btn">
-                  TRAILER
+                  <span className="ct-trailer-star ct-trailer-star-l">&#10022;</span>
+                  <Film size={11} />
+                  <span>TRAILER</span>
+                  <Clapperboard size={11} />
+                  <span className="ct-trailer-star ct-trailer-star-r">&#10022;</span>
                 </button>
               </>
             )}

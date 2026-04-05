@@ -680,11 +680,6 @@ async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: d
 
     cost = SPEEDUP_TIERS[req.percent]
 
-    # Check if guest with free speedups
-    is_free = False
-    free_speedups = project.get('free_speedups', 0) if project else 0
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1, 'is_guest': 1})
-
     # Try film_projects first, then tv_series
     project = await db.film_projects.find_one(
         {'id': content_id, 'user_id': user['id']},
@@ -707,6 +702,11 @@ async def speedup_project_tier(content_id: str, req: SpeedupTierRequest, user: d
     status = project.get('status', '')
     if status not in SPEEDUP_VALID_STATUSES:
         raise HTTPException(400, f"Speedup non disponibile per lo stato '{status}'")
+
+    # Check free speedups (guest tutorial)
+    is_free = False
+    free_speedups = project.get('free_speedups', 0)
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1, 'is_guest': 1})
 
     # Check timer field
     sra = project.get('scheduled_release_at') or project.get('shooting_end_at') or project.get('remaster_end_at')

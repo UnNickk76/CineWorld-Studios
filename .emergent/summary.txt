@@ -1,38 +1,45 @@
 <analysis>**original_problem_statement**: 
-L'utente ha richiesto inizialmente il completamento del sistema La Prima, fix della pipeline film e un pannello amministrativo avanzato per l'importazione/esportazione e sincronizzazione del Database locale con MongoDB Atlas. Nelle ultime iterazioni, l'utente ha riscontrato problemi critici di caricamento sulla dashboard frontend e fallimenti nel deployment sull'ambiente di produzione () dovuti a variabili d'ambiente, build React ed errori nel file .
+Il sistema richiede la finalizzazione della logica La Prima e la risoluzione di vari bug bloccanti nella pipeline di produzione cinematografica. L'obiettivo attuale è rendere l'esperienza utente estremamente visiva e cinematografica (invece che un form gestionale) e implementare eventi live per i film in anteprima, con ranking dedicati e conteggi spettatori realistici.
 
 **PRODUCT REQUIREMENTS**:
-1. Fix generazione Avatar AI e Database Management.
-2. Sincronizzazione affidabile e bidirezionale tra DB locale e MongoDB Atlas.
-3. Deploy funzionante sull'ambiente di produzione Emergent .
-4. Refactor monolite  (17k+ righe).
+1. Implementazione Guest Login.
+2. Risoluzione dei bug di avanzamento stato nella pipeline film (stati  e  bloccanti).
+3. Redesign UI completo della Film Pipeline (layout full-page immersivo in 6 step con animazioni CSS).
+4. Refactor sezione La Prima: creazione di logica live con calcolo spettatori e aggiornamento lazy dell'hype.
+5. Inserimento di una nuova sezione La Prima nella Dashboard (sopra Prossimamente) e 3 nuove classifiche dedicate nel CineBoard.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Un'applicazione full-stack stabile (React + FastAPI + MongoDB). Il sistema possiede un robusto pannello di controllo Admin (NeoMorpheus) per l'export DB via ZIP in streaming, importazione sicura e sincronizzazione bidirezionale (Invia/Ricevi) tra il database locale (usato in produzione sul sito ) e il database Atlas esterno. I crash di deployment e di build su React sono stati definitivamente risolti e l'endpoint di sync-status è stato ottimizzato.
+Un'applicazione full-stack stabile (React + FastAPI + MongoDB). È stato appena completato un massiccio redesign della  in una UI cinematografica a 6 step, con animazioni CSS e fix degli stati intermedi ( e ). L'endpoint  è stato sistemato risolvendo un conflitto di routing. Al momento è iniziata, ma non completata, l'implementazione del backend in  per gestire il calcolo live degli spettatori e della dashboard.
 
 **Last working item**: 
-    - Last item agent was working: Fix della logica di sincronizzazione bidirezionale DB in . Nello specifico, assicurarsi che durante il trasferimento dati (sia Invia a Atlas che Ricevi da Atlas) i fondi e i crediti dell'utente ADMIN (NeoMorpheus) venissero correttamente copiati e non bloccati da eccezioni hardcoded.
-    - Status: RESOLVED
-    - Agent Testing Done: Y
-    - Which testing method agent to use?: Frontend testing tramite screenshot per visualizzazione e Backend manuale via bash per verificare i dati in DB. (Testing Agent v3 è stato usato precedentemente in questa sessione per l'intera DbManagementCard).
-    - User Testing Done: Y (L'utente ha verificato la funzionalità e confermato che ora funziona perfettamente).
+    - Last item agent was working: Modifica del backend in  per aggiungere la logica live de La Prima. Nello specifico, l'aggiornamento *lazy* dell'hype (senza scheduler), il calcolo live degli spettatori (, ) basato su qualità/città/orario, e i nuovi endpoint per popolare la Dashboard e il Cineboard.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? both (Frontend/Backend testing agent + screenshot e curl per il controllo UI della Dashboard)
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Nessuna issue bloccante attiva. L'app e il deploy sono stabili.
+Nessuna issue bloccante attiva al momento. I bug segnalati in precedenza (film bloccati in  o  e film mancanti nella lista Prossimamente) sono stati tutti risolti in questa sessione.
 
 **In progress Task List**: 
-  Task 1: Modularizzare GAME CORE endpoints - Step 14 (P1)
-     - Where to resume:  (file con oltre 17k righe). Suddividere ed estrarre gli endpoint in , , , ecc.
-     - What will be achieved with this?: Riduzione massiva del monolite , migliorando drasticamente la manutenibilità e prevenendo bug futuri dovuti a un file troppo grande.
-     - Status: PAUSED (Era in pausa per dare priorità alla sincronizzazione DB e ai fix di deployment).
-     - Should Test backend after fix?: Backend
-     - Blocked on something: Nessuno
+  Task 1: Sviluppo sezione La Prima (Dashboard e Cineboard) (P0)
+     - Where to resume: Il backend in  è appena stato aggiornato con la logica (ma va testato e verificato se compila/funziona). Dopodiché, è necessario aggiornare il frontend: inserire la sezione La Prima in  (appena sopra Prossimamente, con popup dedicato per dati live) e creare le 3 nuove classifiche nel  (Spettatori Live, Spettatori Totali, Media Mista).
+     - What will be achieved with this? Rendere La Prima un evento live, dinamico e realistico che aumenta il coinvolgimento dell'utente.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on something: Niente.
+
+  Task 2: Modularizzare GAME CORE endpoints - Step 14 (P1)
+     - Where to resume:  (file monolite). Suddividere ed estrarre gli endpoint rimanenti.
+     - What will be achieved with this? Manutenibilità del codice.
+     - Status: PAUSED (Priorità data alle nuove features UX/UI).
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on something: Task 1
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Modularizzare GAME CORE endpoints (continuazione).
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
@@ -40,13 +47,13 @@ Un'applicazione full-stack stabile (React + FastAPI + MongoDB). Il sistema possi
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Fix backend crash ( in ) (DONE)
-- Fix endpoint  per ridurre il tempo di caricamento da 17s a 3s tramite l'utilizzo del comando nativo Mongo  (DONE)
-- Fix React build crash in ambiente CI: aggiunto  nel  del frontend (DONE)
-- Fix Deployment bloccatosi a causa di file  esclusi da  (pulizia profonda ) (DONE)
-- Fix Deployment crash: rimossa istruzione  da  e  che andava a sovrascrivere le env vars in produzione (DONE)
-- Fix sicurezza startup: inseriti check try/except nei task di avvio background e disattivato auto-backup massivo on startup per prevenire Memory OOM in produzione (DONE)
-- Fix Sincronizzazione DB: modificato  per garantire che l'account NeoMorpheus trasferisca coerentemente i suoi saldi e crediti in entrambe le direzioni (Invia/Ricevi) (DONE)
+- Aggiunta campo  in DB e implementazione endpoint  (DONE)
+- Esportazione spiegazione testuale della pipeline film in  (DONE)
+- Integrazione di  direttamente nello step pre-rilascio in  (DONE)
+- Fix bug frontend e backend per avanzamento film incastrati nello stato  (DONE)
+- Redesign immersivo  in layout cinematico a 6 step, con esportazione  e aggiunta animazioni in  (DONE)
+- Fix bug frontend e backend per avanzamento film incastrati nello stato  (DONE)
+- Fix endpoint  che non mostrava i film a causa di un conflitto di route con  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 Nessuna.
@@ -60,73 +67,82 @@ Nessuna.
 
 
 **Key Technical Concepts**
-- Dual Database System: Produzione (.it) usa un MongoDB Locale interno ad Emergent, Preview usa MongoDB Atlas. 
-- Fast DB Sync: L'app implementa sync manuale document-by-document saltando blobs per allineare gli stati tra questi due server.
-- Performance:  viene usato per recuperare conteggi rapidi dei record senza attraversare ogni singola collection, prevenendo timeout frontend.
+- Layout Cinematografico: Il form standard della pipeline film è stato sostituito da sezioni full-page con animazioni CSS (pellicola, tappeto rosso, luci proiettore). Non rompere questo UI flow.
+- Lazy Update Hype: Invece di far girare uno scheduler pesante per aggiornare l'hype e i counter spettatori ogni X minuti, il backend deve calcolare i delta basandosi sul  unicamente quando l'utente richiede i dati.
 
 **key DB schema**
-  - Standard collections (, , , , ). L'utente admin primario e fisso è  ().
+  - Nessuna modifica critica allo schema.  collection ha ora la logica .
 
 **changes in tech stack**
-  - Nessuno strutturale, ma aggiunto flag  nel React build setup per evitare che warning diventino blocking errors in CI.
+  - Nessuna modifica
 
 **All files of reference** 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Creato)
+  -  (Creato)
+  -  (Creato per gestire le animazioni cinematografiche)
+  -  (Completamente riscritto per l'UX)
+  -  (Aggiornato per supportare i nuovi stati)
+  -  (Aggiornato per includere  e )
+  -  (Attualmente in fase di modifica attiva)
+  -  (File futuro da modificare)
+  -  (File futuro da modificare)
 
 **Areas that need refactoring**
-  -  (Urgentissima modularizzazione, +17.000 righe).
-  -  (Divenuto troppo massiccio, da spezzare in sub-componenti React).
+  -  (Urgentissima modularizzazione, ancora +17.000 righe).
 
 **key api endpoints**
-  -  (Aggiornato per supportare cache e queries ultra-veloci).
-  -  e  (Modificati per non sovrascrivere o omettere i dati finanziari dell'ADMIN).
+  -  (Conflitto sistemato)
+  -  (Creato)
+  - *Nuovi endpoint per La Prima* in corso di sviluppo.
 
 **Critical Info for New Agent** 
-  - NON inserire mai chiamate : questo distrugge il routing e l'uso del Database Locale sui cluster Kubernetes di Emergent.
-  - Se il build React ( / yarn run v1.22.22
-info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.) fallisce con un errore di Memory OOM o problemi ESLint dipendenti, ricordati della variabile CI. Il parametro  risolve blocchi dovuti a un'eccessiva restrittività nei warning React Hooks.
-  - La Sincronizzazione del Database ora funge perfettamente copiando TUTTI i dati utente, incluso NeoMorpheus, senza logiche hardcoded che bloccavano l'aggiornamento crediti.
-  - Alla prossima richiesta di sviluppo funzionalità, si consiglia vivamente di suggerire/riprendere il refactoring di  (Task 1 in sospeso) per non ingolfare l'ambiente.
+- In FastAPI l'ordine e il prefisso dei router è fondamentale. Nel fix precedente c'era un conflitto per  risolto rimuovendo il duplicato e sistemando . Presta attenzione quando crei nuove route in  e .
+- Il frontend ora usa un design super visivo. Quando toccherai la Dashboard, assicurati di posizionare la sezione La Prima **esattamente sopra** la sezione Prossimamente, rispettando la veste grafica.
 
 **documents and test reports created in this job**
   - 
   - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Chiede conferma che il ruolo ADMIN è protetto anche da codice. -> *Agent ha rassicurato sulla sicurezza RBAC*.
-2. *User*: Il deploy emergent fallisce o si blocca. -> *Agent ha corretto  nel dotenv*.
-3. *User*: (Fornisce Screenshot) Su railway versione vecchia, su Emergent .it errore. -> *Agent ha corretto i warning ESLint su build React CI*.
-4. *User*: (Fornisce Screenshot) .it bloccato in caricamento, pagina bianca in sync. -> *Agent ha abbassato il ping da 17s a 3s e catchato errori UI*.
-5. *User*: (Domanda) Il database emergent .it è ottimizzato come il mio Atlas? -> *Agent ha chiarito le differenze tra DB loc e Atlas.*
-6. *User*: (Fornisce Screenshot) Incongruenze, il .it è più completo e non carica. Esponimi una soluzione definitiva. -> *Agent corregge .gitignore che bloccava .env causandone 520 server crash*.
-7. *User*: Qual è la Dashboard emergent e dove trovo app->secrets? -> *Agent fornisce i passi per settare Atlas env*.
-8. *User*: Nel .it ho perso tutte le infrastrutture acquistate. -> *Agent rassicura mostrando query dal db*.
-9. *User*: (Fornisce Screenshot) Sync quasi perfetta! Ma soldi e crediti NeoMorpheus non si modificano. -> *Agent sistema script import per trasferire anche fondi admin fedelmente*.
-10. *User*: Perfetto. Da adesso potremo di nuovo riprendere a rendere il gioco bellissimo! Ma quanto mi è costato 😅 -> *Agent ha completato e fornito un finish message confermando la solidità del sistema*.
+1. *User*: Analizza La Prima: endpoint, dati, e trigger. -> *Agent*: Analizzato. Il backend va bene, ma il frontend manca di interfacciamento prima della release.
+2. *User*: Aggiungi LaPremiereSection in FilmPipeline.jsx allo step pre-rilascio. -> *Agent*: Aggiunto e verificato con screenshot.
+3. *User*: Segnala (con immagini) che un film è incastrato nello step casting/sponsor e non appare nel coming soon. -> *Agent*: Diagnosticato mancanza stato  nei mapping.
+4. *User*: Procedi nel fix e recupero. -> *Agent*: Modificato frontend e backend per riconoscere e gestire lo stato .
+5. *User*: Richiede redesign massiccio UI in FilmPipeline (6 step, niente più popup per flusso principale). -> *Agent*: Redesign completato con esportazione viste e layout immersivo.
+6. *User*: Procedi eliminando popup e integrando stile carousel. -> *Agent*: Eseguito, verificato via screenshot desktop e mobile.
+7. *User*: Aggiungi animazioni cinematiche (pellicola, tappeto rosso, luci). -> *Agent*: Creato CSS dedicato e integrato in app.
+8. *User*: Segnala due bug (Film incastrato in , e non compare nei Prossimamente). Descrive anche le logiche per la nuova sezione Dashboard e Cineboard La Prima. -> *Agent*: Chiede conferma di priorità.
+9. *User*: Sistema prima i bug, poi passa alle features. -> *Agent*: Fixati i bug  e rotta  duplicata/conflittuale.
+10. *User*: Fornisce regole per Dashboard e Cineboard (spettatori live basati su hype, lazy update, ecc) e autorizza a procedere. -> *Agent*: Inizia implementazione in  ma la sessione scade qui. *(PENDING: Continuare questo task)*
 
 **Project Health Check:**
-- Frontend: OK (React builds pass successfully with ).
-- Backend: OK (Server starts up reliably, auto-backup is tuned).
-- Deployment: OK (Fixato .gitignore e config environment).
+- Frontend: OK. Il nuovo design FilmPipeline carica fluidamente con animazioni CSS.
+- Backend: OK, ma necessita di un check sui reload dell'ultimo snippet inserito in .
+- Nessun componente Broken, layout mobile da ottimizzare in .
 
 **3rd Party Integrations** 
-  - OpenAI GPT Image 1 — uses Emergent LLM Key (Per Generazione Avatar AI)
+  - Nessuna integrazione di terze parti richiesta per questa sessione.
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iteration_155.json)
+  - Testing agent used after significant changes: NO (Use it after finishing the current Dashboard/Cineboard implementation)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: Nessuna regressione nota introdotta.
+  - Known regressions: None
 
 **Credentials to test flow:**
-  -  (Utente NeoMorpheus, ruolo inamovibile ADMIN)
-  - Co-admin di test (test@cineworld.com / TestCoadmin123!) inserito e testato contro l'API sync.
+  - Leggere  (Utente NeoMorpheus o TestGuest42)
 
 **What agent forgot to execute**
-Nessuna richiesta ignorata, l'agente ha completato in pieno i deploy fault e bug fixing indicati iterativamente dall'utente. La sessione finisce in modo pulito con un feedback positivo. Il prossimo agente può riprendere con funzionalità nuove o refactoring.</analysis>
+Nessuna direttiva dimenticata, ma la sessione si è chiusa mentre l'Agente stava inserendo la logica per il lazy update dell'hype e calcolo spettatori in . Il task relativo a Dashboard/Cineboard è in sospeso.
+
+<example_for_next_agent>
+**Debugging checklist for current issue**
+    Issue: La Prima Live Dashboard & Cineboard Rankings (In Progress)
+
+    Backend files to check/finish:
+    -  -> Controlla se gli endpoint per  e  sono stati scritti correttamente e non mandano il server in crash.
+
+    Frontend files to update:
+    -  -> Inserire modulo La Prima sopra .
+    -  -> Aggiungere nuovo tab/ranking.
+</example_for_next_agent></analysis>

@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"room_id":{"$numberInt":"1"},"created_at":{"$numberInt":"-1"}},"name":"room_id_1_created_at_-1"}],"uuid":"ec028391bb7f496e9529cd00d243535c","collectionName":"chat_messages","type":"collection"}

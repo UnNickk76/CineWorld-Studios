@@ -21,6 +21,7 @@ import { Badge } from '../components/ui/badge';
 import { PlayerBadge, MasterpieceBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { ComingSoonSection } from '../components/ComingSoonSection';
+import { LaPrimaSection } from '../components/LaPrimaSection';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Slider } from '../components/ui/slider';
@@ -608,6 +609,11 @@ const Dashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* La Prima - Live Premiere Events */}
+      <div className="mb-4" data-testid="dashboard-la-prima">
+        <LaPrimaSection compact />
+      </div>
 
       {/* Prossimamente - Coming Soon Section */}
       <div className="mb-4" data-testid="dashboard-coming-soon">

@@ -534,3 +534,287 @@ async def get_premiere_cities(user=Depends(get_current_user)):
         'total': len(public_cities),
         'by_region': regions,
     }
+
+
+# ═══════════════════════════════════════════════════════
+# LIVE SPECTATORS & HYPE SYSTEM (Lazy Update)
+# ═══════════════════════════════════════════════════════
+
+import hashlib
+
+def _city_weight(city_name: str) -> float:
+    """Get city weight for spectator calculation."""
+    for c in PREMIERE_CITIES:
+        if c['name'] == city_name:
+            return c.get('weight', 0.5)
+    return 0.5
+
+
+def _time_factor() -> float:
+    """Time-of-day factor for current spectators. Peak at 20:00 UTC+1."""
+    hour = datetime.now(timezone.utc).hour
+    # Peak evening hours (18-22 UTC) = 1.0, night (2-8) = 0.15, rest = 0.4-0.7
+    if 18 <= hour <= 22:
+        return 0.8 + (1.0 - abs(hour - 20) * 0.1)
+    elif 14 <= hour < 18:
+        return 0.5 + (hour - 14) * 0.075
+    elif 8 <= hour < 14:
+        return 0.3 + (hour - 8) * 0.033
+    else:
+        return 0.12 + hour * 0.02 if hour < 8 else 0.15
+
+
+def _deterministic_variation(film_id: str, timestamp_minutes: int) -> float:
+    """Deterministic but realistic variation based on film_id + time. Returns 0.85-1.15"""
+    seed = hashlib.md5(f"{film_id}:{timestamp_minutes}".encode()).hexdigest()
+    val = int(seed[:8], 16) / 0xFFFFFFFF  # 0.0-1.0
+    return 0.85 + val * 0.30  # 0.85-1.15
+
+
+def calculate_spectators(project: dict) -> dict:
+    """Calculate current and total spectators for a La Prima event."""
+    premiere = project.get('premiere', {})
+    if not premiere.get('enabled') or not premiere.get('city'):
+        return {'spectators_current': 0, 'spectators_total': 0}
+
+    hype = project.get('hype_score', 0)
+    quality = project.get('pre_imdb_score', 5.0)
+    city_name = premiere.get('city', '')
+    city_w = _city_weight(city_name)
+    boost = premiere.get('initial_hype_boost', 0.1)
+
+    # Base capacity: city_weight * 800 + quality * 200 + hype * 50
+    base_capacity = city_w * 800 + quality * 200 + hype * 50 + boost * 2000
+
+    now = datetime.now(timezone.utc)
+    now_minutes = int(now.timestamp() / 60)
+
+    # Current spectators: base * time_factor * variation
+    time_f = _time_factor()
+    variation = _deterministic_variation(project['id'], now_minutes // 10)  # changes every 10 min
+    spectators_current = int(base_capacity * time_f * variation)
+    spectators_current = max(12, spectators_current)  # minimum 12
+
+    # Total spectators: accumulated over time since premiere setup
+    setup_at = premiere.get('setup_at') or project.get('created_at', now.isoformat())
+    try:
+        setup_time = datetime.fromisoformat(str(setup_at).replace('Z', '+00:00'))
+    except Exception:
+        setup_time = now
+    hours_active = max(0.5, (now - setup_time).total_seconds() / 3600)
+
+    # Total = base_rate * hours * city * quality factor
+    base_rate = 150 + hype * 8 + quality * 30 + boost * 500
+    spectators_total = int(base_rate * hours_active * city_w * (0.7 + quality / 20))
+    spectators_total = max(spectators_current, spectators_total)
+
+    return {
+        'spectators_current': spectators_current,
+        'spectators_total': spectators_total,
+    }
+
+
+def lazy_update_hype(project: dict) -> int:
+    """Calculate hype with lazy time-based variation. Returns updated hype."""
+    base_hype = project.get('hype_score', 0)
+    premiere = project.get('premiere', {})
+    if not premiere.get('enabled'):
+        return base_hype
+
+    now = datetime.now(timezone.utc)
+    now_minutes = int(now.timestamp() / 60)
+
+    # Variation every 10 minutes: hype fluctuates ±5% deterministically
+    variation = _deterministic_variation(project['id'] + ':hype', now_minutes // 10)
+    # Scale variation: 0.95-1.05 around base
+    hype_factor = 0.95 + (variation - 0.85) * (0.10 / 0.30)
+
+    # City buzz bonus: famous cities generate more organic hype
+    city_w = _city_weight(premiere.get('city', ''))
+    city_buzz = city_w * 3  # Up to +3 hype from city prestige
+
+    # Time bonus: evening generates more buzz
+    time_f = _time_factor()
+    time_buzz = time_f * 2  # Up to +2 from prime time
+
+    live_hype = int((base_hype + city_buzz + time_buzz) * hype_factor)
+    return max(0, live_hype)
+
+
+# ─── Live Data Endpoint ───
+
+@router.get("/live/{film_id}")
+async def get_la_prima_live(film_id: str, user: dict = Depends(get_current_user)):
+    """Get live La Prima data with lazy-updated hype and spectators."""
+    project = await db.film_projects.find_one(
+        {'id': film_id, 'premiere.enabled': True},
+        {'_id': 0}
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato o La Prima non attiva")
+
+    premiere = project.get('premiere', {})
+    spectators = calculate_spectators(project)
+    live_hype = lazy_update_hype(project)
+
+    # Determine outcome label
+    outcome = premiere.get('outcome')
+    outcome_labels = {
+        'standing_ovation': 'Standing Ovation',
+        'warm_reception': 'Accoglienza Calorosa',
+        'mixed_reaction': 'Reazione Mista',
+        'lukewarm': 'Tiepido',
+    }
+
+    # Timer: calculate remaining premiere duration (premiere lasts release_delay_days)
+    setup_at = premiere.get('setup_at') or project.get('created_at')
+    delay_days = premiere.get('release_delay_days', 3)
+    timer_end = None
+    time_remaining = None
+    if setup_at:
+        try:
+            start = datetime.fromisoformat(str(setup_at).replace('Z', '+00:00'))
+            end = start.replace(hour=start.hour) 
+            from datetime import timedelta
+            end = start + timedelta(days=delay_days)
+            timer_end = end.isoformat()
+            remaining = (end - datetime.now(timezone.utc)).total_seconds()
+            if remaining > 0:
+                hours = int(remaining // 3600)
+                minutes = int((remaining % 3600) // 60)
+                time_remaining = f"{hours}h {minutes}m"
+        except Exception:
+            pass
+
+    return {
+        'film_id': film_id,
+        'title': project.get('title', ''),
+        'genre': project.get('genre', ''),
+        'poster_url': project.get('poster_url'),
+        'pre_imdb_score': project.get('pre_imdb_score', 0),
+        'pre_screenplay': project.get('pre_screenplay', ''),
+        'city': premiere.get('city', ''),
+        'datetime': premiere.get('datetime', ''),
+        'release_delay_days': delay_days,
+        'hype_live': live_hype,
+        'hype_base': project.get('hype_score', 0),
+        'spectators_current': spectators['spectators_current'],
+        'spectators_total': spectators['spectators_total'],
+        'outcome': outcome,
+        'outcome_label': outcome_labels.get(outcome),
+        'initial_hype_boost': premiere.get('initial_hype_boost', 0),
+        'timer_end': timer_end,
+        'time_remaining': time_remaining,
+        'owner_id': project.get('user_id'),
+        'status': 'active',
+    }
+
+
+# ─── All Active La Prima Events ───
+
+@router.get("/active")
+async def get_active_la_prima(user: dict = Depends(get_current_user)):
+    """Get all films currently in La Prima phase."""
+    projects = await db.film_projects.find(
+        {'premiere.enabled': True, 'premiere.city': {'$ne': None},
+         'status': {'$in': list(PREMIERE_ELIGIBLE_STATUSES)}},
+        {'_id': 0}
+    ).to_list(50)
+
+    results = []
+    for p in projects:
+        premiere = p.get('premiere', {})
+        spectators = calculate_spectators(p)
+        live_hype = lazy_update_hype(p)
+
+        # Timer
+        setup_at = premiere.get('setup_at') or p.get('created_at')
+        delay_days = premiere.get('release_delay_days', 3)
+        time_remaining = None
+        if setup_at:
+            try:
+                start = datetime.fromisoformat(str(setup_at).replace('Z', '+00:00'))
+                from datetime import timedelta
+                end = start + timedelta(days=delay_days)
+                remaining = (end - datetime.now(timezone.utc)).total_seconds()
+                if remaining > 0:
+                    hours = int(remaining // 3600)
+                    minutes = int((remaining % 3600) // 60)
+                    time_remaining = f"{hours}h {minutes}m"
+            except Exception:
+                pass
+
+        # Get owner name
+        owner = await db.users.find_one({'id': p.get('user_id')}, {'_id': 0, 'nickname': 1})
+
+        results.append({
+            'film_id': p['id'],
+            'title': p.get('title', ''),
+            'genre': p.get('genre', ''),
+            'poster_url': p.get('poster_url'),
+            'pre_imdb_score': p.get('pre_imdb_score', 0),
+            'pre_screenplay': p.get('pre_screenplay', ''),
+            'city': premiere.get('city', ''),
+            'hype_live': live_hype,
+            'spectators_current': spectators['spectators_current'],
+            'spectators_total': spectators['spectators_total'],
+            'time_remaining': time_remaining,
+            'owner_name': owner.get('nickname', '?') if owner else '?',
+            'owner_id': p.get('user_id'),
+        })
+
+    return {'events': results, 'total': len(results)}
+
+
+# ─── La Prima Rankings ───
+
+@router.get("/rankings")
+async def get_la_prima_rankings(user: dict = Depends(get_current_user)):
+    """Get La Prima rankings: live spectators, total spectators, composite score."""
+    projects = await db.film_projects.find(
+        {'premiere.enabled': True, 'premiere.city': {'$ne': None}},
+        {'_id': 0}
+    ).to_list(100)
+
+    entries = []
+    for p in projects:
+        spectators = calculate_spectators(p)
+        live_hype = lazy_update_hype(p)
+        imdb = p.get('pre_imdb_score', 0)
+
+        # Composite: weighted average of hype (30%), spectators_total normalized (40%), imdb (30%)
+        max_spectators = max(1, max(calculate_spectators(proj)['spectators_total'] for proj in projects)) if projects else 1
+        spectators_norm = (spectators['spectators_total'] / max_spectators) * 10 if max_spectators > 0 else 0
+        composite = round(live_hype * 0.3 + spectators_norm * 0.4 + imdb * 0.3, 1)
+
+        owner = await db.users.find_one({'id': p.get('user_id')}, {'_id': 0, 'nickname': 1, 'avatar_url': 1})
+
+        entries.append({
+            'film_id': p['id'],
+            'title': p.get('title', ''),
+            'genre': p.get('genre', ''),
+            'poster_url': p.get('poster_url'),
+            'city': p.get('premiere', {}).get('city', ''),
+            'pre_imdb_score': imdb,
+            'hype_live': live_hype,
+            'spectators_current': spectators['spectators_current'],
+            'spectators_total': spectators['spectators_total'],
+            'composite_score': composite,
+            'owner_name': owner.get('nickname', '?') if owner else '?',
+            'owner_avatar': owner.get('avatar_url', '') if owner else '',
+            'owner_id': p.get('user_id'),
+        })
+
+    # Three rankings
+    by_live = sorted(entries, key=lambda x: x['spectators_current'], reverse=True)
+    by_total = sorted(entries, key=lambda x: x['spectators_total'], reverse=True)
+    by_composite = sorted(entries, key=lambda x: x['composite_score'], reverse=True)
+
+    return {
+        'rankings': {
+            'live_spectators': by_live[:20],
+            'total_spectators': by_total[:20],
+            'composite': by_composite[:20],
+        },
+        'total_events': len(entries),
+    }

@@ -19,16 +19,12 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 ### La Prima (Completata — 2026-04-05)
 - **Backend**: Endpoint enable/setup/live/active/rankings/cities in `routes/la_prima.py`
 - **Frontend Dashboard**: `LaPrimaSection` con layout **orizzontale scrollabile**, card compatte da 140px
-- **Popup cinematografico**: `LaPrimaPopup` con template dorato/nero
-  - Badge "LIVE ORA" pulsante
-  - Count-up animato su hype e spettatori
-  - Micro-jitter spettatori ogni 5-8s con delta "+X spettatori negli ultimi minuti"
-  - Reazioni pubblico random (12 frasi, rotazione ogni 8-12s)
-  - Grafico trend bezier con punti colorati (oro=positivo, rosso=negativo)
-  - Particelle CSS (3 tipi: rise, drift, twinkle)
-  - Ingresso cinematografico (scale 0.94→1, 350ms)
-  - Glow dorato sui bordi, tende rosse laterali, spotlight
-  - Brand "CineWorld Studio's" in fondo
+- **Popup TEMPLATE-BASED**: Usa `la-prima-template.jpg` come background, dati dinamici posizionati con CSS absolute %
+  - Poster, titolo, città, timer, hype, spettatori attuali/totali, sinossi → overlay
+  - Count-up animato, micro-jitter spettatori, reazioni pubblico random
+  - Grafico trend bezier SVG con punti colorati
+  - Ingresso cinematografico (scale 0.95→1, 320ms)
+  - "LA PRIMA IN CORSO!", stats row, brand e OK! → dal template image
 - **CineBoard La Prima**: 3 tab (Spettatori Live, Spettatori Totali, Media Mista)
 
 ### Fix e Ripristini (2026-04-05)
@@ -43,7 +39,7 @@ Simulatore di produzione cinematografica. L'utente gestisce uno studio, produce 
 - [x] Redesign FilmPipeline (6 step cinematografico)
 - [x] Fix endpoint /api/coming-soon
 - [x] La Prima: backend + Dashboard + CineBoard + Popup LIVE
-- [x] La Prima: miglioramenti visivi LIVE (animazioni, count-up, reazioni)
+- [x] La Prima: popup TEMPLATE-BASED (immagine template come sfondo)
 - [x] La Prima: card compatta scrollabile orizzontalmente
 - [x] Ripristino film K perso
 

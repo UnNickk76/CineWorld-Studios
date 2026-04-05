@@ -1,42 +1,41 @@
 <analysis>**original_problem_statement**: 
-Il sistema richiede la finalizzazione della logica La Prima e la risoluzione di vari bug bloccanti nella pipeline di produzione cinematografica. L'obiettivo attuale è rendere l'esperienza utente estremamente visiva e cinematografica (invece che un form gestionale) e implementare eventi live per i film in anteprima, con ranking dedicati e conteggi spettatori realistici.
+Il sistema richiede la finalizzazione della logica La Prima e la risoluzione di vari bug bloccanti nella pipeline di produzione cinematografica. L'obiettivo attuale è rendere l'esperienza utente estremamente visiva e cinematografica (invece che un form gestionale) e implementare eventi live per i film in anteprima, con ranking dedicati e conteggi spettatori realistici. Inoltre, è stato richiesto di unificare e ridisegnare la pagina di dettaglio di Film/Serie/Anime tramite un Content Template fullscreen, compatto e privo di scroll di pagina.
 
 **PRODUCT REQUIREMENTS**:
-1. Implementazione Guest Login.
-2. Risoluzione dei bug di avanzamento stato nella pipeline film (stati  e  bloccanti).
-3. Redesign UI completo della Film Pipeline (layout full-page immersivo in 6 step con animazioni CSS).
-4. Refactor sezione La Prima: creazione di logica live con calcolo spettatori e aggiornamento lazy dell'hype.
-5. Inserimento di una nuova sezione La Prima nella Dashboard (sopra Prossimamente) e 3 nuove classifiche dedicate nel CineBoard.
+1. Completamento La Prima (Dashboard Section, CineBoard Rankings, e Popup live immersivo usando un'immagine template come sfondo).
+2. Recupero di eventuali film bloccati/persi dopo la release (es. film K).
+3. Creazione di un Content Template unico e fullscreen per il dettaglio dei contenuti (Film, Serie, Anime).
+4. Rifinitura del Content Template per rispettare un layout rigoroso a blocco unico (no scroll di pagina) con ordine gerarchico specifico per: Header, Info, Commenti, Azioni proprietario, Recensioni, Trama, Trailer.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Un'applicazione full-stack stabile (React + FastAPI + MongoDB). È stato appena completato un massiccio redesign della  in una UI cinematografica a 6 step, con animazioni CSS e fix degli stati intermedi ( e ). L'endpoint  è stato sistemato risolvendo un conflitto di routing. Al momento è iniziata, ma non completata, l'implementazione del backend in  per gestire il calcolo live degli spettatori e della dashboard.
+Un'applicazione full-stack stabile (React + FastAPI + MongoDB). La feature La Prima è stata completata con successo: la Dashboard mostra gli eventi live, il CineBoard ha le 3 classifiche dedicate, e il popup de La Prima utilizza fedelmente il template grafico richiesto con overlay dinamici e micro-animazioni CSS. Il bug del film K scomparso è stato risolto (era bloccato come project e non inserito nella collection films). È stato appena creato un nuovo  che sostituisce le vecchie  e , utilizzando un'immagine di sfondo fissa. Tuttavia, il layout interno di questo template necessita di un riposizionamento degli elementi in base alle ultime direttive dell'utente.
 
 **Last working item**: 
-    - Last item agent was working: Modifica del backend in  per aggiungere la logica live de La Prima. Nello specifico, l'aggiornamento *lazy* dell'hype (senza scheduler), il calcolo live degli spettatori (, ) basato su qualità/città/orario, e i nuovi endpoint per popolare la Dashboard e il Cineboard.
-    - Status: IN PROGRESS
+    - Last item agent was working: Rifinitura del layout di  e  per lo stato IN PROGRAMMAZIONE. L'obiettivo è riposizionare gli elementi (Header IN PROGRAMMAZIONE, Azioni proprietario, Recensioni Variety/Empire/Hollywood Reporter, Trama con micro-scroll e Bottone Trailer) affinché stiano tutti all'interno di un unico riquadro centrale, senza scroll di pagina.
+    - Status: NOT STARTED (L'agente ha solo analizzato l'immagine di feedback dell'utente, ma non ha ancora modificato il codice).
     - Agent Testing Done: N
-    - Which testing method agent to use? both (Frontend/Backend testing agent + screenshot e curl per il controllo UI della Dashboard)
+    - Which testing method agent to use? screenshot tool (per verificare il pixel-perfect posizionamento CSS sul template)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-Nessuna issue bloccante attiva al momento. I bug segnalati in precedenza (film bloccati in  o  e film mancanti nella lista Prossimamente) sono stati tutti risolti in questa sessione.
+  Issue 1: Rifinitura Layout Content Template (P0)
+     - Attempted fixes: Nessun tentativo ancora effettuato dopo l'ultimo feedback. L'agente precedente ha creato la base funzionante ma fuori posizione.
+     - Next debug checklist: Modificare  e  per rispettare il seguente ordine top-to-bottom nel riquadro principale: 1) Header IN PROGRAMMAZIONE (dentro un ribbon arcuato integrato), 2) Info film, 3) Commenti (1 riga scrollabile orizzontalmente), 4) Azioni Proprietario (centrate, con glow, sotto i commenti), 5) Recensioni (3 riquadri stile giornale editoriale), 6) Trama (max 3-4 righe con scroll verticale interno), 7) Trailer (bottone celeste grande dentro il riquadro principale, in fondo).
+     - Why fix this issue and what will be achieved with the fix? L'utente richiede esplicitamente un layout UI super compatto, premium e privo di scroll di pagina intera (tutto deve stare nel box).
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? frontend (screenshot)
+     - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-  Task 1: Sviluppo sezione La Prima (Dashboard e Cineboard) (P0)
-     - Where to resume: Il backend in  è appena stato aggiornato con la logica (ma va testato e verificato se compila/funziona). Dopodiché, è necessario aggiornare il frontend: inserire la sezione La Prima in  (appena sopra Prossimamente, con popup dedicato per dati live) e creare le 3 nuove classifiche nel  (Spettatori Live, Spettatori Totali, Media Mista).
-     - What will be achieved with this? Rendere La Prima un evento live, dinamico e realistico che aumenta il coinvolgimento dell'utente.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? both
-     - Blocked on something: Niente.
-
-  Task 2: Modularizzare GAME CORE endpoints - Step 14 (P1)
-     - Where to resume:  (file monolite). Suddividere ed estrarre gli endpoint rimanenti.
-     - What will be achieved with this? Manutenibilità del codice.
-     - Status: PAUSED (Priorità data alle nuove features UX/UI).
+  Task 1: Modularizzare GAME CORE endpoints - Step 14 (P1)
+     - Where to resume:  (file monolite di oltre 17.000 righe). Suddividere ed estrarre gli endpoint rimanenti.
+     - What will be achieved with this? Manutenibilità del codice e riduzione del rischio di crash.
+     - Status: PAUSED (Priorità assoluta al frontend UI/UX del Content Template in questo momento).
      - Should Test frontend/backend/both after fix? backend
-     - Blocked on something: Task 1
+     - Blocked on something: Issue 1
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -47,16 +46,15 @@ Nessuna issue bloccante attiva al momento. I bug segnalati in precedenza (film b
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Aggiunta campo  in DB e implementazione endpoint  (DONE)
-- Esportazione spiegazione testuale della pipeline film in  (DONE)
-- Integrazione di  direttamente nello step pre-rilascio in  (DONE)
-- Fix bug frontend e backend per avanzamento film incastrati nello stato  (DONE)
-- Redesign immersivo  in layout cinematico a 6 step, con esportazione  e aggiunta animazioni in  (DONE)
-- Fix bug frontend e backend per avanzamento film incastrati nello stato  (DONE)
-- Fix endpoint  che non mostrava i film a causa di un conflitto di route con  (DONE)
+- Implementata sezione La Prima in  (DONE)
+- Implementati ranking La Prima in  (Live, Totali, Media Mista) (DONE)
+- Creato  usando l'immagine template fissa come sfondo e posizionando i dati dinamicamente in absolute, con effetti CSS particellari (DONE)
+- Debug e recupero del film K che non veniva mostrato tra I Miei Film dopo il rilascio (inserito manualmente in db.films) (DONE)
+- Rimpiazzato il layout di  e  con il nuovo  per l'esperienza fullscreen (DONE)
+- Compattate le card di La Prima in Dashboard abilitando lo scroll orizzontale (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-Nessuna.
+- Spazio disco  esaurito durante i test (risolto parzialmente eliminando , ma va tenuto d'occhio).
 
 **Known issue recurrence from previous fork**
   - Contest Page Mobile Layout Is Broken
@@ -67,82 +65,75 @@ Nessuna.
 
 
 **Key Technical Concepts**
-- Layout Cinematografico: Il form standard della pipeline film è stato sostituito da sezioni full-page con animazioni CSS (pellicola, tappeto rosso, luci proiettore). Non rompere questo UI flow.
-- Lazy Update Hype: Invece di far girare uno scheduler pesante per aggiornare l'hype e i counter spettatori ogni X minuti, il backend deve calcolare i delta basandosi sul  unicamente quando l'utente richiede i dati.
+- **Overlay UI pattern**: Le schermate di dettaglio (La Prima, ContentTemplate) ora non sono più layout HTML standard, ma *immagini di sfondo* (fornite dall'utente) posizionate a tutto schermo o nel container, su cui vengono posizionati in  e percentuali i dati testuali dinamici estratti dal backend. Questo previene qualsiasi modifica strutturale del design.
+- Non si deve implementare alcuno scroll sulla pagina intera per il dettaglio contenuti (tutto in un viewport). Si usano solo micro-scroll interni (es. per i commenti o la trama testuale).
 
 **key DB schema**
-  - Nessuna modifica critica allo schema.  collection ha ora la logica .
+  - collection  (film in sviluppo) -> collection  (film rilasciati). Fai attenzione al lifecycle, ci sono stati bug di migrazione tra le due tabelle.
 
 **changes in tech stack**
-  - Nessuna modifica
+  - Nessuna modifica.
 
 **All files of reference** 
-  -  (Creato)
-  -  (Creato)
-  -  (Creato per gestire le animazioni cinematografiche)
-  -  (Completamente riscritto per l'UX)
-  -  (Aggiornato per supportare i nuovi stati)
-  -  (Aggiornato per includere  e )
-  -  (Attualmente in fase di modifica attiva)
-  -  (File futuro da modificare)
-  -  (File futuro da modificare)
+  -  (File principale da modificare ORA)
+  -  (CSS principale da modificare ORA)
+  - 
+  - 
+  -  (Completato, utile come referenza per il pattern a overlay)
 
 **Areas that need refactoring**
-  -  (Urgentissima modularizzazione, ancora +17.000 righe).
+  -  (Urgentissima modularizzazione, +17.000 righe).
 
 **key api endpoints**
-  -  (Conflitto sistemato)
-  -  (Creato)
-  - *Nuovi endpoint per La Prima* in corso di sviluppo.
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- In FastAPI l'ordine e il prefisso dei router è fondamentale. Nel fix precedente c'era un conflitto per  risolto rimuovendo il duplicato e sistemando . Presta attenzione quando crei nuove route in  e .
-- Il frontend ora usa un design super visivo. Quando toccherai la Dashboard, assicurati di posizionare la sezione La Prima **esattamente sopra** la sezione Prossimamente, rispettando la veste grafica.
+- **ATTENZIONE AL LAYOUT DEL CONTENT TEMPLATE**: L'utente ha specificato rigorosamente che il design attuale di  va *riorganizzato internamente*. Usa l'approccio  con coordinate precise percentuali sopra l'immagine . Nessun elemento deve rompere il bounding box dell'immagine e generare scrolling di pagina.
+- Le Azioni Proprietario (Incassa Ora, Crea Stella, Boost Crew) vanno condizionate al controllo .
+- Ricorda di eseguire script di pulizia () se l'agente va in crash per No space left on device, dato che  si riempie in fretta a causa dei log di Playwright.
 
 **documents and test reports created in this job**
-  - 
-  - 
+  -  (aggiornato)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Analizza La Prima: endpoint, dati, e trigger. -> *Agent*: Analizzato. Il backend va bene, ma il frontend manca di interfacciamento prima della release.
-2. *User*: Aggiungi LaPremiereSection in FilmPipeline.jsx allo step pre-rilascio. -> *Agent*: Aggiunto e verificato con screenshot.
-3. *User*: Segnala (con immagini) che un film è incastrato nello step casting/sponsor e non appare nel coming soon. -> *Agent*: Diagnosticato mancanza stato  nei mapping.
-4. *User*: Procedi nel fix e recupero. -> *Agent*: Modificato frontend e backend per riconoscere e gestire lo stato .
-5. *User*: Richiede redesign massiccio UI in FilmPipeline (6 step, niente più popup per flusso principale). -> *Agent*: Redesign completato con esportazione viste e layout immersivo.
-6. *User*: Procedi eliminando popup e integrando stile carousel. -> *Agent*: Eseguito, verificato via screenshot desktop e mobile.
-7. *User*: Aggiungi animazioni cinematiche (pellicola, tappeto rosso, luci). -> *Agent*: Creato CSS dedicato e integrato in app.
-8. *User*: Segnala due bug (Film incastrato in , e non compare nei Prossimamente). Descrive anche le logiche per la nuova sezione Dashboard e Cineboard La Prima. -> *Agent*: Chiede conferma di priorità.
-9. *User*: Sistema prima i bug, poi passa alle features. -> *Agent*: Fixati i bug  e rotta  duplicata/conflittuale.
-10. *User*: Fornisce regole per Dashboard e Cineboard (spettatori live basati su hype, lazy update, ecc) e autorizza a procedere. -> *Agent*: Inizia implementazione in  ma la sessione scade qui. *(PENDING: Continuare questo task)*
+1. *User*: Il template non è stato rispettato. Usa esattamente l'immagine fornita come base. -> *Agent*: Riscritto  usando l'immagine esatta in background e CSS assoluto.
+2. *User*: K è un film che era andato perso e ora è solo in La Prima. E la card di La Prima va resa scrollabile orizzontalmente. -> *Agent*: Compattata la card La Prima e ripristinato il film K nella collezione .
+3. *User*: (Immagini Fornite) Implementare un TEMPLATE UNICO FULLSCREEN per il dettaglio Film/Serie/Anime basato sulla nuova immagine content-template.jpg. -> *Agent*: Creato  e convertito  e  per usarlo.
+4. *User*: (Immagini fornite) **PENDING HUMAN MESSAGE** -> OBIETTIVO: Rifinire il TEMPLATE FULLSCREEN IN PROGRAMMAZIONE. Riposizionare Header dentro un ribbon, azioni proprietario sotto ai commenti, poi le Recensioni stile giornale, poi la Trama (scroll interno 3-4 righe) e in basso il bottone Trailer. Tutto rigorosamente dentro un UNICO riquadro senza scroll di pagina. *(Azione richiesta dal nuovo agente)*
 
 **Project Health Check:**
-- Frontend: OK. Il nuovo design FilmPipeline carica fluidamente con animazioni CSS.
-- Backend: OK, ma necessita di un check sui reload dell'ultimo snippet inserito in .
-- Nessun componente Broken, layout mobile da ottimizzare in .
+- Frontend: Migliorato esteticamente, ma il  attualmente sfora le proporzioni ed è mal impaginato.
+- Backend: OK, ma necessita modularizzazione.
+- Disk Space: Critico (92% usato su ), tenere monitorato durante gli screenshot.
 
 **3rd Party Integrations** 
-  - Nessuna integrazione di terze parti richiesta per questa sessione.
+  - Nessuna integrazione applicata nell'ultima iterazione.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Use it after finishing the current Dashboard/Cineboard implementation)
+  - Testing agent used after significant changes: YES (Usato per La Prima, non ancora per il ContentTemplate).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
   - Known regressions: None
 
 **Credentials to test flow:**
-  - Leggere  (Utente NeoMorpheus o TestGuest42)
+  - Leggere 
+  - Utente: NeoMorpheus ( / )
 
 **What agent forgot to execute**
-Nessuna direttiva dimenticata, ma la sessione si è chiusa mentre l'Agente stava inserendo la logica per il lazy update dell'hype e calcolo spettatori in . Il task relativo a Dashboard/Cineboard è in sospeso.
+Niente dimenticato. L'agente si è fermato prima di scrivere il codice per riposizionare l'UI di  come richiesto nell'ultimo messaggio dell'utente.
 
-<example_for_next_agent>
 **Debugging checklist for current issue**
-    Issue: La Prima Live Dashboard & Cineboard Rankings (In Progress)
+    Issue: Repositioning ContentTemplate UI without page scroll
 
-    Backend files to check/finish:
-    -  -> Controlla se gli endpoint per  e  sono stati scritti correttamente e non mandano il server in crash.
-
-    Frontend files to update:
-    -  -> Inserire modulo La Prima sopra .
-    -  -> Aggiungere nuovo tab/ranking.
-</example_for_next_agent></analysis>
+    Frontend files to check: 
+    - 
+    - 
+  
+    Steps:
+    1. Aggiungere il titolo IN PROGRAMMAZIONE in un badge arcuato sopra o dentro il top del frame del poster.
+    2. Spostare il container delle azioni proprietario (, , ecc) tra i  e le .
+    3. Stile giornale per le Recensioni (Variety, Empire, Hollywood Reporter).
+    4. Aggiungere il box Trama sotto le recensioni con  e .
+    5. Spostare il bottone Trailer in fondo al content box principale.
+    6. Assicurarsi che l'altezza complessiva del container stia in  per non far apparire le scrollbar esterne. Fare un test tramite .</analysis>

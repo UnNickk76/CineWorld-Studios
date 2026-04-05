@@ -64,7 +64,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Fix speech bubble blocca dropdown: step con target → Velion grande in alto + bubble a lato, dropdown libero. Form conversione con Velion animato (2026-04-05)
 - [x] Popup "Dona Ora": compare 2h dopo primo login giornaliero, max 1 volta ogni 24h solari, z-index 150 sopra tutorial (2026-04-05)
 - [x] Tutorial Guest completo 11 step: guida passo-passo dalla Dashboard al rilascio film con auto-advance, Velion grande in posizione variabile, form mai bloccato (2026-04-05)
-- [x] Step finale celebrativo (Step 10): Velion grande con anello dorato pulsante, particelle scintillanti animate, titolo "Congratulazioni!" gradient dorato, messaggio "CineWorld Studio's!!!", bottone "Continua l'avventura!" → transizione allo step conversione (2026-04-05)
+- [x] Step finale celebrativo (Step 10): Velion grande con anello dorato pulsante, particelle scintillanti animate, titolo "Congratulazioni!" gradient dorato, messaggio completo multilinea (Serie TV, Arena, Chat, etc.), "CineWorld Studio's!!!", bottone "Continua l'avventura!" → layout ottimizzato mobile con whitespace-pre-line (2026-04-05)
 
 ### P1 (Importante)
 - [ ] Endpoint backend Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost)

@@ -19,7 +19,7 @@ const STEPS = [
   /* 7 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid^="gen-poster-"]', position: 'top', velionSize: 120 },
   /* 8 */ { title: 'Lancia il Coming Soon!', text: 'Scegli il tier e lancia il Coming Soon per creare aspettativa!', target: '[data-testid^="launch-cs-"]', position: 'top', velionSize: 120 },
   /* 9 */ { title: 'Velocizza GRATIS!', text: 'Hai 3 velocizzazioni gratuite! Usale per accelerare il timer del Coming Soon.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 120 },
-  /* 10 */ { title: 'Congratulazioni!', text: 'Adesso non ti resta che esplorare tutte le altre sezioni del gioco... CineWorld Studio\'s!!!', action: 'finale', target: null, position: 'center', velionSize: 200 },
+  /* 10 */ { title: 'Congratulazioni!', text: 'Adesso non ti resta che esplorare tutte le altre sezioni del gioco!\nPuoi creare Serie Tv, Anime, Sequel…\nE poi c\'è l\'Arena dove puoi supportare o boicottare i film degli altri Player.\nE ancora la chat dove puoi fare amicizia o chiedere aiuto agli altri player.\nE tanto, tanto ancora!\nDivertiti con noi in', action: 'finale', target: null, position: 'center', velionSize: 200 },
   /* 11 */ { title: 'Registrati', text: 'Vuoi salvare i progressi?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
 ];
 
@@ -318,79 +318,78 @@ export function GuestTutorial() {
           ))}
         </div>
 
-        {/* Contenuto centrale */}
-        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center px-4 pointer-events-none" data-testid="tutorial-finale-content">
+        {/* Contenuto centrale — scrollable safe */}
+        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-start overflow-y-auto px-3 pt-6 pb-20 pointer-events-none" data-testid="tutorial-finale-content">
 
-          {/* Velion GRANDE con glow celebrativo */}
+          {/* Velion con glow celebrativo */}
           <motion.div
             initial={{ scale: 0, rotate: -20 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', damping: 12, stiffness: 100, delay: 0.3 }}
-            className="relative mb-4"
+            className="relative flex-shrink-0 mb-1"
           >
             <motion.img
               src="/velion-tutorial.png"
               alt="Velion"
-              className="w-48 h-48 sm:w-56 sm:h-56 object-contain select-none"
+              className="w-36 h-36 sm:w-44 sm:h-44 object-contain select-none"
               style={{ animation: 'celebrationGlow 2s ease-in-out infinite' }}
-              animate={{ y: [0, -20, 0], scale: [1, 1.08, 1], rotate: [0, 5, -5, 0] }}
+              animate={{ y: [0, -14, 0], scale: [1, 1.06, 1], rotate: [0, 4, -4, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               data-testid="tutorial-finale-velion"
             />
-            {/* Anello dorato pulsante attorno a Velion */}
             <motion.div
-              className="absolute inset-[-16px] rounded-full border-2 border-yellow-400/40"
+              className="absolute inset-[-12px] rounded-full border-2 border-yellow-400/40"
               animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.8, 0.4] }}
               transition={{ duration: 2, repeat: Infinity }}
               style={{ animation: 'celebrationPulse 2s ease-in-out infinite' }}
             />
           </motion.div>
 
-          {/* Titolo celebrativo */}
+          {/* Titolo */}
           <motion.h2
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="text-2xl sm:text-3xl font-extrabold text-center mb-2"
+            className="text-xl sm:text-2xl font-extrabold text-center mb-2 flex-shrink-0"
             style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500, #FF6B35)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
             data-testid="tutorial-finale-title"
           >
             Congratulazioni!
           </motion.h2>
 
-          {/* Messaggio */}
+          {/* Messaggio — compatto e leggibile */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.9 }}
-            className="bg-[#0a0a0c]/80 backdrop-blur-xl border border-yellow-500/30 rounded-2xl px-5 py-4 max-w-sm text-center"
-            style={{ boxShadow: '0 0 40px rgba(255,215,0,0.15), 0 8px 40px rgba(0,0,0,0.5)' }}
+            className="bg-[#0a0a0c]/85 backdrop-blur-xl border border-yellow-500/30 rounded-2xl px-4 py-3 w-full max-w-[340px] text-center flex-shrink-0"
+            style={{ boxShadow: '0 0 30px rgba(255,215,0,0.12), 0 6px 30px rgba(0,0,0,0.5)' }}
             data-testid="tutorial-finale-message"
           >
-            <div className="flex items-center justify-center gap-1.5 mb-2">
-              <Sparkles className="w-4 h-4 text-yellow-400" />
-              <span className="text-cyan-400 font-['Bebas_Neue'] text-sm tracking-widest">VELION</span>
-              <Sparkles className="w-4 h-4 text-yellow-400" />
+            <div className="flex items-center justify-center gap-1.5 mb-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-cyan-400 font-['Bebas_Neue'] text-xs tracking-widest">VELION</span>
+              <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
             </div>
-            <p className="text-white text-sm sm:text-base leading-relaxed font-medium">
-              Adesso non ti resta che esplorare tutte le altre sezioni del gioco...
+            <p className="text-white text-[11px] sm:text-xs leading-[1.6] font-medium whitespace-pre-line">
+              {msg.text}
             </p>
-            <p className="text-xl sm:text-2xl font-extrabold mt-2"
+            <p className="text-lg sm:text-xl font-extrabold mt-1.5"
               style={{ background: 'linear-gradient(135deg, #00B4FF, #00E5FF, #FFD700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
             >
               CineWorld Studio's!!!
             </p>
           </motion.div>
 
-          {/* Bottone Continua */}
+          {/* Bottone */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.3 }}
-            className="mt-5 pointer-events-auto"
+            className="mt-3 pointer-events-auto flex-shrink-0"
           >
             <Button
-              className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400 font-bold px-8 h-11 text-sm rounded-xl shadow-lg shadow-yellow-500/30"
+              className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400 font-bold px-8 h-10 text-xs rounded-xl shadow-lg shadow-yellow-500/30"
               onClick={() => advanceStep(11)}
               data-testid="tutorial-finale-continue-btn"
             >

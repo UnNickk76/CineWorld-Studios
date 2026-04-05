@@ -1022,19 +1022,27 @@ async def get_journal_virtual_reviews(user: dict = Depends(get_current_user), li
     """Get virtual audience reviews for display in the journal."""
     import random
     
-    # Get reviews from the virtual_reviews collection
     all_reviews = await db.virtual_reviews.find(
         {},
         {'_id': 0}
     ).sort('created_at', -1).limit(100).to_list(100)
     
+    # Batch fetch all film titles in ONE query instead of N+1
+    film_ids = list(set(r.get('film_id') for r in all_reviews if r.get('film_id')))
+    films_map = {}
+    if film_ids:
+        films_list = await db.films.find(
+            {'id': {'$in': film_ids}},
+            {'_id': 0, 'id': 1, 'title': 1}
+        ).to_list(len(film_ids))
+        films_map = {f['id']: f.get('title', 'Film sconosciuto') for f in films_list}
+    
     reviews = []
     for review in all_reviews:
-        # Get film info (exclude poster_url to keep response light)
-        film = await db.films.find_one({'id': review.get('film_id')}, {'_id': 0, 'id': 1, 'title': 1})
+        fid = review.get('film_id')
         reviews.append({
-            'film_id': review.get('film_id'),
-            'film_title': film.get('title', 'Film sconosciuto') if film else 'Film sconosciuto',
+            'film_id': fid,
+            'film_title': films_map.get(fid, 'Film sconosciuto'),
             'reviewer_name': review.get('reviewer_name', 'Anonimo'),
             'reviewer_info': review.get('reviewer_info', ''),
             'rating': review.get('rating', 3),

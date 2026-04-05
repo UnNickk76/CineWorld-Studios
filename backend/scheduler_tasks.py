@@ -745,7 +745,8 @@ def run_update_leaderboard_scores():
 
 async def auto_release_coming_soon():
     """Auto-release content whose scheduled_release_at has passed.
-    Uses proper datetime comparison to ensure timers are respected."""
+    Uses proper datetime comparison to ensure timers are respected.
+    CRITICAL: Projects MUST advance forward only. NEVER reset to idea/proposed/concept."""
     now = datetime.now(timezone.utc)
     now_str = now.isoformat()
     
@@ -761,6 +762,14 @@ async def auto_release_coming_soon():
             return now >= release_dt
         except Exception:
             return False
+    
+    def get_next_status_film(current_status):
+        """Get next valid status for films. NEVER goes backwards."""
+        return VALID_FILM_PHASE_TRANSITIONS.get(current_status)
+    
+    def get_next_status_series(current_status):
+        """Get next valid status for series. NEVER goes backwards."""
+        return VALID_SERIES_PHASE_TRANSITIONS.get(current_status)
     
     # Process series/anime coming_soon - fetch all, filter in Python for safety
     cursor = scheduler_db.tv_series.find({
@@ -1139,6 +1148,31 @@ async def process_coming_soon_dynamic_events():
 
 
 
+# === VALID PHASE TRANSITIONS (forward-only) ===
+VALID_FILM_PHASE_TRANSITIONS = {
+    'draft': 'proposed',
+    'proposed': 'coming_soon',
+    'coming_soon': 'ready_for_casting',
+    'ready_for_casting': 'casting',
+    'casting': 'screenplay',
+    'screenplay': 'pre_production',
+    'pre_production': 'shooting',
+    'shooting': 'pending_release',
+    'pending_release': 'completed',
+    'completed': 'released',
+}
+
+VALID_SERIES_PHASE_TRANSITIONS = {
+    'concept': 'coming_soon',
+    'coming_soon': 'ready_for_casting',
+    'ready_for_casting': 'casting',
+    'casting': 'screenplay',
+    'screenplay': 'production',
+    'production': 'ready_to_release',
+    'ready_to_release': 'completed',
+    'completed': 'released',
+}
+
 # === AUTO-CLEANUP CORRUPTED PROJECTS ===
 VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
@@ -1169,8 +1203,10 @@ async def auto_cleanup_corrupted_projects():
         logger.warning(f"Auto-cleanup: series {s['id']} ({s.get('title')}) invalid status '{s.get('status')}' -> concept (rescued)")
     
     # 3. Fix films in casting/screenplay without essential data -> move to proposed (NOT discard)
+    # SAFETY: Skip films that recently came from coming_soon (they won't have cast_proposals yet)
     async for f in scheduler_db.film_projects.find({
         'status': {'$in': ['casting', 'screenplay', 'pre_production']},
+        'coming_soon_completed': {'$ne': True},  # Don't touch recently advanced films
         '$or': [
             {'cast_proposals': {'$exists': False}},
             {'cast_proposals': None},
@@ -1178,7 +1214,13 @@ async def auto_cleanup_corrupted_projects():
         ]
     }):
         cast = f.get('cast', {})
+        # Only reset if TRULY missing data AND not recently rescued/advanced
         if not cast.get('proposals') and not cast.get('director') and not f.get('cast_proposals'):
+            # Extra safety: don't reset if film was in ready_for_casting recently
+            prev_step = f.get('previous_step', '')
+            if prev_step in ('coming_soon', 'ready_for_casting'):
+                logger.info(f"Auto-cleanup: SKIPPED film {f['id']} ({f.get('title')}) - recently advanced from {prev_step}")
+                continue
             await scheduler_db.film_projects.update_one(
                 {'id': f['id']},
                 {'$set': {'status': 'proposed', 'previous_step': f.get('status'), 'reset_reason': 'auto_cleanup_missing_cast', 'updated_at': now_str}}

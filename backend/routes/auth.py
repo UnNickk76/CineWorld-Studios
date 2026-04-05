@@ -816,11 +816,57 @@ async def guest_login(request: dict):
 
 # ─── GUEST LOGOUT & DATA CLEANUP ───────────────────────────────────────
 
+MARKET_VALID_STATUSES = {
+    'shooting', 'in_production', 'produzione', 'completed', 'released',
+    'prima', 'in_theaters', 'uscita', 'la_prima', 'post_production'
+}
+MARKET_BASE_PRICE = 500000  # 500k CW$
+
+
 async def _delete_guest_data(user_id: str):
-    """Delete all data associated with a guest user."""
+    """Convert quality guest projects to marketplace, delete the rest."""
+    converted = 0
+    deleted_projects = 0
+
+    # 1) Fetch all guest film projects
+    projects = await db.film_projects.find(
+        {'user_id': user_id}, {'_id': 0}
+    ).to_list(200)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for p in projects:
+        status = p.get('status', '')
+        quality = p.get('quality_score', 0)
+
+        # 2) Quality filter: status in production+ AND quality >= 40
+        if status in MARKET_VALID_STATUSES and quality >= 40:
+            market_price = int(MARKET_BASE_PRICE * (1 + quality / 100))
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {
+                    'user_id': None,
+                    'available_for_purchase': True,
+                    'is_market': True,
+                    'production_house': 'Studio Indipendente',
+                    'sale_price': market_price,
+                    'market_quality': quality,
+                    'market_original_status': status,
+                    'discarded_by': user_id,
+                    'discarded_at': now_iso,
+                    'status_before_discard': status,
+                }}
+            )
+            converted += 1
+        else:
+            # 5) Delete invalid projects
+            await db.film_projects.delete_one({'id': p['id']})
+            deleted_projects += 1
+
+    # Delete all other guest data (skip film_projects — already handled above)
     collections = await db.list_collection_names()
     deleted = {}
-    skip = {'users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations'}
+    skip = {'users', 'people', 'system_config', 'release_notes', 'system_notes', 'migrations', 'film_projects'}
     for coll_name in sorted(collections):
         if coll_name in skip:
             continue
@@ -830,17 +876,22 @@ async def _delete_guest_data(user_id: str):
                 deleted[coll_name] = result.deleted_count
         except Exception:
             pass
-    # Clean friendships/follows
+
+    # Clean relationships
     await db.friendships.delete_many({'$or': [{'user_id': user_id}, {'friend_id': user_id}]})
     await db.follows.delete_many({'$or': [{'follower_id': user_id}, {'following_id': user_id}]})
-    # Clean likes/ratings on their films
-    user_films = await db.films.find({'user_id': user_id}, {'_id': 0, 'id': 1}).to_list(500)
-    film_ids = [f['id'] for f in user_films if 'id' in f]
-    if film_ids:
-        await db.likes.delete_many({'film_id': {'$in': film_ids}})
-        await db.film_ratings.delete_many({'film_id': {'$in': film_ids}})
+
+    # Clean likes/ratings on deleted films only (keep marketplace ones)
+    deleted_film_ids = [p['id'] for p in projects if p.get('status', '') not in MARKET_VALID_STATUSES or p.get('quality_score', 0) < 40]
+    if deleted_film_ids:
+        await db.likes.delete_many({'film_id': {'$in': deleted_film_ids}})
+        await db.film_ratings.delete_many({'film_id': {'$in': deleted_film_ids}})
+
     # Delete the user
     await db.users.delete_one({'id': user_id})
+
+    deleted['market_converted'] = converted
+    deleted['projects_deleted'] = deleted_projects
     return deleted
 
 

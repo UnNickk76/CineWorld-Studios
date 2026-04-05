@@ -55,7 +55,7 @@ const CineBoard = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
   const [searchParams] = useSearchParams();
-  const currentView = searchParams.get('view') || 'film'; // film, series, anime, tv-alltime, tv-weekly, tv-daily
+  const currentView = searchParams.get('view') || 'film'; // film, series, anime, tv-alltime, tv-weekly, tv-daily, la-prima
   const [activeTab, setActiveTab] = useState('daily');
   const [films, setFilms] = useState([]);
   const [attendanceData, setAttendanceData] = useState(null);
@@ -63,6 +63,8 @@ const CineBoard = () => {
   const [seriesData, setSeriesData] = useState([]);
   const [animeData, setAnimeData] = useState([]);
   const [tvStationsData, setTvStationsData] = useState([]);
+  const [laPrimaData, setLaPrimaData] = useState(null);
+  const [laPrimaTab, setLaPrimaTab] = useState('live_spectators');
   const [selectedDetail, setSelectedDetail] = useState(null);
   const navigate = useNavigate();
 
@@ -94,7 +96,12 @@ const CineBoard = () => {
 
   useEffect(() => {
     setLoading(true);
-    if (currentView === 'series') {
+    if (currentView === 'la-prima') {
+      api.get('/la-prima/rankings')
+        .then(r => setLaPrimaData(r.data))
+        .catch(() => setLaPrimaData(null))
+        .finally(() => setLoading(false));
+    } else if (currentView === 'series') {
       api.get('/cineboard/series-weekly')
         .then(r => setSeriesData(r.data.series || []))
         .catch(() => setSeriesData([]))
@@ -279,6 +286,171 @@ const CineBoard = () => {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // La Prima Rankings View
+  if (currentView === 'la-prima') {
+    const rankings = laPrimaData?.rankings || {};
+    const tabConfig = {
+      live_spectators: { label: 'Spettatori Live', key: 'live_spectators', metric: 'spectators_current', icon: Eye, color: 'cyan' },
+      total_spectators: { label: 'Spettatori Totali', key: 'total_spectators', metric: 'spectators_total', icon: Users, color: 'purple' },
+      composite: { label: 'Media Mista', key: 'composite', metric: 'composite_score', icon: TrendingUp, color: 'amber' },
+    };
+    const cfg = tabConfig[laPrimaTab] || tabConfig.live_spectators;
+    const list = rankings[cfg.key] || [];
+
+    const formatNum = (n) => {
+      if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+      return typeof n === 'number' ? n.toLocaleString() : n;
+    };
+
+    return (
+      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="cineboard-la-prima-page">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative">
+            <Sparkles className="w-8 h-8 text-red-400" />
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+          </div>
+          <div>
+            <h1 className="font-['Bebas_Neue'] text-3xl text-red-400">La Prima</h1>
+            <p className="text-xs text-gray-400">Classifiche eventi premiere live</p>
+          </div>
+          <Badge className="bg-red-500/20 text-red-300 text-[10px] ml-auto animate-pulse">
+            {laPrimaData?.total_events || 0} eventi
+          </Badge>
+        </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-1.5 mb-4 overflow-x-auto">
+          {Object.entries(tabConfig).map(([key, tab]) => {
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={key}
+                onClick={() => setLaPrimaTab(key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  laPrimaTab === key
+                    ? `bg-${tab.color}-500 text-${tab.color === 'amber' ? 'black' : 'white'}`
+                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+                data-testid={`la-prima-tab-${key}`}
+              >
+                <TabIcon className="w-3 h-3" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 text-red-400 animate-spin" /></div>
+        ) : list.length === 0 ? (
+          <Card className="bg-[#111113] border-white/5">
+            <CardContent className="p-8 text-center">
+              <Sparkles className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+              <h3 className="text-lg mb-2 text-gray-400">Nessun evento La Prima</h3>
+              <p className="text-xs text-gray-500">Attiva La Prima nella pipeline film per apparire qui!</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {list.map((entry, i) => {
+              const MetricIcon = cfg.icon;
+              const metricValue = entry[cfg.metric];
+              return (
+                <Card
+                  key={entry.film_id}
+                  className={`bg-[#0E0E10] border-white/5 overflow-hidden hover:border-red-500/20 transition-all ${i < 3 ? 'border-red-500/15' : ''}`}
+                  data-testid={`la-prima-rank-${i + 1}`}
+                >
+                  <div className="flex">
+                    {/* Rank */}
+                    <div className={`w-12 flex items-center justify-center font-bold text-lg flex-shrink-0 ${
+                      i === 0 ? 'bg-yellow-500 text-black' :
+                      i === 1 ? 'bg-gray-300 text-black' :
+                      i === 2 ? 'bg-amber-600 text-white' :
+                      i < 10 ? 'bg-red-500/15 text-red-400' :
+                      'bg-white/5 text-gray-500'
+                    }`}>
+                      #{i + 1}
+                    </div>
+
+                    {/* Poster */}
+                    <div className="w-14 h-20 flex-shrink-0 relative">
+                      {entry.poster_url ? (
+                        <img
+                          src={entry.poster_url.startsWith('/') ? `${BACKEND_URL}${entry.poster_url}` : entry.poster_url}
+                          alt={entry.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-red-500/10 flex items-center justify-center">
+                          <Film className="w-5 h-5 text-red-400/30" />
+                        </div>
+                      )}
+                      <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 bg-red-600/80 rounded px-0.5 py-0.5">
+                        <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
+                        <span className="text-[6px] font-bold text-white">LIVE</span>
+                      </div>
+                    </div>
+
+                    {/* Info */}
+                    <CardContent className="flex-1 p-2.5 min-w-0">
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{entry.title}</h3>
+                          <p className="text-[10px] text-gray-500 truncate">{entry.owner_name}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <div className="flex items-center gap-0.5">
+                          <MapPin className="w-2.5 h-2.5 text-amber-400" />
+                          <span className="text-[9px] text-amber-400">{entry.city}</span>
+                        </div>
+                        <Badge className="bg-white/5 text-gray-400 text-[8px] h-4">{entry.genre}</Badge>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-3 h-3 text-cyan-400" />
+                          <span className={`text-[10px] font-bold ${cfg.key === 'live_spectators' ? 'text-cyan-300' : 'text-cyan-500'}`}>{formatNum(entry.spectators_current)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-purple-400" />
+                          <span className={`text-[10px] font-bold ${cfg.key === 'total_spectators' ? 'text-purple-300' : 'text-purple-500'}`}>{formatNum(entry.spectators_total)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Flame className="w-3 h-3 text-orange-400" />
+                          <span className="text-[10px] font-bold text-orange-400">{entry.hype_live}</span>
+                        </div>
+                        {cfg.key === 'composite' && (
+                          <div className="flex items-center gap-1 ml-auto">
+                            <TrendingUp className="w-3 h-3 text-amber-400" />
+                            <span className="text-xs font-bold text-amber-400">{entry.composite_score}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+
+                    {/* Main metric highlight */}
+                    <div className={`w-20 flex flex-col items-center justify-center flex-shrink-0 bg-${cfg.color}-500/10 border-l border-${cfg.color}-500/10`}>
+                      <MetricIcon className={`w-4 h-4 text-${cfg.color}-400 mb-0.5`} />
+                      <span className={`text-base font-bold text-${cfg.color}-400`}>{formatNum(metricValue)}</span>
+                      <span className="text-[7px] text-gray-500">{cfg.label.split(' ')[0]}</span>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

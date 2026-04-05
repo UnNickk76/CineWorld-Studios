@@ -643,7 +643,7 @@ def lazy_update_hype(project: dict) -> int:
 
 # ─── Live Data Endpoint ───
 
-@router.get("/la-prima/live/{film_id}")
+@router.get("/live/{film_id}")
 async def get_la_prima_live(film_id: str, user: dict = Depends(get_current_user)):
     """Get live La Prima data with lazy-updated hype and spectators."""
     project = await db.film_projects.find_one(
@@ -712,7 +712,7 @@ async def get_la_prima_live(film_id: str, user: dict = Depends(get_current_user)
 
 # ─── All Active La Prima Events ───
 
-@router.get("/la-prima/active")
+@router.get("/active")
 async def get_active_la_prima(user: dict = Depends(get_current_user)):
     """Get all films currently in La Prima phase."""
     projects = await db.film_projects.find(
@@ -768,7 +768,7 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
 
 # ─── La Prima Rankings ───
 
-@router.get("/la-prima/rankings")
+@router.get("/rankings")
 async def get_la_prima_rankings(user: dict = Depends(get_current_user)):
     """Get La Prima rankings: live spectators, total spectators, composite score."""
     projects = await db.film_projects.find(

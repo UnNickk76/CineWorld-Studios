@@ -1156,7 +1156,7 @@ const Dashboard = () => {
           </div>
           <div className="grid grid-cols-5 gap-1.5">
             {mySeries.slice(0, 5).map(s => (
-              <div key={s.id} className="cursor-pointer group" onClick={() => navigate('/films?view=series')} data-testid={`my-series-${s.id}`}>
+              <div key={s.id} className="cursor-pointer group" onClick={() => navigate(`/series/${s.id}`)} data-testid={`my-series-${s.id}`}>
                 <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                   {s.poster_url ? (
                     <img src={posterSrc(s.poster_url)} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />

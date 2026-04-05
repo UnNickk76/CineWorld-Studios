@@ -61,6 +61,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
 - [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 - [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)
+- [x] Fix speech bubble blocca dropdown: step con target → pannello in alto, step senza target → in basso. Form conversione con Velion animato (2026-04-05)
 
 ### P1 (Importante)
 - [ ] Modularizzazione server.py (17k+ righe)

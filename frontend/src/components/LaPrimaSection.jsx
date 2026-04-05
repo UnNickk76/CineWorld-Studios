@@ -4,7 +4,8 @@ import { AuthContext } from '../contexts';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Users, Flame, MapPin, Clock, ChevronRight, Eye, TrendingUp, Sparkles, Loader2, Film } from 'lucide-react';
+import { Users, Flame, MapPin, Clock, ChevronRight, Eye, Sparkles, Loader2, Film } from 'lucide-react';
+import { LaPrimaPopup } from './LaPrimaPopup';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -23,6 +24,7 @@ export function LaPrimaSection({ compact = false }) {
   const { api } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFilmId, setSelectedFilmId] = useState(null);
   const navigate = useNavigate();
 
   const fetchEvents = useCallback(async () => {
@@ -79,6 +81,7 @@ export function LaPrimaSection({ compact = false }) {
           <Card
             key={ev.film_id}
             className="bg-[#0E0E10] border-red-500/10 hover:border-red-500/30 transition-all cursor-pointer overflow-hidden"
+            onClick={() => setSelectedFilmId(ev.film_id)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >
             <CardContent className="p-0">
@@ -154,6 +157,13 @@ export function LaPrimaSection({ compact = false }) {
           </Card>
         ))}
       </div>
+
+      {/* La Prima Popup */}
+      <LaPrimaPopup
+        filmId={selectedFilmId}
+        open={!!selectedFilmId}
+        onClose={() => setSelectedFilmId(null)}
+      />
     </div>
   );
 }

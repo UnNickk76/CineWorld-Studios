@@ -1,0 +1,474 @@
+/* La Prima Popup - Cinematic Premiere Event */
+
+/* === PARTICLES === */
+@keyframes la-prima-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
+  50% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+}
+
+@keyframes la-prima-float-slow {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  33% { transform: translateY(-15px) translateX(5px); opacity: 0.7; }
+  66% { transform: translateY(-8px) translateX(-3px); opacity: 0.5; }
+}
+
+@keyframes la-prima-shimmer {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes la-prima-glow-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(212, 175, 55, 0.3), inset 0 0 15px rgba(212, 175, 55, 0.05); }
+  50% { box-shadow: 0 0 25px rgba(212, 175, 55, 0.5), inset 0 0 25px rgba(212, 175, 55, 0.1); }
+}
+
+@keyframes la-prima-text-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes la-prima-value-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes la-prima-line-draw {
+  0% { stroke-dashoffset: 500; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes la-prima-dot-pop {
+  0% { r: 0; opacity: 0; }
+  100% { r: 4; opacity: 1; }
+}
+
+@keyframes la-prima-curtain-sway {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(1.02); }
+}
+
+@keyframes la-prima-spotlight {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.25; }
+}
+
+/* === MAIN CONTAINER === */
+.la-prima-popup {
+  position: relative;
+  background: #060504;
+  overflow: hidden;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Particle layer */
+.la-prima-popup .particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.la-prima-popup .particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: radial-gradient(circle, #d4af37 0%, transparent 70%);
+  border-radius: 50%;
+  animation: la-prima-float-slow 6s ease-in-out infinite;
+}
+
+.la-prima-popup .particle:nth-child(odd) {
+  animation-duration: 8s;
+  width: 2px;
+  height: 2px;
+}
+
+.la-prima-popup .particle:nth-child(3n) {
+  animation: la-prima-shimmer 4s ease-in-out infinite;
+  width: 2px;
+  height: 2px;
+  background: #e8d48b;
+}
+
+/* Curtain gradients */
+.la-prima-popup .curtain-left,
+.la-prima-popup .curtain-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  z-index: 1;
+  pointer-events: none;
+  animation: la-prima-curtain-sway 8s ease-in-out infinite;
+}
+
+.la-prima-popup .curtain-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(120, 15, 15, 0.5) 0%, rgba(80, 10, 10, 0.2) 40%, transparent 100%);
+}
+
+.la-prima-popup .curtain-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(120, 15, 15, 0.5) 0%, rgba(80, 10, 10, 0.2) 40%, transparent 100%);
+  animation-delay: -4s;
+}
+
+/* Spotlight overlays */
+.la-prima-popup .spotlight-top {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 150px;
+  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.15) 0%, transparent 70%);
+  z-index: 1;
+  pointer-events: none;
+  animation: la-prima-spotlight 5s ease-in-out infinite;
+}
+
+/* Red carpet gradient at bottom */
+.la-prima-popup .red-carpet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to top, rgba(100, 15, 15, 0.35) 0%, rgba(60, 10, 10, 0.15) 40%, transparent 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* === CONTENT === */
+.la-prima-popup .content {
+  position: relative;
+  z-index: 2;
+  padding: 0;
+}
+
+/* Banner ribbon */
+.la-prima-banner {
+  position: relative;
+  text-align: center;
+  padding: 16px 0 12px;
+  background: linear-gradient(to bottom, rgba(25, 20, 10, 0.9), rgba(15, 12, 5, 0.95));
+}
+
+.la-prima-banner::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, #d4af37, #c9a84c, #d4af37, transparent);
+}
+
+.la-prima-banner h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 4px;
+  background: linear-gradient(to bottom, #f0e6c8, #d4af37, #c9a84c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 2px 4px rgba(212, 175, 55, 0.3));
+}
+
+.la-prima-banner .close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #d4af37;
+  background: rgba(10, 8, 5, 0.8);
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.la-prima-banner .close-btn:hover {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: #e8d48b;
+}
+
+/* Main film card */
+.la-prima-card {
+  margin: 12px;
+  border: 1.5px solid rgba(212, 175, 55, 0.4);
+  border-radius: 8px;
+  background: rgba(10, 8, 5, 0.85);
+  animation: la-prima-glow-pulse 4s ease-in-out infinite;
+  overflow: hidden;
+}
+
+.la-prima-card-inner {
+  display: flex;
+  gap: 0;
+}
+
+/* Poster area */
+.la-prima-poster {
+  width: 120px;
+  min-height: 170px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.la-prima-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.la-prima-poster .poster-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1a1510 0%, #0d0b08 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Info section */
+.la-prima-info {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.la-prima-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: #f0e6c8;
+  line-height: 1.1;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.la-prima-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.12);
+}
+
+.la-prima-info-row:last-child {
+  border-bottom: none;
+}
+
+.la-prima-info-row .icon {
+  color: #d4af37;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.la-prima-info-row .label {
+  color: #8a7a5a;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.la-prima-info-row .value {
+  color: #f0e6c8;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.la-prima-info-row .value.pulse {
+  animation: la-prima-value-pulse 3s ease-in-out infinite;
+}
+
+.la-prima-info-row .separator {
+  color: rgba(212, 175, 55, 0.3);
+  margin: 0 4px;
+}
+
+/* Synopsis */
+.la-prima-synopsis {
+  margin: 0 12px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(212, 175, 55, 0.2);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  color: #9a8a6a;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 60px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* "LA PRIMA IN CORSO!" section */
+.la-prima-live-section {
+  margin: 12px;
+  text-align: center;
+}
+
+.la-prima-live-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 3px;
+  color: #d4af37;
+  margin-bottom: 8px;
+  animation: la-prima-text-pulse 3s ease-in-out infinite;
+}
+
+/* Stats row */
+.la-prima-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 0 10px;
+  flex-wrap: wrap;
+}
+
+.la-prima-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.la-prima-stat-item .stat-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.la-prima-stat-item .stat-value {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.la-prima-stat-item .stat-separator {
+  color: rgba(212, 175, 55, 0.25);
+  margin: 0 2px;
+}
+
+/* Trend chart */
+.la-prima-trend {
+  position: relative;
+  padding: 0 4px;
+}
+
+.la-prima-trend .trend-label {
+  font-size: 9px;
+  color: #6a5a3a;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.la-prima-trend svg {
+  width: 100%;
+  height: 80px;
+}
+
+.la-prima-trend .trend-line {
+  fill: none;
+  stroke: #d4af37;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 500;
+  animation: la-prima-line-draw 3s ease-out forwards;
+  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.4));
+}
+
+.la-prima-trend .trend-area {
+  fill: url(#goldGradient);
+  opacity: 0.15;
+}
+
+.la-prima-trend .trend-dot {
+  fill: #d4af37;
+  animation: la-prima-dot-pop 0.5s ease-out forwards;
+  filter: drop-shadow(0 0 3px rgba(212, 175, 55, 0.6));
+}
+
+.la-prima-trend .grid-line {
+  stroke: rgba(212, 175, 55, 0.06);
+  stroke-width: 0.5;
+}
+
+/* Brand */
+.la-prima-brand {
+  text-align: center;
+  padding: 14px 0 6px;
+}
+
+.la-prima-brand .brand-main {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  background: linear-gradient(to bottom, #f0e6c8, #d4af37);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.la-prima-brand .brand-sub {
+  font-size: 14px;
+  color: #8a7a5a;
+  font-style: italic;
+  margin-top: -2px;
+  letter-spacing: 1px;
+}
+
+/* OK button */
+.la-prima-ok-btn {
+  display: block;
+  margin: 8px auto 16px;
+  padding: 8px 48px;
+  border: 1.5px solid #d4af37;
+  border-radius: 6px;
+  background: rgba(10, 8, 5, 0.9);
+  color: #f0e6c8;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.la-prima-ok-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 440px) {
+  .la-prima-poster {
+    width: 100px;
+    min-height: 140px;
+  }
+  .la-prima-title {
+    font-size: 17px;
+  }
+  .la-prima-info-row .value {
+    font-size: 12px;
+  }
+  .la-prima-banner h2 {
+    font-size: 24px;
+  }
+}

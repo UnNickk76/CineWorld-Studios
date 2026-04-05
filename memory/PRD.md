@@ -49,6 +49,8 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 ### P0 (Critico)
 - [x] Content Template layout fix
 - [x] Cinema Journal ULTRA light
+- [x] Fix navigazione Serie TV dalla Dashboard → ora apre `/series/:id` (2026-04-05)
+- [x] Verifica sblocco "Le Mie TV!" → confermato funzionante (API e UI OK) (2026-04-05)
 
 ### P1 (Importante)
 - [ ] Modularizzazione server.py (17k+ righe)

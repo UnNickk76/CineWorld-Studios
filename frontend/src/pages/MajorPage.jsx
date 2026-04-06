@@ -16,11 +16,11 @@ import { Slider } from '../components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Clapperboard, Send, Settings, Zap, Globe, Trophy, Shield, Swords, Home,
   Plus, Save, Building, Sparkles, Crown, Megaphone, AlertTriangle, CheckCircle,
-  BarChart3, DollarSign, Target, Loader2, RefreshCw
+  BarChart3, DollarSign, Target, Loader2, RefreshCw, Film, Star
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
 
@@ -45,6 +45,8 @@ const SECTIONS = [
   { id: 'guerra', icon: Swords, it: 'Guerra', en: 'War' },
 ];
 
+const WAR_DURATIONS_H = { short: 24, medium: 48, long: 72 };
+
 const MajorPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -65,6 +67,13 @@ const MajorPage = () => {
   const [calculatingWar, setCalculatingWar] = useState(false);
   const [lastWarResult, setLastWarResult] = useState(null);
   const [activeSection, setActiveSection] = useState('panoramica');
+  
+  // Timed War state
+  const [activeWar, setActiveWar] = useState(null);
+  const [warDuration, setWarDuration] = useState('medium');
+  const [declaringWar, setDeclaringWar] = useState(false);
+  const [striking, setStriking] = useState(false);
+  const [strikeResult, setStrikeResult] = useState(null);
 
   // Section refs
   const sectionRefs = useRef({});
@@ -123,6 +132,12 @@ const MajorPage = () => {
       }
     };
     loadWar();
+  }, [majorData?.has_major]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load active war
+  useEffect(() => {
+    if (!majorData?.has_major) return;
+    api.get('/major/war/active').then(r => setActiveWar(r.data)).catch(() => {});
   }, [majorData?.has_major]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // IntersectionObserver for scroll-spy
@@ -235,6 +250,33 @@ const MajorPage = () => {
       setWarHistory(warsRes.data?.wars || []);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setCalculatingWar(false); }
+  };
+
+  const declareTimedWar = async () => {
+    if (!selectedOpponent) return;
+    try {
+      setDeclaringWar(true);
+      const res = await api.post('/major/war/declare', { opponent_major_id: selectedOpponent, duration: warDuration });
+      setActiveWar({ has_war: true, war: res.data.war, is_major_a: true, my_score: 0, enemy_score: 0, my_strikes: 0, my_role: 'founder', time_remaining_seconds: WAR_DURATIONS_H[warDuration] * 3600 });
+      toast.success('Guerra dichiarata!');
+      refreshUser();
+      const warsRes = await api.get('/major/wars').catch(() => ({ data: { wars: [] } }));
+      setWarHistory(warsRes.data?.wars || []);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setDeclaringWar(false); }
+  };
+
+  const executeWarStrike = async (targetType) => {
+    if (!activeWar?.war?.id) return;
+    try {
+      setStriking(true);
+      const res = await api.post('/major/war/strike', { war_id: activeWar.war.id, target_type: targetType });
+      setStrikeResult(res.data);
+      toast.success(res.data.message);
+      refreshUser();
+      api.get('/major/war/active').then(r => setActiveWar(r.data)).catch(() => {});
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setStriking(false); }
   };
 
   if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
@@ -663,15 +705,116 @@ const MajorPage = () => {
 
             {/* ===== GUERRA ===== */}
             <section id="guerra" ref={(el) => { sectionRefs.current.guerra = el; }}>
-              {/* Last War Result */}
-              {lastWarResult && (
+              {/* Active Timed War */}
+              {activeWar?.has_war && activeWar.war?.status === 'active' && (
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                  <Card className="bg-gradient-to-br from-red-950/30 to-orange-950/20 border-red-500/30" data-testid="active-war-panel">
+                    <CardContent className="p-4">
+                      {/* War Header */}
+                      <div className="text-center mb-3">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <Swords className="w-5 h-5 text-red-400 animate-pulse"/>
+                          <span className="text-xs font-bold text-red-400 uppercase tracking-widest">Guerra in Corso</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-3 text-sm">
+                          <span className={`font-bold ${activeWar.is_major_a ? 'text-yellow-400' : 'text-white'}`}>{activeWar.war.major_a_name}</span>
+                          <span className="text-gray-500">vs</span>
+                          <span className={`font-bold ${!activeWar.is_major_a ? 'text-yellow-400' : 'text-white'}`}>{activeWar.war.major_b_name}</span>
+                        </div>
+                      </div>
+
+                      {/* Score */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="p-2 bg-yellow-500/10 rounded border border-yellow-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Il Tuo Punteggio</p>
+                          <p className="text-xl font-bold text-yellow-400">{activeWar.my_score || 0}</p>
+                        </div>
+                        <div className="p-2 bg-white/5 rounded border border-white/10 text-center">
+                          <p className="text-[10px] text-gray-400">Tempo</p>
+                          <p className="text-sm font-bold text-white">{activeWar.time_remaining_seconds > 0 ? `${Math.floor(activeWar.time_remaining_seconds / 3600)}h ${Math.floor((activeWar.time_remaining_seconds % 3600) / 60)}m` : 'Terminata'}</p>
+                        </div>
+                        <div className="p-2 bg-red-500/10 rounded border border-red-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Nemico</p>
+                          <p className="text-xl font-bold text-red-400">{activeWar.enemy_score || 0}</p>
+                        </div>
+                      </div>
+
+                      {/* Strike Buttons */}
+                      {(activeWar.my_role === 'founder' || activeWar.my_role === 'manager') && activeWar.time_remaining_seconds > 0 && (
+                        <>
+                          <p className="text-[10px] text-gray-400 text-center mb-2">Colpi (3 CP | Cooldown 2h)</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { type: 'infra', label: 'Infrastrutture', icon: Building, color: 'from-orange-600 to-red-600' },
+                              { type: 'film', label: 'Film', icon: Film, color: 'from-purple-600 to-pink-600' },
+                              { type: 'fame', label: 'Fama', icon: Star, color: 'from-cyan-600 to-blue-600' },
+                            ].map(s => (
+                              <Button key={s.type} size="sm" disabled={striking}
+                                onClick={() => executeWarStrike(s.type)}
+                                className={`h-10 text-[10px] font-bold bg-gradient-to-r ${s.color} hover:opacity-90`}
+                                data-testid={`war-strike-${s.type}`}>
+                                <s.icon className="w-3 h-3 mr-1"/>{s.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Strike Result */}
+                      <AnimatePresence>
+                        {strikeResult && (
+                          <motion.div initial={{opacity:0,y:5}} animate={{opacity:1,y:0}} exit={{opacity:0}} className="mt-2 p-2 bg-green-500/10 rounded border border-green-500/15 text-center">
+                            <p className="text-xs text-green-400 font-semibold">+{strikeResult.score_gain} punti!</p>
+                            <p className="text-[10px] text-gray-400">{strikeResult.description}</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* War Events Log */}
+                      {activeWar.war.events?.length > 0 && (
+                        <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
+                          <p className="text-[10px] text-gray-500 uppercase font-bold">Cronologia Guerra</p>
+                          {activeWar.war.events.slice(-6).reverse().map((ev, i) => (
+                            <div key={i} className="flex items-center gap-2 p-1.5 bg-white/[0.03] rounded text-[10px]">
+                              <Swords className="w-3 h-3 text-red-400 flex-shrink-0"/>
+                              <span className="text-gray-400 flex-1 truncate"><span className="text-white font-semibold">{ev.striker}</span> ({ev.major}) - {ev.desc}</span>
+                              <span className="text-yellow-400 font-bold flex-shrink-0">+{ev.score}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* Completed War Result */}
+              {activeWar?.war?.status === 'completed' && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                  <Card className={`border ${lastWarResult.winner === majorData.major?.id ? 'bg-green-900/20 border-green-500/40' : 'bg-red-900/20 border-red-500/40'}`}>
+                  <Card className={`border ${activeWar.war.winner === majorData.major?.id ? 'bg-green-900/20 border-green-500/40' : 'bg-red-900/20 border-red-500/40'}`}>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold mb-1">
-                        {lastWarResult.winner === majorData.major?.id
-                          ? (language === 'it' ? 'VITTORIA!' : 'VICTORY!')
-                          : (language === 'it' ? 'SCONFITTA' : 'DEFEAT')}
+                        {activeWar.war.winner === majorData.major?.id ? 'VITTORIA!' : 'SCONFITTA'}
+                      </div>
+                      <div className="flex items-center justify-center gap-4 text-sm">
+                        <span className="font-semibold">{activeWar.war.major_a_name}</span>
+                        <span className="text-yellow-400 font-mono">{activeWar.war.score_a}</span>
+                        <span className="text-gray-500">vs</span>
+                        <span className="text-yellow-400 font-mono">{activeWar.war.score_b}</span>
+                        <span className="font-semibold">{activeWar.war.major_b_name}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* Last Quick War Result */}
+              {lastWarResult && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                  <Card className={`border mt-2 ${lastWarResult.winner === majorData.major?.id ? 'bg-green-900/20 border-green-500/40' : 'bg-red-900/20 border-red-500/40'}`}>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-lg font-bold mb-1">
+                        {lastWarResult.winner === majorData.major?.id ? 'VITTORIA!' : 'SCONFITTA'}
                       </div>
                       <div className="flex items-center justify-center gap-4 text-sm">
                         <span className="font-semibold">{lastWarResult.major_a_name}</span>
@@ -686,36 +829,58 @@ const MajorPage = () => {
               )}
 
               {/* War Declare (Founder only) */}
-              {isFounder && (
+              {isFounder && !activeWar?.has_war && (
                 <Card className="bg-[#1A1A1A] border-red-500/20 mt-3" data-testid="war-declare">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Swords className="w-4 h-4 text-red-500" />
-                      {language === 'it' ? 'Dichiara Guerra' : 'Declare War'}
+                      Dichiara Guerra
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {language === 'it' ? 'Sfida un\'altra Major (cooldown 24h)' : 'Challenge another Major (24h cooldown)'}
+                      Scegli tipo e avversario. Costo: $1M
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
+                    {/* Duration selector */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'short', label: '24h', desc: 'Blitz' },
+                        { id: 'medium', label: '48h', desc: 'Standard' },
+                        { id: 'long', label: '72h', desc: 'Epica' },
+                      ].map(d => (
+                        <button key={d.id} onClick={() => setWarDuration(d.id)}
+                          className={`p-2 rounded-lg text-center border transition-all ${warDuration === d.id ? 'bg-red-500/15 border-red-500/25 text-red-400' : 'bg-white/5 border-white/8 text-gray-500'}`}
+                          data-testid={`war-duration-${d.id}`}>
+                          <p className="text-sm font-bold">{d.label}</p>
+                          <p className="text-[9px]">{d.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="flex gap-2">
                       <Select value={selectedOpponent} onValueChange={setSelectedOpponent}>
                         <SelectTrigger className="flex-1 h-9 text-sm bg-black/30 border-white/10" data-testid="war-opponent-select">
-                          <SelectValue placeholder={language === 'it' ? 'Seleziona avversario...' : 'Select opponent...'} />
+                          <SelectValue placeholder="Seleziona avversario..." />
                         </SelectTrigger>
                         <SelectContent className="bg-[#1A1A1A] border-white/10">
                           {allMajors.map(m => (
                             <SelectItem key={m.id} value={m.id}>{m.name} {m.studio_level ? `(${m.studio_level})` : ''}</SelectItem>
                           ))}
                           {allMajors.length === 0 && (
-                            <div className="p-2 text-xs text-gray-500 text-center">
-                              {language === 'it' ? 'Nessuna Major avversaria' : 'No opponent Majors'}
-                            </div>
+                            <div className="p-2 text-xs text-gray-500 text-center">Nessuna Major avversaria</div>
                           )}
                         </SelectContent>
                       </Select>
-                      <Button size="sm" className="bg-red-600 hover:bg-red-500 px-4" disabled={calculatingWar || !selectedOpponent} onClick={calculateWar} data-testid="calculate-war-btn">
-                        {calculatingWar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Swords className="w-3 h-3" />}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button size="sm" className="bg-red-600 hover:bg-red-500" disabled={declaringWar || !selectedOpponent} onClick={declareTimedWar} data-testid="declare-timed-war-btn">
+                        {declaringWar ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <Swords className="w-3 h-3 mr-1"/>}
+                        Guerra {WAR_DURATIONS_H[warDuration]}h
+                      </Button>
+                      <Button size="sm" variant="outline" className="border-gray-600 text-gray-400" disabled={calculatingWar || !selectedOpponent} onClick={calculateWar} data-testid="calculate-war-btn">
+                        {calculatingWar ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <BarChart3 className="w-3 h-3 mr-1"/>}
+                        Rapida
                       </Button>
                     </div>
                   </CardContent>
@@ -728,17 +893,18 @@ const MajorPage = () => {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <BarChart3 className="w-4 h-4 text-gray-400" />
-                      {language === 'it' ? 'Storico Guerre' : 'War History'}
+                      Storico Guerre
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {warHistory.slice(0, 5).map(war => {
                         const won = war.winner === majorData.major?.id;
+                        const isActive = war.status === 'active';
                         return (
-                          <div key={war.id} className={`flex items-center gap-2 p-2 rounded text-xs ${won ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                            <Badge className={`text-[10px] ${won ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                              {won ? 'W' : 'L'}
+                          <div key={war.id} className={`flex items-center gap-2 p-2 rounded text-xs ${isActive ? 'bg-red-500/10 border border-red-500/20 animate-pulse' : won ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                            <Badge className={`text-[10px] ${isActive ? 'bg-red-500/20 text-red-400' : won ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {isActive ? 'LIVE' : won ? 'W' : 'L'}
                             </Badge>
                             <span className="flex-1 truncate">
                               {war.major_a_name} <span className="text-yellow-400">{war.score_a}</span>
@@ -746,7 +912,7 @@ const MajorPage = () => {
                               <span className="text-yellow-400">{war.score_b}</span> {war.major_b_name}
                             </span>
                             <span className="text-gray-500 text-[10px]">
-                              {war.created_at ? new Date(war.created_at).toLocaleDateString() : ''}
+                              {war.duration_hours ? `${war.duration_hours}h` : ''} {war.created_at ? new Date(war.created_at).toLocaleDateString() : ''}
                             </span>
                           </div>
                         );

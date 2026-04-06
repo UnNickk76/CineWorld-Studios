@@ -1,7 +1,7 @@
 # CineWorld Studio's — PRD
 
 ## Problema Originale
-Sistema di produzione cinematografica con pipeline completa. Esperienza utente visiva, cinematografica e immersiva.
+Sistema di produzione cinematografica con pipeline completa. Esperienza utente visiva, cinematografica e immersiva con PvP, infrastrutture, arena e guerre tra Major.
 
 ## Architettura
 - **Frontend**: React + Tailwind + Shadcn/UI + Framer Motion
@@ -17,88 +17,88 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 - Throttling Coda, Anti-Spam Notifiche, Major con navbar interna
 
 ### Sistema Eventi Avanzato a Pressione (DONE - 2026-04-06)
-
-**Backend — Sistema "event_pressure" (sostituisce frequenza fissa)**:
-- Ogni utente ha `event_pressure` in collection `event_pressure`
-- Pressione aumenta nel tempo: +2/ora senza eventi, +0.5/progetto/ora, bonus hype/qualita
-- Trigger evento basato su funzione sigmoide (NO deterministico, NO garanzie)
-- Dopo evento: reset parziale (legendary -85%, epic -70%, rare -50%, common -30%)
-- Rarità basata su pressione: piu alta = piu chance di epic/legendary
-
-**Rarità eventi (non prevedibili)**:
-- Common: frequenti ma variabili (6-48h)
-- Rare: ogni 2-5 giorni circa
-- Epic: ogni 5-10 giorni circa
-- Legendary: ogni 7-20 giorni (NON garantiti)
-- Possibili giorni senza eventi o burst ravvicinati
-
-**Impatto aumentato**: audience_mod fino a +2000/-400, hype_mod fino a +45, fame_mod fino a +60, revenue_mod fino a +60%
-
-**Star Birth legata a eventi**:
-- Legendary: 20-30% crea nuova star
-- Epic: 10-15%
-- Rare: 5%
-- Common: 1-2%
-- Star salvata con `star_origin_event` per tracciabilita
+- event_pressure per utente, trigger sigmoide
+- Rarita basata su pressione (common→legendary)
+- Star Birth legata a eventi
 
 ### Pagina EVENTI con 4 Categorie (DONE - 2026-04-06)
+- 5 tab: TUTTI, LEGGENDARI, EPICI, RARI, COMUNI
+- Bottone "Rivedi Evento" per replay cinematico
 
-**Frontend — EventHistoryPage.jsx reworked**:
-- 5 tab: TUTTI, LEGGENDARI (Crown), EPICI (Gem), RARI (Flame), COMUNI (CircleDot)
-- Card con: titolo film/serie, descrizione, effetti, badge tipo (FILM/SERIE/ANIME), timestamp
-- Bottone "Rivedi Evento" per epic/legendary → replay cinematico completo (solo visivo)
-- Conteggio per categoria nei tab
-- Tab scroll orizzontale mobile-first
-
-### Sequenza Cinematica Aggiornata (DONE - 2026-04-06)
-
-**VelionCinematicEvent.jsx reworked**:
-- Black screen: 3s (epic), 5s (legendary)
-- Matrix rain: minimo 8s (epic), 10s (legendary)
-- Velion laterale sinistro, grande (w-32/h-40 mobile, w-40/h-48 desktop)
-- Glow animato + idle animation (float + drop-shadow pulse)
-- Niente fumetto — testo separato in card a destra
-- Effetti mostrati con badge colorati
-- Skip bloccato 4 secondi, auto-close 8s legendary, 6s epic
+### Sequenza Cinematica (DONE - 2026-04-06)
+- Velion laterale, glow animato, skip bloccato 4s
 
 ### Distribuzione Temporizzata Eventi (DONE - 2026-04-06)
+- 1° dopo 2min, 2° 10min, 3° 20min, 4° 35min
 
-**AutoTickNotifications.jsx reworked**:
-- 1° evento cinematico: dopo 2 min dal login
-- 2° evento: dopo 10 min
-- 3° evento: dopo 20 min
-- 4° evento: dopo 35 min
-- Logout: reset completo timer
-- Notifica: mostra solo ultima + badge rosso con conteggio totale
-- Click badge → pagina EVENTI
-- Common/rare: compressi nel contatore; epic/legendary: sempre mostrati
+### FASE 1 & 2: Infrastrutture, Arena, Guerra (DONE - 2026-04-07)
 
-### Navbar "EVENTI" (DONE - 2026-04-06)
-- Icona Sparkles gialla nella top navbar
-- Badge rosso con conteggio non-letti
-- Voce "Eventi" nel menu hamburger
-- Reset contatore all'apertura pagina
+**Backend — Arena Mirata (pvp.py)**:
+- `POST /api/pvp/arena-attack`: Attacco mirato a categoria infra (cinema/tv/commerciale/agenzie)
+- Abilita strategiche difensive: Div. Legale (blocca attacco), Div. Operativa (riduce danni), Div. Investigativa (identifica attaccante)
+- Costo: 4 CP, Cooldown: 12h per target, richiede Div. Operativa Lv1+
+- `GET /api/pvp/arena-targets`: Lista bersagli con categorie disponibili
+- `GET /api/pvp/arena-history`: Cronologia attacchi mirati (inviati/ricevuti)
+
+**Backend — Major Warfare (major.py)**:
+- `POST /api/major/war/declare`: Guerra temporizzata 24/48/72h, costo $1M, founder only
+- `GET /api/major/war/active`: Stato guerra attiva con auto-resolve a scadenza
+- `POST /api/major/war/strike`: Colpo durante guerra (infra/film/fame), 3 CP, cooldown 2h
+- `POST /api/major/war/calculate`: Guerra rapida (calcolo istantaneo, legacy)
+- Score tracking, events log, winner determination
+
+**Backend — Infra Detail API (infrastructure.py)**:
+- `GET /api/infrastructure/{id}/events`: Eventi e attacchi arena per infra
+- `GET /api/infrastructure/{id}/security`: Livello minaccia, difese attive, statistiche 7g
+- `GET /api/infrastructure/{id}/influence`: Bonus categoria, impatto su progetti attivi
+
+**Frontend — InfrastructurePage.jsx**:
+- 4 sub-tab nel dialog dettaglio: Panoramica, Eventi, Sicurezza, Influenza
+- Panoramica: stats, upgrade, film in programmazione (esistente, riorganizzato)
+- Eventi: eventi infra + attacchi arena subiti
+- Sicurezza: livello minaccia, difese PvP, statistiche 7g, blocchi legali
+- Influenza: categoria, bonus attivi, combo multiplier, progetti in corso
+
+**Frontend — PvPArenaPage.jsx**:
+- Nuovo tab "Mirata" accanto ad Arena e Report
+- Lista bersagli con categorie attaccabili (Cinema/TV/Commerciale/Agenzie)
+- Feedback attacco con effetti e difese avversarie
+- Cronologia attacchi mirati
+
+**Frontend — MajorPage.jsx (sezione Guerra)**:
+- Pannello guerra attiva con: score in tempo reale, timer, colpi disponibili
+- 3 tipi di colpo: Infrastrutture, Film, Fama
+- Selettore durata: 24h Blitz, 48h Standard, 72h Epica
+- Log eventi di guerra
+- Storico guerre con badge W/L/LIVE
+
+**event_templates.py**:
+- INFRA_EVENTS: eventi per cinema, commerciale, studi, agenzie, strategico
+- WAR_EVENTS: morale, propaganda, sabotaggio, leaks, trionfo
+- ARENA_ATTACK_EFFECTS: effetti per categoria
+- STRATEGIC_ABILITIES: pvp_operative, pvp_investigative, pvp_legal
 
 ## Backlog Prioritizzato
 
 ### P1
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
-- [ ] Marketplace TV/Anime rights
 
 ### P2
 - [ ] Contest Page Mobile Layout fix (bug ricorrente 16+ segnalazioni)
+- [ ] Marketplace TV/Anime rights
 
 ### P3
 - [ ] Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels, Eventi globali, Velion AI Memory
 
 ## File Chiave
-- `/app/backend/event_templates.py` (Pressure system + event generation)
-- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure integration)
-- `/app/backend/routes/economy.py` (API events/history + throttling)
-- `/app/frontend/src/pages/EventHistoryPage.jsx` (Pagina EVENTI con 4 tab)
-- `/app/frontend/src/components/VelionCinematicEvent.jsx` (Cinematic reworked)
-- `/app/frontend/src/components/MatrixOverlay.jsx` (8s+ matrix)
-- `/app/frontend/src/components/AutoTickNotifications.jsx` (Timed distribution)
+- `/app/backend/event_templates.py` (INFRA_EVENTS, WAR_EVENTS, STRATEGIC_ABILITIES)
+- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure + infra events)
+- `/app/backend/routes/pvp.py` (Arena mirata + abilita strategiche)
+- `/app/backend/routes/major.py` (Major Warfare temporizzato)
+- `/app/backend/routes/infrastructure.py` (Infra detail API: events/security/influence)
+- `/app/frontend/src/pages/InfrastructurePage.jsx` (4 sub-tab dettaglio)
+- `/app/frontend/src/pages/PvPArenaPage.jsx` (Tab Mirata)
+- `/app/frontend/src/pages/MajorPage.jsx` (Guerra evoluta)
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

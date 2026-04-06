@@ -81,6 +81,12 @@ const InfrastructurePage = () => {
   const [upgradeInfo, setUpgradeInfo] = useState(null);
   const [upgrading, setUpgrading] = useState(false);
   
+  // Detail tabs state (Panoramica, Eventi, Sicurezza, Influenza)
+  const [detailTab, setDetailTab] = useState('panoramica');
+  const [infraEvents, setInfraEvents] = useState(null);
+  const [infraSecurity, setInfraSecurity] = useState(null);
+  const [infraInfluence, setInfraInfluence] = useState(null);
+  
   // Film management state
   const [showAddFilmDialog, setShowAddFilmDialog] = useState(false);
   const [showRentFilmDialog, setShowRentFilmDialog] = useState(false);
@@ -158,6 +164,10 @@ const InfrastructurePage = () => {
     setUpgradeInfo(null);
     setSchoolStatus(null);
     setSchoolRecruits([]);
+    setDetailTab('panoramica');
+    setInfraEvents(null);
+    setInfraSecurity(null);
+    setInfraInfluence(null);
     try {
       const [detailRes, upgradeRes] = await Promise.all([
         api.get(`/infrastructure/${infra.id}`),
@@ -179,6 +189,16 @@ const InfrastructurePage = () => {
         setCastingStudents(castingRes.data);
         setSchoolLoading(false);
       }
+      // Load events, security, influence in background
+      Promise.all([
+        api.get(`/infrastructure/${infra.id}/events`).catch(() => ({ data: null })),
+        api.get(`/infrastructure/${infra.id}/security`).catch(() => ({ data: null })),
+        api.get(`/infrastructure/${infra.id}/influence`).catch(() => ({ data: null })),
+      ]).then(([evRes, secRes, infRes]) => {
+        setInfraEvents(evRes.data);
+        setInfraSecurity(secRes.data);
+        setInfraInfluence(infRes.data);
+      });
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nel caricamento');
       setShowDetailDialog(false);
@@ -937,7 +957,26 @@ const InfrastructurePage = () => {
               )}
             </div>
           ) : infraDetail && (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Detail Sub-Tabs */}
+              <div className="grid grid-cols-4 gap-1" data-testid="infra-detail-tabs">
+                {[
+                  { id: 'panoramica', label: 'Panoramica', icon: Eye },
+                  { id: 'eventi', label: 'Eventi', icon: Zap },
+                  { id: 'sicurezza', label: 'Sicurezza', icon: Shield },
+                  { id: 'influenza', label: 'Influenza', icon: TrendingUp },
+                ].map(t => (
+                  <button key={t.id} onClick={() => setDetailTab(t.id)}
+                    className={`flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${detailTab === t.id ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' : 'bg-white/5 text-gray-500 border border-transparent hover:bg-white/8'}`}
+                    data-testid={`infra-detail-tab-${t.id}`}>
+                    <t.icon className="w-3.5 h-3.5" />{t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* === PANORAMICA TAB === */}
+              {detailTab === 'panoramica' && (
+              <div className="space-y-4">
               {/* Stats */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white/5 rounded border border-white/10">
@@ -1173,6 +1212,163 @@ const InfrastructurePage = () => {
                       </Button>
                     </div>
                   )}
+                </div>
+              )}
+              </div>
+              )}
+
+              {/* === EVENTI TAB === */}
+              {detailTab === 'eventi' && (
+                <div className="space-y-3" data-testid="infra-eventi-tab">
+                  {infraEvents ? (
+                    <>
+                      {infraEvents.events?.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-yellow-400 uppercase flex items-center gap-1.5"><Zap className="w-3.5 h-3.5"/>Eventi Recenti</h4>
+                          {infraEvents.events.map((ev, i) => (
+                            <div key={i} className={`p-2.5 rounded-lg border ${ev.rarity === 'legendary' ? 'bg-yellow-500/10 border-yellow-500/20' : ev.rarity === 'epic' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-white/5 border-white/10'}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-white">{ev.title}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${ev.rarity === 'legendary' ? 'bg-yellow-500/20 text-yellow-400' : ev.rarity === 'epic' ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'}`}>{ev.rarity}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">{ev.description || ''}</p>
+                              {ev.effects && <div className="flex flex-wrap gap-1 mt-1">{Object.entries(ev.effects).map(([k,v]) => (<span key={k} className={`text-[9px] px-1 py-0.5 rounded ${v > 0 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>{k}: {v > 0 ? '+' : ''}{v}</span>))}</div>}
+                              <p className="text-[8px] text-gray-600 mt-1">{ev.created_at ? new Date(ev.created_at).toLocaleDateString('it-IT') : ''}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-center text-gray-500 text-xs py-4">Nessun evento registrato</p>}
+
+                      {infraEvents.arena_attacks?.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <h4 className="text-xs font-bold text-red-400 uppercase flex items-center gap-1.5"><Target className="w-3.5 h-3.5"/>Attacchi Arena Subiti</h4>
+                          {infraEvents.arena_attacks.map((a, i) => (
+                            <div key={i} className="p-2.5 bg-red-500/5 rounded-lg border border-red-500/15">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-semibold text-red-300">Attacco: {a.category}</span>
+                                <span className="text-[9px] text-gray-500">{a.created_at ? new Date(a.created_at).toLocaleDateString('it-IT') : ''}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">Attaccante: {a.attacker_nickname || 'Sconosciuto'}</p>
+                              {a.effects && <div className="flex flex-wrap gap-1 mt-1">{Object.entries(a.effects).filter(([,v]) => v !== 0).map(([k,v]) => (<span key={k} className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">{k}: {v}</span>))}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento eventi...</div>}
+                </div>
+              )}
+
+              {/* === SICUREZZA TAB === */}
+              {detailTab === 'sicurezza' && (
+                <div className="space-y-3" data-testid="infra-sicurezza-tab">
+                  {infraSecurity ? (
+                    <>
+                      {/* Threat Level */}
+                      <div className={`p-3 rounded-lg border text-center ${infraSecurity.threat_level === 'high' ? 'bg-red-500/10 border-red-500/20' : infraSecurity.threat_level === 'medium' ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
+                        <Shield className={`w-6 h-6 mx-auto mb-1 ${infraSecurity.threat_level === 'high' ? 'text-red-400' : infraSecurity.threat_level === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}/>
+                        <p className="text-sm font-bold text-white">Livello Minaccia: <span className={`${infraSecurity.threat_level === 'high' ? 'text-red-400' : infraSecurity.threat_level === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}>{infraSecurity.threat_level === 'high' ? 'ALTO' : infraSecurity.threat_level === 'medium' ? 'MEDIO' : 'BASSO'}</span></p>
+                      </div>
+
+                      {/* Stats 7d */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2.5 bg-red-500/10 rounded border border-red-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Attacchi 7g</p>
+                          <p className="text-lg font-bold text-red-400">{infraSecurity.recent_attacks_7d || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-green-500/10 rounded border border-green-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Bloccati 7g</p>
+                          <p className="text-lg font-bold text-green-400">{infraSecurity.blocked_attacks_7d || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-blue-500/10 rounded border border-blue-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Blocchi Legali</p>
+                          <p className="text-lg font-bold text-blue-400">{infraSecurity.active_legal_blocks || 0}</p>
+                        </div>
+                      </div>
+
+                      {/* Defenses */}
+                      {infraSecurity.defenses?.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-cyan-400 uppercase flex items-center gap-1.5"><Shield className="w-3.5 h-3.5"/>Difese Attive</h4>
+                          {infraSecurity.defenses.map((d, i) => (
+                            <div key={i} className="p-2.5 bg-cyan-500/5 rounded-lg border border-cyan-500/15">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-white">{d.name}</span>
+                                <span className="text-[9px] text-cyan-400 font-bold">Lv.{d.level} ({d.value_pct}%)</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">{d.effect}</p>
+                              <div className="mt-1.5 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{width: `${d.value_pct}%`}}/>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 bg-white/5 rounded-lg border border-white/10">
+                          <Shield className="w-8 h-8 mx-auto mb-2 text-gray-600"/>
+                          <p className="text-xs text-gray-500">Nessuna difesa attiva</p>
+                          <p className="text-[10px] text-gray-600 mt-1">Potenzia le Divisioni PvP per proteggere le infrastrutture</p>
+                        </div>
+                      )}
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento sicurezza...</div>}
+                </div>
+              )}
+
+              {/* === INFLUENZA TAB === */}
+              {detailTab === 'influenza' && (
+                <div className="space-y-3" data-testid="infra-influenza-tab">
+                  {infraInfluence ? (
+                    <>
+                      {/* Category & Level */}
+                      <div className="p-3 bg-gradient-to-r from-purple-500/10 to-yellow-500/10 rounded-lg border border-purple-500/20 text-center">
+                        <p className="text-xs text-gray-400">Categoria</p>
+                        <p className="text-base font-bold text-yellow-400 uppercase">{infraInfluence.category}</p>
+                        <p className="text-xs text-gray-400 mt-1">Livello <span className="text-white font-bold">{infraInfluence.level}</span></p>
+                      </div>
+
+                      {/* Bonuses */}
+                      {infraInfluence.bonuses && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5"/>Bonus Attivi</h4>
+                          <p className="text-[10px] text-gray-400">{infraInfluence.bonuses.desc}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(infraInfluence.bonuses).filter(([k]) => k !== 'desc').map(([k, v]) => (
+                              <div key={k} className="p-2 bg-purple-500/10 rounded border border-purple-500/15 text-center">
+                                <p className="text-[10px] text-gray-400">{k.replace(/_/g, ' ')}</p>
+                                <p className="text-sm font-bold text-purple-400">+{v}{typeof v === 'number' && v < 100 ? '%' : ''}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Active Projects */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 bg-yellow-500/10 rounded border border-yellow-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Film Attivi</p>
+                          <p className="text-lg font-bold text-yellow-400">{infraInfluence.active_films || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-cyan-500/10 rounded border border-cyan-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Serie Attive</p>
+                          <p className="text-lg font-bold text-cyan-400">{infraInfluence.active_series || 0}</p>
+                        </div>
+                      </div>
+
+                      {infraInfluence.combined_active && (
+                        <div className="p-2.5 bg-green-500/10 rounded border border-green-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Combo Moltiplicatore</p>
+                          <p className="text-lg font-bold text-green-400">x{infraInfluence.combo_multiplier}</p>
+                          <p className="text-[9px] text-gray-500">Attivo con progetti in corso</p>
+                        </div>
+                      )}
+
+                      <div className="p-2.5 bg-white/5 rounded border border-white/10 text-center">
+                        <p className="text-[10px] text-gray-400">Ricavi Totali Infra</p>
+                        <p className="text-lg font-bold text-green-400">${(infraInfluence.total_revenue || 0).toLocaleString()}</p>
+                      </div>
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento influenza...</div>}
                 </div>
               )}
             </div>

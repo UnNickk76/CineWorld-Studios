@@ -63,6 +63,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Fix codice: rimosso avatar base64 da cinema_news insert (server.py), sanitizzato poster_url in infrastructure.py (2 punti), protetto suggestions/bug_reports, aggiunto persist_base64_avatar in auth.py PUT avatar
   - Pulizia dati: 80 cinema_news puliti, infrastructure.films_showing pulita, 71 guest inattivi rimossi, 6 infra duplicate rimosse, 8 film_drafts puliti
   - Risultato: DB da ~300MB → 118MB dataSize (-61%)
+- [x] Fix "LE MIE TV! sparisce" (2026-04-06): fetch TV stations era annidato nel try/catch di `/catchup/process` — se catchup falliva, TV mai caricate. Separati tutti i fetch in blocchi try/catch indipendenti in Dashboard.jsx
 - [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
 - [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 - [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)

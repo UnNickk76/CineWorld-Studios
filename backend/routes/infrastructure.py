@@ -1,7 +1,7 @@
 # CineWorld Studio's - Infrastructure & Marketplace Routes
 
 from fastapi import APIRouter, HTTPException, Depends, Query
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict
 import uuid
 import random
@@ -1355,3 +1355,144 @@ async def get_infrastructure_valuation(infra_id: str, user: dict = Depends(get_c
         'current_level': level_info['level']
     }
 
+
+
+
+# ==================== INFRASTRUCTURE EVENTS & SECURITY ====================
+
+@router.get("/infrastructure/{infra_id}/events")
+async def get_infrastructure_events(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get event history for a specific infrastructure."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0, 'id': 1, 'type': 1, 'custom_name': 1})
+    if not infra:
+        raise HTTPException(404, "Infrastruttura non trovata")
+
+    # Get infra events from event_history
+    from event_templates import INFRA_CATEGORY_MAP
+    cat = INFRA_CATEGORY_MAP.get(infra.get('type', ''), '')
+
+    events = await db.event_history.find(
+        {'user_id': user['id'], 'project_type': f'infra_{cat}'},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+
+    # Get arena attacks received on this category
+    cat_map_reverse = {
+        'cinema': 'cinema', 'studi': 'tv', 'commerciale': 'commerciale', 'agenzie': 'agenzie'
+    }
+    arena_cat = cat_map_reverse.get(cat, '')
+    arena_attacks = await db.pvp_actions.find(
+        {'target_id': user['id'], 'type': 'arena_attack', 'category': arena_cat, 'blocked': {'$ne': True}},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(10)
+
+    # Enrich arena attacks
+    for a in arena_attacks:
+        attacker = await db.users.find_one({'id': a.get('attacker_id')}, {'_id': 0, 'nickname': 1})
+        a['attacker_nickname'] = (attacker or {}).get('nickname', 'Sconosciuto') if a.get('attacker_identified') else 'Sconosciuto'
+
+    return {
+        'infra_id': infra_id,
+        'infra_name': infra.get('custom_name', ''),
+        'category': cat,
+        'events': events,
+        'arena_attacks': arena_attacks,
+    }
+
+
+@router.get("/infrastructure/{infra_id}/security")
+async def get_infrastructure_security(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get security/defense status for an infrastructure."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0, 'id': 1, 'type': 1, 'custom_name': 1})
+    if not infra:
+        raise HTTPException(404, "Infrastruttura non trovata")
+
+    from event_templates import INFRA_CATEGORY_MAP, STRATEGIC_ABILITIES
+
+    cat = INFRA_CATEGORY_MAP.get(infra.get('type', ''), '')
+    divisions = user.get('pvp_divisions', {})
+
+    # Build defense summary
+    defenses = []
+    for div_key, ability in STRATEGIC_ABILITIES.items():
+        div_lv = divisions.get(div_key, {}).get('level', 0)
+        if div_lv > 0:
+            value = ability['base_value'] + (div_lv - 1) * ability['per_level']
+            value = min(value, ability['max_value'])
+            defenses.append({
+                'division': div_key,
+                'name': ability['name_it'],
+                'effect': ability['effect'],
+                'level': div_lv,
+                'value': round(value, 2),
+                'value_pct': int(value * 100),
+            })
+
+    # Recent attacks on this category
+    cat_map_reverse = {'cinema': 'cinema', 'studi': 'tv', 'commerciale': 'commerciale', 'agenzie': 'agenzie'}
+    arena_cat = cat_map_reverse.get(cat, '')
+    recent_attacks = await db.pvp_actions.count_documents({
+        'target_id': user['id'], 'type': 'arena_attack', 'category': arena_cat,
+        'created_at': {'$gte': (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()}
+    })
+    blocked_attacks = await db.pvp_actions.count_documents({
+        'target_id': user['id'], 'type': 'arena_attack', 'category': arena_cat, 'blocked': True,
+        'created_at': {'$gte': (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()}
+    })
+
+    # Active legal blocks (we are protected from these attackers)
+    active_blocks = await db.pvp_blocks.find(
+        {'blocked_from_attacking': user['id'], 'expires_at': {'$gte': datetime.now(timezone.utc).isoformat()}},
+        {'_id': 0, 'blocked_user': 1, 'expires_at': 1}
+    ).to_list(10)
+
+    return {
+        'infra_id': infra_id,
+        'category': cat,
+        'defenses': defenses,
+        'recent_attacks_7d': recent_attacks,
+        'blocked_attacks_7d': blocked_attacks,
+        'active_legal_blocks': len(active_blocks),
+        'threat_level': 'high' if recent_attacks > 5 else 'medium' if recent_attacks > 2 else 'low',
+    }
+
+
+@router.get("/infrastructure/{infra_id}/influence")
+async def get_infrastructure_influence(infra_id: str, user: dict = Depends(get_current_user)):
+    """Get influence metrics for an infrastructure on active projects."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']}, {'_id': 0, 'id': 1, 'type': 1, 'custom_name': 1, 'level': 1, 'total_revenue': 1})
+    if not infra:
+        raise HTTPException(404, "Infrastruttura non trovata")
+
+    from event_templates import INFRA_CATEGORY_MAP
+    cat = INFRA_CATEGORY_MAP.get(infra.get('type', ''), '')
+    level = infra.get('level', 1)
+
+    # Count active projects
+    active_films = await db.film_projects.count_documents({'user_id': user['id'], 'status': {'$in': ['coming_soon', 'in_sala', 'shooting']}})
+    active_series = await db.tv_series.count_documents({'user_id': user['id'], 'status': {'$in': ['coming_soon', 'in_onda', 'shooting']}})
+
+    # Infra influence bonuses based on category and level
+    bonuses = {}
+    if cat == 'cinema':
+        bonuses = {'revenue_boost': round(level * 2.5, 1), 'audience_boost': level * 50, 'desc': 'Boost incassi e audience dei film in sala'}
+    elif cat == 'commerciale':
+        bonuses = {'revenue_boost': round(level * 1.5, 1), 'passive_income': level * 5000, 'desc': 'Reddito passivo e boost commerciale'}
+    elif cat == 'studi':
+        bonuses = {'quality_boost': round(level * 1.0, 1), 'production_speed': round(level * 0.5, 1), 'desc': 'Migliora qualità e velocità produzione'}
+    elif cat == 'agenzie':
+        bonuses = {'talent_discovery': round(level * 3.0, 1), 'fame_boost': level * 2, 'desc': 'Migliora scoperta talenti e fama'}
+    elif cat == 'strategico':
+        bonuses = {'defense_boost': round(level * 2.0, 1), 'intel_boost': round(level * 1.5, 1), 'desc': 'Potenzia difese PvP e intelligence'}
+
+    return {
+        'infra_id': infra_id,
+        'category': cat,
+        'level': level,
+        'total_revenue': infra.get('total_revenue', 0),
+        'active_films': active_films,
+        'active_series': active_series,
+        'bonuses': bonuses,
+        'combined_active': active_films + active_series > 0,
+        'combo_multiplier': 1.5 if (active_films + active_series) > 0 else 1.0,
+    }

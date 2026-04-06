@@ -39,7 +39,7 @@ function EventCard({ event, onDone }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-[500] flex flex-col items-center justify-center gap-0"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -49,11 +49,11 @@ function EventCard({ event, onDone }) {
     >
       <div className="absolute inset-0 bg-black/90" />
 
-      {/* Velion — lateral, large, left side with glow */}
+      {/* Velion — centered, larger */}
       <motion.div
-        className="absolute bottom-0 left-0 z-[501] pointer-events-none"
-        initial={{ x: -120, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
+        className="relative z-[501] flex-shrink-0"
+        initial={{ y: -40, opacity: 0, scale: 0.7 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
         transition={{ delay: 1.0, duration: 0.8, type: 'spring', damping: 15 }}
       >
         <div className="relative">
@@ -67,7 +67,7 @@ function EventCard({ event, onDone }) {
           <motion.img
             src="/velion-tutorial.png"
             alt="Velion"
-            className="w-32 h-40 sm:w-40 sm:h-48 object-contain drop-shadow-[0_0_30px_rgba(234,179,8,0.5)] relative z-10"
+            className="w-36 h-44 sm:w-44 sm:h-52 object-contain drop-shadow-[0_0_30px_rgba(234,179,8,0.5)] relative z-10"
             animate={{
               y: [0, -6, 0],
               filter: ['drop-shadow(0 0 20px rgba(234,179,8,0.4))', 'drop-shadow(0 0 35px rgba(234,179,8,0.6))', 'drop-shadow(0 0 20px rgba(234,179,8,0.4))'],
@@ -77,11 +77,11 @@ function EventCard({ event, onDone }) {
         </div>
       </motion.div>
 
-      {/* Event Content — right side */}
+      {/* Event Content — below Velion */}
       <motion.div
-        className={`relative z-[502] w-full max-w-[75%] sm:max-w-sm mr-3 sm:mr-8 ml-auto rounded-2xl border-2 ${style.border} bg-gradient-to-b ${style.bg} ${style.glow} backdrop-blur-xl overflow-hidden mb-24 sm:mb-0`}
-        initial={{ scale: 0.5, x: 80, opacity: 0 }}
-        animate={{ scale: 1, x: 0, opacity: 1 }}
+        className={`relative z-[502] w-[85%] max-w-sm mx-auto rounded-2xl border-2 ${style.border} bg-gradient-to-b ${style.bg} ${style.glow} backdrop-blur-xl overflow-hidden`}
+        initial={{ scale: 0.5, y: 40, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.85, opacity: 0 }}
         transition={{ delay: 1.2, type: 'spring', damping: 16, stiffness: 180 }}
       >

@@ -722,3 +722,303 @@ async def get_legal_history(user: dict = Depends(get_current_user)):
         a['is_attacker'] = a['attacker_id'] == user['id']
 
     return {'actions': actions}
+
+
+
+# ==================== ARENA TARGETED ATTACK ====================
+
+class ArenaAttackRequest(BaseModel):
+    target_user_id: str
+    target_category: str  # cinema, tv, commerciale, agenzie
+
+ARENA_CATEGORIES = {
+    'cinema': {
+        'label': 'Cinema', 'revenue_mod': -0.20, 'audience_mod': -200,
+        'desc_it': 'Sabotaggio ai cinema: incassi -20%',
+        'infra_types': ['cinema', 'multiplex', 'vip_cinema', 'drive_in_cinema', 'imax'],
+    },
+    'tv': {
+        'label': 'TV/Serie', 'audience_mod': -300, 'hype_mod': -8,
+        'desc_it': 'Attacco alle emittenti TV: audience in calo',
+        'infra_types': ['studio_serie_tv', 'studio_anime'],
+    },
+    'commerciale': {
+        'label': 'Commerciale', 'revenue_mod': -0.15, 'audience_mod': -150,
+        'desc_it': 'Colpo alle attività commerciali: entrate ridotte',
+        'infra_types': ['centro_commerciale_piccolo', 'centro_commerciale_medio', 'centro_commerciale_grande', 'parco_giochi'],
+    },
+    'agenzie': {
+        'label': 'Agenzie', 'fame_mod': -10, 'hype_mod': -5,
+        'desc_it': 'Attacco alle agenzie: penalità attori e fama',
+        'infra_types': ['cinema_school', 'talent_scout'],
+    },
+}
+
+ARENA_ATTACK_COST_CP = 4
+ARENA_ATTACK_COOLDOWN_HOURS = 12
+
+@router.post("/pvp/arena-attack")
+async def arena_targeted_attack(req: ArenaAttackRequest, user: dict = Depends(get_current_user)):
+    """Execute a targeted arena attack on a specific infrastructure category of another player."""
+    if req.target_category not in ARENA_CATEGORIES:
+        raise HTTPException(400, f"Categoria non valida. Usa: {', '.join(ARENA_CATEGORIES.keys())}")
+
+    if req.target_user_id == user['id']:
+        raise HTTPException(400, "Non puoi attaccare te stesso")
+
+    # Requires Operative Lv1+
+    divisions = _get_user_divisions(user)
+    ops = _check_daily_reset(divisions.get('operative', {'level': 0, 'daily_used': 0, 'last_reset': ''}))
+    if ops['level'] == 0:
+        raise HTTPException(400, "Devi costruire la Divisione Operativa (Lv1+)")
+
+    daily_limit = PVP_DIVISIONS['operative']['daily_limits'].get(ops['level'], 0)
+    if ops['daily_used'] >= daily_limit:
+        raise HTTPException(400, f"Limite azioni giornaliere raggiunto ({daily_limit}/{daily_limit})")
+
+    if user.get('cinepass', 0) < ARENA_ATTACK_COST_CP:
+        raise HTTPException(400, f"Servono {ARENA_ATTACK_COST_CP} CinePass")
+
+    # Cooldown check
+    recent = await db.pvp_actions.find_one({
+        'attacker_id': user['id'], 'target_id': req.target_user_id,
+        'type': 'arena_attack',
+        'created_at': {'$gte': (datetime.now(timezone.utc) - timedelta(hours=ARENA_ATTACK_COOLDOWN_HOURS)).isoformat()}
+    })
+    if recent:
+        raise HTTPException(400, f"Cooldown attivo ({ARENA_ATTACK_COOLDOWN_HOURS}h tra attacchi allo stesso player)")
+
+    # PvP block check
+    block = await db.pvp_blocks.find_one({
+        'blocked_user': user['id'], 'blocked_from_attacking': req.target_user_id,
+        'expires_at': {'$gte': datetime.now(timezone.utc).isoformat()}
+    })
+    if block:
+        raise HTTPException(400, "Sei bloccato dall'attaccare questo player (azione legale subita)")
+
+    # Get target
+    target = await db.users.find_one({'id': req.target_user_id}, {'_id': 0, 'id': 1, 'nickname': 1, 'pvp_divisions': 1, 'fame': 1, 'funds': 1})
+    if not target:
+        raise HTTPException(404, "Player non trovato")
+
+    cat = ARENA_CATEGORIES[req.target_category]
+
+    # Check target has infra in this category
+    target_infra_count = await db.infrastructure.count_documents({
+        'owner_id': req.target_user_id, 'type': {'$in': cat['infra_types']}
+    })
+    if target_infra_count == 0:
+        raise HTTPException(400, f"Il target non possiede infrastrutture {cat['label']}")
+
+    # === DEFENDER STRATEGIC ABILITIES ===
+    target_divs = target.get('pvp_divisions', {})
+    damage_multiplier = 1.0
+    attack_blocked = False
+    attacker_identified = False
+    defense_log = []
+
+    # 1. Legal Division: chance to block
+    legal_lv = target_divs.get('legal', {}).get('level', 0)
+    if legal_lv > 0:
+        from event_templates import STRATEGIC_ABILITIES
+        legal_ability = STRATEGIC_ABILITIES.get('pvp_legal', {})
+        block_chance = legal_ability.get('base_value', 0.15) + (legal_lv - 1) * legal_ability.get('per_level', 0.06)
+        block_chance = min(block_chance, legal_ability.get('max_value', 0.45))
+        if random.random() < block_chance:
+            attack_blocked = True
+            defense_log.append(f"Div. Legale Lv{legal_lv}: ATTACCO BLOCCATO ({int(block_chance*100)}%)")
+
+    if not attack_blocked:
+        # 2. Operative Division: damage reduction
+        op_lv = target_divs.get('operative', {}).get('level', 0)
+        if op_lv > 0:
+            from event_templates import STRATEGIC_ABILITIES
+            op_ability = STRATEGIC_ABILITIES.get('pvp_operative', {})
+            reduction = op_ability.get('base_value', 0.10) + (op_lv - 1) * op_ability.get('per_level', 0.04)
+            reduction = min(reduction, op_ability.get('max_value', 0.30))
+            damage_multiplier *= (1.0 - reduction)
+            defense_log.append(f"Div. Operativa Lv{op_lv}: danni ridotti del {int(reduction*100)}%")
+
+        # 3. Investigative Division: chance to identify attacker
+        inv_lv = target_divs.get('investigative', {}).get('level', 0)
+        if inv_lv > 0:
+            from event_templates import STRATEGIC_ABILITIES
+            inv_ability = STRATEGIC_ABILITIES.get('pvp_investigative', {})
+            id_chance = inv_ability.get('base_value', 0.50) + (inv_lv - 1) * inv_ability.get('per_level', 0.09)
+            id_chance = min(id_chance, inv_ability.get('max_value', 0.95))
+            if random.random() < id_chance:
+                attacker_identified = True
+                defense_log.append(f"Div. Investigativa Lv{inv_lv}: attaccante IDENTIFICATO")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Use action + deduct CP
+    ops['daily_used'] += 1
+    divisions['operative'] = ops
+    await db.users.update_one({'id': user['id']}, {
+        '$set': {'pvp_divisions': divisions},
+        '$inc': {'cinepass': -ARENA_ATTACK_COST_CP}
+    })
+
+    if attack_blocked:
+        # Record blocked attack
+        await db.pvp_actions.insert_one({
+            'id': str(uuid.uuid4()), 'attacker_id': user['id'], 'target_id': req.target_user_id,
+            'type': 'arena_attack', 'category': req.target_category,
+            'blocked': True, 'created_at': now_iso,
+        })
+
+        # Notify target
+        try:
+            from notification_engine import create_game_notification
+            await create_game_notification(
+                req.target_user_id, 'production_problem', '',
+                f"Attacco Arena BLOCCATO!",
+                extra_data={'event_title': 'Attacco Arena bloccato dalla Div. Legale!',
+                            'attacker': user.get('nickname', '???') if attacker_identified else 'Sconosciuto',
+                            'source': 'CineWorld PvP'},
+                link='/hq'
+            )
+        except Exception:
+            pass
+
+        return {
+            'success': True, 'blocked': True,
+            'message': f"Attacco bloccato! La Div. Legale del difensore ha respinto l'attacco.",
+            'defense_log': defense_log,
+        }
+
+    # === APPLY DAMAGE ===
+    effects = {
+        'revenue_mod': round(cat.get('revenue_mod', 0) * damage_multiplier, 3),
+        'audience_mod': int(cat.get('audience_mod', 0) * damage_multiplier),
+        'hype_mod': int(cat.get('hype_mod', 0) * damage_multiplier),
+        'fame_mod': int(cat.get('fame_mod', 0) * damage_multiplier),
+    }
+
+    # Apply fame damage
+    if effects['fame_mod'] != 0:
+        # Legal division reduces fame loss by 50%
+        fame_reduction = 1.0
+        if legal_lv > 0:
+            from event_templates import STRATEGIC_ABILITIES
+            fame_reduction = 1.0 - STRATEGIC_ABILITIES.get('pvp_legal', {}).get('fame_reduction', 0.50)
+        actual_fame_mod = int(effects['fame_mod'] * fame_reduction)
+        await db.users.update_one({'id': req.target_user_id}, {'$inc': {'fame': actual_fame_mod}})
+        effects['fame_mod'] = actual_fame_mod
+
+    # Apply revenue damage to a random infra of the category
+    target_infra = await db.infrastructure.find(
+        {'owner_id': req.target_user_id, 'type': {'$in': cat['infra_types']}},
+        {'_id': 0, 'id': 1, 'custom_name': 1, 'total_revenue': 1}
+    ).to_list(10)
+    hit_infra = random.choice(target_infra) if target_infra else None
+
+    if hit_infra and effects.get('revenue_mod', 0) < 0:
+        rev_loss = abs(int((hit_infra.get('total_revenue', 0) or 0) * effects['revenue_mod']))
+        rev_loss = min(rev_loss, 500000)  # Cap at 500k
+        rev_loss = max(rev_loss, 10000)   # Min 10k
+        await db.infrastructure.update_one({'id': hit_infra['id']}, {'$inc': {'total_revenue': -rev_loss}})
+        effects['revenue_loss'] = rev_loss
+
+    # Record action
+    await db.pvp_actions.insert_one({
+        'id': str(uuid.uuid4()), 'attacker_id': user['id'], 'target_id': req.target_user_id,
+        'type': 'arena_attack', 'category': req.target_category,
+        'blocked': False, 'effects': effects, 'hit_infra': hit_infra.get('id') if hit_infra else None,
+        'attacker_identified': attacker_identified, 'defense_log': defense_log,
+        'created_at': now_iso,
+    })
+
+    # Notify target
+    try:
+        from notification_engine import create_game_notification
+        await create_game_notification(
+            req.target_user_id, 'production_problem', hit_infra.get('id', '') if hit_infra else '',
+            f"Attacco Arena: {cat['label']}!",
+            extra_data={
+                'event_title': f"ATTACCO ARENA: {cat['label'].upper()}!",
+                'event_desc': cat['desc_it'],
+                'attacker': user.get('nickname', '???') if attacker_identified else 'Sconosciuto',
+                'effects': effects, 'source': 'CineWorld PvP'
+            },
+            link='/hq'
+        )
+    except Exception:
+        pass
+
+    return {
+        'success': True, 'blocked': False,
+        'category': req.target_category, 'category_label': cat['label'],
+        'target_nickname': target.get('nickname', 'Sconosciuto'),
+        'effects': effects,
+        'hit_infra_name': hit_infra.get('custom_name', '') if hit_infra else '',
+        'attacker_identified': attacker_identified,
+        'defense_log': defense_log,
+        'message': f"Attacco Arena ({cat['label']}) riuscito contro {target.get('nickname', 'Sconosciuto')}!",
+    }
+
+
+# ==================== ARENA ATTACK TARGETS ====================
+
+@router.get("/pvp/arena-targets")
+async def get_arena_targets(user: dict = Depends(get_current_user)):
+    """Get available players to attack with their infrastructure categories."""
+    # Get players with infrastructure, exclude self
+    pipeline = [
+        {'$match': {'owner_id': {'$ne': user['id']}}},
+        {'$group': {'_id': '$owner_id', 'types': {'$addToSet': '$type'}, 'count': {'$sum': 1}}},
+        {'$limit': 30}
+    ]
+    results = await db.infrastructure.aggregate(pipeline).to_list(30)
+
+    targets = []
+    user_ids = [r['_id'] for r in results if r['_id']]
+    users_data = await db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'level': 1, 'fame': 1, 'avatar_url': 1}).to_list(30)
+    user_map = {u['id']: u for u in users_data}
+
+    for r in results:
+        uid = r['_id']
+        if not uid:
+            continue
+        u = user_map.get(uid, {})
+        types_set = set(r.get('types', []))
+        available_cats = []
+        for cat_id, cat_data in ARENA_CATEGORIES.items():
+            if any(t in types_set for t in cat_data['infra_types']):
+                available_cats.append({'id': cat_id, 'label': cat_data['label']})
+
+        if available_cats:
+            targets.append({
+                'user_id': uid,
+                'nickname': u.get('nickname', 'Sconosciuto'),
+                'production_house': u.get('production_house_name', ''),
+                'level': u.get('level', 0),
+                'fame': u.get('fame', 50),
+                'avatar_url': u.get('avatar_url'),
+                'infra_count': r.get('count', 0),
+                'available_categories': available_cats,
+            })
+
+    # Sort by fame descending
+    targets.sort(key=lambda x: x.get('fame', 0), reverse=True)
+    return {'targets': targets, 'attack_cost_cp': ARENA_ATTACK_COST_CP}
+
+
+# ==================== ARENA ATTACK HISTORY ====================
+
+@router.get("/pvp/arena-history")
+async def get_arena_attack_history(user: dict = Depends(get_current_user)):
+    """Get arena attack history (sent and received)."""
+    actions = await db.pvp_actions.find(
+        {'$or': [{'attacker_id': user['id'], 'type': 'arena_attack'}, {'target_id': user['id'], 'type': 'arena_attack'}]},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(30)
+
+    for a in actions:
+        other_id = a['target_id'] if a['attacker_id'] == user['id'] else a['attacker_id']
+        other = await db.users.find_one({'id': other_id}, {'_id': 0, 'nickname': 1})
+        a['other_nickname'] = (other or {}).get('nickname', 'Sconosciuto')
+        a['is_attacker'] = a['attacker_id'] == user['id']
+
+    return {'attacks': actions}

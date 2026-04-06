@@ -39,6 +39,12 @@ export default function PvPArenaPage() {
   const [outcomePopup, setOutcomePopup] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Arena Mirata state
+  const [arenaTargets, setArenaTargets] = useState(null);
+  const [arenaAttackResult, setArenaAttackResult] = useState(null);
+  const [attackingTarget, setAttackingTarget] = useState(null);
+  const [arenaHistory, setArenaHistory] = useState(null);
+
   // SWR: instant data from cache, revalidate in background
   const { data: arenaRaw, mutate: refreshArena } = useSWR('/pvp-cinema/arena');
   const { data: statsRaw, mutate: refreshStats } = useSWR('/pvp-cinema/stats');
@@ -59,6 +65,30 @@ export default function PvPArenaPage() {
   };
 
   useEffect(() => { if (tab === 'report') loadHistory(); }, [tab]);
+
+  // Load arena targets when mirata tab is selected
+  useEffect(() => {
+    if (tab === 'mirata') {
+      api.get('/pvp/arena-targets').then(r => setArenaTargets(r.data)).catch(() => {});
+      api.get('/pvp/arena-history').then(r => setArenaHistory(r.data)).catch(() => {});
+    }
+  }, [tab]);
+
+  const executeArenaAttack = async (targetUserId, category) => {
+    setAttackingTarget(`${targetUserId}_${category}`);
+    setArenaAttackResult(null);
+    try {
+      const r = await api.post('/pvp/arena-attack', { target_user_id: targetUserId, target_category: category });
+      setArenaAttackResult(r.data);
+      refreshUser();
+      // Refresh targets
+      api.get('/pvp/arena-targets').then(res => setArenaTargets(res.data)).catch(() => {});
+      api.get('/pvp/arena-history').then(res => setArenaHistory(res.data)).catch(() => {});
+    } catch (e) {
+      setArenaAttackResult({ success: false, message: e.response?.data?.detail || 'Errore' });
+    }
+    setAttackingTarget(null);
+  };
 
   const openFilm = async (filmId) => {
     setSelectedFilm(filmId);
@@ -112,6 +142,7 @@ export default function PvPArenaPage() {
 
   const tabs = [
     { id: 'arena', label: 'Arena', icon: Swords },
+    { id: 'mirata', label: 'Mirata', icon: Target },
     { id: 'report', label: 'Report', icon: History },
   ];
 
@@ -214,6 +245,100 @@ export default function PvPArenaPage() {
                 <Swords className="w-12 h-12 mx-auto mb-3 opacity-20" />
                 <p className="text-sm">L'arena e' vuota</p>
                 <p className="text-[11px] text-gray-700 mt-1">Rilascia un film per iniziare!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+
+        {/* ARENA MIRATA TAB */}
+        {tab === 'mirata' && (
+          <div className="space-y-4" data-testid="arena-mirata-tab">
+            {/* Attack Result Banner */}
+            <AnimatePresence>
+              {arenaAttackResult && (
+                <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} exit={{opacity:0}}
+                  className={`p-3 rounded-xl border ${arenaAttackResult.blocked ? 'bg-yellow-500/10 border-yellow-500/20' : arenaAttackResult.success ? 'bg-red-500/10 border-red-500/20' : 'bg-gray-500/10 border-gray-500/15'}`}>
+                  <div className="flex items-start gap-2">
+                    {arenaAttackResult.blocked ? <Shield className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5"/> : arenaAttackResult.success ? <Bomb className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5"/> : <AlertTriangle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5"/>}
+                    <div>
+                      <p className="text-xs text-white font-semibold">{arenaAttackResult.message}</p>
+                      {arenaAttackResult.defense_log?.map((d,i) => (<p key={i} className="text-[10px] text-gray-400 mt-0.5">{d}</p>))}
+                      {arenaAttackResult.effects && !arenaAttackResult.blocked && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {arenaAttackResult.effects.revenue_loss && <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">-${arenaAttackResult.effects.revenue_loss.toLocaleString()}</span>}
+                          {arenaAttackResult.effects.fame_mod && <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">Fama {arenaAttackResult.effects.fame_mod}</span>}
+                          {arenaAttackResult.effects.hype_mod && <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">Hype {arenaAttackResult.effects.hype_mod}</span>}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setArenaAttackResult(null)} className="ml-auto text-gray-500 hover:text-white"><X className="w-3.5 h-3.5"/></button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Cost info */}
+            {arenaTargets && (
+              <div className="flex items-center gap-2 p-2 bg-red-500/5 rounded-lg border border-red-500/10">
+                <Target className="w-4 h-4 text-red-400"/>
+                <span className="text-[10px] text-gray-400">Costo attacco: <span className="text-red-400 font-bold">{arenaTargets.attack_cost_cp} CP</span> | Cooldown: 12h per target | Richiede Div. Operativa</span>
+              </div>
+            )}
+
+            {/* Targets */}
+            {arenaTargets?.targets?.length > 0 ? (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-red-400 uppercase">Bersagli Disponibili ({arenaTargets.targets.length})</h4>
+                {arenaTargets.targets.map(t => (
+                  <div key={t.user_id} className="p-3 bg-white/[0.03] rounded-xl border border-white/8" data-testid={`arena-target-${t.user_id}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {t.avatar_url ? <img src={t.avatar_url} alt="" className="w-8 h-8 rounded-full bg-gray-700"/> : <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center"><Users className="w-4 h-4 text-gray-500"/></div>}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{t.nickname}</p>
+                        <p className="text-[9px] text-gray-500">{t.production_house || 'Studio'} | Lv.{t.level} | Fama {t.fame} | {t.infra_count} infra</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {t.available_categories.map(cat => {
+                        const catColors = {cinema:'from-yellow-600 to-orange-600',tv:'from-cyan-600 to-blue-600',commerciale:'from-green-600 to-emerald-600',agenzie:'from-purple-600 to-pink-600'};
+                        const isAttacking = attackingTarget === `${t.user_id}_${cat.id}`;
+                        return (
+                          <Button key={cat.id} size="sm" disabled={isAttacking}
+                            onClick={() => executeArenaAttack(t.user_id, cat.id)}
+                            className={`h-8 text-[10px] font-bold bg-gradient-to-r ${catColors[cat.id] || 'from-red-600 to-orange-600'} hover:opacity-90`}
+                            data-testid={`arena-attack-${t.user_id}-${cat.id}`}>
+                            {isAttacking ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <Target className="w-3 h-3 mr-1"/>}
+                            {cat.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-600">
+                <Target className="w-10 h-10 mx-auto mb-2 opacity-20"/>
+                <p className="text-sm">Nessun bersaglio disponibile</p>
+                <p className="text-[10px] text-gray-700 mt-1">I player con infrastrutture appariranno qui</p>
+              </div>
+            )}
+
+            {/* Arena Attack History */}
+            {arenaHistory?.attacks?.length > 0 && (
+              <div className="space-y-2 mt-3">
+                <h4 className="text-xs font-bold text-gray-400 uppercase">Cronologia Attacchi Mirati</h4>
+                {arenaHistory.attacks.slice(0, 8).map((a, i) => (
+                  <div key={a.id || i} className={`flex items-center gap-2 p-2 rounded-lg border ${a.is_attacker ? (a.blocked ? 'bg-yellow-500/5 border-yellow-500/10' : 'bg-red-500/5 border-red-500/10') : 'bg-orange-500/5 border-orange-500/10'}`}>
+                    {a.blocked ? <Shield className="w-3.5 h-3.5 text-yellow-400"/> : a.is_attacker ? <Bomb className="w-3.5 h-3.5 text-red-400"/> : <AlertTriangle className="w-3.5 h-3.5 text-orange-400"/>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold text-white truncate">{a.is_attacker ? `Tu -> ${a.other_nickname}` : `${a.other_nickname} -> Te`} ({a.category})</p>
+                      <p className="text-[9px] text-gray-500">{a.blocked ? 'Bloccato' : 'Riuscito'}</p>
+                    </div>
+                    <span className="text-[8px] text-gray-600">{a.created_at ? new Date(a.created_at).toLocaleDateString('it-IT') : ''}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

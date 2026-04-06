@@ -81,6 +81,12 @@ const InfrastructurePage = () => {
   const [upgradeInfo, setUpgradeInfo] = useState(null);
   const [upgrading, setUpgrading] = useState(false);
   
+  // Detail tabs state (Panoramica, Eventi, Sicurezza, Influenza)
+  const [detailTab, setDetailTab] = useState('panoramica');
+  const [infraEvents, setInfraEvents] = useState(null);
+  const [infraSecurity, setInfraSecurity] = useState(null);
+  const [infraInfluence, setInfraInfluence] = useState(null);
+  
   // Film management state
   const [showAddFilmDialog, setShowAddFilmDialog] = useState(false);
   const [showRentFilmDialog, setShowRentFilmDialog] = useState(false);
@@ -158,6 +164,10 @@ const InfrastructurePage = () => {
     setUpgradeInfo(null);
     setSchoolStatus(null);
     setSchoolRecruits([]);
+    setDetailTab('panoramica');
+    setInfraEvents(null);
+    setInfraSecurity(null);
+    setInfraInfluence(null);
     try {
       const [detailRes, upgradeRes] = await Promise.all([
         api.get(`/infrastructure/${infra.id}`),
@@ -179,6 +189,16 @@ const InfrastructurePage = () => {
         setCastingStudents(castingRes.data);
         setSchoolLoading(false);
       }
+      // Load events, security, influence in background
+      Promise.all([
+        api.get(`/infrastructure/${infra.id}/events`).catch(() => ({ data: null })),
+        api.get(`/infrastructure/${infra.id}/security`).catch(() => ({ data: null })),
+        api.get(`/infrastructure/${infra.id}/influence`).catch(() => ({ data: null })),
+      ]).then(([evRes, secRes, infRes]) => {
+        setInfraEvents(evRes.data);
+        setInfraSecurity(secRes.data);
+        setInfraInfluence(infRes.data);
+      });
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nel caricamento');
       setShowDetailDialog(false);
@@ -382,116 +402,190 @@ const InfrastructurePage = () => {
     }
   }, [showDetailDialog, selectedInfra]);
 
+  // Category definitions for navbar
+  const CATEGORIES = [
+    { id: 'cinema', label: 'CINEMA', icon: Ticket, color: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/30',
+      types: ['cinema', 'multiplex', 'vip_cinema', 'drive_in_cinema', 'imax'] },
+    { id: 'commerciale', label: 'COMMERCIALE', icon: Store, color: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/30',
+      types: ['centro_commerciale_piccolo', 'centro_commerciale_medio', 'centro_commerciale_grande', 'parco_giochi'] },
+    { id: 'studi', label: 'STUDI', icon: Video, color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30',
+      types: ['production_studio', 'studio_serie_tv', 'studio_anime'] },
+    { id: 'agenzie', label: 'AGENZIE', icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/15', border: 'border-cyan-500/30',
+      types: ['cinema_school', 'talent_scout'] },
+    { id: 'strategico', label: 'STRATEGICO', icon: Shield, color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30',
+      types: ['pvp_operative', 'pvp_investigative', 'pvp_legal'] },
+  ];
+
+  const [activeCategory, setActiveCategory] = useState('cinema');
+  const [activeSubTab, setActiveSubTab] = useState('disponibili');
+
+  const activeCat = CATEGORIES.find(c => c.id === activeCategory) || CATEGORIES[0];
+  const filteredTypes = infraTypes.filter(it => activeCat.types.includes(it.id));
+  const filteredOwned = myInfra.infrastructure?.filter(inf => activeCat.types.includes(inf.type)) || [];
+
   return (
-    <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="infrastructure-page">
+    <div className="pt-16 pb-20 max-w-7xl mx-auto" data-testid="infrastructure-page">
       {/* Level Progress */}
       {levelInfo && (
-        <Card className="bg-gradient-to-r from-purple-500/20 to-yellow-500/20 border-purple-500/30 mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Star className="w-6 h-6 text-purple-400" />
-                <span className="font-['Bebas_Neue'] text-2xl">Level {levelInfo.level}</span>
+        <div className="px-3 mb-2">
+          <Card className="bg-gradient-to-r from-purple-500/20 to-yellow-500/20 border-purple-500/30">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-purple-400" />
+                  <span className="font-['Bebas_Neue'] text-xl">Level {levelInfo.level}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Award className="w-4 h-4 text-yellow-400" />
+                  <span className="text-yellow-400 font-semibold text-sm">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Award className="w-5 h-5 text-yellow-400" />
-                <span className="text-yellow-400 font-semibold">Fame: {levelInfo.fame?.toFixed(0) || 50}</span>
-              </div>
-            </div>
-            <Progress value={levelInfo.progress_percent} className="h-2 mb-1" />
-            <p className="text-xs text-gray-400">{levelInfo.current_xp} / {levelInfo.xp_for_next_level} XP per il prossimo livello</p>
-          </CardContent>
-        </Card>
+              <Progress value={levelInfo.progress_percent} className="h-1.5 mb-0.5" />
+              <p className="text-[10px] text-gray-400">{levelInfo.current_xp} / {levelInfo.xp_for_next_level} XP</p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      {/* My Infrastructure */}
-      <Card className="bg-[#1A1A1A] border-white/10 mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
-            <Building className="w-5 h-5 text-yellow-500" /> Le Mie Infrastrutture ({myInfra.total_count || 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {myInfra.infrastructure.length === 0 ? (
-            <p className="text-gray-400 text-center py-6">Non hai ancora infrastrutture. Raggiungi il livello 5 per acquistare il tuo primo cinema!</p>
+      {/* Category Navbar — sticky, 2 rows: 3 top + 2 bottom */}
+      <nav className="sticky top-[52px] z-30 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5 mb-1 px-2 py-1.5" data-testid="infra-category-nav">
+        <div className="grid grid-cols-3 gap-1 mb-1">
+          {CATEGORIES.slice(0, 3).map(cat => {
+            const CatIcon = cat.icon;
+            const isActive = activeCategory === cat.id;
+            const ownedCount = myInfra.infrastructure?.filter(inf => cat.types.includes(inf.type)).length || 0;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => { setActiveCategory(cat.id); setActiveSubTab('disponibili'); }}
+                className={`flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-medium rounded-lg border transition-colors ${
+                  isActive ? `${cat.bg} ${cat.border} ${cat.color}` : 'border-white/5 text-gray-500 hover:text-gray-300'
+                }`}
+                data-testid={`infra-tab-${cat.id}`}
+              >
+                <CatIcon className="w-3.5 h-3.5" />
+                {cat.label}
+                {ownedCount > 0 && <span className="text-[9px] bg-white/10 px-1 rounded-full">{ownedCount}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {CATEGORIES.slice(3).map(cat => {
+            const CatIcon = cat.icon;
+            const isActive = activeCategory === cat.id;
+            const ownedCount = myInfra.infrastructure?.filter(inf => cat.types.includes(inf.type)).length || 0;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => { setActiveCategory(cat.id); setActiveSubTab('disponibili'); }}
+                className={`flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-medium rounded-lg border transition-colors ${
+                  isActive ? `${cat.bg} ${cat.border} ${cat.color}` : 'border-white/5 text-gray-500 hover:text-gray-300'
+                }`}
+                data-testid={`infra-tab-${cat.id}`}
+              >
+                <CatIcon className="w-3.5 h-3.5" />
+                {cat.label}
+                {ownedCount > 0 && <span className="text-[9px] bg-white/10 px-1 rounded-full">{ownedCount}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Sub-tabs: Disponibili / Possedute */}
+      <div className="px-3 mb-3">
+        <div className="flex gap-2">
+          {['disponibili', 'possedute'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveSubTab(tab)}
+              className={`flex-1 py-2 text-xs font-medium text-center rounded-lg border transition-colors ${
+                activeSubTab === tab
+                  ? `${activeCat.bg} ${activeCat.border} ${activeCat.color}`
+                  : 'bg-transparent border-white/5 text-gray-500 hover:text-gray-300'
+              }`}
+              data-testid={`infra-subtab-${tab}`}
+            >
+              {tab === 'disponibili' ? 'Disponibili' : `Possedute (${filteredOwned.length})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-3">
+        {activeSubTab === 'disponibili' ? (
+          /* DISPONIBILI */
+          filteredTypes.length === 0 ? (
+            <p className="text-gray-500 text-center py-8 text-sm">Nessuna infrastruttura in questa categoria</p>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {myInfra.infrastructure.map(infra => {
-                const Icon = getIcon(INFRASTRUCTURE_TYPES?.[infra.type]?.icon || 'building');
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {filteredTypes.map(infra => {
+                const Icon = getIcon(infra.icon);
+                const canBuy = infra.can_purchase;
                 return (
-                  <Card key={infra.id} className="bg-white/5 border-white/10 cursor-pointer hover:border-yellow-500/50 transition-colors" onClick={() => openInfraDetail(infra)}>
+                  <Card
+                    key={infra.id}
+                    className={`border transition-all cursor-pointer ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-50'}`}
+                    onClick={() => { if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); } }}
+                  >
                     <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-yellow-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{infra.custom_name}</h3>
-                          <p className="text-[10px] text-gray-400">{infra.city?.name}, {infra.country}</p>
-                        </div>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
+                        {canBuy ? <Icon className={`w-5 h-5 ${activeCat.color}`} /> : <Lock className="w-5 h-5 text-gray-500" />}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Ricavi totali:</span>
-                        <span className="text-green-400">${(infra.total_revenue || 0).toLocaleString()}</span>
+                      <h3 className="font-semibold text-xs leading-tight mb-1 line-clamp-2">{language === 'it' ? infra.name_it : infra.name}</h3>
+                      <div className="flex gap-1 mb-1.5 flex-wrap">
+                        <Badge className={`text-[8px] h-3.5 px-1 ${infra.meets_level ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          Lv.{infra.level_required}
+                        </Badge>
+                        <Badge className={`text-[8px] h-3.5 px-1 ${infra.meets_fame ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          F.{infra.fame_required}
+                        </Badge>
+                      </div>
+                      <p className="text-[9px] text-gray-500 line-clamp-2 mb-2">{language === 'it' ? infra.description_it : infra.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-bold text-xs ${activeCat.color}`}>${infra.base_cost?.toLocaleString()}</span>
+                        {infra.already_owned && <Badge className="bg-blue-500/20 text-blue-400 text-[8px] h-3.5">Posseduto</Badge>}
                       </div>
                     </CardContent>
                   </Card>
                 );
               })}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Available Infrastructure Types */}
-      <Card className="bg-[#1A1A1A] border-white/10">
-        <CardHeader className="pb-2">
-          <CardTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-yellow-500" /> Infrastrutture Disponibili
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {infraTypes.map(infra => {
-              const Icon = getIcon(infra.icon);
-              const canBuy = infra.can_purchase;
-              return (
-                <Card key={infra.id} className={`border transition-all ${canBuy ? 'bg-white/5 border-green-500/30 hover:border-green-500' : 'bg-white/5 border-white/10 opacity-60'}`}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${canBuy ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
-                        {canBuy ? <Icon className="w-5 h-5 text-green-500" /> : <Lock className="w-5 h-5 text-gray-500" />}
+          )
+        ) : (
+          /* POSSEDUTE */
+          filteredOwned.length === 0 ? (
+            <p className="text-gray-500 text-center py-8 text-sm">Nessuna infrastruttura {activeCat.label.toLowerCase()} posseduta</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {filteredOwned.map(infra => {
+                const Icon = getIcon(INFRASTRUCTURE_TYPES?.[infra.type]?.icon || 'building');
+                return (
+                  <Card
+                    key={infra.id}
+                    className={`${activeCat.border} bg-white/5 cursor-pointer hover:bg-white/10 transition-all`}
+                    onClick={() => openInfraDetail(infra)}
+                  >
+                    <CardContent className="p-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
+                        <Icon className={`w-5 h-5 ${activeCat.color}`} />
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm">{language === 'it' ? infra.name_it : infra.name}</h3>
-                        <div className="flex gap-1">
-                          <Badge className={`text-[10px] h-4 ${infra.meets_level ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                            Lv.{infra.level_required}
-                          </Badge>
-                          <Badge className={`text-[10px] h-4 ${infra.meets_fame ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                            Fame {infra.fame_required}
-                          </Badge>
-                        </div>
+                      <h3 className="font-semibold text-xs leading-tight mb-0.5 line-clamp-2">{infra.custom_name}</h3>
+                      <p className="text-[9px] text-gray-500 mb-1.5">{infra.city?.name}, {infra.country}</p>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-400">Ricavi:</span>
+                        <span className="text-green-400 font-semibold">${(infra.total_revenue || 0).toLocaleString()}</span>
                       </div>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{language === 'it' ? infra.description_it : infra.description}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-yellow-500 font-semibold text-sm">${infra.base_cost?.toLocaleString()}</span>
-                      {infra.already_owned ? (
-                        <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">Già posseduto</Badge>
-                      ) : (
-                        <Button size="sm" className="h-7 text-xs" disabled={!canBuy} onClick={() => { setSelectedType(infra); setShowPurchaseDialog(true); }}>
-                          {canBuy ? 'Acquista' : 'Bloccato'}
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )
+        )}
+      </div>
 
       {/* Purchase Dialog */}
       <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
@@ -863,7 +957,26 @@ const InfrastructurePage = () => {
               )}
             </div>
           ) : infraDetail && (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Detail Sub-Tabs */}
+              <div className="grid grid-cols-4 gap-1" data-testid="infra-detail-tabs">
+                {[
+                  { id: 'panoramica', label: 'Panoramica', icon: Eye },
+                  { id: 'eventi', label: 'Eventi', icon: Zap },
+                  { id: 'sicurezza', label: 'Sicurezza', icon: Shield },
+                  { id: 'influenza', label: 'Influenza', icon: TrendingUp },
+                ].map(t => (
+                  <button key={t.id} onClick={() => setDetailTab(t.id)}
+                    className={`flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${detailTab === t.id ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' : 'bg-white/5 text-gray-500 border border-transparent hover:bg-white/8'}`}
+                    data-testid={`infra-detail-tab-${t.id}`}>
+                    <t.icon className="w-3.5 h-3.5" />{t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* === PANORAMICA TAB === */}
+              {detailTab === 'panoramica' && (
+              <div className="space-y-4">
               {/* Stats */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white/5 rounded border border-white/10">
@@ -1099,6 +1212,163 @@ const InfrastructurePage = () => {
                       </Button>
                     </div>
                   )}
+                </div>
+              )}
+              </div>
+              )}
+
+              {/* === EVENTI TAB === */}
+              {detailTab === 'eventi' && (
+                <div className="space-y-3" data-testid="infra-eventi-tab">
+                  {infraEvents ? (
+                    <>
+                      {infraEvents.events?.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-yellow-400 uppercase flex items-center gap-1.5"><Zap className="w-3.5 h-3.5"/>Eventi Recenti</h4>
+                          {infraEvents.events.map((ev, i) => (
+                            <div key={i} className={`p-2.5 rounded-lg border ${ev.rarity === 'legendary' ? 'bg-yellow-500/10 border-yellow-500/20' : ev.rarity === 'epic' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-white/5 border-white/10'}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-white">{ev.title}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${ev.rarity === 'legendary' ? 'bg-yellow-500/20 text-yellow-400' : ev.rarity === 'epic' ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'}`}>{ev.rarity}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">{ev.description || ''}</p>
+                              {ev.effects && <div className="flex flex-wrap gap-1 mt-1">{Object.entries(ev.effects).map(([k,v]) => (<span key={k} className={`text-[9px] px-1 py-0.5 rounded ${v > 0 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>{k}: {v > 0 ? '+' : ''}{v}</span>))}</div>}
+                              <p className="text-[8px] text-gray-600 mt-1">{ev.created_at ? new Date(ev.created_at).toLocaleDateString('it-IT') : ''}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-center text-gray-500 text-xs py-4">Nessun evento registrato</p>}
+
+                      {infraEvents.arena_attacks?.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <h4 className="text-xs font-bold text-red-400 uppercase flex items-center gap-1.5"><Target className="w-3.5 h-3.5"/>Attacchi Arena Subiti</h4>
+                          {infraEvents.arena_attacks.map((a, i) => (
+                            <div key={i} className="p-2.5 bg-red-500/5 rounded-lg border border-red-500/15">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-semibold text-red-300">Attacco: {a.category}</span>
+                                <span className="text-[9px] text-gray-500">{a.created_at ? new Date(a.created_at).toLocaleDateString('it-IT') : ''}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">Attaccante: {a.attacker_nickname || 'Sconosciuto'}</p>
+                              {a.effects && <div className="flex flex-wrap gap-1 mt-1">{Object.entries(a.effects).filter(([,v]) => v !== 0).map(([k,v]) => (<span key={k} className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">{k}: {v}</span>))}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento eventi...</div>}
+                </div>
+              )}
+
+              {/* === SICUREZZA TAB === */}
+              {detailTab === 'sicurezza' && (
+                <div className="space-y-3" data-testid="infra-sicurezza-tab">
+                  {infraSecurity ? (
+                    <>
+                      {/* Threat Level */}
+                      <div className={`p-3 rounded-lg border text-center ${infraSecurity.threat_level === 'high' ? 'bg-red-500/10 border-red-500/20' : infraSecurity.threat_level === 'medium' ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
+                        <Shield className={`w-6 h-6 mx-auto mb-1 ${infraSecurity.threat_level === 'high' ? 'text-red-400' : infraSecurity.threat_level === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}/>
+                        <p className="text-sm font-bold text-white">Livello Minaccia: <span className={`${infraSecurity.threat_level === 'high' ? 'text-red-400' : infraSecurity.threat_level === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}>{infraSecurity.threat_level === 'high' ? 'ALTO' : infraSecurity.threat_level === 'medium' ? 'MEDIO' : 'BASSO'}</span></p>
+                      </div>
+
+                      {/* Stats 7d */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2.5 bg-red-500/10 rounded border border-red-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Attacchi 7g</p>
+                          <p className="text-lg font-bold text-red-400">{infraSecurity.recent_attacks_7d || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-green-500/10 rounded border border-green-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Bloccati 7g</p>
+                          <p className="text-lg font-bold text-green-400">{infraSecurity.blocked_attacks_7d || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-blue-500/10 rounded border border-blue-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Blocchi Legali</p>
+                          <p className="text-lg font-bold text-blue-400">{infraSecurity.active_legal_blocks || 0}</p>
+                        </div>
+                      </div>
+
+                      {/* Defenses */}
+                      {infraSecurity.defenses?.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-cyan-400 uppercase flex items-center gap-1.5"><Shield className="w-3.5 h-3.5"/>Difese Attive</h4>
+                          {infraSecurity.defenses.map((d, i) => (
+                            <div key={i} className="p-2.5 bg-cyan-500/5 rounded-lg border border-cyan-500/15">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-white">{d.name}</span>
+                                <span className="text-[9px] text-cyan-400 font-bold">Lv.{d.level} ({d.value_pct}%)</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">{d.effect}</p>
+                              <div className="mt-1.5 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{width: `${d.value_pct}%`}}/>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 bg-white/5 rounded-lg border border-white/10">
+                          <Shield className="w-8 h-8 mx-auto mb-2 text-gray-600"/>
+                          <p className="text-xs text-gray-500">Nessuna difesa attiva</p>
+                          <p className="text-[10px] text-gray-600 mt-1">Potenzia le Divisioni PvP per proteggere le infrastrutture</p>
+                        </div>
+                      )}
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento sicurezza...</div>}
+                </div>
+              )}
+
+              {/* === INFLUENZA TAB === */}
+              {detailTab === 'influenza' && (
+                <div className="space-y-3" data-testid="infra-influenza-tab">
+                  {infraInfluence ? (
+                    <>
+                      {/* Category & Level */}
+                      <div className="p-3 bg-gradient-to-r from-purple-500/10 to-yellow-500/10 rounded-lg border border-purple-500/20 text-center">
+                        <p className="text-xs text-gray-400">Categoria</p>
+                        <p className="text-base font-bold text-yellow-400 uppercase">{infraInfluence.category}</p>
+                        <p className="text-xs text-gray-400 mt-1">Livello <span className="text-white font-bold">{infraInfluence.level}</span></p>
+                      </div>
+
+                      {/* Bonuses */}
+                      {infraInfluence.bonuses && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5"/>Bonus Attivi</h4>
+                          <p className="text-[10px] text-gray-400">{infraInfluence.bonuses.desc}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(infraInfluence.bonuses).filter(([k]) => k !== 'desc').map(([k, v]) => (
+                              <div key={k} className="p-2 bg-purple-500/10 rounded border border-purple-500/15 text-center">
+                                <p className="text-[10px] text-gray-400">{k.replace(/_/g, ' ')}</p>
+                                <p className="text-sm font-bold text-purple-400">+{v}{typeof v === 'number' && v < 100 ? '%' : ''}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Active Projects */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 bg-yellow-500/10 rounded border border-yellow-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Film Attivi</p>
+                          <p className="text-lg font-bold text-yellow-400">{infraInfluence.active_films || 0}</p>
+                        </div>
+                        <div className="p-2.5 bg-cyan-500/10 rounded border border-cyan-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Serie Attive</p>
+                          <p className="text-lg font-bold text-cyan-400">{infraInfluence.active_series || 0}</p>
+                        </div>
+                      </div>
+
+                      {infraInfluence.combined_active && (
+                        <div className="p-2.5 bg-green-500/10 rounded border border-green-500/15 text-center">
+                          <p className="text-[10px] text-gray-400">Combo Moltiplicatore</p>
+                          <p className="text-lg font-bold text-green-400">x{infraInfluence.combo_multiplier}</p>
+                          <p className="text-[9px] text-gray-500">Attivo con progetti in corso</p>
+                        </div>
+                      )}
+
+                      <div className="p-2.5 bg-white/5 rounded border border-white/10 text-center">
+                        <p className="text-[10px] text-gray-400">Ricavi Totali Infra</p>
+                        <p className="text-lg font-bold text-green-400">${(infraInfluence.total_revenue || 0).toLocaleString()}</p>
+                      </div>
+                    </>
+                  ) : <div className="text-center py-6 text-gray-500 text-xs">Caricamento influenza...</div>}
                 </div>
               )}
             </div>

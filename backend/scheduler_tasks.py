@@ -1650,7 +1650,87 @@ async def auto_revenue_tick():
             'created_at': {'$lt': cutoff}, 'type': {'$ne': 'REVENUE_GAINED'}
         })
         
-        if revenue_count > 0 or star_events or skill_events:
+        # --- INFRASTRUCTURE EVENTS (pressure-based) ---
+        infra_event_count = 0
+        try:
+            from event_templates import generate_infra_event, generate_combined_bonus, INFRA_CATEGORY_MAP
+            # Get all user_ids who own infrastructure
+            user_ids_with_films = set(user_films.keys())
+            infra_cursor = scheduler_db.infrastructure.find(
+                {'user_id': {'$exists': True, '$ne': None}},
+                {'_id': 0, 'id': 1, 'user_id': 1, 'type': 1, 'custom_name': 1, 'name': 1, 'level': 1}
+            )
+            user_infras = {}
+            async for inf in infra_cursor:
+                uid = inf['user_id']
+                user_infras.setdefault(uid, []).append(inf)
+            
+            for uid, infras in user_infras.items():
+                if uid in users_event_fired_this_tick:
+                    continue  # already got a project event this tick
+                # Check pressure
+                pressure_doc = await scheduler_db.event_pressure.find_one({'user_id': uid}, {'_id': 0})
+                p = pressure_doc.get('pressure', 0) if pressure_doc else 0
+                if p < 20:
+                    continue  # not enough pressure for infra events
+                
+                # Pick a random infra
+                infra = random.choice(infras)
+                cat = INFRA_CATEGORY_MAP.get(infra.get('type', ''))
+                if not cat:
+                    continue
+                
+                # Lower chance for infra events (30% of project event chance)
+                if random.random() > 0.30:
+                    continue
+                
+                ev = generate_infra_event(infra, pressure=p)
+                if not ev:
+                    continue
+                
+                # Combined bonus if user has active films
+                has_active_film = uid in user_ids_with_films
+                if has_active_film:
+                    ev = generate_combined_bonus(ev, True)
+                
+                # Save to event_history
+                await scheduler_db.event_history.insert_one({
+                    'user_id': uid, 'project_id': infra.get('id', ''),
+                    'project_type': 'infra_' + cat,
+                    'title': infra.get('custom_name', infra.get('name', '')),
+                    'rarity': ev['tier'], 'description': ev['text'],
+                    'event_type': ev['event_type'],
+                    'effects': {
+                        'revenue_mod': ev.get('revenue_mod', 0),
+                        'hype_mod': ev.get('hype_mod', 0),
+                        'fame_mod': ev.get('fame_mod', 0),
+                        'audience_mod': ev.get('audience_mod', 0),
+                    },
+                    'infra_category': cat,
+                    'is_combined': ev.get('is_combined', False),
+                    'created_at': now_str
+                })
+                # Save as auto_tick_event for notification
+                await scheduler_db.auto_tick_events.insert_one({
+                    'user_id': uid, 'type': 'INFRA_EVENT',
+                    'infra_id': infra.get('id', ''), 'infra_name': infra.get('custom_name', ''),
+                    'infra_category': cat,
+                    'text': ev['text'], 'tier': ev['tier'],
+                    'event_type': ev['event_type'],
+                    'revenue_mod': ev.get('revenue_mod', 0),
+                    'hype_mod': ev.get('hype_mod', 0),
+                    'fame_mod': ev.get('fame_mod', 0),
+                    'is_combined': ev.get('is_combined', False),
+                    'created_at': now_str
+                })
+                # Apply fame modifier
+                if ev.get('fame_mod', 0) != 0:
+                    await scheduler_db.users.update_one({'id': uid}, {'$inc': {'fame': ev['fame_mod']}})
+                infra_event_count += 1
+        except Exception as ie:
+            logger.error(f"[AUTO-TICK] Infra event error: {ie}")
+        
+        if revenue_count > 0 or star_events or skill_events or infra_event_count > 0:
             ev_count = len([e for e in star_events if e.get('type') == 'PROJECT_EVENT'])
             star_count = len([e for e in star_events if e.get('type') == 'STAR_CREATED'])
             logger.info(f"[AUTO-TICK] Revenue: {revenue_count} users, Stars: {star_count}, Skills: {len(skill_events)}, Events: {ev_count}")

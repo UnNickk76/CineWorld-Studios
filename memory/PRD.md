@@ -58,6 +58,12 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [x] Fix navigazione Serie TV dalla Dashboard → ora apre `/series/:id` (2026-04-05)
 - [x] Verifica sblocco "Le Mie TV!" → confermato funzionante (API e UI OK) (2026-04-05)
 - [x] Fix Coming Soon timer: transizioni forward-only, no reset a idea/proposed (2026-04-05)
+- [x] DB MongoDB Bloat Fix & Ottimizzazione (2026-04-06):
+  - Root cause: `discoverer_avatar` (base64 3MB) in cinema_news + `poster_url` base64 in infrastructure.films_showing
+  - Fix codice: rimosso avatar base64 da cinema_news insert (server.py), sanitizzato poster_url in infrastructure.py (2 punti), protetto suggestions/bug_reports, aggiunto persist_base64_avatar in auth.py PUT avatar
+  - Pulizia dati: 80 cinema_news puliti, infrastructure.films_showing pulita, 71 guest inattivi rimossi, 6 infra duplicate rimosse, 8 film_drafts puliti
+  - Risultato: DB da ~300MB → 118MB dataSize (-61%)
+- [x] Fix "LE MIE TV! sparisce" (2026-04-06): fetch TV stations era annidato nel try/catch di `/catchup/process` — se catchup falliva, TV mai caricate. Separati tutti i fetch in blocchi try/catch indipendenti in Dashboard.jsx
 - [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
 - [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 - [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)
@@ -104,9 +110,11 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - `/app/frontend/src/pages/FilmDetail.jsx`
 - `/app/frontend/src/pages/SeriesDetail.jsx`
 - `/app/frontend/src/components/LaPrimaPopup.jsx`
-- `/app/backend/routes/dashboard.py` (virtual-reviews fix)
+- `/app/backend/routes/dashboard.py` (virtual-reviews fix, cinema-news esclude discoverer_avatar)
 - `/app/frontend/src/components/GuestTutorial.jsx` (Tutorial Guest 12 step + finale celebrativo)
-- `/app/backend/routes/auth.py` (TUTORIAL_STEPS 0-11, tutorial-step, tutorial-skip, convert)
+- `/app/backend/routes/auth.py` (TUTORIAL_STEPS 0-11, tutorial-step, tutorial-skip, convert, persist_base64_avatar)
+- `/app/backend/routes/infrastructure.py` (films_showing sanitizzato da base64)
+- `/app/backend/server.py` (cinema_news insert senza discoverer_avatar)
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

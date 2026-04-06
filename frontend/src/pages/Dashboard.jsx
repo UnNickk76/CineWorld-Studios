@@ -234,8 +234,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchExtra = async () => {
+      // Catchup (non deve bloccare il resto)
       try {
-        // Process offline catch-up
         const catchupRes = await api.post('/catchup/process');
         if (catchupRes.data.catchup_revenue > 0) {
           setCatchupData(catchupRes.data);
@@ -247,25 +247,32 @@ const Dashboard = () => {
           );
           refreshUser();
         }
-        // Load TV stations
-        try {
-          const tvRes = await api.get('/tv-stations/my');
-          setMyTVStations(tvRes.data.stations || []);
-          setHasEmittenteTV(tvRes.data.has_emittente_tv || false);
-        } catch { setHasEmittenteTV(false); }
-        // Contests
-        try {
-          const contestsRes = await api.get('/cinepass/contests');
-          const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
-          setAvailableContests(available);
-        } catch {}
-        // Shooting config
-        try {
-          const configRes = await api.get('/films/shooting/config');
-          setShootingConfig(configRes.data);
-        } catch {}
-      } catch (err) {
-        console.error(err);
+      } catch (e) {
+        console.warn('Catchup failed, continuo comunque', e);
+      }
+      // Fetch TV stations (DEVE sempre partire)
+      try {
+        const tvRes = await api.get('/tv-stations/my');
+        setMyTVStations(tvRes.data.stations || []);
+        setHasEmittenteTV(tvRes.data.has_emittente_tv || false);
+      } catch (e) {
+        console.error('Errore fetch TV stations', e);
+        setHasEmittenteTV(false);
+      }
+      // Contests
+      try {
+        const contestsRes = await api.get('/cinepass/contests');
+        const available = (contestsRes.data?.contests || []).filter(c => c.status === 'available' && !c.completed).length;
+        setAvailableContests(available);
+      } catch (e) {
+        console.error('Errore fetch contests', e);
+      }
+      // Shooting config
+      try {
+        const configRes = await api.get('/films/shooting/config');
+        setShootingConfig(configRes.data);
+      } catch (e) {
+        console.error('Errore fetch shooting config', e);
       }
     };
     fetchExtra();

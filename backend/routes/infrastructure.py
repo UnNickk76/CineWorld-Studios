@@ -609,11 +609,13 @@ async def add_film_to_cinema(infra_id: str, request: AddFilmToCinemaRequest, use
     if any(f['film_id'] == request.film_id for f in films_showing):
         raise HTTPException(status_code=400, detail="Questo film è già in programmazione")
     
+    raw_poster = film.get('poster_url') or ''
+    safe_poster = raw_poster if not raw_poster.startswith('data:') else None
     films_showing.append({
         'film_id': film['id'],
         'title': film['title'],
         'genre': film.get('genre'),
-        'poster_url': film.get('poster_url'),
+        'poster_url': safe_poster,
         'quality_score': film.get('quality_score', 50),
         'imdb_rating': round(film.get('imdb_rating', calculate_imdb_rating(film)), 1),
         'added_at': datetime.now(timezone.utc).isoformat(),
@@ -677,11 +679,13 @@ async def rent_film_for_cinema(infra_id: str, request: RentFilmRequest, user: di
     
     rental_end = datetime.now(timezone.utc) + timedelta(weeks=request.weeks)
     
+    raw_poster = film.get('poster_url') or ''
+    safe_poster = raw_poster if not raw_poster.startswith('data:') else None
     films_showing.append({
         'film_id': film['id'],
         'title': film['title'],
         'genre': film['genre'],
-        'poster_url': film.get('poster_url'),
+        'poster_url': safe_poster,
         'quality_score': quality,
         'imdb_rating': round(imdb_rating, 1),
         'added_at': datetime.now(timezone.utc).isoformat(),

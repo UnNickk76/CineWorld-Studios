@@ -152,6 +152,7 @@ const AuthPage = () => {
               <HelpCircle className="w-3.5 h-3.5" /> Come si gioca?
             </Button>
             <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">BETA TEST</Badge>
+            <PWAInstallBanner variant="inline" />
           </CardHeader>
 
           <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />

@@ -427,10 +427,10 @@ const InfrastructurePage = () => {
         </div>
       )}
 
-      {/* Category Navbar — sticky */}
-      <nav className="sticky top-[52px] z-30 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5 mb-1" data-testid="infra-category-nav">
-        <div className="flex overflow-x-auto no-scrollbar px-2 gap-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-          {CATEGORIES.map(cat => {
+      {/* Category Navbar — sticky, 2 rows: 3 top + 2 bottom */}
+      <nav className="sticky top-[52px] z-30 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5 mb-1 px-2 py-1.5" data-testid="infra-category-nav">
+        <div className="grid grid-cols-3 gap-1 mb-1">
+          {CATEGORIES.slice(0, 3).map(cat => {
             const CatIcon = cat.icon;
             const isActive = activeCategory === cat.id;
             const ownedCount = myInfra.infrastructure?.filter(inf => cat.types.includes(inf.type)).length || 0;
@@ -438,8 +438,29 @@ const InfrastructurePage = () => {
               <button
                 key={cat.id}
                 onClick={() => { setActiveCategory(cat.id); setActiveSubTab('disponibili'); }}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors shrink-0 ${
-                  isActive ? `border-current ${cat.color}` : 'border-transparent text-gray-500 hover:text-gray-300'
+                className={`flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-medium rounded-lg border transition-colors ${
+                  isActive ? `${cat.bg} ${cat.border} ${cat.color}` : 'border-white/5 text-gray-500 hover:text-gray-300'
+                }`}
+                data-testid={`infra-tab-${cat.id}`}
+              >
+                <CatIcon className="w-3.5 h-3.5" />
+                {cat.label}
+                {ownedCount > 0 && <span className="text-[9px] bg-white/10 px-1 rounded-full">{ownedCount}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {CATEGORIES.slice(3).map(cat => {
+            const CatIcon = cat.icon;
+            const isActive = activeCategory === cat.id;
+            const ownedCount = myInfra.infrastructure?.filter(inf => cat.types.includes(inf.type)).length || 0;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => { setActiveCategory(cat.id); setActiveSubTab('disponibili'); }}
+                className={`flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-medium rounded-lg border transition-colors ${
+                  isActive ? `${cat.bg} ${cat.border} ${cat.color}` : 'border-white/5 text-gray-500 hover:text-gray-300'
                 }`}
                 data-testid={`infra-tab-${cat.id}`}
               >

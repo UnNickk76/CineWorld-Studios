@@ -672,6 +672,6 @@ async def get_all_majors(user: dict = Depends(get_current_user)):
     membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
     my_major_id = membership['major_id'] if membership else None
     
-    majors = await db.majors.find({}, {'_id': 0, 'id': 1, 'name': 1, 'logo_url': 1, 'studio_level': 1}).to_list(100)
+    majors = await db.majors.find({}, {'_id': 0, 'id': 1, 'name': 1, 'studio_level': 1}).to_list(100)
     # Exclude own major
     return {'majors': [m for m in majors if m['id'] != my_major_id]}

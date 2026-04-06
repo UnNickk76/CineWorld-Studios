@@ -54,6 +54,12 @@ const MAJOR_ROLES = {
   manager: { it: 'Manager', en: 'Manager' }
 };
 
+const STUDIO_LEVELS = [
+  { value: 'studio', label_it: 'Studio Indipendente', label_en: 'Independent Studio', color: 'text-gray-400', bg: 'bg-gray-500/20' },
+  { value: 'mini_major', label_it: 'Mini Major', label_en: 'Mini Major', color: 'text-blue-400', bg: 'bg-blue-500/20' },
+  { value: 'major', label_it: 'Major', label_en: 'Major', color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+];
+
 const MajorPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -65,6 +71,16 @@ const MajorPage = () => {
   const [creating, setCreating] = useState(false);
   const [inviteUserId, setInviteUserId] = useState('');
   const [allUsers, setAllUsers] = useState([]);
+  // Admin state
+  const [bonusForm, setBonusForm] = useState({ marketing: 0, casting: 0, production: 0 });
+  const [triggeringEvent, setTriggeringEvent] = useState(false);
+  const [settingLevel, setSettingLevel] = useState(false);
+  // War state
+  const [allMajors, setAllMajors] = useState([]);
+  const [warHistory, setWarHistory] = useState([]);
+  const [selectedOpponent, setSelectedOpponent] = useState('');
+  const [calculatingWar, setCalculatingWar] = useState(false);
+  const [lastWarResult, setLastWarResult] = useState(null);
   
   const t = (key) => {
     const translations = {
@@ -84,15 +100,55 @@ const MajorPage = () => {
   };
   
   useEffect(() => {
-    Promise.all([
-      api.get('/major/my'),
-      api.get('/users/all')  // Include offline users for invites
-    ]).then(([major, users]) => {
-      setMajorData(major.data);
-      setAllUsers(users.data || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [api]);
+    let mounted = true;
+    const load = async () => {
+      try {
+        const [major, users] = await Promise.all([
+          api.get('/major/my'),
+          api.get('/users/all')
+        ]);
+        if (!mounted) return;
+        setMajorData(major.data);
+        setAllUsers(users.data || []);
+        const mb = major.data?.major?.major_bonuses;
+        if (mb) setBonusForm({ marketing: mb.marketing || 0, casting: mb.casting || 0, production: mb.production || 0 });
+      } catch (err) {
+        console.error('Major load error:', err);
+      }
+      if (mounted) setLoading(false);
+    };
+    load();
+    return () => { mounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load war data separately (non-blocking)
+  useEffect(() => {
+    if (!majorData?.has_major) return;
+    const loadWar = async () => {
+      try {
+        const [majorsRes, warsRes] = await Promise.all([
+          api.get('/major/all').catch(() => ({ data: { majors: [] } })),
+          api.get('/major/wars').catch(() => ({ data: { wars: [] } }))
+        ]);
+        setAllMajors(majorsRes.data?.majors || []);
+        setWarHistory(warsRes.data?.wars || []);
+      } catch (err) {
+        console.error('War data error:', err);
+      }
+    };
+    loadWar();
+  }, [majorData?.has_major]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reloadMajorData = async () => {
+    try {
+      const res = await api.get('/major/my');
+      setMajorData(res.data);
+      const mb = res.data?.major?.major_bonuses;
+      if (mb) setBonusForm({ marketing: mb.marketing || 0, casting: mb.casting || 0, production: mb.production || 0 });
+    } catch (err) {
+      console.error('Major reload error:', err);
+    }
+  };
   
   const createMajor = async () => {
     try {
@@ -120,11 +176,75 @@ const MajorPage = () => {
       toast.error(e.response?.data?.detail || 'Errore');
     }
   };
+
+  // ---- Admin functions (Founder only) ----
+  const setStudioLevel = async (newLevel) => {
+    if (!majorData?.major?.id) return;
+    try {
+      setSettingLevel(true);
+      await api.post('/major/set-level', { major_id: majorData.major.id, new_level: newLevel });
+      toast.success(language === 'it' ? 'Livello aggiornato!' : 'Level updated!');
+      await reloadMajorData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setSettingLevel(false);
+    }
+  };
+
+  const setMemberRole = async (userId, role) => {
+    try {
+      await api.post('/major/set-role', { user_id: userId, role });
+      toast.success(language === 'it' ? 'Ruolo aggiornato!' : 'Role updated!');
+      await reloadMajorData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const saveBonuses = async () => {
+    try {
+      await api.post('/major/set-bonuses', bonusForm);
+      toast.success(language === 'it' ? 'Bonus salvati!' : 'Bonuses saved!');
+      await reloadMajorData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const triggerEvent = async () => {
+    try {
+      setTriggeringEvent(true);
+      const res = await api.post('/major/trigger-event');
+      const ev = res.data?.event;
+      const evName = language === 'it' ? ev?.name_it : ev?.name_en;
+      toast.success(`${ev?.positive ? '🎉' : '⚠️'} ${evName}`);
+      await reloadMajorData();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setTriggeringEvent(false);
+    }
+  };
+
+  const calculateWar = async () => {
+    if (!selectedOpponent) return;
+    try {
+      setCalculatingWar(true);
+      const res = await api.post('/major/war/calculate', { opponent_major_id: selectedOpponent });
+      setLastWarResult(res.data?.war);
+      toast.success(language === 'it' ? 'Guerra calcolata!' : 'War calculated!');
+      // Refresh wars
+      const warsRes = await api.get('/major/wars').catch(() => ({ data: { wars: [] } }));
+      setWarHistory(warsRes.data?.wars || []);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setCalculatingWar(false);
+    }
+  };
   
   if (loading) return <div className="pt-16 p-4 text-center"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-500" /></div>;
-  
-
-  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="pt-16 pb-6 px-3 max-w-4xl mx-auto">
@@ -450,6 +570,284 @@ const MajorPage = () => {
                 </Tabs>
               </CardContent>
             </Card>
+          )}
+
+          {/* =============== ADMIN SECTION (Founder Only) =============== */}
+          {majorData.my_role === 'founder' && (
+            <>
+              <div className="pt-2">
+                <h2 className="font-['Bebas_Neue'] text-xl flex items-center gap-2 mb-3">
+                  <Settings className="w-5 h-5 text-yellow-500" />
+                  {language === 'it' ? 'Gestione Major' : 'Major Management'}
+                </h2>
+              </div>
+
+              {/* Studio Level */}
+              <Card className="bg-[#1A1A1A] border-yellow-500/20" data-testid="admin-studio-level">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building className="w-4 h-4 text-yellow-500" />
+                    {language === 'it' ? 'Livello Studio' : 'Studio Level'}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {language === 'it' ? 'Imposta il livello della tua Major' : 'Set your Major level'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2 flex-wrap">
+                    {STUDIO_LEVELS.map(sl => {
+                      const isCurrent = (majorData.major?.studio_level || 'studio') === sl.value;
+                      return (
+                        <Button
+                          key={sl.value}
+                          size="sm"
+                          variant={isCurrent ? 'default' : 'outline'}
+                          className={isCurrent ? `${sl.bg} ${sl.color} border ${sl.color.replace('text-', 'border-')}/30` : 'border-white/10 text-gray-400'}
+                          disabled={settingLevel || isCurrent}
+                          onClick={() => setStudioLevel(sl.value)}
+                          data-testid={`studio-level-${sl.value}`}
+                        >
+                          {settingLevel ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                          {language === 'it' ? sl.label_it : sl.label_en}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Roles Management */}
+              <Card className="bg-[#1A1A1A] border-yellow-500/20" data-testid="admin-roles">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-yellow-500" />
+                    {language === 'it' ? 'Ruoli Membri' : 'Member Roles'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {majorData.members?.filter(m => m.role !== 'founder').map(member => (
+                      <div key={member.user_id} className="flex items-center gap-3 p-2 rounded bg-white/5">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={member.avatar_url} />
+                          <AvatarFallback className="bg-purple-500/20 text-purple-400 text-xs">{member.nickname?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className="flex-1 text-sm font-medium truncate">{member.nickname}</span>
+                        <Select defaultValue={member.role} onValueChange={(val) => setMemberRole(member.user_id, val)}>
+                          <SelectTrigger className="w-[120px] h-8 text-xs bg-black/30 border-white/10" data-testid={`role-select-${member.user_id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#1A1A1A] border-white/10">
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="member">{language === 'it' ? 'Membro' : 'Member'}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                    {majorData.members?.filter(m => m.role !== 'founder').length === 0 && (
+                      <p className="text-xs text-gray-500 text-center py-2">
+                        {language === 'it' ? 'Nessun membro da gestire' : 'No members to manage'}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Department Bonuses */}
+              <Card className="bg-[#1A1A1A] border-yellow-500/20" data-testid="admin-bonuses">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-500" />
+                    {language === 'it' ? 'Bonus Reparti' : 'Department Bonuses'}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {language === 'it' ? 'Distribuisci bonus ai reparti (0-25)' : 'Distribute bonuses to departments (0-25)'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[
+                    { key: 'marketing', icon: <Megaphone className="w-4 h-4 text-cyan-400" />, color: 'cyan' },
+                    { key: 'casting', icon: <Users className="w-4 h-4 text-pink-400" />, color: 'pink' },
+                    { key: 'production', icon: <Clapperboard className="w-4 h-4 text-green-400" />, color: 'green' }
+                  ].map(dep => (
+                    <div key={dep.key} className="flex items-center gap-3">
+                      {dep.icon}
+                      <span className="text-sm capitalize w-20">{dep.key}</span>
+                      <Slider
+                        value={[bonusForm[dep.key]]}
+                        onValueChange={([v]) => setBonusForm(prev => ({ ...prev, [dep.key]: v }))}
+                        min={0} max={25} step={1}
+                        className="flex-1"
+                      />
+                      <Badge className={`bg-${dep.color}-500/20 text-${dep.color}-400 w-10 justify-center`}>
+                        +{bonusForm[dep.key]}
+                      </Badge>
+                    </div>
+                  ))}
+                  <Button size="sm" className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-semibold mt-2" onClick={saveBonuses} data-testid="save-bonuses-btn">
+                    <Save className="w-3 h-3 mr-1" /> {language === 'it' ? 'Salva Bonus' : 'Save Bonuses'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Trigger Event */}
+              <Card className="bg-[#1A1A1A] border-yellow-500/20" data-testid="admin-events">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    {language === 'it' ? 'Evento Major' : 'Major Event'}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {language === 'it' ? 'Attiva un evento casuale (cooldown 6h)' : 'Trigger a random event (6h cooldown)'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {majorData.major?.active_event && (
+                    <div className={`p-3 rounded-lg mb-3 border ${majorData.major.active_event.positive ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {majorData.major.active_event.positive ? <CheckCircle className="w-4 h-4 text-green-400" /> : <AlertTriangle className="w-4 h-4 text-red-400" />}
+                        <span className="font-semibold text-sm">
+                          {language === 'it' ? majorData.major.active_event.name_it : majorData.major.active_event.name_en}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        {language === 'it' ? majorData.major.active_event.desc_it : majorData.major.active_event.desc_en}
+                      </p>
+                      <div className="flex gap-1 mt-2">
+                        {Object.entries(majorData.major.active_event.effect || {}).map(([k, v]) => (
+                          <Badge key={k} className={`text-[10px] ${v > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {k}: {v > 0 ? '+' : ''}{v}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full bg-purple-600 hover:bg-purple-500"
+                    disabled={triggeringEvent}
+                    onClick={triggerEvent}
+                    data-testid="trigger-event-btn"
+                  >
+                    {triggeringEvent ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
+                    {language === 'it' ? 'Attiva Evento' : 'Trigger Event'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* =============== WAR SECTION =============== */}
+          {majorData.has_major && (
+            <>
+              <div className="pt-2">
+                <h2 className="font-['Bebas_Neue'] text-xl flex items-center gap-2 mb-3">
+                  <Swords className="w-5 h-5 text-red-500" />
+                  {language === 'it' ? 'Guerre tra Major' : 'Major Wars'}
+                </h2>
+              </div>
+
+              {/* Last War Result */}
+              {lastWarResult && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                  <Card className={`border ${lastWarResult.winner === majorData.major?.id ? 'bg-green-900/20 border-green-500/40' : 'bg-red-900/20 border-red-500/40'}`}>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold mb-1">
+                        {lastWarResult.winner === majorData.major?.id
+                          ? (language === 'it' ? 'VITTORIA!' : 'VICTORY!')
+                          : (language === 'it' ? 'SCONFITTA' : 'DEFEAT')}
+                      </div>
+                      <div className="flex items-center justify-center gap-4 text-sm">
+                        <span className="font-semibold">{lastWarResult.major_a_name}</span>
+                        <span className="text-yellow-400 font-mono">{lastWarResult.score_a}</span>
+                        <span className="text-gray-500">vs</span>
+                        <span className="text-yellow-400 font-mono">{lastWarResult.score_b}</span>
+                        <span className="font-semibold">{lastWarResult.major_b_name}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* War Declare (Founder only) */}
+              {majorData.my_role === 'founder' && (
+                <Card className="bg-[#1A1A1A] border-red-500/20" data-testid="war-declare">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Swords className="w-4 h-4 text-red-500" />
+                      {language === 'it' ? 'Dichiara Guerra' : 'Declare War'}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {language === 'it' ? 'Sfida un\'altra Major (cooldown 24h)' : 'Challenge another Major (24h cooldown)'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <Select value={selectedOpponent} onValueChange={setSelectedOpponent}>
+                        <SelectTrigger className="flex-1 h-9 text-sm bg-black/30 border-white/10" data-testid="war-opponent-select">
+                          <SelectValue placeholder={language === 'it' ? 'Seleziona avversario...' : 'Select opponent...'} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1A1A1A] border-white/10">
+                          {allMajors.map(m => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.name} {m.studio_level ? `(${m.studio_level})` : ''}
+                            </SelectItem>
+                          ))}
+                          {allMajors.length === 0 && (
+                            <div className="p-2 text-xs text-gray-500 text-center">
+                              {language === 'it' ? 'Nessuna Major avversaria' : 'No opponent Majors'}
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-500 px-4"
+                        disabled={calculatingWar || !selectedOpponent}
+                        onClick={calculateWar}
+                        data-testid="calculate-war-btn"
+                      >
+                        {calculatingWar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Swords className="w-3 h-3" />}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* War History */}
+              {warHistory.length > 0 && (
+                <Card className="bg-[#1A1A1A] border-white/10" data-testid="war-history">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-gray-400" />
+                      {language === 'it' ? 'Storico Guerre' : 'War History'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {warHistory.slice(0, 5).map(war => {
+                        const won = war.winner === majorData.major?.id;
+                        return (
+                          <div key={war.id} className={`flex items-center gap-2 p-2 rounded text-xs ${won ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                            <Badge className={`text-[10px] ${won ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {won ? 'W' : 'L'}
+                            </Badge>
+                            <span className="flex-1 truncate">
+                              {war.major_a_name} <span className="text-yellow-400">{war.score_a}</span>
+                              {' vs '}
+                              <span className="text-yellow-400">{war.score_b}</span> {war.major_b_name}
+                            </span>
+                            <span className="text-gray-500 text-[10px]">
+                              {war.created_at ? new Date(war.created_at).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </div>
       )}

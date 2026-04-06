@@ -4,14 +4,35 @@ import { Sparkles, TrendingUp, DollarSign } from 'lucide-react';
 import { LanguageContext } from '../contexts';
 import VelionCinematicEvent from './VelionCinematicEvent';
 
+const CINEMATIC_COOLDOWN_MS = 20000; // 20 seconds between cinematics
+
 export function AutoTickNotifications({ api }) {
   const { language } = useContext(LanguageContext);
   const lastCheck = useRef('');
+  const lastCinematicTime = useRef(0);
+  const cinematicQueue = useRef([]);
   const [cinematicEvents, setCinematicEvents] = useState([]);
+
+  const processQueue = useCallback(() => {
+    const now = Date.now();
+    if (cinematicQueue.current.length === 0) return;
+    if (now - lastCinematicTime.current < CINEMATIC_COOLDOWN_MS) {
+      // Wait and retry
+      setTimeout(processQueue, CINEMATIC_COOLDOWN_MS - (now - lastCinematicTime.current) + 100);
+      return;
+    }
+    const next = cinematicQueue.current.shift();
+    lastCinematicTime.current = now;
+    setCinematicEvents([next]);
+  }, []);
 
   const handleAllDone = useCallback(() => {
     setCinematicEvents([]);
-  }, []);
+    // Process next queued event after cooldown
+    if (cinematicQueue.current.length > 0) {
+      setTimeout(processQueue, CINEMATIC_COOLDOWN_MS);
+    }
+  }, [processQueue]);
 
   useEffect(() => {
     if (!api) return;
@@ -27,18 +48,15 @@ export function AutoTickNotifications({ api }) {
           if (key === lastCheck.current) continue;
 
           if (ev.type === 'PROJECT_EVENT') {
-            // Cinematic events for epic/legendary, toast for common/rare
             if (ev.tier === 'epic' || ev.tier === 'legendary') {
               newCinematic.push(ev);
             } else {
-              // Common/rare: simple toast with tier color
               const icon = ev.event_type === 'negative'
                 ? <span className="text-red-400 text-sm">!</span>
                 : <Sparkles className="w-4 h-4 text-yellow-400" />;
               toast(ev.text, { icon, duration: ev.tier === 'rare' ? 5000 : 3000 });
             }
           } else if (ev.type === 'STAR_CREATED') {
-            // Star events are always cinematic
             newCinematic.push({
               ...ev,
               text: language === 'it'
@@ -70,9 +88,10 @@ export function AutoTickNotifications({ api }) {
           await api.post('/auto-tick/dismiss').catch(() => {});
         }
 
-        // Queue cinematic events (max 3 to avoid spam)
+        // Queue cinematic events with anti-spam (max 3)
         if (newCinematic.length > 0) {
-          setCinematicEvents(prev => [...prev, ...newCinematic].slice(0, 3));
+          cinematicQueue.current.push(...newCinematic.slice(0, 3));
+          processQueue();
         }
       } catch {
         // Silently ignore polling errors
@@ -82,7 +101,7 @@ export function AutoTickNotifications({ api }) {
     const initial = setTimeout(poll, 3000);
     const interval = setInterval(poll, 60000);
     return () => { clearTimeout(initial); clearInterval(interval); };
-  }, [api, language]);
+  }, [api, language, processQueue]);
 
   return (
     <>

@@ -1247,7 +1247,7 @@ async def auto_revenue_tick():
         
         # --- FETCH DATA ---
         active_films = await scheduler_db.films.find({
-            'status': {'$in': ['in_theaters', 'released']},
+            'status': {'$in': ['in_theaters', 'released', 'coming_soon']},
             'user_id': {'$exists': True, '$ne': None}
         }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1, 'quality': 1,
             'imdb_rating': 1, 'opening_day_revenue': 1, 'release_date': 1, 'released_at': 1,
@@ -1292,6 +1292,14 @@ async def auto_revenue_tick():
         
         # Films that already spawned a star (hard limit: max 1 per project)
         films_with_star = {f['id'] for f in active_films if f.get('star_born_film')}
+        
+        # 12h cooldown per title for events
+        event_cooldown_cutoff = (now - timedelta(hours=12)).isoformat()
+        recent_film_events = await scheduler_db.auto_tick_events.find(
+            {'type': 'PROJECT_EVENT', 'created_at': {'$gte': event_cooldown_cutoff}},
+            {'_id': 0, 'film_id': 1}
+        ).to_list(5000)
+        films_on_event_cooldown = {e['film_id'] for e in recent_film_events if e.get('film_id')}
         
         revenue_count = 0
         star_events = []
@@ -1393,56 +1401,65 @@ async def auto_revenue_tick():
                             users_on_cooldown.add(user_id)
                             tick_star_count += 1
                 
-                # --- PROJECT EVENT (30-50% chance, max 1 per project per tick) ---
-                try:
-                    from event_templates import generate_event
-                    cast_names_for_event = [people_map[cid].get('name', 'Sconosciuto')
-                                           for cid in film_cast_map.get(film_id, []) if cid in people_map]
-                    ev = generate_event(film, cast_names_for_event)
-                    if ev:
-                        ev_record = {
-                            'user_id': user_id, 'type': 'PROJECT_EVENT',
-                            'film_id': film_id, 'film_title': film.get('title', ''),
-                            'text': ev['text'], 'tier': ev['tier'],
-                            'event_type': ev['event_type'],
-                            'revenue_mod': ev.get('revenue_mod', 0),
-                            'hype_mod': ev.get('hype_mod', 0),
-                            'fame_mod': ev.get('fame_mod', 0),
-                            'is_global': ev.get('is_global', False),
-                            'is_star_event': ev.get('is_star_event', False),
-                            'actor_name': ev.get('actor_name', ''),
-                            'created_at': now_str
-                        }
-                        # Apply revenue modifier as temporary boost
-                        if ev.get('revenue_mod', 0) != 0:
-                            boost_amount = int(abs(tick_rev) * abs(ev['revenue_mod']))
-                            if ev['revenue_mod'] > 0:
-                                total_revenue += boost_amount
-                            else:
-                                total_revenue = max(0, total_revenue - boost_amount)
-                        # Apply fame modifier
-                        if ev.get('fame_mod', 0) != 0:
-                            await scheduler_db.users.update_one(
-                                {'id': user_id},
-                                {'$inc': {'fame': ev['fame_mod']}}
-                            )
-                        # Save event
-                        star_events.append(ev_record)
-                        # Global events: save to cinema_news for journal
-                        if ev.get('is_global'):
-                            await scheduler_db.cinema_news.insert_one({
-                                'type': 'event',
-                                'category': ev['tier'],
-                                'title': ev['text'],
-                                'content': ev['text'],
-                                'user_id': user_id,
-                                'film_id': film_id,
-                                'created_at': now_str,
-                                'is_global_event': True,
-                                'tier': ev['tier']
-                            })
-                except Exception as ev_err:
-                    logger.error(f"[AUTO-TICK] Event generation error: {ev_err}")
+                # --- PROJECT EVENT (cooldown 12h per title, quality-based chance) ---
+                is_coming_soon = film.get('status') == 'coming_soon'
+                # Skip revenue/star for coming_soon films
+                if is_coming_soon:
+                    total_revenue -= tick_rev  # Undo revenue for coming_soon
+                    tick_rev = 0
+                
+                if film_id not in films_on_event_cooldown:
+                    try:
+                        from event_templates import generate_event
+                        cast_names_for_event = [people_map[cid].get('name', 'Sconosciuto')
+                                               for cid in film_cast_map.get(film_id, []) if cid in people_map]
+                        ev = generate_event(film, cast_names_for_event, is_coming_soon=is_coming_soon)
+                        if ev:
+                            ev_record = {
+                                'user_id': user_id, 'type': 'PROJECT_EVENT',
+                                'film_id': film_id, 'film_title': film.get('title', ''),
+                                'text': ev['text'], 'tier': ev['tier'],
+                                'event_type': ev['event_type'],
+                                'revenue_mod': ev.get('revenue_mod', 0),
+                                'hype_mod': ev.get('hype_mod', 0),
+                                'fame_mod': ev.get('fame_mod', 0),
+                                'is_global': ev.get('is_global', False),
+                                'is_star_event': ev.get('is_star_event', False),
+                                'actor_name': ev.get('actor_name', ''),
+                                'created_at': now_str
+                            }
+                            # Apply revenue modifier to this tick
+                            if ev.get('revenue_mod', 0) != 0 and tick_rev > 0:
+                                boost_amount = int(tick_rev * abs(ev['revenue_mod']))
+                                if ev['revenue_mod'] > 0:
+                                    total_revenue += boost_amount
+                                else:
+                                    total_revenue = max(0, total_revenue - boost_amount)
+                            # Apply hype modifier to actual film in DB
+                            if ev.get('hype_mod', 0) != 0:
+                                await scheduler_db.films.update_one(
+                                    {'id': film_id},
+                                    {'$inc': {'hype_score': ev['hype_mod']}}
+                                )
+                            # Apply fame modifier to user
+                            if ev.get('fame_mod', 0) != 0:
+                                await scheduler_db.users.update_one(
+                                    {'id': user_id},
+                                    {'$inc': {'fame': ev['fame_mod']}}
+                                )
+                            star_events.append(ev_record)
+                            films_on_event_cooldown.add(film_id)
+                            # Global events: save to cinema_news
+                            if ev.get('is_global'):
+                                await scheduler_db.cinema_news.insert_one({
+                                    'type': 'event', 'category': ev['tier'],
+                                    'title': ev['text'], 'content': ev['text'],
+                                    'user_id': user_id, 'film_id': film_id,
+                                    'created_at': now_str,
+                                    'is_global_event': True, 'tier': ev['tier']
+                                })
+                    except Exception as ev_err:
+                        logger.error(f"[AUTO-TICK] Event generation error: {ev_err}")
                 
                 # --- SKILL PROGRESSION ---
                 for cast_id in film_cast_map.get(film_id, []):

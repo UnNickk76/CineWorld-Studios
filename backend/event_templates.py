@@ -110,14 +110,23 @@ def pick_event_tier():
         return 'legendary', EVENTS_LEGENDARY
 
 
-def generate_event(film, cast_names=None):
+def generate_event(film, cast_names=None, is_coming_soon=False):
     """Generate a random event for a film/project.
-    Returns None if no event triggers (30-50% chance per tick)."""
-    # 30-50% chance to trigger any event
-    if random.random() > random.uniform(0.30, 0.50):
+    Returns None if no event triggers.
+    Base 30% chance, modified by quality. COMING SOON only rare+."""
+    quality = film.get('quality_score', film.get('quality', 50)) or 50
+    
+    # Base 30% chance, quality bonus up to +15% for q=100
+    trigger_chance = 0.30 + (quality - 50) / 333
+    if random.random() > trigger_chance:
         return None
     
     tier, pool = pick_event_tier()
+    
+    # COMING SOON: only rare, epic, legendary
+    if is_coming_soon and tier == 'common':
+        return None
+    
     template = random.choice(pool)
     
     # Fill variables

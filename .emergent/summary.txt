@@ -1,147 +1,153 @@
 <analysis>**original_problem_statement**: 
-OBIETTIVO: rendere gli eventi cinematici più lenti, percepibili e spettacolari. Modificare la sequenza: fade out pagina (800ms) → schermo nero (500ms) → Matrix rain (minimo 2000ms) → apparizione Velion (600ms) → card evento (dopo 800ms). Durata totale minima: ~4-5 secondi. Impedire skip automatici, impostare coda eventi a 3 secondi di distanza e prolungare visualizzazione Matrix.
-PRODUCT REQUIREMENTS: 
-- Ottimizzato per mobile.
-- NON cambiare logica backend. Solo UX timing.
-- NON usare testing agent (No test agent).
+OBIETTIVO: Evolvere il sistema di gioco integrando completamente Infrastrutture, Arena, Eventi e Guerra tra Major, con UI cinematica avanzata e mobile-first (Fase 1 e Fase 2).
+PRODUCT REQUIREMENTS:
+- **Infrastrutture attive**: generano eventi, subiscono attacchi Arena, influenzano progetti.
+- **Arena mirata**: attacchi selettivi a Cinema (-20% incassi), TV (calo audience), Agenzie (penalità attori), Commerciale (riduzione entrate).
+- **Abilità Strategiche Infra**: Divisione Operativa (riduce danni), Investigativa (identifica attaccante), Legale (blocco attacco).
+- **Eventi Infra**: eventi specifici per categoria e combinati con progetti.
+- **Dettaglio Infra UI**: Tab interni (Panoramica, Eventi, Sicurezza, Influenza).
+- **Major Warfare**: guerre di 24/48/72h tra Major con eventi dedicati e bersagli mirati (infrastrutture, film, fama).
+- **Ruoli Major**: Fondatore gestisce membri e attacchi.
+- L'utente richiede modifiche step by step. **Vietato l'uso del testing agent (No test agent).**
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Il sistema Major Soft Expansion (livelli, ruoli, bonus, eventi e guerre) è completo e integrato nella UI. È stato creato un Tutorial universale e un Dashboard Tour animato che si attiva alla prima registrazione. Tutte le logiche manuali (Incassa, Crea Stella) sono state rimosse in favore di un  in background che distribuisce incassi, popolarità ed eventi. È stato implementato un sistema di Eventi Cinematici con oltre 100 template: quando un evento Epico/Leggendario colpisce un film in sala, l'utente vede un effetto Matrix e un'animazione di Velion a tutto schermo.
+- Completata l'integrazione di Serie TV/Anime nell'auto-tick (incassi ed eventi).
+- Creato un sistema anti-spam per le notifiche (max 3 toast, badge rosso per gli unread, coda temporizzata a 5s).
+- Creata la pagina Eventi (Event History) con storico e replay cinematico.
+- Implementato il sistema avanzato di eventi dinamici basato sulla Pressione () che scala con il tempo e i progetti attivi, sostituendo la probabilità fissa.
+- Ridisegnata la UI Cinematica (Velion grande e centrato, card evento posizionata sotto senza sovrapposizioni, timing estesi).
+- Ridisegnata la pagina  con Navbar interna.
+- Ridisegnata la pagina  con grid statica 3+2 per categorie, sub-tab, mobile-first.
 
 **Last working item**: 
-    - Last item agent was working: Modifica del timing della UI cinematica per rallentare l'animazione degli eventi epici/leggendari (, , ).
-    - Status: IN PROGRESS (L'agente ha applicato tutte le modifiche ai file, ha testato via screenshot e constatato il successo visivo, ma la context window è terminata prima che potesse lanciare il tool  e aggiornare il PRD).
-    - Agent Testing Done: Y
-    - Which testing method agent to use? screenshot tool (Come richiesto dall'utente, NON usare testing agent).
+    - Last item agent was working: Integrazione Backend della Fase 1 & 2 (Infrastrutture, Arena, Guerra). L'agente stava modificando  per aggiungere eventi infrastrutturali e di guerra, e  (linee 1650+) per integrare gli eventi delle infrastrutture nel loop dell'auto-tick.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? backend testing via curl / python -c, frontend via screenshot tool (L'utente ha esplicitamente vietato il testing agent).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Azioni Proprietario Serie TV (P1)
-     - Attempted fixes: Nessuno in questa sessione.
-     - Next debug checklist: Poiché il sistema Incassa e Crea stella è stato rimosso per i Film, occorre verificare se le Serie TV sono già incluse nell'auto-tick o se possiedono ancora bottoni manuali da rimuovere/allineare.
-     - Why fix this issue and what will be achieved with the fix? Completa la transizione verso l'economia 100% passiva e automatica per tutti i formati.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? sia backend che frontend
-     - Blocked on other issue: None
-
-  Issue 2: Contest Page Mobile Layout Is Broken (P2)
+  Issue 1: Contest Page Mobile Layout Broken (P2)
      - Attempted fixes: Nessuno.
      - Next debug checklist: Ispezionare la UI mobile della contest page (layout rotto).
      - Why fix this issue and what will be achieved with the fix? Bug UX ricorrente segnalato dagli utenti.
      - Status: NOT STARTED
-     - Is recurring issue? Y
+     - Is recurring issue? Y (16+ segnalazioni)
      - Should Test frontend/backend/both after fix? frontend
      - Blocked on other issue: None
 
 **In progress Task List**: 
-  Task 1: Finalizzazione del task Timing Eventi Cinematici (P0)
-     - Where to resume: Il codice è già stato modificato e testato. L'agente deve solo confermare che tutto è corretto, aggiornare il file  e chiudere formalmente il task con il summary, per poi passare al task successivo.
-     - What will be achieved with this? Un'esperienza utente più drammatica e leggibile durante gli eventi rari.
-     - Status: TESTING PENDING (Screenshot ok, va solo chiuso)
-     - Should Test frontend/backend/both after fix? NA
-     - Blocked on something: None
+  Task 1: Sviluppo Fase 1 & 2 - Integrazione Infra, Arena, Eventi e Major Warfare (P0)
+     - Where to resume: L'agente ha appena iniziato a modificare  e  per gli eventi infra. Deve completare la logica backend (endpoints Arena mirata, War routes, gestione abilità infra strategiche) e successivamente implementare i consistenti aggiornamenti UI frontend ( Detail Tabs, , Pannello Major War).
+     - What will be achieved with this? Un ecosistema PvP e gestionale interconnesso e dinamico.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on something: Nessuno
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
-    - (P1) Verificare allineamento Serie TV al nuovo sistema eventi/tick automatici (Issue 1).
     Future Tasks:
     - (P3) Marketplace for TV/Anime rights.
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Velion AI Memory.
 
 **Completed work in this session**
-- Completamento UI Frontend Soft Expansion Major (Sezione Admin, gestione bonus e UI Guerre) in  (DONE)
-- Fix critico su payload gigante di  (ridotto da 2.6MB a 85 byte rimuovendo loghi base64) (DONE)
-- Creazione Tutorial Modale centralizzato (, ) (DONE)
-- Creazione Dashboard Tour post-registrazione () (DONE)
-- Rimozione di tutti i bottoni manuali Incassa e Crea Stella (DONE)
-- Implementazione Sistema Eventi Cinematici Backend () (DONE)
-- Implementazione UI Cinematic Events con Overlay Canvas e Velion (, ) (DONE)
-- Integrazione Eventi Cinematici ai Dati Reali ( aggiornato per cooldown, status in_sala/coming_soon) (DONE)
+- Allineamento Serie TV/Anime al sistema auto-tick (DONE)
+- Pagina Cronologia Eventi (EventHistoryPage) e throttling eventi cinematici (DONE)
+- Sistema Notifiche Anti-Spam (Badge unread, coda 5s) (DONE)
+- Ristrutturazione Layout Pagina Major con Navbar interna (DONE)
+- Ristrutturazione Layout Pagina Infrastrutture (grid 3+2 fissa) (DONE)
+- Sistema Pressione Evento Dinamico e Rework Probabilità (DONE)
+- Centratura e Resize UI Velion Cinematic Event (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Azioni Serie TV pendenti/da allineare (menzionato nei log precedenti).
-- Layout Contest Page Mobile.
+   - Issue 1: Contest Page Mobile Layout (menzionato nei backlog passati, mai fixato).
 
 **Known issue recurrence from previous fork**
-  - Contest Page Mobile Layout Is Broken
+  - Issue recurrence in previous fork: Contest Page Mobile Layout Is Broken
   - Recurrence count: 16+
   - Status: NOT STARTED
 
 **Code Architecture**
-- Frontend: React (, , , , ).
-- Backend: FastAPI (, , , ).
-- Background:  per il loop tick/eventi ogni 10 min.
-- DB: MongoDB.
+- Frontend: React (, , , ).
+- Backend: FastAPI (, , , , ).
+- Sistema Auto-Tick: basato su APScheduler in  (gira in background ogni 10 min).
 
 **Key Technical Concepts**
-- **Cinematic Event System**: Un sistema integrato nel tick che lancia eventi casuali (Comuni, Rari, Epici, Leggendari). Il frontend (in ascolto tramite API polling in ) gestisce una coda eventi. Se l'evento è epico o leggendario, oscura lo schermo, renderizza particelle matrix via Canvas e mostra un'animazione di Velion prima della notifica.
-- **Tutorial / Tour System**: Stato gestito in  e via flag DB per utente registrato per lanciare la guida automatica di navigazione.
+- **Event Pressure**: Gli eventi ora non sono a % fissa, ma basati su una variabile pressione accumulata nel tempo e smaltita dai reset parziali.
+- **Throttling UI**: Il backend serve un evento cinematico epico/leggendario alla volta (throttled) per evitare sovrapposizioni visive massicce al login.
 
 **key DB schema**
+  - : { , ,  }
+  - : { , , , , , ,  }
   - : { , , , , ,  }
-  - : { uid=0(root) gid=0(root) groups=0(root), , , , ,  }
 
 **changes in tech stack**
-  - Utilizzo intensivo di  per gestire fasi sequenziali (fadeout, matrix, reveal) nella UI.
+  - Nessuna
 
 **All files of reference** 
-  -  (Gestione fasi temporali animazione)
-  -  (Canvas effect)
-  -  (Gestione coda di attesa eventi)
-  -  (Core economy & Event trigger logic)
-  -  (Dizionario eventi statici creati)
+  -  (aggiornato con logiche pressione e nuovi infra_events)
+  -  (contiene il loop tick principale in via di aggiornamento per Infra events)
+  -  (aggiornato layout, richiederà nuove tab interne)
+  -  (layout Flex-col centrato)
+  -  (logica badge anti-spam)
+  - 
 
 **Areas that need refactoring**: 
-  - Nessuna critica.
+  - Nessuna critica. Il codice è stato ripulito iterativamente.
 
 **key api endpoints**
-  -  (Frontend esegue il polling per ricevere eventi cinematici o toast)
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **L'utente ha proibito categoricamente l'uso del testing agent (No test agent)**. Usa tool come  e bash scripting per testare i flussi.
+- **NO TEST AGENT**: L'utente ha esplicitamente ordinato di NON usare il testing agent (No test agent). Esegui test tramite script bash (, ) o con .
+- Il task attuale (Fase 1 e Fase 2) è gigantesco. L'agente precedente ha appena inserito i template in  e stava piazzando il trigger in . Dovrai spacchettare il lavoro e chiedere conferme all'utente step-by-step come da lui richiesto.
 - RISPONDI SEMPRE IN ITALIANO.
-- Hai appena finito di modificare le tempistiche dell'animazione Matrix/Velion su richiesta. Verifica l'ultimo screenshot se necessario e procedi alla chiusura () di questo step aggiornando , in modo da liberare lo stack per il prossimo comando.
 
 **documents and test reports created in this job** 
-  -  (aggiornato continuamente in sessione)
-  -  (documenti teorici creati)
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-(10) User chiede un tutorial base unificato per il gioco (budget max 5 crediti). (Finito)
-(9) User chiede un Dashboard Tour visuale (Velion in basso a destra con frecce verso i vari tab). (Finito)
-(8) User chiede fix per troppe star generate. (Agente dimostra che era già stato fatto nella sessione prima. Nessuna azione intrapresa).
-(7) User ordina di rimuovere i bottoni manuali Incassa/Stelle e creare un sistema Eventi Cinematografico. (Finito)
-(6) User ordina di collegare i nuovi eventi cinematografici ai dati reali (Film in sala, cooldown 12h, applicare effetti statistici). (Finito)
-(5) User chiede un rallentamento forzato (timing minimo 4-5s) della sequenza visiva dell'evento cinematico, più prolungamento del Matrix. (ULTIMO MESSAGGIO - L'agente ha fatto tutto il codice ma si è interrotto prima del ).
+ - (10) User chiede Fase 1+2 delle infrastrutture, arena e guerre (20 crediti, no test agent). (IN PROGRESS)
+ - (9) User conferma il piano (Fase 1+2). (IN PROGRESS)
+ - (8) User corregge la navbar Infrastrutture: tutti e 5 i tab visibili in grid 3 sopra 2 sotto. (DONE)
+ - (7) User ordina ristrutturazione completa Pagina Infrastrutture (categorie orizzontali). (DONE)
+ - (6) User chiede di spostare e ingrandire Velion, card evento posizionata sotto senza sovrapporsi. (DONE)
+ - (5) User chiede di centrare verticalmente e orizzontalmente la card degli eventi cinematici. (DONE)
+ - (4) User richiede il Nuovo Sistema Eventi Avanzato (pressione dinamica, rework cinematico completo). (DONE)
+ - (3) User ordina di ristrutturare la pagina Major con navbar interna. (DONE)
+ - (2) User ordina sistema Anti-Spam notifiche (badge rosso, raggruppamento toast, max 1 ogni 5s). (DONE)
+ - (1) User ordina logica Queue eventi cinematici backend (throttle max 1 evento), pagina Event History e icona badge tipo su card. (DONE)
 
 **Project Health Check:**
-- Broken: Contest Page Mobile Layout.
-- Mocked: Nessuno.
+- Broken: Contest Page Mobile Layout
+- Mocked: Nessuno
 
 **3rd Party Integrations** 
-- Stripe (Payments)
-- Gemini Nano Banana (Generazione Logo/Immagini via Emergent LLM Key)
+- Stripe (Payments) - Requires User API Key
+- Gemini Nano Banana (Generazione Logo) - Uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito dall'utente per questo task, tranne autorizzazioni minime, ma sconsigliato procedere oltre).
+  - Testing agent used after significant changes: NO (Proibito dall'utente).
   - Troubleshoot agent used after agent stuck in loop: NO.
   - Test files created: []
   - Known regressions: Nessuna.
 
 **Credentials to test flow:**
-  Utente:  /  (o Guest Login).
+  Utente Test principale:  /  (o NeoMorpheus)
 
 **What agent forgot to execute**
-L'agente ha dimenticato di lanciare il tool  per chiudere l'ultimo task del timing, aggiornando il file PRD e preparando il terreno al prossimo task. L'agente non ha affrontato l'allineamento delle Serie TV.
+L'agente si è fermato prima di poter concludere l'innesto della logica infra event in  e di proseguire con i rework backend PvP/Arena/Major richiesti. Riprendi da lì.
 
 **Debugging checklist for current issue**
-    Issue: Finalizzazione task Timing Eventi Cinematici
-    Frontend files to check: 
-    - 
-    - 
-    - 
-    (I file sono già stati aggiornati. Va solo fatto un check logico o chiuso il task se ci si fida dell'ultimo screenshot preso prima della fine contesto).</analysis>
+    Issue: Implementazione Fase 1 & 2 (Infrastrutture, PvP, Guerre)
+    Backend files to check: 
+    -  (Riga 1650: completa inserimento logica per Infra events)
+    -  (Da estendere per attacchi mirati e abilità strategiche infra)
+    -  (Da estendere per Major Wars e Founder roles)
+    Frontend files to check:
+    -  (Da estendere con i 4 tab interni: Panoramica, Eventi, Sicurezza, Influenza)
+    -  (Da aggiornare con la selezione bersaglio specifico)</analysis>

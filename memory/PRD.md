@@ -75,6 +75,13 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Caricamento dati guerra non-bloccante (fix page loading stuck)
 - **Documenti futuri**: /app/features_future/ con 4 file .md (contracts, franchise, streaming, acquisitions)
 
+### Collegamento Eventi Cinematici a Gameplay Reale (DONE - 2026-04-06)
+- Trigger automatico per film IN SALA + COMING SOON (solo rare+)
+- Cooldown 12h per titolo, probabilita 30% base + modificatore qualita
+- Effetti applicati al DB reale: revenue ±%, hype_score ±% (update film), fame ±% (update user)
+- Anti-spam frontend: 20s tra cinematici, coda eventi
+- Testato con testing agent: 12/12 backend PASS, 100% frontend verificato
+
 ### Sistema Eventi Completo + Cinematic UI (DONE - 2026-04-06)
 - **Backend**: `event_templates.py` con ~100 template in 4 tier (common 60%, rare 25%, epic 10%, legendary 5%)
 - Integrazione in `scheduler_tasks.py`: 30-50% chance per progetto per tick, modificatori revenue/hype/fame

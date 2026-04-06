@@ -123,9 +123,6 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center p-4 pb-20 cinema-gradient">
-      <VelionLoginBubble onStart={() => {
-        handleGuestLogin();
-      }} />
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -152,6 +149,7 @@ const AuthPage = () => {
               <HelpCircle className="w-3.5 h-3.5" /> Come si gioca?
             </Button>
             <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">BETA TEST</Badge>
+            <PWAInstallBanner variant="inline" />
           </CardHeader>
 
           <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />

@@ -2174,7 +2174,6 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
-      <PWAInstallBanner />
       <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <AnimatePresence>
         <PageTransition key={location.pathname}>

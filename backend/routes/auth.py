@@ -735,9 +735,14 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
 
 @router.put("/auth/avatar")
 async def update_user_avatar(avatar_data: AvatarUpdate, user: dict = Depends(get_current_user)):
+    new_url = avatar_data.avatar_url
+    # If the avatar is base64, persist to file first to avoid DB bloat
+    if new_url and str(new_url).startswith('data:image'):
+        temp_user = {**user, 'avatar_url': new_url}
+        new_url = await persist_base64_avatar(temp_user)
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'avatar_url': avatar_data.avatar_url, 'avatar_source': getattr(avatar_data, 'avatar_source', 'preset')}}
+        {'$set': {'avatar_url': new_url, 'avatar_source': getattr(avatar_data, 'avatar_source', 'preset')}}
     )
     updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
     return updated_user

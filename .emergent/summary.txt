@@ -1,40 +1,42 @@
 <analysis>**original_problem_statement**: 
-Il sistema richiede una serie di interventi mirati su bug critici e nuove funzionalità core: perfezionamento della UI del tutorial Guest su mobile, risoluzione dei problemi di sovrapposizione z-index e stacking context (che rendevano i bottoni non cliccabili), conversione del personaggio Velion in un'immagine grande e prominente al posto di un semplice avatar, ed espansione del tutorial per guidare l'utente passo-passo attraverso TUTTO il form di creazione del primo film (12 step totali). Inoltre, è stato richiesto di modificare il timer di comparsa del popup Dona Ora affinché compaia solo 2 ore dopo il primo login giornaliero (e massimo una volta ogni 24 ore).
+Il sistema richiede una serie di interventi mirati e nuove funzionalità:
+1. Completamento e fix del tutorial Guest (step celebrativo finale, correzione frecce, target di auto-advance e aggiunta del pulsante Speedup nella vista cinematica).
+2. Sostituzione di immagini template pesanti con file PNG ottimizzati e leggeri.
+3. Accesso permanente alla registrazione per gli utenti Guest (tramite un pulsante floating).
+4. Implementazione di una modale di registrazione ad alta conversione per i guest che sfrutti la psicologia della perdita (Non perdere il tuo studio, mostrando film e guadagni accumulati).
+5. Nuova logica al logout/scadenza dei guest: invece di eliminare tutto, i progetti di qualità (status avanzato, score >= 40) devono essere convertiti in asset del Marketplace senza proprietario.
+6. **(ATTUALE)** Analisi completa e ottimizzazione delle dimensioni del database MongoDB per individuare anomalie di storage ed eliminare dati inutili o duplicati, sistemando la root cause lato codice.
 
 **PRODUCT REQUIREMENTS**:
-1. Fix bug sovrapposizione tutorial Guest: rendere l'overlay trasparente ai click () per sbloccare la UI sottostante (es. menu dropdown Produci).
-2. Il tasto Inizia Ora del popup di benvenuto deve collegarsi direttamente al Guest Login.
-3. Rinnovare UI Velion nel tutorial: usare l'immagine  in grande scala, mantenendola sempre visibile ai bordi (fuori dalla nuvoletta di testo), con animazioni differenti per step.
-4. Espandere il tutorial Guest per accompagnare il giocatore lungo l'intera  (Idea, Titolo, Sinossi, Poster, Rilascio, Speedup).
-5. Aggiungere uno step finale celebrativo post-creazione film con un testo specifico e un'animazione di grande impatto.
-6. Modificare la logica del popup donazioni (ritardo di 2h dal login giornaliero, cooldown di 24h).
+- Vietato l'uso del testing agent (No test agent).
+- Ottimizzazione per mobile e Railway.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking context su Safari iOS sono stati risolti. Il tasto Inizia Ora effettua correttamente il guest login. L'overlay del tutorial ora fa solo da dimmer visivo senza bloccare l'interfaccia (). Il personaggio Velion appare in grande formato e in posizioni che non ostruiscono l'interfaccia di gioco. Il tutorial è stato espanso lato frontend e backend () per coprire ben 11/12 step che seguono attivamente la creazione del film nella pipeline. Il timer del popup Dona Ora è stato reimpostato con successo (, ).
+Il tutorial Guest è stato completamente rifinito (ora composto da 13 step), i bug di auto-advance e i target delle frecce sono stati risolti. I file template pesanti sono stati sostituiti. È stato implementato un badge fisso per la registrazione dei guest. La modale di conversione è stata riscritta per mostrare statistiche dinamiche (film creati e profitti) con logica loss aversion. Al logout del guest, i film di qualità vengono ora trasformati in asset del Marketplace (, ), mentre il resto viene eliminato in modo pulito.
 
 **Last working item**: 
-    - Last item agent was working: Aggiunta dell'ultimo step del tutorial (Step finale celebrativo post-creazione film) con l'animazione di forte impatto e la frase conclusiva (Adesso non ti resta che esplorare tutte le altre sezioni...). Il codice è stato appena inserito in  tramite  ma non è stato ancora testato.
-    - Status: TESTING PENDING
+    - Last item agent was working: Analisi del DB MongoDB e risoluzione del bloat storage (P0). L'agente ha scoperto che la collection  occupa 160MB (54% del DB) a causa del campo  che salva un'immagine base64 di 2.95MB in ogni documento. L'utente ha ordinato: Procedi e fai in modo che non succeda di nuovo. L'agente stava cercando nel backend (, , ) dove viene inserito il base64 per fixare il codice prima di pulire i dati.
+    - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? screenshot tool (emulando la UI e forzando lo step finale per verificare l'impatto visivo). **ATTENZIONE: L'utente ha espressamente vietato l'uso del testing agent (No test agent)**.
+    - Which testing method agent to use? python -c / mongodb shell (per verificare e pulire il DB) e test manuale curl/API. NO TESTING AGENT.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Verificare l'ultimo step del tutorial Guest (P0)
-     - Attempted fixes: Aggiunto lo step celebrativo in  con le stringhe fornite dall'utente.
-     - Next debug checklist:  - Simulare/Avanzare il tutorial fino all'ultimo step ed effettuare uno screenshot per confermare che l'animazione e il testo di Velion siano corretti e visivamente d'impatto.
-     - Why fix this issue and what will be achieved with the fix? È l'ultima richiesta dell'utente per concludere definitivamente il task del tutorial Guest.
-     - Status: TESTING PENDING
+  Issue 1: Fix root cause bloat  e pulizia DB (P0)
+     - Attempted fixes: Identificato il problema (campo  in base64 da 3MB). Ricerca file con  su  in corso.
+     - Next debug checklist: Modificare l'inserimento di  nel backend (es. , , o ) in modo che salvi solo l'URL o un ID invece dell'intero base64. Dopodiché, eseguire uno script Python per aggiornare/pulire i documenti esistenti in , rimuovere i guest inattivi da , ripulire i  orfani e deduplicare i record in .
+     - Why fix this issue and what will be achieved with the fix? Il DB ha raggiunto quasi 300MB di dati a causa di stringhe base64 duplicate; la pulizia libererà circa l'85% dello storage.
+     - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? frontend
+     - Should Test frontend/backend/both after fix? backend
      - Blocked on other issue: None
 
   Issue 2: Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost) silenti (P1)
-     - Attempted fixes: Nessun tentativo effettuato in questa sessione. (Ereditato dall'handoff precedente).
-     - Next debug checklist: Implementare in  o simili gli endpoint per incasso, creazione stella e boost.
-     - Why fix this issue and what will be achieved with the fix? Permette ai giocatori di monetizzare e interagire con le serie TV.
+     - Attempted fixes: Nessuno finora.
+     - Next debug checklist: Implementare in  gli endpoint necessari per la gestione delle Serie TV.
+     - Why fix this issue and what will be achieved with the fix? Feature core mancante per l'engagement e l'economia del gioco.
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? backend
@@ -46,7 +48,7 @@ Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking conte
      - What will be achieved with this? Manutenibilità e riduzione rischio bug.
      - Status: PAUSED
      - Should Test frontend/backend/both after fix? backend
-     - Blocked on something: Priorità più alte (Bug fix e Task Serie TV).
+     - Blocked on something: Priorità più alte (Pulizia DB P0).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -58,16 +60,17 @@ Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking conte
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Fix React Hooks in  (Rendered fewer hooks than expected) (DONE)
-- Fix freccia direzionale tutorial, posizionamento dinamico e z-index (DONE)
-- Collegamento bottone Inizia ora a  in  (DONE)
-- Fix bug Produci! non cliccabile (stacking context / pointer-events bypass su overlay) (DONE)
-- Ristrutturazione layout Tutorial: Velion come immagine grande () dinamica e staccata dalla nuvoletta di testo (DONE)
-- Espansione del tutorial Guest da 6 a 11 step interattivi (backend  e frontend ) (DONE)
-- Modifica Timer Popup Dona Ora (2h delay dal login, 24h cooldown) in  e  (DONE)
+- Fix finale e celebrazione per Guest Tutorial in  (DONE)
+- Correzione target frecce, auto-advance pipeline tutorial ed aggiunta step Clicca sul tuo film (DONE)
+- Aggiunta bottoni  in visualizzazione cinematica  (DONE)
+- Sostituzione  e  con versioni PNG leggere (DONE)
+- Registrazione Guest Permanente con badge  in  (DONE)
+- Conversione dei progetti Guest in asset Marketplace in  in  (DONE)
+- Riscrizione modale conversione Guest per Loss Aversion in  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Nessuno di nuovo identificato oltre a quelli in pending (Azioni Serie TV).
+- Azioni Serie TV ancora pendenti.
+- Layout Contest Page Mobile.
 
 **Known issue recurrence from previous fork**
   - Contest Page Mobile Layout Is Broken
@@ -75,82 +78,80 @@ Tutti i problemi di z-index, React Hooks (Rendered fewer hooks) e stacking conte
   - Status: NOT STARTED
 
 **Code Architecture**
-- Frontend: ,  (Gestione UI/UX logica step tutorial Guest), ,  (Form creazione e step mapping).
-- Backend:  (Endpoint popup donazioni),  (Gestione step tutorial nel DB).
+- Frontend: React (, , , ).
+- Backend: FastAPI (, , ).
+- DB: MongoDB.
 
 **Key Technical Concepts**
-- **Guest Tutorial**: Usa React Refs () per posizionare l'highlight. L'overlay ha  per evitare di bloccare dropdown e form sottostanti (fondamentale per iOS Safari).
-- **Donation Popup Delay**: Tracciato via  e  nel , più flag nel DB per il cooldown delle 24 ore.
+- **Guest Logic**: I guest ora hanno badge persistenti per convertirsi. Quando un guest scade, i progetti con  vengono resi anonimi () e piazzati nel mercato () con un calcolo del prezzo maggiorato.
+- **Tutorial Logic**: Controllato tramite  e il tracking DOM su elementi  usando polling.
 
 **key DB schema**
-  - : aggiornata logica per  (ora scala fino a >10) e introdotto salvataggio/aggiornamento di .
+  - : Contiene feed globali. (Attualmente afflitta dal campo enorme  in base64).
+  - : Track di , , e metrics generali.
+  - : Contiene , , , , .
 
 **changes in tech stack**
-  - Nessuno in particolare.
+  - Nessuno.
 
 **All files of reference** 
-  -  (Core per la UI del tutorial, z-index, Velion layout, animazioni)
-  -  (Aggiunti data-testid per auto-advance del tutorial)
-  -  (Logica ritardo popup donazioni)
-  -  (Fix bottone Inizia Ora)
-  -  (Endpoint )
-  -  (Aggiornato costanti  a 11)
+  -  (Qui risiede la potenziale query errata che inserisce i base64 in cinema_news)
+  -  (Logica di cancellazione guest aggiornata)
+  -  (Modale ad alta conversione guest e pulsante fisso)
+  -  (Nuovi step e target)
 
 **Areas that need refactoring**
-  -  (Monolite da sfoltire).
+  -  (Il monolite sta diventando difficilmente gestibile, +17k righe).
 
 **key api endpoints**
   - 
   - 
-  - 
 
 **Critical Info for New Agent** 
-- **IL CLIENTE HA VIETATO L'UTILIZZO DEL TESTING AGENT (No test agent).** Qualsiasi test deve essere fatto manualmente tramite , bash o Python.
-- Tutte le comunicazioni con l'utente devono essere in **Italiano**.
-- L'overlay del tutorial NON deve mai avere pointer-events o bloccherà i menu a discesa della piattaforma. Lasciarlo come .
-- Velion deve essere sempre mostrato grande (con la sua immagine in ) e non come una piccola V chiusa in un cerchio.
+- **L'utente ha proibito esplicitamente l'uso del testing agent** (NON usare test agent). Affidarsi a test manuali con bash, mongodb queries/python -c e screenshot_tool.
+- L'utente parla **italiano**. Rispondi e commenta solo in italiano.
+- Per il DB, devi prima rimuovere l'inserimento del  nel codice, e POI lanciare uno script che faccia un  o sostituzione sul campo  dei documenti esistenti in . Poi rimuovi i guest inattivi e i duplicati da  come concordato. Assicurati di NON toccare file utente validi.
 
 **documents and test reports created in this job**
-  - N/A (Modificato regolarmente PRD.md).
+  -  (Aggiornato con il track dei nuovi P0)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: (Immagini) Il tasto produci non è cliccabile.
-2. *Agent*: [Modifica overlay a pointer-events: none per rimuovere il blocco. Test OK].
-3. *User*: (Immagini) La nuvoletta blocca lo step successivo, spostala in alto quando c'è un target. Anche Velion deve essere animato nel form conversione.
-4. *Agent*: [Sposta Velion in alto e resetta z-index. Test OK].
-5. *User*: (Immagini) No assolutamente, Velion deve tornare GRANDE e all'ESTERNO della nuvoletta.
-6. *Agent*: [Rimodella l'UI, Velion grande a destra e nuvoletta al centro-alto. Test OK].
-7. *User*: (Immagine) Quando compare il dona ora blocca, farlo comparire 2 ore dopo login giornaliero, 1 volta nelle 24h.
-8. *Agent*: [Modifica App.js e server.py per il nuovo timer].
-9. *User*: (Immagini) Quando si clicca su film, si deve cominciare la creazione e bisogna essere seguiti passo-passo da Velion.
-10. *Agent*: [Estende tutorial a 11 step, mappa la Pipeline dei film].
-11. *User*: Appena finita la produzione del primo film, aggiungi un ultimo step tutorial con Velion in grande e un animazione visiva magari di forte impatto e con l’ultima nuvoletta che dica: “Adesso non ti resta che esplorare tutte le altre sezioni del gioco... CineWorld Studio’s!!!” **(PENDING: L'agente ha appena scritto il codice, ma il test con screenshot per confermare l'esito finale non è stato fatto. Usa screenshot per verificare che lo step finale si veda correttamente)**.
+(Elenco conciso delle interazioni)
+1. *User*: Aggiungere accesso permanente alla registrazione per utenti guest + gestione cancellazione dati. (Finito)
+2. *User*: Foto dei bug del tutorial: frecce sbagliate, step mancanti. (Finito)
+3. *User*: Convertire i contenuti guest validi in asset marketplace al logout anziché eliminarli. (Finito)
+4. *User*: Creare modale conversione guest ad alta conversione (loss aversion) con statistiche dinamiche. (Finito)
+5. *User*: (Ultimo messaggio PENDING) In backend esegui un controllo completo delle dimensioni del DB... NON eliminare nulla subito. Mostrami i problemi.
+6. *Agent*: [Mostra le stats:  occupa 160MB per avatar in base64. 72 guest inattivi, poster_files pesanti, duplicati infrastructure].
+7. *User*: Procedi e fai in modo che non succeda di nuovo (PENDING: Modificare l'origine del bug nel codice backend e pulire le collection di Mongo).
 
 **Project Health Check:**
-- Broken: None
+- Broken: Database gonfiato in modo anomalo (bloat).
 - Mocked: Nessuno
 
 **3rd Party Integrations** 
 - Stripe (Esistente)
-- Altri da implementare (nessuno aggiunto in questa sessione).
 
 **Testing status**
-  - Testing agent used after significant changes: NO (L'utente l'ha proibito).
+  - Testing agent used after significant changes: NO (Proibito dall'utente).
   - Troubleshoot agent used after agent stuck in loop: NO.
   - Test files created: []
   - Known regressions: Nessuna.
 
 **Credentials to test flow:**
-  - Procedere con opzione Prova senza registrarti dalla landing (Guest Login).
+  - Guest login dal frontend (Prova senza registrarti).
 
 **What agent forgot to execute**
-- L'agente ha iniettato il codice dello step finale celebrativo nel file  ma non ha testato l'interfaccia via screenshot prima di concludere per validare che l'animazione sia corretta e il testo formattato in maniera chiara.
+- L'agente era a metà della ricerca della query responsabile del caricamento base64 su  quando la sessione si è interrotta.
 
 **Debugging checklist for current issue**
-    Issue: Verificare e chiudere l'aggiunta dell'ultimo step del tutorial.
-    Frontend files to check: 
-    Next Steps:
-    1. Utilizzare bash script o procedere manualmente tramite API per spingere l'account guest allo step finale del tutorial (Step 11).
-    2. Prendere uno screenshot della pagina.
-    3. Verificare che l'animazione di Velion sia visivamente d'impatto (come richiesto) e che il messaggio di chiusura sia leggibile e corretto.
-    4. Effettuare la finish completando così l'ultima iterazione del task Tutorial Guest.</analysis>
+    Issue: MongoDB DB Bloat e Inserimento Base64 errato
+    Backend files to check: ,  o  (dove viene popolato ).
+    Database to check: , , 
+    /app/backend/server.py:8353:        await db.cinema_news.insert_one(news_entry)
+/app/backend/server.py:15043:# [MOVED]     await db.cinema_news.insert_one({
+/app/backend/routes/festivals.py:2228:    await db.cinema_news.insert_one({
+    Next actions:
+    1. Fixare il salvataggio dei base64 convertendo in URL omettendo il  dai dictionary inseriti.
+    2. Creare uno script python per pulire le collections ( del campo enorme, pulizia 72 guest inattivi, deduplica infrastructure).
+    3. Fare report finale all'utente.</analysis>

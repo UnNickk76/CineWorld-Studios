@@ -7931,7 +7931,7 @@ async def create_suggestion(suggestion: SuggestionCreate, user: dict = Depends(g
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'user_nickname': 'Anonimo' if suggestion.is_anonymous else user.get('nickname', 'Anonymous'),
-        'user_avatar': None if suggestion.is_anonymous else user.get('avatar_url'),
+        'user_avatar': None if suggestion.is_anonymous else (user.get('avatar_url') if not str(user.get('avatar_url', '')).startswith('data:') else None),
         'is_anonymous': suggestion.is_anonymous,
         'title': suggestion.title,
         'description': suggestion.description,
@@ -7967,7 +7967,7 @@ async def create_bug_report(bug: BugReportCreate, user: dict = Depends(get_curre
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'user_nickname': 'Anonimo' if bug.is_anonymous else user.get('nickname', 'Anonymous'),
-        'user_avatar': None if bug.is_anonymous else user.get('avatar_url'),
+        'user_avatar': None if bug.is_anonymous else (user.get('avatar_url') if not str(user.get('avatar_url', '')).startswith('data:') else None),
         'is_anonymous': bug.is_anonymous,
         'title': bug.title,
         'description': bug.description,
@@ -8346,7 +8346,6 @@ async def check_star_discovery(user: dict, person_id: str, film_quality: float):
             'person_role': person.get('type'),
             'discoverer_id': user['id'],
             'discoverer_name': user.get('nickname'),
-            'discoverer_avatar': user.get('avatar_url'),
             'importance': 'high',
             'created_at': datetime.now(timezone.utc).isoformat()
         }

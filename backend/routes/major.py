@@ -34,6 +34,26 @@ class MajorInviteRequest(BaseModel):
     user_id: str
 
 
+class SetLevelRequest(BaseModel):
+    major_id: str
+    new_level: str  # studio | mini_major | major
+
+
+class SetRoleRequest(BaseModel):
+    user_id: str
+    role: str  # manager | member
+
+
+class SetBonusesRequest(BaseModel):
+    marketing: int = 0
+    casting: int = 0
+    production: int = 0
+
+
+class WarCalculateRequest(BaseModel):
+    opponent_major_id: str
+
+
 # ==================== MAJOR (ALLIANCE) SYSTEM ENDPOINTS ====================
 
 @router.get("/major/my")
@@ -377,3 +397,281 @@ async def get_major_challenge(user: dict = Depends(get_current_user)):
         'rankings': rankings[:10],
         'week_ends_in': (week_start + timedelta(days=7) - datetime.now(timezone.utc)).total_seconds()
     }
+
+
+# ==================== LIVELLI STUDIO ====================
+
+STUDIO_LEVELS = ['studio', 'mini_major', 'major']
+
+@router.post("/major/set-level")
+async def set_major_level(request: SetLevelRequest, user: dict = Depends(get_current_user)):
+    """Set studio level. Founder only."""
+    if request.new_level not in STUDIO_LEVELS:
+        raise HTTPException(status_code=400, detail=f"Livello non valido. Usa: {', '.join(STUDIO_LEVELS)}")
+    
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership or membership['role'] != 'founder':
+        raise HTTPException(status_code=403, detail="Solo il founder può modificare il livello")
+    if membership['major_id'] != request.major_id:
+        raise HTTPException(status_code=403, detail="Non sei il founder di questa Major")
+    
+    await db.majors.update_one(
+        {'id': request.major_id},
+        {'$set': {'studio_level': request.new_level}}
+    )
+    return {'success': True, 'studio_level': request.new_level}
+
+
+# ==================== RUOLI MEMBRI ====================
+
+@router.post("/major/set-role")
+async def set_member_role(request: SetRoleRequest, user: dict = Depends(get_current_user)):
+    """Set member role. Founder only. Cannot change founder role."""
+    if request.role not in ('manager', 'member'):
+        raise HTTPException(status_code=400, detail="Ruolo non valido. Usa: manager, member")
+    
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership or membership['role'] != 'founder':
+        raise HTTPException(status_code=403, detail="Solo il founder può modificare i ruoli")
+    
+    target = await db.major_members.find_one({
+        'user_id': request.user_id, 'major_id': membership['major_id'], 'status': 'active'
+    }, {'_id': 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    if target['role'] == 'founder':
+        raise HTTPException(status_code=400, detail="Il ruolo founder non può essere modificato")
+    
+    await db.major_members.update_one(
+        {'user_id': request.user_id, 'major_id': membership['major_id'], 'status': 'active'},
+        {'$set': {'role': request.role}}
+    )
+    return {'success': True, 'user_id': request.user_id, 'role': request.role}
+
+
+# ==================== BONUS REPARTI ====================
+
+@router.post("/major/set-bonuses")
+async def set_major_bonuses(request: SetBonusesRequest, user: dict = Depends(get_current_user)):
+    """Set department bonuses (0-25). Founder only."""
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership or membership['role'] != 'founder':
+        raise HTTPException(status_code=403, detail="Solo il founder può modificare i bonus")
+    
+    bonuses = {
+        'marketing': max(0, min(25, request.marketing)),
+        'casting': max(0, min(25, request.casting)),
+        'production': max(0, min(25, request.production))
+    }
+    
+    await db.majors.update_one(
+        {'id': membership['major_id']},
+        {'$set': {'major_bonuses': bonuses}}
+    )
+    return {'success': True, 'major_bonuses': bonuses}
+
+
+# ==================== EVENTI MAJOR ====================
+
+import random as _random
+
+MAJOR_EVENTS = [
+    {'id': 'hype_wave', 'name_it': 'Ondata di Hype', 'name_en': 'Hype Wave',
+     'effect': {'marketing': 5}, 'positive': True,
+     'desc_it': 'I media parlano bene della tua Major! Marketing +5 per 24h',
+     'desc_en': 'Media buzz around your Major! Marketing +5 for 24h'},
+    {'id': 'talent_influx', 'name_it': 'Afflusso di Talenti', 'name_en': 'Talent Influx',
+     'effect': {'casting': 5}, 'positive': True,
+     'desc_it': 'Attori emergenti vogliono lavorare con te! Casting +5 per 24h',
+     'desc_en': 'Emerging actors want to work with you! Casting +5 for 24h'},
+    {'id': 'production_boost', 'name_it': 'Slancio Produttivo', 'name_en': 'Production Boost',
+     'effect': {'production': 5}, 'positive': True,
+     'desc_it': 'Il team e\' in gran forma! Production +5 per 24h',
+     'desc_en': 'The team is on fire! Production +5 for 24h'},
+    {'id': 'internal_crisis', 'name_it': 'Crisi Interna', 'name_en': 'Internal Crisis',
+     'effect': {'marketing': -5}, 'positive': False,
+     'desc_it': 'Tensioni interne. Marketing -5 per 24h',
+     'desc_en': 'Internal tensions. Marketing -5 for 24h'},
+    {'id': 'budget_leak', 'name_it': 'Fuga di Budget', 'name_en': 'Budget Leak',
+     'effect': {'production': -5}, 'positive': False,
+     'desc_it': 'Un progetto ha sforato il budget. Production -5 per 24h',
+     'desc_en': 'A project went over budget. Production -5 for 24h'},
+    {'id': 'casting_scandal', 'name_it': 'Scandalo Casting', 'name_en': 'Casting Scandal',
+     'effect': {'casting': -5}, 'positive': False,
+     'desc_it': 'Polemiche su un casting controverso. Casting -5 per 24h',
+     'desc_en': 'Controversy over a casting choice. Casting -5 for 24h'},
+]
+
+@router.post("/major/trigger-event")
+async def trigger_major_event(user: dict = Depends(get_current_user)):
+    """Trigger a random Major event. Founder only. Cooldown 6h."""
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership or membership['role'] != 'founder':
+        raise HTTPException(status_code=403, detail="Solo il founder può attivare eventi")
+    
+    major = await db.majors.find_one({'id': membership['major_id']}, {'_id': 0})
+    if not major:
+        raise HTTPException(status_code=404, detail="Major non trovata")
+    
+    # Cooldown check (6h)
+    last_event = major.get('last_event_at')
+    if last_event:
+        try:
+            last_dt = datetime.fromisoformat(last_event.replace('Z', '+00:00'))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            hours_since = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+            if hours_since < 6:
+                remaining = int((6 - hours_since) * 60)
+                raise HTTPException(status_code=400, detail=f"Cooldown attivo. Riprova tra {remaining} minuti")
+        except HTTPException:
+            raise
+        except:
+            pass
+    
+    event = _random.choice(MAJOR_EVENTS)
+    now_str = datetime.now(timezone.utc).isoformat()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    
+    await db.majors.update_one(
+        {'id': membership['major_id']},
+        {'$set': {
+            'active_event': {
+                'id': event['id'],
+                'name_it': event['name_it'],
+                'name_en': event['name_en'],
+                'desc_it': event['desc_it'],
+                'desc_en': event['desc_en'],
+                'effect': event['effect'],
+                'positive': event['positive'],
+                'expires_at': expires_at,
+                'triggered_at': now_str
+            },
+            'last_event_at': now_str
+        }}
+    )
+    
+    return {
+        'success': True,
+        'event': {
+            'id': event['id'],
+            'name_it': event['name_it'],
+            'name_en': event['name_en'],
+            'desc_it': event['desc_it'],
+            'desc_en': event['desc_en'],
+            'effect': event['effect'],
+            'positive': event['positive'],
+            'expires_at': expires_at
+        }
+    }
+
+
+# ==================== GUERRA TRA MAJOR ====================
+
+@router.post("/major/war/calculate")
+async def calculate_major_war(request: WarCalculateRequest, user: dict = Depends(get_current_user)):
+    """Calculate a war between two Majors. Founder only."""
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership or membership['role'] != 'founder':
+        raise HTTPException(status_code=403, detail="Solo il founder può dichiarare guerra")
+    
+    my_major_id = membership['major_id']
+    opp_major_id = request.opponent_major_id
+    
+    if my_major_id == opp_major_id:
+        raise HTTPException(status_code=400, detail="Non puoi combattere contro te stesso")
+    
+    # Check opponent exists
+    opp_major = await db.majors.find_one({'id': opp_major_id}, {'_id': 0, 'id': 1, 'name': 1})
+    if not opp_major:
+        raise HTTPException(status_code=404, detail="Major avversaria non trovata")
+    
+    my_major = await db.majors.find_one({'id': my_major_id}, {'_id': 0, 'id': 1, 'name': 1})
+    
+    # Cooldown: 1 war per 24h
+    last_war = await db.major_wars.find_one(
+        {'$or': [{'major_a': my_major_id}, {'major_b': my_major_id}]},
+        sort=[('created_at', -1)]
+    )
+    if last_war:
+        try:
+            last_dt = datetime.fromisoformat(last_war['created_at'].replace('Z', '+00:00'))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - last_dt).total_seconds() < 86400:
+                raise HTTPException(status_code=400, detail="Puoi dichiarare guerra solo ogni 24 ore")
+        except HTTPException:
+            raise
+        except:
+            pass
+    
+    async def calc_score(major_id):
+        members = await db.major_members.find({'major_id': major_id, 'status': 'active'}).to_list(100)
+        member_ids = [m['user_id'] for m in members]
+        if not member_ids:
+            return 0
+        
+        # Film count
+        film_count = await db.films.count_documents({'user_id': {'$in': member_ids}})
+        # Total revenue
+        users = await db.users.find({'id': {'$in': member_ids}}, {'_id': 0, 'total_earnings': 1}).to_list(100)
+        total_rev = sum(u.get('total_earnings', 0) for u in users) / 1000000  # In millions
+        # Average rating
+        films = await db.films.find({'user_id': {'$in': member_ids}, 'imdb_rating': {'$exists': True}},
+                                     {'_id': 0, 'imdb_rating': 1}).to_list(5000)
+        avg_rating = sum(f.get('imdb_rating', 5) for f in films) / max(1, len(films))
+        
+        # Score formula: films * 10 + revenue_millions + rating * 20 + random factor
+        score = (film_count * 10) + total_rev + (avg_rating * 20) + _random.randint(0, 50)
+        return round(score, 1)
+    
+    score_a = await calc_score(my_major_id)
+    score_b = await calc_score(opp_major_id)
+    winner_id = my_major_id if score_a > score_b else opp_major_id
+    winner_name = my_major['name'] if score_a > score_b else opp_major['name']
+    
+    now_str = datetime.now(timezone.utc).isoformat()
+    war = {
+        'id': str(uuid.uuid4()),
+        'major_a': my_major_id,
+        'major_a_name': my_major['name'],
+        'major_b': opp_major_id,
+        'major_b_name': opp_major['name'],
+        'score_a': score_a,
+        'score_b': score_b,
+        'winner': winner_id,
+        'winner_name': winner_name,
+        'created_at': now_str
+    }
+    await db.major_wars.insert_one(war)
+    
+    return {
+        'success': True,
+        'war': {k: v for k, v in war.items() if k != '_id'}
+    }
+
+
+@router.get("/major/wars")
+async def get_major_wars(user: dict = Depends(get_current_user)):
+    """Get war history for the user's Major."""
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    if not membership:
+        return {'wars': []}
+    
+    wars = await db.major_wars.find(
+        {'$or': [{'major_a': membership['major_id']}, {'major_b': membership['major_id']}]},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+    
+    return {'wars': wars}
+
+
+@router.get("/major/all")
+async def get_all_majors(user: dict = Depends(get_current_user)):
+    """Get all Majors for war target selection."""
+    membership = await db.major_members.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
+    my_major_id = membership['major_id'] if membership else None
+    
+    majors = await db.majors.find({}, {'_id': 0, 'id': 1, 'name': 1, 'studio_level': 1}).to_list(100)
+    # Exclude own major
+    return {'majors': [m for m in majors if m['id'] != my_major_id]}

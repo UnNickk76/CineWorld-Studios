@@ -1,75 +1,73 @@
 <analysis>**original_problem_statement**: 
-Il sistema richiede una serie di interventi mirati e nuove funzionalità:
-1. Completamento e fix del tutorial Guest (step celebrativo finale, correzione frecce, target di auto-advance e aggiunta del pulsante Speedup nella vista cinematica).
-2. Sostituzione di immagini template pesanti con file PNG ottimizzati e leggeri.
-3. Accesso permanente alla registrazione per gli utenti Guest (tramite un pulsante floating).
-4. Implementazione di una modale di registrazione ad alta conversione per i guest che sfrutti la psicologia della perdita (Non perdere il tuo studio, mostrando film e guadagni accumulati).
-5. Nuova logica al logout/scadenza dei guest: invece di eliminare tutto, i progetti di qualità (status avanzato, score >= 40) devono essere convertiti in asset del Marketplace senza proprietario.
-6. **(ATTUALE)** Analisi completa e ottimizzazione delle dimensioni del database MongoDB per individuare anomalie di storage ed eliminare dati inutili o duplicati, sistemando la root cause lato codice.
-
-**PRODUCT REQUIREMENTS**:
+Richiesta di stabilizzare l'architettura, automatizzare l'economia del gioco e avviare una Soft Expansion per le Major. L'economia deve passare da manuale a un tick automatico per incassi, scoperte star e level up skill. Per le Major (Fase 1+3 Lite), si richiede l'aggiunta di livelli studio, ruoli membri, bonus di reparto, eventi semplici, calcolo guerre e un update della UI per i founder, oltre alla creazione di documenti per future funzionalità.
+PRODUCT REQUIREMENTS: 
 - Vietato l'uso del testing agent (No test agent).
-- Ottimizzazione per mobile e Railway.
+- Ottimizzato per mobile.
+- Nessuna modifica alle logiche core di film/tv esistenti durante i refactor.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
-**what currently exists?** 
-Il tutorial Guest è stato completamente rifinito (ora composto da 13 step), i bug di auto-advance e i target delle frecce sono stati risolti. I file template pesanti sono stati sostituiti. È stato implementato un badge fisso per la registrazione dei guest. La modale di conversione è stata riscritta per mostrare statistiche dinamiche (film creati e profitti) con logica loss aversion. Al logout del guest, i film di qualità vengono ora trasformati in asset del Marketplace (, ), mentre il resto viene eliminato in modo pulito.
+**what currently exists?** (give crisp summary)
+Il DB bloat (base64) è stato pulito. L'architettura in  è stata drasticamente snellita rimuovendo ~7200 righe di codice morto. L'economia non usa più bottoni manuali (Incassa), ma un sistema auto-tick robusto (in  via ) che elabora revenue, skill e la scoperta bilanciata delle Star. La pagina di Login ha la UI corretta (Velion + PWA banner inline). Per le Major, i nuovi endpoint backend per la gestione admin (livelli, ruoli, bonus, eventi e guerre) sono appena stati inseriti in . 
 
 **Last working item**: 
-    - Last item agent was working: Analisi del DB MongoDB e risoluzione del bloat storage (P0). L'agente ha scoperto che la collection  occupa 160MB (54% del DB) a causa del campo  che salva un'immagine base64 di 2.95MB in ogni documento. L'utente ha ordinato: Procedi e fai in modo che non succeda di nuovo. L'agente stava cercando nel backend (, , ) dove viene inserito il base64 per fixare il codice prima di pulire i dati.
+    - Last item agent was working: Completamento della Soft Expansion delle Major. L'agente ha appena scritto gli endpoint backend in  per gestire livelli, ruoli, bonus ed eventi. L'esecuzione è stata interrotta prima di poter toccare il frontend e i documenti futuri.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? python -c / mongodb shell (per verificare e pulire il DB) e test manuale curl/API. NO TESTING AGENT.
+    - Which testing method agent to use? manual testing by curl, screenshot tool. NO TESTING AGENT.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Fix root cause bloat  e pulizia DB (P0)
-     - Attempted fixes: Identificato il problema (campo  in base64 da 3MB). Ricerca file con  su  in corso.
-     - Next debug checklist: Modificare l'inserimento di  nel backend (es. , , o ) in modo che salvi solo l'URL o un ID invece dell'intero base64. Dopodiché, eseguire uno script Python per aggiornare/pulire i documenti esistenti in , rimuovere i guest inattivi da , ripulire i  orfani e deduplicare i record in .
-     - Why fix this issue and what will be achieved with the fix? Il DB ha raggiunto quasi 300MB di dati a causa di stringhe base64 duplicate; la pulizia libererà circa l'85% dello storage.
+  Issue 1: Completamento Soft Expansion Major (Frontend e Docs) (P0)
+     - Attempted fixes: Aggiunti gli endpoint backend. Il frontend non è ancora stato modificato.
+     - Next debug checklist: 
+       1) In , aggiungere la Sezione Admin (visibile solo al founder) per selezionare il livello studio, gestire ruoli, input bonus e trigger evento.
+       2) Aggiungere la Sezione Guerra (calcolo e risultato ultimo scontro). Non modificare/rompere la UI preesistente.
+       3) Creare la cartella  e i file  vuoti descrittivi richiesti dall'utente (contracts, franchise, streaming, acquisitions).
+     - Why fix this issue and what will be achieved with the fix? È il completamento dell'ultima direttiva utente per dare profondità alle gilde/major.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? backend
+     - Should Test frontend/backend/both after fix? sia frontend (screenshot) che backend (curl)
      - Blocked on other issue: None
 
-  Issue 2: Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost) silenti (P1)
-     - Attempted fixes: Nessuno finora.
-     - Next debug checklist: Implementare in  gli endpoint necessari per la gestione delle Serie TV.
-     - Why fix this issue and what will be achieved with the fix? Feature core mancante per l'engagement e l'economia del gioco.
+  Issue 2: Azioni Proprietario Serie TV (P1)
+     - Attempted fixes: Nessuno in questa sessione.
+     - Next debug checklist: Verificare se i bottoni Serie TV esistono ancora. Essendo passato a un sistema auto-tick per i film, verificare se le Serie TV sono già incluse nell'auto-tick. Se sì, rimuovere/rinominare i bottoni residui. Altrimenti, integrare la logica per le TV nel tick.
+     - Why fix this issue and what will be achieved with the fix? Allinea le serie TV al nuovo sistema automatizzato.
      - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? backend
+     - Should Test frontend/backend/both after fix? sia backend che frontend
+     - Blocked on other issue: None
+
+  Issue 3: Contest Page Mobile Layout Is Broken (P2)
+     - Attempted fixes: Nessuno.
+     - Next debug checklist: Ispezionare la UI mobile della contest page, probabile uso improprio di grid/flex senza wrapping responsive.
+     - Why fix this issue and what will be achieved with the fix? Bug UX ricorrente segnalato 16+ volte dagli utenti.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? frontend
      - Blocked on other issue: None
 
 **In progress Task List**: 
-  Task 1: Modularizzare GAME CORE endpoints (P2)
-     - Where to resume:  (file monolite).
-     - What will be achieved with this? Manutenibilità e riduzione rischio bug.
-     - Status: PAUSED
-     - Should Test frontend/backend/both after fix? backend
-     - Blocked on something: Priorità più alte (Pulizia DB P0).
+  Nessuna esterna alle Issue descritte sopra.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Endpoint backend Azioni Proprietario Serie TV.
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
     - (P1) Marketplace for TV/Anime rights.
     Future Tasks:
-    - (P2) Contest Page Mobile Layout Is Broken (Count: 16+).
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
 
 **Completed work in this session**
-- Fix finale e celebrazione per Guest Tutorial in  (DONE)
-- Correzione target frecce, auto-advance pipeline tutorial ed aggiunta step Clicca sul tuo film (DONE)
-- Aggiunta bottoni  in visualizzazione cinematica  (DONE)
-- Sostituzione  e  con versioni PNG leggere (DONE)
-- Registrazione Guest Permanente con badge  in  (DONE)
-- Conversione dei progetti Guest in asset Marketplace in  in  (DONE)
-- Riscrizione modale conversione Guest per Loss Aversion in  (DONE)
+- Fix DB MongoDB Bloat & Ottimizzazione (rimosso base64 da , , ) (DONE)
+- Bug Fix: LE MIE TV! spariva in Dashboard.jsx causa fallimento blocco try/catch offline catchup (DONE)
+- Pulizia Architettura  (rimosse ~7200 righe  ed esportati fix sintattici) (DONE)
+- Fix Login Page UI (Velion popup persistente e PWA banner spostato inline) (DONE)
+- Sistema Automatico Incassi + Star + Skill (rimossi bottoni manuali frontend e creato cronjob  in  + notifiche) (DONE)
+- Bilanciamento Star Discovery per abbassare proc-rate a 0.5-1% max 1 star a tick (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Azioni Serie TV ancora pendenti.
+- Azioni Serie TV pendenti.
 - Layout Contest Page Mobile.
 
 **Known issue recurrence from previous fork**
@@ -79,79 +77,80 @@ Il tutorial Guest è stato completamente rifinito (ora composto da 13 step), i b
 
 **Code Architecture**
 - Frontend: React (, , , ).
-- Backend: FastAPI (, , ).
+- Backend: FastAPI (, , , ).
+- Background:  per il loop dell'economia di gioco in background.
 - DB: MongoDB.
 
 **Key Technical Concepts**
-- **Guest Logic**: I guest ora hanno badge persistenti per convertirsi. Quando un guest scade, i progetti con  vengono resi anonimi () e piazzati nel mercato () con un calcolo del prezzo maggiorato.
-- **Tutorial Logic**: Controllato tramite  e il tracking DOM su elementi  usando polling.
+- **Auto-Tick Economy**: L'intero sistema manuale degli incassi è stato convertito. Ogni 10 min il server assegna incassi in batch, aumenta l'esperienza delle crew e ha probabilità bassissime (con modificatori basati su qualità, flop, hype) di generare uno status Star per il cast.
+- **Soft Major System**: Il file  ora gestisce endpoint per modificare in modo soft il peso di una Major (cambio livello in mini-major/major, assegnazione ruoli per permessi differenziati, piccoli bonus passivi alle stat).
 
 **key DB schema**
-  - : Contiene feed globali. (Attualmente afflitta dal campo enorme  in base64).
-  - : Track di , , e metrics generali.
-  - : Contiene , , , , .
+  - : { uid=0(root) gid=0(root) groups=0(root), , , ,  (marketing, casting, production),  }
+  - : { , ,  (founder, manager, member) }
+  - : { , , , , ,  }
 
 **changes in tech stack**
-  - Nessuno.
+  - Forte adozione di  in background tasks ().
 
 **All files of reference** 
-  -  (Qui risiede la potenziale query errata che inserisce i base64 in cinema_news)
-  -  (Logica di cancellazione guest aggiornata)
-  -  (Modale ad alta conversione guest e pulsante fisso)
-  -  (Nuovi step e target)
+  -  (Endpoint inseriti ma non collegati)
+  -  (L'UI della Major da aggiornare con la zona Admin)
+  -  (Per capire come è strutturato il tick nel caso ci siano problemi di performance futuri)
 
-**Areas that need refactoring**
-  -  (Il monolite sta diventando difficilmente gestibile, +17k righe).
+**Areas that need refactoring**: 
+  - Nessuna area critica, enorme refactor e snellimento di  completato con successo (file ridotto del 40%).
 
 **key api endpoints**
   - 
   - 
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **L'utente ha proibito esplicitamente l'uso del testing agent** (NON usare test agent). Affidarsi a test manuali con bash, mongodb queries/python -c e screenshot_tool.
-- L'utente parla **italiano**. Rispondi e commenta solo in italiano.
-- Per il DB, devi prima rimuovere l'inserimento del  nel codice, e POI lanciare uno script che faccia un  o sostituzione sul campo  dei documenti esistenti in . Poi rimuovi i guest inattivi e i duplicati da  come concordato. Assicurati di NON toccare file utente validi.
+- **L'utente ha proibito esplicitamente l'uso del testing agent**. Non invocarlo. Verifica tutto autonomamente con  e screenshot.
+- Parla solo in italiano.
+- L'utente vuole l'aggiunta di una UI in  per esporre le funzioni Soft-Major che sono già state caricate nel backend. Non eliminare o coprire la UI vecchia (inviti, logo AI), accoda le nuove sezioni in basso, e mostra la Sezione Admin SOLO agli utenti con ruolo founder.
+- Crea la cartella  e i file markdown descrittivi che l'utente ha richiesto per futuri documenti di Game Design.
 
-**documents and test reports created in this job**
-  -  (Aggiornato con il track dei nuovi P0)
+**documents and test reports created in this job** 
+  - Nessuno di nuovo a parte il pre-esistente .
 
 **Last 10 User Messages and any pending HUMAN messages** 
-(Elenco conciso delle interazioni)
-1. *User*: Aggiungere accesso permanente alla registrazione per utenti guest + gestione cancellazione dati. (Finito)
-2. *User*: Foto dei bug del tutorial: frecce sbagliate, step mancanti. (Finito)
-3. *User*: Convertire i contenuti guest validi in asset marketplace al logout anziché eliminarli. (Finito)
-4. *User*: Creare modale conversione guest ad alta conversione (loss aversion) con statistiche dinamiche. (Finito)
-5. *User*: (Ultimo messaggio PENDING) In backend esegui un controllo completo delle dimensioni del DB... NON eliminare nulla subito. Mostrami i problemi.
-6. *Agent*: [Mostra le stats:  occupa 160MB per avatar in base64. 72 guest inattivi, poster_files pesanti, duplicati infrastructure].
-7. *User*: Procedi e fai in modo che non succeda di nuovo (PENDING: Modificare l'origine del bug nel codice backend e pulire le collection di Mongo).
+(10) User chiede report feature attive.
+(9) User chiede pulizia  senza stravolgimenti logici. (Finito)
+(8) User detta regole restrittive e conservative per la pulizia di . (Finito)
+(7) User chiede modifica UI PWA e Velion su Login. (Finito)
+(6) User avverte che Velion DOVEVA rimanere. (Finito)
+(5) User segnala che sia Velion che PWA banner son spariti. (Finito)
+(4) User richiede il tick automatico per l'economia e la rimozione bottoni Incassa. (Finito)
+(3) User segnala che il nuovo tick genera troppe star e richiede ribilanciamento pesante. (Finito)
+(2) User condivide un enorme piano architetturale futuro per il concetto di Major.
+(1) User chiede una versione limitata (Soft Fase 1+3) del concetto di Major, includendo API specifiche, update UI in  e dei file markdown vuoti in . L'agente ha fatto il backend e si è fermato prima del frontend. (ULTIMO MESSAGGIO, TASK PENDING)
 
 **Project Health Check:**
-- Broken: Database gonfiato in modo anomalo (bloat).
-- Mocked: Nessuno
+Broken: Mobile layout della pagina Contest.
+Mocked: Le logiche Major Wars sono attualmente soft e scriptate in modo basico nel backend.
 
 **3rd Party Integrations** 
-- Stripe (Esistente)
+- Stripe (Pagamenti)
+- Gemini Nano Banana (Generazione Logo Major e Profilo via Emergent LLM Key)
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito dall'utente).
+  - Testing agent used after significant changes: NO (Proibito).
   - Troubleshoot agent used after agent stuck in loop: NO.
   - Test files created: []
-  - Known regressions: Nessuna.
+  - Known regressions: Nessuna introdotta.
 
 **Credentials to test flow:**
-  - Guest login dal frontend (Prova senza registrarti).
+  Usa la funzione Prova senza registrarti (Guest mode) dal frontend.
 
 **What agent forgot to execute**
-- L'agente era a metà della ricerca della query responsabile del caricamento base64 su  quando la sessione si è interrotta.
+L'agente ha dimenticato di modificare  con le interfacce per founder (Admin e Guerra) e ha dimenticato di creare la directory  con i markdown testuali.
 
 **Debugging checklist for current issue**
-    Issue: MongoDB DB Bloat e Inserimento Base64 errato
-    Backend files to check: ,  o  (dove viene popolato ).
-    Database to check: , , 
-    /app/backend/server.py:8353:        await db.cinema_news.insert_one(news_entry)
-/app/backend/server.py:15043:# [MOVED]     await db.cinema_news.insert_one({
-/app/backend/routes/festivals.py:2228:    await db.cinema_news.insert_one({
-    Next actions:
-    1. Fixare il salvataggio dei base64 convertendo in URL omettendo il  dai dictionary inseriti.
-    2. Creare uno script python per pulire le collections ( del campo enorme, pulizia 72 guest inattivi, deduplica infrastructure).
-    3. Fare report finale all'utente.</analysis>
+    Issue: Frontend per la gestione Admin delle Major non completato
+    Frontend files to check: 
+    Backend files to check:  (verificare che i 5 endpoint appena caricati a fine file siano sintatticamente corretti e non abbiano causato crash).
+    </analysis>

@@ -83,7 +83,7 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 
 ### P1 (Importante)
 - [ ] Endpoint backend Azioni Proprietario Serie TV (Incassa, Crea Stella, Boost)
-- [ ] Modularizzazione server.py (17k+ righe)
+- [x] Modularizzazione server.py — Pulizia conservativa (2026-04-06): rimossi 7201 righe di codice [MOVED] commentato, fixati 3 import mancanti (CHAT_BOTS, parse_date_with_timezone, RELEASE_NOTES dead code). Da 17289 → 10069 righe (-41.8%). Zero regressioni, 12/12 endpoint critici verificati.
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
 - [ ] Marketplace TV/Anime rights
 - [ ] Ottimizzare /api/films/cinema-journal (N+1 query)

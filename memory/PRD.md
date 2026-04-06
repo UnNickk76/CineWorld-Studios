@@ -1,90 +1,64 @@
 # CineWorld Studio's — PRD
 
 ## Problema Originale
-Sistema di produzione cinematografica con pipeline completa (sviluppo -> rilascio -> sala). L'obiettivo e' un'esperienza utente visiva, cinematografica e immersiva. Include "La Prima" (anteprime live), Content Template fullscreen, e Cinema Journal.
+Sistema di produzione cinematografica con pipeline completa (sviluppo -> rilascio -> sala). L'obiettivo e' un'esperienza utente visiva, cinematografica e immersiva.
 
 ## Architettura
 - **Frontend**: React + Tailwind + Shadcn/UI + Framer Motion
 - **Backend**: FastAPI + MongoDB
-- **Pattern UI**: Overlay su immagini template (position: absolute + %)
-- **Background**: `apscheduler` per il loop dell'economia di gioco in background
+- **Background**: `apscheduler` per il loop dell'economia di gioco (ogni 10min)
 
 ## Funzionalita Completate
 
 ### La Prima (DONE)
-- Dashboard section con eventi live
-- CineBoard rankings (Live, Totali, Media Mista)
-- LaPrimaPopup con template grafico + overlay dinamici
-
-### Content Template (DONE - 2025-04-05)
-- `ContentTemplate.jsx` fullscreen per Film/Serie/Anime
-
-### Cinema Journal ULTRA (DONE - 2025-04-05)
-- 3 tab: LIVE | NEWS | PUBBLICO
-
-### Sistema Guest con Tutorial Guidato (DONE - 2026-04-05)
-- Guest user creation, tutorial 13 step, conversione account
-
-### DB MongoDB Bloat Fix & Ottimizzazione (DONE - 2026-04-06)
-- DB da ~300MB -> 118MB (-61%)
-
-### Pulizia Architettura server.py (DONE - 2026-04-06)
-- Da 17289 -> 10069 righe (-41.8%)
-
-### Sistema Automatico Incassi + Star + Skill (DONE - 2026-04-06)
-- auto_revenue_tick ogni 10min, star discovery, AutoTickNotifications.jsx
-
-### Soft Expansion Major - Backend + Frontend (DONE - 2026-04-06)
-- 5 endpoint admin, MajorPage.jsx, Guerra, Bonus
-
-### Sistema Eventi Completo + Cinematic UI (DONE - 2026-04-06)
-- ~100 template in 4 tier, MatrixOverlay.jsx, VelionCinematicEvent.jsx
-
-### Timing Eventi Cinematici Rallentato (DONE - 2026-04-06)
-- Sequenza fadeout 800ms -> nero 500ms -> Matrix 2000-3000ms -> card 800ms delay
-
-### Allineamento Serie TV/Anime al Sistema Auto-Tick (DONE - 2026-04-06)
-- auto_revenue_tick processa sia films che tv_series collection
-- Revenue, star discovery, skill progression, eventi cinematici per serie/anime
+### Content Template (DONE)
+### Cinema Journal ULTRA (DONE)
+### Sistema Guest con Tutorial Guidato (DONE)
+### DB MongoDB Bloat Fix (DONE)
+### Pulizia server.py (DONE)
+### Sistema Automatico Incassi + Star + Skill (DONE)
+### Soft Expansion Major (DONE)
+### Sistema Eventi Completo + Cinematic UI (DONE)
+### Timing Eventi Cinematici Rallentato (DONE)
+### Allineamento Serie TV/Anime al Sistema Auto-Tick (DONE)
 
 ### Throttling Coda Eventi Cinematici (DONE - 2026-04-06)
 - Backend: max 1 evento cinematico per 60s per utente (collection `event_throttle`)
 - Backlog max 2 eventi, excess eliminati automaticamente
-- Prima apertura con backlog > 1: mostrato solo il piu importante (rarita piu alta)
-- Frontend semplificato: niente piu queue client-side, il backend gestisce tutto
+- Prima apertura con backlog > 1: solo rarita piu alta servita
 
 ### Cronologia Eventi con Replay (DONE - 2026-04-06)
-- **Backend**: collection `event_history` per log permanente di ogni evento generato
-- Campi: user_id, project_id, project_type (film/series/anime), title, rarity, description, effects, actor_name, created_at
-- **API**: `GET /api/events/history?limit=50` (max 100)
-- **Frontend**: `EventHistoryPage.jsx` con:
-  - Card colorate per rarita (grigio/blu/viola/oro)
-  - Filtri per rarita (Tutti, Leggendario, Epico, Raro, Comune)
-  - Badge tipo progetto (FILM rosso, SERIE cyan, ANIME rosa)
-  - Effetti mostrati (incassi, hype, fama)
-  - Timestamp relativo
-  - Bottone "Rivedi" per epic/legendary: replay cinematico visivo senza riapplicare effetti
-- **Accesso**: icona History nella top navbar + bottone nel menu hamburger
-- **Rotta**: `/event-history`
+- Collection `event_history` per log permanente
+- API: `GET /api/events/history?limit=50`
+- Frontend: `EventHistoryPage.jsx` con card per rarita, filtri, badge tipo, effetti, replay cinematico
+- Accesso: icona History nella top nav + menu hamburger
+- Rotta: `/event-history`
 
 ### Badge Tipo Progetto su Eventi Velion (DONE - 2026-04-06)
-- Badge in alto a destra della card evento: FILM (rosso) / SERIE (cyan) / ANIME (rosa)
-- Animato con delay 1.4s (appare dopo la card)
-- Campo `project_type` aggiunto a tutti gli ev_record in auto_revenue_tick
+- Badge FILM (rosso) / SERIE (cyan) / ANIME (rosa) in alto a destra della card
+
+### Sistema Anti-Spam Notifiche (DONE - 2026-04-06)
+- **Limite visivo**: se eventi <= 3 mostrati normalmente; se > 3 mostra solo il piu recente + badge rosso con conteggio
+- **Badge contatore rosso**: sull'icona History nella top navbar, mostra numero eventi non letti (animate-pulse)
+- **Click comportamento**: click su badge/icona → apre pagina /event-history
+- **Reset contatore**: azzerato quando utente entra in /event-history
+- **Priorita**: epic/legendary → sempre mostrati via cinematic; common/rare → compressi nel contatore
+- **Anti-spam**: max 1 toast ogni 5 secondi, coda invisibile per gli altri
+- **Nessun evento perso**: tutto salvato in event_history
+- Sincronizzazione via sessionStorage + custom event `cw-unread-update`
 
 ## Backlog Prioritizzato
 
-### P1 (Importante)
+### P1
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
 - [ ] Marketplace TV/Anime rights
-- [ ] Ottimizzare /api/films/cinema-journal (N+1 query)
 
-### P2 (Medio)
-- [ ] Contest Page Mobile Layout fix (16+ segnalazioni, BUG RICORRENTE)
+### P2
+- [ ] Contest Page Mobile Layout fix (bug ricorrente 16+ segnalazioni)
 - [ ] Hall of Fame nel Journal
 - [ ] Journal: film di altri giocatori nel LIVE
 
-### P3 (Futuro)
+### P3
 - [ ] Velion Mood Indicator
 - [ ] Chat Evolution
 - [ ] CinePass + Stripe
@@ -94,18 +68,18 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo -> rilasci
 - [ ] Velion AI Memory
 
 ## File Chiave
-- `/app/frontend/src/pages/EventHistoryPage.jsx` (Cronologia Eventi)
-- `/app/frontend/src/components/VelionCinematicEvent.jsx` (Cinematic + badge tipo)
-- `/app/frontend/src/components/MatrixOverlay.jsx` (Canvas effect)
-- `/app/frontend/src/components/AutoTickNotifications.jsx` (Polling throttled)
-- `/app/backend/scheduler_tasks.py` (Auto-tick economy + series + event_history)
-- `/app/backend/routes/economy.py` (API events/history + throttling)
-- `/app/backend/event_templates.py` (Template eventi)
-- `/app/backend/server.py` (main server)
+- `/app/frontend/src/pages/EventHistoryPage.jsx`
+- `/app/frontend/src/components/VelionCinematicEvent.jsx`
+- `/app/frontend/src/components/MatrixOverlay.jsx`
+- `/app/frontend/src/components/AutoTickNotifications.jsx`
+- `/app/backend/scheduler_tasks.py`
+- `/app/backend/routes/economy.py`
+- `/app/backend/event_templates.py`
+- `/app/backend/server.py`
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)
 
 ## 3rd Party Integrations
 - Stripe (Pagamenti)
-- Gemini Nano Banana (Generazione Logo Major e Profilo via Emergent LLM Key)
+- Gemini Nano Banana (Generazione Logo via Emergent LLM Key)

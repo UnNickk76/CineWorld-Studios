@@ -75,6 +75,17 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Caricamento dati guerra non-bloccante (fix page loading stuck)
 - **Documenti futuri**: /app/features_future/ con 4 file .md (contracts, franchise, streaming, acquisitions)
 
+### Sistema Eventi Completo + Cinematic UI (DONE - 2026-04-06)
+- **Backend**: `event_templates.py` con ~100 template in 4 tier (common 60%, rare 25%, epic 10%, legendary 5%)
+- Integrazione in `scheduler_tasks.py`: 30-50% chance per progetto per tick, modificatori revenue/hype/fame
+- Eventi globali (epic/legendary) salvati in `cinema_news` per il Journal
+- **Frontend**: Rimossi bottoni manuali "Riscuoti Ora" e "STELLE NATE"
+- `MatrixOverlay.jsx`: canvas fullscreen con caratteri verdi, parole cinema, glow, velocita variabile
+- `VelionCinematicEvent.jsx`: sequenza blackout→matrix→reveal Velion→card evento per epic/legendary
+- Common/rare: toast notification standard
+- `AutoTickNotifications.jsx`: polling aggiornato per classificare e mostrare eventi cinematici
+- Mobile-first: colonne ridotte su mobile, durata adattata per tier
+
 ### Dashboard Tour Velion (DONE - 2026-04-06)
 - Creato `DashboardTour.jsx`: Velion (velion-tutorial.png) guida l'utente icona per icona nella top/bottom navbar
 - 14 step con frecce animate gialle + highlight ring sui bottoni target

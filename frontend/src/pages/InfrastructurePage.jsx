@@ -876,33 +876,16 @@ const InfrastructurePage = () => {
                 </div>
               </div>
 
-              {/* Revenue Collection */}
-              {pendingRevenue && (
+              {/* Revenue Collection - now automatic */}
+              {pendingRevenue && pendingRevenue.pending > 0 && (
                 <div className="p-3 bg-gradient-to-r from-green-500/10 to-yellow-500/10 rounded border border-green-500/30">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <h4 className="font-semibold text-sm flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-green-500" /> Incassi da Riscuotere
+                      <Wallet className="w-4 h-4 text-green-500" /> Incassi Automatici
                     </h4>
-                    <Badge className={pendingRevenue.is_maxed ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}>
-                      {pendingRevenue.hours_accumulated?.toFixed(1)}h / 4h
-                    </Badge>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-green-400">${pendingRevenue.pending?.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">${pendingRevenue.hourly_rate?.toLocaleString()}/ora</p>
-                    </div>
-                    <Button 
-                      onClick={collectRevenue}
-                      disabled={collectingRevenue || pendingRevenue.pending < 1}
-                      className="bg-green-500 hover:bg-green-400 text-black font-bold"
-                    >
-                      {collectingRevenue ? 'Riscuotendo...' : 'Riscuoti Ora'}
-                    </Button>
-                  </div>
-                  {pendingRevenue.is_maxed && (
-                    <p className="text-xs text-red-400 mt-2">⚠️ Incassi al massimo! Riscuoti per continuare ad accumulare.</p>
-                  )}
+                  <p className="text-lg font-bold text-green-400">${pendingRevenue.pending?.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-500">Gli incassi vengono accreditati automaticamente ogni 10 minuti.</p>
                 </div>
               )}
 

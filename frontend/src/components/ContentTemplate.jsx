@@ -469,15 +469,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                 <div className="ct-actions" data-testid="ct-actions">
                   <button
                     className="ct-action-btn"
-                    onClick={doCreateStar}
-                    disabled={!isOwner || !actions?.actions?.create_star?.available || performing === 'star'}
-                    data-testid="ct-action-star"
-                  >
-                    {performing === 'star' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles />}
-                    STELLE NATE
-                  </button>
-                  <button
-                    className="ct-action-btn"
                     onClick={doBoostCrew}
                     disabled={!isOwner || !actions?.actions?.skill_boost?.available || performing === 'boost'}
                     data-testid="ct-action-boost"

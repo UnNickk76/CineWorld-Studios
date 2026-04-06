@@ -39,7 +39,7 @@ function EventCard({ event, onDone }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-[500] flex items-center justify-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -77,11 +77,11 @@ function EventCard({ event, onDone }) {
         </div>
       </motion.div>
 
-      {/* Event Content — right side */}
+      {/* Event Content — centered on screen */}
       <motion.div
-        className={`relative z-[502] w-full max-w-[75%] sm:max-w-sm mr-3 sm:mr-8 ml-auto rounded-2xl border-2 ${style.border} bg-gradient-to-b ${style.bg} ${style.glow} backdrop-blur-xl overflow-hidden mb-24 sm:mb-0`}
-        initial={{ scale: 0.5, x: 80, opacity: 0 }}
-        animate={{ scale: 1, x: 0, opacity: 1 }}
+        className={`relative z-[502] w-full max-w-[75%] sm:max-w-sm mx-auto rounded-2xl border-2 ${style.border} bg-gradient-to-b ${style.bg} ${style.glow} backdrop-blur-xl overflow-hidden`}
+        initial={{ scale: 0.5, y: 40, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.85, opacity: 0 }}
         transition={{ delay: 1.2, type: 'spring', damping: 16, stiffness: 180 }}
       >

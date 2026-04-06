@@ -75,6 +75,15 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Caricamento dati guerra non-bloccante (fix page loading stuck)
 - **Documenti futuri**: /app/features_future/ con 4 file .md (contracts, franchise, streaming, acquisitions)
 
+### Dashboard Tour Velion (DONE - 2026-04-06)
+- Creato `DashboardTour.jsx`: Velion (velion-tutorial.png) guida l'utente icona per icona nella top/bottom navbar
+- 14 step con frecce animate gialle + highlight ring sui bottoni target
+- Icone condivise (Arena, Notifiche/Eventi): 2 frecce simultanee top+bottom, non ripetute
+- Trigger automatico dopo prima registrazione (da AuthPage o conversione Guest)
+- Flag localStorage: `show_dashboard_tour` → `dashboard_tour_done`
+- Chiudibile in qualsiasi momento (X o "Salta tour"), avanza con "Avanti" o tap overlay
+- Zero dipendenze, zero backend, zero crediti
+
 ### Tutorial Riutilizzabile (DONE - 2026-04-06)
 - Creato `frontend/src/data/tutorialSteps.js` (6 step: Benvenuto, Produzione, Coming Soon, Rilascio, Eventi, Crescita)
 - Creato `frontend/src/components/TutorialModal.jsx` (componente generico leggero)

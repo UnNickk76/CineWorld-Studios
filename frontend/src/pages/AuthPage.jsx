@@ -99,6 +99,7 @@ const AuthPage = () => {
         await login(formData.email, formData.password, rememberMe);
       } else {
         await register({ ...formData, age: parseInt(formData.age), language });
+        localStorage.setItem('show_dashboard_tour', '1');
       }
       toast.success(isLogin ? 'Bentornato!' : 'Account creato!');
       navigate('/dashboard');

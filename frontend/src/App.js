@@ -82,6 +82,7 @@ const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
 import TutorialModal from './components/TutorialModal';
+import DashboardTour from './components/DashboardTour';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
@@ -195,6 +196,7 @@ const GuestConvertModalContent = ({ user, api, form, setForm, converting, setCon
       const res = await api.post('/auth/convert', form);
       localStorage.removeItem('cineworld_guest_start');
       if (res.data.access_token) localStorage.setItem('cineworld_token', res.data.access_token);
+      localStorage.setItem('show_dashboard_tour', '1');
       toast.success('Account registrato! I tuoi progressi sono salvi');
       onSuccess();
     } catch (err) {
@@ -2101,6 +2103,7 @@ const ProtectedRoute = ({ children }) => {
   const [velionMode, setVelionMode] = useState('on');
   const [showAutonomy, setShowAutonomy] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
+  const [showDashboardTour, setShowDashboardTour] = useState(false);
   
   // Fetch Velion mode from backend
   const [tutorialCompleted, setTutorialCompleted] = useState(true);
@@ -2155,6 +2158,20 @@ const ProtectedRoute = ({ children }) => {
     window.addEventListener('velion-tutorial-open', handler);
     return () => window.removeEventListener('velion-tutorial-open', handler);
   }, []);
+
+  // Dashboard Tour: show automatically after first registration
+  useEffect(() => {
+    if (!user || user.is_guest) return;
+    const flag = localStorage.getItem('show_dashboard_tour');
+    const done = localStorage.getItem('dashboard_tour_done');
+    if (flag === '1' && done !== '1') {
+      const timer = setTimeout(() => {
+        localStorage.removeItem('show_dashboard_tour');
+        setShowDashboardTour(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
   
   // Check for pending challenge invites - on login + every 30s
   useEffect(() => {
@@ -2275,6 +2292,7 @@ const ProtectedRoute = ({ children }) => {
         defaultTab={velionTab}
       />
       {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+      {showDashboardTour && <DashboardTour onClose={() => setShowDashboardTour(false)} />}
 
       {/* Autonomy Prompt */}
       <AnimatePresence>

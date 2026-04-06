@@ -4,7 +4,7 @@ import { Sparkles, TrendingUp, DollarSign } from 'lucide-react';
 import { LanguageContext } from '../contexts';
 import VelionCinematicEvent from './VelionCinematicEvent';
 
-const CINEMATIC_COOLDOWN_MS = 20000; // 20 seconds between cinematics
+const CINEMATIC_COOLDOWN_MS = 3000; // 3 seconds between queued cinematics
 
 export function AutoTickNotifications({ api }) {
   const { language } = useContext(LanguageContext);
@@ -74,10 +74,13 @@ export function AutoTickNotifications({ api }) {
               { icon: <TrendingUp className="w-4 h-4 text-cyan-400" />, duration: 4000 }
             );
           } else if (ev.type === 'REVENUE_GAINED' && ev.amount > 0) {
+            const filmPart = ev.film_count ? `${ev.film_count} film` : '';
+            const seriesPart = ev.series_count ? `${ev.series_count} serie` : '';
+            const countLabel = [filmPart, seriesPart].filter(Boolean).join(' + ') || 'progetti';
             toast(
               language === 'it'
-                ? `+$${ev.amount.toLocaleString()} incassati (${ev.film_count} film)`
-                : `+$${ev.amount.toLocaleString()} earned (${ev.film_count} films)`,
+                ? `+$${ev.amount.toLocaleString()} incassati (${countLabel})`
+                : `+$${ev.amount.toLocaleString()} earned (${countLabel})`,
               { icon: <DollarSign className="w-4 h-4 text-green-400" />, duration: 4000 }
             );
           }

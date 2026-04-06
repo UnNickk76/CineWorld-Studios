@@ -8,10 +8,12 @@ const CINEMA_WORDS = [
   'CUT', 'CIAK', 'REGIA', 'CAST', 'CREW', 'SET', 'TAKE',
 ];
 
-export default function MatrixOverlay({ filmTitles = [], actorNames = [], onReveal, duration = 2000 }) {
+export default function MatrixOverlay({ filmTitles = [], actorNames = [], onReveal, duration = 2500 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const revealedRef = useRef(false);
+  // Enforce minimum duration
+  const safeDuration = Math.max(2000, duration);
 
   const allWords = useCallback(() => {
     const w = [...CINEMA_WORDS, ...filmTitles.slice(0, 10), ...actorNames.slice(0, 10)];
@@ -37,7 +39,7 @@ export default function MatrixOverlay({ filmTitles = [], actorNames = [], onReve
 
     const draw = () => {
       const elapsed = Date.now() - startTime;
-      const progress = Math.min(1, elapsed / duration);
+      const progress = Math.min(1, elapsed / safeDuration);
 
       // Fade trail
       ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
@@ -80,18 +82,26 @@ export default function MatrixOverlay({ filmTitles = [], actorNames = [], onReve
         }
       }
 
-      // Slowdown + central opening for reveal
-      if (progress > 0.6 && !revealedRef.current) {
-        const revealProgress = (progress - 0.6) / 0.4;
-        const radius = revealProgress * Math.max(W, H) * 0.6;
+      // Slowdown + central opening for reveal (last 30% of duration)
+      if (progress > 0.7 && !revealedRef.current) {
+        const revealProgress = (progress - 0.7) / 0.3;
+        const radius = revealProgress * Math.max(W, H) * 0.55;
         const cx = W / 2;
         const cy = H / 2;
 
-        // Clear circle from center
+        // Slow down column speed
+        for (let j = 0; j < cols; j++) {
+          speeds[j] *= 0.97;
+        }
+
+        // Clear circle from center with soft edge
         ctx.save();
+        const gradient = ctx.createRadialGradient(cx, cy, radius * 0.5, cx, cy, radius);
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillStyle = gradient;
         ctx.fill();
         ctx.restore();
       }

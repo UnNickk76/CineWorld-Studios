@@ -80,6 +80,7 @@ const MajorPage = React.lazy(() => import('./pages/MajorPage'));
 const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
 const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
+import { AutoTickNotifications } from './components/AutoTickNotifications';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
@@ -2174,6 +2175,7 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <LoginRewardPopup />
+      <AutoTickNotifications api={api} />
       <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <AnimatePresence>
         <PageTransition key={location.pathname}>

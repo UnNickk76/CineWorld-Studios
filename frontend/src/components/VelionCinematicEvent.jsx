@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Film, Tv, Sparkles } from 'lucide-react';
 import MatrixOverlay from './MatrixOverlay';
 
 const TIER_STYLES = {
@@ -7,6 +8,12 @@ const TIER_STYLES = {
   rare: { border: 'border-blue-500/40', bg: 'bg-[#0a0a1a]/95', glow: 'shadow-[0_0_30px_rgba(59,130,246,0.15)]', label: 'RARO', labelColor: 'text-blue-400' },
   epic: { border: 'border-purple-500/50', bg: 'bg-[#0d0516]/95', glow: 'shadow-[0_0_40px_rgba(168,85,247,0.2)]', label: 'EPICO', labelColor: 'text-purple-400' },
   legendary: { border: 'border-yellow-500/60', bg: 'bg-[#1a1000]/95', glow: 'shadow-[0_0_60px_rgba(234,179,8,0.3)]', label: 'LEGGENDARIO', labelColor: 'text-yellow-400' },
+};
+
+const TYPE_BADGE_MAP = {
+  film: { icon: Film, label: 'FILM', color: 'bg-red-500/25 text-red-400 border-red-500/40' },
+  series: { icon: Tv, label: 'SERIE', color: 'bg-cyan-500/25 text-cyan-400 border-cyan-500/40' },
+  anime: { icon: Sparkles, label: 'ANIME', color: 'bg-pink-500/25 text-pink-400 border-pink-500/40' },
 };
 
 // Minimum display time before tap-to-close is allowed
@@ -48,6 +55,23 @@ function EventCard({ event, onDone }) {
         exit={{ scale: 0.85, opacity: 0 }}
         transition={{ delay: 0.8, type: 'spring', damping: 18, stiffness: 200 }}
       >
+        {/* Type Badge: FILM / SERIE / ANIME */}
+        {(() => {
+          const tb = TYPE_BADGE_MAP[event.project_type];
+          if (!tb) return null;
+          const TIcon = tb.icon;
+          return (
+            <motion.div
+              className={`absolute top-3 right-3 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-mono ${tb.color}`}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1.4, duration: 0.3 }}
+            >
+              <TIcon className="w-3 h-3" />
+              {tb.label}
+            </motion.div>
+          );
+        })()}
         {/* Velion — fade in 600ms, starts after card appears */}
         <div className="flex justify-center pt-4 -mb-2">
           <motion.img

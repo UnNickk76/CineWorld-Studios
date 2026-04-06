@@ -4,35 +4,14 @@ import { Sparkles, TrendingUp, DollarSign } from 'lucide-react';
 import { LanguageContext } from '../contexts';
 import VelionCinematicEvent from './VelionCinematicEvent';
 
-const CINEMATIC_COOLDOWN_MS = 3000; // 3 seconds between queued cinematics
-
 export function AutoTickNotifications({ api }) {
   const { language } = useContext(LanguageContext);
   const lastCheck = useRef('');
-  const lastCinematicTime = useRef(0);
-  const cinematicQueue = useRef([]);
   const [cinematicEvents, setCinematicEvents] = useState([]);
-
-  const processQueue = useCallback(() => {
-    const now = Date.now();
-    if (cinematicQueue.current.length === 0) return;
-    if (now - lastCinematicTime.current < CINEMATIC_COOLDOWN_MS) {
-      // Wait and retry
-      setTimeout(processQueue, CINEMATIC_COOLDOWN_MS - (now - lastCinematicTime.current) + 100);
-      return;
-    }
-    const next = cinematicQueue.current.shift();
-    lastCinematicTime.current = now;
-    setCinematicEvents([next]);
-  }, []);
 
   const handleAllDone = useCallback(() => {
     setCinematicEvents([]);
-    // Process next queued event after cooldown
-    if (cinematicQueue.current.length > 0) {
-      setTimeout(processQueue, CINEMATIC_COOLDOWN_MS);
-    }
-  }, [processQueue]);
+  }, []);
 
   useEffect(() => {
     if (!api) return;
@@ -91,10 +70,9 @@ export function AutoTickNotifications({ api }) {
           await api.post('/auto-tick/dismiss').catch(() => {});
         }
 
-        // Queue cinematic events with anti-spam (max 3)
+        // Backend already throttles to max 1 cinematic event per poll
         if (newCinematic.length > 0) {
-          cinematicQueue.current.push(...newCinematic.slice(0, 3));
-          processQueue();
+          setCinematicEvents([newCinematic[0]]);
         }
       } catch {
         // Silently ignore polling errors
@@ -104,7 +82,7 @@ export function AutoTickNotifications({ api }) {
     const initial = setTimeout(poll, 3000);
     const interval = setInterval(poll, 60000);
     return () => { clearTimeout(initial); clearInterval(interval); };
-  }, [api, language, processQueue]);
+  }, [api, language]);
 
   return (
     <>

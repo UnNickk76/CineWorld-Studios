@@ -1420,11 +1420,31 @@ async def auto_revenue_tick():
                                 'star_since': now_str, 'discovered_by': user_id,
                                 'star_film_id': film_id
                             })
+                            # Determine project_type for star event
+                            star_source = film.get('_source', 'films')
+                            if star_source == 'tv_series':
+                                star_proj_type = 'anime' if film.get('content_type') == 'anime' else 'series'
+                            else:
+                                star_proj_type = 'film'
                             star_events.append({
                                 'user_id': user_id, 'type': 'STAR_CREATED',
                                 'actor_name': person.get('name', 'Sconosciuto'),
                                 'actor_id': cast_id, 'film_title': film.get('title', ''),
+                                'project_type': star_proj_type,
                                 'fame_boost': fame_boost, 'created_at': now_str
+                            })
+                            # Save to event_history
+                            await scheduler_db.event_history.insert_one({
+                                'user_id': user_id,
+                                'project_id': film_id,
+                                'project_type': star_proj_type,
+                                'title': film.get('title', ''),
+                                'rarity': 'legendary',
+                                'description': f'{person.get("name", "Sconosciuto")} e\' diventata una STAR!',
+                                'event_type': 'star_born',
+                                'effects': {'revenue_mod': 0.30, 'fame_mod': 50, 'hype_mod': 25},
+                                'actor_name': person.get('name', 'Sconosciuto'),
+                                'created_at': now_str
                             })
                             films_with_star.add(film_id)
                             films_star_flags.append(film_id)
@@ -1445,9 +1465,18 @@ async def auto_revenue_tick():
                                                for cid in film_cast_map.get(film_id, []) if cid in people_map]
                         ev = generate_event(film, cast_names_for_event, is_coming_soon=is_coming_soon)
                         if ev:
+                            # Determine project_type
+                            source = film.get('_source', 'films')
+                            if source == 'tv_series':
+                                ct = film.get('content_type', 'tv_series')
+                                proj_type = 'anime' if ct == 'anime' else 'series'
+                            else:
+                                proj_type = 'film'
+                            
                             ev_record = {
                                 'user_id': user_id, 'type': 'PROJECT_EVENT',
                                 'film_id': film_id, 'film_title': film.get('title', ''),
+                                'project_type': proj_type,
                                 'text': ev['text'], 'tier': ev['tier'],
                                 'event_type': ev['event_type'],
                                 'revenue_mod': ev.get('revenue_mod', 0),
@@ -1458,6 +1487,23 @@ async def auto_revenue_tick():
                                 'actor_name': ev.get('actor_name', ''),
                                 'created_at': now_str
                             }
+                            # Save to event_history (permanent log)
+                            await scheduler_db.event_history.insert_one({
+                                'user_id': user_id,
+                                'project_id': film_id,
+                                'project_type': proj_type,
+                                'title': film.get('title', ''),
+                                'rarity': ev['tier'],
+                                'description': ev['text'],
+                                'event_type': ev['event_type'],
+                                'effects': {
+                                    'revenue_mod': ev.get('revenue_mod', 0),
+                                    'hype_mod': ev.get('hype_mod', 0),
+                                    'fame_mod': ev.get('fame_mod', 0),
+                                },
+                                'actor_name': ev.get('actor_name', ''),
+                                'created_at': now_str
+                            })
                             # Apply revenue modifier to this tick
                             if ev.get('revenue_mod', 0) != 0 and tick_rev > 0:
                                 boost_amount = int(tick_rev * abs(ev['revenue_mod']))

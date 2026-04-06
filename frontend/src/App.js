@@ -104,6 +104,7 @@ const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
+const EventHistoryPage = React.lazy(() => import('./pages/EventHistoryPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -900,6 +901,18 @@ const TopNavbar = () => {
           >
             <Newspaper className="w-4 h-4" />
           </Button>
+
+          {/* Event History */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/event-history' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            onClick={() => navigate('/event-history')}
+            data-testid="event-history-nav-btn"
+            title="Cronologia Eventi"
+          >
+            <History className="w-4 h-4" />
+          </Button>
           
           {/* Challenges/Sfide - Always visible */}
           <Button
@@ -1137,6 +1150,16 @@ const TopNavbar = () => {
               >
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Tutorial</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-purple-400 hover:bg-purple-500/10 gap-2 mt-1"
+                onClick={() => { navigate('/event-history'); setMobileMenuOpen(false); }}
+                data-testid="menu-event-history-btn"
+              >
+                <History className="w-4 h-4" />
+                <span className="text-sm">Cronologia Eventi</span>
               </Button>
             </div>
 
@@ -2456,6 +2479,7 @@ function App() {
                 <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
                 <Route path="/pvp-arena" element={<ProtectedRoute><PvPArenaPage /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
+                <Route path="/event-history" element={<ProtectedRoute><EventHistoryPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/download" element={<DownloadAppPage />} />

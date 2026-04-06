@@ -12,8 +12,8 @@ export default function MatrixOverlay({ filmTitles = [], actorNames = [], onReve
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const revealedRef = useRef(false);
-  // Enforce minimum duration
-  const safeDuration = Math.max(2000, duration);
+  // Enforce minimum duration of 8s
+  const safeDuration = Math.max(8000, duration);
 
   const allWords = useCallback(() => {
     const w = [...CINEMA_WORDS, ...filmTitles.slice(0, 10), ...actorNames.slice(0, 10)];

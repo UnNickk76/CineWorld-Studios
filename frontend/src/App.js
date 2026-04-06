@@ -918,16 +918,16 @@ const TopNavbar = () => {
             <Newspaper className="w-4 h-4" />
           </Button>
 
-          {/* Event History */}
+          {/* EVENTI */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/event-history' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/event-history' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/event-history')}
             data-testid="event-history-nav-btn"
-            title="Cronologia Eventi"
+            title="Eventi"
           >
-            <History className="w-4 h-4" />
+            <Sparkles className="w-4 h-4" />
             {unreadEvents > 0 && (
               <span
                 className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-none animate-pulse"
@@ -1178,12 +1178,12 @@ const TopNavbar = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start text-purple-400 hover:bg-purple-500/10 gap-2 mt-1"
+                className="w-full justify-start text-yellow-400 hover:bg-yellow-500/10 gap-2 mt-1"
                 onClick={() => { navigate('/event-history'); setMobileMenuOpen(false); }}
                 data-testid="menu-event-history-btn"
               >
-                <History className="w-4 h-4" />
-                <span className="text-sm">Cronologia Eventi</span>
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm">Eventi</span>
               </Button>
             </div>
 

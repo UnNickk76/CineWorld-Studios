@@ -1,7 +1,7 @@
 # CineWorld Studio's — PRD
 
 ## Problema Originale
-Sistema di produzione cinematografica con pipeline completa (sviluppo → rilascio → sala). L'obiettivo e' un'esperienza utente visiva, cinematografica e immersiva. Include "La Prima" (anteprime live), Content Template fullscreen, e Cinema Journal.
+Sistema di produzione cinematografica con pipeline completa (sviluppo -> rilascio -> sala). L'obiettivo e' un'esperienza utente visiva, cinematografica e immersiva. Include "La Prima" (anteprime live), Content Template fullscreen, e Cinema Journal.
 
 ## Architettura
 - **Frontend**: React + Tailwind + Shadcn/UI + Framer Motion
@@ -61,54 +61,44 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - AutoTickNotifications.jsx con polling + toast animati
 
 ### Soft Expansion Major - Backend + Frontend (DONE - 2026-04-06)
-- **Backend**: 5 endpoint admin in routes/major.py:
-  - POST /api/major/set-level (studio/mini_major/major)
-  - POST /api/major/set-role (manager/member, founder only)
-  - POST /api/major/set-bonuses (marketing/casting/production 0-25)
-  - POST /api/major/trigger-event (random event, 6h cooldown)
-  - POST /api/major/war/calculate (score-based, 24h cooldown)
-  - GET /api/major/wars (storico)
-  - GET /api/major/all (senza logo base64, fix performance 2.6MB->85 bytes)
-- **Frontend** MajorPage.jsx aggiornato:
-  - Sezione Admin (solo founder): Livello Studio, Ruoli Membri, Bonus Reparti (slider 0-25), Evento Major (trigger + display attivo)
-  - Sezione Guerra: Dichiara Guerra (dropdown avversario + bottone), Storico Guerre (win/loss)
-  - Caricamento dati guerra non-bloccante (fix page loading stuck)
-- **Documenti futuri**: /app/features_future/ con 4 file .md (contracts, franchise, streaming, acquisitions)
+- **Backend**: 5 endpoint admin in routes/major.py
+- **Frontend** MajorPage.jsx aggiornato con Sezione Admin, Guerra, Bonus
+- Documenti futuri: /app/features_future/ con 4 file .md
+
+### Collegamento Eventi Cinematici a Gameplay Reale (DONE - 2026-04-06)
+- Trigger automatico per film IN SALA + COMING SOON (solo rare+)
+- Cooldown 12h per titolo, probabilita 30% base + modificatore qualita
+- Effetti applicati al DB reale: revenue +/- %, hype_score +/- %, fame +/- %
+- Anti-spam frontend: 20s tra cinematici, coda eventi
 
 ### Sistema Eventi Completo + Cinematic UI (DONE - 2026-04-06)
-- **Backend**: `event_templates.py` con ~100 template in 4 tier (common 60%, rare 25%, epic 10%, legendary 5%)
-- Integrazione in `scheduler_tasks.py`: 30-50% chance per progetto per tick, modificatori revenue/hype/fame
-- Eventi globali (epic/legendary) salvati in `cinema_news` per il Journal
-- **Frontend**: Rimossi bottoni manuali "Riscuoti Ora" e "STELLE NATE"
-- `MatrixOverlay.jsx`: canvas fullscreen con caratteri verdi, parole cinema, glow, velocita variabile
-- `VelionCinematicEvent.jsx`: sequenza blackout→matrix→reveal Velion→card evento per epic/legendary
-- Common/rare: toast notification standard
-- `AutoTickNotifications.jsx`: polling aggiornato per classificare e mostrare eventi cinematici
-- Mobile-first: colonne ridotte su mobile, durata adattata per tier
+- **Backend**: `event_templates.py` con ~100 template in 4 tier
+- **Frontend**: MatrixOverlay.jsx, VelionCinematicEvent.jsx, AutoTickNotifications.jsx
+- Common/rare: toast notification standard; Epic/Legendary: animazione cinematica completa
 
 ### Dashboard Tour Velion (DONE - 2026-04-06)
-- Creato `DashboardTour.jsx`: Velion (velion-tutorial.png) guida l'utente icona per icona nella top/bottom navbar
-- 14 step con frecce animate gialle + highlight ring sui bottoni target
-- Icone condivise (Arena, Notifiche/Eventi): 2 frecce simultanee top+bottom, non ripetute
-- Trigger automatico dopo prima registrazione (da AuthPage o conversione Guest)
-- Flag localStorage: `show_dashboard_tour` → `dashboard_tour_done`
-- Chiudibile in qualsiasi momento (X o "Salta tour"), avanza con "Avanti" o tap overlay
-- Zero dipendenze, zero backend, zero crediti
+- DashboardTour.jsx: 14 step con frecce animate
 
 ### Tutorial Riutilizzabile (DONE - 2026-04-06)
-- Creato `frontend/src/data/tutorialSteps.js` (6 step: Benvenuto, Produzione, Coming Soon, Rilascio, Eventi, Crescita)
-- Creato `frontend/src/components/TutorialModal.jsx` (componente generico leggero)
-- Integrato in 3 punti: Login ("Come si gioca?"), Top Nav (icona HelpCircle), bottone "?" vicino Velion, menu hamburger
-- Zero dipendenze aggiunte, zero modifiche backend, mobile-first
+- tutorialSteps.js (6 step) + TutorialModal.jsx
+
+### Timing Eventi Cinematici Rallentato (DONE - 2026-04-06)
+- Sequenza: fadeout 800ms -> schermo nero 500ms -> Matrix rain (min 2000ms epic, 3000ms legendary) -> card evento (800ms delay)
+- Durata totale minima ~4-5 secondi
+- Skip bloccato per 2.5s, coda eventi con 3s gap
+- Auto-close: legendary 8s, epic 6s, common 3.5s
+
+### Allineamento Serie TV/Anime al Sistema Auto-Tick (DONE - 2026-04-06)
+- `auto_revenue_tick()` ora processa sia `films` che `tv_series` collection
+- Serie TV/Anime con status `completed`/`released` ricevono: revenue passiva, star discovery, skill progression, eventi cinematici
+- Revenue basata su qualita, audience rating, episode count con decay temporale
+- Hype e star flags aggiornati nella collection corretta (`tv_series`)
+- Frontend aggiornato per mostrare conteggio separato film/serie nei toast revenue
+- Testato: utente con 49 film + 6 serie riceve revenue combinata correttamente
 
 ## Backlog Prioritizzato
 
-### P0 (Critico)
-- [x] Tutti i P0 precedenti completati (vedi sopra)
-- [x] Soft Expansion Major Backend + Frontend (2026-04-06)
-
 ### P1 (Importante)
-- [ ] Azioni Proprietario Serie TV (verificare integrazione con auto-tick)
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
 - [ ] Marketplace TV/Anime rights
 - [ ] Ottimizzare /api/films/cinema-journal (N+1 query)
@@ -128,13 +118,15 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
 - [ ] Velion AI Memory
 
 ## File Chiave
-- `/app/frontend/src/pages/MajorPage.jsx` (UI Major + Admin + Guerra)
-- `/app/backend/routes/major.py` (Endpoint Major completi)
-- `/app/backend/scheduler_tasks.py` (Auto-tick economy)
+- `/app/frontend/src/pages/MajorPage.jsx`
+- `/app/backend/routes/major.py`
+- `/app/backend/scheduler_tasks.py` (Auto-tick economy + series)
 - `/app/frontend/src/components/ContentTemplate.jsx`
-- `/app/frontend/src/pages/CinemaJournal.jsx`
-- `/app/frontend/src/components/GuestTutorial.jsx`
-- `/app/backend/server.py` (main server)
+- `/app/frontend/src/components/VelionCinematicEvent.jsx`
+- `/app/frontend/src/components/MatrixOverlay.jsx`
+- `/app/frontend/src/components/AutoTickNotifications.jsx`
+- `/app/backend/event_templates.py`
+- `/app/backend/server.py`
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

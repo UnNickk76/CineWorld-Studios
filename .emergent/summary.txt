@@ -1,73 +1,69 @@
 <analysis>**original_problem_statement**: 
-Richiesta di stabilizzare l'architettura, automatizzare l'economia del gioco e avviare una Soft Expansion per le Major. L'economia deve passare da manuale a un tick automatico per incassi, scoperte star e level up skill. Per le Major (Fase 1+3 Lite), si richiede l'aggiunta di livelli studio, ruoli membri, bonus di reparto, eventi semplici, calcolo guerre e un update della UI per i founder, oltre alla creazione di documenti per future funzionalità.
+OBIETTIVO: rendere gli eventi cinematici più lenti, percepibili e spettacolari. Modificare la sequenza: fade out pagina (800ms) → schermo nero (500ms) → Matrix rain (minimo 2000ms) → apparizione Velion (600ms) → card evento (dopo 800ms). Durata totale minima: ~4-5 secondi. Impedire skip automatici, impostare coda eventi a 3 secondi di distanza e prolungare visualizzazione Matrix.
 PRODUCT REQUIREMENTS: 
-- Vietato l'uso del testing agent (No test agent).
 - Ottimizzato per mobile.
-- Nessuna modifica alle logiche core di film/tv esistenti durante i refactor.
+- NON cambiare logica backend. Solo UX timing.
+- NON usare testing agent (No test agent).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
-**what currently exists?** (give crisp summary)
-Il DB bloat (base64) è stato pulito. L'architettura in  è stata drasticamente snellita rimuovendo ~7200 righe di codice morto. L'economia non usa più bottoni manuali (Incassa), ma un sistema auto-tick robusto (in  via ) che elabora revenue, skill e la scoperta bilanciata delle Star. La pagina di Login ha la UI corretta (Velion + PWA banner inline). Per le Major, i nuovi endpoint backend per la gestione admin (livelli, ruoli, bonus, eventi e guerre) sono appena stati inseriti in . 
+**what currently exists?** 
+Il sistema Major Soft Expansion (livelli, ruoli, bonus, eventi e guerre) è completo e integrato nella UI. È stato creato un Tutorial universale e un Dashboard Tour animato che si attiva alla prima registrazione. Tutte le logiche manuali (Incassa, Crea Stella) sono state rimosse in favore di un  in background che distribuisce incassi, popolarità ed eventi. È stato implementato un sistema di Eventi Cinematici con oltre 100 template: quando un evento Epico/Leggendario colpisce un film in sala, l'utente vede un effetto Matrix e un'animazione di Velion a tutto schermo.
 
 **Last working item**: 
-    - Last item agent was working: Completamento della Soft Expansion delle Major. L'agente ha appena scritto gli endpoint backend in  per gestire livelli, ruoli, bonus ed eventi. L'esecuzione è stata interrotta prima di poter toccare il frontend e i documenti futuri.
-    - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by curl, screenshot tool. NO TESTING AGENT.
+    - Last item agent was working: Modifica del timing della UI cinematica per rallentare l'animazione degli eventi epici/leggendari (, , ).
+    - Status: IN PROGRESS (L'agente ha applicato tutte le modifiche ai file, ha testato via screenshot e constatato il successo visivo, ma la context window è terminata prima che potesse lanciare il tool  e aggiornare il PRD).
+    - Agent Testing Done: Y
+    - Which testing method agent to use? screenshot tool (Come richiesto dall'utente, NON usare testing agent).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Completamento Soft Expansion Major (Frontend e Docs) (P0)
-     - Attempted fixes: Aggiunti gli endpoint backend. Il frontend non è ancora stato modificato.
-     - Next debug checklist: 
-       1) In , aggiungere la Sezione Admin (visibile solo al founder) per selezionare il livello studio, gestire ruoli, input bonus e trigger evento.
-       2) Aggiungere la Sezione Guerra (calcolo e risultato ultimo scontro). Non modificare/rompere la UI preesistente.
-       3) Creare la cartella  e i file  vuoti descrittivi richiesti dall'utente (contracts, franchise, streaming, acquisitions).
-     - Why fix this issue and what will be achieved with the fix? È il completamento dell'ultima direttiva utente per dare profondità alle gilde/major.
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? sia frontend (screenshot) che backend (curl)
-     - Blocked on other issue: None
-
-  Issue 2: Azioni Proprietario Serie TV (P1)
+  Issue 1: Azioni Proprietario Serie TV (P1)
      - Attempted fixes: Nessuno in questa sessione.
-     - Next debug checklist: Verificare se i bottoni Serie TV esistono ancora. Essendo passato a un sistema auto-tick per i film, verificare se le Serie TV sono già incluse nell'auto-tick. Se sì, rimuovere/rinominare i bottoni residui. Altrimenti, integrare la logica per le TV nel tick.
-     - Why fix this issue and what will be achieved with the fix? Allinea le serie TV al nuovo sistema automatizzato.
+     - Next debug checklist: Poiché il sistema Incassa e Crea stella è stato rimosso per i Film, occorre verificare se le Serie TV sono già incluse nell'auto-tick o se possiedono ancora bottoni manuali da rimuovere/allineare.
+     - Why fix this issue and what will be achieved with the fix? Completa la transizione verso l'economia 100% passiva e automatica per tutti i formati.
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? sia backend che frontend
      - Blocked on other issue: None
 
-  Issue 3: Contest Page Mobile Layout Is Broken (P2)
+  Issue 2: Contest Page Mobile Layout Is Broken (P2)
      - Attempted fixes: Nessuno.
-     - Next debug checklist: Ispezionare la UI mobile della contest page, probabile uso improprio di grid/flex senza wrapping responsive.
-     - Why fix this issue and what will be achieved with the fix? Bug UX ricorrente segnalato 16+ volte dagli utenti.
+     - Next debug checklist: Ispezionare la UI mobile della contest page (layout rotto).
+     - Why fix this issue and what will be achieved with the fix? Bug UX ricorrente segnalato dagli utenti.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? frontend
      - Blocked on other issue: None
 
 **In progress Task List**: 
-  Nessuna esterna alle Issue descritte sopra.
+  Task 1: Finalizzazione del task Timing Eventi Cinematici (P0)
+     - Where to resume: Il codice è già stato modificato e testato. L'agente deve solo confermare che tutto è corretto, aggiornare il file  e chiudere formalmente il task con il summary, per poi passare al task successivo.
+     - What will be achieved with this? Un'esperienza utente più drammatica e leggibile durante gli eventi rari.
+     - Status: TESTING PENDING (Screenshot ok, va solo chiuso)
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Sistema Previsioni Festival (Scommesse sui vincitori).
-    - (P1) Marketplace for TV/Anime rights.
+    - (P1) Verificare allineamento Serie TV al nuovo sistema eventi/tick automatici (Issue 1).
     Future Tasks:
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Guerre tra Major, Velion AI Memory.
+    - (P3) Marketplace for TV/Anime rights.
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels, Eventi globali, Velion AI Memory.
 
 **Completed work in this session**
-- Fix DB MongoDB Bloat & Ottimizzazione (rimosso base64 da , , ) (DONE)
-- Bug Fix: LE MIE TV! spariva in Dashboard.jsx causa fallimento blocco try/catch offline catchup (DONE)
-- Pulizia Architettura  (rimosse ~7200 righe  ed esportati fix sintattici) (DONE)
-- Fix Login Page UI (Velion popup persistente e PWA banner spostato inline) (DONE)
-- Sistema Automatico Incassi + Star + Skill (rimossi bottoni manuali frontend e creato cronjob  in  + notifiche) (DONE)
-- Bilanciamento Star Discovery per abbassare proc-rate a 0.5-1% max 1 star a tick (DONE)
+- Completamento UI Frontend Soft Expansion Major (Sezione Admin, gestione bonus e UI Guerre) in  (DONE)
+- Fix critico su payload gigante di  (ridotto da 2.6MB a 85 byte rimuovendo loghi base64) (DONE)
+- Creazione Tutorial Modale centralizzato (, ) (DONE)
+- Creazione Dashboard Tour post-registrazione () (DONE)
+- Rimozione di tutti i bottoni manuali Incassa e Crea Stella (DONE)
+- Implementazione Sistema Eventi Cinematici Backend () (DONE)
+- Implementazione UI Cinematic Events con Overlay Canvas e Velion (, ) (DONE)
+- Integrazione Eventi Cinematici ai Dati Reali ( aggiornato per cooldown, status in_sala/coming_soon) (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Azioni Serie TV pendenti.
+- Azioni Serie TV pendenti/da allineare (menzionato nei log precedenti).
 - Layout Contest Page Mobile.
 
 **Known issue recurrence from previous fork**
@@ -76,81 +72,76 @@ Il DB bloat (base64) è stato pulito. L'architettura in  è stata drasticamente 
   - Status: NOT STARTED
 
 **Code Architecture**
-- Frontend: React (, , , ).
+- Frontend: React (, , , , ).
 - Backend: FastAPI (, , , ).
-- Background:  per il loop dell'economia di gioco in background.
+- Background:  per il loop tick/eventi ogni 10 min.
 - DB: MongoDB.
 
 **Key Technical Concepts**
-- **Auto-Tick Economy**: L'intero sistema manuale degli incassi è stato convertito. Ogni 10 min il server assegna incassi in batch, aumenta l'esperienza delle crew e ha probabilità bassissime (con modificatori basati su qualità, flop, hype) di generare uno status Star per il cast.
-- **Soft Major System**: Il file  ora gestisce endpoint per modificare in modo soft il peso di una Major (cambio livello in mini-major/major, assegnazione ruoli per permessi differenziati, piccoli bonus passivi alle stat).
+- **Cinematic Event System**: Un sistema integrato nel tick che lancia eventi casuali (Comuni, Rari, Epici, Leggendari). Il frontend (in ascolto tramite API polling in ) gestisce una coda eventi. Se l'evento è epico o leggendario, oscura lo schermo, renderizza particelle matrix via Canvas e mostra un'animazione di Velion prima della notifica.
+- **Tutorial / Tour System**: Stato gestito in  e via flag DB per utente registrato per lanciare la guida automatica di navigazione.
 
 **key DB schema**
-  - : { uid=0(root) gid=0(root) groups=0(root), , , ,  (marketing, casting, production),  }
-  - : { , ,  (founder, manager, member) }
   - : { , , , , ,  }
+  - : { uid=0(root) gid=0(root) groups=0(root), , , , ,  }
 
 **changes in tech stack**
-  - Forte adozione di  in background tasks ().
+  - Utilizzo intensivo di  per gestire fasi sequenziali (fadeout, matrix, reveal) nella UI.
 
 **All files of reference** 
-  -  (Endpoint inseriti ma non collegati)
-  -  (L'UI della Major da aggiornare con la zona Admin)
-  -  (Per capire come è strutturato il tick nel caso ci siano problemi di performance futuri)
+  -  (Gestione fasi temporali animazione)
+  -  (Canvas effect)
+  -  (Gestione coda di attesa eventi)
+  -  (Core economy & Event trigger logic)
+  -  (Dizionario eventi statici creati)
 
 **Areas that need refactoring**: 
-  - Nessuna area critica, enorme refactor e snellimento di  completato con successo (file ridotto del 40%).
+  - Nessuna critica.
 
 **key api endpoints**
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Frontend esegue il polling per ricevere eventi cinematici o toast)
 
 **Critical Info for New Agent** 
-- **L'utente ha proibito esplicitamente l'uso del testing agent**. Non invocarlo. Verifica tutto autonomamente con  e screenshot.
-- Parla solo in italiano.
-- L'utente vuole l'aggiunta di una UI in  per esporre le funzioni Soft-Major che sono già state caricate nel backend. Non eliminare o coprire la UI vecchia (inviti, logo AI), accoda le nuove sezioni in basso, e mostra la Sezione Admin SOLO agli utenti con ruolo founder.
-- Crea la cartella  e i file markdown descrittivi che l'utente ha richiesto per futuri documenti di Game Design.
+- **L'utente ha proibito categoricamente l'uso del testing agent (No test agent)**. Usa tool come  e bash scripting per testare i flussi.
+- RISPONDI SEMPRE IN ITALIANO.
+- Hai appena finito di modificare le tempistiche dell'animazione Matrix/Velion su richiesta. Verifica l'ultimo screenshot se necessario e procedi alla chiusura () di questo step aggiornando , in modo da liberare lo stack per il prossimo comando.
 
 **documents and test reports created in this job** 
-  - Nessuno di nuovo a parte il pre-esistente .
+  -  (aggiornato continuamente in sessione)
+  -  (documenti teorici creati)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-(10) User chiede report feature attive.
-(9) User chiede pulizia  senza stravolgimenti logici. (Finito)
-(8) User detta regole restrittive e conservative per la pulizia di . (Finito)
-(7) User chiede modifica UI PWA e Velion su Login. (Finito)
-(6) User avverte che Velion DOVEVA rimanere. (Finito)
-(5) User segnala che sia Velion che PWA banner son spariti. (Finito)
-(4) User richiede il tick automatico per l'economia e la rimozione bottoni Incassa. (Finito)
-(3) User segnala che il nuovo tick genera troppe star e richiede ribilanciamento pesante. (Finito)
-(2) User condivide un enorme piano architetturale futuro per il concetto di Major.
-(1) User chiede una versione limitata (Soft Fase 1+3) del concetto di Major, includendo API specifiche, update UI in  e dei file markdown vuoti in . L'agente ha fatto il backend e si è fermato prima del frontend. (ULTIMO MESSAGGIO, TASK PENDING)
+(10) User chiede un tutorial base unificato per il gioco (budget max 5 crediti). (Finito)
+(9) User chiede un Dashboard Tour visuale (Velion in basso a destra con frecce verso i vari tab). (Finito)
+(8) User chiede fix per troppe star generate. (Agente dimostra che era già stato fatto nella sessione prima. Nessuna azione intrapresa).
+(7) User ordina di rimuovere i bottoni manuali Incassa/Stelle e creare un sistema Eventi Cinematografico. (Finito)
+(6) User ordina di collegare i nuovi eventi cinematografici ai dati reali (Film in sala, cooldown 12h, applicare effetti statistici). (Finito)
+(5) User chiede un rallentamento forzato (timing minimo 4-5s) della sequenza visiva dell'evento cinematico, più prolungamento del Matrix. (ULTIMO MESSAGGIO - L'agente ha fatto tutto il codice ma si è interrotto prima del ).
 
 **Project Health Check:**
-Broken: Mobile layout della pagina Contest.
-Mocked: Le logiche Major Wars sono attualmente soft e scriptate in modo basico nel backend.
+- Broken: Contest Page Mobile Layout.
+- Mocked: Nessuno.
 
 **3rd Party Integrations** 
-- Stripe (Pagamenti)
-- Gemini Nano Banana (Generazione Logo Major e Profilo via Emergent LLM Key)
+- Stripe (Payments)
+- Gemini Nano Banana (Generazione Logo/Immagini via Emergent LLM Key)
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito).
+  - Testing agent used after significant changes: NO (Proibito dall'utente per questo task, tranne autorizzazioni minime, ma sconsigliato procedere oltre).
   - Troubleshoot agent used after agent stuck in loop: NO.
   - Test files created: []
-  - Known regressions: Nessuna introdotta.
+  - Known regressions: Nessuna.
 
 **Credentials to test flow:**
-  Usa la funzione Prova senza registrarti (Guest mode) dal frontend.
+  Utente:  /  (o Guest Login).
 
 **What agent forgot to execute**
-L'agente ha dimenticato di modificare  con le interfacce per founder (Admin e Guerra) e ha dimenticato di creare la directory  con i markdown testuali.
+L'agente ha dimenticato di lanciare il tool  per chiudere l'ultimo task del timing, aggiornando il file PRD e preparando il terreno al prossimo task. L'agente non ha affrontato l'allineamento delle Serie TV.
 
 **Debugging checklist for current issue**
-    Issue: Frontend per la gestione Admin delle Major non completato
+    Issue: Finalizzazione task Timing Eventi Cinematici
     Frontend files to check: 
-    Backend files to check:  (verificare che i 5 endpoint appena caricati a fine file siano sintatticamente corretti e non abbiano causato crash).
-    </analysis>
+    - 
+    - 
+    - 
+    (I file sono già stati aggiornati. Va solo fatto un check logico o chiuso il task se ci si fida dell'ultimo screenshot preso prima della fine contesto).</analysis>

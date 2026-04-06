@@ -9,7 +9,6 @@ export function VelionLoginBubble({ onStart }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem(LS_KEY)) return;
     const timer = setTimeout(() => setShow(true), 1200);
     return () => clearTimeout(timer);
   }, []);

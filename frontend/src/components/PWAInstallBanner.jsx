@@ -52,13 +52,12 @@ export function PWAInstallBanner({ variant = 'floating' }) {
     localStorage.setItem('pwa-dismissed', Date.now().toString());
   };
 
-  // Don't show if already installed or dismissed
-  if (installed || dismissed) return null;
-  // Don't show if no prompt available AND not iOS
-  if (!deferredPrompt && !isIOS()) return null;
+  // Don't show if already installed
+  if (installed) return null;
 
-  // Inline variant: compact banner inside parent container
+  // Inline variant: always show on mobile (not dismissible via localStorage)
   if (variant === 'inline') {
+    if (!deferredPrompt && !isIOS()) return null;
     return (
       <>
         {deferredPrompt && (
@@ -82,33 +81,25 @@ export function PWAInstallBanner({ variant = 'floating' }) {
                 <Download className="w-3 h-3" />
                 Installa
               </button>
-              <button onClick={handleDismiss} className="p-0.5 text-gray-500 hover:text-white">
-                <X className="w-3.5 h-3.5" />
-              </button>
             </div>
           </motion.div>
         )}
 
         {isIOS() && !deferredPrompt && (
           <>
-            {!showIOSGuide && (
-              <motion.button
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="w-full mt-2 bg-gradient-to-r from-blue-500/15 to-cyan-600/15 rounded-xl p-2.5 border border-blue-400/20 flex items-center gap-2.5"
-                onClick={() => setShowIOSGuide(true)}
-                data-testid="pwa-ios-inline"
-              >
-                <img src="/icons/icon-96x96.png" alt="" className="w-8 h-8 rounded-lg" />
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-xs font-bold text-white">Installa CineWorld</p>
-                  <p className="text-[9px] text-gray-400">Tocca per le istruzioni</p>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); handleDismiss(); }} className="p-0.5 text-gray-500">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </motion.button>
-            )}
+            <motion.button
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="w-full mt-2 bg-gradient-to-r from-blue-500/15 to-cyan-600/15 rounded-xl p-2.5 border border-blue-400/20 flex items-center gap-2.5"
+              onClick={() => setShowIOSGuide(true)}
+              data-testid="pwa-ios-inline"
+            >
+              <img src="/icons/icon-96x96.png" alt="" className="w-8 h-8 rounded-lg" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-bold text-white">Installa CineWorld</p>
+                <p className="text-[9px] text-gray-400">Tocca per le istruzioni</p>
+              </div>
+            </motion.button>
 
             <AnimatePresence>
               {showIOSGuide && (
@@ -175,6 +166,10 @@ export function PWAInstallBanner({ variant = 'floating' }) {
       </>
     );
   }
+
+  // Floating variant: respect dismissed state
+  if (dismissed) return null;
+  if (!deferredPrompt && !isIOS()) return null;
 
   return (
     <>

@@ -1046,25 +1046,99 @@ async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user))
 
 # ==================== AUTO-TICK EVENTS ENDPOINT ====================
 
+RARITY_PRIORITY = {'legendary': 4, 'epic': 3, 'rare': 2, 'common': 1}
+
 @router.get("/auto-tick/events")
 async def get_auto_tick_events(user: dict = Depends(get_current_user)):
-    """Get recent auto-tick events for this user (revenue, stars, skill ups)."""
+    """Get recent auto-tick events for this user.
+    Throttled: max 1 cinematic event per 60 seconds.
+    On first open with backlog > 1: only the highest rarity event is shown."""
+    user_id = user['id']
+    
     events = await db.auto_tick_events.find(
-        {'user_id': user['id']},
+        {'user_id': user_id},
         {'_id': 0}
     ).sort('created_at', -1).to_list(20)
     
-    # Mark events as seen
-    event_ids = [e.get('type') + '_' + e.get('created_at', '') for e in events]
+    if not events:
+        return {'events': []}
     
-    return {'events': events}
+    # Separate cinematic (PROJECT_EVENT epic/legendary, STAR_CREATED) from non-cinematic
+    cinematic = []
+    non_cinematic = []
+    for ev in events:
+        if ev.get('type') == 'STAR_CREATED':
+            cinematic.append(ev)
+        elif ev.get('type') == 'PROJECT_EVENT' and ev.get('tier') in ('epic', 'legendary'):
+            cinematic.append(ev)
+        else:
+            non_cinematic.append(ev)
+    
+    # Throttle cinematic events: check last delivery time
+    throttle_doc = await db.event_throttle.find_one(
+        {'user_id': user_id}, {'_id': 0}
+    )
+    now = datetime.now(timezone.utc)
+    last_delivered = None
+    if throttle_doc and throttle_doc.get('last_cinematic_at'):
+        try:
+            last_delivered = datetime.fromisoformat(throttle_doc['last_cinematic_at'].replace('Z', '+00:00'))
+            if last_delivered.tzinfo is None:
+                last_delivered = last_delivered.replace(tzinfo=timezone.utc)
+        except Exception:
+            last_delivered = None
+    
+    served_cinematic = []
+    if cinematic:
+        cooldown_ok = (not last_delivered) or (now - last_delivered).total_seconds() >= 60
+        
+        if cooldown_ok:
+            if len(cinematic) > 1:
+                # First open with backlog: sort by rarity, serve only top 1
+                cinematic.sort(key=lambda e: RARITY_PRIORITY.get(e.get('tier', 'common'), 0), reverse=True)
+                served_cinematic = [cinematic[0]]
+                # Keep 1 more in backlog (max 2 total), discard rest
+                # Delete all except the next-most-important from auto_tick_events
+                keep_ids = set()
+                for c in cinematic[:2]:
+                    keep_ids.add(c.get('type', '') + '_' + c.get('created_at', ''))
+                # Remove excess cinematic events from DB
+                for c in cinematic[2:]:
+                    await db.auto_tick_events.delete_many({
+                        'user_id': user_id,
+                        'type': c.get('type'),
+                        'created_at': c.get('created_at')
+                    })
+            else:
+                served_cinematic = cinematic[:1]
+            
+            # Update throttle timestamp
+            await db.event_throttle.update_one(
+                {'user_id': user_id},
+                {'$set': {'user_id': user_id, 'last_cinematic_at': now.isoformat()}},
+                upsert=True
+            )
+    
+    result = non_cinematic + served_cinematic
+    return {'events': result}
 
 
 @router.post("/auto-tick/dismiss")
 async def dismiss_auto_tick_events(user: dict = Depends(get_current_user)):
-    """Dismiss all auto-tick events for this user."""
+    """Dismiss processed auto-tick events for this user."""
     await db.auto_tick_events.delete_many({
         'user_id': user['id'],
         'type': {'$ne': 'REVENUE_GAINED'}
     })
     return {'success': True}
+
+
+@router.get("/events/history")
+async def get_event_history(limit: int = 50, user: dict = Depends(get_current_user)):
+    """Get permanent event history for this user."""
+    limit = min(limit, 100)
+    events = await db.event_history.find(
+        {'user_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(limit)
+    return {'events': events}

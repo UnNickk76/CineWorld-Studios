@@ -104,6 +104,7 @@ const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
+const EventHistoryPage = React.lazy(() => import('./pages/EventHistoryPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -401,6 +402,22 @@ const TopNavbar = () => {
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [systemNotesCount, setSystemNotesCount] = useState(0);
   const [emergingScreenplaysCount, setEmergingScreenplaysCount] = useState(0);
+  const [unreadEvents, setUnreadEvents] = useState(() => parseInt(sessionStorage.getItem('cw_unread_events') || '0'));
+
+  // Listen for unread events updates from AutoTickNotifications
+  useEffect(() => {
+    const handler = () => setUnreadEvents(parseInt(sessionStorage.getItem('cw_unread_events') || '0'));
+    window.addEventListener('cw-unread-update', handler);
+    return () => window.removeEventListener('cw-unread-update', handler);
+  }, []);
+
+  // Reset when visiting event-history
+  useEffect(() => {
+    if (location.pathname === '/event-history') {
+      setUnreadEvents(0);
+      sessionStorage.setItem('cw_unread_events', '0');
+    }
+  }, [location.pathname]);
 
   // Prefetch data on hover for instant navigation
   const gameStore = useGameStore();
@@ -900,6 +917,26 @@ const TopNavbar = () => {
           >
             <Newspaper className="w-4 h-4" />
           </Button>
+
+          {/* EVENTI */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/event-history' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/event-history')}
+            data-testid="event-history-nav-btn"
+            title="Eventi"
+          >
+            <Sparkles className="w-4 h-4" />
+            {unreadEvents > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-none animate-pulse"
+                data-testid="unread-events-badge"
+              >
+                {unreadEvents > 99 ? '99+' : unreadEvents}
+              </span>
+            )}
+          </Button>
           
           {/* Challenges/Sfide - Always visible */}
           <Button
@@ -1137,6 +1174,16 @@ const TopNavbar = () => {
               >
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Tutorial</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-yellow-400 hover:bg-yellow-500/10 gap-2 mt-1"
+                onClick={() => { navigate('/event-history'); setMobileMenuOpen(false); }}
+                data-testid="menu-event-history-btn"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm">Eventi</span>
               </Button>
             </div>
 
@@ -2456,6 +2503,7 @@ function App() {
                 <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
                 <Route path="/pvp-arena" element={<ProtectedRoute><PvPArenaPage /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
+                <Route path="/event-history" element={<ProtectedRoute><EventHistoryPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/download" element={<DownloadAppPage />} />

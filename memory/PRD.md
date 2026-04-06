@@ -75,6 +75,12 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Caricamento dati guerra non-bloccante (fix page loading stuck)
 - **Documenti futuri**: /app/features_future/ con 4 file .md (contracts, franchise, streaming, acquisitions)
 
+### Tutorial Riutilizzabile (DONE - 2026-04-06)
+- Creato `frontend/src/data/tutorialSteps.js` (6 step: Benvenuto, Produzione, Coming Soon, Rilascio, Eventi, Crescita)
+- Creato `frontend/src/components/TutorialModal.jsx` (componente generico leggero)
+- Integrato in 3 punti: Login ("Come si gioca?"), Top Nav (icona HelpCircle), bottone "?" vicino Velion, menu hamburger
+- Zero dipendenze aggiunte, zero modifiche backend, mobile-first
+
 ## Backlog Prioritizzato
 
 ### P0 (Critico)

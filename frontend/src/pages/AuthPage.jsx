@@ -24,7 +24,7 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { TutorialPopup } from '../components/TutorialPopup';
+import TutorialModal from '../components/TutorialModal';
 import { VelionLoginBubble } from '../components/VelionLoginBubble';
 import { PWAInstallBanner } from '../components/PWAInstallBanner';
 import {
@@ -155,7 +155,7 @@ const AuthPage = () => {
             <PWAInstallBanner variant="inline" />
           </CardHeader>
 
-          <TutorialPopup open={showTutorial} onClose={() => setShowTutorial(false)} />
+          {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-2.5">
               <div className="space-y-1">

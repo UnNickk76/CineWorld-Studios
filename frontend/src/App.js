@@ -81,6 +81,7 @@ const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
 const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
+import TutorialModal from './components/TutorialModal';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
@@ -392,6 +393,7 @@ const TopNavbar = () => {
   const [showDonateDialog, setShowDonateDialog] = useState(false);
   const [showDonatePopup, setShowDonatePopup] = useState(false);
   const [donationsEnabled, setDonationsEnabled] = useState(true);
+  const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
@@ -953,8 +955,8 @@ const TopNavbar = () => {
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/tutorial' ? 'text-lime-400' : 'text-lime-400/70 hover:text-lime-400'}`}
-            onClick={() => navigate('/tutorial')}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-lime-400/70 hover:text-lime-400`}
+            onClick={() => setShowGameTutorial(true)}
             data-testid="tutorial-nav-btn"
             title="Tutorial"
           >
@@ -1120,6 +1122,20 @@ const TopNavbar = () => {
             {/* Velion Assistant Control */}
             <div className="px-4 py-2.5 border-t border-white/10 bg-[#111111]">
               <VelionMenuControl />
+            </div>
+
+            {/* Tutorial Button */}
+            <div className="px-4 py-2 border-t border-white/10 bg-[#111111]">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-yellow-400 hover:bg-yellow-500/10 gap-2"
+                onClick={() => { setShowGameTutorial(true); setMobileMenuOpen(false); }}
+                data-testid="menu-tutorial-btn"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span className="text-sm">Tutorial</span>
+              </Button>
             </div>
 
             {/* Mobile Quick Actions - Solid Dark */}
@@ -2063,6 +2079,8 @@ const TopNavbar = () => {
         </div>
       )}
 
+      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+
     </nav>
   );
 };
@@ -2082,6 +2100,7 @@ const ProtectedRoute = ({ children }) => {
   const [velionTab, setVelionTab] = useState('tutorial');
   const [velionMode, setVelionMode] = useState('on');
   const [showAutonomy, setShowAutonomy] = useState(false);
+  const [showGameTutorial, setShowGameTutorial] = useState(false);
   
   // Fetch Velion mode from backend
   const [tutorialCompleted, setTutorialCompleted] = useState(true);
@@ -2234,11 +2253,20 @@ const ProtectedRoute = ({ children }) => {
 
       {/* Velion AI Assistant - hidden on chat page on mobile AND during guest tutorial */}
       {location.pathname !== '/chat' && !(user?.is_guest && !user?.tutorial_completed) && (
+      <>
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}
         mode={velionMode}
       />
+      <button
+        onClick={() => setShowGameTutorial(true)}
+        className="fixed bottom-[130px] right-3 z-[80] w-7 h-7 rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+        data-testid="velion-tutorial-btn"
+      >
+        <span className="text-xs font-bold">?</span>
+      </button>
+      </>
       )}
       <VelionPanel
         open={showTutorial}
@@ -2246,6 +2274,7 @@ const ProtectedRoute = ({ children }) => {
         onNavigate={(path) => { navigate(path); setShowTutorial(false); }}
         defaultTab={velionTab}
       />
+      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
 
       {/* Autonomy Prompt */}
       <AnimatePresence>

@@ -364,8 +364,6 @@ const AuthPage = () => {
             </div>
           </CardContent>
         </Card>
-        {/* PWA Install inline banner for login page */}
-        <PWAInstallBanner />
       </motion.div>
     </div>
   );

@@ -64,6 +64,12 @@ Sistema di produzione cinematografica con pipeline completa (sviluppo → rilasc
   - Pulizia dati: 80 cinema_news puliti, infrastructure.films_showing pulita, 71 guest inattivi rimossi, 6 infra duplicate rimosse, 8 film_drafts puliti
   - Risultato: DB da ~300MB → 118MB dataSize (-61%)
 - [x] Fix "LE MIE TV! sparisce" (2026-04-06): fetch TV stations era annidato nel try/catch di `/catchup/process` — se catchup falliva, TV mai caricate. Separati tutti i fetch in blocchi try/catch indipendenti in Dashboard.jsx
+- [x] Sistema Automatico Incassi + Star + Skill (2026-04-06):
+  - Rimosso bottone "INCASSA ORA" da ContentTemplate e card "INCASSI DA RISCUOTERE" da Dashboard
+  - Rinominato "CREA STELLA" → "STELLE NATE", "BOOST CREW" → "CRESCITA CAST"
+  - Creato auto_revenue_tick in scheduler_tasks.py (ogni 10min): calcolo ricavi automatici, star discovery (5-15%), skill XP cast
+  - Endpoint GET /api/auto-tick/events + POST /api/auto-tick/dismiss
+  - Componente AutoTickNotifications.jsx con polling + toast animati per STAR_CREATED, REVENUE_GAINED, SKILL_UP
 - [x] Fix UI Tutorial Guest Mobile: hooks error + freccia fuori viewport + z-index Velion (2026-04-05)
 - [x] Fix "Inizia ora" → Guest Login diretto, target cliccabili nel tutorial, Velion come immagine (2026-04-05)
 - [x] Velion grande e prominente nel tutorial: posizione dinamica per step, animazioni diverse, layout speech+character come produzione (2026-04-05)

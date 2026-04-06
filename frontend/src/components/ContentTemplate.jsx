@@ -266,17 +266,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const isInTheaters = film?.status === 'in_theaters' || film?.status === 'completed';
 
   // Actions
-  const doCollect = async () => {
-    setPerforming('collect');
-    try {
-      const res = await api.post(`/films/${film.id}/process-hourly-revenue`);
-      if (res.data.processed) toast.success(`Incasso: ${fmtMoney(res.data.revenue)}!`);
-      else toast.info(`Attendi ${Math.ceil(res.data.wait_seconds / 60)} minuti`);
-      loadFilm();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-    setPerforming(null);
-  };
-
   const doCreateStar = async () => {
     setPerforming('star');
     try {
@@ -480,21 +469,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                 <div className="ct-actions" data-testid="ct-actions">
                   <button
                     className="ct-action-btn"
-                    onClick={doCollect}
-                    disabled={!isOwner || performing === 'collect'}
-                    data-testid="ct-action-collect"
-                  >
-                    {performing === 'collect' ? <Loader2 size={12} className="animate-spin" /> : <DollarSign />}
-                    INCASSA ORA
-                  </button>
-                  <button
-                    className="ct-action-btn"
                     onClick={doCreateStar}
                     disabled={!isOwner || !actions?.actions?.create_star?.available || performing === 'star'}
                     data-testid="ct-action-star"
                   >
                     {performing === 'star' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles />}
-                    CREA STELLA
+                    STELLE NATE
                   </button>
                   <button
                     className="ct-action-btn"
@@ -503,7 +483,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
                     data-testid="ct-action-boost"
                   >
                     {performing === 'boost' ? <Loader2 size={12} className="animate-spin" /> : <Users />}
-                    BOOST CREW &gt;
+                    CRESCITA CAST
                   </button>
                 </div>
 

@@ -69,8 +69,6 @@ const Dashboard = () => {
   const [pendingFilms, setPendingFilms] = useState([]);
   const [challenges, setChallenges] = useState({ daily: [], weekly: [] });
   const [catchupData, setCatchupData] = useState(null);
-  const [pendingRevenue, setPendingRevenue] = useState(null);
-  const [collecting, setCollecting] = useState(false);
   const [emergingCount, setEmergingCount] = useState(0);
   const [myTVStations, setMyTVStations] = useState([]);
   const [hasEmittenteTV, setHasEmittenteTV] = useState(false);
@@ -99,7 +97,6 @@ const Dashboard = () => {
   // Collapsible studio section
   const [studioOpen, setStudioOpen] = useState(false);
   const studioRef = useRef(null);
-  const collectRef = useRef(null);
   const navigate = useNavigate();
   
   // Stats detail modal state
@@ -180,32 +177,6 @@ const Dashboard = () => {
     );
   };
 
-  const loadPendingRevenue = async () => {
-    try {
-      const res = await api.get('/revenue/pending-all');
-      setPendingRevenue(res.data);
-    } catch (e) {
-      console.error('Error loading pending revenue:', e);
-    }
-  };
-
-  const handleCollectAll = async () => {
-    if (!pendingRevenue?.can_collect) return;
-    setCollecting(true);
-    try {
-      const res = await api.post('/revenue/collect-all');
-      toast.success(res.data.message, { duration: 5000 });
-      refreshUser();
-      loadPendingRevenue();
-      // Refresh stats
-      const statsRes = await api.get('/statistics/my');
-      setStats(statsRes.data);
-    } catch (e) {
-      toast.error('Errore nella riscossione');
-    } finally {
-      setCollecting(false);
-    }
-  };
 
   // SWR: show cached data instantly, revalidate in background
   const { data: batchData, mutate: refreshBatch } = useSWR('/dashboard/batch');
@@ -222,7 +193,6 @@ const Dashboard = () => {
     setMyAnime(d.my_anime || []);
     setRecentReleases(d.recent_releases || []);
     setChallenges(d.challenges || []);
-    setPendingRevenue(d.pending_revenue || {});
     setPendingFilms(d.pending_films || []);
     setEmergingCount(d.emerging_count || 0);
     setHasStudio(d.has_studio || false);
@@ -295,28 +265,14 @@ const Dashboard = () => {
     return () => clearInterval(revenueInterval);
   }, [studioOpen]);
 
-  // Velion event: open studio section and scroll to collect
+  // Velion event: open studio section
   useEffect(() => {
     const handler = () => {
       setStudioOpen(true);
-      setTimeout(() => {
-        collectRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 350);
     };
     window.addEventListener('velion-open-studio', handler);
     return () => window.removeEventListener('velion-open-studio', handler);
   }, []);
-
-  // Velion: notify about pending revenue when studio closed
-  useEffect(() => {
-    if (studioOpen || !pendingRevenue?.can_collect) return;
-    const timer = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('velion-revenue-notify', {
-        detail: { message: language === 'it' ? 'Hai incassi pronti da riscuotere! Tocca per aprire.' : 'You have revenue ready to collect! Tap to open.' }
-      }));
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [pendingRevenue?.can_collect, studioOpen, language]);
 
   const openReleasePopup = async (film) => {
     setReleasePopup(film);
@@ -446,9 +402,6 @@ const Dashboard = () => {
             </h1>
             <div className="flex items-center gap-2">
               <p className="text-gray-400 text-sm">{user?.production_house_name}</p>
-              {!studioOpen && pendingRevenue?.can_collect && (
-                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" data-testid="studio-red-dot" />
-              )}
             </div>
           </div>
           <motion.div animate={{ rotate: studioOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -492,46 +445,11 @@ const Dashboard = () => {
               ))}
             </div>
 
-            {/* Collect All Revenue Card */}
-            {pendingRevenue && (
-              <Card ref={collectRef} className={`mb-4 border ${pendingRevenue.can_collect ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`} data-testid="collect-revenue-card">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${pendingRevenue.can_collect ? 'bg-green-500' : 'bg-gray-600'}`}>
-                        <Wallet className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-['Bebas_Neue'] text-lg">
-                          {language === 'it' ? 'INCASSI DA RISCUOTERE' : 'PENDING REVENUE'}
-                        </h3>
-                        <div className="flex items-center gap-4 text-xs text-gray-400">
-                          <span>Film: ${(pendingRevenue.film_pending || 0).toLocaleString()}</span>
-                          <span>Infra: ${(pendingRevenue.infra_pending || 0).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-xl font-bold ${pendingRevenue.can_collect ? 'text-green-400' : 'text-gray-500'}`}>
-                        ${(pendingRevenue.total_pending || 0).toLocaleString()}
-                      </p>
-                      <Button 
-                        size="sm"
-                        disabled={!pendingRevenue.can_collect || collecting}
-                        onClick={handleCollectAll}
-                        className={pendingRevenue.can_collect 
-                          ? 'bg-green-500 hover:bg-green-600 text-white' 
-                          : 'bg-gray-700 text-gray-400'
-                        }
-                        data-testid="collect-all-btn"
-                      >
-                        {collecting ? '...' : (language === 'it' ? 'Riscuoti Tutto' : 'Collect All')}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Auto Revenue Info */}
+            <div className="mb-4 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20">
+              <Wallet className="w-4 h-4 text-green-400 shrink-0" />
+              <p className="text-[11px] text-green-400/80">{language === 'it' ? 'Incassi automatici ogni 10 min' : 'Auto revenue every 10 min'}</p>
+            </div>
 
             {/* Financial Overview Card - inside studio */}
             {stats && (

@@ -1042,3 +1042,29 @@ async def admin_add_cinepass(data: dict, user: dict = Depends(get_current_user))
     await db.users.update_one({'id': target['id']}, {'$inc': {'cinepass': amount}})
     old_cp = target.get('cinepass', 100)
     return {'success': True, 'nickname': target['nickname'], 'old_cinepass': old_cp, 'added': amount, 'new_cinepass': old_cp + amount}
+
+
+# ==================== AUTO-TICK EVENTS ENDPOINT ====================
+
+@router.get("/auto-tick/events")
+async def get_auto_tick_events(user: dict = Depends(get_current_user)):
+    """Get recent auto-tick events for this user (revenue, stars, skill ups)."""
+    events = await db.auto_tick_events.find(
+        {'user_id': user['id']},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(20)
+    
+    # Mark events as seen
+    event_ids = [e.get('type') + '_' + e.get('created_at', '') for e in events]
+    
+    return {'events': events}
+
+
+@router.post("/auto-tick/dismiss")
+async def dismiss_auto_tick_events(user: dict = Depends(get_current_user)):
+    """Dismiss all auto-tick events for this user."""
+    await db.auto_tick_events.delete_many({
+        'user_id': user['id'],
+        'type': {'$ne': 'REVENUE_GAINED'}
+    })
+    return {'success': True}

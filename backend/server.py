@@ -7269,7 +7269,8 @@ async def startup_event():
         update_film_attendance,
         auto_release_coming_soon,
         process_coming_soon_dynamic_events,
-        auto_cleanup_corrupted_projects
+        auto_cleanup_corrupted_projects,
+        auto_revenue_tick
     )
     
     # Add scheduled jobs
@@ -7376,6 +7377,14 @@ async def startup_event():
         auto_cleanup_corrupted_projects,
         IntervalTrigger(minutes=30),
         id='auto_cleanup_corrupted',
+        replace_existing=True
+    )
+    
+    # Every 10 minutes: Auto revenue + star discovery + skill progression
+    scheduler.add_job(
+        auto_revenue_tick,
+        IntervalTrigger(minutes=10),
+        id='auto_revenue_tick',
         replace_existing=True
     )
     

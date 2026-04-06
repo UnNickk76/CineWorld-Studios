@@ -1228,3 +1228,175 @@ async def auto_cleanup_corrupted_projects():
             logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) {f['status']} without cast -> proposed")
     
     logger.info("Auto-cleanup completed")
+
+
+# ==================== AUTO REVENUE + STAR + SKILL TICK ====================
+
+async def auto_revenue_tick():
+    """
+    Automatic revenue distribution every 10 minutes.
+    Calculates revenue, triggers star discovery and skill progression.
+    Optimized: batch DB reads, minimal writes.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        now_str = now.isoformat()
+        
+        # --- PHASE 1: CALCULATE REVENUE ---
+        active_films = await scheduler_db.films.find({
+            'status': {'$in': ['in_theaters', 'released']},
+            'user_id': {'$exists': True, '$ne': None}
+        }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1, 'quality': 1,
+            'imdb_rating': 1, 'opening_day_revenue': 1, 'release_date': 1, 'released_at': 1,
+            'cast': 1, 'status': 1}).to_list(5000)
+        
+        if not active_films:
+            return
+        
+        # Group films by user & collect all cast IDs
+        user_films = {}
+        all_cast_ids = set()
+        film_cast_map = {}  # film_id -> [cast_ids]
+        
+        for f in active_films:
+            uid = f['user_id']
+            user_films.setdefault(uid, []).append(f)
+            
+            cast = f.get('cast', [])
+            cast_ids = []
+            if isinstance(cast, list):
+                for m in cast:
+                    cid = m.get('actor_id') or m.get('id')
+                    if cid:
+                        cast_ids.append(cid)
+                        all_cast_ids.add(cid)
+            film_cast_map[f['id']] = cast_ids
+        
+        # Batch fetch all relevant people
+        people_map = {}
+        if all_cast_ids:
+            people = await scheduler_db.people.find(
+                {'id': {'$in': list(all_cast_ids)}},
+                {'_id': 0, 'id': 1, 'name': 1, 'is_star': 1, 'fame': 1, 'xp': 1, 'skill_level': 1, 'skills': 1}
+            ).to_list(len(all_cast_ids))
+            for p in people:
+                people_map[p['id']] = p
+        
+        revenue_count = 0
+        star_events = []
+        skill_events = []
+        people_updates = {}  # cast_id -> update_fields
+        
+        for user_id, films in user_films.items():
+            total_revenue = 0
+            
+            for film in films:
+                quality = film.get('quality_score', film.get('quality', 50)) or 50
+                imdb = film.get('imdb_rating', 5.0) or 5.0
+                opening = film.get('opening_day_revenue', 100000) or 100000
+                
+                release_str = film.get('release_date', film.get('released_at', now_str))
+                try:
+                    rd = datetime.fromisoformat(str(release_str).replace('Z', '+00:00'))
+                    if rd.tzinfo is None:
+                        rd = rd.replace(tzinfo=timezone.utc)
+                    days = max(0, (now - rd).total_seconds() / 86400)
+                except:
+                    days = 1
+                
+                decay = 0.92 if quality >= 90 else (0.87 if quality >= 80 else (0.82 if quality >= 65 else 0.75))
+                quality_mult = quality / 100
+                imdb_boost = 0.5 + (imdb / 10) * 2.0
+                daily_rev = opening * (decay ** days) * quality_mult * imdb_boost
+                tick_rev = max(0, int(daily_rev / 144))
+                total_revenue += tick_rev
+                
+                # --- PHASE 2: STAR + SKILL ---
+                for cast_id in film_cast_map.get(film['id'], []):
+                    person = people_map.get(cast_id)
+                    if not person:
+                        continue
+                    
+                    if cast_id not in people_updates:
+                        people_updates[cast_id] = {}
+                    
+                    # Star discovery (5-15% chance)
+                    if not person.get('is_star') and 'is_star' not in people_updates[cast_id]:
+                        star_chance = min(0.15, 0.05 + (quality / 1000) + (imdb / 200))
+                        if random.random() < star_chance:
+                            fame_boost = random.randint(15, 30)
+                            new_fame = min(100, (person.get('fame', 50) or 50) + fame_boost)
+                            people_updates[cast_id].update({
+                                'is_star': True, 'fame': new_fame,
+                                'star_since': now_str, 'discovered_by': user_id,
+                                'star_film_id': film['id']
+                            })
+                            star_events.append({
+                                'user_id': user_id, 'type': 'STAR_CREATED',
+                                'actor_name': person.get('name', 'Sconosciuto'),
+                                'actor_id': cast_id, 'film_title': film.get('title', ''),
+                                'fame_boost': fame_boost, 'created_at': now_str
+                            })
+                    
+                    # XP and skill progression
+                    xp_gain = max(1, int(quality / 20))
+                    old_xp = people_updates[cast_id].get('xp', person.get('xp', 0) or 0)
+                    new_xp = old_xp + xp_gain
+                    old_level = people_updates[cast_id].get('skill_level', person.get('skill_level', 1) or 1)
+                    new_level = 1 + (new_xp // 100)
+                    people_updates[cast_id]['xp'] = new_xp
+                    people_updates[cast_id]['skill_level'] = new_level
+                    
+                    if new_level > old_level:
+                        skills = person.get('skills', {})
+                        if isinstance(skills, dict) and skills:
+                            sk = random.choice(list(skills.keys()))
+                            new_val = min(100, skills.get(sk, 50) + random.randint(2, 5))
+                            people_updates[cast_id][f'skills.{sk}'] = new_val
+                            skill_events.append({
+                                'user_id': user_id, 'type': 'SKILL_UP',
+                                'actor_name': person.get('name', 'Sconosciuto'),
+                                'actor_id': cast_id, 'skill_name': sk,
+                                'new_level': new_level, 'skill_value': new_val,
+                                'created_at': now_str
+                            })
+            
+            # Credit revenue
+            if total_revenue > 0:
+                await scheduler_db.users.update_one(
+                    {'id': user_id},
+                    {'$inc': {'funds': total_revenue, 'total_earnings': total_revenue}}
+                )
+                revenue_count += 1
+                await scheduler_db.auto_tick_events.update_one(
+                    {'user_id': user_id, 'type': 'REVENUE_GAINED'},
+                    {'$set': {'user_id': user_id, 'type': 'REVENUE_GAINED',
+                              'amount': total_revenue, 'film_count': len(films),
+                              'created_at': now_str}},
+                    upsert=True
+                )
+        
+        # Batch update people using bulk_write
+        if people_updates:
+            from pymongo import UpdateOne
+            ops = [UpdateOne({'id': cid}, {'$set': fields}) for cid, fields in people_updates.items() if fields]
+            if ops:
+                await scheduler_db.people.bulk_write(ops, ordered=False)
+        
+        # Save events
+        if star_events:
+            await scheduler_db.auto_tick_events.insert_many(star_events)
+        if skill_events:
+            await scheduler_db.auto_tick_events.insert_many(skill_events)
+        
+        # Cleanup old events (>1 hour)
+        cutoff = (now - timedelta(hours=1)).isoformat()
+        await scheduler_db.auto_tick_events.delete_many({
+            'created_at': {'$lt': cutoff}, 'type': {'$ne': 'REVENUE_GAINED'}
+        })
+        
+        if revenue_count > 0 or star_events or skill_events:
+            logger.info(f"[AUTO-TICK] Revenue: {revenue_count} users, Stars: {len(star_events)}, Skills: {len(skill_events)}")
+    
+    except Exception as e:
+        logger.error(f"[AUTO-TICK] Error: {e}")

@@ -722,8 +722,6 @@ const TopNavbar = () => {
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
     { path: '/system-notes', icon: Megaphone, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
     { path: '/credits', icon: Info, label: 'credits' },
-    ...(user?.nickname === 'NeoMorpheus' ? [{ path: '/admin', icon: Shield, label: 'Admin Panel' }] : []),
-    ...(user?.role === 'CO_ADMIN' ? [{ path: '/admin', icon: Shield, label: 'Co-Admin Panel' }] : []),
   ];
 
   const gameDate = new Date().toLocaleDateString(language === 'it' ? 'it-IT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US', {
@@ -1117,6 +1115,18 @@ const TopNavbar = () => {
               {/* Lingua: Solo italiano */}
             </div>
             
+            {/* Admin Panel - Fixed top banner (admin only) */}
+            {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
+              <button
+                onClick={() => { navigate('/admin'); setMobileMenuOpen(false); }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-xs font-bold tracking-wide"
+                data-testid="admin-panel-top-btn"
+              >
+                <Shield className="w-4 h-4" />
+                {user?.role === 'CO_ADMIN' ? 'CO-ADMIN PANEL' : 'ADMIN PANEL'}
+              </button>
+            )}
+
             {/* Mobile Navigation Grid - Solid Background */}
             <div className="grid grid-cols-3 gap-2 p-3 bg-[#0a0a0a]">
               {navItems.map(item => (

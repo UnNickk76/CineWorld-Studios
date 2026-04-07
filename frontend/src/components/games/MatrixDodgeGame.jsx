@@ -10,7 +10,7 @@ import {
   CONTEST_SECS, MAX_SURVIVE,
   lerp, clamp,
   initGame, spawnPattern,
-  renderBg, renderRain, renderPlayer, renderProjectiles, renderTextFx, renderVignette,
+  renderBg, renderRain, renderPlayer, renderPlayerTrail, renderProjectiles, renderTextFx, renderVignette,
   updateRain, circleRect, calcScore,
 } from './matrixDodgeEngine';
 import './matrixDodge.css';
@@ -86,6 +86,13 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
       if (touchRef.current.down) p.targetX = clamp(touchRef.current.x - PW / 2, 0, w - PW);
       p.x = lerp(p.x, p.targetX, dt * 12);
       if (g.invuln > 0) g.invuln -= dt;
+      if (g.hitFlash > 0) g.hitFlash -= dt;
+      // Trail
+      g.trailT = (g.trailT || 0) - dt;
+      if (g.trailT <= 0) { g.trailT = 0.05; if (!g.trail) g.trail = []; g.trail.unshift({ x: p.x, y: p.y }); if (g.trail.length > 3) g.trail.pop(); }
+      // Tilt from velocity
+      const vel = (p.x - (g.pxPrev ?? p.x)) / Math.max(dt, 0.001); g.pxPrev = p.x;
+      g.tilt = lerp(g.tilt || 0, clamp(vel * 0.06, -0.18, 0.18), dt * 8);
 
       g.spawnTimer -= gdt;
       if (g.spawnTimer <= 0) { g.spawnTimer = Math.max(MIN_SPAWN, BASE_SPAWN - (g.difficulty - 1) * 0.15); g.projectiles.push(...spawnPattern(w, g.difficulty)); }
@@ -112,7 +119,7 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
         }
 
         if (!pr.passed && g.invuln <= 0 && circleRect(pr.x, pr.y, pr.r, hbx, hby, HBW, HBH)) {
-          pr.passed = true; g.hp--; g.invuln = INVULN; g.hitsTaken++; g.combo = 0;
+          pr.passed = true; g.hp--; g.invuln = INVULN; g.hitsTaken++; g.combo = 0; g.hitFlash = 0.15;
           setShake(true); setTimeout(() => setShake(false), 150);
           try { navigator.vibrate?.([30, 20, 30]); } catch {}
           g.fx.push({ type: 'hit', life: 0.3, maxLife: 0.3 });
@@ -138,7 +145,8 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
       if (hitFx) { ctx.fillStyle = `rgba(255,0,0,${0.2 * (hitFx.life / hitFx.maxLife)})`; ctx.fillRect(0, 0, w, h); }
       renderRain(ctx, g.rain, w, h, g.btActive ? 1.5 : 1);
       renderProjectiles(ctx, g.projectiles, g.btActive);
-      renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo);
+      renderPlayerTrail(ctx, g.trail, g.btActive, g.combo);
+      renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo, 1, g.tilt, g.surviveTime, g.hitFlash > 0);
       renderTextFx(ctx, g.fx);
       renderVignette(ctx, w, h, g.btActive);
 

@@ -9,7 +9,7 @@ import {
   BASE_SPAWN, MIN_SPAWN, BASE_SPEED, DIFF_INTERVAL, DIFF_STEP, MAX_DIFF, INVULN, MAX_SURVIVE,
   lerp, rand, clamp, pick,
   initRain, spawnPattern,
-  renderBg, renderRain, renderPlayer, renderProjectiles, renderTextFx, renderVignette,
+  renderBg, renderRain, renderPlayer, renderPlayerTrail, renderProjectiles, renderTextFx, renderVignette,
   updateRain, circleRect, calcScore,
 } from './matrixDodgeEngine';
 import './matrixDodge.css';
@@ -142,6 +142,13 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
       if (touchRef.current.down) p.targetX = clamp(touchRef.current.x - PW / 2, 0, w - PW);
       p.x = lerp(p.x, p.targetX, dt * (g.dashAct > 0 ? 30 : 12));
       if (g.invuln > 0) g.invuln -= dt;
+      if (g.hitFlash > 0) g.hitFlash -= dt;
+      // Trail
+      g.trailT = (g.trailT || 0) - dt;
+      if (g.trailT <= 0) { g.trailT = 0.05; if (!g.trail) g.trail = []; g.trail.unshift({ x: p.x, y: p.y }); if (g.trail.length > 3) g.trail.pop(); }
+      // Tilt from velocity
+      const vel = (p.x - (g.pxPrev ?? p.x)) / Math.max(dt, 0.001); g.pxPrev = p.x;
+      g.tilt = lerp(g.tilt || 0, clamp(vel * 0.06, -0.18, 0.18), dt * 8);
 
       g.afterimages = g.afterimages.filter(a => { a.life -= dt; return a.life > 0; });
       if ((g.combo >= 8 || g.btActive) && g.surviveTime % 0.1 < dt) g.afterimages.push({ x: p.x, y: p.y, life: 0.25, ml: 0.25 });
@@ -199,7 +206,7 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
         if (g.evt?.id === 'system_break' && pr.x > w * 0.35 && pr.x < w * 0.65 && pr.y > h * 0.5 && pr.y < h * 0.85) { pr.passed = true; continue; }
         // Collision
         if (!pr.passed && g.invuln <= 0 && circleRect(pr.x, pr.y, pr.r, hbx, hby, HBW, HBH)) {
-          pr.passed = true; g.hp--; g.invuln = INVULN; g.hitsTaken++; g.combo = 0;
+          pr.passed = true; g.hp--; g.invuln = INVULN; g.hitsTaken++; g.combo = 0; g.hitFlash = 0.15;
           setShake(true); setTimeout(() => setShake(false), 150);
           try { navigator.vibrate?.([30, 20, 30]); } catch {}
           g.fx.push({ type: 'hit', life: 0.3, maxLife: 0.3 });

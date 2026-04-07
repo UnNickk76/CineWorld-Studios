@@ -105,26 +105,121 @@ export function renderRain(ctx, rain, w, h, intensity) {
   }
 }
 
-// --- Render: Player Silhouette ---
-export function renderPlayer(ctx, x, y, invuln, btActive, combo, alpha) {
-  const invA = invuln > 0 ? (Math.sin(invuln * 20) > 0 ? 0.3 : 0.85) : 1;
-  ctx.save();
-  ctx.globalAlpha = invA * (alpha ?? 1);
-  const glow = btActive || combo >= 5;
-  if (glow) { ctx.shadowBlur = btActive ? 18 : 10; ctx.shadowColor = btActive ? '#00ffff' : '#00ff41'; }
+// --- Render: Player — "The One" Neo silhouette ---
+// Params: alpha=opacity, tilt=radians, breath=time, hitGlitch=bool
+export function renderPlayer(ctx, x, y, invuln, btActive, combo, alpha, tilt, breath, hitGlitch) {
   const cx = x + PW / 2;
-  ctx.beginPath(); ctx.arc(cx, y + 7, 6, 0, Math.PI * 2);
-  ctx.fillStyle = '#001a08'; ctx.fill();
-  ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 1.5; ctx.stroke();
+  const invA = invuln > 0 ? (Math.sin(invuln * 20) > 0 ? 0.25 : 0.85) : 1;
+  const a = invA * (alpha ?? 1);
+  const ghost = a < 0.4; // trail ghost — skip expensive fx
+
+  ctx.save();
+  ctx.globalAlpha = a;
+
+  // Transform origin at chest
+  const oy = y + PH * 0.45;
+  ctx.translate(cx, oy);
+  if (tilt) ctx.rotate(tilt);
+  if (breath && !ghost) { const s = 1 + Math.sin(breath * 2.5) * 0.012; ctx.scale(s, s); }
+  if (hitGlitch && !ghost) {
+    ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 3);
+    ctx.transform(1, (Math.random() - 0.5) * 0.08, (Math.random() - 0.5) * 0.08, 1, 0, 0);
+  }
+  ctx.translate(-cx, -oy);
+
+  const glowI = ghost ? 0 : Math.min(22, 6 + combo * 1.5 + (btActive ? 12 : 0));
+  const pri = btActive ? '#00e5ff' : combo >= 8 ? '#00ffcc' : '#00ff41';
+  const dark = btActive ? '#002a30' : '#001a08';
+
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = pri; ctx.lineWidth = ghost ? 1.2 : 1.8;
+  if (!ghost) { ctx.shadowBlur = glowI; ctx.shadowColor = pri; }
+
+  // HEAD
+  ctx.beginPath(); ctx.arc(cx, y + 6, 5, 0, Math.PI * 2);
+  ctx.fillStyle = dark; ctx.fill(); ctx.stroke();
+  if (!ghost) {
+    ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = a * 0.15;
+    ctx.beginPath(); ctx.arc(cx - 1.5, y + 4.5, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.restore(); ctx.globalAlpha = a;
+    ctx.strokeStyle = pri; ctx.lineWidth = 1.8;
+    if (!ghost) { ctx.shadowBlur = glowI; ctx.shadowColor = pri; }
+  }
+
+  // NECK
+  ctx.beginPath(); ctx.moveTo(cx, y + 11); ctx.lineTo(cx, y + 13); ctx.stroke();
+
+  // SHOULDERS (curved)
+  ctx.beginPath(); ctx.moveTo(cx - 11, y + 15);
+  ctx.quadraticCurveTo(cx, y + 12.5, cx + 11, y + 15); ctx.stroke();
+
+  // TORSO (jacket body)
   ctx.beginPath();
-  ctx.moveTo(cx - 9, y + 15); ctx.lineTo(cx + 9, y + 15);
-  ctx.lineTo(cx + 11, y + PH - 4); ctx.lineTo(cx - 11, y + PH - 4);
-  ctx.closePath(); ctx.fillStyle = '#001a08'; ctx.fill(); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx - 11, y + PH - 4); ctx.lineTo(cx - 15, y + PH + 2);
-  ctx.moveTo(cx + 11, y + PH - 4); ctx.lineTo(cx + 15, y + PH + 2);
-  ctx.stroke();
+  ctx.moveTo(cx - 10, y + 15); ctx.lineTo(cx - 8, y + 25);
+  ctx.lineTo(cx + 8, y + 25); ctx.lineTo(cx + 10, y + 15);
+  ctx.closePath(); ctx.fillStyle = dark; ctx.fill(); ctx.stroke();
+
+  if (!ghost) {
+    // Jacket lapel lines
+    ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = a * 0.2; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(cx - 1, y + 13); ctx.lineTo(cx - 2.5, y + 25);
+    ctx.moveTo(cx + 1, y + 13); ctx.lineTo(cx + 2.5, y + 25);
+    ctx.stroke(); ctx.restore();
+    ctx.globalAlpha = a; ctx.strokeStyle = pri; ctx.lineWidth = 1.8;
+    ctx.shadowBlur = glowI; ctx.shadowColor = pri;
+  }
+
+  // COAT TAILS (bezier curves)
+  ctx.beginPath(); ctx.moveTo(cx - 8, y + 25);
+  ctx.bezierCurveTo(cx - 9, y + 30, cx - 11, y + 35, cx - 13, y + 40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 8, y + 25);
+  ctx.bezierCurveTo(cx + 9, y + 30, cx + 11, y + 35, cx + 13, y + 40); ctx.stroke();
+
+  if (!ghost) {
+    // Inner coat panels
+    ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = a * 0.25; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(cx - 3, y + 25);
+    ctx.bezierCurveTo(cx - 4, y + 30, cx - 5, y + 34, cx - 6, y + 38); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 3, y + 25);
+    ctx.bezierCurveTo(cx + 4, y + 30, cx + 5, y + 34, cx + 6, y + 38); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = a; ctx.strokeStyle = pri;
+    ctx.lineWidth = 1.8; ctx.shadowBlur = glowI; ctx.shadowColor = pri;
+  }
+
+  // ARMS (bent at elbows)
+  ctx.lineWidth = ghost ? 1 : 1.6;
+  ctx.beginPath(); ctx.moveTo(cx - 11, y + 15); ctx.lineTo(cx - 14, y + 22); ctx.lineTo(cx - 11, y + 28); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 11, y + 15); ctx.lineTo(cx + 14, y + 22); ctx.lineTo(cx + 11, y + 28); ctx.stroke();
+
+  // LEGS
+  ctx.lineWidth = ghost ? 1.2 : 1.8;
+  ctx.beginPath(); ctx.moveTo(cx - 4, y + 25); ctx.lineTo(cx - 6, y + 36); ctx.lineTo(cx - 5, y + 42); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 4, y + 25); ctx.lineTo(cx + 6, y + 36); ctx.lineTo(cx + 5, y + 42); ctx.stroke();
+
+  // ENERGY PARTICLES (BT or high combo)
+  if (!ghost && (btActive || combo >= 10)) {
+    ctx.shadowBlur = 3;
+    for (let i = 0; i < 4; i++) {
+      const px = cx + (Math.random() - 0.5) * 24;
+      const py = y + 4 + Math.random() * (PH - 4);
+      ctx.beginPath(); ctx.arc(px, py, 0.8 + Math.random(), 0, Math.PI * 2);
+      ctx.fillStyle = pri; ctx.globalAlpha = (0.3 + Math.random() * 0.4) * a; ctx.fill();
+    }
+  }
+
   ctx.restore();
+}
+
+// --- Render: Player Trail (ghost copies) ---
+export function renderPlayerTrail(ctx, trail, btActive, combo) {
+  if (!trail || !trail.length) return;
+  for (let i = 0; i < trail.length; i++) {
+    const t = trail[i];
+    const fa = (1 - (i + 1) / (trail.length + 1)) * 0.2;
+    renderPlayer(ctx, t.x, t.y, 0, btActive, combo, fa);
+  }
 }
 
 // --- Render: Projectiles ---

@@ -11,62 +11,60 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 ## Funzionalita Completate
 
 ### Core + Eventi + Infra + Arena + Guerra (DONE precedentemente)
-
 ### Data Integrity System (DONE)
 
-### Sistema Minigiochi v3 (DONE - 2026-04-07)
-**12 minigiochi in file separati (`/components/games/*Game.jsx`):**
-1. TapCiak — ciak cadenti fullscreen, spawn 1-5, velocita variabile
-2. Memory Pro — 40 carte (20 coppie) icone cinema Lucide, flip, combo bonus, 60s
-3. Stop Perfetto — barra velocissima (200px/s), zona verde 8%, stop immediato
-4. Spam Click — 4s, feedback animato con flash
-5. Reaction Game — 3 round, tempo reazione
-6. Shot Perfect — soggetto mobile, tappa quando centrato
-7. Light Setup — slider luce, raggiungi target
-8. Cast Match — scegli attore corretto, timer 15s
-9. Editing Cut — tappa nel momento giusto del montaggio
-10. Follow Cam — segui stella col dito
-11. Chaos Premiere (BONUS) — tap caotico: ciak/stelle/ticket/bombe, shake, 10s
-12. Reel Snake (BONUS) — snake game, swipe, 30s, velocita crescente
+### Sistema Minigiochi v3 (DONE)
+12 minigiochi in file separati (`/components/games/*Game.jsx`) con props `{ mode, onComplete(score) }`
 
-### Refactoring Minigiochi (DONE - 2026-04-07)
-- 12 componenti separati in `/components/games/*Game.jsx`
-- Ogni componente accetta `{ mode, onComplete(score) }`
-- Zero logica DB nei componenti, delegano al genitore
-- `MiniGames.jsx` e ora un puro file di re-export
-- `ContestPage.jsx` aggiornato per usare `onComplete`
+### Refactoring Minigiochi (DONE)
+- `MiniGames.jsx` puro re-export, zero duplicazione
 
-**Contest 12 step:**
-- Step 1-10: minigiochi, max 30 crediti (3/step)
-- Step 11-12: bonus, max 10 crediti ciascuno (10/step)
-- Totale: max 50 crediti/giorno
-- Backend: TOTAL_STEPS=12, cooldown 2min tra step
+### P1 Blocco Completo (DONE - 2026-04-07)
 
-**Test Lab:** Usa gli stessi componenti reali, zero duplicazioni (in pausa)
+#### 1. MiniGamesPage — Modalita Solo + Classifiche + Statistiche
+- Route `/minigiochi` con 4 tab: Solo, VS 1v1, Classifica, Stats
+- **Solo**: Griglia 12 giochi, click per giocare, salvataggio punteggio + best score
+- **Classifiche**: Per gioco (sempre/settimana) + Globale, top 50
+- **Stats**: Record, media, partite per ogni gioco
+- Backend: `/api/arcade/solo/submit`, `/api/arcade/solo/stats`, `/api/arcade/leaderboard/{game_id}`, `/api/arcade/leaderboard-global`
+
+#### 2. VS 1v1 Minigiochi
+- Tab VS 1v1 con sub-tab: Lancia, Aperte, Storico
+- **Lancia**: Scegli gioco, gioca, punteggio registrato, sfida pubblicata
+- **Aperte**: Vedi sfide di altri, "Accetta" per giocare lo stesso gioco
+- **Storico**: Tutte le sfide con stato (Vittoria/Sconfitta/Pareggio/In attesa)
+- Sistema puntate con crediti (opzionale), pot winner-takes-all
+- Backend: `/api/arcade/vs/create`, `/api/arcade/vs/{id}/submit-creator`, `/api/arcade/vs/{id}/join`, `/api/arcade/vs/{id}/submit-opponent`, `/api/arcade/vs/pending`, `/api/arcade/vs/my`
+
+#### 3. Chat Integration Sfide Minigioco
+- Bottone "Sfida" nel profilo utente (UserProfileModal) nella chat
+- Bottone sfida (icona Gamepad2) nella lista utenti online
+- Game Picker Dialog: scegli quale minigioco lanciare
+- Messaggio tipo `minigame_challenge` nella chat con card speciale e bottone "Gioca"
+- Notifica push al destinatario
+- Backend: `/api/arcade/chat-challenge` (crea sfida + messaggio chat + notifica)
 
 ## File Chiave
 - `/app/frontend/src/components/games/*Game.jsx` (12 minigiochi separati)
-- `/app/frontend/src/components/MiniGames.jsx` (re-export centralizzato)
+- `/app/frontend/src/components/MiniGames.jsx` (re-export)
+- `/app/frontend/src/pages/MiniGamesPage.jsx` (Solo + VS + Classifiche + Stats)
 - `/app/frontend/src/pages/ContestPage.jsx` (12 step contest)
-- `/app/frontend/src/pages/AdminPage.jsx` (Admin + TestLab)
-- `/app/backend/routes/contest.py` (12 step, reward differenziate)
+- `/app/frontend/src/pages/ChatPage.jsx` (Chat con sfide minigioco)
+- `/app/backend/routes/minigames_arcade.py` (Solo + VS + Chat Challenge API)
+- `/app/backend/routes/contest.py` (12 step contest)
+
+## DB Collections Nuove
+- `arcade_solo_plays`: { id, user_id, nickname, game_id, score, played_at }
+- `arcade_vs`: { id, game_id, game_name, bet, creator_id, creator_nickname, creator_score, opponent_id, opponent_nickname, opponent_score, status, winner_id, is_chat_challenge, created_at, expires_at, completed_at }
 
 ## Backlog
 
-### P1 — Blocco 2: MinigiochiPage + Solo + Classifiche
-- [ ] MinigiochiPage.jsx con sezioni Gioca Solo, Classifiche, Statistiche
-- [ ] Reward solo: hype/EXP/denaro piccoli, crediti rari (cooldown 1-20gg)
-- [ ] Classifiche globali/settimanali/per gioco
-- [ ] Titoli player (Maestro del Ciak, Re dello Snake, etc)
-
-### P2 — Blocco 3: 1vs1 + Puntate + Chat
-- [ ] Tab "Minigiochi VS" nella board sfide esistente (mantenere icona spade)
-- [ ] Match 1vs1: stesso gioco, stesso timer, vince chi fa piu punti
-- [ ] Puntate crediti/hype, winner prende tutto
+### P2 — Miglioramenti Minigiochi
 - [ ] Streak system (3/5/10 win = bonus/badge/reward)
-- [ ] Chat integration: sfida da popup, notifica live, quick challenge
+- [ ] Puntate con hype oltre a crediti
 - [ ] Status player (online/in partita/occupato)
-- [ ] La sfida 1vs1 esistente rimane come 13esimo minigioco
+- [ ] Titoli player (Maestro del Ciak, Re dello Snake, etc)
+- [ ] Cooldown reward per modalita solo
 
 ### P3
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)

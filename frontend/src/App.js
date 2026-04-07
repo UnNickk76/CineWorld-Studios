@@ -80,6 +80,7 @@ const MajorPage = React.lazy(() => import('./pages/MajorPage'));
 const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
 const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
 const ContestPage = React.lazy(() => import('./pages/ContestPage'));
+const MiniGamesPage = React.lazy(() => import('./pages/MiniGamesPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
 import TutorialModal from './components/TutorialModal';
@@ -716,6 +717,7 @@ const TopNavbar = () => {
     { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Trophy, label: 'cineboard' },
     { path: '/games', icon: Trophy, label: 'contests' },
+    { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi' : 'Minigames' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
     { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
@@ -2483,6 +2485,7 @@ function App() {
                 <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
                 <Route path="/games" element={<ProtectedRoute><ContestsPage /></ProtectedRoute>} />
                 <Route path="/contest" element={<ProtectedRoute><ContestPage /></ProtectedRoute>} />
+                <Route path="/minigiochi" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><ChallengesPage /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />

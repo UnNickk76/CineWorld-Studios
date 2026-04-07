@@ -257,7 +257,9 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
           >
             <img
               src="/velion.png"
-              alt="Velion"
+              alt=""
+              loading="eager"
+              onError={(e) => { e.target.style.display = 'none'; }}
               className="w-full h-full object-contain rounded-full relative z-10 pointer-events-none"
               style={{
                 mixBlendMode: 'screen',

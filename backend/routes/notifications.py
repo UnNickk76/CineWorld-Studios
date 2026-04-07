@@ -78,12 +78,12 @@ async def mark_all_notifications_read(user: dict = Depends(get_current_user)):
 async def mark_notifications_read(request: NotificationMarkReadRequest, user: dict = Depends(get_current_user)):
     if request.notification_ids:
         await db.notifications.update_many(
-            {'id': {'$in': request.notification_ids}, 'user_id': user['id']},
+            {'id': {'$in': request.notification_ids}, '$or': [{'user_id': user['id']}, {'user_id': 'all'}]},
             {'$set': {'read': True}}
         )
     else:
         await db.notifications.update_many(
-            {'user_id': user['id'], 'read': False},
+            {'$or': [{'user_id': user['id']}, {'user_id': 'all'}], 'read': False},
             {'$set': {'read': True}}
         )
     return {'success': True}
@@ -91,5 +91,5 @@ async def mark_notifications_read(request: NotificationMarkReadRequest, user: di
 
 @router.delete("/notifications/{notification_id}")
 async def delete_notification(notification_id: str, user: dict = Depends(get_current_user)):
-    await db.notifications.delete_one({'id': notification_id, 'user_id': user['id']})
+    await db.notifications.delete_one({'id': notification_id, '$or': [{'user_id': user['id']}, {'user_id': 'all'}]})
     return {'success': True}

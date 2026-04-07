@@ -462,3 +462,14 @@ button:active {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+
+
+/* Test Lab blackout effect */
+.test-blackout {
+  animation: testBlackout 1.2s ease-in-out;
+}
+@keyframes testBlackout {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(0); }
+  100% { filter: brightness(1); }
+}

@@ -10042,6 +10042,7 @@ if not os.path.exists("uploads"):
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
+app.mount("/api/posters", StaticFiles(directory="/app/backend/assets/posters"), name="posters")
 if _build_dir:
     app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="frontend_static")
 

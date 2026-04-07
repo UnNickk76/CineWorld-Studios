@@ -257,14 +257,6 @@ const Dashboard = () => {
     };
   }, [api]);
 
-  // Revenue polling only when studio section is open
-  useEffect(() => {
-    if (!studioOpen) return;
-    loadPendingRevenue();
-    const revenueInterval = setInterval(loadPendingRevenue, 60000);
-    return () => clearInterval(revenueInterval);
-  }, [studioOpen]);
-
   // Velion event: open studio section
   useEffect(() => {
     const handler = () => {

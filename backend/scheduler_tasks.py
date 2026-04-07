@@ -1323,21 +1323,21 @@ async def auto_revenue_tick():
         # Films/Series that already spawned a star (hard limit: max 1 per project)
         films_with_star = {f['id'] for f in all_projects if f.get('star_born_film')}
         
-        # 12h cooldown per title for events
-        event_cooldown_cutoff = (now - timedelta(hours=12)).isoformat()
-        recent_film_events = await scheduler_db.auto_tick_events.find(
-            {'type': 'PROJECT_EVENT', 'created_at': {'$gte': event_cooldown_cutoff}},
-            {'_id': 0, 'film_id': 1}
-        ).to_list(5000)
-        films_on_event_cooldown = {e['film_id'] for e in recent_film_events if e.get('film_id')}
-        
         revenue_count = 0
         star_events = []
         skill_events = []
         people_updates = {}
         films_star_flags = []
         tick_star_count = 0  # Max 3 stars per tick globally
-        users_event_fired_this_tick = set()  # Max 1 event per user per tick
+        
+        # --- 6h cooldown: fetch last event per player ---
+        MIN_HOURS_BETWEEN_EVENTS = 6
+        event_cooldown_cutoff = (now - timedelta(hours=MIN_HOURS_BETWEEN_EVENTS)).isoformat()
+        recent_player_events = await scheduler_db.event_pressure.find(
+            {'last_event_at': {'$gte': event_cooldown_cutoff}},
+            {'_id': 0, 'user_id': 1}
+        ).to_list(5000)
+        players_on_event_cooldown = {e['user_id'] for e in recent_player_events}
         
         for user_id, films in user_films.items():
             total_revenue = 0
@@ -1360,219 +1360,27 @@ async def auto_revenue_tick():
                     days = 1
                 
                 # --- REVENUE ---
-                decay = 0.92 if quality >= 90 else (0.87 if quality >= 80 else (0.82 if quality >= 65 else 0.75))
-                quality_mult = quality / 100
-                imdb_boost = 0.5 + (imdb / 10) * 2.0
-                
-                # Star boost: +20% decaying to 0% over 48h
-                star_revenue_boost = 1.0
-                if film.get('star_born_film') and film.get('star_born_at'):
-                    try:
-                        sbd = datetime.fromisoformat(str(film['star_born_at']).replace('Z', '+00:00'))
-                        if sbd.tzinfo is None:
-                            sbd = sbd.replace(tzinfo=timezone.utc)
-                        hours_since = max(0, (now - sbd).total_seconds() / 3600)
-                        star_revenue_boost = 1.0 + max(0, 0.20 * (1 - hours_since / 48))
-                    except:
-                        pass
-                
-                daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost
-                tick_rev = max(0, int(daily_rev / 144))
-                total_revenue += tick_rev
-                
-                # --- PROJECT EVENT (pressure-based system) ---
                 is_coming_soon = film.get('status') == 'coming_soon'
-                # Skip revenue/star for coming_soon films
-                if is_coming_soon:
-                    total_revenue -= tick_rev  # Undo revenue for coming_soon
-                    tick_rev = 0
-                
-                # Only try event if this user hasn't already triggered one this tick
-                if user_id not in users_event_fired_this_tick and film_id not in films_on_event_cooldown:
-                    try:
-                        from event_templates import generate_event, should_trigger_event, \
-                            calculate_pressure_gain, pressure_reset_after_event, STAR_BIRTH_CHANCE
-                        
-                        # Get user's event_pressure from DB
-                        pressure_doc = await scheduler_db.event_pressure.find_one(
-                            {'user_id': user_id}, {'_id': 0}
-                        )
-                        current_pressure = pressure_doc.get('pressure', 0) if pressure_doc else 0
-                        last_event_at = pressure_doc.get('last_event_at', '') if pressure_doc else ''
-                        
-                        # Calculate hours since last event
-                        hours_since = 1.0  # default 1 hour for first tick
-                        if last_event_at:
-                            try:
-                                last_dt = datetime.fromisoformat(last_event_at.replace('Z', '+00:00'))
-                                if last_dt.tzinfo is None:
-                                    last_dt = last_dt.replace(tzinfo=timezone.utc)
-                                hours_since = max(0.17, (now - last_dt).total_seconds() / 3600)
-                            except Exception:
-                                hours_since = 1.0
-                        
-                        # Calculate averages for pressure gain
-                        user_films_list = user_films.get(user_id, [])
-                        avg_hype = sum(f.get('hype_score', 0) or 0 for f in user_films_list) / max(1, len(user_films_list))
-                        avg_quality = sum((f.get('quality_score', 0) or f.get('quality', 0) or 50) for f in user_films_list) / max(1, len(user_films_list))
-                        active_count = len([f for f in user_films_list if f.get('status') in ('in_theaters', 'released', 'completed')])
-                        
-                        # Accumulate pressure
-                        pressure_gain = calculate_pressure_gain(hours_since, active_count, avg_hype, avg_quality)
-                        new_pressure = current_pressure + pressure_gain
-                        
-                        # Check if event should trigger
-                        if should_trigger_event(new_pressure, active_count):
-                            cast_names_for_event = [people_map[cid].get('name', 'Sconosciuto')
-                                                   for cid in film_cast_map.get(film_id, []) if cid in people_map]
-                            ev = generate_event(film, cast_names_for_event, is_coming_soon=is_coming_soon, pressure=new_pressure)
-                            if ev:
-                                # Determine project_type
-                                source = film.get('_source', 'films')
-                                if source == 'tv_series':
-                                    ct = film.get('content_type', 'tv_series')
-                                    proj_type = 'anime' if ct == 'anime' else 'series'
-                                else:
-                                    proj_type = 'film'
-                                
-                                ev_record = {
-                                    'user_id': user_id, 'type': 'PROJECT_EVENT',
-                                    'film_id': film_id, 'film_title': film.get('title', ''),
-                                    'project_type': proj_type,
-                                    'text': ev['text'], 'tier': ev['tier'],
-                                    'event_type': ev['event_type'],
-                                    'revenue_mod': ev.get('revenue_mod', 0),
-                                    'hype_mod': ev.get('hype_mod', 0),
-                                    'fame_mod': ev.get('fame_mod', 0),
-                                    'audience_mod': ev.get('audience_mod', 0),
-                                    'is_global': ev.get('is_global', False),
-                                    'is_star_event': ev.get('is_star_event', False),
-                                    'actor_name': ev.get('actor_name', ''),
-                                    'created_at': now_str
-                                }
-                                # Save to event_history (permanent)
-                                await scheduler_db.event_history.insert_one({
-                                    'user_id': user_id,
-                                    'project_id': film_id,
-                                    'project_type': proj_type,
-                                    'title': film.get('title', ''),
-                                    'rarity': ev['tier'],
-                                    'description': ev['text'],
-                                    'event_type': ev['event_type'],
-                                    'effects': {
-                                        'revenue_mod': ev.get('revenue_mod', 0),
-                                        'hype_mod': ev.get('hype_mod', 0),
-                                        'fame_mod': ev.get('fame_mod', 0),
-                                        'audience_mod': ev.get('audience_mod', 0),
-                                    },
-                                    'actor_name': ev.get('actor_name', ''),
-                                    'created_at': now_str
-                                })
-                                # Apply revenue modifier
-                                if ev.get('revenue_mod', 0) != 0 and tick_rev > 0:
-                                    boost_amount = int(tick_rev * abs(ev['revenue_mod']))
-                                    if ev['revenue_mod'] > 0:
-                                        total_revenue += boost_amount
-                                    else:
-                                        total_revenue = max(0, total_revenue - boost_amount)
-                                # Apply hype modifier
-                                if ev.get('hype_mod', 0) != 0:
-                                    target_coll = scheduler_db.tv_series if film.get('_source') == 'tv_series' else scheduler_db.films
-                                    await target_coll.update_one(
-                                        {'id': film_id},
-                                        {'$inc': {'hype_score': ev['hype_mod']}}
-                                    )
-                                # Apply fame modifier
-                                if ev.get('fame_mod', 0) != 0:
-                                    await scheduler_db.users.update_one(
-                                        {'id': user_id},
-                                        {'$inc': {'fame': ev['fame_mod']}}
-                                    )
-                                # Apply audience modifier
-                                if ev.get('audience_mod', 0) != 0:
-                                    target_coll = scheduler_db.tv_series if film.get('_source') == 'tv_series' else scheduler_db.films
-                                    await target_coll.update_one(
-                                        {'id': film_id},
-                                        {'$inc': {'audience': ev['audience_mod']}}
-                                    )
-                                
-                                # Star birth based on event rarity
-                                star_chance = STAR_BIRTH_CHANCE.get(ev['tier'], 0)
-                                if star_chance > 0 and random.random() < star_chance:
-                                    # Try to birth a star from cast
-                                    for cast_id in film_cast_map.get(film_id, []):
-                                        person = people_map.get(cast_id)
-                                        if not person or person.get('is_star'):
-                                            continue
-                                        if film_id in films_with_star:
-                                            break
-                                        if cast_id in people_updates and people_updates[cast_id].get('is_star'):
-                                            continue
-                                        # Birth the star
-                                        fame_boost = random.randint(30, 60)
-                                        new_fame = min(100, (person.get('fame', 0) or 0) + fame_boost)
-                                        people_updates.setdefault(cast_id, {}).update({
-                                            'is_star': True, 'fame': new_fame,
-                                            'star_since': now_str, 'discovered_by': user_id,
-                                            'star_film_id': film_id,
-                                            'star_origin_event': ev['tier']
-                                        })
-                                        star_proj_type = proj_type
-                                        star_events.append({
-                                            'user_id': user_id, 'type': 'STAR_CREATED',
-                                            'actor_name': person.get('name', 'Sconosciuto'),
-                                            'actor_id': cast_id, 'film_title': film.get('title', ''),
-                                            'project_type': star_proj_type,
-                                            'fame_boost': fame_boost, 'created_at': now_str
-                                        })
-                                        await scheduler_db.event_history.insert_one({
-                                            'user_id': user_id,
-                                            'project_id': film_id,
-                                            'project_type': star_proj_type,
-                                            'title': film.get('title', ''),
-                                            'rarity': 'legendary',
-                                            'description': f'{person.get("name", "Sconosciuto")} e\' diventata una STAR!',
-                                            'event_type': 'star_born',
-                                            'effects': {'revenue_mod': 0.30, 'fame_mod': 50, 'hype_mod': 25},
-                                            'actor_name': person.get('name', 'Sconosciuto'),
-                                            'created_at': now_str
-                                        })
-                                        films_with_star.add(film_id)
-                                        films_star_flags.append(film_id)
-                                        users_on_cooldown.add(user_id)
-                                        tick_star_count += 1
-                                        break  # max 1 star per event
-                                
-                                star_events.append(ev_record)
-                                films_on_event_cooldown.add(film_id)
-                                users_event_fired_this_tick.add(user_id)
-                                
-                                # Reset pressure after event
-                                new_pressure = pressure_reset_after_event(new_pressure, ev['tier'])
-                                
-                                # Global events: save to cinema_news
-                                if ev.get('is_global'):
-                                    await scheduler_db.cinema_news.insert_one({
-                                        'type': 'event', 'category': ev['tier'],
-                                        'title': ev['text'], 'content': ev['text'],
-                                        'user_id': user_id, 'film_id': film_id,
-                                        'created_at': now_str,
-                                        'is_global_event': True, 'tier': ev['tier']
-                                    })
-                        
-                        # Update pressure in DB
-                        await scheduler_db.event_pressure.update_one(
-                            {'user_id': user_id},
-                            {'$set': {
-                                'user_id': user_id,
-                                'pressure': new_pressure,
-                                'last_event_at': now_str if user_id in users_event_fired_this_tick else (last_event_at or now_str),
-                                'updated_at': now_str
-                            }},
-                            upsert=True
-                        )
-                    except Exception as ev_err:
-                        logger.error(f"[AUTO-TICK] Event pressure error: {ev_err}")
+                if not is_coming_soon:
+                    decay = 0.92 if quality >= 90 else (0.87 if quality >= 80 else (0.82 if quality >= 65 else 0.75))
+                    quality_mult = quality / 100
+                    imdb_boost = 0.5 + (imdb / 10) * 2.0
+                    
+                    # Star boost: +20% decaying to 0% over 48h
+                    star_revenue_boost = 1.0
+                    if film.get('star_born_film') and film.get('star_born_at'):
+                        try:
+                            sbd = datetime.fromisoformat(str(film['star_born_at']).replace('Z', '+00:00'))
+                            if sbd.tzinfo is None:
+                                sbd = sbd.replace(tzinfo=timezone.utc)
+                            hours_since = max(0, (now - sbd).total_seconds() / 3600)
+                            star_revenue_boost = 1.0 + max(0, 0.20 * (1 - hours_since / 48))
+                        except:
+                            pass
+                    
+                    daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost
+                    tick_rev = max(0, int(daily_rev / 144))
+                    total_revenue += tick_rev
                 
                 # --- SKILL PROGRESSION ---
                 for cast_id in film_cast_map.get(film_id, []):
@@ -1602,6 +1410,188 @@ async def auto_revenue_tick():
                                 'new_level': new_level, 'skill_value': new_val,
                                 'created_at': now_str
                             })
+            
+            # === PER-PLAYER EVENT (1 sola estrazione, fuori dal loop film) ===
+            if user_id not in players_on_event_cooldown:
+                try:
+                    from event_templates import generate_event, should_trigger_event, \
+                        calculate_pressure_gain, pressure_reset_after_event, STAR_BIRTH_CHANCE
+                    
+                    pressure_doc = await scheduler_db.event_pressure.find_one(
+                        {'user_id': user_id}, {'_id': 0}
+                    )
+                    current_pressure = pressure_doc.get('pressure', 0) if pressure_doc else 0
+                    last_event_at = pressure_doc.get('last_event_at', '') if pressure_doc else ''
+                    
+                    hours_since = 1.0
+                    if last_event_at:
+                        try:
+                            last_dt = datetime.fromisoformat(last_event_at.replace('Z', '+00:00'))
+                            if last_dt.tzinfo is None:
+                                last_dt = last_dt.replace(tzinfo=timezone.utc)
+                            hours_since = max(0.17, (now - last_dt).total_seconds() / 3600)
+                        except Exception:
+                            hours_since = 1.0
+                    
+                    # Aggregate player-level stats
+                    active_projects = [f for f in films if f.get('status') in ('in_theaters', 'released', 'completed')]
+                    active_count = len(active_projects)
+                    avg_hype = sum(f.get('hype_score', 0) or 0 for f in films) / max(1, len(films))
+                    avg_quality = sum((f.get('quality_score', 0) or f.get('quality', 0) or 50) for f in films) / max(1, len(films))
+                    
+                    pressure_gain = calculate_pressure_gain(hours_since, active_count, avg_hype, avg_quality)
+                    new_pressure = current_pressure + pressure_gain
+                    
+                    event_fired = False
+                    if should_trigger_event(new_pressure, active_count):
+                        # --- WEIGHTED FILM SELECTION (hype + quality + success) ---
+                        eligible = [f for f in films if f.get('status') != 'coming_soon'] or films
+                        weights = []
+                        for f in eligible:
+                            w_hype = max(1, (f.get('hype_score', 0) or 0))
+                            w_quality = max(1, (f.get('quality_score', 0) or f.get('quality', 0) or 50))
+                            w_success = max(1, (f.get('imdb_rating', 5.0) or 5.0) * 10)
+                            weights.append(w_hype + w_quality + w_success)
+                        
+                        total_w = sum(weights)
+                        r = random.random() * total_w
+                        cumulative = 0
+                        chosen_film = eligible[0]
+                        for i, w in enumerate(weights):
+                            cumulative += w
+                            if r <= cumulative:
+                                chosen_film = eligible[i]
+                                break
+                        
+                        film_id = chosen_film['id']
+                        is_coming_soon = chosen_film.get('status') == 'coming_soon'
+                        cast_names = [people_map[cid].get('name', 'Sconosciuto')
+                                     for cid in film_cast_map.get(film_id, []) if cid in people_map]
+                        
+                        ev = generate_event(chosen_film, cast_names, is_coming_soon=is_coming_soon, pressure=new_pressure)
+                        if ev:
+                            source = chosen_film.get('_source', 'films')
+                            if source == 'tv_series':
+                                ct = chosen_film.get('content_type', 'tv_series')
+                                proj_type = 'anime' if ct == 'anime' else 'series'
+                            else:
+                                proj_type = 'film'
+                            
+                            ev_record = {
+                                'user_id': user_id, 'type': 'PROJECT_EVENT',
+                                'film_id': film_id, 'film_title': chosen_film.get('title', ''),
+                                'project_type': proj_type,
+                                'text': ev['text'], 'tier': ev['tier'],
+                                'event_type': ev['event_type'],
+                                'revenue_mod': ev.get('revenue_mod', 0),
+                                'hype_mod': ev.get('hype_mod', 0),
+                                'fame_mod': ev.get('fame_mod', 0),
+                                'audience_mod': ev.get('audience_mod', 0),
+                                'is_global': ev.get('is_global', False),
+                                'is_star_event': ev.get('is_star_event', False),
+                                'actor_name': ev.get('actor_name', ''),
+                                'created_at': now_str
+                            }
+                            await scheduler_db.event_history.insert_one({
+                                'user_id': user_id, 'project_id': film_id,
+                                'project_type': proj_type,
+                                'title': chosen_film.get('title', ''),
+                                'rarity': ev['tier'],
+                                'description': ev['text'],
+                                'event_type': ev['event_type'],
+                                'effects': {
+                                    'revenue_mod': ev.get('revenue_mod', 0),
+                                    'hype_mod': ev.get('hype_mod', 0),
+                                    'fame_mod': ev.get('fame_mod', 0),
+                                    'audience_mod': ev.get('audience_mod', 0),
+                                },
+                                'actor_name': ev.get('actor_name', ''),
+                                'created_at': now_str
+                            })
+                            # Apply effects
+                            if ev.get('hype_mod', 0) != 0:
+                                target_coll = scheduler_db.tv_series if chosen_film.get('_source') == 'tv_series' else scheduler_db.films
+                                await target_coll.update_one({'id': film_id}, {'$inc': {'hype_score': ev['hype_mod']}})
+                            if ev.get('fame_mod', 0) != 0:
+                                await scheduler_db.users.update_one({'id': user_id}, {'$inc': {'fame': ev['fame_mod']}})
+                            if ev.get('audience_mod', 0) != 0:
+                                target_coll = scheduler_db.tv_series if chosen_film.get('_source') == 'tv_series' else scheduler_db.films
+                                await target_coll.update_one({'id': film_id}, {'$inc': {'audience': ev['audience_mod']}})
+                            if ev.get('revenue_mod', 0) != 0 and total_revenue > 0:
+                                boost_amount = int(total_revenue * abs(ev['revenue_mod']))
+                                if ev['revenue_mod'] > 0:
+                                    total_revenue += boost_amount
+                                else:
+                                    total_revenue = max(0, total_revenue - boost_amount)
+                            
+                            # Star birth
+                            star_chance = STAR_BIRTH_CHANCE.get(ev['tier'], 0)
+                            if star_chance > 0 and random.random() < star_chance and tick_star_count < 3:
+                                for cast_id in film_cast_map.get(film_id, []):
+                                    person = people_map.get(cast_id)
+                                    if not person or person.get('is_star'):
+                                        continue
+                                    if film_id in films_with_star:
+                                        break
+                                    if cast_id in people_updates and people_updates[cast_id].get('is_star'):
+                                        continue
+                                    fame_boost = random.randint(30, 60)
+                                    new_fame = min(100, (person.get('fame', 0) or 0) + fame_boost)
+                                    people_updates.setdefault(cast_id, {}).update({
+                                        'is_star': True, 'fame': new_fame,
+                                        'star_since': now_str, 'discovered_by': user_id,
+                                        'star_film_id': film_id, 'star_origin_event': ev['tier']
+                                    })
+                                    star_events.append({
+                                        'user_id': user_id, 'type': 'STAR_CREATED',
+                                        'actor_name': person.get('name', 'Sconosciuto'),
+                                        'actor_id': cast_id, 'film_title': chosen_film.get('title', ''),
+                                        'project_type': proj_type,
+                                        'fame_boost': fame_boost, 'created_at': now_str
+                                    })
+                                    await scheduler_db.event_history.insert_one({
+                                        'user_id': user_id, 'project_id': film_id,
+                                        'project_type': proj_type,
+                                        'title': chosen_film.get('title', ''),
+                                        'rarity': 'legendary',
+                                        'description': f'{person.get("name", "Sconosciuto")} e\' diventata una STAR!',
+                                        'event_type': 'star_born',
+                                        'effects': {'revenue_mod': 0.30, 'fame_mod': 50, 'hype_mod': 25},
+                                        'actor_name': person.get('name', 'Sconosciuto'),
+                                        'created_at': now_str
+                                    })
+                                    films_with_star.add(film_id)
+                                    films_star_flags.append(film_id)
+                                    users_on_cooldown.add(user_id)
+                                    tick_star_count += 1
+                                    break
+                            
+                            star_events.append(ev_record)
+                            new_pressure = pressure_reset_after_event(new_pressure, ev['tier'])
+                            event_fired = True
+                            
+                            if ev.get('is_global'):
+                                await scheduler_db.cinema_news.insert_one({
+                                    'type': 'event', 'category': ev['tier'],
+                                    'title': ev['text'], 'content': ev['text'],
+                                    'user_id': user_id, 'film_id': film_id,
+                                    'created_at': now_str,
+                                    'is_global_event': True, 'tier': ev['tier']
+                                })
+                    
+                    # Update pressure
+                    await scheduler_db.event_pressure.update_one(
+                        {'user_id': user_id},
+                        {'$set': {
+                            'user_id': user_id,
+                            'pressure': new_pressure,
+                            'last_event_at': now_str if event_fired else (last_event_at or now_str),
+                            'updated_at': now_str
+                        }},
+                        upsert=True
+                    )
+                except Exception as ev_err:
+                    logger.error(f"[AUTO-TICK] Event pressure error for {user_id}: {ev_err}")
             
             if total_revenue > 0:
                 await scheduler_db.users.update_one(

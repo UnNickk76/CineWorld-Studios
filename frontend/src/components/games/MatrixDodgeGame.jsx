@@ -230,11 +230,3 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
     </div>
   );
 }
-test' ? "TIME'S UP" : 'GAME OVER'}</p>
-            <p className="text-3xl font-black font-mono text-cyan-300 mt-2">{ui.score}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

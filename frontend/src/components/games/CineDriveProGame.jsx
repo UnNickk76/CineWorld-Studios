@@ -32,7 +32,7 @@ export function CineDriveProGame({ mode = 'contest', onComplete }) {
   const touchRef = useRef({ down: false, x: 0 });
   const cbRef = useRef(onComplete); cbRef.current = onComplete;
 
-  const [ui, setUi] = useState({ score: 0, combo: 0, hp: 3, shield: false, time: 0, nm: 0, phase: 'count', countVal: 3, turboBar: 0, turbo: false, event: null, boss: false, stars: 0 });
+  const [ui, setUi] = useState({ score: 0, combo: 0, hp: 3, shield: false, time: 0, nm: 0, phase: 'count', countVal: 3, turboBar: 0, turbo: false, event: null, boss: false, stars: 0, carX: 0, tilt: 0, invuln: false });
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
@@ -214,21 +214,18 @@ export function CineDriveProGame({ mode = 'contest', onComplete }) {
       for (const p of g.parts) { p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt; p.life -= dt; }
       g.parts = g.parts.filter(p => p.life > 0);
 
-      // === RENDER ===
-      drawSky(ctx, g.sky, w, h, g.pal);
+      // === RENDER === (canvas transparent — PNG bg behind, PNG car overlay)
+      ctx.clearRect(0, 0, w, h);
       // Event flash
       if (g.evt?.id === 'flash') { const a = Math.sin(g.evtT * 4) * 0.15; ctx.fillStyle = `rgba(255,255,200,${Math.max(0, a)})`; ctx.fillRect(0, 0, w, h); }
       if (g.hitFlash > 0) { ctx.fillStyle = `rgba(255,0,0,${0.15 * (g.hitFlash / 0.2)})`; ctx.fillRect(0, 0, w, h); }
       if (g.slowmo) { ctx.fillStyle = 'rgba(0,255,255,0.03)'; ctx.fillRect(0, 0, w, h); }
       if (g.turbo) { ctx.fillStyle = 'rgba(255,0,255,0.04)'; ctx.fillRect(0, 0, w, h); }
-      drawRoad(ctx, w, h, g.scroll, g.pal);
       if (g.bossT > 0) { ctx.save(); ctx.strokeStyle = `rgba(255,0,50,${0.3 + Math.sin(g.surviveTime * 5) * 0.15})`; ctx.lineWidth = 3; ctx.strokeRect(1, 1, w - 2, h - 2); ctx.restore(); }
+      // Obstacles (rendered on canvas above PNG bg)
       for (const o of g.obs) { if (!o.passed) drawObs(ctx, o.type, o.sx, o.y, o.sc, g.pal); }
       for (const b of g.bons) { if (!b.col) drawBon(ctx, b.type, b.sx, b.y, b.sc, g.surviveTime); }
-      const carA = g.invuln > 0 ? (Math.sin(g.invuln * 20) > 0 ? 0.4 : 1) : 1;
-      ctx.globalAlpha = carA;
-      drawCar(ctx, g.car.x, carY, g.tilt, g.shield, g.turbo, g.pal);
-      ctx.globalAlpha = 1;
+      // Car drawn as PNG overlay — skip canvas car
       drawParts(ctx, g.parts);
       for (const p of g.parts) { if (!p.txt) continue; ctx.globalAlpha = p.life / p.ml; ctx.font = 'bold 9px monospace'; ctx.fillStyle = p.c; ctx.textAlign = 'center'; ctx.fillText(p.txt, p.x, p.y); }
       ctx.globalAlpha = 1;
@@ -248,6 +245,7 @@ export function CineDriveProGame({ mode = 'contest', onComplete }) {
         nm: gg.nearMisses, phase: gg.phase, countVal: gg.countVal,
         turboBar: gg.turboBar, turbo: gg.turbo,
         event: gg.evt, boss: gg.bossT > 0, stars: 0,
+        carX: gg.car.x, tilt: gg.tilt || 0, invuln: gg.invuln > 0,
       });
     }, 100);
 
@@ -256,7 +254,21 @@ export function CineDriveProGame({ mode = 'contest', onComplete }) {
 
   return (
     <div ref={contRef} className={`cd-container ${shake ? 'cd-shake' : ''}`} style={{ height: 400 }} data-testid="minigame-cine-drive-pro">
+      {/* LAYER 2: PNG Background */}
+      <img src="/assets/cinedrive/bg_city.png" alt="" className="cd-bg-img" />
+      {/* LAYER 4: Canvas (obstacles, bonuses, particles, effects) */}
       <canvas ref={canvasRef} className="cd-canvas" />
+      {/* LAYER 5: PNG Car */}
+      <img
+        src="/assets/cinedrive/car.png"
+        alt=""
+        className={`cd-car-img ${ui.invuln ? 'cd-car-invuln' : ''}`}
+        style={{
+          left: ui.carX,
+          top: '76%',
+          transform: `translateX(-50%) translateY(-50%) rotate(${ui.tilt}rad)`,
+        }}
+      />
       <div className="cd-ui-top">
         <div className="flex justify-between items-start">
           <div>

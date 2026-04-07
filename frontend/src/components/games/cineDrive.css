@@ -1,6 +1,10 @@
 /* cineDrive.css — Auto Cinematografica shared styles */
 .cd-container { position:relative; width:100%; background:#050515; border-radius:12px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
-.cd-canvas { display:block; width:100%; height:100%; }
+.cd-canvas { display:block; width:100%; height:100%; position:relative; z-index:2; }
+.cd-bg-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center bottom; pointer-events:none; z-index:1; }
+.cd-car-img { position:absolute; width:65px; pointer-events:none; z-index:3; transition:opacity 0.05s; }
+.cd-car-invuln { animation:cdBlink .1s infinite alternate; }
+@keyframes cdBlink { from{opacity:1} to{opacity:0.3} }
 .cd-ui-top { position:absolute; top:0; left:0; right:0; padding:8px 10px; z-index:10; pointer-events:none; }
 .cd-ui-bot { position:absolute; bottom:0; left:0; right:0; padding:6px 10px 8px; z-index:10; pointer-events:none; }
 .cd-glow { text-shadow:0 0 8px rgba(255,0,255,0.6),0 0 16px rgba(255,0,255,0.3); }

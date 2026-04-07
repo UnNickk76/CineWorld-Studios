@@ -73,9 +73,8 @@ export function CineDriveGame({ mode = 'contest', onComplete }) {
         g.countT += dt; g.scroll += dt * 0.5;
         if (g.countVal > 0 && g.countT >= 0.7) { g.countT = 0; g.countVal--; }
         else if (g.countVal === 0 && g.countT >= 0.5) { g.phase = 'play'; }
-        // Render during countdown
-        drawSky(ctx, g.sky, w, h, pal); drawRoad(ctx, w, h, g.scroll, pal);
-        drawCar(ctx, g.car.x, carY, 0, false, false, pal);
+        // Render during countdown — canvas transparent, PNG layers handle visuals
+        ctx.clearRect(0, 0, w, h);
         setUi(p => ({ ...p, countVal: g.countVal, phase: 'count' }));
         rafRef.current = requestAnimationFrame(loop); return;
       }
@@ -164,20 +163,15 @@ export function CineDriveGame({ mode = 'contest', onComplete }) {
       for (const p of g.parts) { p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt; p.life -= dt; }
       g.parts = g.parts.filter(p => p.life > 0);
 
-      // === RENDER ===
-      drawSky(ctx, g.sky, w, h, pal);
+      // === RENDER === (canvas transparent — PNG bg behind, PNG car overlay)
+      ctx.clearRect(0, 0, w, h);
       if (g.hitFlash > 0) { ctx.fillStyle = `rgba(255,0,0,${0.15 * (g.hitFlash / 0.2)})`; ctx.fillRect(0, 0, w, h); }
       if (g.slowmo) { ctx.fillStyle = 'rgba(0,255,255,0.03)'; ctx.fillRect(0, 0, w, h); }
-      drawRoad(ctx, w, h, g.scroll, pal);
-      // Obstacles
+      // Obstacles (rendered on canvas above PNG bg)
       for (const o of g.obs) { if (!o.passed) drawObs(ctx, o.type, o.sx, o.y, o.sc, pal); }
       // Bonuses
       for (const b of g.bons) { if (!b.col) drawBon(ctx, b.type, b.sx, b.y, b.sc, g.surviveTime); }
-      // Car
-      const carAlpha = g.invuln > 0 ? (Math.sin(g.invuln * 20) > 0 ? 0.4 : 1) : 1;
-      ctx.globalAlpha = carAlpha;
-      drawCar(ctx, g.car.x, carY, g.tilt, g.shield, false, pal);
-      ctx.globalAlpha = 1;
+      // Car drawn as PNG overlay — skip canvas car
       // Particles
       drawParts(ctx, g.parts);
       // NM text particles
@@ -198,6 +192,7 @@ export function CineDriveGame({ mode = 'contest', onComplete }) {
         score: calcSc(gg), combo: gg.combo, hp: gg.hp, shield: gg.shield,
         time: gg.mode === 'contest' ? Math.ceil(gg.contestTime) : Math.floor(gg.surviveTime),
         nm: gg.nearMisses, phase: gg.phase, countVal: gg.countVal,
+        carX: gg.car.x, tilt: gg.tilt || 0, invuln: gg.invuln > 0,
       });
     }, 100);
 
@@ -206,7 +201,21 @@ export function CineDriveGame({ mode = 'contest', onComplete }) {
 
   return (
     <div ref={contRef} className={`cd-container ${shake ? 'cd-shake' : ''}`} style={{ height: 380 }} data-testid="minigame-cine-drive">
+      {/* LAYER 2: PNG Background */}
+      <img src="/assets/cinedrive/bg_city.png" alt="" className="cd-bg-img" />
+      {/* LAYER 4: Canvas (obstacles, bonuses, particles, effects) */}
       <canvas ref={canvasRef} className="cd-canvas" />
+      {/* LAYER 5: PNG Car */}
+      <img
+        src="/assets/cinedrive/car.png"
+        alt=""
+        className={`cd-car-img ${ui.invuln ? 'cd-car-invuln' : ''}`}
+        style={{
+          left: ui.carX,
+          top: '76%',
+          transform: `translateX(-50%) translateY(-50%) rotate(${ui.tilt}rad)`,
+        }}
+      />
       {/* HUD */}
       <div className="cd-ui-top">
         <div className="flex justify-between items-start">

@@ -464,6 +464,13 @@ button:active {
 
 
 
+/* Chaos Premiere shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px) rotate(-1deg); }
+  75% { transform: translateX(4px) rotate(1deg); }
+}
+
 /* Test Lab blackout effect */
 .test-blackout {
   animation: testBlackout 1.2s ease-in-out;

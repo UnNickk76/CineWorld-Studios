@@ -85,6 +85,7 @@ from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
+from routes.minigames_arcade import router as minigames_arcade_router
 from routes.pvp import router as pvp_router
 from routes.pvp_cinema import router as pvp_cinema_router
 from routes.velion import router as velion_router, init as velion_init
@@ -9835,6 +9836,7 @@ app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
+app.include_router(minigames_arcade_router, prefix="/api")
 app.include_router(pvp_router, prefix="/api")
 app.include_router(pvp_cinema_router, prefix="/api")
 

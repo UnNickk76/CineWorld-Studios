@@ -6,10 +6,10 @@ from auth_utils import get_current_user
 
 router = APIRouter(prefix="/contest", tags=["contest"])
 
-TOTAL_STEPS = 5
-MAX_DAILY_CREDITS = 20
+TOTAL_STEPS = 12
+MAX_DAILY_CREDITS = 50
 
-STEP_COOLDOWNS = {1: 0, 2: 3, 3: 3, 4: 3, 5: 0}
+STEP_COOLDOWNS = {1: 0, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 0, 12: 0}
 
 
 def get_reset_time():
@@ -95,7 +95,12 @@ async def complete_step(body: CompleteStepBody, user: dict = Depends(get_current
             raise HTTPException(status_code=400, detail="locked")
 
     step = progress["current_step"]
-    credits = min(max(body.score // 15, 1), 3)
+
+    # Step 1-10: max 3 crediti, Step 11-12 (bonus): max 10 crediti
+    if step >= 11:
+        credits = min(max(body.score // 10, 1), 10)
+    else:
+        credits = min(max(body.score // 15, 1), 3)
 
     current_credits = user.get("credits", 0)
     if current_credits + credits > MAX_DAILY_CREDITS:

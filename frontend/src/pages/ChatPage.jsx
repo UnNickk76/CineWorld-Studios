@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { toast } from 'sonner';
 import {
   Send, Users, MessageSquare, X, Heart, Film, Lightbulb, Coffee,
-  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn, Trash2, Flag
+  ChevronRight, Loader2, UserPlus, UserCheck, Clock, Mail, ImagePlus, ZoomIn, Trash2, Flag,
+  Gamepad2, Swords
 } from 'lucide-react';
 import { ClickableNickname } from '../components/shared';
 
@@ -40,7 +41,7 @@ function PresenceDot({ presence, size = 'sm' }) {
 }
 
 /* ─── User Profile Modal (Social Card with films) ─── */
-function UserProfileModal({ userId, isOpen, onClose, api, onStartDM, onReportUser }) {
+function UserProfileModal({ userId, isOpen, onClose, api, onStartDM, onReportUser, onChallenge }) {
   const { language } = useContext(LanguageContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -124,7 +125,12 @@ function UserProfileModal({ userId, isOpen, onClose, api, onStartDM, onReportUse
                   data-testid="social-card-dm-btn">
                   <MessageSquare className="w-3 h-3 mr-1" /> Messaggio
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1 text-[10px] h-7 border-gray-700"
+                <Button size="sm" className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-[10px] h-7"
+                  onClick={() => { onClose(); onChallenge(userId, data.user?.nickname); }}
+                  data-testid="social-card-challenge-btn">
+                  <Gamepad2 className="w-3 h-3 mr-1" /> Sfida
+                </Button>
+                <Button size="sm" variant="outline" className="text-[10px] h-7 border-gray-700 px-2"
                   onClick={() => { onClose(); navigate(`/player/${userId}`); }}
                   data-testid="social-card-profile-btn">
                   Profilo <ChevronRight className="w-3 h-3 ml-0.5" />
@@ -278,6 +284,8 @@ const ChatPage = () => {
   const [viewImage, setViewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [reportTarget, setReportTarget] = useState(null); // {type, id, label}
+  const [challengeTarget, setChallengeTarget] = useState(null); // {userId, nickname}
+  const [arcadeGames, setArcadeGames] = useState([]);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -315,12 +323,14 @@ const ChatPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [roomsRes, presRes] = await Promise.all([
+        const [roomsRes, presRes, gamesRes] = await Promise.all([
           api.get('/chat/rooms'),
-          api.get('/users/presence')
+          api.get('/users/presence'),
+          api.get('/arcade/games'),
         ]);
         setRooms(roomsRes.data);
         setPresenceUsers(presRes.data?.users || []);
+        setArcadeGames(gamesRes.data || []);
         if (!activeRoom && roomsRes.data.public.length > 0) {
           setActiveRoom(roomsRes.data.public[0]);
         }
@@ -445,6 +455,18 @@ const ChatPage = () => {
       const detail = e.response?.data?.detail || 'Errore';
       toast.error(detail);
     }
+  };
+
+  const sendChallenge = async (gameId) => {
+    if (!challengeTarget) return;
+    try {
+      const res = await api.post('/arcade/chat-challenge', {
+        target_user_id: challengeTarget.userId,
+        game_id: gameId,
+      });
+      toast.success(res.data.message || 'Sfida inviata!');
+      setChallengeTarget(null);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore invio sfida'); }
   };
 
   const onlineCount = presenceUsers.filter(u => u.presence === 'online').length;
@@ -676,6 +698,23 @@ const ChatPage = () => {
                             </div>
                           ) : msg.deleted ? (
                             <p className="text-gray-500 italic text-[10px]">{msg.content}</p>
+                          ) : msg.type === 'minigame_challenge' ? (
+                            <div className="flex items-center gap-2 py-1" data-testid={`challenge-msg-${msg.id}`}>
+                              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
+                                <Gamepad2 className="w-4 h-4 text-cyan-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-[11px] font-semibold text-cyan-400">{msg.data?.game_name || 'Minigioco'}</p>
+                                <p className="text-[10px]">{msg.content}</p>
+                              </div>
+                              {!isOwn && msg.data?.challenge_id && (
+                                <Button size="sm" className="bg-cyan-600 hover:bg-cyan-700 text-[9px] h-6 px-2"
+                                  onClick={() => navigate('/minigiochi')}
+                                  data-testid={`accept-challenge-${msg.id}`}>
+                                  <Swords className="w-3 h-3 mr-0.5" /> Gioca
+                                </Button>
+                              )}
+                            </div>
                           ) : <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                           <p className={`text-[9px] mt-0.5 ${isOwn ? 'text-black/40' : 'text-gray-600'}`}>
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -787,18 +826,29 @@ const ChatPage = () => {
                     </div>
                   </button>
 
-                  {/* DM button */}
+                  {/* DM + Challenge buttons */}
                   {!u.is_bot && (
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10"
-                      onClick={() => startDM(u.id)}
-                      disabled={loadingDM === u.id}
-                      data-testid={`dm-user-${u.id}`}
-                    >
-                      {loadingDM === u.id
-                        ? <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
-                        : <MessageSquare className="w-3 h-3 text-gray-500 hover:text-yellow-400" />}
-                    </button>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+                      <button
+                        className="p-0.5 rounded hover:bg-white/10"
+                        onClick={() => startDM(u.id)}
+                        disabled={loadingDM === u.id}
+                        data-testid={`dm-user-${u.id}`}
+                        title="Messaggio"
+                      >
+                        {loadingDM === u.id
+                          ? <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                          : <MessageSquare className="w-3 h-3 text-gray-500 hover:text-yellow-400" />}
+                      </button>
+                      <button
+                        className="p-0.5 rounded hover:bg-white/10"
+                        onClick={() => setChallengeTarget({ userId: u.id, nickname: u.nickname })}
+                        data-testid={`challenge-user-${u.id}`}
+                        title="Sfida Minigioco"
+                      >
+                        <Gamepad2 className="w-3 h-3 text-gray-500 hover:text-cyan-400" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -819,6 +869,10 @@ const ChatPage = () => {
         onClose={() => setProfileUserId(null)}
         api={api}
         onStartDM={startDM}
+        onChallenge={(uid, nickname) => {
+          setProfileUserId(null);
+          setChallengeTarget({ userId: uid, nickname });
+        }}
         onReportUser={(uid, nickname) => {
           setProfileUserId(null);
           setReportTarget({ type: 'user', id: uid, label: `utente "${nickname}"` });
@@ -835,6 +889,31 @@ const ChatPage = () => {
 
       {/* Fullscreen Image Viewer */}
       <ImageViewer src={viewImage} onClose={() => setViewImage(null)} />
+
+      {/* Game Picker Dialog for Chat Challenges */}
+      {challengeTarget && (
+        <Dialog open={!!challengeTarget} onOpenChange={() => setChallengeTarget(null)}>
+          <DialogContent className="bg-[#111113] border-cyan-500/20 max-w-sm max-h-[70vh] overflow-y-auto p-4" data-testid="game-picker-dialog">
+            <DialogHeader>
+              <DialogTitle className="text-sm flex items-center gap-2">
+                <Gamepad2 className="w-4 h-4 text-cyan-400" />
+                Sfida {challengeTarget.nickname}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              {arcadeGames.map(g => (
+                <button key={g.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/30 transition-all text-left"
+                  onClick={() => sendChallenge(g.id)}
+                  data-testid={`pick-game-${g.id}`}>
+                  <Gamepad2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="text-[11px] font-medium truncate">{g.name}</span>
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

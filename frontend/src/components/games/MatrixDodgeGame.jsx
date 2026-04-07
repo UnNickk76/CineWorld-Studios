@@ -26,7 +26,7 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
   const cbRef = useRef(onComplete);
   cbRef.current = onComplete;
 
-  const [ui, setUi] = useState({ score: 0, combo: 0, hp: 3, btBar: 0, btActive: false, time: 0, nm: 0, phase: 'playing' });
+  const [ui, setUi] = useState({ score: 0, combo: 0, hp: 3, btBar: 0, btActive: false, time: 0, nm: 0, phase: 'playing', playerX: 0, direction: 'idle' });
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
@@ -145,8 +145,9 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
       if (hitFx) { ctx.fillStyle = `rgba(255,0,0,${0.2 * (hitFx.life / hitFx.maxLife)})`; ctx.fillRect(0, 0, w, h); }
       renderRain(ctx, g.rain, w, h, g.btActive ? 1.5 : 1);
       renderProjectiles(ctx, g.projectiles, g.btActive);
-      renderPlayerTrail(ctx, g.trail, g.btActive, g.combo);
-      renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo, 1, g.tilt, g.surviveTime, g.hitFlash > 0);
+      // Player canvas rendering hidden — Neo PNG overlay used instead
+      // renderPlayerTrail(ctx, g.trail, g.btActive, g.combo);
+      // renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo, 1, g.tilt, g.surviveTime, g.hitFlash > 0);
       renderTextFx(ctx, g.fx);
       renderVignette(ctx, w, h, g.btActive);
 
@@ -170,6 +171,33 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
   return (
     <div ref={contRef} className={`md-container ${shake ? 'md-shake' : ''}`} style={{ height: 360 }} data-testid="minigame-matrix-dodge">
       <canvas ref={canvasRef} className="md-canvas" />
+      {/* Neo PNG overlay */}
+      <img
+        src={
+          ui.direction === 'left'
+            ? '/assets/matrix/neo_sx.png'
+            : ui.direction === 'right'
+            ? '/assets/matrix/neo_dx.png'
+            : '/assets/matrix/neo_idle.png'
+        }
+        alt=""
+        style={{
+          position: 'absolute',
+          left: ui.playerX,
+          bottom: 40,
+          transform:
+            ui.direction === 'left'
+              ? 'translateX(-50%) rotate(-8deg)'
+              : ui.direction === 'right'
+              ? 'translateX(-50%) rotate(8deg)'
+              : 'translateX(-50%)',
+          width: 70,
+          pointerEvents: 'none',
+          zIndex: 10,
+          opacity: ui.phase === 'over' ? 0.3 : 1,
+          transition: 'opacity 0.3s',
+        }}
+      />
       <div className="md-ui-top">
         <div className="flex justify-between items-start">
           <div>
@@ -195,6 +223,14 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70" data-testid="matrix-dodge-gameover">
           <div className="text-center">
             <p className="text-2xl font-black font-mono text-green-400 md-glow">{mode === 'contest' ? "TIME'S UP" : 'GAME OVER'}</p>
+            <p className="text-3xl font-black font-mono text-cyan-300 mt-2">{ui.score}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+test' ? "TIME'S UP" : 'GAME OVER'}</p>
             <p className="text-3xl font-black font-mono text-cyan-300 mt-2">{ui.score}</p>
           </div>
         </div>

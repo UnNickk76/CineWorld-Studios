@@ -17,6 +17,11 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 ### Unificazione Hub Minigiochi + Sfide (DONE - 2026-04-07)
 ### MATRIX DODGE — Minigioco Pro (DONE - 2026-04-07)
 ### Player Neo Premium Upgrade (DONE - 2026-04-07)
+### AUTO CINEMATOGRAFICA — CineDrive Base + PRO (DONE - 2026-04-08)
+- Engine canvas condiviso (`cineDriveEngine.js`): prospettiva semi-top, 6 palette neon/synthwave, auto dettagliata, 6 tipi ostacoli cinema, 4 bonus
+- Base: 3 corsie, near miss, combo, shield, slowmo, countdown, game over
+- PRO ASSURDA: 6 scenari rotanti, turbo bar, 5 eventi speciali, boss wave, star rating
+- Backend: registrati `cine_drive` e `cine_drive_pro` in ARCADE_GAMES con titoli "Pilota Neon" e "Re della Strada"
 
 #### Player "The One" — Dettagli implementazione:
 - Silhouette Neo dettagliata in canvas: testa glow, collo, spalle curve (quadraticCurveTo), torso giacca, risvolti, falde mantello (bezierCurveTo), braccia piegate al gomito, gambe separate
@@ -31,14 +36,18 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 - **Performance ottimizzata**: ghost trail salta effetti costosi (shadowBlur, highlight, lapels, panels, particles)
 
 ## File Chiave
-- `/app/frontend/src/components/games/matrixDodgeEngine.js` (Engine condiviso, renderPlayer + renderPlayerTrail)
+- `/app/frontend/src/components/games/matrixDodgeEngine.js` (Engine condiviso Matrix)
 - `/app/frontend/src/components/games/MatrixDodgeGame.jsx` (Base)
 - `/app/frontend/src/components/games/MatrixDodgeProGame.jsx` (PRO ASSURDA)
-- `/app/frontend/src/components/games/matrixDodge.css` (Stili condivisi)
-- `/app/frontend/src/components/MiniGames.jsx` (Barrel export 14 giochi)
+- `/app/frontend/src/components/games/matrixDodge.css` (Stili Matrix)
+- `/app/frontend/src/components/games/cineDriveEngine.js` (Engine condiviso CineDrive)
+- `/app/frontend/src/components/games/CineDriveGame.jsx` (Base)
+- `/app/frontend/src/components/games/CineDriveProGame.jsx` (PRO ASSURDA)
+- `/app/frontend/src/components/games/cineDrive.css` (Stili CineDrive)
+- `/app/frontend/src/components/MiniGames.jsx` (Barrel export 16 giochi)
 - `/app/frontend/src/pages/MiniGamesPage.jsx` (Hub 5-tab)
 - `/app/frontend/src/pages/ContestPage.jsx` (14 step contest)
-- `/app/backend/routes/minigames_arcade.py` (API 14 giochi)
+- `/app/backend/routes/minigames_arcade.py` (API 16 giochi)
 
 ## Backlog
 ### P1 (Bug e Bilanciamento)

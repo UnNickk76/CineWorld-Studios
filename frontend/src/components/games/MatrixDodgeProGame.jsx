@@ -55,6 +55,7 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
   const [ui, setUi] = useState({
     score: 0, combo: 0, hp: 3, btBar: 0, btActive: false, time: 0, nm: 0,
     phase: 'playing', dashOk: true, event: null, elite: false,
+    playerX: 0, direction: 'idle',
   });
   const [shake, setShake] = useState(false);
 
@@ -236,8 +237,9 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
       renderRain(ctx, g.rain, w, h, g.btActive ? 1.6 : g.eliteTimer > 0 ? 1.3 : 1);
       if (g.evt?.id === 'system_break') { ctx.save(); ctx.strokeStyle = 'rgba(0,255,65,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.strokeRect(w * 0.35, h * 0.5, w * 0.3, h * 0.35); ctx.fillStyle = 'rgba(0,255,65,0.03)'; ctx.fillRect(w * 0.35, h * 0.5, w * 0.3, h * 0.35); ctx.restore(); }
       renderProjectiles(ctx, g.projectiles, g.btActive);
-      for (const ai of g.afterimages) renderPlayer(ctx, ai.x, ai.y, 0, g.btActive, 0, (ai.life / ai.ml) * 0.3);
-      renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo);
+      // Player canvas rendering hidden — Neo PNG overlay used instead
+      // for (const ai of g.afterimages) renderPlayer(ctx, ai.x, ai.y, 0, g.btActive, 0, (ai.life / ai.ml) * 0.3);
+      // renderPlayer(ctx, p.x, p.y, g.invuln, g.btActive, g.combo);
       renderTextFx(ctx, g.fx);
       renderVignette(ctx, w, h, g.btActive);
       if (g.eliteTimer > 0) { ctx.save(); ctx.strokeStyle = `rgba(255,0,50,${0.3 + Math.sin(g.surviveTime * 5) * 0.15})`; ctx.lineWidth = 3; ctx.strokeRect(1, 1, w - 2, h - 2); ctx.restore(); }
@@ -249,11 +251,15 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
     uiIvRef.current = setInterval(() => {
       const gg = gRef.current; if (!gg) return;
       const eb = gg.eliteOn ? ELITE_BONUS : 0;
+      const vel2 = gg.player.x - (gg._prevUiX ?? gg.player.x);
+      gg._prevUiX = gg.player.x;
+      const dir = vel2 < -1.5 ? 'left' : vel2 > 1.5 ? 'right' : 'idle';
       setUi({
         score: calcScore(gg, eb), combo: gg.combo, hp: gg.hp, btBar: gg.btBar, btActive: gg.btActive,
         time: gg.mode === 'contest' ? Math.ceil(gg.contestTime) : Math.floor(gg.surviveTime),
         nm: gg.nearMisses, phase: gg.running ? 'playing' : 'over',
         dashOk: gg.dashCd <= 0, event: gg.evt, elite: gg.eliteTimer > 0,
+        playerX: gg.player.x + PW / 2, direction: dir,
       });
     }, 100);
 
@@ -263,6 +269,33 @@ export function MatrixDodgeProGame({ mode = 'contest', onComplete }) {
   return (
     <div ref={contRef} className={`md-container ${shake ? 'md-shake' : ''}`} style={{ height: 380 }} data-testid="minigame-matrix-dodge-pro">
       <canvas ref={canvasRef} className="md-canvas" />
+      {/* Neo PNG overlay */}
+      <img
+        src={
+          ui.direction === 'left'
+            ? '/assets/matrix/neo_sx.png'
+            : ui.direction === 'right'
+            ? '/assets/matrix/neo_dx.png'
+            : '/assets/matrix/neo_idle.png'
+        }
+        alt=""
+        style={{
+          position: 'absolute',
+          left: ui.playerX,
+          bottom: 40,
+          transform:
+            ui.direction === 'left'
+              ? 'translateX(-50%) rotate(-8deg)'
+              : ui.direction === 'right'
+              ? 'translateX(-50%) rotate(8deg)'
+              : 'translateX(-50%)',
+          width: 70,
+          pointerEvents: 'none',
+          zIndex: 10,
+          opacity: ui.phase === 'over' || ui.phase === 'wow' ? 0.3 : 1,
+          transition: 'opacity 0.3s',
+        }}
+      />
       <div className="md-ui-top">
         <div className="flex justify-between items-start">
           <div>

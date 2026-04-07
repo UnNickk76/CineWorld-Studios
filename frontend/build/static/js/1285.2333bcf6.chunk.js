@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkfrontend=self.webpackChunkfrontend||[]).push([[1285],{1045(e,t,s){s.r(t),s.d(t,{default:()=>c});s(5043);var n=s(5685),i=s(7030),r=s(579);function c(){const{id:e}=(0,n.g)();return(0,r.jsx)("div",{className:"pt-14 pb-16 px-3 flex items-center justify-center min-h-screen","data-testid":"series-detail-page",children:(0,r.jsx)(i.q,{filmId:e,contentType:"series"})})}}}]);
+//# sourceMappingURL=1285.2333bcf6.chunk.js.map

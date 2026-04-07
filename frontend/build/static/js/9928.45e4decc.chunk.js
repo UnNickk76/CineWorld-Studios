@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkfrontend=self.webpackChunkfrontend||[]).push([[9928],{8160(e,t,n){n.r(t),n.d(t,{default:()=>d});n(5043);var s=n(5685),i=n(7030),c=n(579);const d=()=>{const{id:e}=(0,s.g)();return(0,c.jsx)("div",{className:"pt-14 pb-16 px-3 flex items-center justify-center min-h-screen","data-testid":"film-detail-page",children:(0,c.jsx)(i.q,{filmId:e,contentType:"film"})})}}}]);
+//# sourceMappingURL=9928.45e4decc.chunk.js.map

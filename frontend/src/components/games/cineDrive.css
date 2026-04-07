@@ -1,0 +1,21 @@
+/* cineDrive.css — Auto Cinematografica shared styles */
+.cd-container { position:relative; width:100%; background:#050515; border-radius:12px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
+.cd-canvas { display:block; width:100%; height:100%; }
+.cd-ui-top { position:absolute; top:0; left:0; right:0; padding:8px 10px; z-index:10; pointer-events:none; }
+.cd-ui-bot { position:absolute; bottom:0; left:0; right:0; padding:6px 10px 8px; z-index:10; pointer-events:none; }
+.cd-glow { text-shadow:0 0 8px rgba(255,0,255,0.6),0 0 16px rgba(255,0,255,0.3); }
+.cd-glow-cy { text-shadow:0 0 8px rgba(0,255,255,0.6),0 0 16px rgba(0,255,255,0.3); }
+.cd-shake { animation:cdShk .2s ease; }
+@keyframes cdShk { 0%,100%{transform:translate(0)} 25%{transform:translate(-3px,2px)} 50%{transform:translate(3px,-2px)} 75%{transform:translate(-2px,1px)} }
+.cd-count { position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.cd-count-num { font-size:60px; font-weight:900; font-family:monospace; color:#ff00ff; text-shadow:0 0 30px #ff00ff,0 0 60px #ff00ff; animation:cdCP .7s ease-out; }
+@keyframes cdCP { from{transform:scale(2);opacity:0} 50%{opacity:1} to{transform:scale(1);opacity:1} }
+.cd-over { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(5,5,21,0.88); animation:cdFi .5s ease; }
+@keyframes cdFi { from{opacity:0} to{opacity:1} }
+.cd-turbo { height:4px; background:rgba(255,0,255,0.12); border-radius:2px; overflow:hidden; }
+.cd-turbo-f { height:100%; background:linear-gradient(90deg,#ff00ff,#00ffff); border-radius:2px; transition:width .15s ease; }
+.cd-turbo-f.on { animation:cdTP .4s infinite alternate; }
+@keyframes cdTP { from{box-shadow:0 0 6px rgba(255,0,255,0.5)} to{box-shadow:0 0 16px rgba(255,0,255,1),0 0 30px rgba(0,255,255,0.4)} }
+.cd-stars { display:flex; gap:4px; justify-content:center; margin-top:8px; }
+.cd-star-i { width:20px; height:20px; opacity:0.2; transition:all .3s; }
+.cd-star-i.on { opacity:1; filter:drop-shadow(0 0 4px #ffd700); }

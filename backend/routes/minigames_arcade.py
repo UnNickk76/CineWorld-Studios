@@ -24,6 +24,8 @@ ARCADE_GAMES = [
     {"id": "reel_snake", "name": "Reel Snake", "desc": "Snake cinematografico!", "icon": "gamepad", "bonus": True},
     {"id": "matrix_dodge", "name": "Matrix Dodge", "desc": "Schiva i proiettili stile Matrix!", "icon": "binary", "bonus": True},
     {"id": "matrix_dodge_pro", "name": "Matrix Dodge PRO", "desc": "PRO ASSURDA: dash, eventi, elite wave!", "icon": "binary", "bonus": True},
+    {"id": "cine_drive", "name": "Auto Cinematografica", "desc": "Guida neon, schiva ostacoli cinema!", "icon": "car", "bonus": True},
+    {"id": "cine_drive_pro", "name": "Auto Cinema PRO", "desc": "PRO ASSURDA: turbo, boss, scenari!", "icon": "car", "bonus": True},
 ]
 
 GAME_IDS = {g["id"] for g in ARCADE_GAMES}
@@ -44,6 +46,8 @@ GAME_TITLES = {
     "reel_snake":      {"title": "Serpente d'Argento",  "threshold": 20},
     "matrix_dodge":    {"title": "Neo Digitale",       "threshold": 300},
     "matrix_dodge_pro":{"title": "THE ONE",            "threshold": 500},
+    "cine_drive":      {"title": "Pilota Neon",        "threshold": 400},
+    "cine_drive_pro":  {"title": "Re della Strada",    "threshold": 600},
 }
 
 # Streak milestones

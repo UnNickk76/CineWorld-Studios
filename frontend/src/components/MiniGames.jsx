@@ -18,3 +18,5 @@ export { ChaosPremiereGame as ChaosPremiere } from './games/ChaosPremiereGame';
 export { ReelSnakeGame as ReelSnake } from './games/ReelSnakeGame';
 export { MatrixDodgeGame as MatrixDodge } from './games/MatrixDodgeGame';
 export { MatrixDodgeProGame as MatrixDodgePro } from './games/MatrixDodgeProGame';
+export { CineDriveGame as CineDrive } from './games/CineDriveGame';
+export { CineDriveProGame as CineDrivePro } from './games/CineDriveProGame';

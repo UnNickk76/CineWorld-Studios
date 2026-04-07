@@ -126,10 +126,13 @@ export function AutoTickNotifications({ api }) {
             );
           }
 
-          // Update unread badge
-          const prev = parseInt(sessionStorage.getItem('cw_unread_events') || '0');
-          sessionStorage.setItem('cw_unread_events', String(prev + events.length));
-          window.dispatchEvent(new Event('cw-unread-update'));
+          // Update unread badge — only count non-revenue events
+          const newEventCount = events.filter(e => e.type !== 'REVENUE_GAINED').length;
+          if (newEventCount > 0) {
+            const prev = parseInt(sessionStorage.getItem('cw_unread_events') || '0');
+            sessionStorage.setItem('cw_unread_events', String(prev + newEventCount));
+            window.dispatchEvent(new Event('cw-unread-update'));
+          }
         }
 
         // Dismiss processed events

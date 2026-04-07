@@ -16,3 +16,5 @@ export { EditingCutGame as EditingCut } from './games/EditingCutGame';
 export { FollowCamGame as FollowCam } from './games/FollowCamGame';
 export { ChaosPremiereGame as ChaosPremiere } from './games/ChaosPremiereGame';
 export { ReelSnakeGame as ReelSnake } from './games/ReelSnakeGame';
+export { MatrixDodgeGame as MatrixDodge } from './games/MatrixDodgeGame';
+export { MatrixDodgeProGame as MatrixDodgePro } from './games/MatrixDodgeProGame';

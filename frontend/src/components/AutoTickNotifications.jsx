@@ -41,15 +41,7 @@ export function AutoTickNotifications({ api }) {
         revenue_mod: 0.30, fame_mod: 50, hype_mod: 25,
       });
     } else if (ev.type === 'REVENUE_GAINED' && ev.amount > 0) {
-      const filmPart = ev.film_count ? `${ev.film_count} film` : '';
-      const seriesPart = ev.series_count ? `${ev.series_count} serie` : '';
-      const countLabel = [filmPart, seriesPart].filter(Boolean).join(' + ') || 'progetti';
-      toast(
-        language === 'it'
-          ? `+$${ev.amount.toLocaleString()} incassati (${countLabel})`
-          : `+$${ev.amount.toLocaleString()} earned (${countLabel})`,
-        { icon: <DollarSign className="w-4 h-4 text-green-400" />, duration: 4000 }
-      );
+      // Silenzioso: nessuna notifica per gli incassi automatici
     } else if (ev.type === 'SKILL_UP') {
       toast(
         `${ev.actor_name}: ${ev.skill_name} Lv.${ev.new_level}`,
@@ -113,7 +105,7 @@ export function AutoTickNotifications({ api }) {
         if (normalEvents.length > 0) {
           // Always show revenue
           const revenueEv = normalEvents.find(e => e.type === 'REVENUE_GAINED');
-          if (revenueEv) showEventToast(revenueEv, 1);
+          // Revenue events are silent — skip toast
           
           // Show only latest PROJECT_EVENT or SKILL_UP (not revenue)
           const latestNormal = normalEvents.find(e => e.type !== 'REVENUE_GAINED');

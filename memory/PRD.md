@@ -18,65 +18,25 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 
 ### Sistema Eventi Avanzato a Pressione (DONE - 2026-04-06)
 - event_pressure per utente, trigger sigmoide
-- Rarita basata su pressione (common→legendary)
+- Rarita basata su pressione (common->legendary)
 - Star Birth legata a eventi
 
 ### Pagina EVENTI con 4 Categorie (DONE - 2026-04-06)
 - 5 tab: TUTTI, LEGGENDARI, EPICI, RARI, COMUNI
 - Bottone "Rivedi Evento" per replay cinematico
 
-### Sequenza Cinematica (DONE - 2026-04-06)
-- Velion laterale, glow animato, skip bloccato 4s
-
-### Distribuzione Temporizzata Eventi (DONE - 2026-04-06)
-- 1° dopo 2min, 2° 10min, 3° 20min, 4° 35min
-
 ### FASE 1 & 2: Infrastrutture, Arena, Guerra (DONE - 2026-04-07)
+- Arena Mirata (3 endpoint), Major Warfare temporizzato (4 endpoint), Infra Detail API (3 endpoint)
+- Frontend: 4 sub-tab infra, tab Mirata PvP, Guerra evoluta Major
 
-**Backend — Arena Mirata (pvp.py)**:
-- `POST /api/pvp/arena-attack`: Attacco mirato a categoria infra (cinema/tv/commerciale/agenzie)
-- Abilita strategiche difensive: Div. Legale (blocca attacco), Div. Operativa (riduce danni), Div. Investigativa (identifica attaccante)
-- Costo: 4 CP, Cooldown: 12h per target, richiede Div. Operativa Lv1+
-- `GET /api/pvp/arena-targets`: Lista bersagli con categorie disponibili
-- `GET /api/pvp/arena-history`: Cronologia attacchi mirati (inviati/ricevuti)
-
-**Backend — Major Warfare (major.py)**:
-- `POST /api/major/war/declare`: Guerra temporizzata 24/48/72h, costo $1M, founder only
-- `GET /api/major/war/active`: Stato guerra attiva con auto-resolve a scadenza
-- `POST /api/major/war/strike`: Colpo durante guerra (infra/film/fame), 3 CP, cooldown 2h
-- `POST /api/major/war/calculate`: Guerra rapida (calcolo istantaneo, legacy)
-- Score tracking, events log, winner determination
-
-**Backend — Infra Detail API (infrastructure.py)**:
-- `GET /api/infrastructure/{id}/events`: Eventi e attacchi arena per infra
-- `GET /api/infrastructure/{id}/security`: Livello minaccia, difese attive, statistiche 7g
-- `GET /api/infrastructure/{id}/influence`: Bonus categoria, impatto su progetti attivi
-
-**Frontend — InfrastructurePage.jsx**:
-- 4 sub-tab nel dialog dettaglio: Panoramica, Eventi, Sicurezza, Influenza
-- Panoramica: stats, upgrade, film in programmazione (esistente, riorganizzato)
-- Eventi: eventi infra + attacchi arena subiti
-- Sicurezza: livello minaccia, difese PvP, statistiche 7g, blocchi legali
-- Influenza: categoria, bonus attivi, combo multiplier, progetti in corso
-
-**Frontend — PvPArenaPage.jsx**:
-- Nuovo tab "Mirata" accanto ad Arena e Report
-- Lista bersagli con categorie attaccabili (Cinema/TV/Commerciale/Agenzie)
-- Feedback attacco con effetti e difese avversarie
-- Cronologia attacchi mirati
-
-**Frontend — MajorPage.jsx (sezione Guerra)**:
-- Pannello guerra attiva con: score in tempo reale, timer, colpi disponibili
-- 3 tipi di colpo: Infrastrutture, Film, Fama
-- Selettore durata: 24h Blitz, 48h Standard, 72h Epica
-- Log eventi di guerra
-- Storico guerre con badge W/L/LIVE
-
-**event_templates.py**:
-- INFRA_EVENTS: eventi per cinema, commerciale, studi, agenzie, strategico
-- WAR_EVENTS: morale, propaganda, sabotaggio, leaks, trionfo
-- ARENA_ATTACK_EFFECTS: effetti per categoria
-- STRATEGIC_ABILITIES: pvp_operative, pvp_investigative, pvp_legal
+### Refactor Eventi Scalabile (DONE - 2026-04-07)
+**Cambio logica**: eventi calcolati per PLAYER (1 estrazione), NON per film
+- Cooldown 6h per player (MIN_HOURS_BETWEEN_EVENTS = 6, configurabile)
+- Selezione film pesata: peso = hype + quality + (imdb*10)
+- Film migliori ricevono piu eventi proporzionalmente
+- Scalabile: N eventi = f(N player), non f(N film)
+- Rimossa query 12h cooldown per film (non piu necessaria)
+- Pressure read/update 1 sola volta per player per tick
 
 ## Backlog Prioritizzato
 
@@ -91,12 +51,12 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 - [ ] Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels, Eventi globali, Velion AI Memory
 
 ## File Chiave
+- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure per-player + weighted selection)
 - `/app/backend/event_templates.py` (INFRA_EVENTS, WAR_EVENTS, STRATEGIC_ABILITIES)
-- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure + infra events)
-- `/app/backend/routes/pvp.py` (Arena mirata + abilita strategiche)
-- `/app/backend/routes/major.py` (Major Warfare temporizzato)
-- `/app/backend/routes/infrastructure.py` (Infra detail API: events/security/influence)
-- `/app/frontend/src/pages/InfrastructurePage.jsx` (4 sub-tab dettaglio)
+- `/app/backend/routes/pvp.py` (Arena mirata)
+- `/app/backend/routes/major.py` (Major Warfare)
+- `/app/backend/routes/infrastructure.py` (Infra detail API)
+- `/app/frontend/src/pages/InfrastructurePage.jsx` (4 sub-tab)
 - `/app/frontend/src/pages/PvPArenaPage.jsx` (Tab Mirata)
 - `/app/frontend/src/pages/MajorPage.jsx` (Guerra evoluta)
 

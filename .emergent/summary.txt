@@ -1,1 +1,134 @@
-<analysis>/minigiochionComplete(score)/components/games//minigiochiChallengesPage.jsxminigames_arcade.py/minigiochi/challenges/pvp-arenaTapCiakGame.jsx/components/games/routes/contest.pyroutes/minigames_arcade.pyContestPageminigames_arcade.pyMiniGamesPage.jsxChatPage.jsxChallengesPagecontest.py/app/frontend/src/pages/MiniGamesPage.jsx/app/frontend/src/pages/ChallengesPage.jsxembedded={true}MiniGamesPage/app/frontend/src/components/games/*Game.jsxonComplete/app/backend/routes/minigames_arcade.py/app/backend/routes/users.pygame_statusembeddedChallengesPage/challenges/pvp-arena<Navigate to=/minigiochi replace />usersminigame_playsminigame_titlesgame_status/app/frontend/src/App.js/app/frontend/src/pages/MiniGamesPage.jsx/app/frontend/src/pages/ChallengesPage.jsx/app/frontend/src/pages/ChatPage.jsx/app/backend/routes/minigames_arcade.py/app/backend/routes/users.py/app/memory/PRD.mdcomponents/games/*Game.jsxPOST /api/minigames/solo/submitPOST /api/minigames/vs/createGET /api/users/presence/app/memory/PRD.mdfandrex1@gmail.comFandrel2776/app/frontend/src/components/games/TapCiakGame.jsx/app/backend/routes/contest.py/app/backend/routes/minigames_arcade.py</analysis>
+<analysis>**original_problem_statement**: 
+OBIETTIVO: L'utente ha richiesto la creazione di due nuovi minigiochi completi (base e variante PRO ASSURDA) realizzati puramente in codice (React + CSS + Canvas), senza immagini esterne. Il primo, MATRIX DODGE, è stato completato e perfezionato con un player animato avanzato (Neo). Il secondo, AUTO CINEMATOGRAFICA (CineDrive), un racing game con prospettiva semi-top e stile neon/synthwave, è stato appena iniziato. Il tutto deve essere mobile-first e integrato nel sistema Contest, SfideVS, e Classifiche esistente.
+PRODUCT REQUIREMENTS: 
+- Implementazione MATRIX DODGE e MATRIX DODGE - PRO ASSURDA (COMPLETATO).
+- Upgrade visivo del player in Matrix Dodge per renderlo cinematografico ed elegante (COMPLETATO).
+- Implementazione AUTO CINEMATOGRAFICA e AUTO CINEMATOGRAFICA - PRO ASSURDA (IN PROGRESS). 
+- Nessun uso di asset/immagini esterne.
+- **Divieto assoluto di usare il testing agent e, per l'ultimo task, l'utente ha esplicitamente vietato anche lo screenshot tool (No test agent no screenshot, mi fido di te)**. 
+
+**User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
+
+**what currently exists?** 
+L'hub centrale  supporta il routing per molteplici minigiochi via . Il backend in  gestisce le leaderboard, le statistiche, e le modalità Solo/VS/Contest per i giochi registrati. Matrix Dodge (base e pro) è stato implementato e integrato con successo. L'agente ha appena creato i 4 file vuoti/boilerplate per Auto Cinematografica ma deve ancora svilupparne la logica interna e collegarli al resto dell'app.
+
+**Last working item**: 
+    - Last item agent was working: Creazione del minigioco Auto Cinematografica (CineDrive). L'agente ha appena creato i file React/CSS/Engine per il gioco (Base e PRO) ma deve scriverne la logica visiva (prospettiva semi-top, auto neon, ostacoli cinematografici in discesa) e registrarli nel frontend e backend.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? NA (Per l'ultimo messaggio, l'utente ha esplicitato No test agent no screenshot, mi fido di te. Affidati alla correttezza del codice e, al limite, usa curl per verificare che le API backend non crashino).
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**: 
+  Issue 1: Bilanciamento vecchi Minigiochi e Bug (es. TapCiak) (P1)
+     - Attempted fixes: Nessuno. Rimandato su richiesta precedente dell'utente per dare priorità ai nuovi giochi.
+     - Next debug checklist: Controllare logica in  e bilanciare i reward in  / .
+     - Why fix this issue and what will be achieved with the fix? Stabilizza l'economia e la giocabilità dei primi giochi implementati.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on other issue: In attesa di completare i task di sviluppo dei nuovi minigiochi (CineDrive).
+
+**In progress Task List**: 
+  Task 1: Sviluppo e Integrazione AUTO CINEMATOGRAFICA (Base e PRO) (P0)
+     - Where to resume: I file in  (, , , ) sono stati creati alla fine della sessione. Devono essere implementati rispettando le specifiche (prospettiva semi-top, ostacoli a tema cinema, bonus, auto neon) e poi integrati in  (export),  (UI/icone) e  (array  e config).
+     - What will be achieved with this? Un nuovo minigioco arcade di alta qualità completamente in codice.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Backend manuale (NO SCREENSHOT, NO TESTING AGENT richiesto dall'utente).
+     - Blocked on something: Nessun blocco.
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - (P2) Sfida della Settimana (Minigioco rotante con premi extra).
+    Future Tasks:
+    - (P3) Previsioni Festival.
+    - (P3) Marketplace TV/Anime rights.
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels.
+
+**Completed work in this session**
+- Sviluppo, styling (CSS/Canvas puro) e integrazione Matrix Dodge (DONE)
+- Sviluppo, styling e integrazione Matrix Dodge PRO ASSURDA con dash e bullet time manuale (DONE)
+- Upgrade visivo del player di Matrix Dodge (Neo) per una silhouette cinematografica più dettagliata (DONE)
+- Aggiornamento backend  e frontend  per l'inclusione dei nuovi giochi Matrix (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+   - Issue 1: L'array  in  deve essere formattato correttamente. Nella sessione precedente l'agente ha mancato una virgola o una parentesi causando un crash, subito risolto. Fai attenzione quando aggiungi CineDrive.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: SPA static files intercepting API routes (Risolto storicamente, ma da tenere a mente).
+  - Recurrence count: 1
+  - Status: RESOLVED
+
+**Code Architecture**
+- Frontend: React
+  - : Hub per i minigiochi.
+  - : File di re-export (barrel) per tutti i giochi.
+  - : Contiene la logica dei singoli minigiochi (, , ).
+- Backend: FastAPI
+  - : Gestisce validazione score, record, e creazione Sfide VS. Lista dei giochi registrati in .
+
+**Key Technical Concepts**
+- Rendering via Canvas/CSS: Tutti i nuovi minigiochi evitano asset esterni per favorire caricamenti istantanei. Si basano su file engine separati (es. ) per scorporare la logica canvas/game loop dai componenti React.
+
+**key DB schema**
+  - : , , .
+
+**changes in tech stack**
+  - Nessuno.
+
+**All files of reference** 
+  -  (Creato e aggiornato per Matrix)
+  -  (Creato e aggiornato)
+  -  (Creato e aggiornato)
+  -  (Creato)
+  -  (Appena creato, da implementare)
+  -  (Appena creato, da implementare)
+  -  (Appena creato, da implementare)
+  -  (Appena creato, da implementare)
+  -  (Da aggiornare con cineDrive)
+  -  (Da aggiornare con i nuovi export)
+  -  (Da aggiornare con icone/import cineDrive)
+  -  (Aggiornato)
+
+**Areas that need refactoring**: 
+  - Nessuna area critica attuale. Assicurati che il game loop del nuovo CineDrive sia performante su mobile usando  nel suo engine.
+
+**key api endpoints**
+  - 
+  - 
+
+**Critical Info for New Agent** 
+- **NO TEST AGENT E NO SCREENSHOT**: L'utente si fida del tuo codice e ha esplicitato: No test agent no screenshot, mi fido di te nell'ultimo prompt. Evita di sprecare token con il tool di screenshot per CineDrive, concentrati su una scrittura eccellente del codice e verifica il backend solo tramite  se strettamente necessario.
+- Implementa accuratamente la richiesta prospettica del minigioco (Auto in basso che punta verso l'alto, strada e ostacoli che scorrono dall'alto verso il basso) per dare un feeling di velocità corretto.
+- Ricorda di registrare cine_drive e cine_drive_pro nel file  nel backend altrimenti la submit score fallirà con un 404/Not Found interno.
+- **Rispondi sempre e solo in ITALIANO**.
+
+**documents and test reports created in this job** 
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ - (81) User richiede un nuovo minigioco AUTO CINEMATOGRAFICA (Base e PRO), stile neon/synthwave, vista semi-top (IN PROGRESS). Ordina di NON usare screenshot e test agent.
+ - (80..79) Agent finisce aggiornamento player Neo e aggiorna PRD (DONE).
+ - (78..68) User richiede upgrade visivo player di Matrix Dodge Neo con trail, mantello, glow (DONE).
+ - (67..56) Agent finisce creazione Matrix Dodge base e Pro, testa, e aggiorna PRD (DONE).
+ - (55..9) User fornisce requisiti completi per creare MATRIX DODGE da zero (DONE).
+
+**Project Health Check:**
+- Broken: Niente di grave, ma l'implementazione in progress di CineDrive deve essere scritta da zero partendo dai file vuoti.
+- Mocked: Test Lab Admin visuals.
+
+**3rd Party Integrations** 
+- Stripe (Payments) - Requires User API Key
+- Gemini Nano Banana (Generazione Logo/Poster) - Uses Emergent LLM Key
+
+**Testing status**
+  - Testing agent used after significant changes: NO (Proibito dall'utente)
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: []
+  - Known regressions: Nessuna.
+
+**Credentials to test flow:**
+  Utente:  /  (NeoMorpheus)
+
+**What agent forgot to execute**
+L'agente ha creato i file sorgente () ma ha esaurito il contesto prima di poterne scrivere l'effettivo codice di gioco (grafica su canvas/CSS, loop di spawn) e di agganciarli al  e al backend. Questa è la tua priorità immediata.</analysis>

@@ -31,7 +31,6 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 
 ### Refactor Eventi Scalabile (DONE - 2026-04-07)
 - Cooldown 6h per player, selezione film pesata
-- Scalabile: N eventi = f(N player)
 
 ### Data Integrity System (DONE - 2026-04-07)
 - Auto-scan all'avvio, API di recovery, UI fallback per film corrotti
@@ -39,11 +38,15 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 
 ### Sistema Contest Mini-giochi (DONE - 2026-04-07)
 - 11 step giornalieri con 5 mini-giochi: TapCiak, Memory, Timing, SpamClick, Quiz
-- Ricompense in crediti con cap giornaliero (MAX_DAILY_CREDITS = 20)
-- Reset giornaliero alle 09:00 UTC, cooldown 5min tra step
+- Ricompense in crediti (MAX_DAILY_CREDITS = 20), reset 09:00 UTC, cooldown 5min
 - Backend: `/api/contest/progress`, `/api/contest/complete-step`
-- Frontend: `/contest` route con componenti React interattivi
-- JWT auth, ottimizzato mobile
+- Frontend: `/contest` route
+
+### Test Lab System (DONE - 2026-04-07)
+- Sistema di test in-memory (no DB) per Admin Panel
+- 7 test simulati: Film Pipeline, Contest, Eventi (3 tipi), Arena, Major
+- Backend: `/api/admin/test/{type}` endpoints, `/api/admin/test/reports` storico
+- Frontend: Tab "Test Lab" in AdminPage con griglia bottoni, report JSON, storico, effetto blackout CSS
 
 ## Backlog Prioritizzato
 
@@ -58,11 +61,10 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 
 ## File Chiave
 - `/app/backend/models/contest.py` (Schema contest)
-- `/app/backend/routes/contest.py` (API contest: progress + complete-step)
-- `/app/frontend/src/pages/ContestPage.jsx` (11 step mini-giochi)
-- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure per-player)
-- `/app/backend/services/data_integrity.py` (Controlli base)
-- `/app/backend/services/film_transaction_service.py` (Operazioni DB sicure)
+- `/app/backend/routes/contest.py` (API contest)
+- `/app/frontend/src/pages/ContestPage.jsx` (Mini-giochi)
+- `/app/frontend/src/pages/AdminPage.jsx` (Admin + Test Lab)
+- `/app/backend/server.py` (Test Lab endpoints in fondo)
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

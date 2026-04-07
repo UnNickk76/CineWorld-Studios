@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -17,12 +17,98 @@ const ADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+  { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
 ];
 
 const COADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
 ];
+
+/* ─── Test Lab ─── */
+const TEST_BUTTONS = [
+  { label: 'Film Pipeline', url: '/admin/test/film' },
+  { label: 'Contest', url: '/admin/test/contest' },
+  { label: 'Evento Comune', url: '/admin/test/event/common' },
+  { label: 'Evento Epico', url: '/admin/test/event/epic' },
+  { label: 'Evento Leggendario', url: '/admin/test/event/legendary' },
+  { label: 'Arena', url: '/admin/test/arena' },
+  { label: 'Major', url: '/admin/test/major' },
+];
+
+function TestLabTab({ api }) {
+  const [report, setReport] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  const runTest = async (url) => {
+    setRunning(true);
+    try {
+      document.body.classList.add('test-blackout');
+      setTimeout(() => document.body.classList.remove('test-blackout'), 1200);
+      const res = await api.get(url);
+      setReport(res.data);
+      setHistory(prev => [res.data, ...prev].slice(0, 20));
+    } catch (e) {
+      toast.error('Test fallito');
+    } finally { setRunning(false); }
+  };
+
+  const loadHistory = async () => {
+    try {
+      const res = await api.get('/admin/test/reports');
+      setHistory(res.data.reverse().slice(0, 20));
+    } catch {}
+  };
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="testlab-tab">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <FlaskConical className="w-4 h-4 text-emerald-400" /> Test Lab
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          {TEST_BUTTONS.map(t => (
+            <Button key={t.url} size="sm" variant="outline"
+              className="text-xs border-gray-700 hover:bg-emerald-500/10 hover:border-emerald-500/40 h-9"
+              disabled={running} onClick={() => runTest(t.url)} data-testid={`test-btn-${t.label.replace(/\s/g, '-').toLowerCase()}`}>
+              {t.label}
+            </Button>
+          ))}
+          <Button size="sm" variant="outline" className="text-xs border-gray-700 hover:bg-cyan-500/10 h-9"
+            onClick={loadHistory} data-testid="test-btn-history">
+            Storico
+          </Button>
+        </div>
+        {report && (
+          <div className="bg-black/60 rounded-lg p-3 border border-emerald-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge className={`text-[9px] ${report.result === 'ok' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {report.result?.toUpperCase()}
+              </Badge>
+              <span className="text-[10px] text-gray-500">{report.type}</span>
+            </div>
+            <pre className="text-[10px] text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">{JSON.stringify(report, null, 2)}</pre>
+          </div>
+        )}
+        {history.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-500 font-semibold">Storico ({history.length})</p>
+            {history.slice(0, 5).map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px] py-1 border-b border-white/5">
+                <Badge className={`text-[8px] px-1 ${r.result === 'ok' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{r.result}</Badge>
+                <span className="text-gray-400">{r.type}</span>
+                <span className="text-gray-600 ml-auto">{r.steps?.length || 0} step</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 /* ─── Confirm Modal ─── */
 function ConfirmModal({ open, title, message, onConfirm, onCancel, loading }) {
@@ -1378,6 +1464,7 @@ export default function AdminPage() {
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
+        {activeTab === 'testlab' && isAdmin && <TestLabTab api={api} />}
       </div>
     </div>
   );

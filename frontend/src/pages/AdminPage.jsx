@@ -30,7 +30,7 @@ const COADMIN_TABS = [
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ReleaseCinematic } from '../components/ReleaseCinematic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame } from '../components/MiniGames';
+import { TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame, ShotPerfect, LightSetup, CastMatch, EditingCut, FollowCam, ChaosPremiere, ReelSnake } from '../components/MiniGames';
 import { Timer, Target, Brain, MousePointerClick } from 'lucide-react';
 
 const MOCK_EVENTS = {
@@ -212,6 +212,13 @@ function ContestSimOverlay({ onClose }) {
     { name: 'Stop Perfetto', Game: StopPerfetto },
     { name: 'Spam Click', Game: SpamClick },
     { name: 'Reaction', Game: ReactionGame },
+    { name: 'Shot Perfect', Game: ShotPerfect },
+    { name: 'Light Setup', Game: LightSetup },
+    { name: 'Cast Match', Game: CastMatch },
+    { name: 'Editing Cut', Game: EditingCut },
+    { name: 'Follow Cam', Game: FollowCam },
+    { name: 'Chaos Premiere', Game: ChaosPremiere },
+    { name: 'Reel Snake', Game: ReelSnake },
   ];
 
   const handleFinish = (score) => {

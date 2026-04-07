@@ -4,8 +4,12 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
-import { Trophy, Play, Lock, Check, MousePointerClick, Brain, Target, Zap, Timer } from 'lucide-react';
-import { TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame } from '../components/MiniGames';
+import { Trophy, Play, Lock, Check, MousePointerClick, Brain, Target, Zap, Timer, Camera, SlidersHorizontal, UserCheck, Scissors, Eye, Sparkles, Gamepad2 } from 'lucide-react';
+import {
+  TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame,
+  ShotPerfect, LightSetup, CastMatch, EditingCut, FollowCam,
+  ChaosPremiere, ReelSnake
+} from '../components/MiniGames';
 
 const STEPS = [
   { name: 'TapCiak', icon: MousePointerClick, Game: TapCiak },
@@ -13,6 +17,13 @@ const STEPS = [
   { name: 'Stop Perfetto', icon: Target, Game: StopPerfetto },
   { name: 'Spam Click', icon: Zap, Game: SpamClick },
   { name: 'Reaction', icon: Timer, Game: ReactionGame },
+  { name: 'Shot Perfect', icon: Camera, Game: ShotPerfect },
+  { name: 'Light Setup', icon: SlidersHorizontal, Game: LightSetup },
+  { name: 'Cast Match', icon: UserCheck, Game: CastMatch },
+  { name: 'Editing Cut', icon: Scissors, Game: EditingCut },
+  { name: 'Follow Cam', icon: Eye, Game: FollowCam },
+  { name: 'Chaos Premiere', icon: Sparkles, Game: ChaosPremiere, bonus: true },
+  { name: 'Reel Snake', icon: Gamepad2, Game: ReelSnake, bonus: true },
 ];
 
 export default function ContestPage() {
@@ -53,29 +64,24 @@ export default function ContestPage() {
     const stepIdx = Math.min(currentStep - 1, STEPS.length - 1);
     const { Game, name } = STEPS[stepIdx];
     return (
-      <div className="max-w-sm mx-auto px-3 pt-4 pb-32" data-testid="contest-playing">
-        <div className="flex items-center justify-between mb-4">
+      <div className="max-w-md mx-auto px-3 pt-4 pb-32" data-testid="contest-playing">
+        <div className="flex items-center justify-between mb-3">
           <p className="text-xs text-gray-400">Step {currentStep}/{STEPS.length} — {name}</p>
           <Button variant="ghost" size="sm" className="text-xs text-gray-500" onClick={() => setPlaying(false)}>Esci</Button>
         </div>
         <Card className="bg-[#1A1A1B] border-gray-800">
-          <CardContent className="p-4">
-            <Game onFinish={finishStep} />
-          </CardContent>
+          <CardContent className="p-3"><Game onFinish={finishStep} /></CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="max-w-sm mx-auto px-3 pt-2 pb-32 space-y-3" data-testid="contest-page">
+    <div className="max-w-md mx-auto px-3 pt-2 pb-32 space-y-2" data-testid="contest-page">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-yellow-400" /> Contest
-        </h2>
-        <p className="text-xs text-gray-500">Max 20 crediti/giorno</p>
+        <h2 className="text-lg font-bold flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-400" /> Contest</h2>
+        <p className="text-xs text-gray-500">Max 50 crediti/giorno</p>
       </div>
-
       <Progress value={completed ? 100 : ((currentStep - 1) / STEPS.length) * 100} className="h-1.5" />
 
       {STEPS.map((step, i) => {
@@ -85,32 +91,25 @@ export default function ContestPage() {
         const isCurrent = stepNum === currentStep && !completed;
         const isLocked = stepNum > currentStep || (isCurrent && locked);
         return (
-          <Card key={i} className={`bg-[#1A1A1B] border-gray-800 ${isLocked && !done ? 'opacity-40' : ''}`} data-testid={`step-card-${stepNum}`}>
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-green-500/20' : isCurrent && !locked ? 'bg-cyan-500/20' : 'bg-gray-800'}`}>
-                {done ? <Check className="w-5 h-5 text-green-400" /> : isLocked ? <Lock className="w-5 h-5 text-gray-600" /> : <Icon className="w-5 h-5 text-cyan-400" />}
+          <Card key={i} className={`bg-[#1A1A1B] border-gray-800 ${step.bonus ? 'border-yellow-500/20' : ''} ${isLocked && !done ? 'opacity-35' : ''}`} data-testid={`step-card-${stepNum}`}>
+            <CardContent className="p-2.5 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-green-500/20' : isCurrent && !locked ? (step.bonus ? 'bg-yellow-500/20' : 'bg-cyan-500/20') : 'bg-gray-800'}`}>
+                {done ? <Check className="w-4 h-4 text-green-400" /> : isLocked ? <Lock className="w-4 h-4 text-gray-600" /> : <Icon className={`w-4 h-4 ${step.bonus ? 'text-yellow-400' : 'text-cyan-400'}`} />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">{step.name}</p>
-                <p className="text-[10px] text-gray-500">
-                  {done ? 'Completato' : isCurrent && locked ? 'Sblocco tra poco...' : isCurrent ? 'Disponibile' : 'Bloccato'}
-                </p>
+                <p className="text-sm font-semibold">{step.bonus && <span className="text-yellow-400 text-[9px] mr-1">BONUS</span>}{step.name}</p>
+                <p className="text-[10px] text-gray-500">{done ? 'Completato' : isCurrent && locked ? 'Sblocco tra poco...' : isCurrent ? 'Disponibile' : 'Bloccato'}</p>
               </div>
               {isCurrent && !locked && (
-                <Button size="sm" className="bg-cyan-700 hover:bg-cyan-800 text-xs h-8 shrink-0" onClick={() => setPlaying(true)} data-testid={`play-step-${stepNum}`}>
-                  <Play className="w-3 h-3 mr-1" /> Gioca
-                </Button>
+                <Button size="sm" className={`${step.bonus ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-cyan-700 hover:bg-cyan-800'} text-xs h-7 shrink-0`}
+                  onClick={() => setPlaying(true)} data-testid={`play-step-${stepNum}`}><Play className="w-3 h-3 mr-1" /> Gioca</Button>
               )}
             </CardContent>
           </Card>
         );
       })}
 
-      {completed && (
-        <div className="text-center py-4 text-green-400 font-bold text-sm" data-testid="contest-all-done">
-          Tutti gli step completati! Torna domani.
-        </div>
-      )}
+      {completed && <div className="text-center py-4 text-green-400 font-bold text-sm" data-testid="contest-all-done">Tutti gli step completati! Torna domani.</div>}
     </div>
   );
 }

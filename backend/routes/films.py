@@ -13,6 +13,8 @@ from typing import List, Optional, Dict, Any
 
 from database import db
 from auth_utils import get_current_user
+from services.data_integrity import get_safe_film
+from services.film_transaction_service import create_film_atomic, update_film_stage_atomic, safe_get_film as safe_get_film_tx
 from game_systems import (
     calculate_imdb_rating, generate_ai_interactions,
     calculate_fame_change, get_level_from_xp, XP_REWARDS,
@@ -643,7 +645,7 @@ Write in Italian. Keep it under 200 words. Be dramatic and engaging."""
     imdb = film.get('imdb_rating', 0)
     film['is_masterpiece'] = (qs >= 85 and imdb >= 7.0)
 
-    await db.films.insert_one(film)
+    await create_film_atomic(db, user['id'], film)
 
     new_funds = user['funds'] - total_budget + sponsor_budget + film_data.ad_revenue
     await db.users.update_one(
@@ -699,9 +701,9 @@ async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dic
     if req.shooting_days < 1 or req.shooting_days > 10:
         raise HTTPException(status_code=400, detail="Giorni di riprese: da 1 a 10")
 
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
     if film.get('status') != 'pending_release':
         raise HTTPException(status_code=400, detail="Solo i film in attesa possono iniziare le riprese")
 
@@ -713,7 +715,7 @@ async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dic
 
     max_bonus = SHOOTING_BONUS_CURVE.get(req.shooting_days, 10)
     now = datetime.now(timezone.utc).isoformat()
-    await db.films.update_one({'id': film_id}, {'$set': {
+    stage_updates = {
         'status': 'shooting',
         'shooting_days': req.shooting_days,
         'shooting_days_completed': 0,
@@ -722,7 +724,8 @@ async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dic
         'shooting_bonus': 0,
         'shooting_max_bonus': max_bonus,
         'shooting_cost': shooting_cost
-    }})
+    }
+    await update_film_stage_atomic(db, film_id, user['id'], stage_updates)
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -shooting_cost}})
     return {
         'success': True,
@@ -766,9 +769,9 @@ async def get_shooting_films(user: dict = Depends(get_current_user)):
 @router.post("/films/{film_id}/end-shooting-early")
 async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user)):
     """End shooting early by paying CinePass."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
     if film.get('status') != 'shooting':
         raise HTTPException(status_code=400, detail="Il film non è in fase di riprese")
 
@@ -783,13 +786,14 @@ async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user
     new_quality = min(100, round(bonus_quality, 1))
     new_imdb = round(max(1.0, min(10.0, new_quality / 10)), 1)
 
-    await db.films.update_one({'id': film_id}, {'$set': {
+    stage_updates = {
         'status': 'ready_to_release',
         'quality_score': new_quality,
         'imdb_rating': new_imdb,
         'shooting_completed_at': datetime.now(timezone.utc).isoformat(),
         'shooting_ended_early': True
-    }})
+    }
+    await update_film_stage_atomic(db, film_id, user['id'], stage_updates)
     await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cinepass_cost}})
     return {
         'success': True,
@@ -832,9 +836,9 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     """Release a pending film to theaters with chosen distribution."""
     from server import DISTRIBUTION_ZONES, CONTINENTS, GENRES, sio, check_star_discovery, update_cast_after_film
 
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
 
     if film.get('status') in ('in_theaters', 'released', 'completed'):
         return {
@@ -920,7 +924,7 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
         release_update['quality_score'] = effective_quality
         release_update['imdb_rating'] = round(max(1.0, min(10.0, effective_quality / 10)), 1)
         release_update['direct_release'] = True
-    await db.films.update_one({'id': film_id}, {'$set': release_update})
+    await update_film_stage_atomic(db, film_id, user['id'], release_update)
 
     quality_score = film.get('quality_score', 50)
     xp_gained = XP_REWARDS.get('film_release', 100)

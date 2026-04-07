@@ -96,7 +96,26 @@ function CardMiniStepBar({ film }) {
   );
 }
 
-export function FilmProductionCard({ film, onClick, countdown }) {
+export function FilmProductionCard({ film, onClick, countdown, onRecover }) {
+  // Film corrotto: manca title o status
+  if (!film.title || !film.status) {
+    return (
+      <div className="w-full p-3 rounded-xl border border-red-500/30 bg-red-500/5" data-testid={`film-card-corrupt-${film.id}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-red-400">Film corrotto</p>
+            <p className="text-[10px] text-gray-500">ID: {film.id?.slice(0, 8)}...</p>
+          </div>
+          {onRecover && (
+            <button onClick={() => onRecover(film.id)} className="px-2 py-1 text-[10px] font-bold bg-red-500/20 text-red-400 rounded border border-red-500/30 hover:bg-red-500/30">
+              Recupera
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const posterSrc = film.poster_url
     ? (film.poster_url.startsWith('/') ? `${API_URL}${film.poster_url}` : film.poster_url)
     : null;

@@ -22,6 +22,8 @@ ARCADE_GAMES = [
     {"id": "follow_cam", "name": "Follow Cam", "desc": "Segui la stella!", "icon": "eye"},
     {"id": "chaos_premiere", "name": "Chaos Premiere", "desc": "Tappa tutto, evita le bombe!", "icon": "sparkles", "bonus": True},
     {"id": "reel_snake", "name": "Reel Snake", "desc": "Snake cinematografico!", "icon": "gamepad", "bonus": True},
+    {"id": "matrix_dodge", "name": "Matrix Dodge", "desc": "Schiva i proiettili stile Matrix!", "icon": "binary", "bonus": True},
+    {"id": "matrix_dodge_pro", "name": "Matrix Dodge PRO", "desc": "PRO ASSURDA: dash, eventi, elite wave!", "icon": "binary", "bonus": True},
 ]
 
 GAME_IDS = {g["id"] for g in ARCADE_GAMES}
@@ -40,6 +42,8 @@ GAME_TITLES = {
     "follow_cam":      {"title": "Operatore Stellare",  "threshold": 60},
     "chaos_premiere":  {"title": "Caos Controllato",    "threshold": 25},
     "reel_snake":      {"title": "Serpente d'Argento",  "threshold": 20},
+    "matrix_dodge":    {"title": "Neo Digitale",       "threshold": 300},
+    "matrix_dodge_pro":{"title": "THE ONE",            "threshold": 500},
 }
 
 # Streak milestones

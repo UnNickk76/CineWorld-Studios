@@ -4,11 +4,11 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
-import { Trophy, Play, Lock, Check, MousePointerClick, Brain, Target, Zap, Timer, Camera, SlidersHorizontal, UserCheck, Scissors, Eye, Sparkles, Gamepad2 } from 'lucide-react';
+import { Trophy, Play, Lock, Check, MousePointerClick, Brain, Target, Zap, Timer, Camera, SlidersHorizontal, UserCheck, Scissors, Eye, Sparkles, Gamepad2, Binary } from 'lucide-react';
 import {
   TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame,
   ShotPerfect, LightSetup, CastMatch, EditingCut, FollowCam,
-  ChaosPremiere, ReelSnake
+  ChaosPremiere, ReelSnake, MatrixDodge, MatrixDodgePro
 } from '../components/MiniGames';
 
 const STEPS = [
@@ -24,6 +24,8 @@ const STEPS = [
   { name: 'Follow Cam', icon: Eye, Game: FollowCam },
   { name: 'Chaos Premiere', icon: Sparkles, Game: ChaosPremiere, bonus: true },
   { name: 'Reel Snake', icon: Gamepad2, Game: ReelSnake, bonus: true },
+  { name: 'Matrix Dodge', icon: Binary, Game: MatrixDodge, bonus: true },
+  { name: 'Matrix Dodge PRO', icon: Binary, Game: MatrixDodgePro, bonus: true },
 ];
 
 export default function ContestPage() {

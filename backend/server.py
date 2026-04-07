@@ -9858,6 +9858,8 @@ app.include_router(la_prima_router, prefix="/api")
 app.include_router(deletion_router, prefix="/api")
 from routes.recovery import router as recovery_router
 app.include_router(recovery_router)
+from routes.contest import router as contest_router
+app.include_router(contest_router, prefix="/api")
 app.include_router(maintenance_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================

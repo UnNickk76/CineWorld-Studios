@@ -79,6 +79,7 @@ const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'));
 const MajorPage = React.lazy(() => import('./pages/MajorPage'));
 const MarketplacePage = React.lazy(() => import('./pages/MarketplacePage'));
 const ContestsPage = React.lazy(() => import('./pages/ContestsPage'));
+const ContestPage = React.lazy(() => import('./pages/ContestPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
 import TutorialModal from './components/TutorialModal';
@@ -2481,6 +2482,7 @@ function App() {
                 <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
                 <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
                 <Route path="/games" element={<ProtectedRoute><ContestsPage /></ProtectedRoute>} />
+                <Route path="/contest" element={<ProtectedRoute><ContestPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><ChallengesPage /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />

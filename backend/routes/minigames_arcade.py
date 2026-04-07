@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
 import uuid
+import random
 from database import db
 from auth_utils import get_current_user
 from pydantic import BaseModel
@@ -25,6 +26,28 @@ ARCADE_GAMES = [
 
 GAME_IDS = {g["id"] for g in ARCADE_GAMES}
 
+# Titoli per gioco — assegnati quando best_score >= soglia
+GAME_TITLES = {
+    "tap_ciak":        {"title": "Maestro del Ciak",    "threshold": 15},
+    "memory_pro":      {"title": "Mente Cinematica",    "threshold": 10},
+    "stop_perfetto":   {"title": "Occhio di Falco",     "threshold": 80},
+    "spam_tap":        {"title": "Dita di Fuoco",       "threshold": 30},
+    "reaction":        {"title": "Riflessi da Stunt",   "threshold": 70},
+    "shot_perfect":    {"title": "Regista Preciso",     "threshold": 80},
+    "light_setup":     {"title": "Maestro delle Luci",  "threshold": 80},
+    "cast_match":      {"title": "Casting Director",    "threshold": 70},
+    "editing_cut":     {"title": "Montatore Leggendario","threshold": 80},
+    "follow_cam":      {"title": "Operatore Stellare",  "threshold": 60},
+    "chaos_premiere":  {"title": "Caos Controllato",    "threshold": 25},
+    "reel_snake":      {"title": "Serpente d'Argento",  "threshold": 20},
+}
+
+# Streak milestones
+STREAK_MILESTONES = {3: 5000, 5: 15000, 10: 50000}
+
+# Solo reward cooldown in hours per game
+SOLO_REWARD_COOLDOWN_HOURS = 4
+
 
 class SoloPlaySubmit(BaseModel):
     game_id: str
@@ -45,12 +68,28 @@ class ChatChallenge(BaseModel):
     game_id: str
 
 
-# ==================== SOLO MODE ====================
+class StatusUpdate(BaseModel):
+    status: str  # idle | playing | in_vs
+
+
+# ==================== STATUS ====================
+
+@router.post("/arcade/status")
+async def update_game_status(data: StatusUpdate, user: dict = Depends(get_current_user)):
+    allowed = {"idle", "playing", "in_vs"}
+    status = data.status if data.status in allowed else "idle"
+    await db.users.update_one({"id": user["id"]}, {"$set": {"game_status": status}})
+    return {"status": status}
+
+
+# ==================== GAMES LIST ====================
 
 @router.get("/arcade/games")
 async def list_arcade_games():
     return ARCADE_GAMES
 
+
+# ==================== SOLO MODE ====================
 
 @router.post("/arcade/solo/submit")
 async def submit_solo_play(data: SoloPlaySubmit, user: dict = Depends(get_current_user)):
@@ -67,12 +106,60 @@ async def submit_solo_play(data: SoloPlaySubmit, user: dict = Depends(get_curren
         "played_at": now.isoformat(),
     }
     await db.arcade_solo_plays.insert_one(play)
+
+    # Check best score
     best = await db.arcade_solo_plays.find(
         {"user_id": user["id"], "game_id": data.game_id}
     ).sort("score", -1).limit(1).to_list(1)
     best_score = best[0]["score"] if best else score
     is_new_best = score >= best_score
-    return {"score": score, "best_score": best_score, "is_new_best": is_new_best}
+
+    # Solo reward with cooldown
+    reward = None
+    cooldown_doc = await db.arcade_solo_cooldowns.find_one(
+        {"user_id": user["id"], "game_id": data.game_id}, {"_id": 0}
+    )
+    cutoff = (now - timedelta(hours=SOLO_REWARD_COOLDOWN_HOURS)).isoformat()
+    can_reward = not cooldown_doc or cooldown_doc.get("last_reward_at", "") < cutoff
+
+    if can_reward:
+        hype = random.randint(1, 3)
+        xp = random.randint(5, 15)
+        funds = random.choice([0, 0, 0, 100, 200, 500])  # rare credits
+        reward = {"hype": hype, "xp": xp, "funds": funds}
+        inc = {"hype_points": hype, "xp": xp}
+        if funds > 0:
+            inc["funds"] = funds
+        await db.users.update_one({"id": user["id"]}, {"$inc": inc})
+        await db.arcade_solo_cooldowns.update_one(
+            {"user_id": user["id"], "game_id": data.game_id},
+            {"$set": {"last_reward_at": now.isoformat()}},
+            upsert=True,
+        )
+
+    # Check for new title
+    new_title = None
+    gt = GAME_TITLES.get(data.game_id)
+    if gt and best_score >= gt["threshold"]:
+        existing = await db.arcade_titles.find_one(
+            {"user_id": user["id"], "game_id": data.game_id}, {"_id": 0}
+        )
+        if not existing:
+            await db.arcade_titles.insert_one({
+                "user_id": user["id"],
+                "game_id": data.game_id,
+                "title": gt["title"],
+                "earned_at": now.isoformat(),
+            })
+            new_title = gt["title"]
+
+    return {
+        "score": score,
+        "best_score": best_score,
+        "is_new_best": is_new_best,
+        "reward": reward,
+        "new_title": new_title,
+    }
 
 
 @router.get("/arcade/solo/stats")
@@ -87,17 +174,102 @@ async def get_solo_stats(user: dict = Depends(get_current_user)):
             "last_played": {"$max": "$played_at"},
         }}
     ]
-    cursor = db.arcade_solo_plays.aggregate(pipeline)
     stats = {}
-    async for doc in cursor:
+    async for doc in db.arcade_solo_plays.aggregate(pipeline):
         stats[doc["_id"]] = {
             "best": doc["best"],
             "avg": round(doc["avg"], 1),
             "plays": doc["plays"],
             "last_played": doc["last_played"],
         }
+    # Cooldowns
+    cooldowns = await db.arcade_solo_cooldowns.find(
+        {"user_id": user["id"]}, {"_id": 0}
+    ).to_list(20)
+    now = datetime.now(timezone.utc)
+    for cd in cooldowns:
+        gid = cd.get("game_id")
+        if gid in stats:
+            last = cd.get("last_reward_at", "")
+            cutoff = (now - timedelta(hours=SOLO_REWARD_COOLDOWN_HOURS)).isoformat()
+            stats[gid]["reward_ready"] = last < cutoff
+            stats[gid]["next_reward_at"] = (
+                datetime.fromisoformat(last) + timedelta(hours=SOLO_REWARD_COOLDOWN_HOURS)
+            ).isoformat() if last else None
     return stats
 
+
+# ==================== TITLES ====================
+
+@router.get("/arcade/titles")
+async def get_my_titles(user: dict = Depends(get_current_user)):
+    titles = await db.arcade_titles.find(
+        {"user_id": user["id"]}, {"_id": 0}
+    ).to_list(20)
+    return titles
+
+
+@router.get("/arcade/titles/{target_user_id}")
+async def get_user_titles(target_user_id: str):
+    titles = await db.arcade_titles.find(
+        {"user_id": target_user_id}, {"_id": 0}
+    ).to_list(20)
+    return titles
+
+
+# ==================== STREAK ====================
+
+@router.get("/arcade/streak")
+async def get_my_streak(user: dict = Depends(get_current_user)):
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "vs_streak": 1, "best_vs_streak": 1, "vs_wins": 1, "vs_losses": 1})
+    return {
+        "streak": u.get("vs_streak", 0),
+        "best_streak": u.get("best_vs_streak", 0),
+        "wins": u.get("vs_wins", 0),
+        "losses": u.get("vs_losses", 0),
+    }
+
+
+async def _process_vs_streak(winner_id: str, loser_id: str):
+    """Update streak counters after a VS match."""
+    if winner_id == "draw":
+        return None
+    # Winner: increment streak
+    winner = await db.users.find_one_and_update(
+        {"id": winner_id},
+        {"$inc": {"vs_streak": 1, "vs_wins": 1}},
+        return_document=True,
+        projection={"_id": 0, "vs_streak": 1, "best_vs_streak": 1, "nickname": 1},
+    )
+    new_streak = winner.get("vs_streak", 1)
+    best = winner.get("best_vs_streak", 0)
+    if new_streak > best:
+        await db.users.update_one({"id": winner_id}, {"$set": {"best_vs_streak": new_streak}})
+
+    # Streak milestone reward
+    milestone_reward = STREAK_MILESTONES.get(new_streak)
+    if milestone_reward:
+        await db.users.update_one({"id": winner_id}, {"$inc": {"funds": milestone_reward}})
+        await db.notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": winner_id,
+            "type": "streak_milestone",
+            "title": f"Streak x{new_streak}!",
+            "message": f"Hai raggiunto {new_streak} vittorie consecutive! +${milestone_reward:,} crediti bonus!",
+            "data": {"path": "/minigiochi"},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    # Loser: reset streak
+    await db.users.update_one(
+        {"id": loser_id},
+        {"$set": {"vs_streak": 0}, "$inc": {"vs_losses": 1}},
+    )
+    return {"streak": new_streak, "milestone_reward": milestone_reward}
+
+
+# ==================== LEADERBOARDS ====================
 
 @router.get("/arcade/leaderboard/{game_id}")
 async def get_game_leaderboard(game_id: str, period: str = "all"):
@@ -257,10 +429,14 @@ async def submit_opponent_score(challenge_id: str, data: ArcadeVsSubmit, user: d
     creator_score = vs["creator_score"] or 0
     if score > creator_score:
         winner_id = user["id"]
+        loser_id = vs["creator_id"]
     elif score < creator_score:
         winner_id = vs["creator_id"]
+        loser_id = user["id"]
     else:
         winner_id = "draw"
+        loser_id = None
+
     bet = vs.get("bet", 0)
     total_pot = bet * 2
     if winner_id == "draw":
@@ -273,12 +449,19 @@ async def submit_opponent_score(challenge_id: str, data: ArcadeVsSubmit, user: d
     else:
         if total_pot > 0:
             await db.users.update_one({"id": vs["creator_id"]}, {"$inc": {"funds": total_pot}})
+
+    # Process streak
+    streak_info = None
+    if loser_id:
+        streak_info = await _process_vs_streak(winner_id, loser_id)
+
     await db.arcade_vs.update_one({"id": challenge_id}, {"$set": {
         "opponent_score": score,
         "status": "completed",
         "winner_id": winner_id,
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }})
+
     await db.notifications.insert_one({
         "id": str(uuid.uuid4()),
         "user_id": vs["creator_id"],
@@ -291,6 +474,7 @@ async def submit_opponent_score(challenge_id: str, data: ArcadeVsSubmit, user: d
         "read": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
+
     return {
         "score": score,
         "creator_score": creator_score,
@@ -300,6 +484,7 @@ async def submit_opponent_score(challenge_id: str, data: ArcadeVsSubmit, user: d
         "bet": bet,
         "pot": total_pot,
         "status": "completed",
+        "streak": streak_info,
     }
 
 

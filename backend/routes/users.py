@@ -68,7 +68,7 @@ async def get_users_with_presence(user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     all_users_db = await db.users.find(
         {'id': {'$ne': user['id']}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'last_active': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'avatar_url': 1, 'production_house_name': 1, 'level': 1, 'last_active': 1, 'game_status': 1, 'vs_streak': 1}
     ).limit(200).to_list(200)
 
     result = []

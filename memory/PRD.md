@@ -12,59 +12,56 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 
 ### Core + Eventi + Infra + Arena + Guerra (DONE precedentemente)
 ### Data Integrity System (DONE)
+### Sistema Minigiochi v3 + Refactoring (DONE)
+### P1 Blocco Completo - MiniGamesPage + VS + Chat (DONE)
 
-### Sistema Minigiochi v3 (DONE)
-12 minigiochi in file separati (`/components/games/*Game.jsx`) con props `{ mode, onComplete(score) }`
+### P2 Blocco Completo (DONE - 2026-04-07)
 
-### Refactoring Minigiochi (DONE)
-- `MiniGames.jsx` puro re-export, zero duplicazione
+#### 1. Streak System
+- Tracciamento vittorie consecutive VS per ogni utente
+- Campi `vs_streak`, `best_vs_streak`, `vs_wins`, `vs_losses` su utente
+- Milestones: 3 vittorie (+$5,000), 5 vittorie (+$15,000), 10 vittorie (+$50,000)
+- Notifica in-app al raggiungimento del milestone
+- StreakBadge visuale (giallo/arancione/rosso in base al livello)
+- Banner streak in tab VS con record e W/L ratio
 
-### P1 Blocco Completo (DONE - 2026-04-07)
+#### 2. Titoli Player
+- 12 titoli unici legati ai giochi, sbloccati al raggiungimento di una soglia di punteggio
+- Titoli: Maestro del Ciak, Mente Cinematica, Occhio di Falco, Dita di Fuoco, Riflessi da Stunt, Regista Preciso, Maestro delle Luci, Casting Director, Montatore Leggendario, Operatore Stellare, Caos Controllato, Serpente d'Argento
+- Badge gialli nella sezione Stats e header pagina
+- Collection `arcade_titles`: { user_id, game_id, title, earned_at }
 
-#### 1. MiniGamesPage — Modalita Solo + Classifiche + Statistiche
-- Route `/minigiochi` con 4 tab: Solo, VS 1v1, Classifica, Stats
-- **Solo**: Griglia 12 giochi, click per giocare, salvataggio punteggio + best score
-- **Classifiche**: Per gioco (sempre/settimana) + Globale, top 50
-- **Stats**: Record, media, partite per ogni gioco
-- Backend: `/api/arcade/solo/submit`, `/api/arcade/solo/stats`, `/api/arcade/leaderboard/{game_id}`, `/api/arcade/leaderboard-global`
+#### 3. Status Online/In Partita
+- 3 stati: `idle` (online), `playing` (in gioco solo), `in_vs` (in VS 1v1)
+- Aggiornamento automatico all'ingresso/uscita da un minigioco
+- Visibile nella lista utenti della chat ("In gioco" cyan, "In VS 1v1" viola)
+- Campo `game_status` nella collection users, esposto nell'endpoint presence
 
-#### 2. VS 1v1 Minigiochi
-- Tab VS 1v1 con sub-tab: Lancia, Aperte, Storico
-- **Lancia**: Scegli gioco, gioca, punteggio registrato, sfida pubblicata
-- **Aperte**: Vedi sfide di altri, "Accetta" per giocare lo stesso gioco
-- **Storico**: Tutte le sfide con stato (Vittoria/Sconfitta/Pareggio/In attesa)
-- Sistema puntate con crediti (opzionale), pot winner-takes-all
-- Backend: `/api/arcade/vs/create`, `/api/arcade/vs/{id}/submit-creator`, `/api/arcade/vs/{id}/join`, `/api/arcade/vs/{id}/submit-opponent`, `/api/arcade/vs/pending`, `/api/arcade/vs/my`
-
-#### 3. Chat Integration Sfide Minigioco
-- Bottone "Sfida" nel profilo utente (UserProfileModal) nella chat
-- Bottone sfida (icona Gamepad2) nella lista utenti online
-- Game Picker Dialog: scegli quale minigioco lanciare
-- Messaggio tipo `minigame_challenge` nella chat con card speciale e bottone "Gioca"
-- Notifica push al destinatario
-- Backend: `/api/arcade/chat-challenge` (crea sfida + messaggio chat + notifica)
+#### 4. Reward Modalita Solo con Cooldown
+- Ogni partita solo assegna: +1-3 hype, +5-15 XP, rare volte crediti ($100-$500)
+- Cooldown 4 ore per gioco (collection `arcade_solo_cooldowns`)
+- Icona regalo verde (Gift) indica reward disponibile
+- "Reward in cooldown" mostrato nei risultati quando non disponibile
+- Risultato completo: score, best, reward, new_title
 
 ## File Chiave
-- `/app/frontend/src/components/games/*Game.jsx` (12 minigiochi separati)
+- `/app/frontend/src/components/games/*Game.jsx` (12 minigiochi)
 - `/app/frontend/src/components/MiniGames.jsx` (re-export)
-- `/app/frontend/src/pages/MiniGamesPage.jsx` (Solo + VS + Classifiche + Stats)
+- `/app/frontend/src/pages/MiniGamesPage.jsx` (Solo + VS + Classifiche + Stats + Streak + Titoli)
 - `/app/frontend/src/pages/ContestPage.jsx` (12 step contest)
-- `/app/frontend/src/pages/ChatPage.jsx` (Chat con sfide minigioco)
-- `/app/backend/routes/minigames_arcade.py` (Solo + VS + Chat Challenge API)
+- `/app/frontend/src/pages/ChatPage.jsx` (Chat con sfide + status gioco)
+- `/app/backend/routes/minigames_arcade.py` (Full API: Solo/VS/Chat/Streak/Titles/Status)
 - `/app/backend/routes/contest.py` (12 step contest)
+- `/app/backend/routes/users.py` (Presence con game_status)
 
-## DB Collections Nuove
+## DB Collections
 - `arcade_solo_plays`: { id, user_id, nickname, game_id, score, played_at }
-- `arcade_vs`: { id, game_id, game_name, bet, creator_id, creator_nickname, creator_score, opponent_id, opponent_nickname, opponent_score, status, winner_id, is_chat_challenge, created_at, expires_at, completed_at }
+- `arcade_solo_cooldowns`: { user_id, game_id, last_reward_at }
+- `arcade_vs`: { id, game_id, game_name, bet, creator_*, opponent_*, status, winner_id, ... }
+- `arcade_titles`: { user_id, game_id, title, earned_at }
+- `users` (campi aggiunti): game_status, vs_streak, best_vs_streak, vs_wins, vs_losses
 
 ## Backlog
-
-### P2 — Miglioramenti Minigiochi
-- [ ] Streak system (3/5/10 win = bonus/badge/reward)
-- [ ] Puntate con hype oltre a crediti
-- [ ] Status player (online/in partita/occupato)
-- [ ] Titoli player (Maestro del Ciak, Re dello Snake, etc)
-- [ ] Cooldown reward per modalita solo
 
 ### P3
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)

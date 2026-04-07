@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Star } from 'lucide-react';
 
-export function FollowCamGame({ onComplete }) {
+export function FollowCamGame({ mode = 'contest', onComplete }) {
   const [target, setTarget] = useState({ x: 50, y: 50 });
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(8);

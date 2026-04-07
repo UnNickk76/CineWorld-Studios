@@ -70,7 +70,7 @@ export default function ContestPage() {
           <Button variant="ghost" size="sm" className="text-xs text-gray-500" onClick={() => setPlaying(false)}>Esci</Button>
         </div>
         <Card className="bg-[#1A1A1B] border-gray-800">
-          <CardContent className="p-3"><Game onFinish={finishStep} /></CardContent>
+          <CardContent className="p-3"><Game mode="contest" onComplete={finishStep} /></CardContent>
         </Card>
       </div>
     );

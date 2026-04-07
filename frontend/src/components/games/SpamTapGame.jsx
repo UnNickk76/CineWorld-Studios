@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 
-export function SpamTapGame({ onComplete }) {
+export function SpamTapGame({ mode = 'contest', onComplete }) {
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(4);
   const [flash, setFlash] = useState(0);

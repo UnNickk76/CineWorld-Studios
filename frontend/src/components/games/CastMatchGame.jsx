@@ -10,7 +10,7 @@ const CAST_DATA = [
   { film: 'Forrest Gump', correct: 'Tom Hanks', wrong: ['Robin Williams', 'Jim Carrey', 'Steve Martin'] },
 ];
 
-export function CastMatchGame({ onComplete }) {
+export function CastMatchGame({ mode = 'contest', onComplete }) {
   const [qi, setQi] = useState(0);
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(15);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Scissors } from 'lucide-react';
 
-export function EditingCutGame({ onComplete }) {
+export function EditingCutGame({ mode = 'contest', onComplete }) {
   const [pos, setPos] = useState(0);
   const [cuts, setCuts] = useState([]);
   const [round, setRound] = useState(0);

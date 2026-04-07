@@ -15,7 +15,7 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 ### Data Integrity System (DONE)
 
 ### Sistema Minigiochi v3 (DONE - 2026-04-07)
-**12 minigiochi in `MiniGames.jsx` (file condiviso, zero duplicazioni):**
+**12 minigiochi in file separati (`/components/games/*Game.jsx`):**
 1. TapCiak — ciak cadenti fullscreen, spawn 1-5, velocita variabile
 2. Memory Pro — 40 carte (20 coppie) icone cinema Lucide, flip, combo bonus, 60s
 3. Stop Perfetto — barra velocissima (200px/s), zona verde 8%, stop immediato
@@ -29,16 +29,24 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 11. Chaos Premiere (BONUS) — tap caotico: ciak/stelle/ticket/bombe, shake, 10s
 12. Reel Snake (BONUS) — snake game, swipe, 30s, velocita crescente
 
+### Refactoring Minigiochi (DONE - 2026-04-07)
+- 12 componenti separati in `/components/games/*Game.jsx`
+- Ogni componente accetta `{ mode, onComplete(score) }`
+- Zero logica DB nei componenti, delegano al genitore
+- `MiniGames.jsx` e ora un puro file di re-export
+- `ContestPage.jsx` aggiornato per usare `onComplete`
+
 **Contest 12 step:**
 - Step 1-10: minigiochi, max 30 crediti (3/step)
 - Step 11-12: bonus, max 10 crediti ciascuno (10/step)
 - Totale: max 50 crediti/giorno
 - Backend: TOTAL_STEPS=12, cooldown 2min tra step
 
-**Test Lab:** Usa gli stessi componenti reali, zero duplicazioni
+**Test Lab:** Usa gli stessi componenti reali, zero duplicazioni (in pausa)
 
 ## File Chiave
-- `/app/frontend/src/components/MiniGames.jsx` (12 minigiochi condivisi)
+- `/app/frontend/src/components/games/*Game.jsx` (12 minigiochi separati)
+- `/app/frontend/src/components/MiniGames.jsx` (re-export centralizzato)
 - `/app/frontend/src/pages/ContestPage.jsx` (12 step contest)
 - `/app/frontend/src/pages/AdminPage.jsx` (Admin + TestLab)
 - `/app/backend/routes/contest.py` (12 step, reward differenziate)

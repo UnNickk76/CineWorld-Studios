@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Film, Star, Award, Bomb } from 'lucide-react';
 
-export function ChaosPremiereGame({ onComplete }) {
+export function ChaosPremiereGame({ mode = 'contest', onComplete }) {
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(10);
   const [items, setItems] = useState([]);

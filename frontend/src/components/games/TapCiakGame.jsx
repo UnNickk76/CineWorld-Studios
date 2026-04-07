@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Film } from 'lucide-react';
 
-export function TapCiakGame({ onComplete }) {
+export function TapCiakGame({ mode = 'contest', onComplete }) {
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(8);
   const [items, setItems] = useState([]);

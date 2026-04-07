@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 const GRID = 15;
 const CELL = 100 / GRID;
 
-export function ReelSnakeGame({ onComplete }) {
+export function ReelSnakeGame({ mode = 'contest', onComplete }) {
   const [snake, setSnake] = useState([{ x: 7, y: 7 }]);
   const [dir, setDir] = useState({ x: 1, y: 0 });
   const [food, setFood] = useState({ x: 10, y: 7, type: 'star' });

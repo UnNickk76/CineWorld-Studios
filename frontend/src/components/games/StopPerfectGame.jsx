@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/button';
 
-export function StopPerfectGame({ onComplete }) {
+export function StopPerfectGame({ mode = 'contest', onComplete }) {
   const [pos, setPos] = useState(0);
   const [stopped, setStopped] = useState(false);
   const [finalScore, setFinalScore] = useState(null);

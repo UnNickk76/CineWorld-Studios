@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Button } from '../ui/button';
 import { SlidersHorizontal } from 'lucide-react';
 
-export function LightSetupGame({ onComplete }) {
+export function LightSetupGame({ mode = 'contest', onComplete }) {
   const [target] = useState(() => 20 + Math.floor(Math.random() * 60));
   const [value, setValue] = useState(50);
   const [round, setRound] = useState(0);

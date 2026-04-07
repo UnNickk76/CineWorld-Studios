@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Timer, Target } from 'lucide-react';
 
-export function ReactionGame({ onComplete }) {
+export function ReactionGame({ mode = 'contest', onComplete }) {
   const [phase, setPhase] = useState('wait');
   const [startTime, setStartTime] = useState(0);
   const [reactions, setReactions] = useState([]);

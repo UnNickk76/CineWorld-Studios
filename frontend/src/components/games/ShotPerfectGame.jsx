@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Crosshair } from 'lucide-react';
 
-export function ShotPerfectGame({ onComplete }) {
+export function ShotPerfectGame({ mode = 'contest', onComplete }) {
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const [shots, setShots] = useState([]);
   const [round, setRound] = useState(0);

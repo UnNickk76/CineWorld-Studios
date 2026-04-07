@@ -3373,7 +3373,7 @@ const FilmPipeline = () => {
   const loadFilms = useCallback(async () => {
     try {
       const data = pipelineData || (await api.get('/film-pipeline/all')).data;
-      const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released'].includes(p.status) && !p.film_id);
+      const safe = (data.projects || []).filter(p => p && p.id && p.title && !['completed', 'released', 'quarantined'].includes(p.status) && !p.film_id && !p.is_corrupted);
       setFilms(safe);
       try {
         const rescueRes = await api.post('/film-pipeline/rescue-lost-films');

@@ -7005,6 +7005,14 @@ async def startup_event():
     except Exception as e:
         logging.warning(f"[CLEANUP] Errore pulizia film: {e}")
 
+    # Film integrity scan
+    try:
+        from services.film_integrity_scan import scan_and_repair_films
+        scan_result = await scan_and_repair_films(db)
+        logging.info(f"[FILM INTEGRITY] repaired={scan_result['repaired']} quarantined={scan_result['quarantined']}")
+    except Exception as e:
+        logging.warning(f"[FILM INTEGRITY] Errore scan: {e}")
+
     # Log quale DB è connesso
     mongo_url = os.environ.get("MONGO_URL", "")
     is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url

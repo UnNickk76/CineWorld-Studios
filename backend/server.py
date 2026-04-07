@@ -10186,6 +10186,6 @@ def test_major():
         errors.append(str(e))
         return _create_test_report("major", "error", steps, errors)
 
-@app.get("/api/admin/test/reports")
+@api_router.get("/admin/test/reports")
 def get_test_reports():
     return _test_reports_memory

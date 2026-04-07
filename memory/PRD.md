@@ -11,28 +11,35 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 ## Funzionalita Completate
 
 ### Core (DONE precedentemente)
-- La Prima, Content Template, Cinema Journal ULTRA, Guest + Tutorial
-- DB Bloat Fix, Pulizia server.py, Soft Expansion Major
-- Timing Cinematici, Serie TV/Anime nel Auto-Tick
-- Throttling Coda, Anti-Spam Notifiche, Major con navbar interna
+- La Prima, Content Template, Cinema Journal, Guest + Tutorial, DB fixes, Major, Timing Cinematici
 
-### Sistema Eventi (DONE)
-- event_pressure per utente, trigger sigmoide, rarita per pressione
-- 5 tab, bottone "Rivedi Evento"
+### Sistema Eventi + Infrastrutture + Arena + Guerra (DONE)
+- event_pressure, trigger sigmoide, Arena Mirata, Major Warfare, Infra Detail
 
-### FASE 1 & 2 (DONE)
-- Infrastrutture, Arena Mirata, Major Warfare, Data Integrity
+### Data Integrity System (DONE)
+- Auto-scan, API recovery, transazioni atomiche film
 
-### Sistema Contest Mini-giochi (DONE - 2026-04-07)
-- 11 step, 5 mini-giochi, cap 20 crediti, reset 09:00 UTC
+### Sistema Contest Mini-giochi v2 (DONE - 2026-04-07)
+- **MiniGames.jsx condiviso**: TapCiak (ciak cadenti, spawn random), MemoryPro (40 carte, 20 coppie, combo bonus, 45s timer), StopPerfetto (barra velocissima, zona verde piccola, stop immediato), SpamClick (4s, feedback animato), ReactionGame (NUOVO — tempo reazione, 3 round)
+- **ContestPage.jsx**: 5 step con mini-giochi reali, punteggio cumulativo, reward
+- **Backend**: TOTAL_STEPS=5, cooldown 3min
+- Zero codice duplicato
 
-### Test Lab Sandbox Visiva (DONE - 2026-04-07)
-- Tab Admin con 7 simulazioni visive (Film Pipeline, Contest, 3 Eventi, Arena, Major)
-- Usa componenti reali: VelionCinematicEvent, ReleaseCinematic, MatrixOverlay
-- Nessun JSON/output tecnico, tutto visuale come nel gioco reale
-- Storico con timeline leggibile e replay cliccabile
-- Zero impatto DB, sandbox locale pura
-- Backend endpoints mantenuti per future integrazioni
+### Test Lab Sandbox Visiva v2 (DONE - 2026-04-07)
+- Usa mini-giochi REALI da MiniGames.jsx (non duplicati/mock)
+- Film Pipeline INTERATTIVA (4 step con scelte: sceneggiatura, hype, location, rilascio)
+- Arena MANUALE (3 azioni: supporta, boicotta, contromossa)
+- Major MANUALE (3 azioni: sfida, recluta, investi)
+- Eventi usano VelionCinematicEvent reale con mock data
+- Storico leggibile con replay cliccabile
+- Fix useRef import
+- Zero DB, zero JSON, mobile-first
+
+## File Chiave
+- `/app/frontend/src/components/MiniGames.jsx` (6 mini-giochi condivisi)
+- `/app/frontend/src/pages/ContestPage.jsx` (5 step con mini-giochi)
+- `/app/frontend/src/pages/AdminPage.jsx` (Admin + TestLab)
+- `/app/backend/routes/contest.py` (TOTAL_STEPS=5)
 
 ## Backlog
 

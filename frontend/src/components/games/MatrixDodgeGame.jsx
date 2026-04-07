@@ -157,11 +157,15 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
 
     uiIvRef.current = setInterval(() => {
       const gg = gRef.current; if (!gg) return;
+      const vel = gg.player.x - (gg._prevUiX ?? gg.player.x);
+      gg._prevUiX = gg.player.x;
+      const dir = vel < -1.5 ? 'left' : vel > 1.5 ? 'right' : 'idle';
       setUi({
         score: calcScore(gg), combo: gg.combo, hp: gg.hp,
         btBar: gg.btBar, btActive: gg.btActive,
         time: gg.mode === 'contest' ? Math.ceil(gg.contestTime) : Math.floor(gg.surviveTime),
         nm: gg.nearMisses, phase: gg.running ? 'playing' : 'over',
+        playerX: gg.player.x + PW / 2, direction: dir,
       });
     }, 100);
 
@@ -171,33 +175,53 @@ export function MatrixDodgeGame({ mode = 'contest', onComplete }) {
   return (
     <div ref={contRef} className={`md-container ${shake ? 'md-shake' : ''}`} style={{ height: 360 }} data-testid="minigame-matrix-dodge">
       <canvas ref={canvasRef} className="md-canvas" />
-      {/* Neo PNG overlay */}
-      <img
-        src={
-          ui.direction === 'left'
-            ? '/assets/matrix/neo_sx.png'
-            : ui.direction === 'right'
-            ? '/assets/matrix/neo_dx.png'
-            : '/assets/matrix/neo_idle.png'
-        }
-        alt=""
+      {/* Neo PNG overlay — inside game container */}
+      <div
         style={{
           position: 'absolute',
           left: ui.playerX,
-          bottom: 40,
-          transform:
-            ui.direction === 'left'
-              ? 'translateX(-50%) rotate(-8deg)'
-              : ui.direction === 'right'
-              ? 'translateX(-50%) rotate(8deg)'
-              : 'translateX(-50%)',
-          width: 70,
+          bottom: 38,
+          width: 72,
+          height: 72,
+          transform: 'translateX(-50%)',
           pointerEvents: 'none',
-          zIndex: 10,
-          opacity: ui.phase === 'over' ? 0.3 : 1,
-          transition: 'opacity 0.3s',
+          zIndex: 999,
         }}
-      />
+      >
+        <img
+          src={
+            ui.direction === 'left'
+              ? '/assets/matrix/neo_sx.png'
+              : ui.direction === 'right'
+              ? '/assets/matrix/neo_dx.png'
+              : '/assets/matrix/neo_idle.png'
+          }
+          alt="Neo"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 0,
+            width: 72,
+            height: 72,
+            objectFit: 'contain',
+            transform:
+              ui.direction === 'left'
+                ? 'translateX(-50%) rotate(-6deg)'
+                : ui.direction === 'right'
+                ? 'translateX(-50%) rotate(6deg)'
+                : 'translateX(-50%)',
+            pointerEvents: 'none',
+            zIndex: 1000,
+            filter: 'drop-shadow(0 0 10px #00ff66) drop-shadow(0 0 18px #00ff66)',
+            opacity: ui.phase === 'over' ? 0.3 : 1,
+            transition: 'opacity 0.3s',
+          }}
+          onError={(e) => {
+            console.error('Neo image missing:', e.currentTarget.src);
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      </div>
       <div className="md-ui-top">
         <div className="flex justify-between items-start">
           <div>

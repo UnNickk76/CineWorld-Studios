@@ -10064,18 +10064,6 @@ if not os.path.exists("uploads"):
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
 app.mount("/api/posters", StaticFiles(directory="/app/backend/assets/posters"), name="posters")
-if _build_dir:
-    app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="frontend_static")
-
-    from fastapi.responses import FileResponse
-
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """Serve React SPA - catch all non-API routes."""
-        file_path = os.path.join(_build_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(_build_dir, "index.html"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -10186,6 +10174,21 @@ def test_major():
         errors.append(str(e))
         return _create_test_report("major", "error", steps, errors)
 
-@api_router.get("/admin/test/reports")
+@app.get("/api/admin/test/reports")
 def get_test_reports():
     return _test_reports_memory
+
+
+# =========================
+# SPA CATCH-ALL (DEVE STARE IN FONDO)
+# =========================
+if _build_dir:
+    app.mount("/static", StaticFiles(directory=os.path.join(_build_dir, "static")), name="frontend_static")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve React SPA - catch all non-API routes."""
+        file_path = os.path.join(_build_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_build_dir, "index.html"))

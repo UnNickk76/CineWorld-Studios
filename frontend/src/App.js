@@ -717,7 +717,7 @@ const TopNavbar = () => {
     { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Trophy, label: 'cineboard' },
     { path: '/games', icon: Trophy, label: 'contests' },
-    { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi' : 'Minigames' },
+    { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
     { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
     { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
@@ -939,16 +939,16 @@ const TopNavbar = () => {
             )}
           </Button>
           
-          {/* Challenges/Sfide - Always visible */}
+          {/* Minigiochi - Always visible */}
           <Button
             variant="ghost"
             size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/challenges' ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'}`}
-            onClick={() => navigate('/challenges')}
+            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/minigiochi' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            onClick={() => navigate('/minigiochi')}
             data-testid="challenges-nav-btn"
-            title="Sfide"
+            title="Minigiochi + Sfide"
           >
-            <Swords className="w-4 h-4" />
+            <Gamepad2 className="w-4 h-4" />
           </Button>
 
           
@@ -1445,9 +1445,9 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} onMouseEnter={() => handleNavHover('/pvp-arena')} data-testid="bottom-nav-arena">
-          <Target className="w-4 h-4" />
-          <span className="text-[8px]">Arena</span>
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/minigiochi' ? 'text-cyan-400' : 'text-gray-500'}`} onClick={() => navigate('/minigiochi')} onMouseEnter={() => handleNavHover('/minigiochi')} data-testid="bottom-nav-arena">
+          <Gamepad2 className="w-4 h-4" />
+          <span className="text-[8px]">Giochi</span>
         </button>
         <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
           <Bell className="w-4 h-4" />
@@ -1562,7 +1562,7 @@ const TopNavbar = () => {
                     <Button 
                       size="sm"
                       className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-2 text-[10px] font-bold"
-                      onClick={() => { setShowOnlineUsersPanel(false); setSelectedUserProfile(null); navigate('/challenges'); }}
+                      onClick={() => { setShowOnlineUsersPanel(false); setSelectedUserProfile(null); navigate('/minigiochi'); }}
                       data-testid="profile-challenge-btn"
                     >
                       <Swords className="w-3 h-3 mr-1" /> 1v1
@@ -1826,7 +1826,7 @@ const TopNavbar = () => {
                 <Button 
                   size="sm"
                   className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-3 text-[10px] font-bold"
-                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/challenges'); }}
+                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/minigiochi'); }}
                   data-testid="global-challenge-btn"
                 >
                   <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida 1v1' : '1v1 Challenge'}
@@ -2486,7 +2486,7 @@ function App() {
                 <Route path="/games" element={<ProtectedRoute><ContestsPage /></ProtectedRoute>} />
                 <Route path="/contest" element={<ProtectedRoute><ContestPage /></ProtectedRoute>} />
                 <Route path="/minigiochi" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
-                <Route path="/challenges" element={<ProtectedRoute><ChallengesPage /></ProtectedRoute>} />
+                <Route path="/challenges" element={<ProtectedRoute><Navigate to="/minigiochi" replace /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                 <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -2505,7 +2505,7 @@ function App() {
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
                 <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
-                <Route path="/pvp-arena" element={<ProtectedRoute><PvPArenaPage /></ProtectedRoute>} />
+                <Route path="/pvp-arena" element={<ProtectedRoute><Navigate to="/minigiochi" replace /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
                 <Route path="/event-history" element={<ProtectedRoute><EventHistoryPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />

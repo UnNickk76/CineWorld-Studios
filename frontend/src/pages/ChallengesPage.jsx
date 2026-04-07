@@ -49,7 +49,7 @@ import { PlayerBadge } from '../components/PlayerBadge';
 
 // useTranslations imported from contexts
 
-const ChallengesPage = () => {
+const ChallengesPage = ({ embedded = false }) => {
   const { user, api, refreshUser, updateUser } = useContext(AuthContext);
   const { language } = useTranslations();
   const navigate = useNavigate();
@@ -487,7 +487,7 @@ const ChallengesPage = () => {
   // HOME VIEW - Challenge Type Selection
   if (view === 'home') {
     return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto" data-testid="challenges-page">
+      <div className={`${embedded ? 'pb-4 px-1' : 'pt-16 pb-20 px-3'} max-w-4xl mx-auto`} data-testid="challenges-page">
         {/* Tutorial Modal */}
         <Dialog open={showTutorial} onOpenChange={setShowTutorial}>
           <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden bg-[#1A1A1A] border-pink-500/30">
@@ -1092,7 +1092,7 @@ const ChallengesPage = () => {
     // Sub-view: choose mode (after selecting 3 films and pressing LANCIA)
     if (challengeMode === 'choose') {
       return (
-        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <div className={`${embedded ? "pb-4 px-1" : "pt-16 pb-20 px-3"} max-w-4xl mx-auto`}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Button variant="ghost" size="sm" onClick={() => setChallengeMode(null)} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
@@ -1161,7 +1161,7 @@ const ChallengesPage = () => {
     // Sub-view: Offline player selection
     if (challengeMode === 'offline') {
       return (
-        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <div className={`${embedded ? "pb-4 px-1" : "pt-16 pb-20 px-3"} max-w-4xl mx-auto`}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Button variant="ghost" size="sm" onClick={() => setChallengeMode('choose')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
@@ -1217,7 +1217,7 @@ const ChallengesPage = () => {
     // Sub-view: Online player selection
     if (challengeMode === 'online') {
       return (
-        <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+        <div className={`${embedded ? "pb-4 px-1" : "pt-16 pb-20 px-3"} max-w-4xl mx-auto`}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Button variant="ghost" size="sm" onClick={() => setChallengeMode('choose')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
@@ -1286,7 +1286,7 @@ const ChallengesPage = () => {
 
     // Main create view: Film Selection
     return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+      <div className={`${embedded ? "pb-4 px-1" : "pt-16 pb-20 px-3"} max-w-4xl mx-auto`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Button variant="ghost" size="sm" onClick={() => { setView('home'); setJoiningChallengeId(null); }} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>
@@ -1883,7 +1883,7 @@ const ChallengesPage = () => {
   // LEADERBOARD VIEW
   if (view === 'leaderboard') {
     return (
-      <div className="pt-16 pb-20 px-3 max-w-4xl mx-auto">
+      <div className={`${embedded ? "pb-4 px-1" : "pt-16 pb-20 px-3"} max-w-4xl mx-auto`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Button variant="ghost" size="sm" onClick={() => setView('home')} className="p-1"><ArrowLeft className="w-5 h-5" /></Button>

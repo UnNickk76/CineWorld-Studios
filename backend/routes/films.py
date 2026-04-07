@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any
 
 from database import db
 from auth_utils import get_current_user
+from services.data_integrity import get_safe_film
 from game_systems import (
     calculate_imdb_rating, generate_ai_interactions,
     calculate_fame_change, get_level_from_xp, XP_REWARDS,
@@ -699,9 +700,9 @@ async def start_film_shooting(film_id: str, req: StartShootingRequest, user: dic
     if req.shooting_days < 1 or req.shooting_days > 10:
         raise HTTPException(status_code=400, detail="Giorni di riprese: da 1 a 10")
 
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
     if film.get('status') != 'pending_release':
         raise HTTPException(status_code=400, detail="Solo i film in attesa possono iniziare le riprese")
 
@@ -766,9 +767,9 @@ async def get_shooting_films(user: dict = Depends(get_current_user)):
 @router.post("/films/{film_id}/end-shooting-early")
 async def end_shooting_early(film_id: str, user: dict = Depends(get_current_user)):
     """End shooting early by paying CinePass."""
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
     if film.get('status') != 'shooting':
         raise HTTPException(status_code=400, detail="Il film non è in fase di riprese")
 
@@ -832,9 +833,9 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     """Release a pending film to theaters with chosen distribution."""
     from server import DISTRIBUTION_ZONES, CONTINENTS, GENRES, sio, check_star_discovery, update_cast_after_film
 
-    film = await db.films.find_one({'id': film_id, 'user_id': user['id']}, {'_id': 0})
+    film = await get_safe_film(db, film_id, user_id=user['id'])
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Film non valido o corrotto")
 
     if film.get('status') in ('in_theaters', 'released', 'completed'):
         return {

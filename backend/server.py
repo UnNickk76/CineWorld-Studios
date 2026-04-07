@@ -6996,6 +6996,15 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
+    # Cleanup film corrotti
+    try:
+        from services.data_integrity import clean_invalid_films
+        deleted = await clean_invalid_films(db)
+        if deleted > 0:
+            logging.info(f"[CLEANUP] Rimossi {deleted} film corrotti")
+    except Exception as e:
+        logging.warning(f"[CLEANUP] Errore pulizia film: {e}")
+
     # Log quale DB è connesso
     mongo_url = os.environ.get("MONGO_URL", "")
     is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
@@ -9839,6 +9848,8 @@ app.include_router(emerging_screenplays_router, prefix="/api")
 app.include_router(sponsors_router, prefix="/api")
 app.include_router(la_prima_router, prefix="/api")
 app.include_router(deletion_router, prefix="/api")
+from routes.recovery import router as recovery_router
+app.include_router(recovery_router)
 app.include_router(maintenance_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================

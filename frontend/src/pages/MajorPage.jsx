@@ -1,7 +1,7 @@
 // CineWorld Studio's - MajorPage
 // Extracted from App.js for modularity
 
-import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext, LanguageContext } from '../contexts';
 import { Button } from '../components/ui/button';
@@ -75,9 +75,7 @@ const MajorPage = () => {
   const [striking, setStriking] = useState(false);
   const [strikeResult, setStrikeResult] = useState(null);
 
-  // Section refs
-  const sectionRefs = useRef({});
-  const navRef = useRef(null);
+  // Section refs removed — using tab-based rendering
 
   const t = (key) => {
     const translations = {
@@ -140,33 +138,7 @@ const MajorPage = () => {
     api.get('/major/war/active').then(r => setActiveWar(r.data)).catch(() => {});
   }, [majorData?.has_major]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // IntersectionObserver for scroll-spy
-  useEffect(() => {
-    if (!majorData?.has_major) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        }
-      },
-      { rootMargin: '-80px 0px -60% 0px', threshold: 0.1 }
-    );
-    const refs = sectionRefs.current;
-    Object.values(refs).forEach((el) => { if (el) observer.observe(el); });
-    return () => observer.disconnect();
-  }, [majorData?.has_major, majorData?.my_role]);
-
-  const scrollToSection = useCallback((sectionId) => {
-    const el = sectionRefs.current[sectionId];
-    if (el) {
-      const navHeight = navRef.current?.offsetHeight || 48;
-      const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 60;
-      window.scrollTo({ top, behavior: 'smooth' });
-      setActiveSection(sectionId);
-    }
-  }, []);
+  // Tab-based navigation — no scroll spy
 
   const reloadMajorData = async () => {
     try {
@@ -303,7 +275,6 @@ const MajorPage = () => {
         <>
           {/* Sticky Internal Navbar */}
           <nav
-            ref={navRef}
             className="sticky top-[52px] z-30 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5 mb-3"
             data-testid="major-section-nav"
           >
@@ -314,7 +285,7 @@ const MajorPage = () => {
                 return (
                   <button
                     key={sec.id}
-                    onClick={() => scrollToSection(sec.id)}
+                    onClick={() => setActiveSection(sec.id)}
                     className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors shrink-0 ${
                       isActive
                         ? 'border-purple-500 text-purple-400'
@@ -332,7 +303,8 @@ const MajorPage = () => {
 
           <div className="px-3 space-y-4">
             {/* ===== PANORAMICA ===== */}
-            <section id="panoramica" ref={(el) => { sectionRefs.current.panoramica = el; }}>
+            {activeSection === 'panoramica' && (
+            <section id="panoramica">
               {/* Major Header */}
               <Card className="bg-gradient-to-r from-purple-900/30 to-purple-600/10 border-purple-500/30">
                 <CardContent className="p-4">
@@ -398,9 +370,11 @@ const MajorPage = () => {
                 </Card>
               )}
             </section>
+            )}
 
             {/* ===== ATTIVITA ===== */}
-            <section id="attivita" ref={(el) => { sectionRefs.current.attivita = el; }}>
+            {activeSection === 'attivita' && (
+            <section id="attivita">
               {majorData.activities && Object.keys(majorData.activities).length > 0 && (
                 <Card className="bg-[#1A1A1A] border-purple-500/30">
                   <CardHeader className="pb-2">
@@ -441,9 +415,11 @@ const MajorPage = () => {
                 </Card>
               )}
             </section>
+            )}
 
             {/* ===== MEMBRI ===== */}
-            <section id="membri" ref={(el) => { sectionRefs.current.membri = el; }}>
+            {activeSection === 'membri' && (
+            <section id="membri">
               <Card className="bg-[#1A1A1A] border-white/10">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center justify-between">
@@ -551,10 +527,11 @@ const MajorPage = () => {
                 </Card>
               )}
             </section>
+            )}
 
             {/* ===== GESTIONE (Founder Only) ===== */}
-            {isFounder && (
-              <section id="gestione" ref={(el) => { sectionRefs.current.gestione = el; }}>
+            {activeSection === 'gestione' && isFounder && (
+              <section id="gestione">
                 {/* Studio Level */}
                 <Card className="bg-[#1A1A1A] border-yellow-500/20" data-testid="admin-studio-level">
                   <CardHeader className="pb-2">
@@ -704,7 +681,8 @@ const MajorPage = () => {
             )}
 
             {/* ===== GUERRA ===== */}
-            <section id="guerra" ref={(el) => { sectionRefs.current.guerra = el; }}>
+            {activeSection === 'guerra' && (
+            <section id="guerra">
               {/* Active Timed War */}
               {activeWar?.has_war && activeWar.war?.status === 'active' && (
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
@@ -922,6 +900,7 @@ const MajorPage = () => {
                 </Card>
               )}
             </section>
+            )}
           </div>
         </>
       )}

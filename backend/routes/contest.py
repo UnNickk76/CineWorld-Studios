@@ -6,10 +6,10 @@ from auth_utils import get_current_user
 
 router = APIRouter(prefix="/contest", tags=["contest"])
 
-TOTAL_STEPS = 11
+TOTAL_STEPS = 5
 MAX_DAILY_CREDITS = 20
 
-STEP_COOLDOWNS = {1: 0, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 5, 9: 5, 10: 5, 11: 0}
+STEP_COOLDOWNS = {1: 0, 2: 3, 3: 3, 4: 3, 5: 0}
 
 
 def get_reset_time():

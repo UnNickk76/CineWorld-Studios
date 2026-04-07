@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -25,103 +25,99 @@ const COADMIN_TABS = [
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
 ];
 
+
 /* ─── Test Lab ─── */
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ReleaseCinematic } from '../components/ReleaseCinematic';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame } from '../components/MiniGames';
+import { Timer, Target, Brain, MousePointerClick } from 'lucide-react';
 
 const MOCK_EVENTS = {
   common: {
     id: 'test_common', tier: 'common', event_type: 'positive', project_type: 'film',
-    film_title: 'Test Film Alpha', text: 'Il tuo film ha ricevuto ottime recensioni dalla critica indie!',
-    revenue_mod: 0.15, hype_mod: 3, fame_mod: 1, actor_name: 'Marco Rossi', movie_title: 'Test Film Alpha',
+    film_title: 'Test Film Alpha', movie_title: 'Test Film Alpha', actor_name: 'Marco Rossi',
+    text: 'Il tuo film ha ricevuto ottime recensioni dalla critica indie!',
+    revenue_mod: 0.15, hype_mod: 3, fame_mod: 1,
   },
   epic: {
     id: 'test_epic', tier: 'epic', event_type: 'positive', project_type: 'series',
-    film_title: 'Test Serie Beta', text: 'La tua serie diventa virale sui social! Milioni di visualizzazioni in poche ore.',
-    revenue_mod: 0.35, hype_mod: 8, fame_mod: 5, actor_name: 'Giulia Bianchi', movie_title: 'Test Serie Beta',
+    film_title: 'Test Serie Beta', movie_title: 'Test Serie Beta', actor_name: 'Giulia Bianchi',
+    text: 'La tua serie diventa virale sui social! Milioni di visualizzazioni in poche ore.',
+    revenue_mod: 0.35, hype_mod: 8, fame_mod: 5,
   },
   legendary: {
     id: 'test_legendary', tier: 'legendary', event_type: 'star_born', project_type: 'film',
-    film_title: 'Test Film Omega', text: 'LEGGENDA! Il tuo film viene nominato per 12 Oscar e batte ogni record al botteghino mondiale!',
-    revenue_mod: 0.75, hype_mod: 15, fame_mod: 12, actor_name: 'Alessandro De Niro', movie_title: 'Test Film Omega',
+    film_title: 'Test Film Omega', movie_title: 'Test Film Omega', actor_name: 'Alessandro De Niro',
+    text: 'LEGGENDA! Il tuo film viene nominato per 12 Oscar e batte ogni record mondiale!',
+    revenue_mod: 0.75, hype_mod: 15, fame_mod: 12,
   },
 };
 
 const MOCK_RELEASE = {
-  title: 'Il Grande Sogno',
-  quality_score: 87,
-  opening_day_revenue: 2450000,
-  hype_level: 72,
-  release_outcome: 'success',
-  screenplay_scenes: ['Scena 1: Il protagonista scopre la verita', 'Scena 2: La fuga attraverso la citta', 'Scena 3: Il confronto finale'],
+  title: 'Il Grande Sogno', quality_score: 87, opening_day_revenue: 2450000,
+  hype_level: 72, release_outcome: 'success',
+  screenplay_scenes: ['Il protagonista scopre la verita', 'La fuga', 'Il confronto finale'],
   release_event: { id: 'premiere_buzz', text: 'Standing ovation alla premiere!' },
-  genre: 'Dramma',
-  audience_score: 91,
-  total_revenue: 14500000,
+  genre: 'Dramma', audience_score: 91, total_revenue: 14500000,
 };
 
 const HISTORY_LABELS = {
-  film: 'Pipeline film simulata',
-  contest: 'Contest simulato',
-  event_common: 'Evento comune simulato',
-  event_epic: 'Evento epico simulato',
-  event_legendary: 'Evento leggendario simulato',
-  arena: 'Arena simulata',
-  major: 'Major simulata',
+  film: 'Pipeline film simulata', contest: 'Contest simulato',
+  event_common: 'Evento comune simulato', event_epic: 'Evento epico simulato',
+  event_legendary: 'Evento leggendario simulato', arena: 'Arena simulata', major: 'Major simulata',
 };
-
 const HISTORY_ICONS = {
   film: Film, contest: Trophy, event_common: Sparkles, event_epic: Sparkles,
   event_legendary: Sparkles, arena: Swords, major: Crown,
 };
 
-/* ── Mini Arena Sim ── */
+/* ── Arena Sim (Manual) ── */
 function ArenaSimOverlay({ onClose }) {
-  const [phase, setPhase] = useState(0);
+  const [phase, setPhase] = useState('choose');
+  const [action, setAction] = useState(null);
   const outcome = useRef(Math.random() > 0.4 ? 'win' : 'lose');
-  useEffect(() => {
-    const t = [
-      setTimeout(() => setPhase(1), 600),
-      setTimeout(() => setPhase(2), 2000),
-      setTimeout(() => setPhase(3), 3500),
-    ];
-    return () => t.forEach(clearTimeout);
-  }, []);
+
+  const execute = (act) => {
+    setAction(act);
+    setPhase('executing');
+    setTimeout(() => setPhase('result'), 1800);
+  };
+
   return (
     <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="w-[90%] max-w-sm space-y-4 text-center">
         <AnimatePresence mode="wait">
-          {phase === 0 && <motion.div key="p0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-            <Swords className="w-12 h-12 mx-auto text-red-500 animate-pulse" />
-            <p className="text-sm text-gray-400">Preparazione attacco...</p>
+          {phase === 'choose' && <motion.div key="ch" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            <Swords className="w-10 h-10 mx-auto text-red-400" />
+            <p className="text-sm font-bold text-white">Scegli la tua azione</p>
+            <div className="space-y-2">
+              <Button className="w-full bg-green-600/20 border border-green-500/30 text-green-400 h-11" onClick={() => execute('support')} data-testid="arena-support"><Shield className="w-4 h-4 mr-2" /> Supporta il tuo film</Button>
+              <Button className="w-full bg-red-600/20 border border-red-500/30 text-red-400 h-11" onClick={() => execute('boycott')} data-testid="arena-boycott"><Swords className="w-4 h-4 mr-2" /> Boicotta il rivale</Button>
+              <Button className="w-full bg-purple-600/20 border border-purple-500/30 text-purple-400 h-11" onClick={() => execute('counter')} data-testid="arena-counter"><Shield className="w-4 h-4 mr-2" /> Contromossa difensiva</Button>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs text-gray-600" onClick={onClose}>Annulla</Button>
           </motion.div>}
-          {phase === 1 && <motion.div key="p1" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+          {phase === 'executing' && <motion.div key="ex" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-3">
             <div className="flex items-center justify-center gap-6">
               <div className="text-center"><div className="w-14 h-14 rounded-full bg-cyan-500/20 flex items-center justify-center border border-cyan-500/40"><Users className="w-6 h-6 text-cyan-400" /></div><p className="text-[10px] text-cyan-400 mt-1">Tu</p></div>
               <motion.div animate={{ x: [-5, 5, -5] }} transition={{ repeat: Infinity, duration: 0.3 }}><Swords className="w-8 h-8 text-red-500" /></motion.div>
               <div className="text-center"><div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/40"><Users className="w-6 h-6 text-red-400" /></div><p className="text-[10px] text-red-400 mt-1">Rivale</p></div>
             </div>
-            <p className="text-xs text-gray-400">Attacco in corso...</p>
+            <p className="text-xs text-gray-400">{action === 'support' ? 'Supporto in corso...' : action === 'boycott' ? 'Attacco in corso...' : 'Difesa attivata...'}</p>
           </motion.div>}
-          {phase === 2 && <motion.div key="p2" initial={{ scale: 1.3, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+          {phase === 'result' && <motion.div key="res" initial={{ scale: 1.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-3">
             {outcome.current === 'win' ? <>
-              <motion.div animate={{ rotate: [0, -10, 10, 0] }} transition={{ duration: 0.5 }}><Trophy className="w-16 h-16 mx-auto text-yellow-400" /></motion.div>
-              <p className="text-lg font-bold text-yellow-400">VITTORIA!</p>
-              <p className="text-xs text-gray-400">Hai inflitto danni significativi al rivale</p>
-              <div className="flex justify-center gap-3 text-[10px]">
-                <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">+5 Fama</span>
-                <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">-15% Hype rivale</span>
-              </div>
+              <Trophy className="w-14 h-14 mx-auto text-yellow-400" />
+              <p className="text-lg font-bold text-yellow-400">SUCCESSO!</p>
+              <p className="text-xs text-gray-400">Azione {action} riuscita</p>
+              <div className="flex justify-center gap-2 text-[10px]"><span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">+5 Fama</span><span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">-15% Hype rivale</span></div>
             </> : <>
-              <Shield className="w-16 h-16 mx-auto text-orange-400" />
+              <Shield className="w-14 h-14 mx-auto text-orange-400" />
               <p className="text-lg font-bold text-orange-400">BLOCCATO!</p>
-              <p className="text-xs text-gray-400">Il rivale ha parato il tuo attacco</p>
-              <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full text-[10px]">Nessun danno</span>
+              <p className="text-xs text-gray-400">Il rivale ha parato</p>
             </>}
-          </motion.div>}
-          {phase === 3 && <motion.div key="p3" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Button size="sm" variant="outline" className="border-gray-700 text-xs" onClick={onClose} data-testid="arena-sim-close">Chiudi simulazione</Button>
+            <Button size="sm" variant="outline" className="border-gray-700 text-xs mt-2" onClick={onClose} data-testid="arena-sim-close">Chiudi</Button>
           </motion.div>}
         </AnimatePresence>
       </div>
@@ -129,55 +125,37 @@ function ArenaSimOverlay({ onClose }) {
   );
 }
 
-/* ── Mini Major Sim ── */
+/* ── Major Sim (Manual) ── */
 function MajorSimOverlay({ onClose }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    const t = [
-      setTimeout(() => setPhase(1), 800),
-      setTimeout(() => setPhase(2), 2200),
-      setTimeout(() => setPhase(3), 3800),
-      setTimeout(() => setPhase(4), 5200),
-    ];
-    return () => t.forEach(clearTimeout);
-  }, []);
+  const [phase, setPhase] = useState('menu');
+  const [action, setAction] = useState(null);
+  const execute = (act) => { setAction(act); setPhase('exec'); setTimeout(() => setPhase('result'), 2000); };
+
   return (
     <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="w-[90%] max-w-sm space-y-4 text-center">
         <AnimatePresence mode="wait">
-          {phase === 0 && <motion.div key="m0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-            <Crown className="w-12 h-12 mx-auto text-yellow-500 animate-pulse" />
-            <p className="text-sm text-gray-400">Inizializzazione Major...</p>
-          </motion.div>}
-          {phase === 1 && <motion.div key="m1" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            <div className="bg-[#1a1a1b] rounded-xl border border-yellow-500/20 p-4">
-              <Crown className="w-8 h-8 mx-auto text-yellow-400 mb-2" />
-              <p className="text-sm font-bold text-yellow-400">DREAMWORKS TEST</p>
-              <p className="text-[10px] text-gray-500 mt-1">Major creata con successo</p>
-              <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-400">
-                <span>3 Membri</span><span>Lv. 5</span><span>Rep: 850</span>
-              </div>
+          {phase === 'menu' && <motion.div key="m" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            <Crown className="w-10 h-10 mx-auto text-yellow-400" />
+            <p className="text-sm font-bold text-white">Gestione Major — Test</p>
+            <div className="bg-[#1a1a1b] rounded-xl border border-yellow-500/20 p-3"><p className="text-xs text-yellow-400 font-bold">DREAMWORKS TEST</p><div className="flex justify-center gap-4 mt-2 text-[10px] text-gray-400"><span>3 Membri</span><span>Lv. 5</span><span>Rep: 850</span></div></div>
+            <div className="space-y-2">
+              <Button className="w-full bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 h-10 text-xs" onClick={() => execute('challenge')} data-testid="major-challenge"><Swords className="w-4 h-4 mr-2" /> Sfida Major rivale</Button>
+              <Button className="w-full bg-green-600/20 border border-green-500/30 text-green-400 h-10 text-xs" onClick={() => execute('recruit')} data-testid="major-recruit"><Users className="w-4 h-4 mr-2" /> Recluta membro</Button>
+              <Button className="w-full bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 h-10 text-xs" onClick={() => execute('invest')} data-testid="major-invest"><DollarSign className="w-4 h-4 mr-2" /> Investi in produzione</Button>
             </div>
+            <Button variant="ghost" size="sm" className="text-xs text-gray-600" onClick={onClose}>Annulla</Button>
           </motion.div>}
-          {phase === 2 && <motion.div key="m2" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            <div className="flex items-center justify-center gap-4">
-              <div className="bg-yellow-500/10 rounded-lg p-3 border border-yellow-500/20"><Crown className="w-6 h-6 text-yellow-400" /><p className="text-[9px] text-yellow-400 mt-1">Tu</p></div>
-              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.8 }}><Swords className="w-6 h-6 text-red-400" /></motion.div>
-              <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><Crown className="w-6 h-6 text-red-400" /><p className="text-[9px] text-red-400 mt-1">Rivale</p></div>
-            </div>
-            <p className="text-xs text-gray-400">Sfida Major in corso...</p>
-          </motion.div>}
-          {phase === 3 && <motion.div key="m3" initial={{ scale: 1.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            <Trophy className="w-14 h-14 mx-auto text-yellow-400" />
-            <p className="text-base font-bold text-yellow-400">Major Vittoriosa!</p>
+          {phase === 'exec' && <motion.div key="e" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}><Loader2 className="w-10 h-10 mx-auto text-yellow-400" /></motion.div><p className="text-xs text-gray-400 mt-2">{action === 'challenge' ? 'Sfida in corso...' : action === 'recruit' ? 'Reclutamento...' : 'Investimento...'}</p></motion.div>}
+          {phase === 'result' && <motion.div key="r" initial={{ scale: 1.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-3">
+            <Trophy className="w-12 h-12 mx-auto text-yellow-400" />
+            <p className="text-base font-bold text-yellow-400">{action === 'challenge' ? 'Sfida Vinta!' : action === 'recruit' ? 'Membro Reclutato!' : 'Investimento Riuscito!'}</p>
             <div className="flex justify-center gap-2 flex-wrap text-[10px]">
-              <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">+120 Reputazione</span>
-              <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">+50k Fondi</span>
-              <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">+3 Fama Major</span>
+              {action === 'challenge' && <><span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">+120 Rep</span><span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">+3 Fama</span></>}
+              {action === 'recruit' && <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">+1 Membro</span>}
+              {action === 'invest' && <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">+50k Fondi</span>}
             </div>
-          </motion.div>}
-          {phase >= 4 && <motion.div key="m4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Button size="sm" variant="outline" className="border-gray-700 text-xs" onClick={onClose} data-testid="major-sim-close">Chiudi simulazione</Button>
+            <Button size="sm" variant="outline" className="border-gray-700 text-xs mt-2" onClick={onClose} data-testid="major-sim-close">Chiudi</Button>
           </motion.div>}
         </AnimatePresence>
       </div>
@@ -185,147 +163,86 @@ function MajorSimOverlay({ onClose }) {
   );
 }
 
-/* ── Mini Contest Sim ── */
-function ContestSimOverlay({ onClose }) {
-  const [step, setStep] = useState(1);
-  const [score, setScore] = useState(0);
-  const [tapCount, setTapCount] = useState(0);
-  const [phase, setPhase] = useState('playing');
-  const totalSteps = 5;
+/* ── Film Pipeline Sim (Interactive) ── */
+function FilmPipelineSimOverlay({ onClose }) {
+  const [step, setStep] = useState(0);
+  const [choices, setChoices] = useState({});
+  const [showRelease, setShowRelease] = useState(false);
+  const PIPELINE = [
+    { title: 'Sceneggiatura', desc: 'Scegli il tipo di script', options: ['Dramma originale', 'Thriller psicologico', 'Commedia romantica'] },
+    { title: 'Hype & Sponsor', desc: 'Strategia di promozione', options: ['Campagna viral social', 'Partnership con brand', 'Premiere esclusiva VIP'] },
+    { title: 'Location La Prima', desc: 'Scegli la citta della premiere', options: ['Roma', 'Los Angeles', 'Cannes'] },
+    { title: 'Rilascio', desc: 'Conferma il rilascio nelle sale', options: ['Rilascia ora!'] },
+  ];
+  const choose = (option) => { setChoices(prev => ({ ...prev, [step]: option })); if (step < PIPELINE.length - 1) setStep(step + 1); else setShowRelease(true); };
 
-  const handleTap = () => { setTapCount(t => t + 1); setScore(s => s + 1); };
-
-  const advanceStep = () => {
-    if (step >= totalSteps) { setPhase('done'); return; }
-    setStep(s => s + 1);
-    setTapCount(0);
-  };
-
-  const STEP_LABELS = ['TapCiak', 'Memory', 'Timing', 'SpamClick', 'Quiz'];
-
+  if (showRelease) {
+    return (
+      <motion.div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <div className="w-[95%] max-w-md"><ReleaseCinematic data={MOCK_RELEASE} onClose={onClose} directorName="Mario Rossi Test" /></div>
+      </motion.div>
+    );
+  }
+  const p = PIPELINE[step];
   return (
     <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="w-[90%] max-w-sm space-y-4">
-        {phase === 'playing' ? <>
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>Step {step}/{totalSteps} - {STEP_LABELS[step - 1]}</span>
-            <span className="text-green-400">{score} pt</span>
-          </div>
-          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-            <motion.div className="h-full bg-cyan-500 rounded-full" animate={{ width: `${(step / totalSteps) * 100}%` }} />
-          </div>
-          <div className="bg-[#1a1a1b] rounded-xl border border-gray-800 p-6 text-center space-y-3">
-            {step === 1 && <>
-              <p className="text-xs text-gray-400">Tappa il ciak!</p>
-              <motion.button whileTap={{ scale: 0.9 }} className="w-20 h-20 mx-auto rounded-full bg-yellow-500/20 border-2 border-yellow-500 flex items-center justify-center" onClick={handleTap} data-testid="contest-sim-tap">
-                <Play className="w-10 h-10 text-yellow-400" />
-              </motion.button>
-              <p className="text-lg font-bold text-yellow-400">{tapCount} tap</p>
-            </>}
-            {step === 2 && <div className="space-y-2">
-              <p className="text-xs text-gray-400">Trova le coppie!</p>
-              <div className="grid grid-cols-4 gap-1.5">{['A','B','C','D','A','B','C','D'].map((c, i) => (
-                <motion.div key={i} whileTap={{ scale: 0.95 }} className="h-12 rounded bg-cyan-600 flex items-center justify-center text-white font-bold cursor-pointer" onClick={() => setScore(s => s + 5)}>{c}</motion.div>
-              ))}</div>
-            </div>}
-            {step === 3 && <div className="space-y-3">
-              <p className="text-xs text-gray-400">Ferma nella zona verde!</p>
-              <div className="h-5 bg-gray-700 rounded-full relative overflow-hidden">
-                <div className="absolute bg-green-500/40 h-full" style={{ left: '40%', width: '20%' }} />
-                <motion.div className="absolute bg-red-500 h-full w-[3%] rounded-full" animate={{ left: ['0%', '97%', '0%'] }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} />
-              </div>
-              <Button className="w-full bg-blue-600 text-sm h-10" onClick={() => setScore(s => s + 25)} data-testid="contest-sim-stop">STOP!</Button>
-            </div>}
-            {step === 4 && <>
-              <p className="text-xs text-gray-400">Tappa piu volte che puoi!</p>
-              <motion.button whileTap={{ scale: 0.95 }} className="w-full h-20 rounded-xl bg-red-500/20 border-2 border-red-500 text-red-400 text-xl font-bold" onClick={handleTap} data-testid="contest-sim-spam">
-                <Zap className="w-6 h-6 mx-auto" /> TAP!
-              </motion.button>
-              <p className="text-lg font-bold text-red-400">{tapCount} punti</p>
-            </>}
-            {step === 5 && <div className="space-y-2">
-              <p className="text-xs text-gray-400">Regista di Titanic?</p>
-              {['Spielberg', 'Cameron', 'Nolan', 'Scott'].map(o => (
-                <Button key={o} variant="outline" className={`w-full border-gray-700 text-xs h-9 ${o === 'Cameron' ? 'hover:border-green-500' : ''}`}
-                  onClick={() => { if (o === 'Cameron') setScore(s => s + 25); }} data-testid={`contest-sim-${o}`}>{o}</Button>
-              ))}
-            </div>}
-          </div>
-          <Button className="w-full bg-cyan-700 hover:bg-cyan-800 text-xs h-9" onClick={advanceStep} data-testid="contest-sim-next">
-            {step < totalSteps ? 'Avanza step (skip tempo)' : 'Completa contest'}
-          </Button>
-        </> : <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-4">
-          <Trophy className="w-16 h-16 mx-auto text-yellow-400" />
-          <p className="text-lg font-bold text-yellow-400">Contest completato!</p>
-          <p className="text-sm text-gray-400">Punteggio totale: <span className="text-white font-bold">{score}</span></p>
-          <div className="flex justify-center gap-2 text-[10px]">
-            <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full">+3 crediti simulati</span>
-          </div>
-          <Button size="sm" variant="outline" className="border-gray-700 text-xs" onClick={onClose} data-testid="contest-sim-close">Chiudi simulazione</Button>
-        </motion.div>}
+        <div className="flex items-center justify-between"><p className="text-xs text-gray-400">Step {step + 1}/{PIPELINE.length}</p><Button variant="ghost" size="sm" className="text-[10px] text-gray-600" onClick={onClose}>Esci</Button></div>
+        <div className="h-1 bg-gray-800 rounded-full overflow-hidden"><motion.div className="h-full bg-cyan-500" animate={{ width: `${((step + 1) / PIPELINE.length) * 100}%` }} /></div>
+        <motion.div key={step} initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="bg-[#1a1a1b] rounded-xl border border-gray-800 p-4 space-y-3">
+          <div className="flex items-center gap-2"><Film className="w-5 h-5 text-cyan-400" /><div><p className="text-sm font-bold text-white">{p.title}</p><p className="text-[10px] text-gray-500">{p.desc}</p></div></div>
+          <div className="space-y-2">{p.options.map(opt => (
+            <Button key={opt} variant="outline" className="w-full border-gray-700 text-xs h-10 hover:bg-cyan-500/10 hover:border-cyan-500/30 justify-start" onClick={() => choose(opt)} data-testid={`pipeline-opt-${opt}`}>{opt}</Button>
+          ))}</div>
+        </motion.div>
+        {Object.entries(choices).map(([k, v]) => (<div key={k} className="flex items-center gap-2 text-[10px] text-gray-600"><Check className="w-3 h-3 text-green-500" /> {PIPELINE[k].title}: <span className="text-gray-400">{v}</span></div>))}
       </div>
     </motion.div>
   );
 }
 
-/* ── Film Pipeline Sim ── */
-function FilmPipelineSimOverlay({ onClose }) {
-  const [phase, setPhase] = useState(0);
-  const [showRelease, setShowRelease] = useState(false);
-  const PHASES = [
-    { label: 'Sceneggiatura in corso...', sub: 'Il tuo sceneggiatore sta lavorando', icon: Film, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
-    { label: 'Coming Soon annunciato!', sub: 'Il pubblico inizia a parlarne', icon: Sparkles, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-    { label: 'La Prima in corso...', sub: 'Red carpet e flash dei fotografi', icon: Star, color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-    { label: 'Rilascio nelle sale!', sub: 'Il film esce al cinema', icon: Trophy, color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+/* ── Contest Sim (Real Games) ── */
+function ContestSimOverlay({ onClose }) {
+  const [gameIdx, setGameIdx] = useState(0);
+  const [scores, setScores] = useState([]);
+  const [done, setDone] = useState(false);
+  const GAMES = [
+    { name: 'TapCiak', Game: TapCiak },
+    { name: 'Memory Pro', Game: MemoryPro },
+    { name: 'Stop Perfetto', Game: StopPerfetto },
+    { name: 'Spam Click', Game: SpamClick },
+    { name: 'Reaction', Game: ReactionGame },
   ];
 
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 1500),
-      setTimeout(() => setPhase(2), 3000),
-      setTimeout(() => setPhase(3), 4500),
-      setTimeout(() => setShowRelease(true), 5500),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
+  const handleFinish = (score) => {
+    const newScores = [...scores, score];
+    setScores(newScores);
+    if (gameIdx + 1 >= GAMES.length) setDone(true); else setGameIdx(gameIdx + 1);
+  };
 
-  if (showRelease) {
+  if (done) {
+    const total = scores.reduce((a, b) => a + b, 0);
     return (
-      <motion.div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <div className="w-[95%] max-w-md">
-          <ReleaseCinematic data={MOCK_RELEASE} onClose={onClose} directorName="Mario Rossi Test" />
-        </div>
+      <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-[90%] max-w-sm text-center space-y-4">
+          <Trophy className="w-14 h-14 mx-auto text-yellow-400" />
+          <p className="text-lg font-bold text-yellow-400">Contest Test completato!</p>
+          <p className="text-sm text-gray-400">Totale: <span className="text-white font-bold">{total}</span> punti</p>
+          <div className="space-y-1">{GAMES.map((g, i) => (<div key={i} className="flex justify-between text-[10px] text-gray-500 px-2"><span>{g.name}</span><span className="text-white">{scores[i] || 0} pt</span></div>))}</div>
+          <p className="text-[10px] text-gray-600">(Test mode — nessun salvataggio)</p>
+          <Button size="sm" variant="outline" className="border-gray-700 text-xs" onClick={onClose} data-testid="contest-sim-close">Chiudi</Button>
+        </motion.div>
       </motion.div>
     );
   }
 
+  const { name, Game } = GAMES[gameIdx];
   return (
-    <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="w-[90%] max-w-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-400">Pipeline Film Test</p>
-          <Button variant="ghost" size="sm" className="text-[10px] text-gray-600" onClick={onClose}>Skip</Button>
-        </div>
-        <div className="space-y-2">
-          {PHASES.map((p, i) => {
-            const Icon = p.icon;
-            const active = i === phase;
-            const done = i < phase;
-            return (
-              <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: i <= phase ? 1 : 0.25, x: 0 }} transition={{ delay: i * 0.1, duration: 0.3 }}
-                className={`flex items-center gap-3 p-3 rounded-xl border ${done ? 'bg-green-500/5 border-green-500/15' : active ? p.bg : 'bg-gray-900/50 border-gray-800'}`}>
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-green-500/20' : active ? 'bg-white/5' : 'bg-gray-800'}`}>
-                  {done ? <Check className="w-4 h-4 text-green-400" /> : <Icon className={`w-4 h-4 ${active ? p.color : 'text-gray-600'}`} />}
-                </div>
-                <div>
-                  <p className={`text-xs font-semibold ${done ? 'text-green-400' : active ? 'text-white' : 'text-gray-600'}`}>{p.label}</p>
-                  {active && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] text-gray-500">{p.sub}</motion.p>}
-                </div>
-                {active && <motion.div className="ml-auto" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}><Loader2 className="w-4 h-4 text-gray-500" /></motion.div>}
-              </motion.div>
-            );
-          })}
-        </div>
+    <motion.div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/95 p-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="w-full max-w-sm space-y-3">
+        <div className="flex items-center justify-between"><p className="text-xs text-gray-400">Step {gameIdx + 1}/{GAMES.length} — {name}</p><Button variant="ghost" size="sm" className="text-[10px] text-gray-600" onClick={onClose}>Esci</Button></div>
+        <div className="h-1 bg-gray-800 rounded-full overflow-hidden"><motion.div className="h-full bg-cyan-500" animate={{ width: `${((gameIdx + 1) / GAMES.length) * 100}%` }} /></div>
+        <div className="bg-[#1a1a1b] rounded-xl border border-gray-800 p-4"><Game key={gameIdx} onFinish={handleFinish} /></div>
       </div>
     </motion.div>
   );
@@ -335,15 +252,8 @@ function FilmPipelineSimOverlay({ onClose }) {
 function TestLabTab() {
   const [activeSim, setActiveSim] = useState(null);
   const [history, setHistory] = useState([]);
-
-  const launchSim = (type) => {
-    setActiveSim(type);
-    setHistory(prev => [{ type, ts: new Date() }, ...prev].slice(0, 20));
-  };
-
+  const launchSim = (type) => { setActiveSim(type); setHistory(prev => [{ type, ts: new Date() }, ...prev].slice(0, 20)); };
   const closeSim = () => setActiveSim(null);
-
-  const replaySim = (type) => setActiveSim(type);
 
   const BUTTONS = [
     { id: 'film', label: 'Film Pipeline', icon: Film, color: 'hover:bg-cyan-500/10 hover:border-cyan-500/30' },
@@ -359,56 +269,38 @@ function TestLabTab() {
     <>
       <Card className="bg-[#111113] border-white/5" data-testid="testlab-tab">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FlaskConical className="w-4 h-4 text-emerald-400" /> Test Lab
-          </CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><FlaskConical className="w-4 h-4 text-emerald-400" /> Test Lab</CardTitle>
           <p className="text-[10px] text-gray-500">Sandbox visiva — nessun impatto su DB o dati reali</p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            {BUTTONS.map(b => {
-              const Icon = b.icon;
-              return (
-                <Button key={b.id} size="sm" variant="outline"
-                  className={`text-xs border-gray-700 h-10 gap-1.5 ${b.color}`}
-                  onClick={() => launchSim(b.id)} data-testid={`test-btn-${b.id}`}>
-                  <Icon className="w-3.5 h-3.5" /> {b.label}
-                </Button>
-              );
-            })}
+            {BUTTONS.map(b => { const Icon = b.icon; return (
+              <Button key={b.id} size="sm" variant="outline" className={`text-xs border-gray-700 h-10 gap-1.5 ${b.color}`} onClick={() => launchSim(b.id)} data-testid={`test-btn-${b.id}`}><Icon className="w-3.5 h-3.5" /> {b.label}</Button>
+            ); })}
           </div>
-
-          {/* Storico visuale */}
           {history.length > 0 && (
             <div className="space-y-1.5 pt-2 border-t border-white/5">
               <p className="text-[10px] text-gray-500 font-semibold">Storico simulazioni</p>
-              {history.slice(0, 8).map((h, i) => {
-                const Icon = HISTORY_ICONS[h.type] || Sparkles;
-                return (
-                  <motion.div key={`${h.type}-${i}`} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                    className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer border border-transparent hover:border-white/5 transition-colors"
-                    onClick={() => replaySim(h.type)} data-testid={`history-${i}`}>
-                    <Icon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                    <span className="text-[11px] text-gray-300 flex-1">{HISTORY_LABELS[h.type]}</span>
-                    <span className="text-[9px] text-gray-600">{h.ts.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
-                    <ChevronRight className="w-3 h-3 text-gray-700" />
-                  </motion.div>
-                );
-              })}
+              {history.slice(0, 8).map((h, i) => { const Icon = HISTORY_ICONS[h.type] || Sparkles; return (
+                <motion.div key={`${h.type}-${i}`} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer border border-transparent hover:border-white/5 transition-colors"
+                  onClick={() => launchSim(h.type)} data-testid={`history-${i}`}>
+                  <Icon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                  <span className="text-[11px] text-gray-300 flex-1">{HISTORY_LABELS[h.type]}</span>
+                  <span className="text-[9px] text-gray-600">{h.ts.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <ChevronRight className="w-3 h-3 text-gray-700" />
+                </motion.div>
+              ); })}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Simulation Overlays */}
       <AnimatePresence>
         {activeSim === 'film' && <FilmPipelineSimOverlay onClose={closeSim} />}
         {activeSim === 'contest' && <ContestSimOverlay onClose={closeSim} />}
         {activeSim === 'arena' && <ArenaSimOverlay onClose={closeSim} />}
         {activeSim === 'major' && <MajorSimOverlay onClose={closeSim} />}
       </AnimatePresence>
-
-      {/* Event simulations use real VelionCinematicEvent */}
       {activeSim === 'event_common' && <VelionCinematicEvent events={[MOCK_EVENTS.common]} onAllDone={closeSim} />}
       {activeSim === 'event_epic' && <VelionCinematicEvent events={[MOCK_EVENTS.epic]} onAllDone={closeSim} />}
       {activeSim === 'event_legendary' && <VelionCinematicEvent events={[MOCK_EVENTS.legendary]} onAllDone={closeSim} />}

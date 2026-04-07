@@ -30,13 +30,20 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 - Frontend: 4 sub-tab infra, tab Mirata PvP, Guerra evoluta Major
 
 ### Refactor Eventi Scalabile (DONE - 2026-04-07)
-**Cambio logica**: eventi calcolati per PLAYER (1 estrazione), NON per film
-- Cooldown 6h per player (MIN_HOURS_BETWEEN_EVENTS = 6, configurabile)
-- Selezione film pesata: peso = hype + quality + (imdb*10)
-- Film migliori ricevono piu eventi proporzionalmente
-- Scalabile: N eventi = f(N player), non f(N film)
-- Rimossa query 12h cooldown per film (non piu necessaria)
-- Pressure read/update 1 sola volta per player per tick
+- Cooldown 6h per player, selezione film pesata
+- Scalabile: N eventi = f(N player)
+
+### Data Integrity System (DONE - 2026-04-07)
+- Auto-scan all'avvio, API di recovery, UI fallback per film corrotti
+- Transazioni atomiche per creazione/transizioni di stato film
+
+### Sistema Contest Mini-giochi (DONE - 2026-04-07)
+- 11 step giornalieri con 5 mini-giochi: TapCiak, Memory, Timing, SpamClick, Quiz
+- Ricompense in crediti con cap giornaliero (MAX_DAILY_CREDITS = 20)
+- Reset giornaliero alle 09:00 UTC, cooldown 5min tra step
+- Backend: `/api/contest/progress`, `/api/contest/complete-step`
+- Frontend: `/contest` route con componenti React interattivi
+- JWT auth, ottimizzato mobile
 
 ## Backlog Prioritizzato
 
@@ -44,21 +51,18 @@ Sistema di produzione cinematografica con pipeline completa. Esperienza utente v
 - [ ] Sistema "Previsioni Festival" (scommesse vincitori)
 
 ### P2
-- [ ] Contest Page Mobile Layout fix (bug ricorrente 16+ segnalazioni)
 - [ ] Marketplace TV/Anime rights
 
 ### P3
 - [ ] Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels, Eventi globali, Velion AI Memory
 
 ## File Chiave
-- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure per-player + weighted selection)
-- `/app/backend/event_templates.py` (INFRA_EVENTS, WAR_EVENTS, STRATEGIC_ABILITIES)
-- `/app/backend/routes/pvp.py` (Arena mirata)
-- `/app/backend/routes/major.py` (Major Warfare)
-- `/app/backend/routes/infrastructure.py` (Infra detail API)
-- `/app/frontend/src/pages/InfrastructurePage.jsx` (4 sub-tab)
-- `/app/frontend/src/pages/PvPArenaPage.jsx` (Tab Mirata)
-- `/app/frontend/src/pages/MajorPage.jsx` (Guerra evoluta)
+- `/app/backend/models/contest.py` (Schema contest)
+- `/app/backend/routes/contest.py` (API contest: progress + complete-step)
+- `/app/frontend/src/pages/ContestPage.jsx` (11 step mini-giochi)
+- `/app/backend/scheduler_tasks.py` (Auto-tick + pressure per-player)
+- `/app/backend/services/data_integrity.py` (Controlli base)
+- `/app/backend/services/film_transaction_service.py` (Operazioni DB sicure)
 
 ## Credenziali Test
 - Utente: NeoMorpheus (fandrex1@gmail.com / Fandrel2776)

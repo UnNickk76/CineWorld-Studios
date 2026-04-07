@@ -27,13 +27,13 @@ const COADMIN_TABS = [
 
 /* ─── Test Lab ─── */
 const TEST_BUTTONS = [
-  { label: 'Film Pipeline', url: '/admin/test/film' },
-  { label: 'Contest', url: '/admin/test/contest' },
-  { label: 'Evento Comune', url: '/admin/test/event/common' },
-  { label: 'Evento Epico', url: '/admin/test/event/epic' },
-  { label: 'Evento Leggendario', url: '/admin/test/event/legendary' },
-  { label: 'Arena', url: '/admin/test/arena' },
-  { label: 'Major', url: '/admin/test/major' },
+  { label: 'Film Pipeline', url: '/api/admin/test/film' },
+  { label: 'Contest', url: '/api/admin/test/contest' },
+  { label: 'Evento Comune', url: '/api/admin/test/event/common' },
+  { label: 'Evento Epico', url: '/api/admin/test/event/epic' },
+  { label: 'Evento Leggendario', url: '/api/admin/test/event/legendary' },
+  { label: 'Arena', url: '/api/admin/test/arena' },
+  { label: 'Major', url: '/api/admin/test/major' },
 ];
 
 function TestLabTab({ api }) {
@@ -44,20 +44,29 @@ function TestLabTab({ api }) {
   const runTest = async (url) => {
     setRunning(true);
     try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Errore API");
+      const text = await res.text();
+      if (text.startsWith("<!doctype") || text.startsWith("<html")) {
+        throw new Error("Endpoint errato (HTML ricevuto invece di JSON)");
+      }
+      const data = JSON.parse(text);
+      setReport(data);
+      setHistory(prev => [data, ...prev].slice(0, 20));
       document.body.classList.add('test-blackout');
       setTimeout(() => document.body.classList.remove('test-blackout'), 1200);
-      const res = await api.get(url);
-      setReport(res.data);
-      setHistory(prev => [res.data, ...prev].slice(0, 20));
-    } catch (e) {
-      toast.error('Test fallito');
+    } catch (err) {
+      setReport({ type: "error", result: "error", steps: [], errors: [err.message] });
     } finally { setRunning(false); }
   };
 
   const loadHistory = async () => {
     try {
-      const res = await api.get('/admin/test/reports');
-      setHistory(res.data.reverse().slice(0, 20));
+      const res = await fetch('/api/admin/test/reports');
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.reverse().slice(0, 20));
+      }
     } catch {}
   };
 

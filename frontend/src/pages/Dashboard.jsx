@@ -986,10 +986,10 @@ const Dashboard = () => {
             {availableContests > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">{availableContests}</span>}
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-pink-500/20 to-pink-600/5 border-pink-500/20 cursor-pointer" onClick={() => navigate('/challenges')} data-testid="challenges-box">
+        <Card className="bg-gradient-to-br from-cyan-500/20 to-purple-600/5 border-cyan-500/20 cursor-pointer" onClick={() => navigate('/minigiochi')} data-testid="challenges-box">
           <CardContent className="p-2 sm:p-3 flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 bg-pink-500 rounded-lg"><Swords className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
-            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Sfide' : 'Challenges'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Sfida altri!' : 'Battle others!'}</p></div>
+            <div className="p-1.5 sm:p-2 bg-cyan-500 rounded-lg"><Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" /></div>
+            <div><h3 className="font-['Bebas_Neue'] text-base sm:text-lg">{language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS'}</h3><p className="text-[10px] sm:text-xs text-gray-400">{language === 'it' ? 'Gioca e sfida!' : 'Play & battle!'}</p></div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-500/20 to-orange-600/5 border-red-500/20 cursor-pointer relative" onClick={() => navigate('/pvp-arena')} data-testid="arena-shortcut">

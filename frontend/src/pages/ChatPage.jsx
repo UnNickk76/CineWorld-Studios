@@ -822,7 +822,13 @@ const ChatPage = () => {
                         {u.is_bot && u.is_moderator && <Badge className="h-3 px-0.5 text-[6px] bg-red-500/20 text-red-400">MOD</Badge>}
                         {u.is_bot && !u.is_moderator && <Badge className="h-3 px-0.5 text-[6px] bg-blue-500/20 text-blue-400">BOT</Badge>}
                       </div>
-                      <p className="text-[7px] text-gray-600 truncate">{u.is_bot ? u.role : u.production_house_name}</p>
+                      <p className="text-[7px] text-gray-600 truncate">
+                        {u.is_bot ? u.role : u.game_status === 'playing' ? (
+                          <span className="text-cyan-400">In gioco</span>
+                        ) : u.game_status === 'in_vs' ? (
+                          <span className="text-purple-400">In VS 1v1</span>
+                        ) : u.production_house_name}
+                      </p>
                     </div>
                   </button>
 

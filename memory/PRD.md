@@ -12,62 +12,46 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 
 ### Core + Eventi + Infra + Arena + Guerra (DONE precedentemente)
 ### Data Integrity System (DONE)
+### Sistema Minigiochi v3 + Refactoring (DONE)
+### P1 + P2 Blocco Completo (DONE precedentemente)
 
-### Sistema Minigiochi v3 (DONE)
-12 minigiochi in file separati (`/components/games/*Game.jsx`) con props `{ mode, onComplete(score) }`
+### Unificazione Hub Minigiochi + Sfide (DONE - 2026-04-07)
 
-### Refactoring Minigiochi (DONE)
-- `MiniGames.jsx` puro re-export, zero duplicazione
+#### Cambiamenti UI/UX
+1. **MiniGamesPage** ora hub unico con **5 tab**:
+   - Solo (12 minigiochi arcade)
+   - VS Mini (sfide minigiochi 1v1)
+   - **1v1 Film** (ChallengesPage embedded con prop `embedded`)
+   - Classifiche (globale + per gioco)
+   - Stats (summary + per gioco con titoli)
 
-### P1 Blocco Completo (DONE - 2026-04-07)
+2. **Navbar top**: Icona cambiata da Swords a Gamepad2, punta a `/minigiochi`
 
-#### 1. MiniGamesPage — Modalita Solo + Classifiche + Statistiche
-- Route `/minigiochi` con 4 tab: Solo, VS 1v1, Classifica, Stats
-- **Solo**: Griglia 12 giochi, click per giocare, salvataggio punteggio + best score
-- **Classifiche**: Per gioco (sempre/settimana) + Globale, top 50
-- **Stats**: Record, media, partite per ogni gioco
-- Backend: `/api/arcade/solo/submit`, `/api/arcade/solo/stats`, `/api/arcade/leaderboard/{game_id}`, `/api/arcade/leaderboard-global`
+3. **Bottom nav**: "Arena" sostituito con "Giochi" → `/minigiochi`
 
-#### 2. VS 1v1 Minigiochi
-- Tab VS 1v1 con sub-tab: Lancia, Aperte, Storico
-- **Lancia**: Scegli gioco, gioca, punteggio registrato, sfida pubblicata
-- **Aperte**: Vedi sfide di altri, "Accetta" per giocare lo stesso gioco
-- **Storico**: Tutte le sfide con stato (Vittoria/Sconfitta/Pareggio/In attesa)
-- Sistema puntate con crediti (opzionale), pot winner-takes-all
-- Backend: `/api/arcade/vs/create`, `/api/arcade/vs/{id}/submit-creator`, `/api/arcade/vs/{id}/join`, `/api/arcade/vs/{id}/submit-opponent`, `/api/arcade/vs/pending`, `/api/arcade/vs/my`
+4. **Dashboard**: Card "SFIDE" → "Minigiochi + Sfide" con icona Gamepad2 cyan
 
-#### 3. Chat Integration Sfide Minigioco
-- Bottone "Sfida" nel profilo utente (UserProfileModal) nella chat
-- Bottone sfida (icona Gamepad2) nella lista utenti online
-- Game Picker Dialog: scegli quale minigioco lanciare
-- Messaggio tipo `minigame_challenge` nella chat con card speciale e bottone "Gioca"
-- Notifica push al destinatario
-- Backend: `/api/arcade/chat-challenge` (crea sfida + messaggio chat + notifica)
+5. **Menu hamburger**: Label aggiornata "Minigiochi + Sfide"
+
+6. **Redirect**: `/challenges` e `/pvp-arena` redirectano a `/minigiochi`
+
+7. **Fix mobile**: padding-top corretto (`pt-14`) per evitare overlap con navbar
+
+#### ChallengesPage
+- Aggiunta prop `embedded` per rimuovere padding esterno quando renderizzata in tab
+- Backward-compatible: senza prop funziona come prima
 
 ## File Chiave
-- `/app/frontend/src/components/games/*Game.jsx` (12 minigiochi separati)
-- `/app/frontend/src/components/MiniGames.jsx` (re-export)
-- `/app/frontend/src/pages/MiniGamesPage.jsx` (Solo + VS + Classifiche + Stats)
+- `/app/frontend/src/pages/MiniGamesPage.jsx` (Hub 5-tab: Solo+VS+1v1Film+Top+Stats)
+- `/app/frontend/src/pages/ChallengesPage.jsx` (1v1 Film, embedded-ready)
 - `/app/frontend/src/pages/ContestPage.jsx` (12 step contest)
-- `/app/frontend/src/pages/ChatPage.jsx` (Chat con sfide minigioco)
-- `/app/backend/routes/minigames_arcade.py` (Solo + VS + Chat Challenge API)
-- `/app/backend/routes/contest.py` (12 step contest)
-
-## DB Collections Nuove
-- `arcade_solo_plays`: { id, user_id, nickname, game_id, score, played_at }
-- `arcade_vs`: { id, game_id, game_name, bet, creator_id, creator_nickname, creator_score, opponent_id, opponent_nickname, opponent_score, status, winner_id, is_chat_challenge, created_at, expires_at, completed_at }
+- `/app/frontend/src/pages/Dashboard.jsx` (Card aggiornata)
+- `/app/frontend/src/App.js` (Navbar, bottom nav, routes, redirect)
+- `/app/backend/routes/minigames_arcade.py` (API complete)
 
 ## Backlog
-
-### P2 — Miglioramenti Minigiochi
-- [ ] Streak system (3/5/10 win = bonus/badge/reward)
-- [ ] Puntate con hype oltre a crediti
-- [ ] Status player (online/in partita/occupato)
-- [ ] Titoli player (Maestro del Ciak, Re dello Snake, etc)
-- [ ] Cooldown reward per modalita solo
-
 ### P3
-- [ ] Sistema "Previsioni Festival" (scommesse vincitori)
+- [ ] Sistema "Previsioni Festival"
 - [ ] Marketplace TV/Anime rights
 - [ ] Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels
 

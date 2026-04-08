@@ -1504,93 +1504,69 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
           animation: 'scratchMove 0.3s steps(3) infinite',
         }} />
 
-        {/* Projector body */}
-        <div className="absolute bottom-6 left-5">
-          <div className="w-14 h-9 bg-[#1a1a1a] rounded-md border border-gray-700/40 relative">
-            <div className="absolute -top-2 left-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
-            <div className="absolute -top-2 right-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
-            <div className="absolute top-2 right-0 w-3 h-2 bg-[#333] rounded-r-sm" />
-          </div>
-        </div>
+        {/* Real projector PNG */}
+        <img src="/assets/projector.png" alt="" className="absolute bottom-3 left-2 w-24 z-10" style={{ filter: 'brightness(0.85) contrast(1.2)' }} />
 
-        {/* Light beam */}
-        <div className="absolute bottom-10 left-16" style={{
-          width: 0, height: 0,
-          borderLeft: '8px solid rgba(255,255,200,0.35)',
-          borderTop: '120px solid transparent',
-          borderBottom: '30px solid transparent',
-          transform: 'rotate(-55deg)',
+        {/* Light beam — from projector lens toward screen (bottom-left → top-right) */}
+        <div className="absolute z-[2]" style={{
+          bottom: '60px', left: '90px',
+          width: '70vw', maxWidth: '380px', height: '220px',
+          background: 'linear-gradient(28deg, rgba(255,255,230,0.35) 0%, rgba(255,255,230,0.15) 25%, rgba(255,255,230,0.04) 55%, transparent 100%)',
+          filter: 'blur(7px)',
           transformOrigin: 'bottom left',
-          filter: 'blur(6px)',
-          animation: 'beamFlicker 0.15s infinite alternate',
+          transform: 'skewX(-8deg)',
+          animation: 'beamFlicker 0.25s infinite alternate',
         }} />
-        <div className="absolute bottom-8 left-14" style={{
-          width: 0, height: 0,
-          borderLeft: '5px solid rgba(255,255,200,0.15)',
-          borderTop: '200px solid transparent',
-          borderBottom: '20px solid transparent',
-          transform: 'rotate(-50deg)',
+        <div className="absolute z-[1]" style={{
+          bottom: '50px', left: '80px',
+          width: '75vw', maxWidth: '400px', height: '250px',
+          background: 'linear-gradient(25deg, rgba(255,255,200,0.12) 0%, rgba(255,255,200,0.04) 40%, transparent 70%)',
+          filter: 'blur(16px)',
           transformOrigin: 'bottom left',
-          filter: 'blur(12px)',
-          animation: 'beamFlicker 0.2s infinite alternate-reverse',
+          transform: 'skewX(-5deg)',
+          animation: 'beamFlicker 0.3s infinite alternate-reverse',
         }} />
 
         {/* Screen */}
-        <div className="absolute top-[18%] right-[8%] w-[55%] max-w-[240px]" style={{ aspectRatio: '16/10' }}>
-          <div className="w-full h-full bg-[#e8e4d8] rounded-sm flex flex-col items-center justify-center relative" style={{
-            boxShadow: '0 0 60px rgba(255,255,220,0.15), 0 0 120px rgba(255,255,200,0.06)',
+        <div className="absolute z-[3]" style={{ top: '16%', right: '6%', width: '58%', maxWidth: '250px', aspectRatio: '16/10' }}>
+          <div className="w-full h-full rounded-md flex flex-col items-center justify-center relative" style={{
+            background: '#f0ece0',
+            boxShadow: '0 0 80px rgba(255,255,220,0.2), 0 0 160px rgba(255,255,200,0.06)',
           }}>
-            {/* Vignette on screen */}
-            <div className="absolute inset-0 rounded-sm" style={{
-              background: 'radial-gradient(ellipse, transparent 50%, rgba(0,0,0,0.3) 100%)',
-            }} />
-            {/* Countdown number */}
-            <span className="relative text-6xl font-bold text-black font-mono" style={{
-              animation: 'countFlicker 0.12s infinite',
-              textShadow: '0 0 2px rgba(0,0,0,0.3)',
-            }} data-testid="cinematic-count">{count}</span>
-            {/* Cross marks */}
+            <div className="absolute inset-0 rounded-md" style={{ background: 'radial-gradient(ellipse, transparent 45%, rgba(0,0,0,0.35) 100%)' }} />
+            <span className="relative text-6xl font-bold text-black font-mono" style={{ animation: 'countFlicker 0.12s infinite', textShadow: '0 0 2px rgba(0,0,0,0.3)' }} data-testid="cinematic-count">{count}</span>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
               <div className="w-[1px] h-full bg-black/30 absolute" />
               <div className="h-[1px] w-full bg-black/30 absolute" />
-              <div className="w-20 h-20 rounded-full border border-black/20 absolute" />
+              <div className="w-16 h-16 rounded-full border border-black/20 absolute" />
             </div>
           </div>
         </div>
 
-        {/* Flash fotografici */}
-        {[
-          { top: '25%', left: '5%', delay: '0.3s' },
-          { top: '60%', right: '15%', delay: '1.2s' },
-          { bottom: '30%', left: '40%', delay: '2.1s' },
-        ].map((pos, i) => (
-          <div key={i} className="absolute w-20 h-20 opacity-0 pointer-events-none" style={{
-            ...pos,
-            background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, transparent 60%)',
-            animation: `cineFlash 2.7s ${pos.delay} infinite`,
-          }} />
-        ))}
+        {/* Flash fotografici realistici (paparazzi) */}
+        <div className="absolute inset-0 pointer-events-none z-[4]">
+          <div className="absolute w-28 h-28 rounded-full" style={{ top: '18%', left: '8%', background: 'radial-gradient(circle, white 0%, rgba(255,255,255,0.3) 35%, transparent 65%)', opacity: 0, animation: 'paparazzi 2.8s 0.2s infinite' }} />
+          <div className="absolute w-24 h-24 rounded-full" style={{ bottom: '28%', right: '12%', background: 'radial-gradient(circle, white 0%, rgba(255,255,255,0.3) 35%, transparent 65%)', opacity: 0, animation: 'paparazzi 3.2s 1.4s infinite' }} />
+          <div className="absolute w-20 h-20 rounded-full" style={{ top: '55%', left: '45%', background: 'radial-gradient(circle, white 0%, rgba(255,255,255,0.25) 35%, transparent 65%)', opacity: 0, animation: 'paparazzi 2.5s 2.3s infinite' }} />
+        </div>
 
-        {/* Film title reveal at end */}
-        <div className="absolute bottom-20 left-0 right-0 text-center">
-          <p className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-mono" style={{
-            animation: 'fadeInSlow 1.5s ease-out',
-          }}>una produzione di</p>
-          <p className="text-lg font-bold text-amber-400/80 mt-1 font-mono" style={{
-            animation: 'fadeInSlow 2s ease-out',
-          }}>{title || 'Il Tuo Film'}</p>
+        {/* Titoli cinematografici */}
+        <div className="absolute bottom-16 left-0 right-0 text-center z-[5]" style={{ animation: 'fadeInSlow 1.5s ease-out' }}>
+          <p className="text-[9px] text-gray-500 uppercase tracking-[0.3em] font-mono">una produzione di</p>
+          <p className="text-2xl font-bold text-[#f5c518] mt-1.5 tracking-wide">{title || 'Il Tuo Film'}</p>
+          <p className="text-sm text-blue-400 mt-1 font-medium">CineWorld Studios</p>
         </div>
 
         <style>{`
-          @keyframes beamFlicker { from { opacity: 0.7; } to { opacity: 1; } }
-          @keyframes countFlicker { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
+          @keyframes beamFlicker { from { opacity: 0.65; } to { opacity: 1; } }
+          @keyframes countFlicker { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
           @keyframes scratchMove { 0% { transform: translateX(0); } 100% { transform: translateX(3px); } }
-          @keyframes cineFlash {
-            0%,8%,100% { opacity: 0; transform: scale(0.5); }
-            3% { opacity: 1; transform: scale(1.2); }
-            6% { opacity: 0; transform: scale(0.8); }
+          @keyframes paparazzi {
+            0%, 90%, 100% { opacity: 0; transform: scale(0.6); }
+            93% { opacity: 1; transform: scale(1.1); }
+            96% { opacity: 0; transform: scale(0.8); }
           }
-          @keyframes fadeInSlow { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes fadeInSlow { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
       </div>
     )}

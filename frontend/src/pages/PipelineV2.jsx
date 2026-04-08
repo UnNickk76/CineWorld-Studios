@@ -1440,6 +1440,9 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [genre, setGenre] = useState('drama');
   const [subgenres, setSubgenres] = useState([]);
   const [creating, setCreating] = useState(false);
+  const [showCinematic, setShowCinematic] = useState(false);
+  const [count, setCount] = useState(3);
+  const pendingFilmRef = useRef(null);
 
   const availableSubs = SUBGENRE_MAP[genre] || [];
 
@@ -1453,109 +1456,260 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
 
   const changeGenre = (g) => { setGenre(g); setSubgenres([]); };
 
+  // Cinematic countdown
+  useEffect(() => {
+    if (!showCinematic) return;
+    let current = 3;
+    setCount(3);
+    const iv = setInterval(() => {
+      current--;
+      if (current <= 0) {
+        clearInterval(iv);
+        setTimeout(() => {
+          setShowCinematic(false);
+          if (pendingFilmRef.current) onCreated(pendingFilmRef.current);
+        }, 500);
+      } else {
+        setCount(current);
+      }
+    }, 900);
+    return () => clearInterval(iv);
+  }, [showCinematic, onCreated]);
+
   const create = async () => {
     if (!title.trim()) return;
     setCreating(true);
     try {
       const res = await api.post('/films', { title: title.trim(), genre, subgenres });
       toast({ title: 'Film creato!' });
-      onCreated(res.film);
+      pendingFilmRef.current = res.film;
+      setShowCinematic(true);
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setCreating(false);
   };
 
   return (
+    <>
+    {/* ═══ CINEMATIC INTRO OVERLAY ═══ */}
+    {showCinematic && (
+      <div className="fixed inset-0 z-[9999] bg-black overflow-hidden" data-testid="cinematic-intro">
+        {/* Film grain */}
+        <div className="absolute inset-0 pointer-events-none opacity-30" style={{
+          background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px)',
+        }} />
+
+        {/* Scratch lines */}
+        <div className="absolute inset-0 pointer-events-none opacity-15" style={{
+          background: `linear-gradient(90deg, transparent 49.5%, rgba(255,255,255,0.15) 49.5%, rgba(255,255,255,0.15) 50.5%, transparent 50.5%),
+                       linear-gradient(90deg, transparent 30%, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.08) 30.3%, transparent 30.3%)`,
+          animation: 'scratchMove 0.3s steps(3) infinite',
+        }} />
+
+        {/* Projector body */}
+        <div className="absolute bottom-6 left-5">
+          <div className="w-14 h-9 bg-[#1a1a1a] rounded-md border border-gray-700/40 relative">
+            <div className="absolute -top-2 left-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
+            <div className="absolute -top-2 right-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
+            <div className="absolute top-2 right-0 w-3 h-2 bg-[#333] rounded-r-sm" />
+          </div>
+        </div>
+
+        {/* Light beam */}
+        <div className="absolute bottom-10 left-16" style={{
+          width: 0, height: 0,
+          borderLeft: '8px solid rgba(255,255,200,0.35)',
+          borderTop: '120px solid transparent',
+          borderBottom: '30px solid transparent',
+          transform: 'rotate(-55deg)',
+          transformOrigin: 'bottom left',
+          filter: 'blur(6px)',
+          animation: 'beamFlicker 0.15s infinite alternate',
+        }} />
+        <div className="absolute bottom-8 left-14" style={{
+          width: 0, height: 0,
+          borderLeft: '5px solid rgba(255,255,200,0.15)',
+          borderTop: '200px solid transparent',
+          borderBottom: '20px solid transparent',
+          transform: 'rotate(-50deg)',
+          transformOrigin: 'bottom left',
+          filter: 'blur(12px)',
+          animation: 'beamFlicker 0.2s infinite alternate-reverse',
+        }} />
+
+        {/* Screen */}
+        <div className="absolute top-[18%] right-[8%] w-[55%] max-w-[240px]" style={{ aspectRatio: '16/10' }}>
+          <div className="w-full h-full bg-[#e8e4d8] rounded-sm flex flex-col items-center justify-center relative" style={{
+            boxShadow: '0 0 60px rgba(255,255,220,0.15), 0 0 120px rgba(255,255,200,0.06)',
+          }}>
+            {/* Vignette on screen */}
+            <div className="absolute inset-0 rounded-sm" style={{
+              background: 'radial-gradient(ellipse, transparent 50%, rgba(0,0,0,0.3) 100%)',
+            }} />
+            {/* Countdown number */}
+            <span className="relative text-6xl font-bold text-black font-mono" style={{
+              animation: 'countFlicker 0.12s infinite',
+              textShadow: '0 0 2px rgba(0,0,0,0.3)',
+            }} data-testid="cinematic-count">{count}</span>
+            {/* Cross marks */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+              <div className="w-[1px] h-full bg-black/30 absolute" />
+              <div className="h-[1px] w-full bg-black/30 absolute" />
+              <div className="w-20 h-20 rounded-full border border-black/20 absolute" />
+            </div>
+          </div>
+        </div>
+
+        {/* Flash fotografici */}
+        {[
+          { top: '25%', left: '5%', delay: '0.3s' },
+          { top: '60%', right: '15%', delay: '1.2s' },
+          { bottom: '30%', left: '40%', delay: '2.1s' },
+        ].map((pos, i) => (
+          <div key={i} className="absolute w-20 h-20 opacity-0 pointer-events-none" style={{
+            ...pos,
+            background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, transparent 60%)',
+            animation: `cineFlash 2.7s ${pos.delay} infinite`,
+          }} />
+        ))}
+
+        {/* Film title reveal at end */}
+        <div className="absolute bottom-20 left-0 right-0 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-mono" style={{
+            animation: 'fadeInSlow 1.5s ease-out',
+          }}>una produzione di</p>
+          <p className="text-lg font-bold text-amber-400/80 mt-1 font-mono" style={{
+            animation: 'fadeInSlow 2s ease-out',
+          }}>{title || 'Il Tuo Film'}</p>
+        </div>
+
+        <style>{`
+          @keyframes beamFlicker { from { opacity: 0.7; } to { opacity: 1; } }
+          @keyframes countFlicker { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
+          @keyframes scratchMove { 0% { transform: translateX(0); } 100% { transform: translateX(3px); } }
+          @keyframes cineFlash {
+            0%,8%,100% { opacity: 0; transform: scale(0.5); }
+            3% { opacity: 1; transform: scale(1.2); }
+            6% { opacity: 0; transform: scale(0.8); }
+          }
+          @keyframes fadeInSlow { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
+      </div>
+    )}
+
     <div className="min-h-screen bg-gradient-to-b from-black via-[#080c18] to-black text-white" data-testid="pipeline-v2-create">
       {/* Vignette glow */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(180,130,40,0.06) 0%, transparent 60%)' }} />
 
-      <div className="relative z-10 px-4 pt-4 pb-24">
+      {/* Flash fotografici */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[
+          { top: '12%', left: '8%', delay: '0s' },
+          { top: '35%', right: '5%', delay: '2s' },
+          { bottom: '25%', left: '15%', delay: '4s' },
+        ].map((pos, i) => (
+          <div key={i} className="absolute w-16 h-16 opacity-0" style={{
+            ...pos,
+            background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, transparent 70%)',
+            animation: `flashPop 7s ${pos.delay} infinite`,
+          }} />
+        ))}
+      </div>
+
+      {/* Keyframes */}
+      <style>{`
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.35; transform: scale(0.97); }
+          50% { opacity: 0.75; transform: scale(1.03); }
+        }
+        @keyframes flashPop {
+          0%, 10%, 100% { opacity: 0; transform: scale(0.5); }
+          4% { opacity: 0.8; transform: scale(1.1); }
+          7% { opacity: 0; transform: scale(0.7); }
+        }
+      `}</style>
+
+      <div className="relative z-10 px-4 pt-12 pb-16">
         {/* Back */}
-        <button onClick={onBack} className="flex items-center gap-1.5 mb-4 text-gray-500 hover:text-gray-300 transition-colors" data-testid="create-back-btn">
-          <ChevronLeft className="w-4 h-4" />
-          <span className="text-xs">Indietro</span>
+        <button onClick={onBack} className="flex items-center gap-1 mb-2 text-gray-500 hover:text-gray-300 transition-colors" data-testid="create-back-btn">
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span className="text-[10px]">Indietro</span>
         </button>
 
         {/* Header */}
-        <h1 className="text-xl font-bold text-white tracking-tight">Dai vita al tuo prossimo film</h1>
-        <p className="text-sm text-gray-400 mt-1 mb-4">Scegli titolo e genere. Il resto prendera forma lungo la produzione.</p>
+        <h1 className="text-lg font-bold text-amber-400 tracking-tight">Dai vita al tuo prossimo film</h1>
+        <p className="text-xs text-gray-400 mt-0.5 mb-2">Scegli titolo e genere. Il resto prendera forma lungo la produzione.</p>
 
         {/* Mini step bar */}
-        <div className="flex gap-1 overflow-x-auto no-scrollbar mb-5">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar mb-3">
           {MINI_STEPS.map((s, i) => (
-            <span key={s} className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-wider border ${
+            <span key={s} className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[6px] font-bold uppercase tracking-wider border ${
               i === 0 ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-gray-800/30 border-gray-800 text-gray-600'
             }`}>{s}</span>
           ))}
         </div>
 
         {/* Main card */}
-        <div className="rounded-2xl border border-gray-800/60 bg-gradient-to-b from-gray-900/60 to-gray-900/30 backdrop-blur-sm p-4 space-y-5" style={{ boxShadow: '0 0 40px rgba(180,130,40,0.04)' }}>
+        <div className="rounded-2xl border border-gray-800/60 bg-gradient-to-b from-gray-900/60 to-gray-900/30 backdrop-blur-sm p-3 space-y-3" style={{ boxShadow: '0 0 40px rgba(180,130,40,0.04)' }}>
 
-          {/* Poster preview */}
-          <div className="mx-auto w-36 rounded-xl overflow-hidden border border-gray-700/40 bg-gradient-to-b from-gray-800/80 to-gray-900" style={{ aspectRatio: '2/3' }}>
-            <div className="w-full h-full flex flex-col items-center justify-center p-3 relative">
-              <Film className="w-10 h-10 text-gray-700/30 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-              <div className="relative z-10 text-center flex flex-col items-center justify-center h-full gap-2">
-                <span className="text-[7px] px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-wider">In sviluppo</span>
-                <p className="text-sm font-bold text-white leading-tight line-clamp-3">{title || 'Titolo del Film'}</p>
-                <span className="text-[8px] px-2 py-0.5 rounded bg-gray-700/50 text-gray-400 capitalize">{GENRE_LABELS[genre] || genre}</span>
+          {/* Poster preview — compact with aura */}
+          <div className="flex gap-3 items-center">
+            <div className="relative flex-shrink-0">
+              {/* Aura glow */}
+              <div className="absolute -inset-2 rounded-xl opacity-50" style={{
+                background: 'radial-gradient(circle, rgba(0,180,255,0.3) 0%, transparent 70%)',
+                filter: 'blur(10px)',
+                animation: 'pulseGlow 3s infinite ease-in-out',
+              }} />
+              <div className="relative w-16 rounded-lg overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-gray-800/80 to-gray-900" style={{ aspectRatio: '2/3' }}>
+                <div className="w-full h-full flex flex-col items-center justify-center p-1.5 relative">
+                  <Film className="w-5 h-5 text-gray-700/30 absolute" />
+                  <div className="relative z-10 text-center">
+                    <span className="text-[5px] px-1 py-0 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold uppercase">In sviluppo</span>
+                    <p className="text-[8px] font-bold text-white leading-tight mt-1 line-clamp-2">{title || 'Titolo'}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Title input */}
-          <div>
-            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Titolo del Film</label>
-            <input
-              value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Il titolo del tuo prossimo capolavoro..."
-              autoFocus
-              className="w-full bg-black/40 border border-gray-700 rounded-xl px-4 py-3 text-base text-white placeholder:text-gray-600 focus:border-amber-500/40 focus:outline-none transition-colors"
-              data-testid="create-title"
-            />
-            <p className="text-[8px] text-gray-600 mt-1 pl-1">Nome di lavorazione del progetto</p>
-          </div>
-
-          {/* Genre chips */}
-          <div>
-            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-2">Genere</label>
-            <div className="flex flex-wrap gap-1.5" data-testid="genre-chips">
-              {GENRES.map(g => {
-                const active = genre === g;
-                return (
-                  <button
-                    key={g} onClick={() => changeGenre(g)}
-                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${
-                      active
-                        ? 'bg-amber-500 border-amber-500 text-black scale-105'
-                        : 'bg-transparent border-gray-700 text-gray-400 hover:border-gray-500'
-                    }`}
-                    data-testid={`genre-${g}`}
-                  >
-                    {GENRE_LABELS[g] || g}
-                  </button>
-                );
-              })}
+            <div className="flex-1 min-w-0">
+              <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Titolo del Film</label>
+              <input
+                value={title} onChange={e => setTitle(e.target.value)}
+                placeholder="Il tuo prossimo capolavoro..."
+                autoFocus
+                className="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:border-amber-500/40 focus:outline-none transition-colors"
+                data-testid="create-title"
+              />
             </div>
-            <p className="text-[9px] text-amber-400/50 mt-2 italic min-h-[14px]">{GENRE_TAGLINES[genre] || 'Ogni grande film inizia da un\'idea.'}</p>
+          </div>
+
+          {/* Genre dropdown */}
+          <div>
+            <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Genere</label>
+            <select
+              value={genre} onChange={e => changeGenre(e.target.value)}
+              className="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500/40 focus:outline-none"
+              data-testid="create-genre"
+            >
+              {GENRES.map(g => <option key={g} value={g}>{GENRE_LABELS[g] || g}</option>)}
+            </select>
+            <p className="text-[8px] text-amber-400/50 mt-1 italic min-h-[12px]">{GENRE_TAGLINES[genre] || 'Ogni grande film inizia da un\'idea.'}</p>
           </div>
 
           {/* Subgenres chips */}
           <div>
-            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">
+            <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">
               Sottogeneri <span className="text-gray-600">(max 3)</span>
             </label>
-            <div className="flex flex-wrap gap-1.5" data-testid="subgenre-chips">
+            <div className="flex flex-wrap gap-1" data-testid="subgenre-chips">
               {availableSubs.map(sg => {
                 const active = subgenres.includes(sg);
                 return (
                   <button
                     key={sg} onClick={() => toggleSub(sg)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-medium border transition-all ${
                       active
                         ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                        : 'bg-gray-800/40 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                        : 'bg-gray-800/40 border-gray-700 text-gray-400 hover:border-gray-500'
                     }`}
                     data-testid={`subgenre-${sg}`}
                   >
@@ -1564,28 +1718,23 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
                 );
               })}
             </div>
-            {subgenres.length > 0 && (
-              <p className="text-[8px] text-amber-400/60 mt-1.5">{subgenres.length}/3 selezionati</p>
-            )}
           </div>
 
           {/* CTA Button */}
-          <div>
-            <button
-              onClick={create}
-              disabled={creating || !title.trim()}
-              className="w-full text-sm py-3.5 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 active:scale-[0.97] transition-all disabled:opacity-25 disabled:hover:bg-amber-500 flex items-center justify-center gap-2"
-              style={{ boxShadow: title.trim() ? '0 0 20px rgba(245,158,11,0.2)' : 'none' }}
-              data-testid="create-confirm-btn"
-            >
-              <Plus className="w-4 h-4" />
-              {creating ? 'Creazione...' : 'Crea e Inizia'}
-            </button>
-            <p className="text-[8px] text-gray-600 text-center mt-2">Il film entrera ufficialmente in produzione</p>
-          </div>
+          <button
+            onClick={create}
+            disabled={creating || !title.trim()}
+            className="w-full text-sm py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 active:scale-[0.97] transition-all disabled:opacity-25 flex items-center justify-center gap-2"
+            style={{ boxShadow: title.trim() ? '0 0 20px rgba(245,158,11,0.2)' : 'none' }}
+            data-testid="create-confirm-btn"
+          >
+            <Plus className="w-4 h-4" />
+            {creating ? 'Creazione...' : 'Crea e Inizia'}
+          </button>
         </div>
       </div>
     </div>
+    </>
   );
 };
 

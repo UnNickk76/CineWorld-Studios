@@ -20,6 +20,7 @@ from routes.film_pipeline import (
     ROLE_VALUES, GENRE_LOCATION_BONUS, CLASSIC_POSTER_STYLES,
     RELEASE_EVENTS, COMING_SOON_TIERS, STEP_CINEPASS,
     generate_release_event,
+    STRONG_COMBOS, WEAK_COMBOS, SUBGENRE_AUDIENCE, SUBGENRE_MARKETING_BOOST,
 )
 
 router = APIRouter(prefix="/api/pipeline-v2", tags=["pipeline-v2"])
@@ -90,26 +91,27 @@ V2_CINEPASS_COST = {
     'release_pending': 0,
 }
 
-GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir']
+GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir', 'historical']
 SUBGENRES = {
-    'action': ['Spy', 'Martial Arts', 'Heist', 'Superhero'],
-    'comedy': ['Romantic Comedy', 'Dark Comedy', 'Slapstick', 'Parody'],
-    'drama': ['Legal', 'Political', 'Family', 'Historical'],
-    'horror': ['Slasher', 'Psychological', 'Supernatural', 'Body Horror'],
-    'sci_fi': ['Cyberpunk', 'Space Opera', 'Time Travel', 'Dystopia'],
-    'romance': ['Period', 'Tragic', 'Comedy', 'Fantasy'],
-    'thriller': ['Psychological', 'Political', 'Techno', 'Conspiracy'],
-    'animation': ['CGI', 'Stop Motion', '2D Classic', 'Anime Style'],
-    'documentary': ['Nature', 'True Crime', 'Social', 'Musical'],
-    'fantasy': ['Epic', 'Dark', 'Urban', 'Fairy Tale'],
-    'musical': ['Broadway', 'Biographical', 'Dance', 'Rock Opera'],
-    'western': ['Classic', 'Spaghetti', 'Neo-Western', 'Revisionist'],
-    'biographical': ['Musical Icon', 'Political', 'Sports', 'Criminal'],
-    'mystery': ['Whodunit', 'Noir', 'Cozy', 'Locked Room'],
-    'adventure': ['Jungle', 'Ocean', 'Treasure', 'Survival'],
-    'war': ['WWII', 'Vietnam', 'Modern', 'Medieval'],
-    'crime': ['Gangster', 'Heist', 'Detective', 'Cartel'],
-    'noir': ['Classic', 'Neo-Noir', 'Tech-Noir', 'Southern Gothic'],
+    'action': ['militare', 'spy', 'vendetta', 'arti marziali', 'heist', 'survival', 'guerra urbana', 'apocalittico', 'crime action', 'supereroi'],
+    'comedy': ['slapstick', 'romantica', 'nera', 'satirica', 'demenziale', 'teen', 'familiare', 'surreale', 'parodia', 'situazionale'],
+    'drama': ['romantico', 'psicologico', 'familiare', 'sociale', 'biografico', 'legale', 'medico', 'religioso', 'politico', 'tragico'],
+    'horror': ['slasher', 'psicologico', 'soprannaturale', 'body horror', 'folk horror', 'found footage', 'gotico', 'survival horror', 'cosmico', 'zombie'],
+    'sci_fi': ['cyberpunk', 'space opera', 'viaggi nel tempo', 'distopia', 'post-apocalittico', 'alieni', 'hard sci-fi', 'biopunk', 'mecha', 'utopia'],
+    'romance': ['period', 'tragico', 'commedia romantica', 'fantasy', 'teen romance', 'epistolare', 'drammatico', 'musicale', 'proibito', 'riconciliazione'],
+    'thriller': ['psicologico', 'investigativo', 'crime', 'paranoia', 'politico', 'survival', 'techno-thriller', 'mistero', 'serial killer', 'suspense'],
+    'animation': ['CGI', 'stop motion', '2D classico', 'anime', 'clay', 'rotoscope', 'mixed media', 'pixel art', 'puppetoon', 'silhouette'],
+    'documentary': ['natura', 'true crime', 'sociale', 'musicale', 'sportivo', 'storico', 'scientifico', 'biografico', 'politico', 'viaggio'],
+    'fantasy': ['epico', 'dark fantasy', 'urban fantasy', 'fiabesco', 'mitologico', 'sword & sorcery', 'low fantasy', 'portal fantasy', 'romantico', 'steampunk'],
+    'musical': ['broadway', 'biografico', 'dance', 'rock opera', 'jukebox', 'opera', 'hip hop', 'classico', 'bollywood', 'country'],
+    'western': ['classico', 'spaghetti', 'neo-western', 'revisionista', 'crepuscolare', 'acid western', 'space western', 'comedy western', 'outlaw', 'frontier'],
+    'biographical': ['icona musicale', 'politico', 'sportivo', 'criminale', 'scienziato', 'artista', 'esploratore', 'attivista', 'leader militare', 'inventore'],
+    'mystery': ['whodunit', 'noir', 'cozy', 'locked room', 'giallo', 'poliziesco', 'cospirazione', 'soprannaturale', 'storico', 'scientifico'],
+    'adventure': ['giungla', 'oceano', 'tesoro', 'survival', 'esplorazione', 'montagna', 'sotterraneo', 'artico', 'desertico', 'urbano'],
+    'war': ['WWII', 'vietnam', 'moderna', 'medievale', 'napoleonica', 'civile americana', 'prima guerra', 'guerra fredda', 'resistenza', 'mercenari'],
+    'crime': ['gangster', 'heist', 'detective', 'cartello', 'mafioso', 'corruzione', 'rapimento', 'frode', 'vendetta', 'undercover'],
+    'noir': ['classico', 'neo-noir', 'tech-noir', 'southern gothic', 'sunshine noir', 'artico', 'mediterraneo', 'tokyo noir', 'rural noir', 'tropical noir'],
+    'historical': ['guerra', 'imperi', 'medioevo', 'rinascimento', 'antico', 'biografico storico', 'politico storico', 'rivoluzioni', 'coloniale', 'mitologico'],
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -138,13 +140,13 @@ def _generate_npc_agencies():
         ("Shanghai Dragon Films", "Asia", ["action", "fantasy", "war"], 81),
         ("New York Method Actors", "Nord America", ["drama", "crime", "biographical"], 91),
         ("Los Angeles Comedy Club", "Nord America", ["comedy", "animation", "musical"], 87),
-        ("Roma Neorealismo", "Europa", ["drama", "biographical", "war"], 76),
+        ("Roma Neorealismo", "Europa", ["drama", "biographical", "war", "historical"], 76),
         ("Cape Town Stories", "Africa", ["drama", "documentary", "adventure"], 63),
         ("Mexico City Lucha", "Nord America", ["action", "comedy", "horror"], 71),
         ("Stockholm Noir", "Europa", ["noir", "thriller", "mystery"], 79),
         ("Toronto Indie Films", "Nord America", ["drama", "documentary", "mystery"], 73),
         ("Istanbul Bridge Talent", "Europa", ["drama", "thriller", "romance"], 69),
-        ("Warsaw Rising Agency", "Europa", ["war", "drama", "horror"], 67),
+        ("Warsaw Rising Agency", "Europa", ["war", "drama", "horror", "historical"], 67),
         ("Hong Kong Wire Action", "Asia", ["action", "crime", "thriller"], 86),
         ("Cannes Selection Group", "Europa", ["drama", "romance", "documentary"], 93),
         ("Universal Stars LA", "Nord America", ["action", "sci_fi", "fantasy"], 92),
@@ -1000,8 +1002,12 @@ async def complete_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
         if datetime.now(timezone.utc) < end_dt:
             raise HTTPException(400, "Riprese ancora in corso")
 
-    # Generate rare events (1-3 max)
+    # Generate rare events (1-3 max) — influenced by subgenres
     events = []
+    subs = set(s.lower() for s in project.get('subgenres', []))
+    genre = project.get('genre', '')
+
+    # Base events
     possible = [
         ("Meteo perfetto sul set", "positive", 3),
         ("Chimica straordinaria del cast", "positive", 4),
@@ -1010,6 +1016,33 @@ async def complete_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
         ("Leak backstage sui social", "mixed", 1),
         ("Ritardo imprevisto di una giornata", "negative", -1),
     ]
+
+    # Subgenre-specific events
+    if subs & {'guerra', 'militare', 'WWII', 'medievale', 'resistenza'}:
+        possible.append(("Consulente militare migliora autenticita", "positive", 4))
+        possible.append(("Scena di battaglia spettacolare", "positive", 3))
+    if subs & {'psicologico', 'paranoia', 'suspense'}:
+        possible.append(("Performance intensa dell'attore protagonista", "positive", 5))
+        possible.append(("Tensione sul set troppo realistica", "mixed", 1))
+    if subs & {'medioevo', 'antico', 'imperi', 'rinascimento', 'coloniale'}:
+        possible.append(("Critica storica elogia l'accuratezza", "positive", 4))
+        possible.append(("Errore storico scoperto e corretto in tempo", "mixed", 0))
+    if subs & {'politico', 'politico storico', 'sociale'}:
+        possible.append(("Polemiche mediatiche aumentano la visibilita", "mixed", 2))
+        possible.append(("Politico critica il film, hype alle stelle", "positive", 3))
+    if subs & {'romantico', 'romantica', 'tragico', 'proibito'}:
+        possible.append(("Scena romantica diventa virale sui social", "positive", 3))
+    if subs & {'heist', 'spy', 'undercover'}:
+        possible.append(("Stunt mozzafiato eseguito al primo tentativo", "positive", 4))
+    if subs & {'gotico', 'soprannaturale', 'cosmico', 'folk horror'}:
+        possible.append(("Atmosfera inquietante perfetta", "positive", 3))
+    if subs & {'slapstick', 'demenziale', 'parodia'}:
+        possible.append(("Improvvisazione comica geniale", "positive", 4))
+    if genre == 'horror':
+        possible.append(("Film vietato ai minori in 3 paesi — hype enorme", "mixed", 3))
+    if genre == 'historical':
+        possible.append(("Storico famoso benedice il film", "positive", 5))
+
     num_events = random.randint(1, 3)
     chosen = random.sample(possible, min(num_events, len(possible)))
     for text, typ, impact in chosen:
@@ -1389,8 +1422,20 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     # Shooting events
     base += metrics.get('shooting_event_bonus', 0)
 
-    # Marketing hype
-    base += min(5, metrics.get('marketing_hype', 0) * 0.15)
+    # Subgenre synergy bonus on quality
+    subs = set(s.lower() for s in project.get('subgenres', []))
+    sg_quality = 0
+    for sg in subs:
+        sg_quality += STRONG_COMBOS.get((genre, sg), 0) * 2  # amplified for quality
+    if sg_quality > 0:
+        base += min(5, sg_quality)
+    elif sg_quality < 0:
+        base += max(-3, sg_quality)
+
+    # Subgenre marketing affinity
+    sg_mkt_boost = max((SUBGENRE_MARKETING_BOOST.get(sg, 1.0) for sg in subs), default=1.0)
+    mkt_hype = metrics.get('marketing_hype', 0)
+    base += min(5, mkt_hype * 0.15 * sg_mkt_boost)
 
     # Premiere bonus
     base += min(5, metrics.get('premiere_bonus', 0) * 0.3)

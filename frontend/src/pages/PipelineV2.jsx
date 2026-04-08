@@ -38,6 +38,28 @@ const STEP_STYLES = {
   emerald: { active: 'border-emerald-500 bg-emerald-500/15 text-emerald-400', line: 'bg-emerald-600', text: 'text-emerald-400' },
 };
 
+const SUBGENRE_MAP = {
+  action: ['militare', 'spy', 'vendetta', 'arti marziali', 'heist', 'survival', 'guerra urbana', 'apocalittico', 'crime action', 'supereroi'],
+  comedy: ['slapstick', 'romantica', 'nera', 'satirica', 'demenziale', 'teen', 'familiare', 'surreale', 'parodia', 'situazionale'],
+  drama: ['romantico', 'psicologico', 'familiare', 'sociale', 'biografico', 'legale', 'medico', 'religioso', 'politico', 'tragico'],
+  horror: ['slasher', 'psicologico', 'soprannaturale', 'body horror', 'folk horror', 'found footage', 'gotico', 'survival horror', 'cosmico', 'zombie'],
+  sci_fi: ['cyberpunk', 'space opera', 'viaggi nel tempo', 'distopia', 'post-apocalittico', 'alieni', 'hard sci-fi', 'biopunk', 'mecha', 'utopia'],
+  romance: ['period', 'tragico', 'commedia romantica', 'fantasy', 'teen romance', 'epistolare', 'drammatico', 'musicale', 'proibito', 'riconciliazione'],
+  thriller: ['psicologico', 'investigativo', 'crime', 'paranoia', 'politico', 'survival', 'techno-thriller', 'mistero', 'serial killer', 'suspense'],
+  animation: ['CGI', 'stop motion', '2D classico', 'anime', 'clay', 'rotoscope', 'mixed media', 'pixel art', 'puppetoon', 'silhouette'],
+  documentary: ['natura', 'true crime', 'sociale', 'musicale', 'sportivo', 'storico', 'scientifico', 'biografico', 'politico', 'viaggio'],
+  fantasy: ['epico', 'dark fantasy', 'urban fantasy', 'fiabesco', 'mitologico', 'sword & sorcery', 'low fantasy', 'portal fantasy', 'romantico', 'steampunk'],
+  musical: ['broadway', 'biografico', 'dance', 'rock opera', 'jukebox', 'opera', 'hip hop', 'classico', 'bollywood', 'country'],
+  western: ['classico', 'spaghetti', 'neo-western', 'revisionista', 'crepuscolare', 'acid western', 'space western', 'comedy western', 'outlaw', 'frontier'],
+  biographical: ['icona musicale', 'politico', 'sportivo', 'criminale', 'scienziato', 'artista', 'esploratore', 'attivista', 'leader militare', 'inventore'],
+  mystery: ['whodunit', 'noir', 'cozy', 'locked room', 'giallo', 'poliziesco', 'cospirazione', 'soprannaturale', 'storico', 'scientifico'],
+  adventure: ['giungla', 'oceano', 'tesoro', 'survival', 'esplorazione', 'montagna', 'sotterraneo', 'artico', 'desertico', 'urbano'],
+  war: ['WWII', 'vietnam', 'moderna', 'medievale', 'napoleonica', 'civile americana', 'prima guerra', 'guerra fredda', 'resistenza', 'mercenari'],
+  crime: ['gangster', 'heist', 'detective', 'cartello', 'mafioso', 'corruzione', 'rapimento', 'frode', 'vendetta', 'undercover'],
+  noir: ['classico', 'neo-noir', 'tech-noir', 'southern gothic', 'sunshine noir', 'artico', 'mediterraneo', 'tokyo noir', 'rural noir', 'tropical noir'],
+  historical: ['guerra', 'imperi', 'medioevo', 'rinascimento', 'antico', 'biografico storico', 'politico storico', 'rivoluzioni', 'coloniale', 'mitologico'],
+};
+
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
@@ -1253,13 +1275,20 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
               <div className="p-1.5">
                 <p className="text-[9px] font-bold text-white truncate leading-tight">{f.title}</p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-[7px] text-gray-400 capitalize truncate">{(f.genre || '').replace('_', ' ')}</span>
+                  <span className="text-[7px] text-gray-400 capitalize truncate">{f.genre === 'historical' ? 'storico' : (f.genre || '').replace('_', ' ')}</span>
                   {f.pre_imdb_score > 0 && (
                     <span className="text-[7px] text-yellow-400 font-bold flex items-center gap-0.5">
                       <Star className="w-1.5 h-1.5" />{f.pre_imdb_score}
                     </span>
                   )}
                 </div>
+                {(f.subgenres || []).length > 0 && (
+                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                    {f.subgenres.slice(0, 3).map(sg => (
+                      <span key={sg} className="text-[6px] px-1 py-0 rounded bg-amber-500/10 text-amber-400/70 border border-amber-500/15">{sg}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             </button>
           );
@@ -1280,7 +1309,7 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
 //  MAIN PIPELINE V2 PAGE
 // ═══════════════════════════════════════════════════════════════
 
-const GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir'];
+const GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir', 'historical'];
 
 const PipelineV2 = () => {
   // view: 'board' | 'detail' | 'create'
@@ -1378,13 +1407,27 @@ const PipelineV2 = () => {
 const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('drama');
+  const [subgenres, setSubgenres] = useState([]);
   const [creating, setCreating] = useState(false);
+
+  const availableSubs = SUBGENRE_MAP[genre] || [];
+
+  const toggleSub = (sg) => {
+    setSubgenres(prev => {
+      if (prev.includes(sg)) return prev.filter(s => s !== sg);
+      if (prev.length >= 3) return [...prev.slice(1), sg]; // drop oldest
+      return [...prev, sg];
+    });
+  };
+
+  // Reset subgenres when genre changes
+  const changeGenre = (g) => { setGenre(g); setSubgenres([]); };
 
   const create = async () => {
     if (!title.trim()) return;
     setCreating(true);
     try {
-      const res = await api.post('/films', { title: title.trim(), genre });
+      const res = await api.post('/films', { title: title.trim(), genre, subgenres });
       toast({ title: 'Film creato!' });
       onCreated(res.film);
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
@@ -1393,7 +1436,7 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
 
   return (
     <div className="min-h-screen bg-black text-white p-3" data-testid="pipeline-v2-create">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-5">
         <button onClick={onBack} className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors" data-testid="create-back-btn">
           <ChevronLeft className="w-4 h-4 text-gray-400" />
         </button>
@@ -1414,13 +1457,42 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
         <div>
           <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Genere</label>
           <select
-            value={genre} onChange={e => setGenre(e.target.value)}
+            value={genre} onChange={e => changeGenre(e.target.value)}
             className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
             data-testid="create-genre"
           >
-            {GENRES.map(g => <option key={g} value={g}>{g.replace('_', ' ')}</option>)}
+            {GENRES.map(g => <option key={g} value={g}>{g === 'historical' ? 'storico' : g.replace('_', ' ')}</option>)}
           </select>
         </div>
+
+        {/* Subgenres chips */}
+        <div>
+          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">
+            Sottogeneri <span className="text-gray-600">(max 3)</span>
+          </label>
+          <div className="flex flex-wrap gap-1.5" data-testid="subgenre-chips">
+            {availableSubs.map(sg => {
+              const active = subgenres.includes(sg);
+              return (
+                <button
+                  key={sg} onClick={() => toggleSub(sg)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                    active
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-gray-800/40 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                  }`}
+                  data-testid={`subgenre-${sg}`}
+                >
+                  {sg}
+                </button>
+              );
+            })}
+          </div>
+          {subgenres.length > 0 && (
+            <p className="text-[8px] text-amber-400/60 mt-1.5">{subgenres.length}/3 selezionati: {subgenres.join(', ')}</p>
+          )}
+        </div>
+
         <button
           onClick={create}
           disabled={creating || !title.trim()}

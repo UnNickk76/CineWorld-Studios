@@ -87,7 +87,7 @@ const ContestsPage = () => {
   const contests = contestData?.contests || [];
 
   return (
-    <div className="max-w-lg mx-auto space-y-4 px-3 pt-2 pb-32" data-testid="contests-page">
+    <div className="max-w-lg mx-auto space-y-4 px-3 pt-16 pb-44" data-testid="contests-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

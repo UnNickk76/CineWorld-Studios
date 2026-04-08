@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   Trophy, Play, Gamepad2, BarChart3, Crown, Swords,
   Film, Brain, Target, Zap, Timer, Camera, Sun, UserCheck,
-  Scissors, Eye, Sparkles, Clock, Flame, Award, Gift, Shield, Binary, Car
+  Scissors, Eye, Sparkles, Clock, Flame, Award, Gift, Shield, Binary, Car, Drama
 } from 'lucide-react';
 import {
   TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame,
@@ -24,7 +24,7 @@ const GAME_ICONS = {
   editing_cut: Scissors, follow_cam: Eye, chaos_premiere: Sparkles, reel_snake: Gamepad2,
   matrix_dodge: Binary, matrix_dodge_pro: Binary,
   cine_drive: Car, cine_drive_pro: Car,
-  supercine_pro: Clapperboard,
+  supercine_pro: Drama,
 };
 
 const GAME_COMPONENTS = {

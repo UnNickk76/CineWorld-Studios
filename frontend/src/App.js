@@ -1445,9 +1445,9 @@ const TopNavbar = () => {
           <Building className="w-4 h-4" />
           <span className="text-[8px]">Infra</span>
         </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/minigiochi' ? 'text-cyan-400' : 'text-gray-500'}`} onClick={() => navigate('/minigiochi')} onMouseEnter={() => handleNavHover('/minigiochi')} data-testid="bottom-nav-arena">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} onMouseEnter={() => handleNavHover('/pvp-arena')} data-testid="bottom-nav-arena">
           <Gamepad2 className="w-4 h-4" />
-          <span className="text-[8px]">Giochi</span>
+          <span className="text-[8px]">Arena</span>
         </button>
         <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
           <Bell className="w-4 h-4" />
@@ -2505,7 +2505,7 @@ function App() {
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />
                 <Route path="/hq" element={<ProtectedRoute><HqPage /></ProtectedRoute>} />
-                <Route path="/pvp-arena" element={<ProtectedRoute><Navigate to="/minigiochi" replace /></ProtectedRoute>} />
+                <Route path="/pvp-arena" element={<ProtectedRoute><PvPArenaPage /></ProtectedRoute>} />
                 <Route path="/major" element={<ProtectedRoute><MajorPage /></ProtectedRoute>} />
                 <Route path="/event-history" element={<ProtectedRoute><EventHistoryPage /></ProtectedRoute>} />
                 <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />

@@ -928,7 +928,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
     try {
       const res = await api.get(`/films/${film.id}/cast-chemistry`);
       setChemData(res);
-      toast({ title: `Chimica analizzata! (-3 crediti)` });
+      toast({ title: `Chimica analizzata! (-1 credito)` });
     } catch (e) {
       toast({ title: 'Errore', description: e.message, variant: 'destructive' });
     }
@@ -957,7 +957,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
         <button onClick={fetchChemistry} disabled={loading === 'chem'}
           className="text-[7px] px-2 py-1 rounded bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-colors disabled:opacity-40 font-bold"
           data-testid="analyze-chemistry-btn">
-          {loading === 'chem' ? '...' : displayData ? 'Rianalizza (3cr)' : 'Analizza (3cr)'}
+          {loading === 'chem' ? '...' : displayData ? 'Rianalizza (1cr)' : 'Analizza (1cr)'}
         </button>
       </div>
 
@@ -1060,7 +1060,12 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   };
 
   const starsStr = (n) => '★'.repeat(n || 0) + '☆'.repeat(Math.max(0, 5 - (n || 0)));
-  const genderIcon = (g) => g === 'M' ? '♂' : g === 'F' ? '♀' : '⚧';
+  const genderIcon = (g) => {
+    const gl = (g || '').toLowerCase();
+    if (gl === 'm' || gl === 'male') return '♂';
+    if (gl === 'f' || gl === 'female') return '♀';
+    return '⚧';
+  };
 
   // Chemistry lookup for individual cast members
   const chemPairs = film.cast_chemistry_pairs || [];
@@ -1095,7 +1100,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-medium text-white truncate">{person.name}</p>
-              <p className="text-[7px] text-gray-500">{genderIcon(person.gender)} {person.age}a • {person.nationality} • ${(person.cost||0).toLocaleString()}</p>
+              <p className="text-[7px] text-gray-500"><span className={`${(person.gender||'').toLowerCase() === 'male' || person.gender === 'M' ? 'text-blue-400' : (person.gender||'').toLowerCase() === 'female' || person.gender === 'F' ? 'text-pink-400' : 'text-gray-400'}`}>{genderIcon(person.gender)}</span> {person.age}a • {person.nationality}{person.imdb_rating ? ` • IMDb ${(person.imdb_rating/10).toFixed(1)}` : ''} • ${(person.cost||0).toLocaleString()}</p>
             </div>
           </div>
         ) : <p className="text-[9px] text-gray-600 italic mt-1">—</p>}
@@ -1203,7 +1208,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
                     <span className={`text-[6px] px-1 py-0.5 rounded font-bold ${fameStyle}`}>{p.fame_tier || '?'}</span>
                   </div>
                   <p className="text-[7px] text-gray-500">
-                    {genderIcon(p.gender)} {p.age}a • {p.nationality} • {starsStr(p.stars)} • ${(p.cost||0).toLocaleString()}
+                    <span className={`${(p.gender||'').toLowerCase() === 'male' || p.gender === 'M' ? 'text-blue-400' : (p.gender||'').toLowerCase() === 'female' || p.gender === 'F' ? 'text-pink-400' : 'text-gray-400'}`}>{genderIcon(p.gender)}</span> {p.age}a • {p.nationality} • {starsStr(p.stars)}{p.imdb_rating ? ` • IMDb ${(p.imdb_rating/10).toFixed(1)}` : ''} • ${(p.cost||0).toLocaleString()}
                   </p>
                 </div>
                 <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />

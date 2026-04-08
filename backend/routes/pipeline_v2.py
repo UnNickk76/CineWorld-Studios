@@ -1455,7 +1455,7 @@ async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user))
 
 @router.get("/films/{pid}/cast-chemistry")
 async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
-    """Get current cast chemistry indicators. Costo: 3 crediti."""
+    """Get current cast chemistry indicators. Costo: 1 credito."""
     project = await _get_project(pid, user['id'])
     cast = project.get('cast', {})
 
@@ -1464,11 +1464,11 @@ async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
     if len(actors) < 2 and not cast.get('director'):
         return {'indicator': 'neutral', 'pairs': [], 'best_pair': None, 'worst_pair': None, 'cost': 0}
 
-    # Deduct 3 credits
+    # Deduct 1 credit
     u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
-    if u.get('funds', 0) < 3:
-        raise HTTPException(400, "Servono almeno 3 crediti")
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -3}})
+    if u.get('funds', 0) < 1:
+        raise HTTPException(400, "Servono almeno 1 credito")
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -1}})
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
@@ -1495,7 +1495,7 @@ async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
         'pairs': pairs_safe,
         'best_pair': {'a_name': chemistry['best_pair']['a_name'], 'b_name': chemistry['best_pair']['b_name'], 'indicator': chemistry['best_pair']['indicator']} if chemistry['best_pair'] else None,
         'worst_pair': {'a_name': chemistry['worst_pair']['a_name'], 'b_name': chemistry['worst_pair']['b_name'], 'indicator': chemistry['worst_pair']['indicator']} if chemistry['worst_pair'] else None,
-        'cost': 3,
+        'cost': 1,
     }
 
 

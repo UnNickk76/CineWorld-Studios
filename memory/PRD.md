@@ -29,23 +29,19 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 
 ### Job Periodico NPC Cast (2026-04-09)
 - APScheduler job giornaliero (06:00 UTC)
-- Fix campo role_type e writer per Pipeline V2
 
-### SISTEMA CHIMICHE ATTORI (2026-04-09) - NUOVO
-- Funzione `calculate_chemistry(actorA, actorB, genre, subgenres)`: score -100/+100
-  - Basata su: compatibilita skill, gap fama, affinita genere/sottogenere, eta, nazionalita, stelle, personalita
-- Funzione `calculate_cast_chemistry(cast_list)`: media pesata tutte le coppie
-  - Include film passati insieme (bonus collaborazione dal DB)
-- Endpoint `GET /films/{pid}/cast-chemistry`: costo 3 crediti, restituisce solo indicatori (no numeri)
+### SISTEMA CHIMICHE ATTORI (2026-04-09)
+- calculate_chemistry() con 7 fattori + bonus collaborazione passata
+- calculate_cast_chemistry() aggregazione tutte le coppie
+- Endpoint GET /cast-chemistry: costo 1 credito, solo indicatori (no numeri)
 - Integrato in: select-cast, lock-cast, complete-ciak (eventi), qualita finale
-- Impatto gameplay:
-  - Qualita film finale: -15 a +15 punti basati sulla chimica reale (sostituisce random)
-  - Eventi shooting: litigi/abbandoni se chimica < -30, boost se > +40
-  - Hype: boost extra con chimica alta
-- UI: Pannello ChemistryPanel con indicatori verde/giallo/rosso
-  - Pallino chimica per ogni membro del cast selezionato
-  - Dettaglio coppie espandibile
-  - Best/worst pair evidenziati
+- Impatto: -15 a +15 punti qualita, eventi shooting dinamici
+- UI: ChemistryPanel con verde/giallo/rosso, pallini per membro
+
+### FIX UI Cast (2026-04-09)
+- Genere: ♂ blu / ♀ rosa / ⚧ grigio (fix mapping male/female vs M/F)
+- IMDb rating mostrato nelle proposal cards (formato X.X su scala 10)
+- Chimica ridotta a 1 credito
 
 ## Backlog
 

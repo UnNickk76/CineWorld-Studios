@@ -12,36 +12,36 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 
 ### Pipeline Film V2 - BLINDATA (2026-04-08)
 - State machine anti-bug con lock/snapshot/idempotenza
-- 9 macro-step: IDEA -> HYPE -> CAST -> PREP -> CIAK -> FINAL CUT -> MARKETING -> LA PRIMA -> USCITA
 
 ### Sottogeneri Dinamici + Genere Storico (2026-04-08)
-- 19 generi con 10 sottogeneri ciascuno
 
 ### Edit/Sblocco Step (2026-04-09)
-- Max 3 sblocchi totali per film
 
 ### Dashboard V2 + Speedup 4 Livelli + Hype Live (2026-04-09)
 
 ### CineConfirm Modale (2026-04-09)
 
 ### Rivoluzione Casting con NPC Reali (2026-04-09)
-- 24.200+ NPC dal DB, 8 skill per ruolo, limiti ruoli, fame tiers
 
 ### Job Periodico NPC Cast (2026-04-09)
-- APScheduler job giornaliero (06:00 UTC)
 
 ### SISTEMA CHIMICHE ATTORI (2026-04-09)
-- calculate_chemistry() con 7 fattori + bonus collaborazione passata
-- calculate_cast_chemistry() aggregazione tutte le coppie
-- Endpoint GET /cast-chemistry: costo 1 credito, solo indicatori (no numeri)
-- Integrato in: select-cast, lock-cast, complete-ciak (eventi), qualita finale
-- Impatto: -15 a +15 punti qualita, eventi shooting dinamici
-- UI: ChemistryPanel con verde/giallo/rosso, pallini per membro
+- 7 fattori + bonus collaborazione, costo 1 credito
 
 ### FIX UI Cast (2026-04-09)
-- Genere: ♂ blu / ♀ rosa / ⚧ grigio (fix mapping male/female vs M/F)
-- IMDb rating mostrato nelle proposal cards (formato X.X su scala 10)
-- Chimica ridotta a 1 credito
+- Genere colorizzato (blu/rosa), IMDb nelle card, stelline gialle
+
+### SISTEMA RUOLI ATTORI (2026-04-09) - NUOVO
+- Dropdown selezione ruolo: protagonista/co-protagonista/antagonista/supporto/cameo/generico
+- Costo 2 crediti per assegnazione ruolo attore
+- Bonus/malus basati su: ruolo x genere x skill x fama x stelle
+- GENRE_ROLE_AFFINITY: ruoli ottimali per genere (es. antagonista bonus horror/thriller)
+- Skill affinity per ruolo (protagonista->charisma, antagonista->emotional_depth)
+- Fame interaction (star in cameo = hype gold, star in generico = malus)
+- Impatto su: quality_bonus, hype_bonus, imdb_weight
+- Integrato nella quality finale del film (+role_quality_total * 0.4)
+- Cast selezionato sparisce dalla lista proposte
+- Ruolo mostrato nel CastSlot UI (badge viola)
 
 ## Backlog
 

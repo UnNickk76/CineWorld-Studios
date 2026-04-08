@@ -1008,6 +1008,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   const [activeTab, setActiveTab] = useState('director');
   const [expandedProposal, setExpandedProposal] = useState(null);
   const [rejectInfo, setRejectInfo] = useState(null);
+  const [selectedRole, setSelectedRole] = useState({});
   const cast = film.cast || {};
   const proposals = film.cast_proposals || [];
   const directors = cast.director ? 1 : 0;
@@ -1016,20 +1017,37 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   const composers = cast.composer ? 1 : 0;
   const canLock = directors >= 1 && actors >= 2;
 
-  // Filter proposals by active tab role_type
-  const tabProposals = proposals.map((p, i) => ({...p, _idx: i})).filter(p => p.role_type === activeTab && p.status !== 'rejected');
+  // IDs of already selected cast — hide them from proposal list
+  const selectedIds = new Set();
+  if (cast.director?.id) selectedIds.add(cast.director.id);
+  for (const sw of (cast.screenwriters || [])) { if (sw?.id) selectedIds.add(sw.id); }
+  for (const a of (cast.actors || [])) { if (a?.id) selectedIds.add(a.id); }
+  if (cast.composer?.id) selectedIds.add(cast.composer.id);
+
+  // Filter proposals by active tab role_type, hide rejected AND already selected
+  const tabProposals = proposals.map((p, i) => ({...p, _idx: i})).filter(p => p.role_type === activeTab && p.status !== 'rejected' && !selectedIds.has(p.id));
   const tabInfo = CAST_TABS.find(t => t.key === activeTab);
   const currentCount = activeTab === 'director' ? directors : activeTab === 'writer' ? screenwriters : activeTab === 'actor' ? actors : composers;
   const tabFull = currentCount >= (tabInfo?.max || 99);
 
+  const ACTOR_ROLES = [
+    { key: 'protagonista', label: 'Protagonista' },
+    { key: 'co_protagonista', label: 'Co-Protagonista' },
+    { key: 'antagonista', label: 'Antagonista' },
+    { key: 'supporto', label: 'Supporto' },
+    { key: 'cameo', label: 'Cameo' },
+    { key: 'generico', label: 'Generico' },
+  ];
+
   const selectCast = async (index) => {
+    const castRole = activeTab === 'actor' ? (selectedRole[index] || 'protagonista') : undefined;
     setLoading(`s_${index}`);
     try {
-      const res = await api.post(`/films/${film.id}/select-cast`, { proposal_index: index, role: activeTab });
+      const res = await api.post(`/films/${film.id}/select-cast`, { proposal_index: index, role: activeTab, cast_role: castRole });
       if (res.rejected) {
         setRejectInfo({ index, role: activeTab, name: res.name, reason: res.reason, cost: res.renegotiate_cost });
       } else {
-        toast({ title: `${res.selected} ingaggiato/a! (-$${(res.cost_paid||0).toLocaleString()})` });
+        toast({ title: `${res.selected} ingaggiato/a${castRole ? ' come ' + castRole.replace('_', '-') : ''}! (-$${(res.cost_paid||0).toLocaleString()})` });
         setExpandedProposal(null);
       }
       onRefresh();
@@ -1089,6 +1107,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
         <div className="flex justify-between items-center">
           <p className="text-[8px] text-gray-500 uppercase font-bold flex items-center gap-1"><Icon className="w-2.5 h-2.5" /> {label}</p>
           <div className="flex items-center gap-1">
+            {person?.cast_role && <span className="text-[6px] px-1 py-0.5 rounded bg-violet-500/15 text-violet-400 font-bold">{person.cast_role.replace('_', '-')}</span>}
             {chemStyle && <span className={`w-1.5 h-1.5 rounded-full ${chemStyle.dot}`} title={chemStyle.label} />}
             {person && <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">Scelto</span>}
           </div>
@@ -1208,7 +1227,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
                     <span className={`text-[6px] px-1 py-0.5 rounded font-bold ${fameStyle}`}>{p.fame_tier || '?'}</span>
                   </div>
                   <p className="text-[7px] text-gray-500">
-                    <span className={`${(p.gender||'').toLowerCase() === 'male' || p.gender === 'M' ? 'text-blue-400' : (p.gender||'').toLowerCase() === 'female' || p.gender === 'F' ? 'text-pink-400' : 'text-gray-400'}`}>{genderIcon(p.gender)}</span> {p.age}a • {p.nationality} • {starsStr(p.stars)}{p.imdb_rating ? ` • IMDb ${(p.imdb_rating/10).toFixed(1)}` : ''} • ${(p.cost||0).toLocaleString()}
+                    <span className={`${(p.gender||'').toLowerCase() === 'male' || p.gender === 'M' ? 'text-blue-400' : (p.gender||'').toLowerCase() === 'female' || p.gender === 'F' ? 'text-pink-400' : 'text-gray-400'}`}>{genderIcon(p.gender)}</span> {p.age}a • {p.nationality} • <span className="text-yellow-400">{starsStr(p.stars)}</span>{p.imdb_rating ? ` • IMDb ${(p.imdb_rating/10).toFixed(1)}` : ''} • ${(p.cost||0).toLocaleString()}
                   </p>
                 </div>
                 <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -1231,13 +1250,28 @@ const CastPhase = ({ film, onRefresh, toast }) => {
                     {Object.entries(p.skills || {}).map(([k, v]) => <SkillBar key={k} name={k} value={v} />)}
                   </div>
 
+                  {/* Role selection for actors */}
+                  {activeTab === 'actor' && !tabFull && (
+                    <div className="flex items-center gap-2 mt-1" data-testid={`role-select-${p._idx}`}>
+                      <span className="text-[8px] text-gray-400 flex-shrink-0">Ruolo:</span>
+                      <select
+                        value={selectedRole[p._idx] || 'protagonista'}
+                        onChange={(e) => { e.stopPropagation(); setSelectedRole(prev => ({...prev, [p._idx]: e.target.value})); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-[9px] py-1.5 px-2 rounded-lg bg-gray-800 border border-violet-500/30 text-violet-300 font-bold appearance-none"
+                      >
+                        {ACTOR_ROLES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Select button */}
                   {!tabFull && (
                     <button onClick={(e) => { e.stopPropagation(); selectCast(p._idx); }}
                       disabled={loading.startsWith('s_')}
                       className="w-full text-[9px] py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-40 font-bold mt-1"
                       data-testid={`select-${p._idx}`}>
-                      Ingaggia come {tabInfo?.label?.replace(/i$/, 'a').replace(/ori$/, 'ore')}
+                      {activeTab === 'actor' ? `Ingaggia come ${(selectedRole[p._idx] || 'protagonista').replace('_', '-')} (2cr)` : `Ingaggia come ${tabInfo?.label?.replace(/i$/, 'a').replace(/ori$/, 'ore')}`}
                     </button>
                   )}
                 </div>

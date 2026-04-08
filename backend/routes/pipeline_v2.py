@@ -774,6 +774,15 @@ async def _generate_agency_proposals(project, agencies, user_id):
                   'Moreau', 'Ali', 'Johansson', 'Romano', 'Park', 'Costa', 'Meyer', 'Sato', 'Eriksen', 'Volkov']
 
     ROLE_AFFINITIES = ['protagonista', 'spalla', 'antagonista', 'comico', 'drammatico', 'caratterista', 'action_hero', 'romantico']
+
+    # 8 skills per role type
+    SKILLS_BY_ROLE = {
+        'director': ['vision', 'actor_direction', 'pacing', 'visual_style', 'set_management', 'storytelling', 'editing_sense', 'innovation'],
+        'actor': ['acting', 'charisma', 'improvisation', 'physicality', 'emotional_depth', 'versatility', 'screen_presence', 'comedic_timing'],
+        'screenwriter': ['dialogue', 'structure', 'character_depth', 'plot_twists', 'worldbuilding', 'pacing', 'subtext', 'genre_mastery'],
+        'composer': ['melody', 'orchestration', 'rhythm', 'emotional_scoring', 'sound_design', 'theme_development', 'vocal_arrangement', 'leitmotif'],
+    }
+
     STRENGTHS_MAP = {
         'director': ['visione artistica', 'gestione set', 'ritmo narrativo', 'direzione attori', 'estetica visiva'],
         'actor': ['improvvisazione', 'trasformismo', 'carisma', 'intensita emotiva', 'fisicita', 'presenza scenica'],
@@ -787,6 +796,14 @@ async def _generate_agency_proposals(project, agencies, user_id):
         'composer': ['tempi lunghi', 'poco flessibile', 'troppo sperimentale'],
     }
     GENDERS = ['M', 'F', 'M', 'F', 'M', 'F', 'NB']
+
+    # Fame tiers based on fame score
+    def _fame_tier(fame):
+        if fame >= 80: return 'star'
+        if fame >= 60: return 'famoso'
+        if fame >= 40: return 'conosciuto'
+        if fame >= 20: return 'emergente'
+        return 'sconosciuto'
 
     # Get player level/fame for rejection logic
     player = await db.users.find_one({'id': user_id}, {'_id': 0, 'level': 1, 'fame': 1, 'total_xp': 1})
@@ -816,39 +833,33 @@ async def _generate_agency_proposals(project, agencies, user_id):
             base_skill = max(20, min(98, ag_rep + random.randint(-20, 15)))
             genre_match = genre in ag.get('specialization', [])
             genre_skill = min(98, base_skill + (12 if genre_match else -5))
-            fame = max(1, int(base_skill * 0.7 + random.randint(-10, 25)))
-            stars = 1 if base_skill < 40 else (2 if base_skill < 55 else (3 if base_skill < 70 else (4 if base_skill < 85 else 5)))
-            is_star = stars >= 4 and fame > 60
+            fame = max(1, int(base_skill * 0.5 + random.randint(-15, 20)))
+            # Stars: much rarer — most are 1-3
+            stars = 1 if base_skill < 45 else (2 if base_skill < 60 else (3 if base_skill < 75 else (4 if base_skill < 90 else 5)))
+            is_star = stars >= 5 and fame >= 80
+            fame_tier = _fame_tier(fame)
             gender = random.choice(GENDERS)
             nat = random.choice(['IT', 'US', 'UK', 'FR', 'JP', 'DE', 'KR', 'IN', 'ES', 'BR'])
+            age = random.randint(22, 65)
             worked_with_us = name in past_names
 
-            # Skills breakdown per role
-            skills = {}
-            if role_type == 'director':
-                skills = {'directing': base_skill, 'vision': max(20, base_skill + random.randint(-15, 10)), 'actor_mgmt': max(20, base_skill + random.randint(-20, 10))}
-            elif role_type == 'actor':
-                skills = {'acting': base_skill, 'charisma': max(20, base_skill + random.randint(-15, 15)), 'physicality': max(20, random.randint(30, 90))}
-            elif role_type == 'screenwriter':
-                skills = {'screenwriting': base_skill, 'dialogue': max(20, base_skill + random.randint(-10, 15)), 'structure': max(20, base_skill + random.randint(-15, 10))}
-            elif role_type == 'composer':
-                skills = {'composing': base_skill, 'melody': max(20, base_skill + random.randint(-10, 15)), 'atmosphere': max(20, base_skill + random.randint(-15, 15))}
+            # 8 role-specific skills with bars
+            role_skills = {}
+            for sk_name in SKILLS_BY_ROLE.get(role_type, []):
+                role_skills[sk_name] = max(5, min(100, base_skill + random.randint(-25, 20)))
 
             strengths = random.sample(STRENGTHS_MAP.get(role_type, ['talento']), min(2, len(STRENGTHS_MAP.get(role_type, ['talento']))))
-            weaknesses = [random.choice(WEAKNESSES_MAP.get(role_type, ['nessuno']))] if random.random() < 0.5 else []
+            weaknesses = [random.choice(WEAKNESSES_MAP.get(role_type, ['nessuno']))] if random.random() < 0.4 else []
 
-            # Role affinity (actors)
             role_affinity = random.choice(ROLE_AFFINITIES) if role_type == 'actor' else None
 
-            # Genre affinity
             genre_affinity = [genre] if genre_match else []
             if subgenres and random.random() < 0.4:
                 genre_affinity.append(random.choice(subgenres))
 
-            # Cost scales with skill/fame/stars
             cost = int(base_skill * 800 + fame * 200 + stars * 15000 + random.randint(5000, 25000))
             if is_star:
-                cost = int(cost * 1.8)
+                cost = int(cost * 2.0)
 
             proposals.append({
                 'name': name,
@@ -856,14 +867,16 @@ async def _generate_agency_proposals(project, agencies, user_id):
                 'skill': base_skill,
                 'genre_skill': genre_skill,
                 'fame': fame,
+                'fame_tier': fame_tier,
                 'stars': stars,
                 'is_star': is_star,
                 'gender': gender,
+                'age': age,
                 'nationality': nat,
                 'cost': cost,
                 'agency_id': ag.get('id', ''),
                 'agency_name': ag.get('name', '?'),
-                'skills': skills,
+                'skills': role_skills,
                 'strengths': strengths,
                 'weaknesses': weaknesses,
                 'role_affinity': role_affinity,

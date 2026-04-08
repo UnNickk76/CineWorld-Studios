@@ -72,6 +72,7 @@ const FilmDetail = React.lazy(() => import('./pages/FilmDetail'));
 const FilmMarketplace = React.lazy(() => import('./pages/FilmMarketplace'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
+const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
 const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
@@ -2466,8 +2467,10 @@ function App() {
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/series/:id" element={<ProtectedRoute><SeriesDetail /></ProtectedRoute>} />
-                <Route path="/create" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
-                <Route path="/create-film" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
+                <Route path="/create" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
+                <Route path="/create-film" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
+                <Route path="/pipeline-v2" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
+                <Route path="/create-legacy" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
                 <Route path="/create-sequel" element={<ProtectedRoute><SequelPipeline /></ProtectedRoute>} />

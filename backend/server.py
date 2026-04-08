@@ -79,6 +79,7 @@ from routes.infrastructure import router as infrastructure_router
 from routes.acting_school import router as acting_school_router
 from routes.casting_agency import router as casting_agency_router
 from routes.film_pipeline import router as film_pipeline_router
+from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
@@ -9819,6 +9820,7 @@ app.include_router(infrastructure_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(casting_agency_router)
 app.include_router(film_pipeline_router, prefix="/api")
+app.include_router(pipeline_v2_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")

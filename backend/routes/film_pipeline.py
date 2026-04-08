@@ -429,11 +429,34 @@ def calculate_pre_imdb(title: str, genre: str, subgenres: list, pre_screenplay: 
         factors['location_perfetta'] = f'+{bonus}'
         base += bonus
 
-    # Multiple locations bonus
-    if len(locations) >= 2:
-        bonus = 0.2 * min(len(locations) - 1, 3)
+    # Multiple locations bonus (diminishing returns)
+    num_locs = len(locations)
+    if num_locs >= 2:
+        bonus = 0.2 * min(num_locs - 1, 3)
         factors['location_multiple'] = f'+{bonus}'
         base += bonus
+
+    # Too many/few locations malus based on genre
+    # Big epics (historical, war, adventure, fantasy) benefit from many locations
+    epic_genres = {'historical', 'war', 'adventure', 'fantasy', 'sci_fi', 'action'}
+    # Intimate genres penalized for too many locations
+    intimate_genres = {'drama', 'romance', 'horror', 'thriller', 'mystery', 'noir'}
+    if genre in epic_genres:
+        if num_locs == 0:
+            factors['location_troppo_poche'] = '-0.5'
+            base -= 0.5
+        elif num_locs >= 5:
+            factors['location_epiche'] = '+0.4'
+            base += 0.4
+    elif genre in intimate_genres:
+        if num_locs > 6:
+            malus = -0.3 * (num_locs - 6)
+            capped = max(-1.0, malus)
+            factors['location_troppe_intimita'] = f'{round(capped, 1)}'
+            base += capped
+        elif 1 <= num_locs <= 3:
+            factors['location_focalizzate'] = '+0.3'
+            base += 0.3
 
     # Title quality (longer/creative titles score slightly better)
     if len(title) > 15:

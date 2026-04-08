@@ -323,7 +323,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
 
       {/* 3. Location */}
       <div>
-        <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold flex items-center gap-1"><MapPin className="w-3 h-3" /> Location ({locations.length}/3)</label>
+        <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold flex items-center gap-1"><MapPin className="w-3 h-3" /> Location ({locations.length})</label>
         <div className="mt-1 space-y-2 max-h-40 overflow-y-auto">
           {Object.entries(locsByCategory).map(([cat, locs]) => (
             <div key={cat}>
@@ -334,7 +334,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                   return (
                     <button key={l.name} onClick={() => {
                       if (sel) setLocations(locations.filter(lo => (typeof lo === 'string' ? lo : lo.name) !== l.name));
-                      else if (locations.length < 3) setLocations([...locations, l]);
+                      else setLocations([...locations, l]);
                     }}
                     className={`text-[8px] px-1.5 py-0.5 rounded border transition-colors ${sel ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-gray-800/50 border-gray-700 text-gray-500 hover:border-gray-600'}`}>
                       {l.name}

@@ -231,26 +231,84 @@ const PhaseWrapper = ({ title, subtitle, icon: Icon, color, children }) => (
 const CineConfirm = ({ open, title, subtitle, confirmLabel = 'Conferma', onConfirm, onCancel }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="cine-confirm-modal">
-      <div className="bg-[#111] border border-amber-500/20 rounded-2xl p-4 max-w-sm w-full space-y-3">
-        <div className="flex items-end justify-center gap-3">
-          <img src="/assets/characters/cineox.png" alt="Cineox" className="w-14 h-14 object-contain" />
-          <div className="flex-1 text-center">
-            <p className="text-[11px] text-amber-300 font-bold">{title}</p>
-            {subtitle && <p className="text-[8px] text-gray-500 mt-0.5">{subtitle}</p>}
+    <>
+      <style>{`
+        @keyframes cineBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes cineModalIn { from { opacity: 0; transform: scale(0.88) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes cineGlowPulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(255,180,50,0.1), inset 0 0 30px rgba(255,180,50,0.02); }
+          50% { box-shadow: 0 0 45px rgba(255,180,50,0.25), inset 0 0 40px rgba(255,180,50,0.04); }
+        }
+        @keyframes cineFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes cineFloatAlt {
+          0%, 100% { transform: translateY(-2px); }
+          50% { transform: translateY(4px); }
+        }
+        @keyframes cineGrain {
+          0%, 100% { transform: translate(0, 0); }
+          10% { transform: translate(-1%, -1%); }
+          30% { transform: translate(1%, 2%); }
+          50% { transform: translate(-2%, 1%); }
+          70% { transform: translate(2%, -1%); }
+          90% { transform: translate(-1%, 2%); }
+        }
+      `}</style>
+      <div
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        style={{ animation: 'cineBackdropIn 0.25s ease-out' }}
+        onClick={onCancel}
+        data-testid="cine-confirm-modal"
+      >
+        <div
+          className="relative bg-[#0d0d0f] border border-amber-500/25 rounded-2xl p-5 max-w-sm w-full space-y-4 overflow-hidden"
+          style={{ animation: 'cineModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), cineGlowPulse 3s ease-in-out infinite' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Film grain overlay */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.04] rounded-2xl overflow-hidden">
+            <div className="absolute inset-0" style={{
+              backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.5\'/%3E%3C/svg%3E")',
+              animation: 'cineGrain 0.3s steps(4) infinite',
+            }} />
           </div>
-          <img src="/assets/characters/velion.png" alt="Velion" className="w-14 h-14 object-contain" />
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-400 text-[10px] font-bold hover:bg-gray-700 transition-colors" data-testid="cine-cancel-btn">
-            Annulla
-          </button>
-          <button onClick={onConfirm} className="flex-1 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-bold hover:bg-amber-500/30 transition-colors" data-testid="cine-confirm-btn">
-            {confirmLabel}
-          </button>
+
+          {/* Characters */}
+          <div className="relative z-10 flex items-end justify-center gap-2">
+            <div style={{ animation: 'cineFloatAlt 3.5s ease-in-out infinite' }}>
+              <img src="/assets/characters/cineox.png" alt="Cineox" className="w-16 h-16 object-contain drop-shadow-lg" />
+            </div>
+            <div className="flex-1 text-center px-1">
+              <p className="text-xs text-amber-300 font-bold leading-tight" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '15px', letterSpacing: '0.5px' }}>{title}</p>
+              {subtitle && <p className="text-[8px] text-gray-400 mt-1 leading-relaxed">{subtitle}</p>}
+            </div>
+            <div style={{ animation: 'cineFloat 3s ease-in-out infinite', filter: 'drop-shadow(0 0 8px rgba(0,180,255,0.3))' }}>
+              <img src="/assets/characters/velion.png" alt="Velion" className="w-16 h-16 object-contain" />
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="relative z-10 flex gap-2.5">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-2.5 rounded-xl bg-gray-800/80 border border-gray-700/50 text-gray-400 text-[10px] font-bold hover:bg-gray-700 active:scale-[0.96] transition-all"
+              data-testid="cine-cancel-btn"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[10px] font-bold hover:bg-amber-500/25 hover:shadow-[0_0_15px_rgba(255,180,50,0.2)] active:scale-[0.96] transition-all"
+              data-testid="cine-confirm-btn"
+            >
+              {confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1696,9 +1754,9 @@ const PipelineV2 = () => {
 
           <CineConfirm
             open={showEditConfirm !== null}
-            title="Sei sicuro di voler modificare?"
-            subtitle={`Userai 1 delle tue ${3 - editCount} modifiche rimanenti.${editCount >= 2 ? " Questa e l'ultima!" : ''}`}
-            confirmLabel="Modifica"
+            title="Vuoi riscrivere questa scena?"
+            subtitle={`Userai 1 delle tue ${3 - editCount} revisioni disponibili.${editCount >= 2 ? " Ultima revisione!" : ''}`}
+            confirmLabel="Riscrivi"
             onConfirm={handleConfirmEdit}
             onCancel={() => setShowEditConfirm(null)}
           />

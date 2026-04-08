@@ -667,6 +667,11 @@ async def launch_hype_v2(pid: str, user: dict = Depends(get_current_user)):
     if project['pipeline_state'] != 'hype_setup':
         raise HTTPException(400, "Hype non configurato")
 
+    # Save hype_base for live interpolation (starts at 0, grows to this)
+    metrics = project.get('pipeline_metrics', {})
+    base_hype = metrics.get('hype_score', 50)
+    target_agencies = metrics.get('target_agencies', 5)
+
     # Generate agency waves
     target = project.get('pipeline_metrics', {}).get('target_agencies', 5)
     all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
@@ -697,9 +702,65 @@ async def launch_hype_v2(pid: str, user: dict = Depends(get_current_user)):
         'agency_waves': waves,
         'cast_proposals': proposals,
         'hype_launched_at': _now(),
+        'pipeline_metrics.hype_target': base_hype,
+        'pipeline_metrics.agencies_target': target_agencies,
     }
     film = await _advance(pid, user['id'], 'hype_live', extra, 'wave_1')
     return {'film': film, 'waves': waves, 'initial_proposals': len(proposals)}
+
+@router.get("/films/{pid}/hype-live")
+async def get_hype_live(pid: str, user: dict = Depends(get_current_user)):
+    """Get live hype stats interpolated over time. Grows from 0 to target."""
+    project = await _get_project(pid, user['id'])
+    metrics = project.get('pipeline_metrics', {})
+    timers = project.get('pipeline_timers', {})
+
+    hype_target = metrics.get('hype_target', metrics.get('hype_score', 50))
+    agencies_target = metrics.get('agencies_target', metrics.get('target_agencies', 5))
+
+    # Calculate elapsed ratio (0.0 = just started, 1.0 = done)
+    start_str = timers.get('hype_start')
+    end_str = timers.get('hype_end')
+    if start_str and end_str:
+        start_dt = datetime.fromisoformat(start_str)
+        end_dt = datetime.fromisoformat(end_str)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        total = max(1, (end_dt - start_dt).total_seconds())
+        elapsed = (now - start_dt).total_seconds()
+        ratio = max(0.0, min(1.0, elapsed / total))
+    else:
+        ratio = 1.0
+
+    # Ease-in curve for more natural growth
+    eased = ratio ** 0.7
+
+    # External boosts (boycotts, supports from coming-soon system)
+    hype_ext = metrics.get('hype_external_delta', 0)
+
+    live_hype = round(hype_target * eased + hype_ext)
+    live_agencies = max(0, round(agencies_target * min(1.0, eased * 1.3)))
+
+    # Update stored score so other systems see current value
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {
+            'pipeline_metrics.hype_score': live_hype,
+            'pipeline_metrics.agency_interest': live_agencies,
+        }}
+    )
+
+    return {
+        'hype': live_hype,
+        'hype_target': hype_target,
+        'agencies': live_agencies,
+        'agencies_target': agencies_target,
+        'ratio': round(ratio, 3),
+        'hype_external': hype_ext,
+    }
 
 async def _generate_agency_proposals(project, agencies, user_id):
     """Generate cast proposals from interested agencies (lightweight version)"""
@@ -1610,14 +1671,48 @@ SPEEDUP_TIMER_KEY = {
     'premiere_live': 'premiere_end',
 }
 
+SPEEDUP_START_KEY = {
+    'hype_live': 'hype_start',
+    'shooting': 'shooting_start',
+    'postproduction': 'postprod_start',
+    'premiere_live': 'premiere_start',
+}
+
+def _get_timer_ratio(project: dict) -> float:
+    """Returns ratio 0.0-1.0 of time remaining vs total duration. 1.0 = just started, 0.0 = finished."""
+    state = project.get('pipeline_state', '')
+    start_key = SPEEDUP_START_KEY.get(state)
+    end_key = SPEEDUP_TIMER_KEY.get(state)
+    if not start_key or not end_key:
+        return 1.0
+    timers = project.get('pipeline_timers', {})
+    start_str = timers.get(start_key)
+    end_str = timers.get(end_key)
+    if not start_str or not end_str:
+        return 1.0
+    start_dt = datetime.fromisoformat(start_str)
+    end_dt = datetime.fromisoformat(end_str)
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    total = (end_dt - start_dt).total_seconds()
+    remaining = (end_dt - now).total_seconds()
+    if total <= 0:
+        return 0.0
+    return max(0.0, min(1.0, remaining / total))
+
 def _calc_speedup_cost(base: int, project: dict) -> int:
-    """Variable cost: lower value films cost less, high value cost more."""
+    """Variable cost based on film value AND time remaining ratio."""
     pre_imdb = project.get('pre_imdb_score', 5)
     hype = project.get('pipeline_metrics', {}).get('hype_score', 0)
-    # Multiplier: 0.5 (low) to 1.8 (high)
     value_score = (pre_imdb / 10) * 0.5 + min(1.0, hype / 200) * 0.3
-    mult = max(0.5, min(1.8, 0.5 + value_score * 1.3))
-    return max(1, round(base * mult))
+    value_mult = max(0.5, min(1.8, 0.5 + value_score * 1.3))
+    # Time ratio: 1.0 at start → cost 100%, 0.0 at end → cost ~15% minimum
+    time_ratio = _get_timer_ratio(project)
+    time_mult = max(0.15, time_ratio)
+    return max(1, round(base * value_mult * time_mult))
 
 class SpeedupRequest(BaseModel):
     percentage: int  # 25, 50, 75, 100

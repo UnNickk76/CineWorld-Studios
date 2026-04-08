@@ -761,24 +761,110 @@ const HypePhase = ({ film, onRefresh, toast }) => {
       )}
 
       {/* LIVE */}
-      {state === 'hype_live' && (
-        <div className="space-y-3">
-          <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 text-center">
-            <p className="text-[9px] text-gray-500 uppercase">Hype in corso</p>
-            <p className="text-lg font-bold text-orange-400 font-mono">{remaining}</p>
-            <p className="text-[9px] text-gray-500 mt-1">Hype: {film.pipeline_metrics?.hype_score || 0} • Agenzie: {(film.interested_agencies || []).length}</p>
-          </div>
-          {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
-          {done && (
-            <button onClick={completeHype} disabled={loading === 'complete'}
-              className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-hype-btn">
-              {loading === 'complete' ? '...' : 'Vai al Cast'}
-            </button>
-          )}
-        </div>
-      )}
+      {state === 'hype_live' && <HypeLivePanel film={film} remaining={remaining} done={done} onRefresh={onRefresh} toast={toast} loading={loading} completeHype={completeHype} />}
     </PhaseWrapper>
       </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  HYPE LIVE PANEL (dynamic bar + polling)
+// ═══════════════════════════════════════════════════════════════
+
+const HypeLivePanel = ({ film, remaining, done, onRefresh, toast, loading, completeHype }) => {
+  const [live, setLive] = useState(null);
+  const [prevHype, setPrevHype] = useState(null);
+  const [prevAgencies, setPrevAgencies] = useState(null);
+  const [hypeDelta, setHypeDelta] = useState(null);
+  const [agDelta, setAgDelta] = useState(null);
+
+  const fetchLive = useCallback(async () => {
+    try {
+      const d = await api.get(`/films/${film.id}/hype-live`);
+      setLive(prev => {
+        if (prev) {
+          const hd = d.hype - prev.hype;
+          const ad = d.agencies - prev.agencies;
+          if (hd !== 0) setHypeDelta(hd);
+          if (ad !== 0) setAgDelta(ad);
+          setTimeout(() => setHypeDelta(null), 2500);
+          setTimeout(() => setAgDelta(null), 2500);
+        }
+        return d;
+      });
+    } catch {}
+  }, [film.id]);
+
+  useEffect(() => {
+    fetchLive();
+    const interval = setInterval(fetchLive, 8000);
+    return () => clearInterval(interval);
+  }, [fetchLive]);
+
+  const hype = live?.hype ?? film.pipeline_metrics?.hype_score ?? 0;
+  const hypeTarget = live?.hype_target ?? hype;
+  const agencies = live?.agencies ?? 0;
+  const agTarget = live?.agencies_target ?? agencies;
+  const ratio = live?.ratio ?? 0;
+  const hypePct = hypeTarget > 0 ? Math.min(100, Math.round((hype / hypeTarget) * 100)) : 0;
+  const agPct = agTarget > 0 ? Math.min(100, Math.round((agencies / agTarget) * 100)) : 0;
+
+  return (
+    <div className="space-y-3" data-testid="hype-live-panel">
+      {/* Timer */}
+      <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 text-center">
+        <p className="text-[9px] text-gray-500 uppercase">Hype in corso</p>
+        <p className="text-lg font-bold text-orange-400 font-mono">{remaining}</p>
+      </div>
+
+      {/* Hype bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center">
+          <span className="text-[9px] text-gray-500 uppercase font-bold">Hype</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-orange-400">{hype}</span>
+            <span className="text-[8px] text-gray-600">/ {hypeTarget}</span>
+            {hypeDelta !== null && (
+              <span className={`text-[9px] font-bold animate-pulse ${hypeDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {hypeDelta > 0 ? '+' : ''}{hypeDelta}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-orange-600 to-amber-400 transition-all duration-1000 ease-out"
+            style={{ width: `${hypePct}%` }} />
+        </div>
+      </div>
+
+      {/* Agencies bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center">
+          <span className="text-[9px] text-gray-500 uppercase font-bold">Agenzie</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-cyan-400">{agencies}</span>
+            <span className="text-[8px] text-gray-600">/ {agTarget}</span>
+            {agDelta !== null && (
+              <span className={`text-[9px] font-bold animate-pulse ${agDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {agDelta > 0 ? '+' : ''}{agDelta}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-cyan-600 to-cyan-400 transition-all duration-1000 ease-out"
+            style={{ width: `${agPct}%` }} />
+        </div>
+      </div>
+
+      {!done && <SpeedupPanel film={film} onRefresh={() => { onRefresh(); fetchLive(); }} toast={toast} />}
+      {done && (
+        <button onClick={completeHype} disabled={loading === 'complete'}
+          className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-hype-btn">
+          {loading === 'complete' ? '...' : 'Vai al Cast'}
+        </button>
+      )}
     </div>
   );
 };

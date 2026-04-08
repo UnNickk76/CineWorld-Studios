@@ -667,6 +667,11 @@ async def launch_hype_v2(pid: str, user: dict = Depends(get_current_user)):
     if project['pipeline_state'] != 'hype_setup':
         raise HTTPException(400, "Hype non configurato")
 
+    # Save hype_base for live interpolation (starts at 0, grows to this)
+    metrics = project.get('pipeline_metrics', {})
+    base_hype = metrics.get('hype_score', 50)
+    target_agencies = metrics.get('target_agencies', 5)
+
     # Generate agency waves
     target = project.get('pipeline_metrics', {}).get('target_agencies', 5)
     all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
@@ -697,9 +702,65 @@ async def launch_hype_v2(pid: str, user: dict = Depends(get_current_user)):
         'agency_waves': waves,
         'cast_proposals': proposals,
         'hype_launched_at': _now(),
+        'pipeline_metrics.hype_target': base_hype,
+        'pipeline_metrics.agencies_target': target_agencies,
     }
     film = await _advance(pid, user['id'], 'hype_live', extra, 'wave_1')
     return {'film': film, 'waves': waves, 'initial_proposals': len(proposals)}
+
+@router.get("/films/{pid}/hype-live")
+async def get_hype_live(pid: str, user: dict = Depends(get_current_user)):
+    """Get live hype stats interpolated over time. Grows from 0 to target."""
+    project = await _get_project(pid, user['id'])
+    metrics = project.get('pipeline_metrics', {})
+    timers = project.get('pipeline_timers', {})
+
+    hype_target = metrics.get('hype_target', metrics.get('hype_score', 50))
+    agencies_target = metrics.get('agencies_target', metrics.get('target_agencies', 5))
+
+    # Calculate elapsed ratio (0.0 = just started, 1.0 = done)
+    start_str = timers.get('hype_start')
+    end_str = timers.get('hype_end')
+    if start_str and end_str:
+        start_dt = datetime.fromisoformat(start_str)
+        end_dt = datetime.fromisoformat(end_str)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        total = max(1, (end_dt - start_dt).total_seconds())
+        elapsed = (now - start_dt).total_seconds()
+        ratio = max(0.0, min(1.0, elapsed / total))
+    else:
+        ratio = 1.0
+
+    # Ease-in curve for more natural growth
+    eased = ratio ** 0.7
+
+    # External boosts (boycotts, supports from coming-soon system)
+    hype_ext = metrics.get('hype_external_delta', 0)
+
+    live_hype = round(hype_target * eased + hype_ext)
+    live_agencies = max(0, round(agencies_target * min(1.0, eased * 1.3)))
+
+    # Update stored score so other systems see current value
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {
+            'pipeline_metrics.hype_score': live_hype,
+            'pipeline_metrics.agency_interest': live_agencies,
+        }}
+    )
+
+    return {
+        'hype': live_hype,
+        'hype_target': hype_target,
+        'agencies': live_agencies,
+        'agencies_target': agencies_target,
+        'ratio': round(ratio, 3),
+        'hype_external': hype_ext,
+    }
 
 async def _generate_agency_proposals(project, agencies, user_id):
     """Generate cast proposals from interested agencies (lightweight version)"""

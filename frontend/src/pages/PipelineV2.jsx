@@ -1404,6 +1404,37 @@ const PipelineV2 = () => {
 //  CREATE FILM VIEW (step 1: title + genre)
 // ═══════════════════════════════════════════════════════════════
 
+const GENRE_LABELS = {
+  action: 'Action', comedy: 'Comedy', drama: 'Drama', horror: 'Horror', sci_fi: 'Sci-Fi',
+  romance: 'Romance', thriller: 'Thriller', animation: 'Animation', documentary: 'Documentary',
+  fantasy: 'Fantasy', musical: 'Musical', western: 'Western', biographical: 'Biographical',
+  mystery: 'Mystery', adventure: 'Adventure', war: 'War', crime: 'Crime', noir: 'Noir', historical: 'Storico',
+};
+
+const GENRE_TAGLINES = {
+  comedy: 'Il pubblico vuole ridere. Parti dal titolo giusto.',
+  thriller: 'La tensione comincia dal concept.',
+  drama: 'Ogni storia ha bisogno della giusta profondita.',
+  historical: 'Ogni epoca ha bisogno della sua visione.',
+  action: "L'adrenalina nasce dalle idee.",
+  horror: 'Il terrore si costruisce frame per frame.',
+  sci_fi: 'Il futuro prende forma dalla tua immaginazione.',
+  romance: "L'amore sullo schermo inizia dalla sceneggiatura.",
+  war: 'Le grandi battaglie nascono da grandi storie.',
+  crime: 'Ogni crimine perfetto inizia con un piano.',
+  noir: "L'ombra e la luce, il bene e il male.",
+  fantasy: 'Mondi interi nascono dalla tua visione.',
+  mystery: 'Ogni indizio conta. Ogni dettaglio e fondamentale.',
+  adventure: "L'avventura chiama. Rispondi con una storia.",
+  animation: 'Dai colore ai tuoi sogni.',
+  documentary: 'La realta e la migliore sceneggiatura.',
+  musical: 'Quando le parole non bastano, si canta.',
+  western: 'Il sole tramonta, la leggenda inizia.',
+  biographical: 'Vite straordinarie meritano il grande schermo.',
+};
+
+const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'LANCIO'];
+
 const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('drama');
@@ -1415,12 +1446,11 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const toggleSub = (sg) => {
     setSubgenres(prev => {
       if (prev.includes(sg)) return prev.filter(s => s !== sg);
-      if (prev.length >= 3) return [...prev.slice(1), sg]; // drop oldest
+      if (prev.length >= 3) return [...prev.slice(1), sg];
       return [...prev, sg];
     });
   };
 
-  // Reset subgenres when genre changes
   const changeGenre = (g) => { setGenre(g); setSubgenres([]); };
 
   const create = async () => {
@@ -1435,73 +1465,125 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-3" data-testid="pipeline-v2-create">
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={onBack} className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors" data-testid="create-back-btn">
-          <ChevronLeft className="w-4 h-4 text-gray-400" />
+    <div className="min-h-screen bg-gradient-to-b from-black via-[#080c18] to-black text-white" data-testid="pipeline-v2-create">
+      {/* Vignette glow */}
+      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(180,130,40,0.06) 0%, transparent 60%)' }} />
+
+      <div className="relative z-10 px-4 pt-4 pb-24">
+        {/* Back */}
+        <button onClick={onBack} className="flex items-center gap-1.5 mb-4 text-gray-500 hover:text-gray-300 transition-colors" data-testid="create-back-btn">
+          <ChevronLeft className="w-4 h-4" />
+          <span className="text-xs">Indietro</span>
         </button>
-        <h2 className="text-base font-bold">Nuovo Film</h2>
-      </div>
 
-      <div className="space-y-4 max-w-md">
-        <div>
-          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Titolo del Film</label>
-          <input
-            value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="Il titolo del tuo capolavoro..."
-            autoFocus
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none"
-            data-testid="create-title"
-          />
-        </div>
-        <div>
-          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Genere</label>
-          <select
-            value={genre} onChange={e => changeGenre(e.target.value)}
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
-            data-testid="create-genre"
-          >
-            {GENRES.map(g => <option key={g} value={g}>{g === 'historical' ? 'storico' : g.replace('_', ' ')}</option>)}
-          </select>
+        {/* Header */}
+        <h1 className="text-xl font-bold text-white tracking-tight">Dai vita al tuo prossimo film</h1>
+        <p className="text-sm text-gray-400 mt-1 mb-4">Scegli titolo e genere. Il resto prendera forma lungo la produzione.</p>
+
+        {/* Mini step bar */}
+        <div className="flex gap-1 overflow-x-auto no-scrollbar mb-5">
+          {MINI_STEPS.map((s, i) => (
+            <span key={s} className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-wider border ${
+              i === 0 ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-gray-800/30 border-gray-800 text-gray-600'
+            }`}>{s}</span>
+          ))}
         </div>
 
-        {/* Subgenres chips */}
-        <div>
-          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">
-            Sottogeneri <span className="text-gray-600">(max 3)</span>
-          </label>
-          <div className="flex flex-wrap gap-1.5" data-testid="subgenre-chips">
-            {availableSubs.map(sg => {
-              const active = subgenres.includes(sg);
-              return (
-                <button
-                  key={sg} onClick={() => toggleSub(sg)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
-                    active
-                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                      : 'bg-gray-800/40 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-                  }`}
-                  data-testid={`subgenre-${sg}`}
-                >
-                  {sg}
-                </button>
-              );
-            })}
+        {/* Main card */}
+        <div className="rounded-2xl border border-gray-800/60 bg-gradient-to-b from-gray-900/60 to-gray-900/30 backdrop-blur-sm p-4 space-y-5" style={{ boxShadow: '0 0 40px rgba(180,130,40,0.04)' }}>
+
+          {/* Poster preview */}
+          <div className="mx-auto w-36 rounded-xl overflow-hidden border border-gray-700/40 bg-gradient-to-b from-gray-800/80 to-gray-900" style={{ aspectRatio: '2/3' }}>
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 relative">
+              <Film className="w-10 h-10 text-gray-700/30 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              <div className="relative z-10 text-center flex flex-col items-center justify-center h-full gap-2">
+                <span className="text-[7px] px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-wider">In sviluppo</span>
+                <p className="text-sm font-bold text-white leading-tight line-clamp-3">{title || 'Titolo del Film'}</p>
+                <span className="text-[8px] px-2 py-0.5 rounded bg-gray-700/50 text-gray-400 capitalize">{GENRE_LABELS[genre] || genre}</span>
+              </div>
+            </div>
           </div>
-          {subgenres.length > 0 && (
-            <p className="text-[8px] text-amber-400/60 mt-1.5">{subgenres.length}/3 selezionati: {subgenres.join(', ')}</p>
-          )}
-        </div>
 
-        <button
-          onClick={create}
-          disabled={creating || !title.trim()}
-          className="w-full text-sm py-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-30 font-bold flex items-center justify-center gap-2"
-          data-testid="create-confirm-btn"
-        >
-          <Plus className="w-4 h-4" />
-          {creating ? 'Creazione...' : 'Crea e Inizia'}
-        </button>
+          {/* Title input */}
+          <div>
+            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Titolo del Film</label>
+            <input
+              value={title} onChange={e => setTitle(e.target.value)}
+              placeholder="Il titolo del tuo prossimo capolavoro..."
+              autoFocus
+              className="w-full bg-black/40 border border-gray-700 rounded-xl px-4 py-3 text-base text-white placeholder:text-gray-600 focus:border-amber-500/40 focus:outline-none transition-colors"
+              data-testid="create-title"
+            />
+            <p className="text-[8px] text-gray-600 mt-1 pl-1">Nome di lavorazione del progetto</p>
+          </div>
+
+          {/* Genre chips */}
+          <div>
+            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-2">Genere</label>
+            <div className="flex flex-wrap gap-1.5" data-testid="genre-chips">
+              {GENRES.map(g => {
+                const active = genre === g;
+                return (
+                  <button
+                    key={g} onClick={() => changeGenre(g)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${
+                      active
+                        ? 'bg-amber-500 border-amber-500 text-black scale-105'
+                        : 'bg-transparent border-gray-700 text-gray-400 hover:border-gray-500'
+                    }`}
+                    data-testid={`genre-${g}`}
+                  >
+                    {GENRE_LABELS[g] || g}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-amber-400/50 mt-2 italic min-h-[14px]">{GENRE_TAGLINES[genre] || 'Ogni grande film inizia da un\'idea.'}</p>
+          </div>
+
+          {/* Subgenres chips */}
+          <div>
+            <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">
+              Sottogeneri <span className="text-gray-600">(max 3)</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5" data-testid="subgenre-chips">
+              {availableSubs.map(sg => {
+                const active = subgenres.includes(sg);
+                return (
+                  <button
+                    key={sg} onClick={() => toggleSub(sg)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                      active
+                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                        : 'bg-gray-800/40 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                    }`}
+                    data-testid={`subgenre-${sg}`}
+                  >
+                    {sg}
+                  </button>
+                );
+              })}
+            </div>
+            {subgenres.length > 0 && (
+              <p className="text-[8px] text-amber-400/60 mt-1.5">{subgenres.length}/3 selezionati</p>
+            )}
+          </div>
+
+          {/* CTA Button */}
+          <div>
+            <button
+              onClick={create}
+              disabled={creating || !title.trim()}
+              className="w-full text-sm py-3.5 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 active:scale-[0.97] transition-all disabled:opacity-25 disabled:hover:bg-amber-500 flex items-center justify-center gap-2"
+              style={{ boxShadow: title.trim() ? '0 0 20px rgba(245,158,11,0.2)' : 'none' }}
+              data-testid="create-confirm-btn"
+            >
+              <Plus className="w-4 h-4" />
+              {creating ? 'Creazione...' : 'Crea e Inizia'}
+            </button>
+            <p className="text-[8px] text-gray-600 text-center mt-2">Il film entrera ufficialmente in produzione</p>
+          </div>
+        </div>
       </div>
     </div>
   );

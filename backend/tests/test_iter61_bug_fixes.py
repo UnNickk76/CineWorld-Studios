@@ -13,7 +13,7 @@ sys.path.insert(0, '/app/backend')
 
 from challenge_system import simulate_skill_battle
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-patch-board.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-casting-system.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "fandrex1@gmail.com"

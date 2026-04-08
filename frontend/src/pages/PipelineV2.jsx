@@ -875,7 +875,7 @@ const HypeLivePanel = ({ film, remaining, done, onRefresh, toast, loading, compl
 
 const CAST_TABS = [
   { key: 'director', label: 'Registi', icon: Camera, max: 1 },
-  { key: 'screenwriter', label: 'Sceneggiatori', icon: FileText, max: 3 },
+  { key: 'writer', label: 'Sceneggiatori', icon: FileText, max: 3 },
   { key: 'actor', label: 'Attori', icon: Star, max: 99 },
   { key: 'composer', label: 'Compositori', icon: Music, max: 1 },
 ];
@@ -917,7 +917,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   // Filter proposals by active tab role_type
   const tabProposals = proposals.map((p, i) => ({...p, _idx: i})).filter(p => p.role_type === activeTab && p.status !== 'rejected');
   const tabInfo = CAST_TABS.find(t => t.key === activeTab);
-  const currentCount = activeTab === 'director' ? directors : activeTab === 'screenwriter' ? screenwriters : activeTab === 'actor' ? actors : composers;
+  const currentCount = activeTab === 'director' ? directors : activeTab === 'writer' ? screenwriters : activeTab === 'actor' ? actors : composers;
   const tabFull = currentCount >= (tabInfo?.max || 99);
 
   const selectCast = async (index) => {
@@ -1024,7 +1024,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
       {/* TABS */}
       <div className="flex gap-1 overflow-x-auto scrollbar-hide" data-testid="cast-tabs">
         {CAST_TABS.map(tab => {
-          const cnt = tab.key === 'director' ? directors : tab.key === 'screenwriter' ? screenwriters : tab.key === 'actor' ? actors : composers;
+          const cnt = tab.key === 'director' ? directors : tab.key === 'writer' ? screenwriters : tab.key === 'actor' ? actors : composers;
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
           const available = proposals.filter(p => p.role_type === tab.key && p.status !== 'rejected').length;

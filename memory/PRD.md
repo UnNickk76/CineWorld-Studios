@@ -17,49 +17,50 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Board iniziale con card tratteggiata "Nuovo Film" + film in pipeline
 
 ### Sottogeneri Dinamici + Genere Storico (2026-04-08)
-- Nuovo genere: "historical" (storico) con 10 sottogeneri
 - 19 generi totali con 10 sottogeneri ciascuno (190 sottogeneri)
 - Max 3 sottogeneri selezionabili via chips UI
-- Impatto reale su:
-  - Pre-IMDb: bonus sinergia (+1.5 max), malus clash (-1.5 max)
-  - Quality Score: bonus sottogenere amplificato
-  - Eventi Shooting: 12+ eventi specifici per sottogenere
-  - Marketing: moltiplicatore affinity per sottogenere
-  - Audience targeting: mapping sottogenere → target demografico
-- STRONG_COMBOS: 30+ combinazioni forti (es: thriller+psicologico +1.2)
-- WEAK_COMBOS: 12+ combinazioni deboli (es: comedy+tragico -0.8)
-- Card board mostrano sottogeneri come mini-tag
-- Retrocompatibilità: subgenres=[] per film esistenti
+- Impatto reale su Pre-IMDb, Quality Score, Eventi Shooting, Marketing, Audience targeting
+- STRONG_COMBOS/WEAK_COMBOS per sinergie/clash
 
 ### Edit/Sblocco Step (2026-04-09)
-- Icona Edit (pencil) sugli step completati nella StepperBar
-- Contatore "X/3 modifiche" visibile nella UI
-- Backend endpoint `POST /api/pipeline-v2/films/{pid}/edit-step`
-- Rollback sicuro dello stato pipeline allo step selezionato
-- Max 3 sblocchi totali per film (prima del rilascio)
-- Step timer-based (CIAK, FINAL CUT, USCITA) non modificabili
-- Snapshot e history tracciano ogni edit per audit
-- Ricalcolo automatico Pre-IMDb quando si modificano i dati dell'IDEA
+- Max 3 sblocchi totali per film, rollback sicuro, ricalcolo Pre-IMDb
 
-### Prossimamente V2 + Edit Step UX (2026-04-09)
-- Film V2 con locandina visibili in "Prossimamente" con badge stato (Hype, Cast, ecc.)
-- Edit Step: click step completato nella stepper → pagina read-only freezata
-- Bottone matita "Modifica" + contatore X/3 + modale conferma Cineox+Velion
-- Step timer-based (CIAK, FINAL CUT) non modificabili
+### Prossimamente V2 + Dashboard (2026-04-09)
+- Film V2 visibili in "Prossimamente" con badge stato
+
+### Sistema Speedup 4 Livelli (2026-04-09)
+- Costi dinamici basati sul timer rimanente (25/50/75/100%)
+
+### Effetto Matrix + Hype Live (2026-04-09)
+- Barre progresso live interpolate per Hype e Agenzie
+- Effetto Matrix cinematografico nella fase Hype
+
+### CineConfirm Modale (2026-04-09)
+- Modale globale stile Cineox/Velion al posto di window.confirm
+
+### Rivoluzione Casting (2026-04-09)
+- NPC reali dal DB (24.200+ NPC), 8 skill per ruolo, limiti ruoli, fame tiers
+- Proposte: 30 attori, 10 registi, 10 sceneggiatori, 8 compositori
+- Refresh proposals, compatibilita genere, bonus/malus skill
+
+### Job Periodico NPC Cast (2026-04-09)
+- APScheduler job giornaliero (06:00 UTC) per generare nuovi NPC
+- Fix campo `role_type` (era `type`) e `writer` (era `screenwriter`) per compatibilita Pipeline V2
+- Refresh 5% pool ogni 12 giorni + generazione giornaliera 10-20 per tipo
 
 ## Backlog
-### P0 (In Attesa)
-- [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)
 
 ### P1
-- [ ] Integrazione Arena e Dashboard per Pipeline V2
-- [ ] Fix bug nei singoli minigiochi (TapCiak etc.)
+- [ ] Integrazione Arena per film V2
+- [ ] Fix minigiochi residui (TapCiak, ecc.) - da verificare se ci sono bug reali
 
 ### P2
 - [ ] Sfida della Settimana (minigioco rotante con premi extra)
 
 ### P3
-- [ ] Previsioni Festival, Marketplace TV/Anime, Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels
+- [ ] Previsioni Festival
+- [ ] Marketplace TV/Anime rights
+- [ ] Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli
 
 ## Credenziali Test
 - NeoMorpheus: fandrex1@gmail.com / Fandrel2776

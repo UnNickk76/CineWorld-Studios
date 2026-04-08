@@ -7489,18 +7489,18 @@ async def generate_daily_cast_members():
     
     # Calculate 5% of current pool per type
     total_people = await db.people.count_documents({})
-    types = ['actor', 'director', 'screenwriter', 'composer']
+    types = ['actor', 'director', 'writer', 'composer']
     total_generated = 0
     
     for role_type in types:
-        type_count = await db.people.count_documents({'type': role_type})
+        type_count = await db.people.count_documents({'role_type': role_type})
         new_count = max(10, int(type_count * 0.05))  # 5% but at least 10
         
         cast_pool = generate_full_cast_pool(role_type, new_count)
         for member in cast_pool:
             person = {
                 'id': member['id'],
-                'type': role_type,
+                'role_type': role_type,
                 'name': member['name'],
                 'age': member['age'],
                 'nationality': member['nationality'],

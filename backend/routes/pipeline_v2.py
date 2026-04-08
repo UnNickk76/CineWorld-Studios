@@ -763,15 +763,13 @@ async def get_hype_live(pid: str, user: dict = Depends(get_current_user)):
     }
 
 async def _generate_agency_proposals(project, agencies, user_id):
-    """Generate cast proposals from the real 23K+ NPC database (people collection)"""
+    """Generate cast proposals from 23K+ real NPCs, filtered by role, genre-compatible, agency-priority."""
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
 
-    # Get player info for rejection logic
-    player = await db.users.find_one({'id': user_id}, {'_id': 0, 'level': 1, 'fame': 1})
-    player_level = player.get('level', 1) if player else 1
+    player = await db.users.find_one({'id': user_id}, {'_id': 0, 'level': 1, 'fame': 1, 'agency_id': 1})
+    player_agency = player.get('agency_id') if player else None
 
-    # Past collaborations
     past_films = await db.film_projects.find(
         {'user_id': user_id, 'cast_locked': True}, {'_id': 0, 'cast': 1}
     ).to_list(50)
@@ -782,53 +780,35 @@ async def _generate_agency_proposals(project, agencies, user_id):
         for a in c.get('actors', []):
             if a.get('id'): past_ids.add(a['id'])
 
-    proposals = []
     agency_ids = [a.get('id', '') for a in agencies]
     agency_names = {a.get('id', ''): a.get('name', '?') for a in agencies}
 
-    # Role mapping via fame_badge and role_type
-    # Directors: fame_badge with 'Regista'
-    # Screenwriters: role_type='screenwriter' or fame_badge with 'Sceneggiatore'
-    # Composers: fame_badge with 'Compositore'
-    # Actors: role_type='actor' or role_type=None (bulk)
-
-    async def _fetch_role(query, limit):
-        cursor = db.people.aggregate([
-            {'$match': query},
-            {'$sample': {'size': limit}},
-            {'$project': {'_id': 0}},
-        ])
-        return await cursor.to_list(limit)
-
-    # Fetch directors (badge-based)
-    directors = await _fetch_role(
-        {'fame_badge.label': {'$regex': 'Regista', '$options': 'i'}}, 8
-    )
-    # If not enough, sample from 'recommended' category
-    if len(directors) < 5:
-        extra = await _fetch_role(
-            {'category': {'$in': ['recommended', 'star']}, 'role_type': None, 'fame_badge': {'$ne': None}}, 6
-        )
-        directors.extend(extra[:max(0, 8 - len(directors))])
-
-    # Fetch screenwriters
-    screenwriters = await _fetch_role({'role_type': 'screenwriter'}, 8)
-
-    # Fetch composers
-    composers = await _fetch_role(
-        {'fame_badge.label': {'$regex': 'Compositore', '$options': 'i'}}, 6
-    )
-    if len(composers) < 4:
-        extra_comp = await _fetch_role({'category': 'known', 'role_type': None}, 4)
-        composers.extend(extra_comp[:max(0, 6 - len(composers))])
-
-    # Fetch actors
-    actors = await _fetch_role({'role_type': 'actor'}, 25)
-    # Also grab some None role_type (generic actors)
-    extra_actors = await _fetch_role({'role_type': None, 'fame_badge': None}, 10)
-    actors.extend(extra_actors)
-
     ROLE_AFFINITIES = ['protagonista', 'spalla', 'antagonista', 'comico', 'drammatico', 'caratterista', 'action_hero', 'romantico']
+
+    # Genre→skill affinity: which skills matter most per genre
+    GENRE_SKILL_WEIGHT = {
+        'comedy': {'comedy': 2, 'timing': 2, 'humor_writing': 2, 'improvisation': 1.5, 'charisma': 1.3},
+        'horror': {'emotional_depth': 1.5, 'voice_acting': 1.3, 'atmosphere': 2, 'suspense_craft': 2, 'emotional_scoring': 1.5},
+        'drama': {'emotional_depth': 2, 'method_acting': 1.5, 'character_development': 2, 'dialogue': 1.5},
+        'action': {'physical_acting': 2, 'charisma': 1.5, 'pacing': 1.5, 'visual_style': 1.5},
+        'thriller': {'emotional_depth': 1.5, 'suspense_craft': 2, 'pacing': 1.5, 'atmosphere': 1.5},
+        'romance': {'charisma': 2, 'emotional_depth': 2, 'dialogue': 1.5, 'melodic': 1.5},
+        'sci_fi': {'innovation': 1.5, 'visual_style': 2, 'world_building': 2, 'sound_design': 1.5},
+        'fantasy': {'world_building': 2, 'visual_style': 1.5, 'orchestration': 1.5, 'storytelling': 1.5},
+        'historical': {'research': 2, 'storytelling': 1.5, 'emotional_depth': 1.3, 'character_development': 1.5},
+    }
+    genre_weights = GENRE_SKILL_WEIGHT.get(genre, {})
+
+    def _score_npc(npc):
+        """Score NPC for genre compatibility."""
+        skills = npc.get('skills', {})
+        score = 0
+        for sk, val in skills.items():
+            weight = genre_weights.get(sk, 1.0)
+            score += val * weight
+        # Fame bonus
+        score += (npc.get('fame', 0) or 0) * 0.5
+        return score
 
     def _map_npc(npc, role_type, ag_idx):
         ag_id = agency_ids[ag_idx % len(agency_ids)] if agency_ids else ''
@@ -838,42 +818,22 @@ async def _generate_agency_proposals(project, agencies, user_id):
         fame = npc.get('fame', 30)
         if not isinstance(fame, (int, float)):
             fame = 30
+        fame_val = float(fame)
+        fame_tier = 'star' if fame_val >= 80 else ('famoso' if fame_val >= 60 else ('conosciuto' if fame_val >= 40 else ('emergente' if fame_val >= 20 else 'sconosciuto')))
         stars = npc.get('stars', 2)
         is_star = npc.get('is_star', False) or npc.get('category') == 'star'
-        fame_val = float(fame) if fame else 30
-        fame_tier = 'star' if fame_val >= 80 else ('famoso' if fame_val >= 60 else ('conosciuto' if fame_val >= 40 else ('emergente' if fame_val >= 20 else 'sconosciuto')))
-
-        # Genre skill bonus
         genre_skill = base_skill
-        if genre in skills:
-            genre_skill = min(98, base_skill + int(skills[genre] * 0.15))
-        for sg in subgenres:
-            if sg in skills:
-                genre_skill = min(98, genre_skill + 3)
-
-        # Genre affinity from skills
-        genre_affinity = []
-        if genre in [s.lower() for s in skills.keys()]:
-            genre_affinity.append(genre)
-
+        for sk in skills:
+            if sk in genre_weights:
+                genre_skill = min(98, genre_skill + int(skills[sk] * genre_weights[sk] * 0.02))
         cost = npc.get('cost', int(base_skill * 800 + fame_val * 200 + stars * 15000))
-        if is_star:
-            cost = int(cost * 1.5)
-
-        worked_with = npc.get('id', '') in past_ids
-
-        # Strengths from primary_skills
-        strengths = npc.get('primary_skills', [])[:2]
-        weaknesses = []
-        if npc.get('secondary_skill'):
-            weaknesses = [f"debole in {npc['secondary_skill']}"]
-
+        if is_star: cost = int(cost * 1.5)
         return {
             'id': npc.get('id', ''),
             'name': npc.get('name', '?'),
             'role_type': role_type,
             'skill': base_skill,
-            'genre_skill': genre_skill,
+            'genre_skill': min(98, genre_skill),
             'fame': round(fame_val),
             'fame_tier': fame_tier,
             'stars': stars,
@@ -885,11 +845,11 @@ async def _generate_agency_proposals(project, agencies, user_id):
             'agency_id': ag_id,
             'agency_name': ag_name,
             'skills': skills,
-            'strengths': strengths,
-            'weaknesses': weaknesses,
+            'strengths': npc.get('primary_skills', [])[:2],
+            'weaknesses': [f"debole in {npc['secondary_skill']}"] if npc.get('secondary_skill') else [],
             'role_affinity': random.choice(ROLE_AFFINITIES) if role_type == 'actor' else None,
-            'genre_affinity': genre_affinity,
-            'worked_with_us': worked_with,
+            'genre_affinity': [genre] if genre_skill > base_skill else [],
+            'worked_with_us': npc.get('id', '') in past_ids,
             'imdb_rating': npc.get('imdb_rating', 0),
             'years_active': npc.get('years_active', 0),
             'films_count': npc.get('films_count', 0),
@@ -899,14 +859,23 @@ async def _generate_agency_proposals(project, agencies, user_id):
             'wave': 1,
         }
 
-    for i, d in enumerate(directors):
-        proposals.append(_map_npc(d, 'director', i))
-    for i, s in enumerate(screenwriters):
-        proposals.append(_map_npc(s, 'screenwriter', i))
-    for i, a in enumerate(actors):
-        proposals.append(_map_npc(a, 'actor', i))
-    for i, c in enumerate(composers):
-        proposals.append(_map_npc(c, 'composer', i))
+    proposals = []
+
+    # Fetch per role, sorted by genre compatibility
+    for role_type, count in [('director', 10), ('writer', 10), ('actor', 30), ('composer', 8)]:
+        # Sample more than needed, then sort by genre score
+        sample_size = count * 3
+        cursor = db.people.aggregate([
+            {'$match': {'role_type': role_type}},
+            {'$sample': {'size': sample_size}},
+            {'$project': {'_id': 0}},
+        ])
+        candidates = await cursor.to_list(sample_size)
+        # Score and sort by genre compatibility
+        candidates.sort(key=_score_npc, reverse=True)
+        # Take top N
+        for i, npc in enumerate(candidates[:count]):
+            proposals.append(_map_npc(npc, role_type, i))
 
     random.shuffle(proposals)
     return proposals
@@ -986,7 +955,7 @@ async def complete_hype_v2(pid: str, user: dict = Depends(get_current_user)):
 #  FASE 3 — CAST (strategic system)
 # ═══════════════════════════════════════════════════════════════
 
-CAST_LIMITS = {'director': 1, 'composer': 1, 'screenwriter': 3, 'actor': 99}
+CAST_LIMITS = {'director': 1, 'composer': 1, 'screenwriter': 3, 'writer': 3, 'actor': 99}
 
 # Genre→affinity bonuses for role_affinity
 GENRE_ROLE_BONUS = {
@@ -1113,6 +1082,9 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         cast['screenwriters'] = [cast['screenwriter']]
 
     role = req.role
+    # Normalize writer/screenwriter
+    if role == 'writer':
+        role = 'screenwriter'
     # Validate limits
     if role == 'director' and cast.get('director'):
         raise HTTPException(400, "Hai gia un regista (max 1)")

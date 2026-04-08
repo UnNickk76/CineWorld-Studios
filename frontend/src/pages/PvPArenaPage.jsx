@@ -465,7 +465,7 @@ function FilmMiniCard({ film, onClick, userId }) {
         )}
         {/* Status badge */}
         <div className={`absolute top-1 left-1 px-1 py-0.5 rounded text-[7px] font-bold ${st.color}`}>
-          {st.label}
+          {film.pipeline_v2 ? `V2 ${film.v2_phase || st.label}` : st.label}
         </div>
         {isMine && (
           <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-yellow-500/90 flex items-center justify-center">
@@ -517,8 +517,11 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
         <div className="absolute inset-0 bg-gradient-to-t from-[#111113] via-[#111113]/60 to-transparent" />
         <div className="absolute bottom-3 left-4 right-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${st.color}`}>{st.label}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${st.color}`}>{film.pipeline_v2 ? `V2 ${film.pipeline_state || ''}` : st.label}</span>
             {film.is_mine && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-yellow-400 bg-yellow-500/15">IL TUO</span>}
+            {film.cast_chemistry_indicator && film.cast_chemistry_indicator !== 'neutral' && (
+              <span className={`w-2 h-2 rounded-full ${film.cast_chemistry_indicator === 'good' ? 'bg-emerald-400' : 'bg-red-400'}`} title={`Chimica: ${film.cast_chemistry_indicator}`} />
+            )}
           </div>
           <h2 className="text-base font-bold text-white leading-tight">{film.title}</h2>
           <p className="text-[10px] text-gray-400">{film.owner_nickname} {film.owner_studio ? `- ${film.owner_studio}` : ''}</p>

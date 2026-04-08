@@ -1465,9 +1465,6 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         proposal['cast_role'] = cast_role
         proposal['role_bonus'] = role_data
         cast['actors'].append(proposal)
-
-        # Deduct 2 credits for role assignment
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -2}})
     elif role == 'composer':
         cast['composer'] = proposal
 
@@ -1532,7 +1529,7 @@ async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user))
 
 @router.get("/films/{pid}/cast-chemistry")
 async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
-    """Get current cast chemistry indicators. Costo: 1 credito."""
+    """Get current cast chemistry indicators. Gratis."""
     project = await _get_project(pid, user['id'])
     cast = project.get('cast', {})
 
@@ -1540,12 +1537,6 @@ async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
     actors = [a for a in cast.get('actors', []) if a and a.get('id')]
     if len(actors) < 2 and not cast.get('director'):
         return {'indicator': 'neutral', 'pairs': [], 'best_pair': None, 'worst_pair': None, 'cost': 0}
-
-    # Deduct 1 credit
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
-    if u.get('funds', 0) < 1:
-        raise HTTPException(400, "Servono almeno 1 credito")
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -1}})
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])

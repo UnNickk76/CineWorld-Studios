@@ -928,7 +928,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
     try {
       const res = await api.get(`/films/${film.id}/cast-chemistry`);
       setChemData(res);
-      toast({ title: `Chimica analizzata! (-1 credito)` });
+      toast({ title: `Chimica analizzata!` });
     } catch (e) {
       toast({ title: 'Errore', description: e.message, variant: 'destructive' });
     }
@@ -957,7 +957,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
         <button onClick={fetchChemistry} disabled={loading === 'chem'}
           className="text-[7px] px-2 py-1 rounded bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-colors disabled:opacity-40 font-bold"
           data-testid="analyze-chemistry-btn">
-          {loading === 'chem' ? '...' : displayData ? 'Rianalizza (1cr)' : 'Analizza (1cr)'}
+          {loading === 'chem' ? '...' : displayData ? 'Rianalizza' : 'Analizza'}
         </button>
       </div>
 
@@ -1271,7 +1271,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
                       disabled={loading.startsWith('s_')}
                       className="w-full text-[9px] py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-40 font-bold mt-1"
                       data-testid={`select-${p._idx}`}>
-                      {activeTab === 'actor' ? `Ingaggia come ${(selectedRole[p._idx] || 'protagonista').replace('_', '-')} (2cr)` : `Ingaggia come ${tabInfo?.label?.replace(/i$/, 'a').replace(/ori$/, 'ore')}`}
+                      {activeTab === 'actor' ? `Ingaggia come ${(selectedRole[p._idx] || 'protagonista').replace('_', '-')}` : `Ingaggia come ${tabInfo?.label?.replace(/i$/, 'a').replace(/ori$/, 'ore')}`}
                     </button>
                   )}
                 </div>

@@ -1380,7 +1380,7 @@ const PipelineV2 = () => {
   // ─── DETAIL VIEW ───
   if (view === 'detail' && selected) {
     return (
-      <div className="min-h-screen bg-black text-white pb-40" data-testid="pipeline-v2-detail">
+      <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar uiStep={selected.pipeline_ui_step ?? 0} />
         {renderPhase()}

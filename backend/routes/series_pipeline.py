@@ -1584,6 +1584,18 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     film_items = await film_cursor.to_list(50)
 
+    # V2 Pipeline films (have poster, not yet released/discarded)
+    v2_cursor = db.film_projects.find(
+        {'pipeline_version': 2,
+         'poster_url': {'$ne': None},
+         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
+         'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
+         'pipeline_version': 1}
+    ).sort('created_at', -1)
+    v2_items = await v2_cursor.to_list(50)
+
     # Films in remastering
     remaster_cursor = db.film_projects.find(
         {'status': 'remastering'},
@@ -1593,7 +1605,12 @@ async def get_coming_soon():
     remaster_items = await remaster_cursor.to_list(50)
     
     # Enrich with production house names
-    user_ids = list(set([s['user_id'] for s in series_items] + [f['user_id'] for f in film_items] + [r['user_id'] for r in remaster_items]))
+    user_ids = list(set(
+        [s['user_id'] for s in series_items] +
+        [f['user_id'] for f in film_items] +
+        [r['user_id'] for r in remaster_items] +
+        [v['user_id'] for v in v2_items]
+    ))
     users = {}
     if user_ids:
         users_cursor = db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'production_house_name': 1, 'nickname': 1})
@@ -1625,6 +1642,26 @@ async def get_coming_soon():
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
             'is_remastering': True,
             'scheduled_release_at': r.get('remaster_end', r.get('created_at', '')),
+        })
+
+    # V2 pipeline films — map pipeline_state to a readable status label
+    V2_STATE_LABEL = {
+        'idea': 'Idea', 'proposed': 'Hype', 'hype_live': 'Hype',
+        'casting_live': 'Cast', 'prep': 'Preparazione',
+        'shooting': 'Riprese', 'postproduction': 'Final Cut',
+        'sponsorship': 'Marketing', 'premiere_setup': 'La Prima',
+        'premiere_live': 'La Prima',
+    }
+    for v in v2_items:
+        owner = users.get(v['user_id'], {})
+        state_label = V2_STATE_LABEL.get(v.get('pipeline_state', ''), v.get('pipeline_state', ''))
+        items.append({
+            **v,
+            'content_type': 'film',
+            'genre_name': v.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'pipeline_status_label': state_label,
+            'is_v2': True,
         })
     
     # Sort by scheduled_release_at

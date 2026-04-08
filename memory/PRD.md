@@ -41,6 +41,12 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Snapshot e history tracciano ogni edit per audit
 - Ricalcolo automatico Pre-IMDb quando si modificano i dati dell'IDEA
 
+### Prossimamente V2 + Edit Step UX (2026-04-09)
+- Film V2 con locandina visibili in "Prossimamente" con badge stato (Hype, Cast, ecc.)
+- Edit Step: click step completato nella stepper → pagina read-only freezata
+- Bottone matita "Modifica" + contatore X/3 + modale conferma Cineox+Velion
+- Step timer-based (CIAK, FINAL CUT) non modificabili
+
 ## Backlog
 ### P0 (In Attesa)
 - [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)

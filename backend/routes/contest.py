@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import get_current_user
+import hashlib
+import random
 
 router = APIRouter(prefix="/contest", tags=["contest"])
 
@@ -11,9 +13,41 @@ MAX_DAILY_CREDITS = 50
 
 STEP_COOLDOWNS = {1: 0, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 0, 12: 0}
 
+ALL_MINIGAMES = [
+    "tap_ciak", "memory_pro", "stop_perfetto", "spam_click", "reaction",
+    "shot_perfect", "light_setup", "cast_match", "editing_cut", "follow_cam",
+    "chaos_premiere", "reel_snake", "matrix_dodge", "matrix_dodge_pro",
+    "cine_drive", "cine_drive_pro", "supercine_pro", "flipper_pro",
+]
+
+GAME_NAMES = {
+    "tap_ciak": "TapCiak", "memory_pro": "Memory PRO", "stop_perfetto": "Stop Perfetto",
+    "spam_click": "Spam Click", "reaction": "Reaction Time", "shot_perfect": "Shot Perfect",
+    "light_setup": "Light Setup", "cast_match": "Cast Match", "editing_cut": "Editing Cut",
+    "follow_cam": "Follow Cam", "chaos_premiere": "Chaos Premiere", "reel_snake": "Reel Snake",
+    "matrix_dodge": "Matrix Dodge", "matrix_dodge_pro": "Matrix Dodge PRO",
+    "cine_drive": "Auto Cinematografica", "cine_drive_pro": "Auto Cinema PRO",
+    "supercine_pro": "SuperCine PRO", "flipper_pro": "Flipper PRO",
+}
+
+
+def get_daily_games():
+    """Generate deterministic daily random selection: 10 normal + 2 bonus."""
+    now = datetime.now(timezone.utc)
+    if now.hour < 9:
+        day = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    else:
+        day = now.strftime("%Y-%m-%d")
+    seed = int(hashlib.md5(day.encode()).hexdigest(), 16)
+    rng = random.Random(seed)
+    shuffled = ALL_MINIGAMES.copy()
+    rng.shuffle(shuffled)
+    normal = shuffled[:10]
+    bonus = shuffled[10:12]
+    return normal, bonus
+
 
 def get_reset_time():
-    """Return today's 09:00 UTC. If before 09:00, return yesterday's 09:00."""
     now = datetime.now(timezone.utc)
     reset = now.replace(hour=9, minute=0, second=0, microsecond=0)
     if now.hour < 9:
@@ -42,13 +76,19 @@ async def reset_if_needed(user_id: str):
         )
 
 
-def serialize_progress(p: dict) -> dict:
+def serialize_progress(p: dict, normal: list, bonus: list) -> dict:
+    games = []
+    for i, gid in enumerate(normal):
+        games.append({"step": i + 1, "game_id": gid, "name": GAME_NAMES.get(gid, gid), "is_bonus": False})
+    for i, gid in enumerate(bonus):
+        games.append({"step": 11 + i, "game_id": gid, "name": GAME_NAMES.get(gid, gid), "is_bonus": True})
     return {
         "user_id": p.get("user_id"),
         "current_step": p.get("current_step", 1),
         "completed": p.get("completed", False),
         "next_unlock_at": p["next_unlock_at"].isoformat() if p.get("next_unlock_at") else None,
         "last_reset": p["last_reset"].isoformat() if p.get("last_reset") else None,
+        "daily_games": games,
     }
 
 
@@ -57,6 +97,7 @@ async def get_progress(user: dict = Depends(get_current_user)):
     user_id = user["id"]
     await reset_if_needed(user_id)
     progress = await db.contest.find_one({"user_id": user_id})
+    normal, bonus = get_daily_games()
     if not progress:
         now = datetime.now(timezone.utc)
         progress = {
@@ -67,7 +108,7 @@ async def get_progress(user: dict = Depends(get_current_user)):
             "last_reset": now,
         }
         await db.contest.insert_one(progress)
-    return serialize_progress(progress)
+    return serialize_progress(progress, normal, bonus)
 
 
 class CompleteStepBody(BaseModel):

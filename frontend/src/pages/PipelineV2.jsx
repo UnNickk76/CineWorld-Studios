@@ -298,19 +298,18 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold">Genere</label>
-          <select value={genre} onChange={e => { setGenre(e.target.value); setSubgenre(''); }}
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-amber-500/50 focus:outline-none" data-testid="idea-genre">
-            <option value="">Scegli...</option>
-            {genres.map(g => <option key={g} value={g}>{g.replace('_', ' ')}</option>)}
-          </select>
+          <div className="w-full bg-gray-800/30 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-amber-400 font-medium capitalize" data-testid="idea-genre">
+            {(genre || film.genre || '').replace('_', ' ') || '—'}
+          </div>
         </div>
         <div>
-          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold">Sottogenere</label>
-          <select value={subgenre} onChange={e => setSubgenre(e.target.value)}
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-amber-500/50 focus:outline-none" data-testid="idea-subgenre">
-            <option value="">Opzionale</option>
-            {(subgenres[genre] || []).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold">Sottogeneri</label>
+          <div className="w-full bg-gray-800/30 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-300 min-h-[32px] flex flex-wrap gap-1" data-testid="idea-subgenre">
+            {(film.subgenres || []).length > 0
+              ? film.subgenres.map(sg => <span key={sg} className="px-1.5 py-0 rounded bg-amber-500/10 text-amber-400/80 text-[9px] border border-amber-500/15">{sg}</span>)
+              : <span className="text-gray-600">—</span>
+            }
+          </div>
         </div>
       </div>
 

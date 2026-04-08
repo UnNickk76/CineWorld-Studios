@@ -290,6 +290,7 @@ GENRE_LOCATION_BONUS = {
     'war': ['Normandy Beaches', 'Berlino', 'Moscow'],
     'noir': ['Los Angeles', 'Chicago', 'New York City'],
     'adventure': ['Amazon Rainforest', 'Sahara Desert', 'Himalaya'],
+    'historical': ['Rome Colosseum', 'Athens Acropolis', 'Versailles', 'Pyramids Egypt', 'Great Wall China', 'Normandy Beaches'],
 }
 
 # Genre combo rarity bonus (rare genre+subgenre combos score higher potential)
@@ -303,6 +304,56 @@ RARE_COMBOS = {
     ('musical', 'Rock Musical'): 0.4,
 }
 
+# Strong subgenre combos (genre, subgenre) → bonus
+STRONG_COMBOS = {
+    ('thriller', 'psicologico'): 1.2, ('thriller', 'serial killer'): 0.9, ('thriller', 'paranoia'): 0.8,
+    ('horror', 'psicologico'): 1.0, ('horror', 'gotico'): 0.8, ('horror', 'cosmico'): 0.7,
+    ('drama', 'psicologico'): 0.9, ('drama', 'tragico'): 0.7, ('drama', 'sociale'): 0.6,
+    ('action', 'spy'): 0.8, ('action', 'heist'): 0.7, ('action', 'arti marziali'): 0.6,
+    ('comedy', 'nera'): 0.9, ('comedy', 'satirica'): 0.7, ('comedy', 'parodia'): 0.5,
+    ('sci_fi', 'cyberpunk'): 0.8, ('sci_fi', 'distopia'): 0.7, ('sci_fi', 'hard sci-fi'): 0.9,
+    ('historical', 'guerra'): 0.9, ('historical', 'imperi'): 0.8, ('historical', 'rivoluzioni'): 0.7,
+    ('historical', 'medioevo'): 0.6, ('historical', 'antico'): 0.7, ('historical', 'mitologico'): 0.8,
+    ('crime', 'mafioso'): 0.8, ('crime', 'heist'): 0.7, ('crime', 'undercover'): 0.6,
+    ('war', 'resistenza'): 0.7, ('war', 'WWII'): 0.6,
+    ('fantasy', 'epico'): 0.8, ('fantasy', 'dark fantasy'): 0.7,
+    ('romance', 'tragico'): 0.7, ('romance', 'proibito'): 0.6,
+    ('noir', 'neo-noir'): 0.7, ('noir', 'tech-noir'): 0.8,
+    ('mystery', 'giallo'): 0.8, ('mystery', 'whodunit'): 0.6,
+    ('biographical', 'icona musicale'): 0.7, ('biographical', 'criminale'): 0.6,
+}
+
+# Weak/clashing combos → malus
+WEAK_COMBOS = {
+    ('comedy', 'tragico'): -0.8, ('comedy', 'serial killer'): -1.0,
+    ('romance', 'slasher'): -0.9, ('romance', 'zombie'): -0.7,
+    ('documentary', 'supereroi'): -0.8, ('documentary', 'slapstick'): -0.9,
+    ('horror', 'slapstick'): -0.5, ('horror', 'romantica'): -0.6,
+    ('war', 'slapstick'): -0.7, ('war', 'teen'): -0.6,
+    ('historical', 'demenziale'): -0.8, ('historical', 'supereroi'): -0.9,
+    ('noir', 'slapstick'): -0.7, ('noir', 'teen'): -0.6,
+}
+
+# Subgenre audience mapping
+SUBGENRE_AUDIENCE = {
+    'teen': 'giovani', 'teen romance': 'giovani', 'demenziale': 'giovani', 'slapstick': 'general',
+    'politico': 'adulti', 'politico storico': 'adulti', 'legale': 'adulti', 'sociale': 'adulti',
+    'psicologico': 'adulti', 'serial killer': 'adulti', 'noir': 'adulti',
+    'guerra': 'maturo', 'imperi': 'maturo', 'medioevo': 'maturo', 'antico': 'maturo',
+    'biografico': 'maturo', 'biografico storico': 'maturo', 'storico': 'maturo',
+    'familiare': 'famiglia', 'fiabesco': 'famiglia', 'CGI': 'famiglia', 'anime': 'giovani',
+    'romantica': 'general', 'commedia romantica': 'general', 'romantico': 'general',
+}
+
+# Marketing affinity: subgenre → best marketing type → bonus multiplier
+SUBGENRE_MARKETING_BOOST = {
+    'psicologico': 1.3, 'serial killer': 1.3, 'suspense': 1.2,  # teaser misterioso
+    'slapstick': 1.2, 'demenziale': 1.2, 'satirica': 1.1,  # trailer immediato
+    'guerra': 1.3, 'imperi': 1.3, 'medioevo': 1.2, 'antico': 1.2,  # premiere evento
+    'epico': 1.3, 'space opera': 1.2, 'supereroi': 1.2,  # campagna massiccia
+    'true crime': 1.1, 'investigativo': 1.1, 'whodunit': 1.1,
+}
+
 
 # ==================== PRE-IMDB CALCULATION ====================
 
@@ -312,19 +363,43 @@ def calculate_pre_imdb(title: str, genre: str, subgenres: list, pre_screenplay: 
     factors = {}
 
     # Genre popularity
-    popular_genres = ['action', 'comedy', 'thriller', 'horror', 'sci_fi']
+    popular_genres = ['action', 'comedy', 'thriller', 'horror', 'sci_fi', 'historical']
     if genre in popular_genres:
         bonus = 0.4
         factors['genere_popolare'] = f'+{bonus}'
         base += bonus
 
-    # Rare genre+subgenre combo
+    # Rare genre+subgenre combo (legacy)
     subgenre_str = ' '.join(subgenres) if subgenres else ''
     for (g, sg), bonus in RARE_COMBOS.items():
         if genre == g and sg.lower() in subgenre_str.lower():
             factors['combo_rara'] = f'+{bonus}'
             base += bonus
             break
+
+    # Strong subgenre combos (new)
+    strong_total = 0
+    for sg in (subgenres or []):
+        sg_lower = sg.lower()
+        b = STRONG_COMBOS.get((genre, sg_lower), 0)
+        if b > 0:
+            strong_total += b
+    if strong_total > 0:
+        capped = min(1.5, strong_total)
+        factors['sinergia_sottogeneri'] = f'+{round(capped, 1)}'
+        base += capped
+
+    # Weak/clashing combos (new)
+    weak_total = 0
+    for sg in (subgenres or []):
+        sg_lower = sg.lower()
+        m = WEAK_COMBOS.get((genre, sg_lower), 0)
+        if m < 0:
+            weak_total += m
+    if weak_total < 0:
+        capped = max(-1.5, weak_total)
+        factors['clash_sottogeneri'] = f'{round(capped, 1)}'
+        base += capped
 
     # Multiple subgenres bonus
     if len(subgenres) >= 2:

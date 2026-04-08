@@ -10,7 +10,7 @@ const POLL_INTERVAL = 600000; // 10 minutes
 const BUBBLE_COOLDOWN = 600000; // 10 minutes between bubbles
 const HIGH_PRIORITY_TYPES = new Set(['revenue', 'stuck_film', 'countdown_imminent', 'countdown', 'low_hype', 'high_hype']);
 
-export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
+export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, mode }) => {
   const { api, user } = useContext(AuthContext);
   const location = useLocation();
   const [hovered, setHovered] = useState(false);
@@ -150,7 +150,20 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
     return () => window.removeEventListener('velion-revenue-notify', handler);
   }, [isOff]);
 
-  if (!visible) return null;
+  if (!visible) return (
+    <motion.button
+      onClick={() => setVisible(true)}
+      className="fixed bottom-20 right-2 z-50 sm:bottom-6 sm:right-5 w-10 h-10 rounded-full bg-[#0d1117]/90 border border-cyan-500/30 flex items-center justify-center hover:border-cyan-400/60 hover:bg-[#0d1117] transition-colors"
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 0.7 }}
+      whileHover={{ scale: 1.1, opacity: 1 }}
+      whileTap={{ scale: 0.9 }}
+      data-testid="velion-recall"
+      title="Richiama Velion"
+    >
+      <img src="/velion.png" alt="" className="w-7 h-7 object-contain rounded-full opacity-50" style={{ filter: 'brightness(0.8) saturate(0.4)' }} />
+    </motion.button>
+  );
 
   return (
     <>
@@ -219,6 +232,17 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
         >
           <X className="w-3 h-3 text-gray-300" />
         </button>
+
+        {/* Help ? */}
+        {onHelpClick && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onHelpClick(); }}
+            className="absolute -top-2 -right-2 z-30 w-5 h-5 rounded-full bg-gray-800 border border-yellow-500/40 flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/60 transition-colors"
+            data-testid="velion-help-btn"
+          >
+            <span className="text-[9px] font-bold text-yellow-400">?</span>
+          </button>
+        )}
 
         {/* Clickable area */}
         <motion.button

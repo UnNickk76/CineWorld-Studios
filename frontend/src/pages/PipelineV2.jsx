@@ -1459,16 +1459,14 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
   };
 
   return (
-    <div className="relative overflow-hidden">
-      {isShooting && (
-        <canvas ref={ciakCanvasRef} className="absolute inset-0 z-0 opacity-[0.18] pointer-events-none" data-testid="ciak-matrix-canvas" />
-      )}
-      <div className="relative z-10">
     <PhaseWrapper title="CIAK! Riprese" subtitle={`${film.shooting_days || '?'} giorni di riprese`} icon={Clapperboard} color="red">
-      <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 text-center space-y-2">
-        <Clapperboard className="w-8 h-8 text-red-400 mx-auto" />
-        <p className="text-[9px] text-gray-500 uppercase">Riprese in corso</p>
-        <p className="text-xl font-bold text-red-400 font-mono">{remaining}</p>
+      <div className="relative p-4 rounded-lg bg-red-500/5 border border-red-500/20 text-center space-y-2 overflow-hidden">
+        {isShooting && (
+          <canvas ref={ciakCanvasRef} className="absolute inset-0 z-0 opacity-[0.18] pointer-events-none" data-testid="ciak-matrix-canvas" />
+        )}
+        <Clapperboard className="relative z-10 w-8 h-8 text-red-400 mx-auto" />
+        <p className="relative z-10 text-[9px] text-gray-500 uppercase">Riprese in corso</p>
+        <p className="relative z-10 text-xl font-bold text-red-400 font-mono">{remaining}</p>
       </div>
 
       {(film.shooting_events || []).length > 0 && (
@@ -1490,8 +1488,6 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
         </button>
       )}
     </PhaseWrapper>
-      </div>
-    </div>
   );
 };
 

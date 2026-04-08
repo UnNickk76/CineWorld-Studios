@@ -574,7 +574,51 @@ const HypePhase = ({ film, onRefresh, toast }) => {
     setLoading('');
   };
 
+  // Matrix effect colors by genre
+  const genreColors = {
+    horror: '#ff0033', sci_fi: '#00e5ff', comedy: '#00ff88', drama: '#ffaa00',
+    action: '#ff6600', thriller: '#cc00ff', romance: '#ff69b4', fantasy: '#9966ff',
+    historical: '#daa520', documentary: '#44ff44', musical: '#ff44ff',
+  };
+  const matrixColor = genreColors[film.genre] || '#00ff88';
+  const canvasRef = useRef(null);
+  const isHypeLive = state === 'hype_live';
+
+  useEffect(() => {
+    if (!isHypeLive) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const resize = () => { canvas.width = canvas.parentElement.offsetWidth; canvas.height = canvas.parentElement.offsetHeight; };
+    resize();
+    window.addEventListener('resize', resize);
+    const letters = '01CINEWORLDSTUDIO';
+    const fontSize = 12;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops = Array(columns).fill(1);
+    const draw = () => {
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = matrixColor;
+      ctx.font = `${fontSize}px monospace`;
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    };
+    const interval = setInterval(draw, 50);
+    return () => { clearInterval(interval); window.removeEventListener('resize', resize); };
+  }, [isHypeLive, matrixColor]);
+
   return (
+    <div className="relative overflow-hidden">
+      {/* Matrix canvas — behind everything */}
+      {isHypeLive && (
+        <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none" data-testid="matrix-canvas" />
+      )}
+      <div className="relative z-10">
     <PhaseWrapper title="Hype Machine" subtitle="Crea aspettativa strategica" icon={TrendingUp} color="orange">
       {/* SETUP */}
       {state === 'proposed' && (
@@ -637,6 +681,8 @@ const HypePhase = ({ film, onRefresh, toast }) => {
         </div>
       )}
     </PhaseWrapper>
+      </div>
+    </div>
   );
 };
 

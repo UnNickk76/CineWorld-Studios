@@ -31,6 +31,16 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Card board mostrano sottogeneri come mini-tag
 - Retrocompatibilità: subgenres=[] per film esistenti
 
+### Edit/Sblocco Step (2026-04-09)
+- Icona Edit (pencil) sugli step completati nella StepperBar
+- Contatore "X/3 modifiche" visibile nella UI
+- Backend endpoint `POST /api/pipeline-v2/films/{pid}/edit-step`
+- Rollback sicuro dello stato pipeline allo step selezionato
+- Max 3 sblocchi totali per film (prima del rilascio)
+- Step timer-based (CIAK, FINAL CUT, USCITA) non modificabili
+- Snapshot e history tracciano ogni edit per audit
+- Ricalcolo automatico Pre-IMDb quando si modificano i dati dell'IDEA
+
 ## Backlog
 ### P0 (In Attesa)
 - [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)

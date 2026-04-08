@@ -1596,6 +1596,94 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     }
 
 # ═══════════════════════════════════════════════════════════════
+#  EDIT / UNLOCK STEP (max 3 per film)
+# ═══════════════════════════════════════════════════════════════
+
+# Maps ui_step index → pipeline_state to rollback to
+EDIT_ROLLBACK_STATE = {
+    0: 'idea',
+    1: 'proposed',
+    2: 'casting_live',
+    3: 'prep',
+    6: 'sponsorship',
+    7: 'premiere_setup',
+}
+
+# Steps that cannot be edited (timer-based or final)
+EDIT_BLOCKED_STEPS = {4, 5, 8}  # CIAK, FINAL CUT, USCITA
+
+class EditStepRequest(BaseModel):
+    target_ui_step: int
+
+@router.post("/films/{pid}/edit-step")
+async def edit_step_v2(pid: str, req: EditStepRequest, user: dict = Depends(get_current_user)):
+    """Unlock a completed step to re-edit it. Max 3 edits per film, before release."""
+    project = await _get_project(pid, user['id'])
+    state = project['pipeline_state']
+    current_ui = project.get('pipeline_ui_step', 0)
+
+    # Cannot edit released/completed/discarded films
+    if state in ('released', 'completed', 'discarded', 'release_pending'):
+        raise HTTPException(400, "Non puoi modificare un film gia rilasciato o completato")
+
+    # Check edit count
+    edit_count = project.get('edit_count', 0)
+    if edit_count >= 3:
+        raise HTTPException(400, "Hai esaurito le 3 modifiche disponibili per questo film")
+
+    target = req.target_ui_step
+    # Must go backwards
+    if target >= current_ui:
+        raise HTTPException(400, "Puoi modificare solo step gia completati (precedenti a quello attuale)")
+
+    # Cannot edit timer-based or final steps
+    if target in EDIT_BLOCKED_STEPS:
+        raise HTTPException(400, "Questo step (basato su timer) non puo essere modificato")
+
+    # Get rollback state
+    rollback_state = EDIT_ROLLBACK_STATE.get(target)
+    if not rollback_state:
+        raise HTTPException(400, f"Step {target} non modificabile")
+
+    now = _now()
+    update = {
+        'pipeline_state': rollback_state,
+        'pipeline_ui_step': target,
+        'pipeline_substate': 'editing_rollback',
+        'pipeline_locked': False,
+        'pipeline_error': None,
+        'pipeline_updated_at': now,
+        'updated_at': now,
+        'edit_count': edit_count + 1,
+    }
+
+    snapshot = {
+        'state': rollback_state,
+        'substate': 'editing_rollback',
+        'at': now,
+        'reason': f'edit_unlock #{edit_count + 1}: {state}(ui:{current_ui}) → {rollback_state}(ui:{target})',
+    }
+
+    await db.film_projects.update_one(
+        {'id': pid},
+        {
+            '$set': update,
+            '$push': {
+                'pipeline_history': {'from': state, 'to': rollback_state, 'at': now, 'type': 'edit_rollback'},
+                'pipeline_snapshots': snapshot,
+            },
+        }
+    )
+
+    film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    return {
+        'film': film,
+        'edit_count': edit_count + 1,
+        'edits_remaining': 3 - (edit_count + 1),
+        'message': f'Step sbloccato! Modifiche rimanenti: {2 - edit_count}',
+    }
+
+# ═══════════════════════════════════════════════════════════════
 #  DISCARD & ADMIN
 # ═══════════════════════════════════════════════════════════════
 

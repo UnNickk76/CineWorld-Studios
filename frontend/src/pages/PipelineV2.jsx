@@ -3,7 +3,8 @@ import {
   Film, Star, Zap, Clock, ChevronLeft, ChevronRight, Check, Eye, X,
   Plus, Sparkles, Camera, Clapperboard, Megaphone, Award, Ticket,
   MapPin, Palette, FileText, Lock, Users, Music, Wand2, Play,
-  Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send
+  Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send,
+  Pencil
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
@@ -121,8 +122,13 @@ function useCountdown(endTime) {
 //  STEPPER BAR (9 steps, horizontal scrollable on mobile)
 // ═══════════════════════════════════════════════════════════════
 
-const StepperBar = ({ uiStep }) => {
+// Steps that CANNOT be edited (timer-based)
+const EDIT_BLOCKED_STEPS = new Set([4, 5, 8]);
+
+const StepperBar = ({ uiStep, editCount = 0, onEditStep, filmState }) => {
   const ref = useRef(null);
+  const canEdit = editCount < 3 && !['released', 'completed', 'discarded', 'release_pending'].includes(filmState);
+
   useEffect(() => {
     if (ref.current) {
       const active = ref.current.querySelector(`[data-step="${uiStep}"]`);
@@ -131,30 +137,51 @@ const StepperBar = ({ uiStep }) => {
   }, [uiStep]);
 
   return (
-    <div ref={ref} className="flex items-center gap-0 px-1 py-2 overflow-x-auto scrollbar-hide" data-testid="v2-stepper">
-      {V2_STEPS.map((step, i) => {
-        const Icon = step.icon;
-        const style = STEP_STYLES[step.color];
-        const isCurrent = i === uiStep;
-        const isCompleted = i < uiStep;
-        return (
-          <React.Fragment key={step.id}>
-            {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted ? style.line : 'bg-gray-800'}`} />}
-            <div className="flex flex-col items-center gap-0.5 flex-shrink-0" data-step={i}>
-              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
-                isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
-                'border-gray-800 bg-gray-900/50 text-gray-700'
-              }`}>
-                {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+    <div className="px-1 py-2">
+      {/* Edit counter */}
+      {canEdit && (
+        <div className="flex justify-end px-2 mb-1">
+          <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold" data-testid="edit-counter">
+            {3 - editCount}/3 modifiche
+          </span>
+        </div>
+      )}
+      <div ref={ref} className="flex items-center gap-0 px-1 overflow-x-auto scrollbar-hide" data-testid="v2-stepper">
+        {V2_STEPS.map((step, i) => {
+          const Icon = step.icon;
+          const style = STEP_STYLES[step.color];
+          const isCurrent = i === uiStep;
+          const isCompleted = i < uiStep;
+          const isEditable = isCompleted && canEdit && !EDIT_BLOCKED_STEPS.has(i);
+          return (
+            <React.Fragment key={step.id}>
+              {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted ? style.line : 'bg-gray-800'}`} />}
+              <div className="flex flex-col items-center gap-0.5 flex-shrink-0 relative" data-step={i}>
+                <div
+                  onClick={isEditable ? () => onEditStep(i) : undefined}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                    isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
+                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
+                    'border-gray-800 bg-gray-900/50 text-gray-700'
+                  } ${isEditable ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-500/10 active:scale-95' : ''}`}
+                  data-testid={isEditable ? `edit-step-${i}` : undefined}
+                >
+                  {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                </div>
+                {/* Edit pencil icon */}
+                {isEditable && (
+                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm" style={{ fontSize: 0 }}>
+                    <Pencil className="w-2 h-2 text-black" />
+                  </div>
+                )}
+                <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
+                  isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : 'text-gray-700'
+                }`}>{step.label}</span>
               </div>
-              <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
-                isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : 'text-gray-700'
-              }`}>{step.label}</span>
-            </div>
-          </React.Fragment>
-        );
-      })}
+            </React.Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -1379,10 +1406,33 @@ const PipelineV2 = () => {
 
   // ─── DETAIL VIEW ───
   if (view === 'detail' && selected) {
+    const handleEditStep = async (targetStep) => {
+      const editsUsed = selected.edit_count || 0;
+      const remaining = 3 - editsUsed;
+      if (remaining <= 0) {
+        toast({ title: 'Limite raggiunto', description: 'Hai esaurito le 3 modifiche disponibili.', variant: 'destructive' });
+        return;
+      }
+      if (!window.confirm(`Vuoi sbloccare questo step per modificarlo? (${remaining - 1} modifiche rimanenti dopo questa)`)) return;
+      try {
+        const res = await api.post(`/films/${selected.id}/edit-step`, { target_ui_step: targetStep });
+        setSelected(res.film);
+        loadFilms();
+        toast({ title: res.message || 'Step sbloccato!' });
+      } catch (e) {
+        toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+      }
+    };
+
     return (
       <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
-        <StepperBar uiStep={selected.pipeline_ui_step ?? 0} />
+        <StepperBar
+          uiStep={selected.pipeline_ui_step ?? 0}
+          editCount={selected.edit_count || 0}
+          onEditStep={handleEditStep}
+          filmState={selected.pipeline_state}
+        />
         {renderPhase()}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (
           <div className="p-3 border-t border-gray-800/50">

@@ -8,13 +8,13 @@ import { toast } from 'sonner';
 import {
   Trophy, Play, Gamepad2, BarChart3, Crown, Swords,
   Film, Brain, Target, Zap, Timer, Camera, Sun, UserCheck,
-  Scissors, Eye, Sparkles, Clock, Flame, Award, Gift, Shield, Binary, Car, Drama
+  Scissors, Eye, Sparkles, Clock, Flame, Award, Gift, Shield, Binary, Car, Drama, CircleDot
 } from 'lucide-react';
 import {
   TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame,
   ShotPerfect, LightSetup, CastMatch, EditingCut, FollowCam,
   ChaosPremiere, ReelSnake, MatrixDodge, MatrixDodgePro,
-  CineDrive, CineDrivePro, SuperCinePro
+  CineDrive, CineDrivePro, SuperCinePro, FlipperPro
 } from '../components/MiniGames';
 import ChallengesPage from './ChallengesPage';
 
@@ -25,6 +25,7 @@ const GAME_ICONS = {
   matrix_dodge: Binary, matrix_dodge_pro: Binary,
   cine_drive: Car, cine_drive_pro: Car,
   supercine_pro: Drama,
+  flipper_pro: Target,
 };
 
 const GAME_COMPONENTS = {
@@ -35,6 +36,7 @@ const GAME_COMPONENTS = {
   matrix_dodge: MatrixDodge, matrix_dodge_pro: MatrixDodgePro,
   cine_drive: CineDrive, cine_drive_pro: CineDrivePro,
   supercine_pro: SuperCinePro,
+  flipper_pro: FlipperPro,
 };
 
 function StreakBadge({ streak }) {

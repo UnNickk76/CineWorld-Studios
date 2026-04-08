@@ -1,0 +1,30 @@
+/* flipperPro.css */
+.fp-container { position:relative; margin:0 auto; background:#0a0a1a; border-radius:12px; overflow:hidden; touch-action:none; user-select:none; }
+.fp-canvas { display:block; width:100%; height:auto; }
+.fp-ball-img { position:absolute; pointer-events:none; z-index:5; }
+.fp-leva-img { position:absolute; pointer-events:none; z-index:4; height:auto; }
+
+.fp-hud { position:absolute; top:4px; left:0; right:0; text-align:center; z-index:10; pointer-events:none; }
+.fp-hud-score { font:900 20px monospace; color:#ffd700; text-shadow:0 0 8px #ffd700; }
+.fp-hud-multi { font:bold 14px monospace; color:#ff4444; margin-left:10px; }
+.fp-hud-info { display:block; font:9px monospace; color:rgba(255,255,255,0.5); margin-top:2px; }
+
+.fp-controls { position:absolute; bottom:6px; left:0; right:0; display:flex; justify-content:space-between; padding:0 10px; z-index:15; pointer-events:none; }
+.fp-btn { pointer-events:auto; border:none; cursor:pointer; -webkit-tap-highlight-color:transparent; border-radius:50%; font:bold 11px monospace; }
+.fp-btn-flip { width:56px; height:56px; background:rgba(255,200,0,0.2); color:#ffd700; border:2px solid rgba(255,200,0,0.4); }
+.fp-btn-flip:active { background:rgba(255,200,0,0.5); transform:scale(0.92); }
+.fp-btn-launch { width:50px; height:50px; background:rgba(255,100,0,0.25); color:#ff6600; border:2px solid rgba(255,100,0,0.4); pointer-events:auto; }
+.fp-btn-launch:active { background:rgba(255,100,0,0.5); transform:scale(0.92); }
+
+.fp-overlay { position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); }
+.fp-over-bg { background:rgba(30,0,0,0.88); }
+.fp-intro-box,.fp-result-box { text-align:center; padding:20px; }
+.fp-title { font:900 26px monospace; color:#ffd700; text-shadow:0 0 15px #ffd700; }
+.fp-sub { font:bold 10px monospace; color:#ff6600; letter-spacing:2px; margin-top:4px; }
+.fp-rules { font:10px monospace; color:rgba(255,255,255,0.5); margin:12px 0; }
+.fp-start-btn { background:linear-gradient(135deg,#ffd700,#ff6600); color:#000; font:bold 13px monospace; padding:10px 24px; border:none; border-radius:8px; cursor:pointer; pointer-events:auto; }
+.fp-start-btn:active { transform:scale(0.95); }
+.fp-hint { font:8px monospace; color:rgba(255,255,255,0.25); margin-top:8px; }
+.fp-over-title { font:bold 20px monospace; color:#ff4444; text-shadow:0 0 10px #ff0000; }
+.fp-score-big { font:900 34px monospace; color:#ffd700; text-shadow:0 0 15px #ffd700; margin:6px 0; }
+.fp-result-info { font:10px monospace; color:rgba(255,255,255,0.5); }

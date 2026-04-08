@@ -27,6 +27,7 @@ ARCADE_GAMES = [
     {"id": "cine_drive", "name": "Auto Cinematografica", "desc": "Guida neon, schiva ostacoli cinema!", "icon": "car", "bonus": True},
     {"id": "cine_drive_pro", "name": "Auto Cinema PRO", "desc": "PRO ASSURDA: turbo, boss, scenari!", "icon": "car", "bonus": True},
     {"id": "supercine_pro", "name": "SuperCine PRO ASSURDA", "desc": "Platformer epico cinematografico! 7 zone, segreti, rank!", "icon": "clapperboard", "bonus": True},
+    {"id": "flipper_pro", "name": "Flipper PRO", "desc": "Flipper cinematografico! Target, multiplier, livelli!", "icon": "circle-dot", "bonus": True},
 ]
 
 GAME_IDS = {g["id"] for g in ARCADE_GAMES}
@@ -50,6 +51,7 @@ GAME_TITLES = {
     "cine_drive":      {"title": "Pilota Neon",        "threshold": 400},
     "cine_drive_pro":  {"title": "Re della Strada",    "threshold": 600},
     "supercine_pro":   {"title": "Legendary Director", "threshold": 800},
+    "flipper_pro":     {"title": "Pinball Wizard",     "threshold": 600},
 }
 
 # Streak milestones

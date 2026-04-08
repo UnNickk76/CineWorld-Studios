@@ -970,6 +970,264 @@ GENRE_ROLE_BONUS = {
     'historical': {'drammatico': 1.2, 'protagonista': 1.1, 'caratterista': 1.1},
 }
 
+# ═══════════════════════════════════════════════════════════════
+#  SISTEMA CHIMICHE ATTORI — Core Gameplay
+# ═══════════════════════════════════════════════════════════════
+
+def _skill_vector(skills: dict) -> list:
+    """Normalized skill vector for cosine similarity."""
+    vals = list(skills.values()) if skills else [50]
+    mag = math.sqrt(sum(v*v for v in vals)) or 1
+    return [v / mag for v in vals]
+
+
+def calculate_chemistry(a: dict, b: dict, genre: str, subgenres: list) -> dict:
+    """
+    Calculate chemistry between two cast members.
+    Returns score (-100 to +100) and breakdown.
+    """
+    score = 0.0
+    factors = []
+
+    sk_a = a.get('skills', {})
+    sk_b = b.get('skills', {})
+
+    # 1) Skill compatibility — shared skills with similar levels = good synergy
+    shared = set(sk_a.keys()) & set(sk_b.keys())
+    if shared:
+        compat = 0
+        for s in shared:
+            diff = abs(sk_a[s] - sk_b[s])
+            if diff < 15:
+                compat += 2   # very compatible
+            elif diff < 30:
+                compat += 1
+            else:
+                compat -= 1   # too different = friction
+        skill_score = max(-20, min(25, compat * 3))
+        score += skill_score
+        if skill_score >= 10:
+            factors.append(('skills_sync', skill_score, 'Stili complementari'))
+        elif skill_score <= -5:
+            factors.append(('skills_clash', skill_score, 'Metodi troppo diversi'))
+
+    # 2) Fame gap — huge fame difference = ego clashes
+    fame_a = float(a.get('fame', 30) or 30)
+    fame_b = float(b.get('fame', 30) or 30)
+    gap = abs(fame_a - fame_b)
+    if gap > 60:
+        fame_pen = -20
+        factors.append(('fame_gap', fame_pen, 'Divario fama enorme'))
+    elif gap > 40:
+        fame_pen = -10
+        factors.append(('fame_gap', fame_pen, 'Divario fama'))
+    elif gap < 15:
+        fame_pen = 8
+        factors.append(('fame_match', fame_pen, 'Stessa fascia fama'))
+    else:
+        fame_pen = 0
+    score += fame_pen
+
+    # 3) Genre affinity — both like same genre = bonus
+    genre_aff_a = set(a.get('genre_affinity', []))
+    genre_aff_b = set(b.get('genre_affinity', []))
+    sub_set = set(subgenres)
+    shared_genres = genre_aff_a & genre_aff_b
+    if genre in genre_aff_a and genre in genre_aff_b:
+        score += 12
+        factors.append(('genre_sync', 12, f'Entrambi amano il {genre}'))
+    shared_subs = genre_aff_a & genre_aff_b & sub_set
+    if shared_subs:
+        sub_bonus = min(10, len(shared_subs) * 5)
+        score += sub_bonus
+        factors.append(('subgenre_sync', sub_bonus, 'Affinita sottogenere'))
+
+    # 4) Age compatibility — very large gap may cause friction
+    age_a = a.get('age', 35) or 35
+    age_b = b.get('age', 35) or 35
+    age_gap = abs(age_a - age_b)
+    if age_gap > 30:
+        age_pen = -5
+    elif age_gap < 10:
+        age_pen = 5
+    else:
+        age_pen = 0
+    score += age_pen
+    if age_pen != 0:
+        label = 'Generazione simile' if age_pen > 0 else 'Gap generazionale'
+        factors.append(('age', age_pen, label))
+
+    # 5) Nationality / cultural factor — same nationality = small bonus
+    if a.get('nationality') == b.get('nationality') and a.get('nationality'):
+        score += 5
+        factors.append(('nationality', 5, 'Stessa cultura'))
+
+    # 6) Stars balance — 2 big stars together = slight ego penalty, star+emerging = good
+    stars_a = a.get('stars', 2) or 2
+    stars_b = b.get('stars', 2) or 2
+    if stars_a >= 5 and stars_b >= 5:
+        score -= 8
+        factors.append(('dual_star', -8, 'Due superstar = ego'))
+    elif (stars_a >= 4 and stars_b <= 2) or (stars_b >= 4 and stars_a <= 2):
+        score += 6
+        factors.append(('mentor', 6, 'Mentore + giovane'))
+
+    # 7) Personality dice — small random variance to avoid determinism
+    personality = random.uniform(-8, 8)
+    score += personality
+
+    score = max(-100, min(100, round(score)))
+
+    # Indicator level
+    if score >= 30:
+        indicator = 'good'
+    elif score >= -15:
+        indicator = 'neutral'
+    else:
+        indicator = 'tension'
+
+    return {
+        'score': score,
+        'indicator': indicator,
+        'factors': factors,
+    }
+
+
+async def calculate_cast_chemistry(cast: dict, genre: str, subgenres: list) -> dict:
+    """
+    Calculate aggregate chemistry for the entire cast.
+    Returns overall score, indicator, pair details, and event triggers.
+    """
+    members = []
+    director = cast.get('director')
+    if director and director.get('id'):
+        members.append(director)
+    for sw in cast.get('screenwriters', []):
+        if sw and sw.get('id'):
+            members.append(sw)
+    for act in cast.get('actors', []):
+        if act and act.get('id'):
+            members.append(act)
+    composer = cast.get('composer')
+    if composer and composer.get('id'):
+        members.append(composer)
+
+    if len(members) < 2:
+        return {
+            'score': 0, 'indicator': 'neutral',
+            'pairs': [], 'best_pair': None, 'worst_pair': None,
+            'events': [],
+        }
+
+    # Check past collaborations from DB
+    member_ids = [m['id'] for m in members]
+    past_films = await db.film_projects.find(
+        {'cast_locked': True, 'cast.actors.id': {'$in': member_ids}},
+        {'_id': 0, 'cast': 1}
+    ).to_list(100)
+
+    # Build collaboration map: how many films did each pair work together?
+    collab_count = {}
+    for pf in past_films:
+        c = pf.get('cast', {})
+        ids_in_film = set()
+        if c.get('director', {}).get('id'): ids_in_film.add(c['director']['id'])
+        for a in c.get('actors', []):
+            if a.get('id'): ids_in_film.add(a['id'])
+        relevant = ids_in_film & set(member_ids)
+        rlist = sorted(relevant)
+        for i in range(len(rlist)):
+            for j in range(i+1, len(rlist)):
+                key = f"{rlist[i]}|{rlist[j]}"
+                collab_count[key] = collab_count.get(key, 0) + 1
+
+    pairs = []
+    total_score = 0
+    best = None
+    worst = None
+
+    for i in range(len(members)):
+        for j in range(i+1, len(members)):
+            a, b = members[i], members[j]
+            chem = calculate_chemistry(a, b, genre, subgenres)
+
+            # Collaboration bonus
+            key = f"{min(a['id'], b['id'])}|{max(a['id'], b['id'])}"
+            collabs = collab_count.get(key, 0)
+            if collabs > 0:
+                collab_bonus = min(15, collabs * 5)
+                chem['score'] = max(-100, min(100, chem['score'] + collab_bonus))
+                chem['factors'].append(('past_collab', collab_bonus, f'{collabs} film insieme'))
+                # Recalculate indicator
+                if chem['score'] >= 30: chem['indicator'] = 'good'
+                elif chem['score'] >= -15: chem['indicator'] = 'neutral'
+                else: chem['indicator'] = 'tension'
+
+            pair_data = {
+                'a_id': a['id'], 'a_name': a.get('name', '?'),
+                'b_id': b['id'], 'b_name': b.get('name', '?'),
+                'score': chem['score'],
+                'indicator': chem['indicator'],
+            }
+            pairs.append(pair_data)
+            total_score += chem['score']
+
+            if best is None or chem['score'] > best['score']:
+                best = pair_data
+            if worst is None or chem['score'] < worst['score']:
+                worst = pair_data
+
+    avg_score = round(total_score / max(1, len(pairs)))
+    avg_score = max(-100, min(100, avg_score))
+
+    if avg_score >= 30:
+        indicator = 'good'
+    elif avg_score >= -15:
+        indicator = 'neutral'
+    else:
+        indicator = 'tension'
+
+    # Generate potential events based on chemistry
+    events = []
+    if worst and worst['score'] < -50:
+        events.append({
+            'type': 'tension_high',
+            'text': f"Tensione tra {worst['a_name']} e {worst['b_name']}",
+            'risk': 'litigio_set',
+            'probability': min(40, abs(worst['score']) // 2),
+        })
+    if worst and worst['score'] < -30:
+        events.append({
+            'type': 'tension_medium',
+            'text': f"Atmosfera tesa tra {worst['a_name']} e {worst['b_name']}",
+            'risk': 'ritardo',
+            'probability': min(25, abs(worst['score']) // 3),
+        })
+    if best and best['score'] > 60:
+        events.append({
+            'type': 'synergy_high',
+            'text': f"Chimica straordinaria tra {best['a_name']} e {best['b_name']}",
+            'bonus': 'quality_boost',
+            'probability': min(50, best['score'] // 2),
+        })
+    if best and best['score'] > 30:
+        events.append({
+            'type': 'synergy_medium',
+            'text': f"Buona intesa tra {best['a_name']} e {best['b_name']}",
+            'bonus': 'hype_boost',
+            'probability': min(30, best['score'] // 3),
+        })
+
+    return {
+        'score': avg_score,
+        'indicator': indicator,
+        'pairs': pairs,
+        'best_pair': best,
+        'worst_pair': worst,
+        'events': events,
+    }
+
+
 def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
     """Calculate strategic cast quality with bonus/malus breakdown."""
     breakdown = []
@@ -1144,13 +1402,27 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
     subgenres = project.get('subgenres', [])
     quality_data = _calc_cast_quality(cast, genre, subgenres)
 
+    # Calculate chemistry indicators for the current cast
+    chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
+
     update = {
         'cast': cast,
         'pipeline_metrics.cast_quality': quality_data['quality'],
         'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
+        'pipeline_metrics.cast_chemistry': chemistry['score'],
+        'pipeline_metrics.cast_chemistry_indicator': chemistry['indicator'],
+        'cast_chemistry_pairs': chemistry['pairs'],
     }
     film = await _update_project(pid, update)
-    return {'film': film, 'selected': proposal.get('name', '?'), 'cost_paid': cost, 'rejected': False}
+    return {
+        'film': film, 'selected': proposal.get('name', '?'), 'cost_paid': cost, 'rejected': False,
+        'chemistry': {
+            'score': chemistry['score'],
+            'indicator': chemistry['indicator'],
+            'best_pair': chemistry['best_pair'],
+            'worst_pair': chemistry['worst_pair'],
+        },
+    }
 
 
 
@@ -1179,6 +1451,52 @@ async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user))
     await db.film_projects.update_one({'id': pid}, {'$set': update})
     film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
     return {'film': film, 'total_proposals': len(new_proposals)}
+
+
+@router.get("/films/{pid}/cast-chemistry")
+async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
+    """Get current cast chemistry indicators. Costo: 1 credito."""
+    project = await _get_project(pid, user['id'])
+    cast = project.get('cast', {})
+
+    # Check if we have enough cast members
+    actors = [a for a in cast.get('actors', []) if a and a.get('id')]
+    if len(actors) < 2 and not cast.get('director'):
+        return {'indicator': 'neutral', 'pairs': [], 'best_pair': None, 'worst_pair': None, 'cost': 0}
+
+    # Deduct 1 credit
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if u.get('funds', 0) < 1:
+        raise HTTPException(400, "Servono almeno 1 credito")
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -1}})
+
+    genre = project.get('genre', 'drama')
+    subgenres = project.get('subgenres', [])
+    chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
+
+    # Save to pipeline
+    await db.film_projects.update_one({'id': pid}, {'$set': {
+        'pipeline_metrics.cast_chemistry': chemistry['score'],
+        'pipeline_metrics.cast_chemistry_indicator': chemistry['indicator'],
+        'cast_chemistry_pairs': chemistry['pairs'],
+    }})
+
+    # Return only indicators (NO scores visible)
+    pairs_safe = []
+    for p in chemistry['pairs']:
+        pairs_safe.append({
+            'a_name': p['a_name'],
+            'b_name': p['b_name'],
+            'indicator': p['indicator'],
+        })
+
+    return {
+        'indicator': chemistry['indicator'],
+        'pairs': pairs_safe,
+        'best_pair': {'a_name': chemistry['best_pair']['a_name'], 'b_name': chemistry['best_pair']['b_name'], 'indicator': chemistry['best_pair']['indicator']} if chemistry['best_pair'] else None,
+        'worst_pair': {'a_name': chemistry['worst_pair']['a_name'], 'b_name': chemistry['worst_pair']['b_name'], 'indicator': chemistry['worst_pair']['indicator']} if chemistry['worst_pair'] else None,
+        'cost': 1,
+    }
 
 
 @router.post("/films/{pid}/renegotiate-cast")
@@ -1233,13 +1551,26 @@ async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(
     subgenres = project.get('subgenres', [])
     quality_data = _calc_cast_quality(cast, genre, subgenres)
 
+    chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
+
     update = {
         'cast': cast,
         'pipeline_metrics.cast_quality': quality_data['quality'],
         'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
+        'pipeline_metrics.cast_chemistry': chemistry['score'],
+        'pipeline_metrics.cast_chemistry_indicator': chemistry['indicator'],
+        'cast_chemistry_pairs': chemistry['pairs'],
     }
     film = await _update_project(pid, update)
-    return {'film': film, 'selected': proposal['name'], 'cost_paid': renegotiate_cost, 'rejected': False}
+    return {
+        'film': film, 'selected': proposal['name'], 'cost_paid': renegotiate_cost, 'rejected': False,
+        'chemistry': {
+            'score': chemistry['score'],
+            'indicator': chemistry['indicator'],
+            'best_pair': chemistry['best_pair'],
+            'worst_pair': chemistry['worst_pair'],
+        },
+    }
 
 @router.post("/films/{pid}/lock-cast")
 async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
@@ -1261,14 +1592,31 @@ async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
     subgenres = project.get('subgenres', [])
     quality_data = _calc_cast_quality(cast, genre, subgenres)
 
+    # Final chemistry calculation — saved for gameplay impact
+    chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
+
     extra = {
         'cast_locked': True,
         'cast_locked_at': _now(),
         'pipeline_metrics.cast_quality': quality_data['quality'],
         'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
+        'pipeline_metrics.cast_chemistry': chemistry['score'],
+        'pipeline_metrics.cast_chemistry_indicator': chemistry['indicator'],
+        'cast_chemistry_pairs': chemistry['pairs'],
+        'cast_chemistry_best': chemistry['best_pair'],
+        'cast_chemistry_worst': chemistry['worst_pair'],
+        'cast_chemistry_events': chemistry['events'],
     }
     film = await _advance(pid, user['id'], 'prep', extra, 'equipment')
-    return {'film': film, 'cast_quality': quality_data['quality'], 'breakdown': quality_data['breakdown']}
+    return {
+        'film': film, 'cast_quality': quality_data['quality'], 'breakdown': quality_data['breakdown'],
+        'chemistry': {
+            'score': chemistry['score'],
+            'indicator': chemistry['indicator'],
+            'best_pair': chemistry['best_pair'],
+            'worst_pair': chemistry['worst_pair'],
+        },
+    }
 
 # ═══════════════════════════════════════════════════════════════
 #  FASE 4 — PREP
@@ -1452,6 +1800,33 @@ async def complete_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
         possible.append(("Film vietato ai minori in 3 paesi — hype enorme", "mixed", 3))
     if genre == 'historical':
         possible.append(("Storico famoso benedice il film", "positive", 5))
+
+    # ─── CHEMISTRY-BASED EVENTS ───
+    chem_indicator = project.get('pipeline_metrics', {}).get('cast_chemistry_indicator', 'neutral')
+    chem_score = project.get('pipeline_metrics', {}).get('cast_chemistry', 0)
+    chem_worst = project.get('cast_chemistry_worst')
+    chem_best = project.get('cast_chemistry_best')
+
+    if chem_indicator == 'tension' and chem_score < -30:
+        # High tension: real chemistry events
+        if chem_worst:
+            possible.append((f"Litigio sul set tra {chem_worst['a_name']} e {chem_worst['b_name']}", "negative", -6))
+            possible.append((f"{chem_worst['a_name']} minaccia di abbandonare le riprese", "negative", -4))
+        possible.append(("Tensione palpabile rallenta le riprese", "negative", -3))
+    elif chem_indicator == 'tension':
+        if chem_worst:
+            possible.append((f"Frizione tra {chem_worst['a_name']} e {chem_worst['b_name']}", "negative", -2))
+        possible.append(("Clima freddo sul set", "negative", -1))
+
+    if chem_indicator == 'good' and chem_score > 40:
+        # High synergy: real chemistry events
+        if chem_best:
+            possible.append((f"Chimica esplosiva tra {chem_best['a_name']} e {chem_best['b_name']}!", "positive", 6))
+            possible.append((f"Scena improvvisata geniale di {chem_best['a_name']} e {chem_best['b_name']}", "positive", 5))
+        possible.append(("Energia contagiosa sul set, tutto il cast si supera", "positive", 4))
+    elif chem_indicator == 'good':
+        if chem_best:
+            possible.append((f"Bella intesa tra {chem_best['a_name']} e {chem_best['b_name']}", "positive", 3))
 
     num_events = random.randint(1, 3)
     chosen = random.sample(possible, min(num_events, len(possible)))
@@ -1860,11 +2235,18 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
 
     base = min(65, base)
 
-    # Alchemy (random, ~±35)
+    # Alchemy (random, ~+/-35)
     alchemy = 0
     alchemy += random.uniform(-22, 22)   # Director vision
     alchemy += random.uniform(-20, 20)   # Audience reaction
-    alchemy += random.uniform(-6, 6)     # Cast chemistry
+
+    # ─── REAL CAST CHEMISTRY IMPACT ───
+    cast_chem = metrics.get('cast_chemistry', 0)
+    chem_indicator = metrics.get('cast_chemistry_indicator', 'neutral')
+    # Chemistry contributes -15 to +15 based on real score
+    chem_impact = cast_chem * 0.15
+    alchemy += chem_impact
+
     alchemy += random.uniform(-6, 6)     # Genre trend
     alchemy += random.uniform(-10, 10)   # Critics
     alchemy += random.uniform(-5, 5)     # Market timing

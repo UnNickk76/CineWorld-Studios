@@ -13,46 +13,41 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 ### Pipeline Film V2 - BLINDATA (2026-04-08)
 - State machine anti-bug con lock/snapshot/idempotenza
 - 9 macro-step: IDEA -> HYPE -> CAST -> PREP -> CIAK -> FINAL CUT -> MARKETING -> LA PRIMA -> USCITA
-- Chaos test 30/30 PASS (spam, refresh, timer edge, stale lock, multi-tab, retry)
-- Board iniziale con card tratteggiata "Nuovo Film" + film in pipeline
 
 ### Sottogeneri Dinamici + Genere Storico (2026-04-08)
-- 19 generi totali con 10 sottogeneri ciascuno (190 sottogeneri)
-- Max 3 sottogeneri selezionabili via chips UI
-- Impatto reale su Pre-IMDb, Quality Score, Eventi Shooting, Marketing, Audience targeting
-- STRONG_COMBOS/WEAK_COMBOS per sinergie/clash
+- 19 generi con 10 sottogeneri ciascuno
 
 ### Edit/Sblocco Step (2026-04-09)
-- Max 3 sblocchi totali per film, rollback sicuro, ricalcolo Pre-IMDb
+- Max 3 sblocchi totali per film
 
-### Prossimamente V2 + Dashboard (2026-04-09)
-- Film V2 visibili in "Prossimamente" con badge stato
-
-### Sistema Speedup 4 Livelli (2026-04-09)
-- Costi dinamici basati sul timer rimanente (25/50/75/100%)
-
-### Effetto Matrix + Hype Live (2026-04-09)
-- Barre progresso live interpolate per Hype e Agenzie
-- Effetto Matrix cinematografico nella fase Hype
+### Dashboard V2 + Speedup 4 Livelli + Hype Live (2026-04-09)
 
 ### CineConfirm Modale (2026-04-09)
-- Modale globale stile Cineox/Velion al posto di window.confirm
 
-### Rivoluzione Casting (2026-04-09)
-- NPC reali dal DB (24.200+ NPC), 8 skill per ruolo, limiti ruoli, fame tiers
-- Proposte: 30 attori, 10 registi, 10 sceneggiatori, 8 compositori
-- Refresh proposals, compatibilita genere, bonus/malus skill
+### Rivoluzione Casting con NPC Reali (2026-04-09)
+- 24.200+ NPC dal DB, 8 skill per ruolo, limiti ruoli, fame tiers
 
 ### Job Periodico NPC Cast (2026-04-09)
-- APScheduler job giornaliero (06:00 UTC) per generare nuovi NPC
-- Fix campo `role_type` (era `type`) e `writer` (era `screenwriter`) per compatibilita Pipeline V2
-- Refresh 5% pool ogni 12 giorni + generazione giornaliera 10-20 per tipo
+- APScheduler job giornaliero (06:00 UTC)
+
+### SISTEMA CHIMICHE ATTORI (2026-04-09)
+- calculate_chemistry() con 7 fattori + bonus collaborazione passata
+- calculate_cast_chemistry() aggregazione tutte le coppie
+- Endpoint GET /cast-chemistry: costo 1 credito, solo indicatori (no numeri)
+- Integrato in: select-cast, lock-cast, complete-ciak (eventi), qualita finale
+- Impatto: -15 a +15 punti qualita, eventi shooting dinamici
+- UI: ChemistryPanel con verde/giallo/rosso, pallini per membro
+
+### FIX UI Cast (2026-04-09)
+- Genere: ♂ blu / ♀ rosa / ⚧ grigio (fix mapping male/female vs M/F)
+- IMDb rating mostrato nelle proposal cards (formato X.X su scala 10)
+- Chimica ridotta a 1 credito
 
 ## Backlog
 
 ### P1
 - [ ] Integrazione Arena per film V2
-- [ ] Fix minigiochi residui (TapCiak, ecc.) - da verificare se ci sono bug reali
+- [ ] Fix minigiochi residui (TapCiak, ecc.)
 
 ### P2
 - [ ] Sfida della Settimana (minigioco rotante con premi extra)

@@ -1318,6 +1318,73 @@ def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
 class SelectCastV2(BaseModel):
     proposal_index: int
     role: str
+    cast_role: Optional[str] = None  # protagonista, co_protagonista, antagonista, supporto, cameo, generico
+
+# ── Cast Role Bonus/Malus System ──
+CAST_ROLE_CONFIG = {
+    'protagonista':     {'hype_bonus': 5, 'quality_bonus': 4, 'imdb_weight': 1.2, 'cost_mult': 1.0},
+    'co_protagonista':  {'hype_bonus': 3, 'quality_bonus': 3, 'imdb_weight': 1.0, 'cost_mult': 0.9},
+    'antagonista':      {'hype_bonus': 4, 'quality_bonus': 3, 'imdb_weight': 1.1, 'cost_mult': 1.0},
+    'supporto':         {'hype_bonus': 1, 'quality_bonus': 2, 'imdb_weight': 0.6, 'cost_mult': 0.7},
+    'cameo':            {'hype_bonus': 2, 'quality_bonus': 1, 'imdb_weight': 0.3, 'cost_mult': 0.4},
+    'generico':         {'hype_bonus': 0, 'quality_bonus': 1, 'imdb_weight': 0.2, 'cost_mult': 0.3},
+}
+
+# Genre affinity per ruolo: quale ruolo beneficia di più per genere
+GENRE_ROLE_AFFINITY = {
+    'action':    {'protagonista': 1.3, 'antagonista': 1.2},
+    'comedy':    {'protagonista': 1.1, 'co_protagonista': 1.3, 'cameo': 1.2},
+    'drama':     {'protagonista': 1.3, 'antagonista': 1.2, 'supporto': 1.1},
+    'horror':    {'antagonista': 1.4, 'protagonista': 1.1},
+    'thriller':  {'antagonista': 1.3, 'protagonista': 1.2},
+    'romance':   {'protagonista': 1.2, 'co_protagonista': 1.4},
+    'sci_fi':    {'protagonista': 1.2, 'antagonista': 1.1},
+    'fantasy':   {'protagonista': 1.2, 'supporto': 1.2},
+    'historical':{'protagonista': 1.2, 'supporto': 1.3},
+}
+
+def _calc_role_bonus(actor: dict, cast_role: str, genre: str, subgenres: list) -> dict:
+    """Calculate bonus/malus for assigning an actor to a specific role."""
+    config = CAST_ROLE_CONFIG.get(cast_role, CAST_ROLE_CONFIG['generico'])
+    genre_mult = GENRE_ROLE_AFFINITY.get(genre, {}).get(cast_role, 1.0)
+
+    # Skill affinity: protagonista needs charisma, antagonista needs emotional_depth, etc
+    skills = actor.get('skills', {})
+    skill_bonus = 0
+    if cast_role == 'protagonista':
+        skill_bonus = (skills.get('charisma', 50) + skills.get('emotional_depth', 50)) / 100 * 3
+    elif cast_role == 'antagonista':
+        skill_bonus = (skills.get('emotional_depth', 50) + skills.get('method_acting', 50)) / 100 * 3
+    elif cast_role == 'co_protagonista':
+        skill_bonus = (skills.get('charisma', 50) + skills.get('timing', 50) + skills.get('comedy', 50)) / 150 * 3
+    elif cast_role == 'supporto':
+        skill_bonus = (skills.get('method_acting', 50) + skills.get('voice_acting', 50)) / 100 * 2
+    elif cast_role == 'cameo':
+        skill_bonus = (skills.get('charisma', 50)) / 100 * 2
+    else:
+        skill_bonus = 0.5
+
+    # Fame interaction: star in cameo = huge hype, star in generico = wasted
+    fame = actor.get('fame', 30) or 30
+    stars = actor.get('stars', 2) or 2
+    fame_bonus = 0
+    if stars >= 4 and cast_role == 'cameo':
+        fame_bonus = 4  # star cameo = hype gold
+    elif stars >= 4 and cast_role == 'generico':
+        fame_bonus = -3  # star as extra = waste/controversy
+    elif stars >= 4 and cast_role in ('protagonista', 'antagonista'):
+        fame_bonus = 2
+
+    total_quality = round((config['quality_bonus'] + skill_bonus) * genre_mult + fame_bonus, 1)
+    total_hype = round(config['hype_bonus'] * genre_mult + (fame_bonus * 0.5), 1)
+
+    return {
+        'cast_role': cast_role,
+        'quality_bonus': total_quality,
+        'hype_bonus': total_hype,
+        'imdb_weight': config['imdb_weight'],
+        'genre_mult': genre_mult,
+    }
 
 @router.post("/films/{pid}/select-cast")
 async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_current_user)):
@@ -1390,6 +1457,13 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
     elif role == 'actor':
         if not cast.get('actors'):
             cast['actors'] = []
+        # Calculate role bonus and attach to actor
+        cast_role = req.cast_role or 'protagonista'
+        genre = project.get('genre', 'drama')
+        subgenres = project.get('subgenres', [])
+        role_data = _calc_role_bonus(proposal, cast_role, genre, subgenres)
+        proposal['cast_role'] = cast_role
+        proposal['role_bonus'] = role_data
         cast['actors'].append(proposal)
     elif role == 'composer':
         cast['composer'] = proposal
@@ -1455,7 +1529,7 @@ async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user))
 
 @router.get("/films/{pid}/cast-chemistry")
 async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
-    """Get current cast chemistry indicators. Costo: 1 credito."""
+    """Get current cast chemistry indicators. Gratis."""
     project = await _get_project(pid, user['id'])
     cast = project.get('cast', {})
 
@@ -1463,12 +1537,6 @@ async def get_cast_chemistry(pid: str, user: dict = Depends(get_current_user)):
     actors = [a for a in cast.get('actors', []) if a and a.get('id')]
     if len(actors) < 2 and not cast.get('director'):
         return {'indicator': 'neutral', 'pairs': [], 'best_pair': None, 'worst_pair': None, 'cost': 0}
-
-    # Deduct 1 credit
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
-    if u.get('funds', 0) < 1:
-        raise HTTPException(400, "Servono almeno 1 credito")
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -1}})
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
@@ -2232,6 +2300,18 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     has_poster = project.get('pipeline_flags', {}).get('has_poster', False)
     if has_poster:
         base += 2
+
+    # ─── CAST ROLE BONUS ───
+    cast_actors = cast.get('actors', [])
+    role_quality_total = 0
+    role_hype_total = 0
+    role_imdb_weight = 0
+    for actor in cast_actors:
+        rb = actor.get('role_bonus', {})
+        role_quality_total += rb.get('quality_bonus', 0)
+        role_hype_total += rb.get('hype_bonus', 0)
+        role_imdb_weight += rb.get('imdb_weight', 0.5)
+    base += min(8, role_quality_total * 0.4)
 
     base = min(65, base)
 

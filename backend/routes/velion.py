@@ -500,35 +500,8 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
             except:
                 pass
 
-    # --- 3. Pending revenue ---
-    films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
+    # --- 3. Pending revenue --- (AUTO-COLLECTED every 10 min, no notification needed)
     pending_revenue = 0
-    for f in films_in_theaters:
-        try:
-            date_str = f.get('last_revenue_collected') or f.get('release_date') or now.isoformat()
-            date_str = date_str.replace('Z', '+00:00')
-            if '+' not in date_str and '-' not in date_str[-6:]:
-                date_str += '+00:00'
-            last = datetime.fromisoformat(date_str)
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=timezone.utc)
-            hours = (now - last).total_seconds() / 3600
-            if hours >= 0.5:
-                base = (f.get('opening_day_revenue', 100000) / 24)
-                decay = 0.85 ** (f.get('current_week', 1) - 1)
-                hourly = base * decay * (f.get('quality_score', 50) / 100)
-                pending_revenue += int(hourly * min(6, hours))
-        except:
-            pass
-
-    if pending_revenue > 0:
-        all_triggers.append({
-            'type': 'revenue',
-            'message': pick_variant('revenue', amount=f'${pending_revenue:,}'),
-            'priority': 'high',
-            'action': '/',
-            '_sort': PRIORITY_ORDER['revenue']
-        })
 
     # --- 4. No active films ---
     if not active_pipeline and not films_in_theaters:

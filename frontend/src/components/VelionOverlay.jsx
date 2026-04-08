@@ -150,7 +150,20 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
     return () => window.removeEventListener('velion-revenue-notify', handler);
   }, [isOff]);
 
-  if (!visible) return null;
+  if (!visible) return (
+    <motion.button
+      onClick={() => setVisible(true)}
+      className="fixed bottom-20 right-2 z-50 sm:bottom-6 sm:right-5 w-10 h-10 rounded-full bg-[#0d1117]/90 border border-cyan-500/30 flex items-center justify-center hover:border-cyan-400/60 hover:bg-[#0d1117] transition-colors"
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 0.7 }}
+      whileHover={{ scale: 1.1, opacity: 1 }}
+      whileTap={{ scale: 0.9 }}
+      data-testid="velion-recall"
+      title="Richiama Velion"
+    >
+      <img src="/velion.png" alt="" className="w-7 h-7 object-contain rounded-full opacity-50" style={{ filter: 'brightness(0.8) saturate(0.4)' }} />
+    </motion.button>
+  );
 
   return (
     <>

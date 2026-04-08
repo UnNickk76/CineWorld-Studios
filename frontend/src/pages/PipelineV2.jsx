@@ -901,6 +901,108 @@ const SkillBar = ({ name, value }) => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  CHEMISTRY PANEL — Indicatori chimica cast (no numeri, solo colori)
+// ═══════════════════════════════════════════════════════════════
+
+const CHEM_ICONS = {
+  good: { dot: 'bg-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/5', text: 'text-emerald-400', label: 'Buona intesa' },
+  neutral: { dot: 'bg-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/5', text: 'text-amber-400', label: 'Neutrale' },
+  tension: { dot: 'bg-red-400', border: 'border-red-500/30', bg: 'bg-red-500/5', text: 'text-red-400', label: 'Tensione' },
+};
+
+const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
+  const [chemData, setChemData] = useState(null);
+  const [showPairs, setShowPairs] = useState(false);
+
+  const castActors = film.cast?.actors || [];
+  const hasDirector = !!film.cast?.director;
+  const enoughCast = castActors.length >= 2 || (castActors.length >= 1 && hasDirector);
+
+  // Use pipeline_metrics indicator as default
+  const savedIndicator = film.pipeline_metrics?.cast_chemistry_indicator;
+  const savedPairs = film.cast_chemistry_pairs || [];
+
+  const fetchChemistry = async () => {
+    setLoading('chem');
+    try {
+      const res = await api.get(`/films/${film.id}/cast-chemistry`);
+      setChemData(res);
+      toast({ title: `Chimica analizzata! (-3 crediti)` });
+    } catch (e) {
+      toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+    }
+    setLoading('');
+  };
+
+  const displayData = chemData || (savedIndicator ? { indicator: savedIndicator, pairs: savedPairs.map(p => ({ a_name: p.a_name, b_name: p.b_name, indicator: p.indicator })), best_pair: film.cast_chemistry_best ? { a_name: film.cast_chemistry_best.a_name, b_name: film.cast_chemistry_best.b_name, indicator: film.cast_chemistry_best.indicator } : null, worst_pair: film.cast_chemistry_worst ? { a_name: film.cast_chemistry_worst.a_name, b_name: film.cast_chemistry_worst.b_name, indicator: film.cast_chemistry_worst.indicator } : null } : null);
+
+  if (!enoughCast) return null;
+
+  const style = CHEM_ICONS[displayData?.indicator || 'neutral'];
+
+  return (
+    <div className={`p-2 rounded-lg ${style.bg} border ${style.border} space-y-1.5`} data-testid="chemistry-panel">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Heart className="w-3.5 h-3.5 text-pink-400" />
+          <span className="text-[9px] text-gray-400 font-bold uppercase">Chimica Cast</span>
+          {displayData && (
+            <span className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+              <span className={`text-[9px] font-bold ${style.text}`}>{style.label}</span>
+            </span>
+          )}
+        </div>
+        <button onClick={fetchChemistry} disabled={loading === 'chem'}
+          className="text-[7px] px-2 py-1 rounded bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-colors disabled:opacity-40 font-bold"
+          data-testid="analyze-chemistry-btn">
+          {loading === 'chem' ? '...' : displayData ? 'Rianalizza (3cr)' : 'Analizza (3cr)'}
+        </button>
+      </div>
+
+      {/* Pairs preview */}
+      {displayData?.pairs?.length > 0 && (
+        <>
+          <button onClick={() => setShowPairs(!showPairs)} className="text-[7px] text-gray-500 hover:text-gray-300 transition-colors">
+            {showPairs ? 'Nascondi coppie' : `Mostra ${displayData.pairs.length} coppie`}
+          </button>
+          {showPairs && (
+            <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto" data-testid="chemistry-pairs">
+              {displayData.pairs.map((p, i) => {
+                const ps = CHEM_ICONS[p.indicator || 'neutral'];
+                return (
+                  <div key={i} className={`flex items-center gap-1 px-1.5 py-1 rounded ${ps.bg} border ${ps.border}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ps.dot}`} />
+                    <span className="text-[7px] text-gray-300 truncate">{p.a_name?.split(' ')[0]} + {p.b_name?.split(' ')[0]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Best / Worst highlights */}
+      {displayData?.best_pair && displayData?.worst_pair && displayData.best_pair.indicator !== displayData.worst_pair.indicator && (
+        <div className="flex gap-1.5 text-[7px]">
+          {displayData.best_pair.indicator === 'good' && (
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              Migliore: {displayData.best_pair.a_name?.split(' ')[0]} + {displayData.best_pair.b_name?.split(' ')[0]}
+            </span>
+          )}
+          {displayData.worst_pair.indicator === 'tension' && (
+            <span className="px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400">
+              Rischio: {displayData.worst_pair.a_name?.split(' ')[0]} + {displayData.worst_pair.b_name?.split(' ')[0]}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const CastPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [activeTab, setActiveTab] = useState('director');
@@ -960,26 +1062,46 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   const starsStr = (n) => '★'.repeat(n || 0) + '☆'.repeat(Math.max(0, 5 - (n || 0)));
   const genderIcon = (g) => g === 'M' ? '♂' : g === 'F' ? '♀' : '⚧';
 
+  // Chemistry lookup for individual cast members
+  const chemPairs = film.cast_chemistry_pairs || [];
+  const getPersonChem = (personId) => {
+    if (!personId || chemPairs.length === 0) return null;
+    const relevant = chemPairs.filter(p => p.a_id === personId || p.b_id === personId);
+    if (relevant.length === 0) return null;
+    const good = relevant.filter(p => p.indicator === 'good').length;
+    const tension = relevant.filter(p => p.indicator === 'tension').length;
+    if (tension > good) return 'tension';
+    if (good > tension) return 'good';
+    return 'neutral';
+  };
+
   // Current selected cast slot
-  const CastSlot = ({ label, person, icon: Icon }) => (
-    <div className={`p-2 rounded-lg border ${person ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-gray-800/30 border-gray-700/50'}`}>
-      <div className="flex justify-between items-center">
-        <p className="text-[8px] text-gray-500 uppercase font-bold flex items-center gap-1"><Icon className="w-2.5 h-2.5" /> {label}</p>
-        {person && <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">Scelto</span>}
-      </div>
-      {person ? (
-        <div className="flex items-center gap-2 mt-1">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${person.is_star ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400' : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400'}`}>
-            {(person.name || '?')[0]}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-white truncate">{person.name}</p>
-            <p className="text-[7px] text-gray-500">{genderIcon(person.gender)} {person.age}a • {person.nationality} • ${(person.cost||0).toLocaleString()}</p>
+  const CastSlot = ({ label, person, icon: Icon }) => {
+    const personChem = person ? getPersonChem(person.id) : null;
+    const chemStyle = personChem ? CHEM_ICONS[personChem] : null;
+    return (
+      <div className={`p-2 rounded-lg border ${person ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-gray-800/30 border-gray-700/50'}`}>
+        <div className="flex justify-between items-center">
+          <p className="text-[8px] text-gray-500 uppercase font-bold flex items-center gap-1"><Icon className="w-2.5 h-2.5" /> {label}</p>
+          <div className="flex items-center gap-1">
+            {chemStyle && <span className={`w-1.5 h-1.5 rounded-full ${chemStyle.dot}`} title={chemStyle.label} />}
+            {person && <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">Scelto</span>}
           </div>
         </div>
-      ) : <p className="text-[9px] text-gray-600 italic mt-1">—</p>}
-    </div>
-  );
+        {person ? (
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${person.is_star ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400' : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400'}`}>
+              {(person.name || '?')[0]}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium text-white truncate">{person.name}</p>
+              <p className="text-[7px] text-gray-500">{genderIcon(person.gender)} {person.age}a • {person.nationality} • ${(person.cost||0).toLocaleString()}</p>
+            </div>
+          </div>
+        ) : <p className="text-[9px] text-gray-600 italic mt-1">—</p>}
+      </div>
+    );
+  };
 
   const breakdown = film.pipeline_metrics?.cast_breakdown || [];
 
@@ -1013,6 +1135,9 @@ const CastPhase = ({ film, onRefresh, toast }) => {
           </div>
         )}
       </div>
+
+      {/* Chemistry Indicator Panel */}
+      <ChemistryPanel film={film} loading={loading} setLoading={setLoading} toast={toast} />
 
       {/* Rejection modal */}
       {rejectInfo && (

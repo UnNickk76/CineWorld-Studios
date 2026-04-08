@@ -713,7 +713,7 @@ const HypePhase = ({ film, onRefresh, toast }) => {
     <div className="relative overflow-hidden">
       {/* Matrix canvas — behind everything */}
       {isHypeLive && (
-        <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-[0.35] pointer-events-none" data-testid="matrix-canvas" />
+        <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-[0.25] pointer-events-none" data-testid="matrix-canvas" />
       )}
       <div className="relative z-10">
     <PhaseWrapper title="Hype Machine" subtitle="Crea aspettativa strategica" icon={TrendingUp} color="orange">
@@ -1403,6 +1403,40 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
   const timers = film.pipeline_timers || {};
   const { remaining, done } = useCountdown(timers.shooting_end);
 
+  // Matrix orange effect for CIAK
+  const ciakCanvasRef = useRef(null);
+  const isShooting = !done;
+
+  useEffect(() => {
+    if (!isShooting) return;
+    const canvas = ciakCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const resize = () => { canvas.width = canvas.parentElement.offsetWidth; canvas.height = canvas.parentElement.offsetHeight; };
+    resize();
+    window.addEventListener('resize', resize);
+    const letters = 'CIAKACTIONRIPRESE!';
+    const fontSize = 12;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops = Array(columns).fill(1);
+    const draw = () => {
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.shadowColor = '#ff8c00';
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = '#ff8c00';
+      ctx.font = `bold ${fontSize}px monospace`;
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    };
+    const interval = setInterval(draw, 40);
+    return () => { clearInterval(interval); window.removeEventListener('resize', resize); };
+  }, [isShooting]);
+
   const speedup = async () => {
     setLoading('speedup');
     try {
@@ -1425,6 +1459,11 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
   };
 
   return (
+    <div className="relative overflow-hidden">
+      {isShooting && (
+        <canvas ref={ciakCanvasRef} className="absolute inset-0 z-0 opacity-[0.18] pointer-events-none" data-testid="ciak-matrix-canvas" />
+      )}
+      <div className="relative z-10">
     <PhaseWrapper title="CIAK! Riprese" subtitle={`${film.shooting_days || '?'} giorni di riprese`} icon={Clapperboard} color="red">
       <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 text-center space-y-2">
         <Clapperboard className="w-8 h-8 text-red-400 mx-auto" />
@@ -1451,6 +1490,8 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
         </button>
       )}
     </PhaseWrapper>
+      </div>
+    </div>
   );
 };
 

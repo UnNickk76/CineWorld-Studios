@@ -26,6 +26,7 @@ ARCADE_GAMES = [
     {"id": "matrix_dodge_pro", "name": "Matrix Dodge PRO", "desc": "PRO ASSURDA: dash, eventi, elite wave!", "icon": "binary", "bonus": True},
     {"id": "cine_drive", "name": "Auto Cinematografica", "desc": "Guida neon, schiva ostacoli cinema!", "icon": "car", "bonus": True},
     {"id": "cine_drive_pro", "name": "Auto Cinema PRO", "desc": "PRO ASSURDA: turbo, boss, scenari!", "icon": "car", "bonus": True},
+    {"id": "supercine_pro", "name": "SuperCine PRO ASSURDA", "desc": "Platformer epico cinematografico! 7 zone, segreti, rank!", "icon": "clapperboard", "bonus": True},
 ]
 
 GAME_IDS = {g["id"] for g in ARCADE_GAMES}
@@ -48,6 +49,7 @@ GAME_TITLES = {
     "matrix_dodge_pro":{"title": "THE ONE",            "threshold": 500},
     "cine_drive":      {"title": "Pilota Neon",        "threshold": 400},
     "cine_drive_pro":  {"title": "Re della Strada",    "threshold": 600},
+    "supercine_pro":   {"title": "Legendary Director", "threshold": 800},
 }
 
 # Streak milestones

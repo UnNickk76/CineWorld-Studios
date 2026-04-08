@@ -14,7 +14,7 @@ import {
   TapCiak, MemoryPro, StopPerfetto, SpamClick, ReactionGame,
   ShotPerfect, LightSetup, CastMatch, EditingCut, FollowCam,
   ChaosPremiere, ReelSnake, MatrixDodge, MatrixDodgePro,
-  CineDrive, CineDrivePro
+  CineDrive, CineDrivePro, SuperCinePro
 } from '../components/MiniGames';
 import ChallengesPage from './ChallengesPage';
 
@@ -24,6 +24,7 @@ const GAME_ICONS = {
   editing_cut: Scissors, follow_cam: Eye, chaos_premiere: Sparkles, reel_snake: Gamepad2,
   matrix_dodge: Binary, matrix_dodge_pro: Binary,
   cine_drive: Car, cine_drive_pro: Car,
+  supercine_pro: Clapperboard,
 };
 
 const GAME_COMPONENTS = {
@@ -33,6 +34,7 @@ const GAME_COMPONENTS = {
   follow_cam: FollowCam, chaos_premiere: ChaosPremiere, reel_snake: ReelSnake,
   matrix_dodge: MatrixDodge, matrix_dodge_pro: MatrixDodgePro,
   cine_drive: CineDrive, cine_drive_pro: CineDrivePro,
+  supercine_pro: SuperCinePro,
 };
 
 function StreakBadge({ streak }) {

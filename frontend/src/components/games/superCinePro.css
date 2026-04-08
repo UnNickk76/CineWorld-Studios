@@ -1,0 +1,58 @@
+/* superCinePro.css — SUPERCINE PRO ASSURDA styles */
+.scp-container { position:relative; width:100%; background:#050510; border-radius:12px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
+.scp-canvas { display:block; width:100%; height:100%; }
+
+/* HUD */
+.scp-hud { position:absolute; top:0; left:0; right:0; padding:6px 8px; z-index:10; pointer-events:none; }
+.scp-hud-row { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.scp-hud-label { font:bold 8px monospace; color:rgba(255,255,255,0.5); display:block; line-height:1; }
+.scp-hud-val { font:bold 13px monospace; color:#fff; display:block; line-height:1.2; }
+.scp-gold { color:#ffd700; }
+.scp-red { color:#ff4444; }
+.scp-blink { animation:scpBlink .5s infinite alternate; }
+@keyframes scpBlink { to { opacity:0.3; } }
+.scp-hud-hp { display:flex; gap:3px; align-items:center; }
+.scp-hp-dot { width:10px; height:10px; border-radius:50%; background:#333; border:1px solid #555; }
+.scp-hp-dot.on { background:#ff3366; border-color:#ff6699; box-shadow:0 0 4px #ff3366; }
+.scp-pause-btn { pointer-events:auto; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; font:bold 10px monospace; padding:2px 6px; border-radius:4px; cursor:pointer; }
+.scp-powerup-badge { position:absolute; top:28px; left:50%; transform:translateX(-50%); font:bold 9px monospace; color:#ffd700; background:rgba(0,0,0,0.6); padding:2px 10px; border-radius:10px; border:1px solid #ffd700; }
+
+/* Controls */
+.scp-controls { position:absolute; bottom:6px; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-end; padding:0 8px; z-index:15; pointer-events:none; }
+.scp-ctrl-left { display:flex; gap:6px; }
+.scp-btn { pointer-events:auto; border:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.scp-btn-dir { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,0.12); color:#fff; font-size:18px; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.2); backdrop-filter:blur(4px); }
+.scp-btn-dir:active { background:rgba(255,255,255,0.3); transform:scale(0.93); }
+.scp-btn-jump { width:64px; height:64px; border-radius:50%; background:rgba(255,200,0,0.2); color:#ffd700; font:bold 11px monospace; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,200,0,0.4); backdrop-filter:blur(4px); }
+.scp-btn-jump:active { background:rgba(255,200,0,0.45); transform:scale(0.93); }
+
+/* Overlays */
+.scp-overlay { position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); backdrop-filter:blur(6px); }
+.scp-over-bg { background:rgba(40,0,0,0.85); }
+.scp-result-bg { background:rgba(0,10,30,0.88); }
+
+/* Intro */
+.scp-intro-box { text-align:center; padding:20px; }
+.scp-title { font:900 28px monospace; color:#ffd700; text-shadow:0 0 20px #ffd700,0 0 40px #ff6600; letter-spacing:3px; }
+.scp-subtitle { font:900 14px monospace; color:#ff3366; text-shadow:0 0 10px #ff3366; margin-top:4px; letter-spacing:5px; }
+.scp-rules { margin:14px 0; font:11px monospace; color:rgba(255,255,255,0.6); line-height:1.6; }
+.scp-start-btn { pointer-events:auto; background:linear-gradient(135deg,#ffd700,#ff6600); color:#000; font:bold 14px monospace; padding:10px 30px; border:none; border-radius:8px; cursor:pointer; letter-spacing:2px; box-shadow:0 0 20px rgba(255,200,0,0.3); }
+.scp-start-btn:active { transform:scale(0.95); }
+.scp-hint { font:9px monospace; color:rgba(255,255,255,0.3); margin-top:10px; }
+
+/* Pause */
+.scp-pause-box { text-align:center; padding:20px; }
+.scp-pause-title { font:bold 22px monospace; color:#fff; }
+.scp-pause-stats { font:10px monospace; color:rgba(255,255,255,0.5); margin:8px 0 14px; }
+
+/* Results */
+.scp-result-box { text-align:center; padding:16px; max-width:280px; }
+.scp-result-win { }
+.scp-over-title { font:bold 18px monospace; color:#ff4444; text-shadow:0 0 10px #ff0000; }
+.scp-win-title { font:bold 18px monospace; color:#ffd700; text-shadow:0 0 15px #ffd700; }
+.scp-score-big { font:900 36px monospace; color:#fff; margin:6px 0; }
+.scp-glow-gold { text-shadow:0 0 15px #ffd700,0 0 30px #ff6600; }
+.scp-rank { font:bold 20px monospace; margin:4px 0; }
+.scp-rank-big { font-size:26px; letter-spacing:2px; }
+.scp-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font:10px monospace; color:rgba(255,255,255,0.6); margin:10px 0; }
+.scp-congrats { font:bold 11px monospace; color:#00ff66; margin-top:8px; }

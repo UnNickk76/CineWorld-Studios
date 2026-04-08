@@ -483,14 +483,29 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
     else:
         # AI poster generation
         try:
-            from emergentintegrations.llm import gen_image, ImageModel
-            prompt_text = req.prompt if req.mode == 'ai_custom' and req.prompt else f"Movie poster for '{project['title']}', genre: {project['genre']}, cinematic style, professional quality"
-            result = gen_image(
-                api_key=__import__('os').environ.get('EMERGENT_LLM_KEY', ''),
-                model=ImageModel.GPT_IMAGE_1,
-                prompt=prompt_text
+            import base64, os, uuid as _uuid
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+            genre_label = project.get('genre', 'drama')
+            subs = ', '.join(project.get('subgenres', []))
+            prompt_text = req.prompt if req.mode == 'ai_custom' and req.prompt else (
+                f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
+                f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
+                f"Film title '{project['title']}' displayed prominently with professional typography. "
+                f"Dramatic lighting, Hollywood quality, style matching the genre."
             )
-            poster_url = result.url if hasattr(result, 'url') else str(result)
+            img_gen = OpenAIImageGeneration(api_key=api_key)
+            images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
+            if images and len(images) > 0:
+                posters_dir = '/app/frontend/public/posters/ai'
+                os.makedirs(posters_dir, exist_ok=True)
+                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.png"
+                fpath = os.path.join(posters_dir, fname)
+                with open(fpath, 'wb') as f:
+                    f.write(images[0])
+                poster_url = f"/posters/ai/{fname}"
+            else:
+                poster_url = f"/posters/placeholder_{project['genre']}.jpg"
         except Exception as e:
             logging.warning(f"[V2] AI poster failed: {e}, using placeholder")
             poster_url = f"/posters/placeholder_{project['genre']}.jpg"
@@ -533,18 +548,18 @@ async def write_screenplay_v2(pid: str, req: ScreenplayV2Request, user: dict = D
         elif length > 200: quality_bonus = 2
     elif req.mode in ('ai_auto', 'ai_custom'):
         try:
-            from emergentintegrations.llm import chat_completion, ChatModel, ChatMessage
+            from emergentintegrations.llm.openai import LlmChat, UserMessage
+            import uuid
+            api_key = __import__('os').environ.get('EMERGENT_LLM_KEY', '')
+            subs = ', '.join(project.get('subgenres', []))
             prompt = req.prompt if req.mode == 'ai_custom' and req.prompt else (
-                f"Scrivi una sceneggiatura cinematografica per il film '{project['title']}' (genere: {project['genre']}). "
+                f"Scrivi una sceneggiatura cinematografica per il film '{project['title']}' (genere: {project['genre']}, sottogeneri: {subs or 'N/A'}). "
                 f"Pre-trama: {project.get('pre_trama', 'N/A')}. "
                 f"Scrivi dialoghi vividi, descrizioni di scena dettagliate, in italiano. Max 2000 parole."
             )
-            resp = chat_completion(
-                api_key=__import__('os').environ.get('EMERGENT_LLM_KEY', ''),
-                model=ChatModel.GPT_4O_MINI,
-                messages=[ChatMessage(role='user', content=prompt)]
-            )
-            screenplay_text = resp.message if hasattr(resp, 'message') else str(resp)
+            llm = LlmChat(api_key=api_key, session_id=str(uuid.uuid4()), system_message="Sei un sceneggiatore cinematografico italiano esperto.")
+            llm = llm.with_model("openai", "gpt-4o-mini")
+            screenplay_text = await llm.send_message(UserMessage(text=prompt))
             quality_bonus = 10
         except Exception as e:
             logging.warning(f"[V2] AI screenplay failed: {e}")

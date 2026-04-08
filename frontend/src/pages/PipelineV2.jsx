@@ -236,6 +236,70 @@ const PhaseWrapper = ({ title, subtitle, icon: Icon, color, children }) => (
 );
 
 // ═══════════════════════════════════════════════════════════════
+//  SPEEDUP PANEL (4 tiers — used by all timer phases)
+// ═══════════════════════════════════════════════════════════════
+
+const SPEEDUP_TIERS = [
+  { pct: 25,  label: '25%',  color: 'green' },
+  { pct: 50,  label: '50%',  color: 'yellow' },
+  { pct: 75,  label: '75%',  color: 'orange' },
+  { pct: 100, label: 'MAX',  color: 'red' },
+];
+
+const SpeedupPanel = ({ film, onRefresh, toast }) => {
+  const [costs, setCosts] = useState(null);
+  const [loading, setLoading] = useState('');
+
+  useEffect(() => {
+    api.get(`/films/${film.id}/speedup-costs`).then(d => setCosts(d.costs || {})).catch(() => {});
+  }, [film.id, film.pipeline_metrics?.last_speedup]);
+
+  const doSpeedup = async (pct) => {
+    const cost = costs?.[String(pct)] || '?';
+    if (!window.confirm(`Accelera del ${pct}% per ${cost} crediti?`)) return;
+    setLoading(String(pct));
+    try {
+      const res = await api.post(`/films/${film.id}/speedup`, { percentage: pct });
+      onRefresh();
+      toast({ title: `Accelerato del ${pct}%! (-${res.credits_spent} crediti)` });
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  if (!costs) return null;
+
+  return (
+    <div className="space-y-1.5" data-testid="speedup-panel">
+      <p className="text-[8px] text-gray-500 uppercase font-bold tracking-wider">Accelera (crediti)</p>
+      <div className="grid grid-cols-4 gap-1.5">
+        {SPEEDUP_TIERS.map(t => {
+          const cost = costs[String(t.pct)] || '?';
+          const isLoading = loading === String(t.pct);
+          const colors = {
+            green: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20',
+            yellow: 'bg-yellow-500/10 border-yellow-500/25 text-yellow-400 hover:bg-yellow-500/20',
+            orange: 'bg-orange-500/10 border-orange-500/25 text-orange-400 hover:bg-orange-500/20',
+            red: 'bg-red-500/10 border-red-500/25 text-red-400 hover:bg-red-500/20',
+          };
+          return (
+            <button
+              key={t.pct}
+              onClick={() => doSpeedup(t.pct)}
+              disabled={!!loading}
+              className={`flex flex-col items-center py-2 px-1 rounded-lg border transition-colors disabled:opacity-40 ${colors[t.color]}`}
+              data-testid={`speedup-${t.pct}`}
+            >
+              <span className="text-[10px] font-bold">{isLoading ? '...' : t.label}</span>
+              <span className="text-[7px] opacity-70 mt-0.5">{cost} cr</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 //  FASE 1 — IDEA
 // ═══════════════════════════════════════════════════════════════
 
@@ -574,18 +638,13 @@ const HypePhase = ({ film, onRefresh, toast }) => {
             <p className="text-lg font-bold text-orange-400 font-mono">{remaining}</p>
             <p className="text-[9px] text-gray-500 mt-1">Hype: {film.pipeline_metrics?.hype_score || 0} • Agenzie: {(film.interested_agencies || []).length}</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={speedup} disabled={loading === 'speedup'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="speedup-hype-btn">
-              Accelera ($30K)
+          {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
+          {done && (
+            <button onClick={completeHype} disabled={loading === 'complete'}
+              className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-hype-btn">
+              {loading === 'complete' ? '...' : 'Vai al Cast'}
             </button>
-            {done && (
-              <button onClick={completeHype} disabled={loading === 'complete'}
-                className="flex-1 text-[10px] py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-hype-btn">
-                {loading === 'complete' ? '...' : 'Vai al Cast'}
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
     </PhaseWrapper>
@@ -845,18 +904,13 @@ const CiakPhase = ({ film, onRefresh, toast }) => {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button onClick={speedup} disabled={loading === 'speedup' || done}
-          className="flex-1 text-[9px] py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="speedup-ciak-btn">
-          Accelera ($50K)
+      {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
+      {done && (
+        <button onClick={completeCiak} disabled={loading === 'complete'}
+          className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-ciak-btn">
+          {loading === 'complete' ? '...' : 'Completa Riprese'}
         </button>
-        {done && (
-          <button onClick={completeCiak} disabled={loading === 'complete'}
-            className="flex-1 text-[10px] py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-ciak-btn">
-            {loading === 'complete' ? '...' : 'Completa Riprese'}
-          </button>
-        )}
-      </div>
+      )}
     </PhaseWrapper>
   );
 };
@@ -896,18 +950,13 @@ const FinalCutPhase = ({ film, onRefresh, toast }) => {
         <p className="text-[9px] text-gray-500 uppercase">Montaggio in corso</p>
         <p className="text-xl font-bold text-purple-400 font-mono">{remaining}</p>
       </div>
-      <div className="flex gap-2">
-        <button onClick={speedup} disabled={loading === 'speedup' || done}
-          className="flex-1 text-[9px] py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="speedup-finalcut-btn">
-          Accelera ($40K)
+      {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
+      {done && (
+        <button onClick={complete} disabled={loading === 'complete'}
+          className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-finalcut-btn">
+          {loading === 'complete' ? '...' : 'Completa Final Cut'}
         </button>
-        {done && (
-          <button onClick={complete} disabled={loading === 'complete'}
-            className="flex-1 text-[10px] py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-finalcut-btn">
-            {loading === 'complete' ? '...' : 'Completa Final Cut'}
-          </button>
-        )}
-      </div>
+      )}
     </PhaseWrapper>
   );
 };
@@ -1143,18 +1192,13 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[9px] text-gray-500 uppercase">Premiere a {film.premiere?.city}</p>
             <p className="text-xl font-bold text-yellow-400 font-mono">{remaining}</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={speedup} disabled={loading === 'speedup' || done}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 font-bold">
-              Accelera ($60K)
+          {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
+          {done && (
+            <button onClick={completePremiere} disabled={loading === 'complete'}
+              className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-premiere-btn">
+              {loading === 'complete' ? '...' : 'Completa Premiere'}
             </button>
-            {done && (
-              <button onClick={completePremiere} disabled={loading === 'complete'}
-                className="flex-1 text-[10px] py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-premiere-btn">
-                {loading === 'complete' ? '...' : 'Completa Premiere'}
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
     </PhaseWrapper>

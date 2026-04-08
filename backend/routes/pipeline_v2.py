@@ -1596,6 +1596,114 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     }
 
 # ═══════════════════════════════════════════════════════════════
+#  UNIFIED SPEEDUP (4 tiers, CinePass credits, variable cost)
+# ═══════════════════════════════════════════════════════════════
+
+SPEEDUP_BASE_CREDITS = {25: 3, 50: 7, 75: 12, 100: 20}
+SPEEDUP_MALUS = {25: 0.3, 50: 0.7, 75: 1.2, 100: 2.0}
+
+# Which timer key to modify per state
+SPEEDUP_TIMER_KEY = {
+    'hype_live': 'hype_end',
+    'shooting': 'shooting_end',
+    'postproduction': 'postprod_end',
+    'premiere_live': 'premiere_end',
+}
+
+def _calc_speedup_cost(base: int, project: dict) -> int:
+    """Variable cost: lower value films cost less, high value cost more."""
+    pre_imdb = project.get('pre_imdb_score', 5)
+    hype = project.get('pipeline_metrics', {}).get('hype_score', 0)
+    # Multiplier: 0.5 (low) to 1.8 (high)
+    value_score = (pre_imdb / 10) * 0.5 + min(1.0, hype / 200) * 0.3
+    mult = max(0.5, min(1.8, 0.5 + value_score * 1.3))
+    return max(1, round(base * mult))
+
+class SpeedupRequest(BaseModel):
+    percentage: int  # 25, 50, 75, 100
+
+@router.post("/films/{pid}/speedup")
+async def unified_speedup_v2(pid: str, req: SpeedupRequest, user: dict = Depends(get_current_user)):
+    """Unified speedup: 4 tiers (25/50/75/100%), paid in CinePass credits, variable cost."""
+    project = await _get_project(pid, user['id'])
+    state = project['pipeline_state']
+
+    timer_key = SPEEDUP_TIMER_KEY.get(state)
+    if not timer_key:
+        raise HTTPException(400, "Nessun timer attivo da accelerare in questa fase")
+
+    pct = req.percentage
+    if pct not in SPEEDUP_BASE_CREDITS:
+        raise HTTPException(400, "Percentuale non valida (25, 50, 75, 100)")
+
+    # Calculate variable credit cost
+    base_credits = SPEEDUP_BASE_CREDITS[pct]
+    credit_cost = _calc_speedup_cost(base_credits, project)
+
+    # Check CinePass
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+    available = u.get('cinepass', 0) if u else 0
+    if available < credit_cost:
+        raise HTTPException(400, f"Servono {credit_cost} crediti (hai {available})")
+
+    # Get current timer
+    timers = project.get('pipeline_timers', {})
+    end_str = timers.get(timer_key)
+    if not end_str:
+        raise HTTPException(400, "Timer non trovato")
+
+    end_dt = datetime.fromisoformat(end_str)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    remaining = (end_dt - now).total_seconds()
+
+    if remaining <= 0:
+        raise HTTPException(400, "Il timer e gia completato")
+
+    # Calculate new end
+    if pct == 100:
+        new_end = now + timedelta(seconds=1)  # instant
+    else:
+        cut = remaining * (pct / 100)
+        new_remaining = max(10, remaining - cut)
+        new_end = now + timedelta(seconds=new_remaining)
+
+    # Deduct credits
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -credit_cost}})
+
+    # Malus
+    malus_add = SPEEDUP_MALUS.get(pct, 0.5)
+    current_malus = project.get('pipeline_metrics', {}).get('speedup_malus', 0)
+
+    update = {
+        f'pipeline_timers.{timer_key}': new_end.isoformat(),
+        'pipeline_metrics.speedup_malus': round(current_malus + malus_add, 1),
+        f'pipeline_metrics.last_speedup': _now(),
+    }
+    film = await _update_project(pid, update)
+
+    # Get updated cinepass
+    u2 = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+
+    return {
+        'film': film,
+        'new_end': new_end.isoformat(),
+        'credits_spent': credit_cost,
+        'cinepass_remaining': u2.get('cinepass', 0) if u2 else 0,
+        'malus_added': malus_add,
+    }
+
+@router.get("/films/{pid}/speedup-costs")
+async def get_speedup_costs(pid: str, user: dict = Depends(get_current_user)):
+    """Get the 4-tier speedup costs for this film."""
+    project = await _get_project(pid, user['id'])
+    costs = {}
+    for pct, base in SPEEDUP_BASE_CREDITS.items():
+        costs[str(pct)] = _calc_speedup_cost(base, project)
+    return {'costs': costs}
+
+# ═══════════════════════════════════════════════════════════════
 #  EDIT / UNLOCK STEP (max 3 per film)
 # ═══════════════════════════════════════════════════════════════
 

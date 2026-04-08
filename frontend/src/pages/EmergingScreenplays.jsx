@@ -102,7 +102,7 @@ export default function EmergingScreenplays() {
       await refreshUser();
       setShowDetail(false);
       // Navigate to film pipeline casting tab - project is already in casting phase
-      navigate('/create-film?tab=casting');
+      navigate('/produci');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore nell\'acquisto');
     } finally {

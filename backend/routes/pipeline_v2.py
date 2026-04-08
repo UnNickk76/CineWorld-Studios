@@ -763,33 +763,113 @@ async def get_hype_live(pid: str, user: dict = Depends(get_current_user)):
     }
 
 async def _generate_agency_proposals(project, agencies, user_id):
-    """Generate cast proposals from interested agencies (lightweight version)"""
+    """Generate rich cast proposals from interested agencies"""
     proposals = []
     genre = project.get('genre', 'drama')
+    subgenres = project.get('subgenres', [])
+
     first_names = ['Marco', 'Giulia', 'Alex', 'Sofia', 'Liam', 'Yuki', 'Elena', 'Pierre', 'Aisha', 'Hans',
                    'Chen', 'Priya', 'Omar', 'Ines', 'Viktor', 'Luna', 'Diego', 'Nina', 'Kenji', 'Rosa']
     last_names = ['Rossi', 'Chen', 'Williams', 'Garcia', 'Muller', 'Tanaka', 'Smith', 'Kim', 'Patel', 'Fischer',
                   'Moreau', 'Ali', 'Johansson', 'Romano', 'Park', 'Costa', 'Meyer', 'Sato', 'Eriksen', 'Volkov']
+
+    ROLE_AFFINITIES = ['protagonista', 'spalla', 'antagonista', 'comico', 'drammatico', 'caratterista', 'action_hero', 'romantico']
+    STRENGTHS_MAP = {
+        'director': ['visione artistica', 'gestione set', 'ritmo narrativo', 'direzione attori', 'estetica visiva'],
+        'actor': ['improvvisazione', 'trasformismo', 'carisma', 'intensita emotiva', 'fisicita', 'presenza scenica'],
+        'screenwriter': ['dialoghi brillanti', 'struttura narrativa', 'colpi di scena', 'personaggi profondi', 'worldbuilding'],
+        'composer': ['melodia memorabile', 'atmosfera', 'ritmo', 'orchestrazione', 'versatilita'],
+    }
+    WEAKNESSES_MAP = {
+        'director': ['lento in post', 'conflitti sul set', 'perfezionista', 'costi sforano'],
+        'actor': ['ritardi sul set', 'ego', 'poca versatilita', 'dipendenza da copione'],
+        'screenwriter': ['deadline mancate', 'riscritture infinite', 'dialoghi deboli'],
+        'composer': ['tempi lunghi', 'poco flessibile', 'troppo sperimentale'],
+    }
+    GENDERS = ['M', 'F', 'M', 'F', 'M', 'F', 'NB']
+
+    # Get player level/fame for rejection logic
+    player = await db.users.find_one({'id': user_id}, {'_id': 0, 'level': 1, 'fame': 1, 'total_xp': 1})
+    player_level = player.get('level', 1) if player else 1
+    player_fame = player.get('fame', 0) if player else 0
+
+    # Past collaborations
+    past_films = await db.film_projects.find(
+        {'user_id': user_id, 'cast_locked': True},
+        {'_id': 0, 'cast': 1}
+    ).to_list(50)
+    past_names = set()
+    for pf in past_films:
+        c = pf.get('cast', {})
+        if c.get('director'): past_names.add(c['director'].get('name', ''))
+        if c.get('screenwriter'): past_names.add(c['screenwriter'].get('name', ''))
+        if c.get('composer'): past_names.add(c['composer'].get('name', ''))
+        for a in c.get('actors', []):
+            past_names.add(a.get('name', ''))
+
     for ag in agencies:
-        num = random.randint(1, 3)
+        num = random.randint(2, 4)
         for _ in range(num):
-            role_type = random.choice(['director', 'actor', 'actor', 'screenwriter', 'composer'])
+            role_type = random.choice(['director', 'actor', 'actor', 'actor', 'screenwriter', 'composer'])
             name = f"{random.choice(first_names)} {random.choice(last_names)}"
             ag_rep = ag.get('reputation', 50)
-            base_skill = max(20, min(95, ag_rep + random.randint(-20, 15)))
+            base_skill = max(20, min(98, ag_rep + random.randint(-20, 15)))
             genre_match = genre in ag.get('specialization', [])
-            genre_skill = base_skill + (10 if genre_match else -5)
-            genre_skill = max(15, min(98, genre_skill))
+            genre_skill = min(98, base_skill + (12 if genre_match else -5))
+            fame = max(1, int(base_skill * 0.7 + random.randint(-10, 25)))
+            stars = 1 if base_skill < 40 else (2 if base_skill < 55 else (3 if base_skill < 70 else (4 if base_skill < 85 else 5)))
+            is_star = stars >= 4 and fame > 60
+            gender = random.choice(GENDERS)
+            nat = random.choice(['IT', 'US', 'UK', 'FR', 'JP', 'DE', 'KR', 'IN', 'ES', 'BR'])
+            worked_with_us = name in past_names
+
+            # Skills breakdown per role
+            skills = {}
+            if role_type == 'director':
+                skills = {'directing': base_skill, 'vision': max(20, base_skill + random.randint(-15, 10)), 'actor_mgmt': max(20, base_skill + random.randint(-20, 10))}
+            elif role_type == 'actor':
+                skills = {'acting': base_skill, 'charisma': max(20, base_skill + random.randint(-15, 15)), 'physicality': max(20, random.randint(30, 90))}
+            elif role_type == 'screenwriter':
+                skills = {'screenwriting': base_skill, 'dialogue': max(20, base_skill + random.randint(-10, 15)), 'structure': max(20, base_skill + random.randint(-15, 10))}
+            elif role_type == 'composer':
+                skills = {'composing': base_skill, 'melody': max(20, base_skill + random.randint(-10, 15)), 'atmosphere': max(20, base_skill + random.randint(-15, 15))}
+
+            strengths = random.sample(STRENGTHS_MAP.get(role_type, ['talento']), min(2, len(STRENGTHS_MAP.get(role_type, ['talento']))))
+            weaknesses = [random.choice(WEAKNESSES_MAP.get(role_type, ['nessuno']))] if random.random() < 0.5 else []
+
+            # Role affinity (actors)
+            role_affinity = random.choice(ROLE_AFFINITIES) if role_type == 'actor' else None
+
+            # Genre affinity
+            genre_affinity = [genre] if genre_match else []
+            if subgenres and random.random() < 0.4:
+                genre_affinity.append(random.choice(subgenres))
+
+            # Cost scales with skill/fame/stars
+            cost = int(base_skill * 800 + fame * 200 + stars * 15000 + random.randint(5000, 25000))
+            if is_star:
+                cost = int(cost * 1.8)
+
             proposals.append({
                 'name': name,
                 'role_type': role_type,
                 'skill': base_skill,
                 'genre_skill': genre_skill,
-                'fame': max(1, int(base_skill * 0.7 + random.randint(-10, 20))),
-                'cost': int(base_skill * 1000 + random.randint(5000, 30000)),
+                'fame': fame,
+                'stars': stars,
+                'is_star': is_star,
+                'gender': gender,
+                'nationality': nat,
+                'cost': cost,
                 'agency_id': ag.get('id', ''),
                 'agency_name': ag.get('name', '?'),
-                'nationality': random.choice(['IT', 'US', 'UK', 'FR', 'JP', 'DE', 'KR', 'IN', 'ES', 'BR']),
+                'skills': skills,
+                'strengths': strengths,
+                'weaknesses': weaknesses,
+                'role_affinity': role_affinity,
+                'genre_affinity': genre_affinity,
+                'worked_with_us': worked_with_us,
+                'status': 'available',
                 'wave': 1,
             })
     return proposals
@@ -866,8 +946,110 @@ async def complete_hype_v2(pid: str, user: dict = Depends(get_current_user)):
     return {'film': film, 'total_proposals': len(existing_proposals)}
 
 # ═══════════════════════════════════════════════════════════════
-#  FASE 3 — CAST
+#  FASE 3 — CAST (strategic system)
 # ═══════════════════════════════════════════════════════════════
+
+CAST_LIMITS = {'director': 1, 'composer': 1, 'screenwriter': 3, 'actor': 99}
+
+# Genre→affinity bonuses for role_affinity
+GENRE_ROLE_BONUS = {
+    'action': {'action_hero': 1.3, 'protagonista': 1.1, 'antagonista': 1.1},
+    'comedy': {'comico': 1.4, 'spalla': 1.2, 'caratterista': 1.1},
+    'drama': {'drammatico': 1.3, 'protagonista': 1.2, 'antagonista': 1.1},
+    'horror': {'antagonista': 1.2, 'drammatico': 1.1},
+    'thriller': {'antagonista': 1.3, 'protagonista': 1.1, 'drammatico': 1.1},
+    'romance': {'romantico': 1.4, 'protagonista': 1.2, 'spalla': 1.1},
+    'sci_fi': {'action_hero': 1.1, 'protagonista': 1.1},
+    'fantasy': {'protagonista': 1.2, 'caratterista': 1.1},
+    'historical': {'drammatico': 1.2, 'protagonista': 1.1, 'caratterista': 1.1},
+}
+
+def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
+    """Calculate strategic cast quality with bonus/malus breakdown."""
+    breakdown = []
+    total = 0
+    sub_set = set(subgenres)
+
+    # DIRECTOR (weight 30%)
+    d = cast.get('director')
+    if d:
+        base = d.get('genre_skill', d.get('skill', 50)) * 0.30
+        bonus = 0
+        if genre in d.get('genre_affinity', []):
+            bonus += 5
+            breakdown.append('+5% regista coerente genere')
+        for sg in sub_set & set(d.get('genre_affinity', [])):
+            bonus += 3
+            breakdown.append(f'+3% regista affinita {sg}')
+        if d.get('is_star'):
+            bonus += 4
+            breakdown.append('+4% regista star')
+        if d.get('worked_with_us'):
+            bonus += 2
+            breakdown.append('+2% regista gia collaborato')
+        total += base + bonus
+
+    # SCREENWRITERS (weight 15% each, max 3)
+    sws = cast.get('screenwriters', [])
+    if cast.get('screenwriter'):
+        sws = [cast['screenwriter']] if not sws else sws
+    for i, sw in enumerate(sws[:3]):
+        w = 0.15 if i == 0 else (0.10 if i == 1 else 0.05)
+        base = sw.get('genre_skill', sw.get('skill', 50)) * w
+        bonus = 0
+        if genre in sw.get('genre_affinity', []):
+            bonus += 3
+        total += base + bonus
+
+    # ACTORS (diminishing returns)
+    actors = cast.get('actors', [])
+    for i, a in enumerate(actors):
+        # Diminishing: first 3 = 100%, 4-6 = 60%, 7+ = 30%
+        if i < 3:
+            w = 0.10
+        elif i < 6:
+            w = 0.06
+        else:
+            w = 0.03
+        base = a.get('genre_skill', a.get('skill', 50)) * w
+        bonus = 0
+        # Role affinity bonus
+        aff = a.get('role_affinity', '')
+        genre_bonuses = GENRE_ROLE_BONUS.get(genre, {})
+        if aff in genre_bonuses:
+            mult = genre_bonuses[aff]
+            bonus += (mult - 1) * base * 2
+            if i < 3:
+                breakdown.append(f'+{int((mult-1)*base*2)}% {a["name"]} affinita {aff}')
+        # Star bonus
+        if a.get('is_star'):
+            bonus += 3
+        # Subgenre bonus
+        for sg in sub_set & set(a.get('genre_affinity', [])):
+            bonus += 2
+        total += base + bonus
+
+    # COMPOSER (weight 5%)
+    c = cast.get('composer')
+    if c:
+        base = c.get('genre_skill', c.get('skill', 50)) * 0.05
+        bonus = 0
+        if genre in c.get('genre_affinity', []):
+            bonus += 2
+            breakdown.append('+2% compositore coerente genere')
+        total += base + bonus
+
+    # Malus: missing key roles
+    if not d:
+        total -= 10
+        breakdown.append('-10% nessun regista')
+    if len(actors) < 2:
+        total -= 8
+        breakdown.append('-8% meno di 2 attori')
+
+    quality = max(0, min(100, round(total, 1)))
+    return {'quality': quality, 'breakdown': breakdown}
+
 
 class SelectCastV2(BaseModel):
     proposal_index: int
@@ -875,7 +1057,7 @@ class SelectCastV2(BaseModel):
 
 @router.post("/films/{pid}/select-cast")
 async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_current_user)):
-    """Select a cast member from proposals"""
+    """Select a cast member from proposals, with role limits and possible rejection."""
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] != 'casting_live':
         raise HTTPException(400, "Non in fase casting")
@@ -885,38 +1067,174 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         raise HTTPException(400, "Proposta non valida")
 
     proposal = proposals[req.proposal_index]
-    cast = project.get('cast', {'director': None, 'screenwriter': None, 'actors': [], 'composer': None})
+    if proposal.get('status') == 'rejected':
+        raise HTTPException(400, f"{proposal['name']} ha gia rifiutato")
 
-    if req.role == 'director':
+    cast = project.get('cast', {'director': None, 'screenwriters': [], 'actors': [], 'composer': None})
+    # Migrate old format
+    if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
+        cast['screenwriters'] = [cast['screenwriter']]
+
+    role = req.role
+    # Validate limits
+    if role == 'director' and cast.get('director'):
+        raise HTTPException(400, "Hai gia un regista (max 1)")
+    if role == 'composer' and cast.get('composer'):
+        raise HTTPException(400, "Hai gia un compositore (max 1)")
+    if role == 'screenwriter' and len(cast.get('screenwriters', [])) >= 3:
+        raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+
+    # REJECTION CHANCE: top talent may refuse low-level players
+    player = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'fame': 1})
+    player_level = player.get('level', 1) if player else 1
+    player_fame = player.get('fame', 0) if player else 0
+    npc_stars = proposal.get('stars', 3)
+    rejection_chance = 0
+    if npc_stars >= 5 and player_level < 10:
+        rejection_chance = 0.35
+    elif npc_stars >= 4 and player_level < 5:
+        rejection_chance = 0.25
+    elif npc_stars >= 4 and player_fame < 30:
+        rejection_chance = 0.15
+
+    if rejection_chance > 0 and random.random() < rejection_chance:
+        # Mark as rejected, offer renegotiation
+        proposals[req.proposal_index]['status'] = 'rejected'
+        proposals[req.proposal_index]['reject_reason'] = 'non_convinto'
+        renegotiate_cost = int(proposal['cost'] * 1.4)
+        proposals[req.proposal_index]['renegotiate_cost'] = renegotiate_cost
+        await db.film_projects.update_one({'id': pid}, {'$set': {'cast_proposals': proposals}})
+        return {
+            'rejected': True,
+            'name': proposal['name'],
+            'reason': f"{proposal['name']} non e convinto/a. Offri di piu?",
+            'renegotiate_cost': renegotiate_cost,
+            'film': await db.film_projects.find_one({'id': pid}, {'_id': 0}),
+        }
+
+    # Accept — assign to role
+    if role == 'director':
         cast['director'] = proposal
-    elif req.role == 'screenwriter':
-        cast['screenwriter'] = proposal
-    elif req.role == 'actor':
+    elif role == 'screenwriter':
+        if not cast.get('screenwriters'):
+            cast['screenwriters'] = []
+        cast['screenwriters'].append(proposal)
+        cast['screenwriter'] = cast['screenwriters'][0]  # compat
+    elif role == 'actor':
         if not cast.get('actors'):
             cast['actors'] = []
         cast['actors'].append(proposal)
-    elif req.role == 'composer':
+    elif role == 'composer':
         cast['composer'] = proposal
 
-    # Calculate cast quality
-    quality = 0
-    if cast.get('director'): quality += cast['director'].get('skill', 50) * 0.3
-    if cast.get('screenwriter'): quality += cast['screenwriter'].get('skill', 50) * 0.15
-    for actor in cast.get('actors', []):
-        quality += actor.get('skill', 50) * 0.1
-    if cast.get('composer'): quality += cast['composer'].get('skill', 50) * 0.05
-    quality = min(100, quality)
+    # Deduct cost from funds
+    cost = proposal.get('cost', 0)
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -cost}})
+
+    genre = project.get('genre', 'drama')
+    subgenres = project.get('subgenres', [])
+    quality_data = _calc_cast_quality(cast, genre, subgenres)
 
     update = {
         'cast': cast,
-        'pipeline_metrics.cast_quality': round(quality, 1),
+        'pipeline_metrics.cast_quality': quality_data['quality'],
+        'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
     }
     film = await _update_project(pid, update)
-    return {'film': film, 'selected': proposal.get('name', '?')}
+    return {'film': film, 'selected': proposal.get('name', '?'), 'cost_paid': cost, 'rejected': False}
+
+
+
+@router.post("/films/{pid}/refresh-proposals")
+async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user)):
+    """Regenerate cast proposals with enriched data for films already in casting."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'casting_live':
+        raise HTTPException(400, "Non in fase casting")
+
+    all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
+    interested = project.get('interested_agencies', [])
+    agencies = [a for a in all_agencies if a.get('id') in interested] or all_agencies[:5]
+
+    new_proposals = await _generate_agency_proposals(project, agencies, user['id'])
+    for i, p in enumerate(new_proposals):
+        p['wave'] = 1
+
+    # Reset cast since proposals changed
+    update = {
+        'cast_proposals': new_proposals,
+        'cast': {'director': None, 'screenwriters': [], 'actors': [], 'composer': None},
+        'pipeline_metrics.cast_quality': 0,
+        'pipeline_metrics.cast_breakdown': [],
+    }
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
+    film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    return {'film': film, 'total_proposals': len(new_proposals)}
+
+
+@router.post("/films/{pid}/renegotiate-cast")
+async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_current_user)):
+    """Renegotiate with a cast member who rejected. Higher cost, guaranteed acceptance."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'casting_live':
+        raise HTTPException(400, "Non in fase casting")
+
+    proposals = project.get('cast_proposals', [])
+    if req.proposal_index < 0 or req.proposal_index >= len(proposals):
+        raise HTTPException(400, "Proposta non valida")
+
+    proposal = proposals[req.proposal_index]
+    if proposal.get('status') != 'rejected':
+        raise HTTPException(400, "Questa proposta non ha rifiutato")
+
+    renegotiate_cost = proposal.get('renegotiate_cost', int(proposal['cost'] * 1.4))
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+    if u.get('funds', 0) < renegotiate_cost:
+        raise HTTPException(400, f"Servono ${renegotiate_cost:,}")
+
+    # Accept at higher cost
+    proposal['status'] = 'available'
+    proposal['cost'] = renegotiate_cost
+    proposals[req.proposal_index] = proposal
+    await db.film_projects.update_one({'id': pid}, {'$set': {'cast_proposals': proposals}})
+
+    # Now select normally (reuse logic without rejection)
+    cast = project.get('cast', {'director': None, 'screenwriters': [], 'actors': [], 'composer': None})
+    if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
+        cast['screenwriters'] = [cast['screenwriter']]
+
+    role = req.role
+    if role == 'director':
+        cast['director'] = proposal
+    elif role == 'screenwriter':
+        if not cast.get('screenwriters'):
+            cast['screenwriters'] = []
+        cast['screenwriters'].append(proposal)
+        cast['screenwriter'] = cast['screenwriters'][0]
+    elif role == 'actor':
+        if not cast.get('actors'):
+            cast['actors'] = []
+        cast['actors'].append(proposal)
+    elif role == 'composer':
+        cast['composer'] = proposal
+
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -renegotiate_cost}})
+
+    genre = project.get('genre', 'drama')
+    subgenres = project.get('subgenres', [])
+    quality_data = _calc_cast_quality(cast, genre, subgenres)
+
+    update = {
+        'cast': cast,
+        'pipeline_metrics.cast_quality': quality_data['quality'],
+        'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
+    }
+    film = await _update_project(pid, update)
+    return {'film': film, 'selected': proposal['name'], 'cost_paid': renegotiate_cost, 'rejected': False}
 
 @router.post("/films/{pid}/lock-cast")
 async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Lock cast and advance: casting_live → prep. Idempotent."""
+    """Lock cast and advance: casting_live → prep. Idempotent. Validates + snapshot."""
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] == 'prep':
         return {'film': project}
@@ -929,12 +1247,19 @@ async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
     if len(cast.get('actors', [])) < 2:
         raise HTTPException(400, "Servono almeno 2 attori")
 
+    # Final quality calculation
+    genre = project.get('genre', 'drama')
+    subgenres = project.get('subgenres', [])
+    quality_data = _calc_cast_quality(cast, genre, subgenres)
+
     extra = {
         'cast_locked': True,
         'cast_locked_at': _now(),
+        'pipeline_metrics.cast_quality': quality_data['quality'],
+        'pipeline_metrics.cast_breakdown': quality_data['breakdown'],
     }
     film = await _advance(pid, user['id'], 'prep', extra, 'equipment')
-    return {'film': film}
+    return {'film': film, 'cast_quality': quality_data['quality'], 'breakdown': quality_data['breakdown']}
 
 # ═══════════════════════════════════════════════════════════════
 #  FASE 4 — PREP

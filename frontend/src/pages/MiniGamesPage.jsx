@@ -25,7 +25,7 @@ const GAME_ICONS = {
   matrix_dodge: Binary, matrix_dodge_pro: Binary,
   cine_drive: Car, cine_drive_pro: Car,
   supercine_pro: Drama,
-  flipper_pro: CircleDot,
+  flipper_pro: Target,
 };
 
 const GAME_COMPONENTS = {

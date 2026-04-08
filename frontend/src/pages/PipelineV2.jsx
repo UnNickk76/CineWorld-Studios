@@ -593,14 +593,16 @@ const HypePhase = ({ film, onRefresh, toast }) => {
     resize();
     window.addEventListener('resize', resize);
     const letters = '01CINEWORLDSTUDIO';
-    const fontSize = 12;
+    const fontSize = 14;
     const columns = Math.floor(canvas.width / fontSize);
     const drops = Array(columns).fill(1);
     const draw = () => {
-      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.fillStyle = 'rgba(0,0,0,0.04)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.shadowColor = matrixColor;
+      ctx.shadowBlur = 6;
       ctx.fillStyle = matrixColor;
-      ctx.font = `${fontSize}px monospace`;
+      ctx.font = `bold ${fontSize}px monospace`;
       for (let i = 0; i < drops.length; i++) {
         const text = letters[Math.floor(Math.random() * letters.length)];
         ctx.fillText(text, i * fontSize, drops[i] * fontSize);
@@ -608,7 +610,7 @@ const HypePhase = ({ film, onRefresh, toast }) => {
         drops[i]++;
       }
     };
-    const interval = setInterval(draw, 50);
+    const interval = setInterval(draw, 33);
     return () => { clearInterval(interval); window.removeEventListener('resize', resize); };
   }, [isHypeLive, matrixColor]);
 
@@ -616,7 +618,7 @@ const HypePhase = ({ film, onRefresh, toast }) => {
     <div className="relative overflow-hidden">
       {/* Matrix canvas — behind everything */}
       {isHypeLive && (
-        <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none" data-testid="matrix-canvas" />
+        <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-[0.35] pointer-events-none" data-testid="matrix-canvas" />
       )}
       <div className="relative z-10">
     <PhaseWrapper title="Hype Machine" subtitle="Crea aspettativa strategica" icon={TrendingUp} color="orange">

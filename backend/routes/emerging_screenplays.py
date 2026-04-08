@@ -187,25 +187,19 @@ async def accept_emerging_screenplay(
         {'$inc': {'total_xp': xp_reward}}
     )
     
-    # Create a film project in the pipeline pre-filled with screenplay data
+    # Create a V2 film project pre-filled with screenplay data
     import uuid as _uuid
     from routes.film_pipeline import calculate_pre_imdb
     
     genre = screenplay.get('genre', 'drama')
     title = screenplay.get('title', 'Film Senza Titolo')
     subgenres = screenplay.get('subgenres', [screenplay.get('subgenre', '')])
+    subgenres = [s for s in subgenres if s]
     pre_screenplay = screenplay.get('synopsis', screenplay.get('logline', ''))
     locations = screenplay.get('locations', [])
     
     # Calculate pre-IMDb
     imdb_result = calculate_pre_imdb(title, genre, subgenres, pre_screenplay, locations if locations else ['Roma'])
-    
-    # Build location objects
-    from server import LOCATIONS
-    selected_locations = []
-    for loc_name in (locations if locations else ['Roma']):
-        loc = next((l for l in LOCATIONS if l['name'] == loc_name), {'name': loc_name, 'cost_per_day': 50000, 'category': 'other'})
-        selected_locations.append(loc)
     
     project_id = str(_uuid.uuid4())
     now_str = datetime.now(timezone.utc).isoformat()
@@ -213,60 +207,36 @@ async def accept_emerging_screenplay(
     project = {
         'id': project_id,
         'user_id': user['id'],
-        'status': 'casting',
+        'pipeline_version': 2,
+        'pipeline_state': 'proposed',
+        'pipeline_substate': 'from_screenplay',
+        'pipeline_ui_step': 1,
+        'pipeline_locked': False,
+        'pipeline_error': None,
+        'pipeline_timers': {},
+        'pipeline_history': [{'from': 'idea', 'to': 'proposed', 'at': now_str, 'type': 'screenplay_import'}],
+        'pipeline_snapshots': [{'state': 'proposed', 'at': now_str, 'reason': 'imported_from_screenplay'}],
+        'pipeline_metrics': {'hype_score': 0, 'agency_interest': 0, 'cast_quality': 0},
         'title': title,
         'genre': genre,
         'subgenres': subgenres,
         'subgenre': subgenres[0] if subgenres else '',
         'pre_screenplay': pre_screenplay,
-        'locations': selected_locations,
-        'location': selected_locations[0] if selected_locations else {},
-        'location_name': (locations[0] if locations else 'Roma'),
+        'locations': locations if locations else ['Roma'],
+        'poster_url': screenplay.get('poster_url'),
         'pre_imdb_score': imdb_result['score'],
         'pre_imdb_factors': imdb_result['factors'],
         'hidden_factor': imdb_result['hidden_factor'],
-        'cast': {'director': None, 'screenwriter': None, 'actors': [], 'composer': None},
-        'cast_proposals': {},
-        'costs_paid': {'creation': cost},
-        'cinepass_paid': {},
+        'edit_count': 0,
         'from_emerging_screenplay': True,
         'emerging_screenplay_id': screenplay_id,
         'emerging_option': option,
+        'costs_paid': {'creation': cost},
         'created_at': now_str,
         'updated_at': now_str,
-        'casting_started_at': now_str
     }
     
-    # If full_package, pre-fill cast from the screenplay's proposed_cast
-    if option == 'full_package':
-        proposed = screenplay.get('proposed_cast', {})
-        sw = screenplay.get('screenwriter', {})
-        project['cast'] = {
-            'director': proposed.get('director'),
-            'screenwriter': {
-                'id': sw.get('id'), 'name': sw.get('name', 'Unknown'),
-                'nationality': sw.get('nationality', ''), 'gender': sw.get('gender', 'male'),
-                'avatar_url': sw.get('avatar_url', ''), 'skills': sw.get('skills', {}),
-                'stars': sw.get('stars', 3), 'fame': sw.get('fame', 50),
-                'cost': sw.get('cost', 100000), 'is_star': sw.get('is_star', False),
-            } if sw.get('id') else None,
-            'actors': proposed.get('actors', []),
-            'composer': proposed.get('composer'),
-        }
-        project['cast_locked'] = True  # Mark cast as pre-selected (read-only)
-    
-    # Generate cast proposals so the film goes directly to Casting
-    from routes.film_pipeline import generate_cast_proposals
-    now_dt = datetime.now(timezone.utc)
-    cast_proposals = {}
-    for role in ['directors', 'screenwriters', 'actors', 'composers']:
-        proposals = await generate_cast_proposals(project, role)
-        for p in proposals:
-            p['available_at'] = (now_dt + timedelta(minutes=p['delay_minutes'])).isoformat()
-        cast_proposals[role] = proposals
-    project['cast_proposals'] = cast_proposals
-    
-    # If full_package, also add the full screenplay text
+    # If full_package, attach screenplay text
     if option == 'full_package' and screenplay.get('full_text'):
         project['screenplay'] = screenplay['full_text']
         project['screenplay_mode'] = 'emerging'

@@ -6997,31 +6997,12 @@ async def migrate_old_cast_system():
 # Initialize default chat rooms
 @app.on_event("startup")
 async def startup_event():
-    # Cleanup film corrotti
-    try:
-        from services.data_integrity import clean_invalid_films
-        deleted = await clean_invalid_films(db)
-        if deleted > 0:
-            logging.info(f"[CLEANUP] Rimossi {deleted} film corrotti")
-    except Exception as e:
-        logging.warning(f"[CLEANUP] Errore pulizia film: {e}")
-
-    # Film integrity scan
-    try:
-        from services.film_integrity_scan import scan_and_repair_films
-        scan_result = await scan_and_repair_films(db)
-        logging.info(f"[FILM INTEGRITY] repaired={scan_result['repaired']} quarantined={scan_result['quarantined']}")
-    except Exception as e:
-        logging.warning(f"[FILM INTEGRITY] Errore scan: {e}")
-
     # Log quale DB è connesso
     mongo_url = os.environ.get("MONGO_URL", "")
     is_atlas = "mongodb+srv" in mongo_url or "mongodb.net" in mongo_url
     db_type = "ATLAS" if is_atlas else "LOCALE"
     logging.info(f"[DB] Connesso a: {db_type} — DB: {os.environ.get('DB_NAME', 'cineworld')}")
 
-    # Auto-backup DB su avvio (disabilitato — usare export manuale dal pannello admin)
-    # Il backup automatico su startup con DB grandi può causare OOM
     logging.info("[BACKUP] Auto-backup disabilitato. Usa pannello Admin per export manuale.")
 
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
@@ -7037,20 +7018,17 @@ async def startup_event():
     except Exception as e:
         logging.error(f"[AUTO-SYNC] Errore avvio scheduler: {e}")
 
-    pass
     # === PRODUCTION DEPLOY: Copy React build to nginx html root ===
     import shutil
     import subprocess
     build_dir = '/app/frontend/build'
     build_index = os.path.join(build_dir, 'index.html')
     try:
-        # Only proceed if we have a valid build with index.html
         if os.path.isdir(build_dir) and os.path.isfile(build_index):
             nginx_roots = ['/var/www/html', '/usr/share/nginx/html']
             for nginx_root in nginx_roots:
                 if not os.path.isdir(nginx_root):
                     continue
-                # Check if nginx root already has index.html (placed by deployment system)
                 if os.path.isfile(os.path.join(nginx_root, 'index.html')):
                     logging.info(f"Nginx root {nginx_root} already has index.html, skipping copy")
                     continue
@@ -7066,7 +7044,6 @@ async def startup_event():
                     logging.info(f"Copied React build to {nginx_root}")
                 except Exception as e:
                     logging.warning(f"Failed to copy to {nginx_root}: {e}")
-            # Reload nginx to pick up new files
             try:
                 result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -7080,196 +7057,208 @@ async def startup_event():
     except Exception as e:
         logging.warning(f"Deploy setup: {e}")
 
-    default_rooms = [
-        {'id': 'generale', 'name': 'Generale', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'message-square', 'description': 'Chat libera per tutti i player'},
-        {'id': 'produzioni', 'name': 'Produzioni', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'film', 'description': 'Film, serie TV e anime'},
-        {'id': 'strategie', 'name': 'Strategie', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'lightbulb', 'description': 'Consigli e trucchi di gioco'},
-        {'id': 'offtopic', 'name': 'Off-topic', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'coffee', 'description': 'Chiacchiere libere'},
-    ]
-    
-    for room in default_rooms:
-        existing = await db.chat_rooms.find_one({'id': room['id']})
-        if not existing:
-            room['created_at'] = datetime.now(timezone.utc).isoformat()
-            await db.chat_rooms.insert_one(room)
+    logging.info("Startup complete - server ready for health checks")
 
-    # Remove deprecated public rooms
-    old_room_ids = ['general', 'producers', 'box-office']
-    await db.chat_rooms.delete_many({'id': {'$in': old_room_ids}, 'is_private': False})
-    
-    # Defer heavy initialization to background to avoid blocking health checks
-    async def _deferred_init():
+    # === ALL HEAVY DB WORK IN BACKGROUND (non-blocking for healthcheck) ===
+    async def _deferred_heavy_init():
         try:
-            await _cast_init_pool()
-            logging.info("Cast pool initialized")
-        except Exception as e:
-            logging.warning(f"Cast pool init: {e}")
+            # Cleanup film corrotti
+            try:
+                from services.data_integrity import clean_invalid_films
+                deleted = await clean_invalid_films(db)
+                if deleted > 0:
+                    logging.info(f"[CLEANUP] Rimossi {deleted} film corrotti")
+            except Exception as e:
+                logging.warning(f"[CLEANUP] Errore pulizia film: {e}")
 
-        try:
-            legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
-            mig_count = 0
-            for seq in legacy:
-                if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
-                    continue
-                now_iso = datetime.now(timezone.utc).isoformat()
-                film_doc = {
-                    'id': seq['id'], 'user_id': seq['user_id'],
-                    'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
-                    'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
-                    'quality_score': seq.get('quality_score', 50),
-                    'quality': int(seq.get('quality_score', 50)),
-                    'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
-                    'poster_url': seq.get('poster_url', ''),
-                    'total_revenue': seq.get('total_revenue', 0),
-                    'opening_revenue': seq.get('opening_revenue', 0),
-                    'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
-                    'release_type': 'immediate', 'is_sequel': True,
-                    'sequel_parent_id': seq.get('parent_film_id', ''),
-                    'sequel_number': seq.get('sequel_number', 2),
-                    'sequel_parent_title': seq.get('parent_title', ''),
-                    'hired_actors': seq.get('cast', []),
-                    'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
-                    'production_cost': seq.get('production_cost', 0),
-                    'quality_breakdown': seq.get('quality_breakdown', {}),
-                    'created_at': seq.get('created_at', now_iso),
-                    'released_at': seq.get('completed_at', now_iso),
-                    'updated_at': now_iso,
-                }
-                await db.films.insert_one(film_doc)
-                await db.films.update_one(
-                    {'id': seq.get('parent_film_id')},
-                    {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
-                )
-                mig_count += 1
-            if mig_count:
-                logging.info(f"Migrated {mig_count} legacy sequels to films collection")
-        except Exception as e:
-            logging.warning(f"Legacy sequel migration: {e}")
+            # Film integrity scan
+            try:
+                from services.film_integrity_scan import scan_and_repair_films
+                scan_result = await scan_and_repair_films(db)
+                logging.info(f"[FILM INTEGRITY] repaired={scan_result['repaired']} quarantined={scan_result['quarantined']}")
+            except Exception as e:
+                logging.warning(f"[FILM INTEGRITY] Errore scan: {e}")
 
-        try:
-            await generate_daily_cast_members()
-        except Exception as e:
-            logging.warning(f"Daily cast gen: {e}")
+            # Chat rooms
+            default_rooms = [
+                {'id': 'generale', 'name': 'Generale', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'message-square', 'description': 'Chat libera per tutti i player'},
+                {'id': 'produzioni', 'name': 'Produzioni', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'film', 'description': 'Film, serie TV e anime'},
+                {'id': 'strategie', 'name': 'Strategie', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'lightbulb', 'description': 'Consigli e trucchi di gioco'},
+                {'id': 'offtopic', 'name': 'Off-topic', 'is_private': False, 'participant_ids': [], 'created_by': 'system', 'icon': 'coffee', 'description': 'Chiacchiere libere'},
+            ]
+            for room in default_rooms:
+                existing = await db.chat_rooms.find_one({'id': room['id']})
+                if not existing:
+                    room['created_at'] = datetime.now(timezone.utc).isoformat()
+                    await db.chat_rooms.insert_one(room)
+            old_room_ids = ['general', 'producers', 'box-office']
+            await db.chat_rooms.delete_many({'id': {'$in': old_room_ids}, 'is_private': False})
 
-        try:
-            available_count = await db.emerging_screenplays.count_documents({
-                'status': 'available',
-                'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
-            })
-            if available_count < 3:
-                num = random.randint(3, 6)
-                for _ in range(num):
-                    await generate_emerging_screenplay()
-                logging.info(f"Initialized {num} emerging screenplays")
-            else:
-                logging.info(f"Emerging screenplays: {available_count} available")
-        except Exception as e:
-            logging.warning(f"Emerging screenplays init: {e}")
+            # Cast pool + legacy migrations
+            try:
+                await _cast_init_pool()
+                logging.info("Cast pool initialized")
+            except Exception as e:
+                logging.warning(f"Cast pool init: {e}")
 
-        try:
-            await fix_decimal_skills_in_db()
-        except Exception as e:
-            logging.warning(f"Fix decimal skills: {e}")
+            try:
+                legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
+                mig_count = 0
+                for seq in legacy:
+                    if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
+                        continue
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    film_doc = {
+                        'id': seq['id'], 'user_id': seq['user_id'],
+                        'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
+                        'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
+                        'quality_score': seq.get('quality_score', 50),
+                        'quality': int(seq.get('quality_score', 50)),
+                        'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+                        'poster_url': seq.get('poster_url', ''),
+                        'total_revenue': seq.get('total_revenue', 0),
+                        'opening_revenue': seq.get('opening_revenue', 0),
+                        'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
+                        'release_type': 'immediate', 'is_sequel': True,
+                        'sequel_parent_id': seq.get('parent_film_id', ''),
+                        'sequel_number': seq.get('sequel_number', 2),
+                        'sequel_parent_title': seq.get('parent_title', ''),
+                        'hired_actors': seq.get('cast', []),
+                        'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
+                        'production_cost': seq.get('production_cost', 0),
+                        'quality_breakdown': seq.get('quality_breakdown', {}),
+                        'created_at': seq.get('created_at', now_iso),
+                        'released_at': seq.get('completed_at', now_iso),
+                        'updated_at': now_iso,
+                    }
+                    await db.films.insert_one(film_doc)
+                    await db.films.update_one(
+                        {'id': seq.get('parent_film_id')},
+                        {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+                    )
+                    mig_count += 1
+                if mig_count:
+                    logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+            except Exception as e:
+                logging.warning(f"Legacy sequel migration: {e}")
 
-        try:
-            await migrate_old_cast_system()
-        except Exception as e:
-            logging.warning(f"Migrate old cast: {e}")
+            try:
+                await generate_daily_cast_members()
+            except Exception as e:
+                logging.warning(f"Daily cast gen: {e}")
 
-        try:
-            await _init_release_notes()
-            logging.info("Release notes initialized")
-        except Exception as e:
-            logging.warning(f"Release notes init: {e}")
+            try:
+                available_count = await db.emerging_screenplays.count_documents({
+                    'status': 'available',
+                    'expires_at': {'$gt': datetime.now(timezone.utc).isoformat()}
+                })
+                if available_count < 3:
+                    num = random.randint(3, 6)
+                    for _ in range(num):
+                        await generate_emerging_screenplay()
+                    logging.info(f"Initialized {num} emerging screenplays")
+                else:
+                    logging.info(f"Emerging screenplays: {available_count} available")
+            except Exception as e:
+                logging.warning(f"Emerging screenplays init: {e}")
 
-        try:
-            await _init_system_notes()
-            logging.info("System notes initialized")
-        except Exception as e:
-            logging.warning(f"System notes init: {e}")
+            try:
+                await fix_decimal_skills_in_db()
+            except Exception as e:
+                logging.warning(f"Fix decimal skills: {e}")
 
-        try:
-            await _init_sponsors()
-            logging.info("Sponsors initialized")
-        except Exception as e:
-            logging.warning(f"Sponsors init: {e}")
+            try:
+                await migrate_old_cast_system()
+            except Exception as e:
+                logging.warning(f"Migrate old cast: {e}")
 
-        logging.info("Deferred initialization complete")
+            try:
+                await _init_release_notes()
+                logging.info("Release notes initialized")
+            except Exception as e:
+                logging.warning(f"Release notes init: {e}")
+
+            try:
+                await _init_system_notes()
+                logging.info("System notes initialized")
+            except Exception as e:
+                logging.warning(f"System notes init: {e}")
+
+            try:
+                await _init_sponsors()
+                logging.info("Sponsors initialized")
+            except Exception as e:
+                logging.warning(f"Sponsors init: {e}")
+
+            # MongoDB indexes
+            try:
+                await db.films.create_index('user_id')
+                await db.films.create_index('status')
+                await db.films.create_index([('status', 1), ('quality', -1)])
+                await db.films.create_index([('status', 1), ('cineboard_score', -1)])
+                await db.films.create_index('liked_by')
+                await db.people.create_index('role_type')
+                await db.people.create_index('id', unique=True)
+                await db.users.create_index('id', unique=True)
+                await db.users.create_index('nickname')
+                await db.users.create_index('email')
+                await db.chat_messages.create_index([('room_id', 1), ('created_at', -1)])
+                await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
+                await db.film_drafts.create_index('user_id')
+                await db.emerging_screenplays.create_index('status')
+                await db.film_projects.create_index([('user_id', 1), ('status', 1)])
+                await db.film_projects.create_index('available_for_purchase')
+                await db.film_projects.create_index('status')
+                await db.infrastructure.create_index('owner_id')
+                await db.challenges.create_index('status')
+                await db.challenges.create_index('challenger_id')
+                await db.challenges.create_index('challenged_id')
+                await db.virtual_reviews.create_index('film_id')
+                await db.film_ratings.create_index('film_id')
+                await db.film_comments.create_index('film_id')
+                await db.friendships.create_index('user_id')
+                await db.friendships.create_index('friend_id')
+                await db.follows.create_index('follower_id')
+                await db.follows.create_index('following_id')
+                await db.major_members.create_index('major_id')
+                await db.major_members.create_index('user_id')
+                await db.studio_drafts.create_index('user_id')
+                await db.casting_school_students.create_index('user_id')
+                logging.info("MongoDB indexes created/verified")
+            except Exception as e:
+                logging.warning(f"Index creation warning: {e}")
+
+            # User migrations
+            await db.users.update_many(
+                {'cinepass': {'$exists': False}},
+                {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
+            )
+            await db.users.update_many(
+                {'role': {'$exists': False}},
+                {'$set': {'role': 'USER', 'deletion_status': 'none'}}
+            )
+            from auth_utils import ADMIN_NICKNAME
+            await db.users.update_one(
+                {'nickname': ADMIN_NICKNAME},
+                {'$set': {'role': 'ADMIN'}}
+            )
+            strip_result = await db.users.update_many(
+                {'role': 'ADMIN', 'nickname': {'$ne': ADMIN_NICKNAME}},
+                {'$set': {'role': 'USER'}}
+            )
+            if strip_result.modified_count > 0:
+                logging.warning(f"[SECURITY] Stripped ADMIN role from {strip_result.modified_count} unauthorized user(s)")
+            await db.admin_logs.create_index('timestamp')
+            logging.info("Role system migration completed")
+
+            await run_startup_migrations()
+
+            logging.info("Deferred heavy initialization complete")
+        except Exception as e:
+            logging.error(f"[DEFERRED INIT] Error: {e}")
 
     import asyncio
-    asyncio.create_task(_deferred_init())
-    
-    # Create MongoDB indexes for performance (fast, non-blocking)
-    try:
-        await db.films.create_index('user_id')
-        await db.films.create_index('status')
-        await db.films.create_index([('status', 1), ('quality', -1)])
-        await db.films.create_index([('status', 1), ('cineboard_score', -1)])
-        await db.films.create_index('liked_by')
-        await db.people.create_index('role_type')
-        await db.people.create_index('id', unique=True)
-        await db.users.create_index('id', unique=True)
-        await db.users.create_index('nickname')
-        await db.users.create_index('email')
-        await db.chat_messages.create_index([('room_id', 1), ('created_at', -1)])
-        await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
-        await db.film_drafts.create_index('user_id')
-        await db.emerging_screenplays.create_index('status')
-        await db.film_projects.create_index([('user_id', 1), ('status', 1)])
-        await db.film_projects.create_index('available_for_purchase')
-        await db.film_projects.create_index('status')
-        await db.infrastructure.create_index('owner_id')
-        await db.challenges.create_index('status')
-        await db.challenges.create_index('challenger_id')
-        await db.challenges.create_index('challenged_id')
-        await db.virtual_reviews.create_index('film_id')
-        await db.film_ratings.create_index('film_id')
-        await db.film_comments.create_index('film_id')
-        await db.friendships.create_index('user_id')
-        await db.friendships.create_index('friend_id')
-        await db.follows.create_index('follower_id')
-        await db.follows.create_index('following_id')
-        await db.major_members.create_index('major_id')
-        await db.major_members.create_index('user_id')
-        await db.studio_drafts.create_index('user_id')
-        await db.casting_school_students.create_index('user_id')
-        logging.info("MongoDB indexes created/verified")
-    except Exception as e:
-        logging.warning(f"Index creation warning: {e}")
-    
-    # Add cinepass to existing users who don't have it (fast update)
-    await db.users.update_many(
-        {'cinepass': {'$exists': False}},
-        {'$set': {'cinepass': 100, 'login_streak': 0, 'last_streak_date': None}}
-    )
-    
-    # === ROLE SYSTEM MIGRATION ===
-    # Set default role for users without one
-    await db.users.update_many(
-        {'role': {'$exists': False}},
-        {'$set': {'role': 'USER', 'deletion_status': 'none'}}
-    )
-    # AUTO-CORRECTION: Force NeoMorpheus as ADMIN
-    from auth_utils import ADMIN_NICKNAME
-    await db.users.update_one(
-        {'nickname': ADMIN_NICKNAME},
-        {'$set': {'role': 'ADMIN'}}
-    )
-    # AUTO-CORRECTION: Strip ADMIN from anyone who is NOT NeoMorpheus
-    strip_result = await db.users.update_many(
-        {'role': 'ADMIN', 'nickname': {'$ne': ADMIN_NICKNAME}},
-        {'$set': {'role': 'USER'}}
-    )
-    if strip_result.modified_count > 0:
-        logging.warning(f"[SECURITY] Stripped ADMIN role from {strip_result.modified_count} unauthorized user(s) at startup")
-    # Create index for admin_logs
-    await db.admin_logs.create_index('timestamp')
-    logging.info("Role system migration completed")
-    
-    # One-time migrations (fast DB updates)
-    await run_startup_migrations()
-    
-    logging.info("Startup complete - server ready for health checks")
+    asyncio.create_task(_deferred_heavy_init())
     
     # ==================== APSCHEDULER SETUP ====================
     # Start the background scheduler for autonomous game operations

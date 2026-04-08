@@ -1183,16 +1183,114 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+//  BOARD — card tratteggiata "Nuovo Film" + film in pipeline
+// ═══════════════════════════════════════════════════════════════
+
+const BOARD_HIDDEN = new Set(['released', 'completed', 'discarded', 'premiere_live']);
+
+const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
+  const active = films.filter(f => !BOARD_HIDDEN.has(f.pipeline_state));
+
+  return (
+    <div className="min-h-screen bg-black text-white p-3 pb-24" data-testid="pipeline-v2-board">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-base font-bold tracking-tight">Produci Film</h1>
+          <p className="text-[10px] text-gray-500">I tuoi progetti in lavorazione</p>
+        </div>
+        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[8px]">V2</Badge>
+      </div>
+
+      {/* Grid: "Nuovo Film" + existing cards */}
+      <div className="grid grid-cols-2 gap-2.5">
+        {/* ── Card tratteggiata Nuovo Film ── */}
+        <button
+          onClick={onNewFilm}
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-700 hover:border-amber-500/50 bg-transparent hover:bg-amber-500/5 transition-all p-4 min-h-[140px] group"
+          data-testid="new-film-card"
+        >
+          <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-600 group-hover:border-amber-500/60 flex items-center justify-center transition-colors">
+            <Plus className="w-5 h-5 text-gray-600 group-hover:text-amber-400 transition-colors" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-500 group-hover:text-amber-400 transition-colors">Nuovo Film</span>
+        </button>
+
+        {/* ── Loading skeleton ── */}
+        {loading && [0,1].map(i => (
+          <div key={i} className="rounded-xl bg-gray-900/50 border border-gray-800 p-3 min-h-[140px] animate-pulse">
+            <div className="w-full h-16 bg-gray-800 rounded mb-2" />
+            <div className="w-2/3 h-3 bg-gray-800 rounded mb-1" />
+            <div className="w-1/2 h-2 bg-gray-800/60 rounded" />
+          </div>
+        ))}
+
+        {/* ── Film cards ── */}
+        {active.map(f => {
+          const step = V2_STEPS[Math.max(0, f.pipeline_ui_step ?? 0)] || V2_STEPS[0];
+          const StIcon = step.icon;
+          const style = STEP_STYLES[step.color];
+          return (
+            <button
+              key={f.id}
+              onClick={() => onSelectFilm(f)}
+              className="flex flex-col rounded-xl bg-gray-900/60 border border-gray-800 hover:border-gray-600 transition-all overflow-hidden text-left min-h-[140px]"
+              data-testid={`film-card-${f.id}`}
+            >
+              {/* Poster / placeholder */}
+              <div className="w-full h-20 bg-gray-800 relative flex-shrink-0">
+                {f.poster_url ? (
+                  <img src={f.poster_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film className="w-6 h-6 text-gray-700" />
+                  </div>
+                )}
+                {/* Badge step */}
+                <div className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[7px] font-bold uppercase ${style.active}`}>
+                  <StIcon className="w-2.5 h-2.5" />
+                  {step.label}
+                </div>
+              </div>
+              {/* Info */}
+              <div className="p-2 flex-1 flex flex-col justify-between">
+                <p className="text-[11px] font-bold text-white truncate leading-tight">{f.title}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[8px] px-1 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700/50 capitalize">{(f.genre || '').replace('_', ' ')}</span>
+                  {f.pre_imdb_score > 0 && (
+                    <span className="text-[8px] text-yellow-400 font-bold flex items-center gap-0.5">
+                      <Star className="w-2 h-2" />{f.pre_imdb_score}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Empty state */}
+      {!loading && active.length === 0 && (
+        <div className="text-center py-8 mt-2">
+          <p className="text-[10px] text-gray-600">Nessun film in lavorazione. Crea il tuo primo!</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 //  MAIN PIPELINE V2 PAGE
 // ═══════════════════════════════════════════════════════════════
 
+const GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir'];
+
 const PipelineV2 = () => {
+  // view: 'board' | 'detail' | 'create'
+  const [view, setView] = useState('board');
   const [films, setFilms] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newGenre, setNewGenre] = useState('drama');
   const { toast } = useToast();
 
   const loadFilms = useCallback(async () => {
@@ -1209,18 +1307,9 @@ const PipelineV2 = () => {
 
   useEffect(() => { loadFilms(); }, []);
 
-  const createFilm = async () => {
-    if (!newTitle.trim()) return;
-    setCreating(true);
-    try {
-      const res = await api.post('/films', { title: newTitle.trim(), genre: newGenre });
-      setSelected(res.film);
-      setNewTitle('');
-      loadFilms();
-      toast({ title: 'Film creato!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
-    setCreating(false);
-  };
+  const openFilm = (f) => { setSelected(f); setView('detail'); };
+  const openCreate = () => setView('create');
+  const backToBoard = () => { setSelected(null); setView('board'); loadFilms(); };
 
   const refreshSelected = async () => {
     if (!selected) return;
@@ -1235,8 +1324,7 @@ const PipelineV2 = () => {
     if (!selected) return;
     try {
       await api.post(`/films/${selected.id}/discard`);
-      setSelected(null);
-      loadFilms();
+      backToBoard();
       toast({ title: 'Film scartato' });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
   };
@@ -1259,15 +1347,18 @@ const PipelineV2 = () => {
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
-  // ─── Film Selected View ───
-  if (selected) {
+  // ─── CREATE VIEW: title + genre then enter detail ───
+  if (view === 'create') {
+    return <CreateFilmView onBack={backToBoard} onCreated={(film) => { setSelected(film); setView('detail'); loadFilms(); }} toast={toast} />;
+  }
+
+  // ─── DETAIL VIEW ───
+  if (view === 'detail' && selected) {
     return (
       <div className="min-h-screen bg-black text-white" data-testid="pipeline-v2-detail">
-        <FilmHeader film={selected} onBack={() => setSelected(null)} />
+        <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar uiStep={selected.pipeline_ui_step ?? 0} />
         {renderPhase()}
-
-        {/* Discard */}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (
           <div className="p-3 border-t border-gray-800/50">
             <button onClick={discardFilm} className="w-full text-[9px] py-2 rounded-lg bg-red-500/5 border border-red-500/15 text-red-400/60 hover:bg-red-500/10 hover:text-red-400 transition-colors" data-testid="discard-btn">
@@ -1279,78 +1370,72 @@ const PipelineV2 = () => {
     );
   }
 
-  // ─── Film List View ───
+  // ─── BOARD VIEW (default) ───
+  return <BoardView films={films} loading={loading} onSelectFilm={openFilm} onNewFilm={openCreate} />;
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  CREATE FILM VIEW (step 1: title + genre)
+// ═══════════════════════════════════════════════════════════════
+
+const CreateFilmView = ({ onBack, onCreated, toast }) => {
+  const [title, setTitle] = useState('');
+  const [genre, setGenre] = useState('drama');
+  const [creating, setCreating] = useState(false);
+
+  const create = async () => {
+    if (!title.trim()) return;
+    setCreating(true);
+    try {
+      const res = await api.post('/films', { title: title.trim(), genre });
+      toast({ title: 'Film creato!' });
+      onCreated(res.film);
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setCreating(false);
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white p-3 space-y-4" data-testid="pipeline-v2-list">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold">Pipeline Film V2</h1>
-          <p className="text-[10px] text-gray-500">I tuoi progetti cinematografici</p>
-        </div>
-        <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[8px]">V2</Badge>
+    <div className="min-h-screen bg-black text-white p-3" data-testid="pipeline-v2-create">
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors" data-testid="create-back-btn">
+          <ChevronLeft className="w-4 h-4 text-gray-400" />
+        </button>
+        <h2 className="text-base font-bold">Nuovo Film</h2>
       </div>
 
-      {/* Create New */}
-      <div className="p-3 rounded-xl bg-gray-900/50 border border-gray-800 space-y-2">
-        <p className="text-[9px] text-gray-500 uppercase font-bold">Nuovo Film</p>
-        <div className="flex gap-2">
-          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Titolo del film..."
-            className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none" data-testid="new-film-title" />
-          <select value={newGenre} onChange={e => setNewGenre(e.target.value)}
-            className="bg-gray-800/50 border border-gray-700 rounded-lg px-2 text-xs text-white" data-testid="new-film-genre">
-            {GENRES.map(g => <option key={g} value={g}>{g.replace('_',' ')}</option>)}
+      <div className="space-y-4 max-w-md">
+        <div>
+          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Titolo del Film</label>
+          <input
+            value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="Il titolo del tuo capolavoro..."
+            autoFocus
+            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none"
+            data-testid="create-title"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Genere</label>
+          <select
+            value={genre} onChange={e => setGenre(e.target.value)}
+            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
+            data-testid="create-genre"
+          >
+            {GENRES.map(g => <option key={g} value={g}>{g.replace('_', ' ')}</option>)}
           </select>
         </div>
-        <button onClick={createFilm} disabled={creating || !newTitle.trim()}
-          className="w-full text-[10px] py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-30 font-bold flex items-center justify-center gap-1" data-testid="create-film-btn">
-          <Plus className="w-3.5 h-3.5" /> {creating ? 'Creazione...' : 'Crea Film'}
+        <button
+          onClick={create}
+          disabled={creating || !title.trim()}
+          className="w-full text-sm py-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-30 font-bold flex items-center justify-center gap-2"
+          data-testid="create-confirm-btn"
+        >
+          <Plus className="w-4 h-4" />
+          {creating ? 'Creazione...' : 'Crea e Inizia'}
         </button>
-      </div>
-
-      {/* Film Cards */}
-      {loading && <div className="text-center py-8 text-gray-600 text-xs">Caricamento...</div>}
-      {!loading && films.length === 0 && (
-        <div className="text-center py-12">
-          <Film className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Nessun film in pipeline</p>
-          <p className="text-[10px] text-gray-600 mt-1">Crea il tuo primo film V2!</p>
-        </div>
-      )}
-      <div className="space-y-2">
-        {films.map(f => {
-          const step = V2_STEPS[f.pipeline_ui_step] || V2_STEPS[0];
-          const StIcon = step.icon;
-          const style = STEP_STYLES[step.color];
-          return (
-            <button key={f.id} onClick={() => setSelected(f)}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-900/50 border border-gray-800 hover:border-gray-700 transition-colors text-left" data-testid={`film-card-${f.id}`}>
-              {f.poster_url ? (
-                <img src={f.poster_url} alt="" className="w-10 h-14 rounded object-cover border border-gray-700 flex-shrink-0" />
-              ) : (
-                <div className="w-10 h-14 rounded bg-gray-800 border border-gray-700 flex items-center justify-center flex-shrink-0">
-                  <Film className="w-4 h-4 text-gray-600" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white truncate">{f.title}</p>
-                <p className="text-[9px] text-gray-500">{f.genre} {f.pre_imdb_score ? `• IMDb ${f.pre_imdb_score}` : ''}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center ${style.active}`}>
-                    <StIcon className="w-2.5 h-2.5" />
-                  </div>
-                  <span className={`text-[8px] font-bold uppercase ${style.text}`}>{step.label}</span>
-                  {f.pipeline_substate && <span className="text-[7px] text-gray-600">• {f.pipeline_substate}</span>}
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
-            </button>
-          );
-        })}
       </div>
     </div>
   );
 };
-
-const GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'musical', 'western', 'biographical', 'mystery', 'adventure', 'war', 'crime', 'noir'];
 
 export default PipelineV2;

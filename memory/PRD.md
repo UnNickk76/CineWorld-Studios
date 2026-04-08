@@ -64,6 +64,11 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 - Fix: Aggiunto stati mancanti allo scheduler + riscritto recovery per force-release in `films` collection
 - Fix retroattivo: "Noccioline!" ripristinato a `produzione`, "Forest Gram" rilasciato forzatamente
 
+### Preview Read-Only Step Pipeline (DONE - 2026-04-08)
+- Step completati nella barra stepper ora cliccabili
+- Pannello read-only per ogni fase (IDEA, HYPE, CAST, PRODUZIONE, LA PRIMA, USCITA)
+- Toggle on/off + bottone X per chiudere
+
 ## Backlog
 ### P0 (In Attesa)
 - [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)

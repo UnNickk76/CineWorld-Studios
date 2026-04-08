@@ -16,7 +16,7 @@ import {
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
   Zap, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ThumbsDown, ShoppingCart, Film, TrendingUp, TrendingDown,
   Settings, Sparkles, Wand2, Globe, UserCheck, Minus, Target, Flame,
-  Lock, Rocket, Palette, Lightbulb, FileText, Save, ChevronLeft
+  Lock, Rocket, Palette, Lightbulb, FileText, Save, ChevronLeft, Eye
 } from 'lucide-react';
 
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
@@ -3083,33 +3083,42 @@ const PREMIERE_VIBES = [
 ];
 
 // ─── Cinematic Step Bar Component ───
-const CinematicStepBar = ({ currentStepIndex }) => (
+const CinematicStepBar = ({ currentStepIndex, previewStepIndex, onStepClick }) => (
   <div className="flex items-center justify-center gap-0 px-2 py-3" data-testid="cinematic-step-bar">
     {CINEMATIC_STEPS.map((step, i) => {
       const Icon = step.icon;
       const colors = STEP_COLORS[step.color];
       const isCurrent = i === currentStepIndex;
       const isCompleted = i < currentStepIndex;
-      const isLocked = i > currentStepIndex;
+      const isPreviewing = previewStepIndex === i;
+      const isClickable = isCompleted;
 
       return (
         <React.Fragment key={step.id}>
           {i > 0 && (
             <div className={`step-connector ${isCompleted ? colors.line : 'bg-gray-800'}`} />
           )}
-          <div className={`flex flex-col items-center gap-0.5 ${isCurrent ? '' : ''}`}>
+          <div
+            className={`flex flex-col items-center gap-0.5 ${isClickable ? 'cursor-pointer' : ''}`}
+            onClick={isClickable ? () => onStepClick(i) : undefined}
+            data-testid={`step-${step.id}`}
+          >
             <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+              isPreviewing ? `${colors.active} ring-2 ring-white/30 scale-110` :
               isCurrent ? `${colors.active} step-active-glow` :
-              isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
+              isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 hover:scale-110 hover:border-emerald-400' :
               'border-gray-800 bg-gray-900/50 text-gray-700'
             }`}>
-              {isCompleted ? (
+              {isPreviewing ? (
+                <Eye className="w-3.5 h-3.5" />
+              ) : isCompleted ? (
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
               ) : (
-                <Icon className={`w-3.5 h-3.5 ${isCurrent ? '' : ''}`} />
+                <Icon className="w-3.5 h-3.5" />
               )}
             </div>
             <span className={`text-[7px] sm:text-[8px] font-bold tracking-widest uppercase ${
+              isPreviewing ? (step.color === 'gold' ? 'text-[#C6A55C]' : `text-${step.color}-400`) :
               isCurrent ? (step.color === 'gold' ? 'text-[#C6A55C]' : `text-${step.color}-400`) :
               isCompleted ? 'text-emerald-500/70' :
               'text-gray-700'
@@ -3122,6 +3131,245 @@ const CinematicStepBar = ({ currentStepIndex }) => (
     })}
   </div>
 );
+
+// ─── Step Preview (Read-Only) Component ───
+const StepPreviewPanel = ({ film, stepIndex, onClose }) => {
+  const step = CINEMATIC_STEPS[stepIndex];
+  if (!step || !film) return null;
+
+  const cast = film.cast || {};
+  const renderPerson = (person, role) => {
+    if (!person) return <span className="text-gray-600 text-[10px] italic">Non assegnato</span>;
+    return (
+      <div className="flex items-center gap-2 py-1">
+        <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[8px] font-bold text-gray-400">{(person.name || '?')[0]}</div>
+        <div>
+          <p className="text-[10px] font-medium text-gray-200">{person.name || '?'}</p>
+          <p className="text-[8px] text-gray-500">{role} {person.fame ? `· Fama ${person.fame}` : ''}</p>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative border border-gray-700/50 rounded-xl bg-gray-900/80 backdrop-blur-sm p-4 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Eye className="w-3.5 h-3.5 text-gray-400" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Preview: {step.label}</span>
+        </div>
+        <button onClick={onClose} className="w-6 h-6 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors" data-testid="close-preview-btn">
+          <X className="w-3 h-3 text-gray-400" />
+        </button>
+      </div>
+
+      {/* IDEA Preview */}
+      {step.id === 'idea' && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Titolo</p>
+              <p className="text-[11px] font-bold text-white">{film.title}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Genere</p>
+              <p className="text-[11px] font-medium text-yellow-400">{film.genre} {film.subgenre ? `· ${film.subgenre}` : ''}</p>
+            </div>
+          </div>
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase">Pre-Sceneggiatura</p>
+            <p className="text-[10px] text-gray-300 leading-relaxed">{film.pre_screenplay || '—'}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Location</p>
+              <p className="text-[10px] text-gray-300">{(film.locations || []).map(l => typeof l === 'string' ? l : l.name).join(', ') || '—'}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Pre-IMDb</p>
+              <p className="text-[11px] font-bold text-yellow-400">{film.pre_imdb_score || '—'}</p>
+            </div>
+          </div>
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase">Tipo Rilascio</p>
+            <p className="text-[10px] text-gray-300">{film.release_type === 'coming_soon' ? 'Coming Soon' : 'Immediato'}</p>
+          </div>
+        </div>
+      )}
+
+      {/* HYPE Preview */}
+      {step.id === 'hype' && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Hype Score</p>
+              <p className="text-[11px] font-bold text-orange-400">{film.hype_score || 0}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Tier</p>
+              <p className="text-[10px] text-gray-300">{film.coming_soon_tier || '—'}</p>
+            </div>
+          </div>
+          {film.coming_soon_final_hours && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Durata Coming Soon</p>
+              <p className="text-[10px] text-gray-300">{film.coming_soon_final_hours?.toFixed(1)}h</p>
+            </div>
+          )}
+          {(film.news_events || []).length > 0 && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase mb-1">Eventi News ({film.news_events.length})</p>
+              <div className="space-y-1 max-h-28 overflow-y-auto">
+                {film.news_events.slice(-5).map((ev, i) => (
+                  <p key={i} className={`text-[9px] ${ev.type === 'positive' ? 'text-green-400' : ev.type === 'negative' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {ev.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CAST Preview */}
+      {step.id === 'cast' && (
+        <div className="space-y-2">
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase mb-1">Regista</p>
+            {renderPerson(cast.director, 'Regista')}
+          </div>
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase mb-1">Sceneggiatore</p>
+            {renderPerson(cast.screenwriter, 'Sceneggiatore')}
+          </div>
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase mb-1">Attori ({(cast.actors || []).length})</p>
+            {(cast.actors || []).map((a, i) => (
+              <div key={i}>{renderPerson(a, a.role_in_film || 'Attore')}</div>
+            ))}
+            {(!cast.actors || cast.actors.length === 0) && <span className="text-gray-600 text-[10px] italic">Nessun attore</span>}
+          </div>
+          <div className="p-2 rounded-lg bg-gray-800/50">
+            <p className="text-[8px] text-gray-500 uppercase mb-1">Compositore</p>
+            {renderPerson(cast.composer, 'Compositore')}
+          </div>
+          {(film.equipment || []).length > 0 && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase mb-1">Equipaggiamento</p>
+              <div className="flex flex-wrap gap-1">
+                {film.equipment.map((eq, i) => (
+                  <span key={i} className="text-[8px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded px-1.5 py-0.5">{eq.name || eq}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PRODUZIONE Preview */}
+      {step.id === 'produzione' && (
+        <div className="space-y-2">
+          {film.screenplay && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Sceneggiatura ({film.screenplay_mode || '—'})</p>
+              <p className="text-[10px] text-gray-300 leading-relaxed max-h-24 overflow-y-auto">{film.screenplay.slice(0, 300)}{film.screenplay.length > 300 ? '...' : ''}</p>
+            </div>
+          )}
+          {(film.sponsors || []).length > 0 && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase mb-1">Sponsor ({film.sponsors.length})</p>
+              {film.sponsors.map((sp, i) => (
+                <div key={i} className="flex items-center gap-2 py-0.5">
+                  <div className="w-2 h-2 rounded-full" style={{ background: sp.logo_color || '#666' }} />
+                  <span className="text-[10px] text-gray-300">{sp.name}</span>
+                  <span className="text-[8px] text-gray-500 ml-auto">${(sp.offer_amount || 0).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {film.production_setup && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase mb-1">Setup Produzione</p>
+              <div className="grid grid-cols-3 gap-1">
+                <div><p className="text-[8px] text-gray-500">Comparse</p><p className="text-[10px] text-white font-medium">{film.production_setup.extras_count || 0}</p></div>
+                <div><p className="text-[8px] text-gray-500">CGI</p><p className="text-[10px] text-white font-medium">{(film.production_setup.cgi_packages || []).length} pkg</p></div>
+                <div><p className="text-[8px] text-gray-500">VFX</p><p className="text-[10px] text-white font-medium">{(film.production_setup.vfx_packages || []).length} pkg</p></div>
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase">Riprese</p>
+              <p className="text-[10px] text-gray-300">{film.shooting_days ? `${film.shooting_days} giorni` : '—'} {film.shooting_completed ? '(completate)' : ''}</p>
+            </div>
+            {film.remaster_quality_boost > 0 && (
+              <div className="p-2 rounded-lg bg-gray-800/50">
+                <p className="text-[8px] text-gray-500 uppercase">Remaster</p>
+                <p className="text-[10px] text-green-400 font-medium">+{film.remaster_quality_boost}%</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LA PRIMA Preview */}
+      {step.id === 'la-prima' && (
+        <div className="space-y-2">
+          {film.premiere?.city ? (
+            <>
+              <div className="p-2 rounded-lg bg-gray-800/50">
+                <p className="text-[8px] text-gray-500 uppercase">Citta Premiere</p>
+                <p className="text-[11px] font-bold text-[#C6A55C]">{film.premiere.city}</p>
+              </div>
+              {film.premiere.datetime && (
+                <div className="p-2 rounded-lg bg-gray-800/50">
+                  <p className="text-[8px] text-gray-500 uppercase">Data</p>
+                  <p className="text-[10px] text-gray-300">{new Date(film.premiere.datetime).toLocaleString('it-IT')}</p>
+                </div>
+              )}
+              {film.premiere.outcome && (
+                <div className="p-2 rounded-lg bg-gray-800/50">
+                  <p className="text-[8px] text-gray-500 uppercase">Esito</p>
+                  <p className="text-[10px] text-gray-300">{film.premiere.outcome}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-gray-500 italic">La Prima non configurata per questo film</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* USCITA Preview */}
+      {step.id === 'uscita' && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {film.final_quality && (
+              <div className="p-2 rounded-lg bg-gray-800/50">
+                <p className="text-[8px] text-gray-500 uppercase">Quality Score</p>
+                <p className="text-[11px] font-bold text-emerald-400">{film.final_quality}</p>
+              </div>
+            )}
+            {film.final_tier && (
+              <div className="p-2 rounded-lg bg-gray-800/50">
+                <p className="text-[8px] text-gray-500 uppercase">Tier</p>
+                <p className="text-[11px] font-bold text-yellow-400 capitalize">{film.final_tier}</p>
+              </div>
+            )}
+          </div>
+          {film.costs_paid && (
+            <div className="p-2 rounded-lg bg-gray-800/50">
+              <p className="text-[8px] text-gray-500 uppercase mb-1">Costi Totali</p>
+              <p className="text-[11px] font-bold text-red-400">${Object.values(film.costs_paid).reduce((a, b) => a + b, 0).toLocaleString()}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Film Carousel Component ───
 const FilmCarousel = ({ films, selectedId, onSelect, onNew, countdowns }) => (
@@ -3456,6 +3704,10 @@ const FilmPipeline = () => {
 
   const currentStepIndex = selectedFilm ? getCinematicStepIndex(selectedFilm.status) : 0;
   const currentCinematicStep = selectedFilm ? CINEMATIC_STEPS[currentStepIndex] : null;
+  const [previewStepIndex, setPreviewStepIndex] = useState(null);
+
+  // Reset preview when film changes
+  useEffect(() => { setPreviewStepIndex(null); }, [selectedFilm?.id]);
 
   // Determine step section title
   const getStepTitle = (stepId) => {
@@ -3583,8 +3835,21 @@ const FilmPipeline = () => {
             {/* Film Header */}
             <CinematicFilmHeader film={selectedFilm} />
 
-            {/* 6-Step Cinematic Bar */}
-            <CinematicStepBar currentStepIndex={currentStepIndex} />
+            {/* 6-Step Cinematic Bar (clickable completed steps) */}
+            <CinematicStepBar
+              currentStepIndex={currentStepIndex}
+              previewStepIndex={previewStepIndex}
+              onStepClick={(i) => setPreviewStepIndex(prev => prev === i ? null : i)}
+            />
+
+            {/* Step Preview Panel (read-only, when a completed step is clicked) */}
+            {previewStepIndex !== null && (
+              <StepPreviewPanel
+                film={selectedFilm}
+                stepIndex={previewStepIndex}
+                onClose={() => setPreviewStepIndex(null)}
+              />
+            )}
 
             {/* Step Content — full-page section */}
             {currentCinematicStep && (() => {

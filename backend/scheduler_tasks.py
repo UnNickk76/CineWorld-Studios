@@ -454,14 +454,14 @@ async def generate_daily_cast_members_task():
         new_members_per_type = random.randint(10, 20)
         total_generated = 0
         
-        for role_type in ['actor', 'director', 'screenwriter', 'composer']:
+        for role_type in ['actor', 'director', 'writer', 'composer']:
             try:
                 cast_pool = generate_full_cast_pool(role_type, new_members_per_type)
                 for member in cast_pool:
                     int_skills = {k: int(round(v)) for k, v in member['skills'].items()}
                     person = {
                         'id': member['id'],
-                        'type': role_type,
+                        'role_type': role_type,
                         'name': member['name'],
                         'age': member['age'],
                         'nationality': member['nationality'],
@@ -491,7 +491,7 @@ async def generate_daily_cast_members_task():
                     }
                     
                     # Check if already exists
-                    existing = await scheduler_db.people.find_one({'name': person['name'], 'type': role_type})
+                    existing = await scheduler_db.people.find_one({'name': person['name'], 'role_type': role_type})
                     if not existing:
                         await scheduler_db.people.insert_one(person)
                         total_generated += 1

@@ -23,17 +23,26 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 - PRO ASSURDA: 6 scenari rotanti, turbo bar, 5 eventi speciali, boss wave, star rating
 - Backend: registrati `cine_drive` e `cine_drive_pro` in ARCADE_GAMES con titoli "Pilota Neon" e "Re della Strada"
 
-#### Player "The One" — Dettagli implementazione:
-- Silhouette Neo dettagliata in canvas: testa glow, collo, spalle curve (quadraticCurveTo), torso giacca, risvolti, falde mantello (bezierCurveTo), braccia piegate al gomito, gambe separate
-- **Glow dinamico**: intensita aumenta con combo e bullet time (min 6, max 22 shadowBlur)
-- **Trail digitale**: ultime 3 posizioni renderate come ghost semitrasparenti (no shadowBlur per performance)
-- **Breathing idle**: oscillazione scala via sin(time*2.5) * 0.012
-- **Tilt movimento**: rotazione basata su velocita laterale, lerp fluido
-- **Hit glitch**: distorsione translate+skew per 0.15s quando colpito
-- **Energia digitale**: particelle random durante BT o combo >= 10
-- **Colori adattivi**: verde (#00ff41) base, ciano (#00e5ff) durante BT, verde-ciano (#00ffcc) combo alta
-- **Head highlight**: riflesso bianco sulla testa
-- **Performance ottimizzata**: ghost trail salta effetti costosi (shadowBlur, highlight, lapels, panels, particles)
+### SUPERCINE — PRO ASSURDA (DONE - 2026-04-08)
+- Platformer cinematografico epico, 7 zone tematiche, ~100 stelle, segreti, powerup
+- Zone: Backlot Arcade, Set Fantasy, Stunt Pro, Camera Crane, Set Segreto, Studio Collapsato, Premiere Finish
+- Player: Regista cartoon animato (corsa, salto, idle, megafono)
+- Meccaniche: coyote time, jump buffer, salto variabile, checkpoint, invulnerabilità
+- Ostacoli cinema: droni, boom mic, ciak ribelli, carrelli regia
+- Powerup: Sprint, MegaCiak, Stella Premiere
+- Rank: D → LEGENDARY DIRECTOR (basato su tempo, stelle, danni, segreti)
+- Backend: registrato `supercine_pro` in ARCADE_GAMES con titolo "Legendary Director" @800
+- HUD, intro, pausa, game over, risultati finali con rank e statistiche
+- Controlli mobile: tasti direzionali + salto | Desktop: frecce + spazio
+
+### Neo PNG Overlay (DONE - 2026-04-08)
+- Immagini PNG caricate (neo_idle, neo_sx, neo_dx) in `/assets/matrix/`
+- Overlay DOM su canvas con z-index 999/1000, direction detection, drop-shadow glow
+- Applicato a MatrixDodgeGame e MatrixDodgeProGame
+
+### CineDrive PNG Upgrade (DONE - 2026-04-08)
+- PNG sfondo città e PNG auto integrate come layer DOM sopra canvas
+- Ostacoli e bonus restano in canvas per leggibilità
 
 ## File Chiave
 - `/app/frontend/src/components/games/matrixDodgeEngine.js` (Engine condiviso Matrix)

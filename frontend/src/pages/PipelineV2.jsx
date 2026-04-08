@@ -1469,6 +1469,34 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
       {/* Vignette glow */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(180,130,40,0.06) 0%, transparent 60%)' }} />
 
+      {/* Flash fotografici */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[
+          { top: '12%', left: '8%', delay: '0s' },
+          { top: '35%', right: '5%', delay: '2s' },
+          { bottom: '25%', left: '15%', delay: '4s' },
+        ].map((pos, i) => (
+          <div key={i} className="absolute w-16 h-16 opacity-0" style={{
+            ...pos,
+            background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, transparent 70%)',
+            animation: `flashPop 7s ${pos.delay} infinite`,
+          }} />
+        ))}
+      </div>
+
+      {/* Keyframes */}
+      <style>{`
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.35; transform: scale(0.97); }
+          50% { opacity: 0.75; transform: scale(1.03); }
+        }
+        @keyframes flashPop {
+          0%, 10%, 100% { opacity: 0; transform: scale(0.5); }
+          4% { opacity: 0.8; transform: scale(1.1); }
+          7% { opacity: 0; transform: scale(0.7); }
+        }
+      `}</style>
+
       <div className="relative z-10 px-4 pt-12 pb-16">
         {/* Back */}
         <button onClick={onBack} className="flex items-center gap-1 mb-2 text-gray-500 hover:text-gray-300 transition-colors" data-testid="create-back-btn">
@@ -1492,14 +1520,22 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
         {/* Main card */}
         <div className="rounded-2xl border border-gray-800/60 bg-gradient-to-b from-gray-900/60 to-gray-900/30 backdrop-blur-sm p-3 space-y-3" style={{ boxShadow: '0 0 40px rgba(180,130,40,0.04)' }}>
 
-          {/* Poster preview — compact */}
+          {/* Poster preview — compact with aura */}
           <div className="flex gap-3 items-center">
-            <div className="w-16 flex-shrink-0 rounded-lg overflow-hidden border border-gray-700/40 bg-gradient-to-b from-gray-800/80 to-gray-900" style={{ aspectRatio: '2/3' }}>
-              <div className="w-full h-full flex flex-col items-center justify-center p-1.5 relative">
-                <Film className="w-5 h-5 text-gray-700/30 absolute" />
-                <div className="relative z-10 text-center">
-                  <span className="text-[5px] px-1 py-0 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold uppercase">In sviluppo</span>
-                  <p className="text-[8px] font-bold text-white leading-tight mt-1 line-clamp-2">{title || 'Titolo'}</p>
+            <div className="relative flex-shrink-0">
+              {/* Aura glow */}
+              <div className="absolute -inset-2 rounded-xl opacity-50" style={{
+                background: 'radial-gradient(circle, rgba(0,180,255,0.3) 0%, transparent 70%)',
+                filter: 'blur(10px)',
+                animation: 'pulseGlow 3s infinite ease-in-out',
+              }} />
+              <div className="relative w-16 rounded-lg overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-gray-800/80 to-gray-900" style={{ aspectRatio: '2/3' }}>
+                <div className="w-full h-full flex flex-col items-center justify-center p-1.5 relative">
+                  <Film className="w-5 h-5 text-gray-700/30 absolute" />
+                  <div className="relative z-10 text-center">
+                    <span className="text-[5px] px-1 py-0 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold uppercase">In sviluppo</span>
+                    <p className="text-[8px] font-bold text-white leading-tight mt-1 line-clamp-2">{title || 'Titolo'}</p>
+                  </div>
                 </div>
               </div>
             </div>

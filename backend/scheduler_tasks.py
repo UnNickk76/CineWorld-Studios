@@ -1174,7 +1174,10 @@ VALID_SERIES_PHASE_TRANSITIONS = {
 }
 
 # === AUTO-CLEANUP CORRUPTED PROJECTS ===
-VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'pre_production', 'shooting', 'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
+VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
+                       'sponsor', 'ciak', 'produzione', 'prima', 'uscita',
+                       'screenplay', 'pre_production', 'shooting',
+                       'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
 
 async def auto_cleanup_corrupted_projects():

@@ -58,7 +58,16 @@ Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture
 - `/app/frontend/src/pages/ContestPage.jsx` (14 step contest)
 - `/app/backend/routes/minigames_arcade.py` (API 16 giochi)
 
+### Fix Bug Critico: Film nel Limbo / Pipeline Infinita (DONE - 2026-04-08)
+- Root cause 1: `scheduler_tasks.py` `VALID_FILM_STATUSES` non includeva `sponsor`, `ciak`, `produzione`, `prima`, `uscita` -> lo scheduler li classificava come "invalidi" e li resettava a `proposed`
+- Root cause 2: `admin_recover_all_films` resettava i film LIMBO a stati precedenti (`pending_release`/`proposed`) causando loop infiniti, invece di rilasciarli
+- Fix: Aggiunto stati mancanti allo scheduler + riscritto recovery per force-release in `films` collection
+- Fix retroattivo: "Noccioline!" ripristinato a `produzione`, "Forest Gram" rilasciato forzatamente
+
 ## Backlog
+### P0 (In Attesa)
+- [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)
+
 ### P1 (Bug e Bilanciamento)
 - [ ] Fix bug nei singoli minigiochi (TapCiak etc.)
 - [ ] Bilanciamento economia Solo mode (hype, xp, funds, cooldown)

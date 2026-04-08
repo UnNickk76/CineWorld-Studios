@@ -213,7 +213,14 @@ function ComingSoonThumb({ item, onClick }) {
         )}
       </div>
       <p className="text-[8px] font-semibold truncate mt-1 group-hover:text-cyan-400 transition-colors">{item.title}</p>
-      <p className="text-[7px] text-gray-600 truncate">{item.production_house}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[7px] text-gray-600 truncate">{item.production_house}</p>
+        {item.pipeline_status_label && (
+          <span className="text-[6px] px-1 py-0.5 rounded bg-violet-500/15 text-violet-400 font-bold flex-shrink-0">
+            {item.pipeline_status_label}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -221,6 +228,29 @@ function ComingSoonThumb({ item, onClick }) {
 // Full detail dialog content
 function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const navigate = useNavigate();
+
+  // V2 films: simple read-only card (no hype/interact system)
+  if (item.is_v2) {
+    const poster = posterSrc(item.poster_url);
+    return (
+      <div className="space-y-3" data-testid="coming-soon-v2-detail">
+        {poster && <img src={poster} alt="" className="w-full aspect-[2/3] object-cover rounded-lg" />}
+        <div className="text-center space-y-1">
+          <h3 className="font-['Bebas_Neue'] text-xl text-white">{item.title}</h3>
+          <p className="text-[10px] text-gray-400">{item.genre_name} {item.subgenres?.length > 0 && `• ${item.subgenres.join(', ')}`}</p>
+          <p className="text-[9px] text-gray-500">di {item.production_house}</p>
+          {item.pipeline_status_label && (
+            <span className="inline-block text-[9px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 font-bold">
+              Fase: {item.pipeline_status_label}
+            </span>
+          )}
+          {item.pre_imdb_score > 0 && (
+            <p className="text-[9px] text-yellow-400">Pre-IMDb: {item.pre_imdb_score?.toFixed(1)}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [interacting, setInteracting] = useState(null);

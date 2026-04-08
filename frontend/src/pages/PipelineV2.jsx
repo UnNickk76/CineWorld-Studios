@@ -125,9 +125,8 @@ function useCountdown(endTime) {
 // Steps that CANNOT be edited (timer-based)
 const EDIT_BLOCKED_STEPS = new Set([4, 5, 8]);
 
-const StepperBar = ({ uiStep, editCount = 0, onEditStep, filmState }) => {
+const StepperBar = ({ uiStep, onViewStep }) => {
   const ref = useRef(null);
-  const canEdit = editCount < 3 && !['released', 'completed', 'discarded', 'release_pending'].includes(filmState);
 
   useEffect(() => {
     if (ref.current) {
@@ -138,40 +137,30 @@ const StepperBar = ({ uiStep, editCount = 0, onEditStep, filmState }) => {
 
   return (
     <div className="px-1 py-2">
-      {/* Edit counter */}
-      {canEdit && (
-        <div className="flex justify-end px-2 mb-1">
-          <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold" data-testid="edit-counter">
-            {3 - editCount}/3 modifiche
-          </span>
-        </div>
-      )}
       <div ref={ref} className="flex items-center gap-0 px-1 overflow-x-auto scrollbar-hide" data-testid="v2-stepper">
         {V2_STEPS.map((step, i) => {
           const Icon = step.icon;
           const style = STEP_STYLES[step.color];
           const isCurrent = i === uiStep;
           const isCompleted = i < uiStep;
-          const isEditable = isCompleted && canEdit && !EDIT_BLOCKED_STEPS.has(i);
           return (
             <React.Fragment key={step.id}>
               {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted ? style.line : 'bg-gray-800'}`} />}
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0 relative" data-step={i}>
                 <div
-                  onClick={isEditable ? () => onEditStep(i) : undefined}
+                  onClick={isCompleted ? () => onViewStep(i) : undefined}
                   className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                     isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
-                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
+                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 hover:bg-cyan-500/10 active:scale-95' :
                     'border-gray-800 bg-gray-900/50 text-gray-700'
-                  } ${isEditable ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-500/10 active:scale-95' : ''}`}
-                  data-testid={isEditable ? `edit-step-${i}` : undefined}
+                  }`}
+                  data-testid={isCompleted ? `view-step-${i}` : undefined}
                 >
                   {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
                 </div>
-                {/* Edit pencil icon */}
-                {isEditable && (
-                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm" style={{ fontSize: 0 }}>
-                    <Pencil className="w-2 h-2 text-black" />
+                {isCompleted && (
+                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-500 flex items-center justify-center shadow-sm">
+                    <Eye className="w-2 h-2 text-black" />
                   </div>
                 )}
                 <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
@@ -1443,6 +1432,103 @@ const PipelineV2 = () => {
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
+  // ─── renderPhaseReadOnly: renders a step's content in FROZEN mode ───
+  const renderPhaseReadOnly = (stepIdx) => {
+    if (!selected) return null;
+    const f = selected;
+    const data = (key, fallback = '—') => f[key] || f.pipeline_metrics?.[key] || fallback;
+
+    // Step 0: IDEA
+    if (stepIdx === 0) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-0">
+        <div className="text-[10px] space-y-1 text-gray-300">
+          <p><span className="text-gray-500 font-bold">Titolo:</span> {f.title}</p>
+          <p><span className="text-gray-500 font-bold">Genere:</span> {f.genre} {f.subgenres?.length > 0 && `(${f.subgenres.join(', ')})`}</p>
+          <p><span className="text-gray-500 font-bold">Pre-Trama:</span> {f.pre_screenplay || f.pre_trama || '—'}</p>
+          <p><span className="text-gray-500 font-bold">Location:</span> {(f.locations || []).join(', ') || '—'}</p>
+          {f.pre_imdb_score > 0 && <p><span className="text-gray-500 font-bold">Pre-IMDb:</span> {f.pre_imdb_score?.toFixed?.(1)}</p>}
+        </div>
+      </div>
+    );
+
+    // Step 1: HYPE
+    if (stepIdx === 1) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-1">
+        <div className="text-[10px] space-y-1 text-gray-300">
+          <p><span className="text-gray-500 font-bold">Strategia Hype:</span> {data('hype_strategy')}</p>
+          <p><span className="text-gray-500 font-bold">Hype Score:</span> {f.pipeline_metrics?.hype_score || f.hype_score || 0}</p>
+          <p><span className="text-gray-500 font-bold">Agenzie Interessate:</span> {(f.interested_agencies || []).length}</p>
+        </div>
+      </div>
+    );
+
+    // Step 2: CAST
+    if (stepIdx === 2) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-2">
+        <div className="text-[10px] space-y-1 text-gray-300">
+          <p className="text-gray-500 font-bold">Cast Selezionato:</p>
+          {(f.cast || []).map((c, i) => (
+            <p key={i} className="pl-2">{c.name || c.actor_name} — {c.role || c.character}</p>
+          ))}
+          {(!f.cast || f.cast.length === 0) && <p className="text-gray-600">Nessun cast salvato</p>}
+        </div>
+      </div>
+    );
+
+    // Step 3: PREP
+    if (stepIdx === 3) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-3">
+        <div className="text-[10px] space-y-1 text-gray-300">
+          <p><span className="text-gray-500 font-bold">Budget Produzione:</span> ${(f.production_budget || 0).toLocaleString()}</p>
+          <p><span className="text-gray-500 font-bold">CGI:</span> {f.cgi_level || data('cgi_level')}</p>
+          <p><span className="text-gray-500 font-bold">VFX:</span> {f.vfx_level || data('vfx_level')}</p>
+          <p><span className="text-gray-500 font-bold">Extra:</span> {f.extras_count || data('extras')}</p>
+        </div>
+      </div>
+    );
+
+    // Step 4: CIAK
+    if (stepIdx === 4) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-4">
+        <div className="text-[10px] text-gray-300">
+          <p><span className="text-gray-500 font-bold">Stato:</span> Riprese completate</p>
+          <p><span className="text-gray-500 font-bold">Eventi:</span> {(f.pipeline_metrics?.shooting_events || []).length || 0} eventi durante le riprese</p>
+        </div>
+      </div>
+    );
+
+    // Step 5: FINAL CUT
+    if (stepIdx === 5) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-5">
+        <div className="text-[10px] text-gray-300">
+          <p><span className="text-gray-500 font-bold">Stato:</span> Post-produzione completata</p>
+          <p><span className="text-gray-500 font-bold">Quality:</span> {f.pipeline_metrics?.quality_score?.toFixed?.(1) || '—'}</p>
+        </div>
+      </div>
+    );
+
+    // Step 6: MARKETING
+    if (stepIdx === 6) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-6">
+        <div className="text-[10px] space-y-1 text-gray-300">
+          <p><span className="text-gray-500 font-bold">Sponsor:</span> {(f.sponsors || []).map(s => s.name || s).join(', ') || '—'}</p>
+          <p><span className="text-gray-500 font-bold">Marketing Score:</span> {f.pipeline_metrics?.marketing_score?.toFixed?.(1) || '—'}</p>
+        </div>
+      </div>
+    );
+
+    // Step 7: LA PRIMA
+    if (stepIdx === 7) return (
+      <div className="p-3 space-y-2" data-testid="readonly-step-7">
+        <div className="text-[10px] text-gray-300">
+          <p><span className="text-gray-500 font-bold">Premiere:</span> In corso o completata</p>
+        </div>
+      </div>
+    );
+
+    return <div className="p-3 text-[10px] text-gray-500">Dati non disponibili</div>;
+  };
+
   // ─── CREATE VIEW: title + genre then enter detail ───
   if (view === 'create') {
     return <CreateFilmView onBack={backToBoard} onCreated={(film) => { setSelected(film); setView('detail'); loadFilms(); }} toast={toast} />;
@@ -1450,17 +1536,22 @@ const PipelineV2 = () => {
 
   // ─── DETAIL VIEW ───
   if (view === 'detail' && selected) {
-    const handleEditStep = async (targetStep) => {
-      const editsUsed = selected.edit_count || 0;
-      const remaining = 3 - editsUsed;
-      if (remaining <= 0) {
-        toast({ title: 'Limite raggiunto', description: 'Hai esaurito le 3 modifiche disponibili.', variant: 'destructive' });
-        return;
-      }
-      if (!window.confirm(`Vuoi sbloccare questo step per modificarlo? (${remaining - 1} modifiche rimanenti dopo questa)`)) return;
+    const [viewingStep, setViewingStep] = React.useState(null);
+    const [showEditConfirm, setShowEditConfirm] = React.useState(null);
+
+    const editCount = selected.edit_count || 0;
+    const canEdit = editCount < 3 && !['released', 'completed', 'discarded', 'release_pending'].includes(selected.pipeline_state);
+
+    const handleViewStep = (stepIdx) => setViewingStep(stepIdx);
+    const handleCloseView = () => { setViewingStep(null); setShowEditConfirm(null); };
+
+    const handleConfirmEdit = async () => {
+      const targetStep = showEditConfirm;
+      setShowEditConfirm(null);
       try {
         const res = await api.post(`/films/${selected.id}/edit-step`, { target_ui_step: targetStep });
         setSelected(res.film);
+        setViewingStep(null);
         loadFilms();
         toast({ title: res.message || 'Step sbloccato!' });
       } catch (e) {
@@ -1468,14 +1559,94 @@ const PipelineV2 = () => {
       }
     };
 
+    // If viewing a past step in read-only mode
+    if (viewingStep !== null) {
+      const stepInfo = V2_STEPS[viewingStep];
+      const Icon = stepInfo.icon;
+      const isEditable = canEdit && !EDIT_BLOCKED_STEPS.has(viewingStep);
+
+      return (
+        <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-readonly">
+          {/* Header */}
+          <div className="flex items-center gap-3 p-3 border-b border-gray-800/50">
+            <button onClick={handleCloseView} className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors" data-testid="readonly-back-btn">
+              <ChevronLeft className="w-4 h-4 text-gray-400" />
+            </button>
+            <Icon className="w-5 h-5 text-gray-400" />
+            <div className="flex-1">
+              <h2 className="text-sm font-bold text-white">{stepInfo.label}</h2>
+              <p className="text-[8px] text-gray-500">Dati salvati — Sola lettura</p>
+            </div>
+            <Lock className="w-4 h-4 text-gray-600" />
+          </div>
+
+          {/* Read-only content */}
+          <div className="border-b border-gray-800/30">
+            {renderPhaseReadOnly(viewingStep)}
+          </div>
+
+          {/* Edit button + counter */}
+          {isEditable && (
+            <div className="p-3 space-y-2">
+              <div className="flex justify-end">
+                <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold" data-testid="edit-counter">
+                  {3 - editCount}/3 modifiche
+                </span>
+              </div>
+              <button
+                onClick={() => setShowEditConfirm(viewingStep)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 transition-colors font-bold text-[10px]"
+                data-testid="edit-step-btn"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Modifica questo step
+              </button>
+            </div>
+          )}
+
+          {!isEditable && EDIT_BLOCKED_STEPS.has(viewingStep) && (
+            <div className="p-3">
+              <p className="text-[8px] text-gray-600 text-center">Questo step (basato su timer) non puo essere modificato</p>
+            </div>
+          )}
+
+          {/* Edit confirmation modal with Cineox + Velion */}
+          {showEditConfirm !== null && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="edit-confirm-modal">
+              <div className="bg-[#111] border border-amber-500/20 rounded-2xl p-4 max-w-sm w-full space-y-3">
+                {/* Characters */}
+                <div className="flex items-end justify-center gap-3">
+                  <img src="/assets/characters/cineox.png" alt="Cineox" className="w-14 h-14 object-contain" />
+                  <div className="flex-1 text-center">
+                    <p className="text-[11px] text-amber-300 font-bold">Sei sicuro di voler modificare?</p>
+                    <p className="text-[8px] text-gray-500 mt-0.5">
+                      Userai 1 delle tue {3 - editCount} modifiche rimanenti.
+                      {editCount >= 2 && ' Questa e l\'ultima!'}
+                    </p>
+                  </div>
+                  <img src="/assets/characters/velion.png" alt="Velion" className="w-14 h-14 object-contain" />
+                </div>
+                {/* Buttons */}
+                <div className="flex gap-2">
+                  <button onClick={() => setShowEditConfirm(null)} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-400 text-[10px] font-bold hover:bg-gray-700 transition-colors" data-testid="edit-cancel-btn">
+                    Annulla
+                  </button>
+                  <button onClick={handleConfirmEdit} className="flex-1 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-bold hover:bg-amber-500/30 transition-colors" data-testid="edit-confirm-btn">
+                    <Pencil className="w-3 h-3 inline mr-1" />Modifica
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar
           uiStep={selected.pipeline_ui_step ?? 0}
-          editCount={selected.edit_count || 0}
-          onEditStep={handleEditStep}
-          filmState={selected.pipeline_state}
+          onViewStep={handleViewStep}
         />
         {renderPhase()}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (

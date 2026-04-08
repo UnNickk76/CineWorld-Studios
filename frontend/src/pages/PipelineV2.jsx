@@ -68,7 +68,7 @@ const _pendingRequests = new Set();
 
 const api = {
   get: async (path) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('cineworld_token');
     const res = await fetch(`${API}/api/pipeline-v2${path}`, { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || res.statusText); }
     return res.json();
@@ -81,7 +81,7 @@ const api = {
     }
     _pendingRequests.add(key);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cineworld_token');
       const res = await fetch(`${API}/api/pipeline-v2${path}`, {
         method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,

@@ -1440,6 +1440,9 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [genre, setGenre] = useState('drama');
   const [subgenres, setSubgenres] = useState([]);
   const [creating, setCreating] = useState(false);
+  const [showCinematic, setShowCinematic] = useState(false);
+  const [count, setCount] = useState(3);
+  const pendingFilmRef = useRef(null);
 
   const availableSubs = SUBGENRE_MAP[genre] || [];
 
@@ -1453,18 +1456,146 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
 
   const changeGenre = (g) => { setGenre(g); setSubgenres([]); };
 
+  // Cinematic countdown
+  useEffect(() => {
+    if (!showCinematic) return;
+    let current = 3;
+    setCount(3);
+    const iv = setInterval(() => {
+      current--;
+      if (current <= 0) {
+        clearInterval(iv);
+        setTimeout(() => {
+          setShowCinematic(false);
+          if (pendingFilmRef.current) onCreated(pendingFilmRef.current);
+        }, 500);
+      } else {
+        setCount(current);
+      }
+    }, 900);
+    return () => clearInterval(iv);
+  }, [showCinematic, onCreated]);
+
   const create = async () => {
     if (!title.trim()) return;
     setCreating(true);
     try {
       const res = await api.post('/films', { title: title.trim(), genre, subgenres });
       toast({ title: 'Film creato!' });
-      onCreated(res.film);
+      pendingFilmRef.current = res.film;
+      setShowCinematic(true);
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setCreating(false);
   };
 
   return (
+    <>
+    {/* ═══ CINEMATIC INTRO OVERLAY ═══ */}
+    {showCinematic && (
+      <div className="fixed inset-0 z-[9999] bg-black overflow-hidden" data-testid="cinematic-intro">
+        {/* Film grain */}
+        <div className="absolute inset-0 pointer-events-none opacity-30" style={{
+          background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px)',
+        }} />
+
+        {/* Scratch lines */}
+        <div className="absolute inset-0 pointer-events-none opacity-15" style={{
+          background: `linear-gradient(90deg, transparent 49.5%, rgba(255,255,255,0.15) 49.5%, rgba(255,255,255,0.15) 50.5%, transparent 50.5%),
+                       linear-gradient(90deg, transparent 30%, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.08) 30.3%, transparent 30.3%)`,
+          animation: 'scratchMove 0.3s steps(3) infinite',
+        }} />
+
+        {/* Projector body */}
+        <div className="absolute bottom-6 left-5">
+          <div className="w-14 h-9 bg-[#1a1a1a] rounded-md border border-gray-700/40 relative">
+            <div className="absolute -top-2 left-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
+            <div className="absolute -top-2 right-2 w-4 h-4 rounded-full bg-[#222] border border-gray-600/30" />
+            <div className="absolute top-2 right-0 w-3 h-2 bg-[#333] rounded-r-sm" />
+          </div>
+        </div>
+
+        {/* Light beam */}
+        <div className="absolute bottom-10 left-16" style={{
+          width: 0, height: 0,
+          borderLeft: '8px solid rgba(255,255,200,0.35)',
+          borderTop: '120px solid transparent',
+          borderBottom: '30px solid transparent',
+          transform: 'rotate(-55deg)',
+          transformOrigin: 'bottom left',
+          filter: 'blur(6px)',
+          animation: 'beamFlicker 0.15s infinite alternate',
+        }} />
+        <div className="absolute bottom-8 left-14" style={{
+          width: 0, height: 0,
+          borderLeft: '5px solid rgba(255,255,200,0.15)',
+          borderTop: '200px solid transparent',
+          borderBottom: '20px solid transparent',
+          transform: 'rotate(-50deg)',
+          transformOrigin: 'bottom left',
+          filter: 'blur(12px)',
+          animation: 'beamFlicker 0.2s infinite alternate-reverse',
+        }} />
+
+        {/* Screen */}
+        <div className="absolute top-[18%] right-[8%] w-[55%] max-w-[240px]" style={{ aspectRatio: '16/10' }}>
+          <div className="w-full h-full bg-[#e8e4d8] rounded-sm flex flex-col items-center justify-center relative" style={{
+            boxShadow: '0 0 60px rgba(255,255,220,0.15), 0 0 120px rgba(255,255,200,0.06)',
+          }}>
+            {/* Vignette on screen */}
+            <div className="absolute inset-0 rounded-sm" style={{
+              background: 'radial-gradient(ellipse, transparent 50%, rgba(0,0,0,0.3) 100%)',
+            }} />
+            {/* Countdown number */}
+            <span className="relative text-6xl font-bold text-black font-mono" style={{
+              animation: 'countFlicker 0.12s infinite',
+              textShadow: '0 0 2px rgba(0,0,0,0.3)',
+            }} data-testid="cinematic-count">{count}</span>
+            {/* Cross marks */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+              <div className="w-[1px] h-full bg-black/30 absolute" />
+              <div className="h-[1px] w-full bg-black/30 absolute" />
+              <div className="w-20 h-20 rounded-full border border-black/20 absolute" />
+            </div>
+          </div>
+        </div>
+
+        {/* Flash fotografici */}
+        {[
+          { top: '25%', left: '5%', delay: '0.3s' },
+          { top: '60%', right: '15%', delay: '1.2s' },
+          { bottom: '30%', left: '40%', delay: '2.1s' },
+        ].map((pos, i) => (
+          <div key={i} className="absolute w-20 h-20 opacity-0 pointer-events-none" style={{
+            ...pos,
+            background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, transparent 60%)',
+            animation: `cineFlash 2.7s ${pos.delay} infinite`,
+          }} />
+        ))}
+
+        {/* Film title reveal at end */}
+        <div className="absolute bottom-20 left-0 right-0 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-mono" style={{
+            animation: 'fadeInSlow 1.5s ease-out',
+          }}>una produzione di</p>
+          <p className="text-lg font-bold text-amber-400/80 mt-1 font-mono" style={{
+            animation: 'fadeInSlow 2s ease-out',
+          }}>{title || 'Il Tuo Film'}</p>
+        </div>
+
+        <style>{`
+          @keyframes beamFlicker { from { opacity: 0.7; } to { opacity: 1; } }
+          @keyframes countFlicker { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
+          @keyframes scratchMove { 0% { transform: translateX(0); } 100% { transform: translateX(3px); } }
+          @keyframes cineFlash {
+            0%,8%,100% { opacity: 0; transform: scale(0.5); }
+            3% { opacity: 1; transform: scale(1.2); }
+            6% { opacity: 0; transform: scale(0.8); }
+          }
+          @keyframes fadeInSlow { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
+      </div>
+    )}
+
     <div className="min-h-screen bg-gradient-to-b from-black via-[#080c18] to-black text-white" data-testid="pipeline-v2-create">
       {/* Vignette glow */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(180,130,40,0.06) 0%, transparent 60%)' }} />
@@ -1603,6 +1734,7 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

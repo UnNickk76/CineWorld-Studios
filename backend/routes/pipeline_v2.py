@@ -1610,14 +1610,48 @@ SPEEDUP_TIMER_KEY = {
     'premiere_live': 'premiere_end',
 }
 
+SPEEDUP_START_KEY = {
+    'hype_live': 'hype_start',
+    'shooting': 'shooting_start',
+    'postproduction': 'postprod_start',
+    'premiere_live': 'premiere_start',
+}
+
+def _get_timer_ratio(project: dict) -> float:
+    """Returns ratio 0.0-1.0 of time remaining vs total duration. 1.0 = just started, 0.0 = finished."""
+    state = project.get('pipeline_state', '')
+    start_key = SPEEDUP_START_KEY.get(state)
+    end_key = SPEEDUP_TIMER_KEY.get(state)
+    if not start_key or not end_key:
+        return 1.0
+    timers = project.get('pipeline_timers', {})
+    start_str = timers.get(start_key)
+    end_str = timers.get(end_key)
+    if not start_str or not end_str:
+        return 1.0
+    start_dt = datetime.fromisoformat(start_str)
+    end_dt = datetime.fromisoformat(end_str)
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    total = (end_dt - start_dt).total_seconds()
+    remaining = (end_dt - now).total_seconds()
+    if total <= 0:
+        return 0.0
+    return max(0.0, min(1.0, remaining / total))
+
 def _calc_speedup_cost(base: int, project: dict) -> int:
-    """Variable cost: lower value films cost less, high value cost more."""
+    """Variable cost based on film value AND time remaining ratio."""
     pre_imdb = project.get('pre_imdb_score', 5)
     hype = project.get('pipeline_metrics', {}).get('hype_score', 0)
-    # Multiplier: 0.5 (low) to 1.8 (high)
     value_score = (pre_imdb / 10) * 0.5 + min(1.0, hype / 200) * 0.3
-    mult = max(0.5, min(1.8, 0.5 + value_score * 1.3))
-    return max(1, round(base * mult))
+    value_mult = max(0.5, min(1.8, 0.5 + value_score * 1.3))
+    # Time ratio: 1.0 at start → cost 100%, 0.0 at end → cost ~15% minimum
+    time_ratio = _get_timer_ratio(project)
+    time_mult = max(0.15, time_ratio)
+    return max(1, round(base * value_mult * time_mult))
 
 class SpeedupRequest(BaseModel):
     percentage: int  # 25, 50, 75, 100

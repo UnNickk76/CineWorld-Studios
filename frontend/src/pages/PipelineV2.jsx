@@ -1421,6 +1421,8 @@ const PipelineV2 = () => {
   const [view, setView] = useState('board');
   const [films, setFilms] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [viewingStep, setViewingStep] = useState(null);
+  const [showEditConfirm, setShowEditConfirm] = useState(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -1582,8 +1584,6 @@ const PipelineV2 = () => {
 
   // ─── DETAIL VIEW ───
   if (view === 'detail' && selected) {
-    const [viewingStep, setViewingStep] = React.useState(null);
-    const [showEditConfirm, setShowEditConfirm] = React.useState(null);
 
     const editCount = selected.edit_count || 0;
     const canEdit = editCount < 3 && !['released', 'completed', 'discarded', 'release_pending'].includes(selected.pipeline_state);

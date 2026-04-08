@@ -13,7 +13,7 @@ from datetime import datetime
 # Use the production URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://neon-arcade-racer-1.preview.emergentagent.com"
+    BASE_URL = "https://film-limbo-debug.preview.emergentagent.com"
 
 # Test credentials
 TEST_USER_EMAIL = "testpopup@test.com"

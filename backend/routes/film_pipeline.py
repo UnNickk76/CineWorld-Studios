@@ -885,7 +885,7 @@ async def diagnose_lost_films(user: dict = Depends(get_current_user)):
 @router.post("/film-pipeline/admin/recover-all")
 async def admin_recover_all_films(user: dict = Depends(get_current_user)):
     """Admin endpoint: recover lost films AND clean up ghost duplicates.
-    - LIMBO: completed in film_projects but never released -> back to pending_release
+    - LIMBO: completed in film_projects but never released -> FORCE RELEASE into films collection
     - GHOST: active in pipeline but already released -> mark as completed"""
     recovered = []
     cleaned = []
@@ -906,8 +906,8 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
     user_ids = list(set(p.get('user_id') for p in all_projects if p.get('user_id')))
     users_map = {}
     if user_ids:
-        users_list = await db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'nickname': 1}).to_list(500)
-        users_map = {u['id']: u.get('nickname', '?') for u in users_list}
+        users_list = await db.users.find({'id': {'$in': user_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'fame': 1}).to_list(500)
+        users_map = {u['id']: u for u in users_list}
 
     active_states = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 'casting',
                      'sponsor', 'ciak', 'produzione', 'prima', 'uscita',
@@ -917,7 +917,8 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
         status = f.get('status')
         pid = f.get('id')
         title = f.get('title', 'Unknown')
-        owner = users_map.get(f.get('user_id'), '?')
+        owner_user = users_map.get(f.get('user_id'), {})
+        owner = owner_user.get('nickname', '?')
         has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
         has_cast = f.get('cast') and isinstance(f['cast'], dict) and (f['cast'].get('director') or f['cast'].get('actors'))
         # Check if this project has a corresponding released film
@@ -936,19 +937,104 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
                            'reason': f'Film gia rilasciato (era "{status}")'})
             continue
 
-        # LIMBO: completed but never released
+        # LIMBO: completed/released in film_projects but never in films collection
+        # FIX: Force-release into films instead of resetting backwards (which caused infinite pipeline)
         if status in ('completed', 'released') and not has_released:
-            target = 'pending_release' if has_shooting else ('ready_for_casting' if has_cast else 'proposed')
-            await db.film_projects.update_one(
-                {'id': pid},
-                {'$set': {'status': target, 'rescued': True, 'rescued_at': now_str,
-                          'rescue_reason': 'LIMBO: completato ma mai rilasciato', 'updated_at': now_str},
-                 '$unset': {'quality_score': '', 'total_revenue': '', 'audience_rating': '',
-                           'completed_at': '', 'auto_released': '', 'release_strategy_applied_bonus': '', 'release_pending': ''}}
-            )
-            recovered.append({'id': pid, 'title': title, 'owner': owner,
-                            'old_status': status, 'new_status': target,
-                            'reason': 'LIMBO: completato ma mai rilasciato'})
+            try:
+                new_film_id = str(uuid.uuid4())
+                cast = f.get('cast', {})
+                genre_val = f.get('genre', 'drama')
+                pre_imdb = f.get('pre_imdb_score', 5.0)
+                quality_score = f.get('final_quality', f.get('quality_score', 50 + random.randint(0, 20)))
+                quality_score = max(10, min(100, quality_score))
+
+                # Determine tier
+                if quality_score >= 85:
+                    tier = 'masterpiece'
+                elif quality_score >= 70:
+                    tier = 'excellent'
+                elif quality_score >= 55:
+                    tier = 'good'
+                elif quality_score >= 40:
+                    tier = 'mediocre'
+                else:
+                    tier = 'bad'
+
+                costs_paid = f.get('costs_paid', {})
+                total_cost = sum(costs_paid.values()) if isinstance(costs_paid, dict) else 0
+                opening_day_revenue = int((quality_score * 2000) + (total_cost * 0.1) + random.randint(10000, 80000))
+
+                film_doc = {
+                    'id': new_film_id,
+                    'owner_id': f.get('user_id', ''),
+                    'user_id': f.get('user_id', ''),
+                    'title': title,
+                    'genre': genre_val,
+                    'subgenre': f.get('subgenre', ''),
+                    'subgenres': f.get('subgenres', []),
+                    'status': 'in_theaters',
+                    'quality_score': quality_score,
+                    'tier': tier,
+                    'budget': total_cost,
+                    'total_budget': total_cost,
+                    'total_revenue': 0,
+                    'opening_day_revenue': opening_day_revenue,
+                    'day_in_theaters': 0,
+                    'max_days': max(14, int(quality_score / 3) + random.randint(7, 21)),
+                    'cast': cast.get('actors', []) if isinstance(cast, dict) else [],
+                    'director': cast.get('director', {}) if isinstance(cast, dict) else {},
+                    'screenwriter': cast.get('screenwriter', {}) if isinstance(cast, dict) else {},
+                    'composer': cast.get('composer') if isinstance(cast, dict) else None,
+                    'locations': [l if isinstance(l, str) else l.get('name', str(l)) for l in f.get('locations', [])],
+                    'screenplay': f.get('screenplay', f.get('pre_screenplay', '')),
+                    'pre_imdb_score': pre_imdb,
+                    'pipeline_project_id': pid,
+                    'likes_count': 0,
+                    'liked_by': [],
+                    'virtual_likes': random.randint(100, 3000),
+                    'cumulative_attendance': 0,
+                    'daily_revenues': [],
+                    'created_at': now_str,
+                    'released_at': now_str,
+                    'release_date': now_str[:10],
+                    'poster_url': f.get('poster_url'),
+                    'production_house': owner,
+                    'sponsors': f.get('sponsors', []),
+                    'equipment': f.get('equipment', []),
+                    'recovered_from_limbo': True,
+                    'current_cinemas': random.randint(30, 150),
+                    'current_attendance': 0,
+                    'attendance_history': [],
+                    'total_screenings': 0,
+                }
+                # Calculate IMDb rating
+                film_doc['imdb_rating'] = calculate_imdb_rating(film_doc)
+
+                await db.films.insert_one(film_doc)
+                film_doc.pop('_id', None)
+
+                # Update project to completed with film_id reference
+                await db.film_projects.update_one(
+                    {'id': pid},
+                    {'$set': {
+                        'status': 'completed',
+                        'film_id': new_film_id,
+                        'updated_at': now_str,
+                        'rescued': True,
+                        'rescued_at': now_str,
+                        'rescue_reason': 'LIMBO: force-released into films collection'
+                    }}
+                )
+                recovered.append({'id': pid, 'title': title, 'owner': owner,
+                                'old_status': status, 'new_status': 'completed (force-released)',
+                                'film_id': new_film_id,
+                                'reason': 'LIMBO: rilasciato forzatamente in "I Miei Film"'})
+                logging.info(f"[RECOVER] Force-released LIMBO film '{title}' (project={pid}) -> film={new_film_id}")
+            except Exception as e:
+                logging.error(f"[RECOVER] Error force-releasing LIMBO film '{title}' (project={pid}): {e}")
+                recovered.append({'id': pid, 'title': title, 'owner': owner,
+                                'old_status': status, 'new_status': 'error',
+                                'reason': f'Errore nel rilascio forzato: {str(e)}'})
             continue
 
         # STUCK coming_soon with expired timer
@@ -979,7 +1065,7 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
         'recovered_films': recovered,
         'cleaned_ghosts': cleaned,
         'total_scanned': len(all_projects),
-        'message': f'{len(recovered)} recuperati, {len(cleaned)} fantasmi puliti!' if (recovered or cleaned) else 'Nessun problema trovato.'
+        'message': f'{len(recovered)} recuperati (rilasciati forzatamente), {len(cleaned)} fantasmi puliti!' if (recovered or cleaned) else 'Nessun problema trovato.'
     }
 
 

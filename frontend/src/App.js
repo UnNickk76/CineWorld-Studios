@@ -2483,7 +2483,7 @@ function App() {
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />
                 <Route path="/feedback" element={<ProtectedRoute><FeedbackBoard /></ProtectedRoute>} />
                 <Route path="/social" element={<ProtectedRoute><CineBoard /></ProtectedRoute>} />
-                <Route path="/games" element={<ProtectedRoute><ContestsPage /></ProtectedRoute>} />
+                <Route path="/games" element={<ProtectedRoute><ContestPage /></ProtectedRoute>} />
                 <Route path="/contest" element={<ProtectedRoute><ContestPage /></ProtectedRoute>} />
                 <Route path="/minigiochi" element={<ProtectedRoute><MiniGamesPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><Navigate to="/minigiochi" replace /></ProtectedRoute>} />

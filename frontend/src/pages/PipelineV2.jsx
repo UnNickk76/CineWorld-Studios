@@ -1069,7 +1069,23 @@ const CastPhase = ({ film, onRefresh, toast }) => {
 
       {/* Proposals */}
       <div>
-        <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Proposte ({proposals.length})</p>
+        <div className="flex justify-between items-center mb-1.5">
+          <p className="text-[9px] text-gray-500 uppercase font-bold">Proposte ({proposals.length})</p>
+          {proposals.length > 0 && !proposals[0]?.stars && (
+            <button onClick={async () => {
+              setLoading('refresh');
+              try {
+                await api.post(`/films/${film.id}/refresh-proposals`);
+                onRefresh();
+                toast({ title: 'Proposte aggiornate con dettagli completi!' });
+              } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+              setLoading('');
+            }} disabled={loading === 'refresh'}
+              className="text-[7px] px-2 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20 transition-colors" data-testid="refresh-proposals-btn">
+              {loading === 'refresh' ? '...' : 'Aggiorna Proposte'}
+            </button>
+          )}
+        </div>
         <div className="space-y-1 max-h-72 overflow-y-auto">
           {proposals.map((p, i) => <ProposalCard key={i} p={p} i={i} />)}
           {proposals.length === 0 && <p className="text-[9px] text-gray-600 italic text-center py-4">Nessuna proposta disponibile</p>}

@@ -1144,6 +1144,34 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
     return {'film': film, 'selected': proposal.get('name', '?'), 'cost_paid': cost, 'rejected': False}
 
 
+
+@router.post("/films/{pid}/refresh-proposals")
+async def refresh_proposals_v2(pid: str, user: dict = Depends(get_current_user)):
+    """Regenerate cast proposals with enriched data for films already in casting."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'casting_live':
+        raise HTTPException(400, "Non in fase casting")
+
+    all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
+    interested = project.get('interested_agencies', [])
+    agencies = [a for a in all_agencies if a.get('id') in interested] or all_agencies[:5]
+
+    new_proposals = await _generate_agency_proposals(project, agencies, user['id'])
+    for i, p in enumerate(new_proposals):
+        p['wave'] = 1
+
+    # Reset cast since proposals changed
+    update = {
+        'cast_proposals': new_proposals,
+        'cast': {'director': None, 'screenwriters': [], 'actors': [], 'composer': None},
+        'pipeline_metrics.cast_quality': 0,
+        'pipeline_metrics.cast_breakdown': [],
+    }
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
+    film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    return {'film': film, 'total_proposals': len(new_proposals)}
+
+
 @router.post("/films/{pid}/renegotiate-cast")
 async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_current_user)):
     """Renegotiate with a cast member who rejected. Higher cost, guaranteed acceptance."""

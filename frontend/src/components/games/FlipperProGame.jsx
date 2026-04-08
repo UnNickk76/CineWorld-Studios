@@ -321,9 +321,9 @@ export function FlipperProGame({ mode = 'contest', onComplete }) {
       {/* PNG Flipper overlays */}
       {ui.phase === 'play' && <>
         <img src="/assets/flipper/leva_sx.png" alt="" className="fp-leva-img"
-          style={{ left: LF_X, top: F_Y, width: FLIPPER_LEN + 10, transform: `translate(-10%,-50%) rotate(${-ui.lfAng}rad)`, transformOrigin: '10% 50%' }} />
+          style={{ left: LF_X, top: F_Y, width: FLIPPER_LEN + 10, transform: `translate(-10%,-50%) rotate(${ui.lfAng}rad)`, transformOrigin: '10% 50%' }} />
         <img src="/assets/flipper/leva_dx.png" alt="" className="fp-leva-img"
-          style={{ left: RF_X, top: F_Y, width: FLIPPER_LEN + 10, transform: `translate(-90%,-50%) rotate(${ui.rfAng}rad)`, transformOrigin: '90% 50%' }} />
+          style={{ left: RF_X, top: F_Y, width: FLIPPER_LEN + 10, transform: `translate(-90%,-50%) rotate(${-ui.rfAng}rad)`, transformOrigin: '90% 50%' }} />
       </>}
 
       {/* HUD */}

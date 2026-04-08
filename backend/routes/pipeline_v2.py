@@ -2,7 +2,10 @@
 Pipeline Film V2 — Anti-bug, mobile-first, snapshot-based state machine.
 Reuses cast, sponsors, equipment, poster, screenplay and quality logic from existing code.
 """
-import uuid, random, logging, math
+import uuid
+import random
+import logging
+import math
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -193,11 +196,39 @@ async def _get_project(project_id: str, user_id: str):
     return p
 
 async def _advance(project_id: str, user_id: str, target: str, extra_data: dict = None, substate: str = ''):
-    """Core: validate → lock → commit → snapshot → unlock"""
+    """Core: validate → lock → commit → snapshot → unlock
+    Anti-bug: idempotent, stale-lock recovery, double-click safe.
+    """
     project = await _get_project(project_id, user_id)
     current = project.get('pipeline_state', 'draft')
+
+    # Idempotent: if already at target state, return current data silently
+    if current == target:
+        logging.info(f"[V2] Idempotent skip: {project_id} already at {target}")
+        return project
+
+    # Stale lock recovery: auto-unlock if locked > 30s
     if project.get('pipeline_locked'):
-        raise HTTPException(423, "Pipeline in transizione, riprova")
+        locked_at = project.get('pipeline_updated_at', '')
+        try:
+            lock_time = datetime.fromisoformat(locked_at)
+            if lock_time.tzinfo is None:
+                lock_time = lock_time.replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - lock_time).total_seconds()
+            if elapsed > 30:
+                logging.warning(f"[V2] Stale lock recovered for {project_id} (locked {elapsed:.0f}s)")
+                await db.film_projects.update_one(
+                    {'id': project_id},
+                    {'$set': {'pipeline_locked': False, 'pipeline_error': 'stale_lock_recovered'}}
+                )
+            else:
+                raise HTTPException(423, "Pipeline in transizione, riprova tra qualche secondo")
+        except (ValueError, TypeError):
+            await db.film_projects.update_one(
+                {'id': project_id},
+                {'$set': {'pipeline_locked': False}}
+            )
+
     allowed = V2_TRANSITIONS.get(current, set())
     if target not in allowed:
         raise HTTPException(400, f"Transizione non valida: {current} → {target}")
@@ -402,8 +433,8 @@ async def save_idea(pid: str, req: SaveIdeaV2, user: dict = Depends(get_current_
     loc_names = [l if isinstance(l, str) else l.get('name', str(l)) for l in locs]
     if title and genre and pre_trama:
         imdb_result = calculate_pre_imdb(title, genre, subgenres, pre_trama, loc_names)
-        update['pre_imdb_score'] = imdb_result.get('pre_imdb_score', 0)
-        update['pre_imdb_breakdown'] = imdb_result.get('breakdown', {})
+        update['pre_imdb_score'] = imdb_result.get('score', 0)
+        update['pre_imdb_breakdown'] = imdb_result.get('factors', {})
 
     # Auto-advance draft → idea
     if state == 'draft' and title:
@@ -530,8 +561,10 @@ async def write_screenplay_v2(pid: str, req: ScreenplayV2Request, user: dict = D
 
 @router.post("/films/{pid}/propose")
 async def propose_film_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Propose the film: idea → proposed. Film enters Prossimamente + Arena + Hype."""
+    """Propose the film: idea → proposed. Idempotent: if already proposed, returns current."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'proposed':
+        return {'film': project, 'message': 'Film gia proposto.'}
     if project['pipeline_state'] != 'idea':
         raise HTTPException(400, "Il film deve essere in fase IDEA per essere proposto")
     if not project.get('title') or not project.get('genre'):
@@ -563,8 +596,10 @@ class HypeSetupV2(BaseModel):
 
 @router.post("/films/{pid}/setup-hype")
 async def setup_hype_v2(pid: str, req: HypeSetupV2, user: dict = Depends(get_current_user)):
-    """Configure hype: proposed → hype_setup"""
+    """Configure hype: proposed → hype_setup. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'hype_setup':
+        return {'film': project, 'agencies_interested': project.get('pipeline_metrics', {}).get('target_agencies', 0), 'hype_score': project.get('pipeline_metrics', {}).get('hype_score', 0)}
     if project['pipeline_state'] != 'proposed':
         raise HTTPException(400, "Il film deve essere proposto prima di configurare l'hype")
 
@@ -608,8 +643,10 @@ async def setup_hype_v2(pid: str, req: HypeSetupV2, user: dict = Depends(get_cur
 
 @router.post("/films/{pid}/launch-hype")
 async def launch_hype_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Launch hype timer: hype_setup → hype_live"""
+    """Launch hype timer: hype_setup → hype_live. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'hype_live':
+        return {'film': project, 'waves': project.get('agency_waves', []), 'initial_proposals': len(project.get('cast_proposals', []))}
     if project['pipeline_state'] != 'hype_setup':
         raise HTTPException(400, "Hype non configurato")
 
@@ -712,8 +749,10 @@ async def speedup_hype_v2(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/complete-hype")
 async def complete_hype_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Complete hype and move to casting: hype_live → casting_live"""
+    """Complete hype and move to casting: hype_live → casting_live. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'casting_live':
+        return {'film': project, 'total_proposals': len(project.get('cast_proposals', []))}
     if project['pipeline_state'] != 'hype_live':
         raise HTTPException(400, "Hype non attivo")
 
@@ -799,8 +838,10 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
 
 @router.post("/films/{pid}/lock-cast")
 async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Lock cast and advance: casting_live → prep"""
+    """Lock cast and advance: casting_live → prep. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'prep':
+        return {'film': project}
     if project['pipeline_state'] != 'casting_live':
         raise HTTPException(400, "Non in fase casting")
 
@@ -878,8 +919,10 @@ async def save_prep_v2(pid: str, req: SavePrepV2, user: dict = Depends(get_curre
 
 @router.post("/films/{pid}/start-ciak")
 async def start_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Start shooting: prep → shooting"""
+    """Start shooting: prep → shooting. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'shooting':
+        return {'film': project, 'shooting_days': project.get('shooting_days', 0), 'ends_at': project.get('pipeline_timers', {}).get('shooting_end', '')}
     if project['pipeline_state'] != 'prep':
         raise HTTPException(400, "Non in fase PREP")
 
@@ -941,8 +984,10 @@ async def speedup_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/complete-ciak")
 async def complete_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Complete shooting: shooting → postproduction"""
+    """Complete shooting: shooting → postproduction. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'postproduction':
+        return {'film': project, 'events': project.get('shooting_events', [])}
     if project['pipeline_state'] != 'shooting':
         raise HTTPException(400, "Non in riprese")
 
@@ -1020,8 +1065,10 @@ async def speedup_finalcut_v2(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/complete-finalcut")
 async def complete_finalcut_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Complete final cut: postproduction → sponsorship"""
+    """Complete final cut: postproduction → sponsorship. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'sponsorship':
+        return {'film': project}
     if project['pipeline_state'] != 'postproduction':
         raise HTTPException(400, "Non in post-produzione")
 
@@ -1063,8 +1110,10 @@ class SaveSponsorsV2(BaseModel):
 
 @router.post("/films/{pid}/save-sponsors")
 async def save_sponsors_v2(pid: str, req: SaveSponsorsV2, user: dict = Depends(get_current_user)):
-    """Select sponsors: sponsorship → marketing"""
+    """Select sponsors: sponsorship → marketing. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'marketing':
+        return {'film': project, 'income': project.get('sponsor_income', 0)}
     if project['pipeline_state'] != 'sponsorship':
         raise HTTPException(400, "Non in fase sponsor")
 
@@ -1120,8 +1169,10 @@ async def save_marketing_v2(pid: str, req: SaveMarketingV2, user: dict = Depends
 
 @router.post("/films/{pid}/choose-premiere")
 async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Choose La Prima route: marketing → premiere_setup"""
+    """Choose La Prima route: marketing → premiere_setup. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'premiere_setup':
+        return {'film': project}
     if project['pipeline_state'] != 'marketing':
         raise HTTPException(400, "Non in fase marketing")
     film = await _advance(pid, user['id'], 'premiere_setup', {}, 'city_selection')
@@ -1129,8 +1180,10 @@ async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/choose-direct-release")
 async def choose_direct_release_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Skip premiere, go directly to release: marketing → release_pending"""
+    """Skip premiere, go directly to release: marketing → release_pending. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'release_pending':
+        return {'film': project}
     if project['pipeline_state'] != 'marketing':
         raise HTTPException(400, "Non in fase marketing")
     film = await _advance(pid, user['id'], 'release_pending', {'release_type': 'direct'}, 'ready')
@@ -1169,8 +1222,10 @@ class SetupPremiereV2(BaseModel):
 
 @router.post("/films/{pid}/setup-premiere")
 async def setup_premiere_v2(pid: str, req: SetupPremiereV2, user: dict = Depends(get_current_user)):
-    """Setup premiere: premiere_setup → premiere_live"""
+    """Setup premiere: premiere_setup → premiere_live. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'premiere_live':
+        return {'film': project}
     if project['pipeline_state'] != 'premiere_setup':
         raise HTTPException(400, "Non in fase premiere setup")
 
@@ -1202,8 +1257,10 @@ async def setup_premiere_v2(pid: str, req: SetupPremiereV2, user: dict = Depends
 
 @router.post("/films/{pid}/complete-premiere")
 async def complete_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Complete premiere: premiere_live → release_pending"""
+    """Complete premiere: premiere_live → release_pending. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] == 'release_pending':
+        return {'film': project, 'premiere_impact': project.get('pipeline_metrics', {}).get('premiere_bonus', 0)}
     if project['pipeline_state'] != 'premiere_live':
         raise HTTPException(400, "Premiere non attiva")
 
@@ -1272,8 +1329,22 @@ async def speedup_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/release")
 async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Final release: calculates quality, creates film in 'films' collection"""
+    """Final release: calculates quality, creates film in 'films' collection. Idempotent."""
     project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] in ('released', 'completed'):
+        film_id = project.get('film_id')
+        if film_id:
+            film = await db.films.find_one({'id': film_id}, {'_id': 0})
+            if film:
+                return {
+                    'film': film,
+                    'quality_score': project.get('final_quality', 0),
+                    'tier': project.get('final_tier', ''),
+                    'opening_day_revenue': film.get('opening_day_revenue', 0),
+                    'xp_reward': 0, 'fame_change': 0,
+                    'message': f'"{project["title"]}" gia rilasciato!'
+                }
+        return {'film': project, 'quality_score': project.get('final_quality', 0), 'tier': project.get('final_tier', ''), 'message': 'Film gia rilasciato.'}
     if project['pipeline_state'] != 'release_pending':
         raise HTTPException(400, "Film non pronto per il rilascio")
 
@@ -1516,3 +1587,12 @@ async def admin_force_unlock(pid: str, user: dict = Depends(get_current_user)):
         {'$set': {'pipeline_locked': False, 'pipeline_error': None}}
     )
     return {'success': True}
+
+@router.post("/admin/force-unlock-all")
+async def admin_force_unlock_all(user: dict = Depends(get_current_user)):
+    """Force unlock ALL stuck V2 pipelines"""
+    r = await db.film_projects.update_many(
+        {'pipeline_version': 2, 'pipeline_locked': True},
+        {'$set': {'pipeline_locked': False, 'pipeline_error': 'admin_force_unlocked'}}
+    )
+    return {'success': True, 'unlocked': r.modified_count}

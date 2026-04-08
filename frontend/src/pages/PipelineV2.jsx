@@ -42,6 +42,8 @@ const STEP_STYLES = {
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
 
+const _pendingRequests = new Set();
+
 const api = {
   get: async (path) => {
     const token = localStorage.getItem('token');
@@ -50,13 +52,23 @@ const api = {
     return res.json();
   },
   post: async (path, body) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/api/pipeline-v2${path}`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || res.statusText); }
-    return res.json();
+    // Anti double-click: block identical concurrent POST requests
+    const key = `POST:${path}`;
+    if (_pendingRequests.has(key)) {
+      throw new Error('Operazione in corso, attendere...');
+    }
+    _pendingRequests.add(key);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/api/pipeline-v2${path}`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || res.statusText); }
+      return res.json();
+    } finally {
+      _pendingRequests.delete(key);
+    }
   }
 };
 

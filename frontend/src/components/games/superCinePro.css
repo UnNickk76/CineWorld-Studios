@@ -34,7 +34,8 @@
 /* Intro */
 .scp-intro-box { text-align:center; padding:20px; }
 .scp-title { font:900 28px monospace; color:#ffd700; text-shadow:0 0 20px #ffd700,0 0 40px #ff6600; letter-spacing:3px; }
-.scp-subtitle { font:900 14px monospace; color:#ff3366; text-shadow:0 0 10px #ff3366; margin-top:4px; letter-spacing:5px; }
+.scp-subtitle { font:900 12px monospace; background:linear-gradient(135deg,#ffd700,#ff8c00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; text-shadow:none; margin-top:4px; letter-spacing:2px; filter:drop-shadow(0 0 6px rgba(255,200,0,0.4)); animation:scpSubPulse 2.5s ease-in-out infinite; }
+@keyframes scpSubPulse { 0%,100%{opacity:1} 50%{opacity:0.8} }
 .scp-rules { margin:14px 0; font:11px monospace; color:rgba(255,255,255,0.6); line-height:1.6; }
 .scp-start-btn { pointer-events:auto; background:linear-gradient(135deg,#ffd700,#ff6600); color:#000; font:bold 14px monospace; padding:10px 30px; border:none; border-radius:8px; cursor:pointer; letter-spacing:2px; box-shadow:0 0 20px rgba(255,200,0,0.3); }
 .scp-start-btn:active { transform:scale(0.95); }

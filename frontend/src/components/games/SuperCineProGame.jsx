@@ -56,6 +56,38 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
 
+    // ===== SUPERCINE – CONTROLLI TOUCH CINEMATOGRAFICI =====
+    const SWIPE_MOVE_THRESHOLD = 30;
+    let touchStartX = 0, touchStartY = 0, isTouching = false, jumpTriggered = false;
+
+    const onTS = (e) => {
+      const t = e.touches[0];
+      touchStartX = t.clientX; touchStartY = t.clientY;
+      isTouching = true; jumpTriggered = false;
+    };
+    const onTM = (e) => {
+      if (!isTouching) return;
+      const t = e.touches[0];
+      const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+      // Movimento orizzontale
+      if (Math.abs(dx) > SWIPE_MOVE_THRESHOLD) {
+        inputRef.current.left = dx < 0; inputRef.current.right = dx > 0;
+      }
+      // Salto (swipe up)
+      if (!jumpTriggered && dy < -40) {
+        inputRef.current.jump = true; inputRef.current.jumpPressed = true;
+        jumpTriggered = true;
+      }
+    };
+    const onTE = () => {
+      if (!isTouching) return;
+      setTimeout(() => { inputRef.current.left = false; inputRef.current.right = false; inputRef.current.jump = false; }, 120);
+      isTouching = false; jumpTriggered = false;
+    };
+    cont.addEventListener('touchstart', onTS, { passive: true });
+    cont.addEventListener('touchmove', onTM, { passive: true });
+    cont.addEventListener('touchend', onTE, { passive: true });
+
     const loop = () => {
       const now = performance.now(), dt = (now - lt) / 1000; lt = now;
       g.input = { ...inputRef.current };
@@ -100,6 +132,7 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
     return () => {
       cancelAnimationFrame(rafRef.current); clearInterval(uiRef.current);
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
+      cont.removeEventListener('touchstart', onTS); cont.removeEventListener('touchmove', onTM); cont.removeEventListener('touchend', onTE);
     };
   }, [mode, pauseGame]);
 
@@ -183,7 +216,7 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
         <div className="scp-overlay" data-testid="scp-intro">
           <div className="scp-intro-box">
             <p className="scp-title">SUPERCINE</p>
-            <p className="scp-subtitle">PRO ASSURDA</p>
+            <p className="scp-subtitle">AIUTA IL NOSTRO AMICO REGISTA CINEOX!</p>
             <div className="scp-rules">
               <p>Completa il livello, raccogli stelle, evita ostacoli!</p>
               <p>7 zone cinematografiche, segreti nascosti, powerup</p>

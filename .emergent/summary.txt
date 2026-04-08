@@ -1,134 +1,149 @@
 <analysis>**original_problem_statement**: 
-OBIETTIVO: L'utente ha richiesto la creazione di due nuovi minigiochi completi (base e variante PRO ASSURDA) realizzati puramente in codice (React + CSS + Canvas), senza immagini esterne. Il primo, MATRIX DODGE, è stato completato e perfezionato con un player animato avanzato (Neo). Il secondo, AUTO CINEMATOGRAFICA (CineDrive), un racing game con prospettiva semi-top e stile neon/synthwave, è stato appena iniziato. Il tutto deve essere mobile-first e integrato nel sistema Contest, SfideVS, e Classifiche esistente.
+RISCRIVI COMPLETAMENTE LA PIPELINE FILM CON APPROCCIO ANTI-BUG, MOBILE-FIRST, COSTO QUASI ZERO. La pipeline film NON deve più rompersi mai, non deve più andare in loop, non deve più perdere bottoni o fasi. Va rifatta quasi da zero come sistema unico (Pipeline V2), ma riutilizzando dove possibile API, immagini, logiche, dati, cast, ecc. Creare un backup read-only della pipeline legacy.
+ARCHITETTURA OBBLIGATORIA: Ogni transizione deve passare da . Nuovi campi DB obbligatori: , , , , , , , ecc.
+MACRO STEP: 1. IDEA, 2. HYPE, 3. CAST, 4. PREP, 5. CIAK, 6. FINAL CUT, 7. MARKETING, 8. LA PRIMA / RELEASE, 9. USCITA.
+STOP MOMENTANEO REQUISITI (Ultimo Messaggio): Prima di integrare con Arena/Dashboard, validare la struttura V2 con lock/snapshot, aggiungere protezioni anti-doppio click/refresh, gestire migrazione sicura (version 1 vs 2), completare tutte le 9 fasi isolatamente e testare il tutto in isolamento.
 PRODUCT REQUIREMENTS: 
-- Implementazione MATRIX DODGE e MATRIX DODGE - PRO ASSURDA (COMPLETATO).
-- Upgrade visivo del player in Matrix Dodge per renderlo cinematografico ed elegante (COMPLETATO).
-- Implementazione AUTO CINEMATOGRAFICA e AUTO CINEMATOGRAFICA - PRO ASSURDA (IN PROGRESS). 
-- Nessun uso di asset/immagini esterne.
-- **Divieto assoluto di usare il testing agent e, per l'ultimo task, l'utente ha esplicitamente vietato anche lo screenshot tool (No test agent no screenshot, mi fido di te)**. 
+- Divieto assoluto di usare il testing agent e lo screenshot tool (No test agent no screenshot, mi fido di te).
+- Ottimizzazione mobile-first e UI in singola schermata senza scroll infiniti.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-L'hub centrale  supporta il routing per molteplici minigiochi via . Il backend in  gestisce le leaderboard, le statistiche, e le modalità Solo/VS/Contest per i giochi registrati. Matrix Dodge (base e pro) è stato implementato e integrato con successo. L'agente ha appena creato i 4 file vuoti/boilerplate per Auto Cinematografica ma deve ancora svilupparne la logica interna e collegarli al resto dell'app.
+Il bug critico P0 Film nel Limbo / Pipeline Infinita è stato risolto con successo modificando  e forzando il rilascio in . È stato creato un backup della vecchia pipeline in  (e relativo frontend). È stata creata l'impalcatura base per la Pipeline V2 ( e ) integrata nel routing. L'agente stava verificando e blindando la logica di state-machine della V2 (lock/snapshot) come richiesto dall'ultimo messaggio di STOP dell'utente.
 
 **Last working item**: 
-    - Last item agent was working: Creazione del minigioco Auto Cinematografica (CineDrive). L'agente ha appena creato i file React/CSS/Engine per il gioco (Base e PRO) ma deve scriverne la logica visiva (prospettiva semi-top, auto neon, ostacoli cinematografici in discesa) e registrarli nel frontend e backend.
+    - Last item agent was working: Revisione e blindatura della struttura anti-bug per  (assicurandosi che ogni endpoint rispetti il pattern ) e completamento delle 9 fasi isolate prima dell'integrazione con il resto dell'app.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? NA (Per l'ultimo messaggio, l'utente ha esplicitato No test agent no screenshot, mi fido di te. Affidati alla correttezza del codice e, al limite, usa curl per verificare che le API backend non crashino).
+    - Which testing method agent to use? curl / python -c (Strictly NO testing agent / NO screenshots per volere dell'utente)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Bilanciamento vecchi Minigiochi e Bug (es. TapCiak) (P1)
-     - Attempted fixes: Nessuno. Rimandato su richiesta precedente dell'utente per dare priorità ai nuovi giochi.
-     - Next debug checklist: Controllare logica in  e bilanciare i reward in  / .
-     - Why fix this issue and what will be achieved with the fix? Stabilizza l'economia e la giocabilità dei primi giochi implementati.
-     - Status: NOT STARTED
+  Issue 1: Blindatura e Completamento Fasi Pipeline V2 (P0)
+     - Attempted fixes: L'impalcatura base è stata creata, e l'agente stava leggendo  per applicare le direttive dell'ultimo messaggio.
+     - Next debug checklist: 
+       - Verificare l'idempotenza e i blocchi (pipeline_locked) per TUTTI gli endpoint V2.
+       - Implementare la logica specifica per: Idea (locandina + script), Hype (timer + ondate agenzie), Cast (selezione reale), Prep (attrezzature/VFX/comparse), Ciak (eventi rari + timer), Final Cut, Sponsor/Marketing, La Prima.
+       - Assicurarsi che se  manca o è 1, il sistema faccia fallback sulla vecchia logica.
+     - Why fix this issue and what will be achieved with the fix? È il core requirement richiesto dall'utente per evitare definitivamente i loop infiniti e i crash della feature principale del gioco.
+     - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? both
-     - Blocked on other issue: In attesa di completare i task di sviluppo dei nuovi minigiochi (CineDrive).
+     - Should Test frontend/backend/both after fix? Both (Backend via curl, Frontend via logica/codice)
+     - Blocked on other issue: Nessuno
+
+  Issue 2: Integrazione degli ultimi 2 Minigiochi (P1)
+     - Attempted fixes: Nessuno.
+     - Next debug checklist: Attendere il codice dall'utente e integrare come fatto per Flipper Pro.
+     - Why fix this issue and what will be achieved with the fix? Chiusura del set Arcade.
+     - Status: BLOCKED (In attesa dei file dall'utente)
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: Completamento Pipeline V2
 
 **In progress Task List**: 
-  Task 1: Sviluppo e Integrazione AUTO CINEMATOGRAFICA (Base e PRO) (P0)
-     - Where to resume: I file in  (, , , ) sono stati creati alla fine della sessione. Devono essere implementati rispettando le specifiche (prospettiva semi-top, ostacoli a tema cinema, bonus, auto neon) e poi integrati in  (export),  (UI/icone) e  (array  e config).
-     - What will be achieved with this? Un nuovo minigioco arcade di alta qualità completamente in codice.
+  Task 1: Sviluppo UI Mobile-First per Pipeline V2 (P0)
+     - Where to resume: Lavorare su .
+     - What will be achieved with this? Un'interfaccia pulita, a singola schermata, senza scroll infiniti, dove lo stato (pipeline_ui_step), i timer e la prossima azione sono sempre chiari e i bottoni prevengono i double-click.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Backend manuale (NO SCREENSHOT, NO TESTING AGENT richiesto dall'utente).
-     - Blocked on something: Nessun blocco.
+     - Should Test frontend/backend/both after fix? Frontend (manual review del codice React)
+     - Blocked on something: Completamento del backend V2.
+
+  Task 2: Integrazione Arena e Dashboard per Pipeline V2 (P1)
+     - Where to resume: Da iniziare SOLO DOPO che i test isolati della V2 sono passati.
+     - What will be achieved with this? I film proposti in V2 appariranno correttamente nei Prossimamente e nell'Arena.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: Completamento e test isolato della Pipeline V2.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P1) Bilanciamento vecchi Minigiochi e Bug (es. TapCiak).
     - (P2) Sfida della Settimana (Minigioco rotante con premi extra).
     Future Tasks:
     - (P3) Previsioni Festival.
     - (P3) Marketplace TV/Anime rights.
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Levels.
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli.
 
 **Completed work in this session**
-- Sviluppo, styling (CSS/Canvas puro) e integrazione Matrix Dodge (DONE)
-- Sviluppo, styling e integrazione Matrix Dodge PRO ASSURDA con dash e bullet time manuale (DONE)
-- Upgrade visivo del player di Matrix Dodge (Neo) per una silhouette cinematografica più dettagliata (DONE)
-- Aggiornamento backend  e frontend  per l'inclusione dei nuovi giochi Matrix (DONE)
+- Risolto Bug Critico Film nel Limbo / Pipeline Infinita modificando  e  e creando script retroattivi (DONE)
+- Aggiunta Preview Read-Only per gli step completati della pipeline legacy (DONE)
+- Creato backup read-only della pipeline legacy in  (DONE)
+- Creata impalcatura base backend  e frontend  integrata nel router (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   - Issue 1: L'array  in  deve essere formattato correttamente. Nella sessione precedente l'agente ha mancato una virgola o una parentesi causando un crash, subito risolto. Fai attenzione quando aggiungi CineDrive.
+   - Nessuno.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: SPA static files intercepting API routes (Risolto storicamente, ma da tenere a mente).
-  - Recurrence count: 1
-  - Status: RESOLVED
+  - Query pesanti al DB: L'agente ha incontrato un timeout generando ondate di agenzie in V2 a causa di query al DB multiple; la funzione è stata temporaneamente semplificata per essere eseguita in memoria. Fai attenzione alla performance delle query.
+  - Import circolari in : L'importazione di  direttamente da  nei nuovi router causa crash. Importare SEMPRE  da .
 
 **Code Architecture**
 - Frontend: React
-  - : Hub per i minigiochi.
-  - : File di re-export (barrel) per tutti i giochi.
-  - : Contiene la logica dei singoli minigiochi (, , ).
+  -  (Nuova pagina Core V2)
+  -  (Backup UI vecchia pipeline)
 - Backend: FastAPI
-  - : Gestisce validazione score, record, e creazione Sfide VS. Lista dei giochi registrati in .
+  -  (Nuova macchina a stati V2)
+  -  (Vecchia pipeline, mantenuta per retrocompatibilità version = 1)
+  -  (Backup Backend vecchia pipeline)
 
 **Key Technical Concepts**
-- Rendering via Canvas/CSS: Tutti i nuovi minigiochi evitano asset esterni per favorire caricamenti istantanei. Si basano su file engine separati (es. ) per scorporare la logica canvas/game loop dai componenti React.
+- **State Machine V2**: Il cuore del sistema è  accoppiato a . Ogni step deve rispettare il flow: .
+- **Idempotenza e Fallback**: Nessuna route deve rompersi se chiamata due volte per errore (lag mobile).
 
 **key DB schema**
-  - : , , .
+  - : Aggiunti nuovi campi obbligatori per la V2 (, , , , , , , , ).
 
 **changes in tech stack**
   - Nessuno.
 
 **All files of reference** 
-  -  (Creato e aggiornato per Matrix)
-  -  (Creato e aggiornato)
-  -  (Creato e aggiornato)
-  -  (Creato)
-  -  (Appena creato, da implementare)
-  -  (Appena creato, da implementare)
-  -  (Appena creato, da implementare)
-  -  (Appena creato, da implementare)
-  -  (Da aggiornare con cineDrive)
-  -  (Da aggiornare con i nuovi export)
-  -  (Da aggiornare con icone/import cineDrive)
-  -  (Aggiornato)
+  -  (Da blindare e completare)
+  -  (Da strutturare mobile-first)
+  -  (Potrebbe servire per i nuovi timer V2)
+  -  (Route V2 già inserite)
 
 **Areas that need refactoring**: 
-  - Nessuna area critica attuale. Assicurati che il game loop del nuovo CineDrive sia performante su mobile usando  nel suo engine.
+  - Ottimizzazione di  per rispettare i dettami della UI mobile-first senza scroll.
 
 **key api endpoints**
   - 
-  - 
+  - Varie route in via di definizione dentro 
 
 **Critical Info for New Agent** 
-- **NO TEST AGENT E NO SCREENSHOT**: L'utente si fida del tuo codice e ha esplicitato: No test agent no screenshot, mi fido di te nell'ultimo prompt. Evita di sprecare token con il tool di screenshot per CineDrive, concentrati su una scrittura eccellente del codice e verifica il backend solo tramite  se strettamente necessario.
-- Implementa accuratamente la richiesta prospettica del minigioco (Auto in basso che punta verso l'alto, strada e ostacoli che scorrono dall'alto verso il basso) per dare un feeling di velocità corretto.
-- Ricorda di registrare cine_drive e cine_drive_pro nel file  nel backend altrimenti la submit score fallirà con un 404/Not Found interno.
-- **Rispondi sempre e solo in ITALIANO**.
+- **NO TEST AGENT E NO SCREENSHOT**: Regola ferrea. Usa curl o logica. L'utente ha espressamente vietato test visivi automatizzati.
+- **STOP MOMENTANEO**: L'utente ha ordinato di NON integrare ancora la V2 con l'Arena o la Dashboard. Il tuo compito primario è leggere i requisiti dell'ultimo messaggio per blindare  (lock, snapshot, anti doppio-click, retrocompatibilità con i vecchi film) e implementare alla perfezione e in isolamento le 9 fasi richieste.
+- **Retrocompatibilità**: I film esistenti senza  o con  devono continuare a usare il vecchio sistema. I nuovi film usano .
+- **Lingua**: Comunica solo in ITALIANO.
 
 **documents and test reports created in this job** 
-  - 
+  -  (Aggiornato)
+  -  (Creato)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - (81) User richiede un nuovo minigioco AUTO CINEMATOGRAFICA (Base e PRO), stile neon/synthwave, vista semi-top (IN PROGRESS). Ordina di NON usare screenshot e test agent.
- - (80..79) Agent finisce aggiornamento player Neo e aggiorna PRD (DONE).
- - (78..68) User richiede upgrade visivo player di Matrix Dodge Neo con trail, mantello, glow (DONE).
- - (67..56) Agent finisce creazione Matrix Dodge base e Pro, testa, e aggiorna PRD (DONE).
- - (55..9) User fornisce requisiti completi per creare MATRIX DODGE da zero (DONE).
+ - (225) User impone uno STOP MOMENTANEO. Richiede di validare la struttura V2 (lock, snapshot), aggiungere protezioni anti-bug, gestire migrazione sicura, completare perfettamente le 9 fasi e la UI mobile, testando in isolamento prima di integrare con Arena/Dashboard (IN PROGRESS).
+ - (118) User ordina la riscrittura completa della pipeline film (V2) con focus su solidità, backup legacy, lock e mobile-first UI (DONE impalcatura iniziale).
+ - (83) User conferma di volerlo vedere solo per Noccioline! (DONE).
+ - (80) User chiede se si possono sbloccare i vecchi passaggi della pipeline in read-only mode prima di un futuro refactor (DONE).
+ - (58) User chiede un riepilogo dettagliato dell'attuale pipeline film (DONE).
+ - (7) User conferma di voler fixare SOLO il bug P0 dei Film nel Limbo per ora (DONE).
 
 **Project Health Check:**
-- Broken: Niente di grave, ma l'implementazione in progress di CineDrive deve essere scritta da zero partendo dai file vuoti.
-- Mocked: Test Lab Admin visuals.
+- Broken: NA (Bug vecchi risolti. V2 in fase di sviluppo/blindatura).
+- Mocked: Le ondate di casting in V2 sono attualmente generate localmente in memoria per evitare timeout del DB.
 
 **3rd Party Integrations** 
 - Stripe (Payments) - Requires User API Key
-- Gemini Nano Banana (Generazione Logo/Poster) - Uses Emergent LLM Key
+- Gemini Nano Banana - Uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito dall'utente)
+  - Testing agent used after significant changes: NO (Divieto dell'utente)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: Nessuna.
+  - Known regressions: Nessuna sulla logica core; solo temporanei timeout di connessione durante la generazione cast.
 
 **Credentials to test flow:**
-  Utente:  /  (NeoMorpheus)
+  Utente:  / 
 
 **What agent forgot to execute**
-L'agente ha creato i file sorgente () ma ha esaurito il contesto prima di poterne scrivere l'effettivo codice di gioco (grafica su canvas/CSS, loop di spawn) e di agganciarli al  e al backend. Questa è la tua priorità immediata.</analysis>
+L'agente ha creato la struttura base per la Pipeline V2 ma si è fermato a leggere l'ultimo prompt (STOP MOMENTANEO). L'implementazione completa delle protezioni (lock, idempotenza) e la logica dettagliata per ogni specifica fase (Sponsor, Final Cut, La Prima, ecc.) nella V2 deve ancora essere stesa e verificata a fondo prima di poter dichiarare la pipeline conclusa.</analysis>

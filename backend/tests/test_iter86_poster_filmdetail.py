@@ -12,7 +12,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-limbo-debug.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-antiloop-secure.preview.emergentagent.com')
 
 class TestAuth:
     """Authentication endpoint tests"""

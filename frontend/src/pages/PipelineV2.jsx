@@ -875,18 +875,38 @@ const HypeLivePanel = ({ film, remaining, done, onRefresh, toast, loading, compl
 
 const CastPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
+  const [expandedProposal, setExpandedProposal] = useState(null);
+  const [rejectInfo, setRejectInfo] = useState(null);
   const cast = film.cast || {};
   const proposals = film.cast_proposals || [];
-  const hasDirector = !!cast.director;
-  const hasActors = (cast.actors || []).length >= 2;
-  const canLock = hasDirector && hasActors;
+  const directors = cast.director ? 1 : 0;
+  const screenwriters = (cast.screenwriters || (cast.screenwriter ? [cast.screenwriter] : [])).length;
+  const actors = (cast.actors || []).length;
+  const composers = cast.composer ? 1 : 0;
+  const canLock = directors >= 1 && actors >= 2;
 
   const selectCast = async (index, role) => {
-    setLoading(`select_${index}`);
+    setLoading(`s_${index}_${role}`);
     try {
       const res = await api.post(`/films/${film.id}/select-cast`, { proposal_index: index, role });
+      if (res.rejected) {
+        setRejectInfo({ index, role, name: res.name, reason: res.reason, cost: res.renegotiate_cost });
+      } else {
+        toast({ title: `${res.selected} ingaggiato/a! (-$${(res.cost_paid||0).toLocaleString()})` });
+      }
       onRefresh();
-      toast({ title: `${res.selected} aggiunto come ${role}!` });
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const renegotiate = async () => {
+    if (!rejectInfo) return;
+    setLoading('renego');
+    try {
+      const res = await api.post(`/films/${film.id}/renegotiate-cast`, { proposal_index: rejectInfo.index, role: rejectInfo.role });
+      toast({ title: `${res.selected} ha accettato! (-$${(res.cost_paid||0).toLocaleString()})` });
+      setRejectInfo(null);
+      onRefresh();
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');
   };
@@ -896,67 +916,162 @@ const CastPhase = ({ film, onRefresh, toast }) => {
     try {
       await api.post(`/films/${film.id}/lock-cast`);
       onRefresh();
-      toast({ title: 'Cast bloccato! Avanti con la PREP.' });
+      toast({ title: 'Cast confermato! Avanti con la PREP.' });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');
   };
 
+  const starsStr = (n) => '★'.repeat(n || 0) + '☆'.repeat(Math.max(0, 5 - (n || 0)));
+
+  // Role counters
+  const RoleCounter = ({ label, current, max: mx }) => (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[8px] text-gray-500 uppercase font-bold">{label}</span>
+      <span className={`text-[9px] font-bold ${current >= mx ? 'text-emerald-400' : current > 0 ? 'text-cyan-400' : 'text-gray-600'}`}>
+        {current}/{mx === 99 ? '∞' : mx}
+      </span>
+    </div>
+  );
+
+  // Mini cast slot
   const CastSlot = ({ label, person, icon: Icon }) => (
     <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
       <p className="text-[8px] text-gray-500 uppercase font-bold flex items-center gap-1"><Icon className="w-2.5 h-2.5" /> {label}</p>
       {person ? (
         <div className="flex items-center gap-2 mt-1">
-          <div className="w-6 h-6 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-[8px] font-bold text-cyan-400">{(person.name || '?')[0]}</div>
-          <div>
-            <p className="text-[10px] font-medium text-white">{person.name}</p>
-            <p className="text-[8px] text-gray-500">Skill {person.skill || '?'} {person.agency_name ? `• ${person.agency_name}` : ''}</p>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${person.is_star ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400' : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400'}`}>
+            {(person.name || '?')[0]}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium text-white truncate">{person.name} {person.is_star ? '⭐' : ''}</p>
+            <p className="text-[7px] text-gray-500">{starsStr(person.stars)} Skill {person.skill}</p>
           </div>
         </div>
       ) : <p className="text-[9px] text-gray-600 italic mt-1">Nessuno selezionato</p>}
     </div>
   );
 
-  return (
-    <PhaseWrapper title="Il Cast" subtitle="Assembla la squadra perfetta" icon={Users} color="cyan">
-      {/* Current Cast */}
-      <div className="grid grid-cols-2 gap-2">
-        <CastSlot label="Regista" person={cast.director} icon={Camera} />
-        <CastSlot label="Sceneggiatore" person={cast.screenwriter} icon={FileText} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {[0, 1].map(i => (
-          <CastSlot key={i} label={`Attore ${i+1}`} person={(cast.actors || [])[i]} icon={Star} />
-        ))}
-      </div>
-      <CastSlot label="Compositore" person={cast.composer} icon={Music} />
+  // Proposal card
+  const ProposalCard = ({ p, i }) => {
+    const isExpanded = expandedProposal === i;
+    const isRejected = p.status === 'rejected';
+    const roleButtons = [];
+    if (!cast.director) roleButtons.push('director');
+    if ((cast.screenwriters || []).length < 3 || (cast.screenwriter && !(cast.screenwriters || []).length && screenwriters < 3)) roleButtons.push('screenwriter');
+    roleButtons.push('actor');
+    if (!cast.composer) roleButtons.push('composer');
+    const roleLabels = { director: 'REG', actor: 'ATT', screenwriter: 'SCR', composer: 'MUS' };
 
-      {/* Quality */}
-      <div className="flex items-center gap-2 p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
-        <span className="text-[9px] text-gray-500">Qualita Cast:</span>
-        <span className="text-[10px] font-bold text-cyan-400">{film.pipeline_metrics?.cast_quality || 0}%</span>
-      </div>
+    return (
+      <div className={`rounded-lg border transition-colors ${isRejected ? 'bg-red-500/5 border-red-500/20 opacity-60' : 'bg-gray-800/30 border-gray-700/50'}`}>
+        <div className="flex items-center gap-2 p-2 cursor-pointer" onClick={() => setExpandedProposal(isExpanded ? null : i)}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+            p.is_star ? 'bg-yellow-500/20 border-2 border-yellow-500/40 text-yellow-400' :
+            p.stars >= 4 ? 'bg-purple-500/15 border border-purple-500/30 text-purple-400' :
+            'bg-gray-700 border border-gray-600 text-gray-300'}`}>
+            {(p.name || '?')[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] font-medium text-white truncate">{p.name}</p>
+              {p.is_star && <span className="text-[7px] px-1 bg-yellow-500/20 text-yellow-400 rounded font-bold">STAR</span>}
+              {p.worked_with_us && <span className="text-[7px] px-1 bg-green-500/15 text-green-400 rounded">EX</span>}
+              {isRejected && <span className="text-[7px] px-1 bg-red-500/20 text-red-400 rounded">RIFIUTATO</span>}
+            </div>
+            <p className="text-[7px] text-gray-500">
+              {starsStr(p.stars)} Sk{p.skill} • {p.gender} • {p.nationality} • ${(p.cost||0).toLocaleString()}
+            </p>
+          </div>
+          <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+        </div>
 
-      {/* Proposals */}
-      <div>
-        <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Proposte ({proposals.length})</p>
-        <div className="space-y-1.5 max-h-60 overflow-y-auto">
-          {proposals.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-[9px] font-bold text-gray-300">{(p.name || '?')[0]}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-medium text-white truncate">{p.name}</p>
-                <p className="text-[8px] text-gray-500">Skill {p.skill || '?'} • {p.agency_name || '?'}</p>
-              </div>
-              <div className="flex gap-1">
-                {['director', 'actor', 'screenwriter', 'composer'].map(role => (
-                  <button key={role} onClick={() => selectCast(i, role)} disabled={loading.startsWith('select')}
-                    className="text-[7px] px-1.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-colors">
-                    {role === 'director' ? 'REG' : role === 'actor' ? 'ATT' : role === 'screenwriter' ? 'SCR' : 'MUS'}
+        {/* Expanded detail */}
+        {isExpanded && (
+          <div className="px-2 pb-2 space-y-1.5 border-t border-gray-700/30 pt-1.5">
+            <div className="flex flex-wrap gap-1">
+              {p.strengths?.map((s, j) => <span key={j} className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{s}</span>)}
+              {p.weaknesses?.map((w, j) => <span key={j} className="text-[7px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{w}</span>)}
+            </div>
+            {p.role_affinity && <p className="text-[8px] text-violet-400">Tipo: {p.role_affinity}</p>}
+            {p.genre_affinity?.length > 0 && <p className="text-[8px] text-cyan-400">Affinita: {p.genre_affinity.join(', ')}</p>}
+            <div className="text-[7px] text-gray-500 flex gap-3">
+              {Object.entries(p.skills || {}).map(([k, v]) => <span key={k}>{k}: {v}</span>)}
+            </div>
+            {!isRejected && (
+              <div className="flex gap-1 pt-1">
+                {roleButtons.map(role => (
+                  <button key={role} onClick={(e) => { e.stopPropagation(); selectCast(i, role); }}
+                    disabled={loading.startsWith('s_')}
+                    className="text-[8px] px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-40 font-bold">
+                    {roleLabels[role]}
                   </button>
                 ))}
               </div>
-            </div>
-          ))}
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const breakdown = film.pipeline_metrics?.cast_breakdown || [];
+
+  return (
+    <PhaseWrapper title="Il Cast" subtitle="Assembla la squadra perfetta" icon={Users} color="cyan">
+      {/* Role counters */}
+      <div className="flex justify-between px-1">
+        <RoleCounter label="Regista" current={directors} max={1} />
+        <RoleCounter label="Sceneggiatori" current={screenwriters} max={3} />
+        <RoleCounter label="Attori" current={actors} max={99} />
+        <RoleCounter label="Compositore" current={composers} max={1} />
+      </div>
+
+      {/* Current Cast Grid */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <CastSlot label="Regista" person={cast.director} icon={Camera} />
+        <CastSlot label="Sceneggiatore" person={(cast.screenwriters || [])[0] || cast.screenwriter} icon={FileText} />
+      </div>
+      {(cast.actors || []).length > 0 && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {(cast.actors || []).map((a, i) => <CastSlot key={i} label={`Attore ${i+1}`} person={a} icon={Star} />)}
+        </div>
+      )}
+      {cast.composer && <CastSlot label="Compositore" person={cast.composer} icon={Music} />}
+
+      {/* Quality + Breakdown */}
+      <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/15 space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-gray-500">Qualita Cast:</span>
+          <span className={`text-[11px] font-bold ${(film.pipeline_metrics?.cast_quality || 0) > 50 ? 'text-emerald-400' : 'text-orange-400'}`}>
+            {film.pipeline_metrics?.cast_quality || 0}%
+          </span>
+        </div>
+        {breakdown.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {breakdown.slice(0, 6).map((b, i) => (
+              <span key={i} className={`text-[7px] px-1 py-0.5 rounded ${b.startsWith('+') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>{b}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Rejection modal */}
+      {rejectInfo && (
+        <CineConfirm
+          open={true}
+          title={rejectInfo.reason}
+          subtitle={`Offri $${rejectInfo.cost?.toLocaleString()} per convincerlo/a?`}
+          confirmLabel="Rinegozia"
+          onConfirm={renegotiate}
+          onCancel={() => setRejectInfo(null)}
+        />
+      )}
+
+      {/* Proposals */}
+      <div>
+        <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Proposte ({proposals.length})</p>
+        <div className="space-y-1 max-h-72 overflow-y-auto">
+          {proposals.map((p, i) => <ProposalCard key={i} p={p} i={i} />)}
           {proposals.length === 0 && <p className="text-[9px] text-gray-600 italic text-center py-4">Nessuna proposta disponibile</p>}
         </div>
       </div>
@@ -964,7 +1079,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
       {/* Lock */}
       <button onClick={lockCast} disabled={!canLock || loading === 'lock'}
         className="w-full text-[10px] py-2.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 transition-colors disabled:opacity-30 font-bold" data-testid="lock-cast-btn">
-        {loading === 'lock' ? '...' : `Blocca Cast e Procedi`}
+        {loading === 'lock' ? '...' : 'Conferma Cast e Procedi'}
       </button>
       {!canLock && <p className="text-[8px] text-gray-600 text-center">Serve: 1 regista + 2 attori minimo</p>}
     </PhaseWrapper>

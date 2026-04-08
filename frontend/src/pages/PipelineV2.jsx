@@ -1192,40 +1192,40 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
   const active = films.filter(f => !BOARD_HIDDEN.has(f.pipeline_state));
 
   return (
-    <div className="min-h-screen bg-black text-white p-3 pb-24" data-testid="pipeline-v2-board">
+    <div className="min-h-screen bg-black text-white px-4 pt-4 pb-24" data-testid="pipeline-v2-board">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-base font-bold tracking-tight">Produci Film</h1>
-          <p className="text-[10px] text-gray-500">I tuoi progetti in lavorazione</p>
-        </div>
-        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[8px]">V2</Badge>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white tracking-tight">Qui inizia la tua produzione!</h1>
+        <p className="text-sm text-gray-400 mt-1">Inizia un nuovo film o continua quelli in lavorazione</p>
       </div>
 
-      {/* Grid: "Nuovo Film" + existing cards */}
-      <div className="grid grid-cols-2 gap-2.5">
-        {/* ── Card tratteggiata Nuovo Film ── */}
+      {/* Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Card tratteggiata Nuovo Film — verticale poster 2:3 */}
         <button
           onClick={onNewFilm}
-          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-700 hover:border-amber-500/50 bg-transparent hover:bg-amber-500/5 transition-all p-4 min-h-[140px] group"
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-700 hover:border-amber-500/50 bg-transparent hover:bg-amber-500/5 transition-all aspect-[2/3] group"
           data-testid="new-film-card"
         >
-          <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-600 group-hover:border-amber-500/60 flex items-center justify-center transition-colors">
-            <Plus className="w-5 h-5 text-gray-600 group-hover:text-amber-400 transition-colors" />
+          <div className="w-12 h-12 rounded-full border-2 border-dashed border-gray-600 group-hover:border-amber-500/60 flex items-center justify-center transition-colors">
+            <Plus className="w-6 h-6 text-gray-600 group-hover:text-amber-400 transition-colors" />
           </div>
-          <span className="text-[10px] font-bold text-gray-500 group-hover:text-amber-400 transition-colors">Nuovo Film</span>
+          <div className="text-center">
+            <span className="text-xs font-bold text-gray-500 group-hover:text-amber-400 transition-colors block">Nuovo Film</span>
+            <span className="text-[9px] text-gray-600 group-hover:text-amber-400/60 transition-colors">Crea da zero</span>
+          </div>
         </button>
 
-        {/* ── Loading skeleton ── */}
+        {/* Loading skeleton */}
         {loading && [0,1].map(i => (
-          <div key={i} className="rounded-xl bg-gray-900/50 border border-gray-800 p-3 min-h-[140px] animate-pulse">
-            <div className="w-full h-16 bg-gray-800 rounded mb-2" />
+          <div key={i} className="rounded-xl bg-gray-900/50 border border-gray-800 aspect-[2/3] animate-pulse p-3">
+            <div className="w-full h-3/5 bg-gray-800 rounded mb-2" />
             <div className="w-2/3 h-3 bg-gray-800 rounded mb-1" />
             <div className="w-1/2 h-2 bg-gray-800/60 rounded" />
           </div>
         ))}
 
-        {/* ── Film cards ── */}
+        {/* Film cards */}
         {active.map(f => {
           const step = V2_STEPS[Math.max(0, f.pipeline_ui_step ?? 0)] || V2_STEPS[0];
           const StIcon = step.icon;
@@ -1234,26 +1234,25 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
             <button
               key={f.id}
               onClick={() => onSelectFilm(f)}
-              className="flex flex-col rounded-xl bg-gray-900/60 border border-gray-800 hover:border-gray-600 transition-all overflow-hidden text-left min-h-[140px]"
+              className="flex flex-col rounded-xl bg-gray-900/60 border border-gray-800 hover:border-gray-600 transition-all overflow-hidden text-left aspect-[2/3]"
               data-testid={`film-card-${f.id}`}
             >
-              {/* Poster / placeholder */}
-              <div className="w-full h-20 bg-gray-800 relative flex-shrink-0">
+              {/* Poster area ~60% */}
+              <div className="w-full flex-1 bg-gray-800 relative min-h-0">
                 {f.poster_url ? (
                   <img src={f.poster_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Film className="w-6 h-6 text-gray-700" />
+                    <Film className="w-8 h-8 text-gray-700" />
                   </div>
                 )}
-                {/* Badge step */}
                 <div className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[7px] font-bold uppercase ${style.active}`}>
                   <StIcon className="w-2.5 h-2.5" />
                   {step.label}
                 </div>
               </div>
               {/* Info */}
-              <div className="p-2 flex-1 flex flex-col justify-between">
+              <div className="p-2.5">
                 <p className="text-[11px] font-bold text-white truncate leading-tight">{f.title}</p>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="text-[8px] px-1 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700/50 capitalize">{(f.genre || '').replace('_', ' ')}</span>
@@ -1271,7 +1270,7 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
 
       {/* Empty state */}
       {!loading && active.length === 0 && (
-        <div className="text-center py-8 mt-2">
+        <div className="text-center py-6">
           <p className="text-[10px] text-gray-600">Nessun film in lavorazione. Crea il tuo primo!</p>
         </div>
       )}

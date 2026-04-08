@@ -183,7 +183,7 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
         <div className="scp-overlay" data-testid="scp-intro">
           <div className="scp-intro-box">
             <p className="scp-title">SUPERCINE</p>
-            <p className="scp-subtitle">PRO ASSURDA</p>
+            <p className="scp-subtitle">AIUTA IL NOSTRO AMICO REGISTA CINEOX!</p>
             <div className="scp-rules">
               <p>Completa il livello, raccogli stelle, evita ostacoli!</p>
               <p>7 zone cinematografiche, segreti nascosti, powerup</p>

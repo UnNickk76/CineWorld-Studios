@@ -1,88 +1,67 @@
-# CineWorld Studio's — PRD
+# CineWorld Studio's - PRD
 
 ## Problema Originale
-Sistema di produzione cinematografica con pipeline completa, PvP, infrastrutture, arena, guerre Major, e sistema minigiochi competitivo.
+Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, gestiscono cast, producono e rilasciano film nei cinema virtuali.
 
 ## Architettura
-- **Frontend**: React + Tailwind + Shadcn/UI + Framer Motion
-- **Backend**: FastAPI + MongoDB
-- **Background**: `apscheduler` per loop economia
+- Frontend: React + Tailwind + Shadcn UI
+- Backend: FastAPI + MongoDB
+- Integrazioni: Gemini Nano Banana (LLM), Stripe (Payments)
 
-## Funzionalita Completate
+## Implementato
 
-### Core + Eventi + Infra + Arena + Guerra (DONE precedentemente)
-### Data Integrity System (DONE)
-### Sistema Minigiochi v3 + Refactoring (DONE)
-### P1 + P2 Blocco Completo (DONE precedentemente)
-### Unificazione Hub Minigiochi + Sfide (DONE - 2026-04-07)
-### MATRIX DODGE — Minigioco Pro (DONE - 2026-04-07)
-### Player Neo Premium Upgrade (DONE - 2026-04-07)
-### AUTO CINEMATOGRAFICA — CineDrive Base + PRO (DONE - 2026-04-08)
-- Engine canvas condiviso (`cineDriveEngine.js`): prospettiva semi-top, 6 palette neon/synthwave, auto dettagliata, 6 tipi ostacoli cinema, 4 bonus
-- Base: 3 corsie, near miss, combo, shield, slowmo, countdown, game over
-- PRO ASSURDA: 6 scenari rotanti, turbo bar, 5 eventi speciali, boss wave, star rating
-- Backend: registrati `cine_drive` e `cine_drive_pro` in ARCADE_GAMES con titoli "Pilota Neon" e "Re della Strada"
+### Pipeline Film V2 (2026-04-08) - NEW
+- Nuova pipeline completa con 9 macro-step: IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → MARKETING → LA PRIMA → USCITA
+- State machine anti-bug con: pipeline_state, pipeline_substate, pipeline_ui_step
+- Sistema lock (pipeline_locked) anti-race condition
+- Snapshot/checkpoint ad ogni transizione (pipeline_history, pipeline_snapshots)
+- Timer persistenti (pipeline_timers) per hype, riprese, post-produzione, premiere
+- Metriche persistenti (pipeline_metrics) per hype_score, agency_interest, cast_quality
+- Flags persistenti (pipeline_flags) per has_poster, has_screenplay, cast_locked, etc.
+- 30 NPC Agencies con specializzazioni, reputazione, regione
+- Agency waves durante hype (3 ondate di proposte)
+- Strategia hype (sprint/bilanciata/costruzione_lenta) con impatto su agenzie e quality
+- Speedup con micro-malus invisibili
+- Marketing packages (5 livelli) + Sponsor selection
+- La Prima con 15 citta e countdown
+- Quality score finale: base deterministica (~65) + alchimia random (~±35) - speedup malus
+- Backup legacy pipeline in /app/backend/feature_future_or_backup/
 
-### SUPERCINE — PRO ASSURDA (DONE - 2026-04-08)
-- Platformer cinematografico epico, 7 zone tematiche, ~100 stelle, segreti, powerup
-- Zone: Backlot Arcade, Set Fantasy, Stunt Pro, Camera Crane, Set Segreto, Studio Collapsato, Premiere Finish
-- Player: Regista cartoon animato (corsa, salto, idle, megafono)
-- Meccaniche: coyote time, jump buffer, salto variabile, checkpoint, invulnerabilità
-- Ostacoli cinema: droni, boom mic, ciak ribelli, carrelli regia
-- Powerup: Sprint, MegaCiak, Stella Premiere
-- Rank: D → LEGENDARY DIRECTOR (basato su tempo, stelle, danni, segreti)
-- Backend: registrato `supercine_pro` in ARCADE_GAMES con titolo "Legendary Director" @800
-- HUD, intro, pausa, game over, risultati finali con rank e statistiche
-- Controlli mobile: tasti direzionali + salto | Desktop: frecce + spazio
+### Files Backend V2
+- /app/backend/routes/pipeline_v2.py (State machine + tutti gli endpoint)
+- /app/backend/server.py (Routing V2 registrato)
 
-### Neo PNG Overlay (DONE - 2026-04-08)
-- Immagini PNG caricate (neo_idle, neo_sx, neo_dx) in `/assets/matrix/`
-- Overlay DOM su canvas con z-index 999/1000, direction detection, drop-shadow glow
-- Applicato a MatrixDodgeGame e MatrixDodgeProGame
+### Files Frontend V2
+- /app/frontend/src/pages/PipelineV2.jsx (UI completa 9 fasi, mobile-first)
+- /app/frontend/src/App.js (Routes /create, /pipeline-v2 -> PipelineV2)
 
-### CineDrive PNG Upgrade (DONE - 2026-04-08)
-- PNG sfondo città e PNG auto integrate come layer DOM sopra canvas
-- Ostacoli e bonus restano in canvas per leggibilità
+### Fix Bug Critico: Film nel Limbo / Pipeline Infinita (2026-04-08)
+- Root cause 1: scheduler_tasks.py VALID_FILM_STATUSES mancava stati italiani
+- Root cause 2: admin_recover_all_films resettava film LIMBO indietro
+- Fix: Force-release + stati aggiunti + dati retroattivi corretti
 
-## File Chiave
-- `/app/frontend/src/components/games/matrixDodgeEngine.js` (Engine condiviso Matrix)
-- `/app/frontend/src/components/games/MatrixDodgeGame.jsx` (Base)
-- `/app/frontend/src/components/games/MatrixDodgeProGame.jsx` (PRO ASSURDA)
-- `/app/frontend/src/components/games/matrixDodge.css` (Stili Matrix)
-- `/app/frontend/src/components/games/cineDriveEngine.js` (Engine condiviso CineDrive)
-- `/app/frontend/src/components/games/CineDriveGame.jsx` (Base)
-- `/app/frontend/src/components/games/CineDriveProGame.jsx` (PRO ASSURDA)
-- `/app/frontend/src/components/games/cineDrive.css` (Stili CineDrive)
-- `/app/frontend/src/components/MiniGames.jsx` (Barrel export 16 giochi)
-- `/app/frontend/src/pages/MiniGamesPage.jsx` (Hub 5-tab)
-- `/app/frontend/src/pages/ContestPage.jsx` (14 step contest)
-- `/app/backend/routes/minigames_arcade.py` (API 16 giochi)
+### Preview Read-Only Step Pipeline (2026-04-08)
+- Step completati cliccabili nella barra stepper legacy
+- Pannello read-only per ogni fase
 
-### Fix Bug Critico: Film nel Limbo / Pipeline Infinita (DONE - 2026-04-08)
-- Root cause 1: `scheduler_tasks.py` `VALID_FILM_STATUSES` non includeva `sponsor`, `ciak`, `produzione`, `prima`, `uscita` -> lo scheduler li classificava come "invalidi" e li resettava a `proposed`
-- Root cause 2: `admin_recover_all_films` resettava i film LIMBO a stati precedenti (`pending_release`/`proposed`) causando loop infiniti, invece di rilasciarli
-- Fix: Aggiunto stati mancanti allo scheduler + riscritto recovery per force-release in `films` collection
-- Fix retroattivo: "Noccioline!" ripristinato a `produzione`, "Forest Gram" rilasciato forzatamente
-
-### Preview Read-Only Step Pipeline (DONE - 2026-04-08)
-- Step completati nella barra stepper ora cliccabili
-- Pannello read-only per ogni fase (IDEA, HYPE, CAST, PRODUZIONE, LA PRIMA, USCITA)
-- Toggle on/off + bottone X per chiudere
+### Minigiochi (precedente)
+- CineDrive, SuperCine Pro, Flipper Pro, MatrixDodge con overlay PNG
+- Contest giornaliero con 12 minigiochi random
 
 ## Backlog
 ### P0 (In Attesa)
 - [ ] Integrazione ultimi 2 Minigiochi (in attesa codice utente)
 
-### P1 (Bug e Bilanciamento)
+### P1
 - [ ] Fix bug nei singoli minigiochi (TapCiak etc.)
-- [ ] Bilanciamento economia Solo mode (hype, xp, funds, cooldown)
+- [ ] Bilanciamento economia Solo mode
 - [ ] Fix reward contest (14 step)
 
 ### P2
 - [ ] Sfida della Settimana (minigioco rotante con premi extra)
 
 ### P3
-- [ ] Sistema "Previsioni Festival"
+- [ ] Previsioni Festival
 - [ ] Marketplace TV/Anime rights
 - [ ] Velion Mood, Chat Evolution, CinePass+Stripe, Push, Velion Levels
 

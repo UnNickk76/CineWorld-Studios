@@ -2324,15 +2324,9 @@ const ProtectedRoute = ({ children }) => {
       <VelionOverlay
         onClick={() => { setVelionTab('chat'); setShowTutorial(true); }}
         onBubbleClick={(action) => { navigate(action); }}
+        onHelpClick={() => setShowGameTutorial(true)}
         mode={velionMode}
       />
-      <button
-        onClick={() => setShowGameTutorial(true)}
-        className="fixed bottom-[130px] right-3 z-[80] w-7 h-7 rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center text-yellow-400 hover:bg-yellow-500/30 transition-colors"
-        data-testid="velion-tutorial-btn"
-      >
-        <span className="text-xs font-bold">?</span>
-      </button>
       </>
       )}
       <VelionPanel

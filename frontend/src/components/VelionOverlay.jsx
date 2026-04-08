@@ -10,7 +10,7 @@ const POLL_INTERVAL = 600000; // 10 minutes
 const BUBBLE_COOLDOWN = 600000; // 10 minutes between bubbles
 const HIGH_PRIORITY_TYPES = new Set(['revenue', 'stuck_film', 'countdown_imminent', 'countdown', 'low_hype', 'high_hype']);
 
-export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
+export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, mode }) => {
   const { api, user } = useContext(AuthContext);
   const location = useLocation();
   const [hovered, setHovered] = useState(false);
@@ -232,6 +232,17 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, mode }) => {
         >
           <X className="w-3 h-3 text-gray-300" />
         </button>
+
+        {/* Help ? */}
+        {onHelpClick && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onHelpClick(); }}
+            className="absolute -top-2 -right-2 z-30 w-5 h-5 rounded-full bg-gray-800 border border-yellow-500/40 flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/60 transition-colors"
+            data-testid="velion-help-btn"
+          >
+            <span className="text-[9px] font-bold text-yellow-400">?</span>
+          </button>
+        )}
 
         {/* Clickable area */}
         <motion.button

@@ -21,3 +21,4 @@ export { MatrixDodgeProGame as MatrixDodgePro } from './games/MatrixDodgeProGame
 export { CineDriveGame as CineDrive } from './games/CineDriveGame';
 export { CineDriveProGame as CineDrivePro } from './games/CineDriveProGame';
 export { SuperCineProGame as SuperCinePro } from './games/SuperCineProGame';
+export { FlipperProGame as FlipperPro } from './games/FlipperProGame';

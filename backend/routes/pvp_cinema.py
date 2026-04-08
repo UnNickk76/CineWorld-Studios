@@ -214,9 +214,31 @@ async def get_arena(user: dict = Depends(get_current_user)):
          'poster_url': 1, 'hype_score': 1, 'status': 1}
     ).to_list(50)
 
+    # 4. Pipeline V2 films
+    v2_production = await db.film_projects.find(
+        {'pipeline_version': 2, 'pipeline_state': {'$in': ['casting_live', 'prep', 'ciak_live', 'final_cut', 'shooting']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
+         'poster_url': 1, 'pipeline_metrics': 1, 'pipeline_state': 1, 'pipeline_version': 1,
+         'subgenres': 1, 'cast': 1}
+    ).to_list(50)
+
+    v2_coming = await db.film_projects.find(
+        {'pipeline_version': 2, 'pipeline_state': {'$in': ['marketing', 'la_prima']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
+         'poster_url': 1, 'pipeline_metrics': 1, 'pipeline_state': 1, 'pipeline_version': 1,
+         'subgenres': 1, 'scheduled_release_at': 1}
+    ).to_list(50)
+
+    v2_released = await db.film_projects.find(
+        {'pipeline_version': 2, 'pipeline_state': 'released'},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'quality_score': 1, 'final_quality': 1,
+         'total_revenue': 1, 'poster_url': 1, 'tier': 1, 'imdb_rating': 1, 'pipeline_version': 1,
+         'released_at': 1, 'likes_count': 1, 'virtual_likes': 1, 'pipeline_metrics': 1}
+    ).to_list(50)
+
     # Enrich with user info
     user_cache = {}
-    all_films = in_theaters + coming_soon + anteprima + series_cs
+    all_films = in_theaters + coming_soon + anteprima + series_cs + v2_production + v2_coming + v2_released
     for f in all_films:
         uid = f.get('user_id')
         if uid and uid not in user_cache:
@@ -260,6 +282,42 @@ async def get_arena(user: dict = Depends(get_current_user)):
         f['film_status'] = 'in_aggiornamento' if f.get('status') == 'remastering' else 'anteprima'
         f['source'] = 'projects'
         f['quality_score'] = f.get('pre_imdb_score', 5) * 10
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    # Pipeline V2: production → anteprima
+    _v2_state_labels = {
+        'casting_live': 'Casting', 'prep': 'Pre-Produzione',
+        'ciak_live': 'Riprese', 'shooting': 'Riprese', 'final_cut': 'Post-Produzione',
+    }
+    for f in v2_production:
+        f['film_status'] = 'anteprima'
+        f['source'] = 'projects'
+        f['pipeline_v2'] = True
+        f['v2_phase'] = _v2_state_labels.get(f.get('pipeline_state', ''), 'Produzione')
+        f['quality_score'] = f.get('pre_imdb_score', 5) * 10
+        f['hype_score'] = f.get('pipeline_metrics', {}).get('hype_score', 0)
+        f['cast_chemistry_indicator'] = f.get('pipeline_metrics', {}).get('cast_chemistry_indicator', 'neutral')
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    # Pipeline V2: marketing/la_prima → coming_soon
+    for f in v2_coming:
+        f['film_status'] = 'coming_soon'
+        f['source'] = 'projects'
+        f['pipeline_v2'] = True
+        f['v2_phase'] = 'Marketing' if f.get('pipeline_state') == 'marketing' else 'La Prima'
+        f['quality_score'] = f.get('pre_imdb_score', 5) * 10
+        f['hype_score'] = f.get('pipeline_metrics', {}).get('hype_score', 0)
+        gid = _find_group(f.get('genre', ''))
+        genre_sections[gid]['films'].append(f)
+
+    # Pipeline V2: released → in_sala
+    for f in v2_released:
+        f['film_status'] = 'in_sala'
+        f['source'] = 'projects'
+        f['pipeline_v2'] = True
+        f['quality_score'] = f.get('final_quality') or f.get('quality_score', 50)
         gid = _find_group(f.get('genre', ''))
         genre_sections[gid]['films'].append(f)
 
@@ -341,12 +399,37 @@ async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_u
         'remastering': 'in_aggiornamento',
     }
 
+    # V2 pipeline state mapping
+    v2_state_map = {
+        'casting_live': 'anteprima', 'prep': 'anteprima',
+        'ciak_live': 'anteprima', 'shooting': 'anteprima', 'final_cut': 'anteprima',
+        'marketing': 'coming_soon', 'la_prima': 'coming_soon',
+        'released': 'in_sala',
+    }
+    is_v2 = film.get('pipeline_version') == 2
+    if is_v2:
+        film_status = v2_state_map.get(film.get('pipeline_state', ''), 'anteprima')
+    else:
+        film_status = status_map.get(film.get('status', ''), 'in_sala')
+
+    v2_data = {}
+    if is_v2:
+        metrics = film.get('pipeline_metrics', {})
+        v2_data = {
+            'pipeline_v2': True,
+            'pipeline_state': film.get('pipeline_state'),
+            'cast_quality': metrics.get('cast_quality', 0),
+            'cast_chemistry_indicator': metrics.get('cast_chemistry_indicator', 'neutral'),
+            'hype_score': metrics.get('hype_score', 0),
+            'subgenres': film.get('subgenres', []),
+        }
+
     return {
         'id': film_id,
         'title': film.get('title', ''),
         'genre': film.get('genre', ''),
         'poster_url': film.get('poster_url'),
-        'quality_score': film.get('quality_score', film.get('pre_imdb_score', 5) * 10),
+        'quality_score': film.get('final_quality') or film.get('quality_score', film.get('pre_imdb_score', 5) * 10),
         'hype_score': film.get('hype_score', 0),
         'opening_day_revenue': film.get('opening_day_revenue', 0),
         'total_revenue': film.get('total_revenue', 0),
@@ -354,12 +437,13 @@ async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_u
         'imdb_rating': film.get('imdb_rating', 0),
         'tier': film.get('tier', ''),
         'pvp_revenue_modifier': film.get('pvp_revenue_modifier', 0),
-        'film_status': status_map.get(film.get('status', ''), 'in_sala'),
+        'film_status': film_status,
         'source': source,
         'is_mine': is_mine,
         'owner_nickname': (owner or {}).get('nickname', '?'),
         'owner_studio': (owner or {}).get('production_house_name', ''),
         'recent_actions': recent_actions,
+        **v2_data,
         'cooldowns': cooldowns,
     }
 

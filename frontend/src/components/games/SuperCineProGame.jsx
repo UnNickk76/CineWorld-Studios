@@ -15,7 +15,7 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
   const inputRef = useRef({ left: false, right: false, jump: false, jumpPressed: false });
   const cbRef = useRef(onComplete); cbRef.current = onComplete;
 
-  const [ui, setUi] = useState({ phase: 'intro', score: 0, stars: 0, totalStars: 0, hp: 3, time: 0, zone: '', powerup: null, completed: false, damage: 0, secrets: 0, totalSecrets: 0, runTime: 0, rank: 'D', rankC: '#888' });
+  const [ui, setUi] = useState({ phase: 'intro', score: 0, stars: 0, totalStars: 0, hp: 3, time: 0, zone: '', powerup: null, completed: false, damage: 0, secrets: 0, totalSecrets: 0, runTime: 0, rank: 'D', rankC: '#888', screenX: 0, screenY: 0, facing: 1, invuln: false });
 
   const startGame = useCallback(() => {
     const g = gRef.current; if (!g) return;
@@ -85,14 +85,17 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
 
     uiRef.current = setInterval(() => {
       const gg = gRef.current; if (!gg) return;
+      const sx = gg.player.x + PW / 2 - gg.cam.x;
+      const sy = gg.player.y + PH / 2 - gg.cam.y;
       setUi(u => ({
         ...u,
         stars: gg.stars, totalStars: gg.level.totalStars, hp: gg.player.hp,
         time: Math.ceil(gg.time), zone: ZONE_NAMES[gg.zone] || '',
         powerup: gg.activePowerup, damage: gg.damage, secrets: gg.secretsFound,
         totalSecrets: gg.level.totalSecrets, runTime: gg.runTime,
+        screenX: sx, screenY: sy, facing: gg.player.facing, invuln: gg.player.invuln > 0,
       }));
-    }, 150);
+    }, 60);
 
     return () => {
       cancelAnimationFrame(rafRef.current); clearInterval(uiRef.current);
@@ -110,6 +113,29 @@ export function SuperCineProGame({ mode = 'contest', onComplete }) {
   return (
     <div ref={contRef} className="scp-container" style={{ height: 400 }} data-testid="minigame-supercine-pro">
       <canvas ref={canvasRef} className="scp-canvas" />
+      {/* SuperCine character PNG overlay */}
+      {(ui.phase === 'play' || ui.phase === 'paused' || ui.phase === 'results' || ui.phase === 'over') && (
+        <img
+          src="/assets/supercine/character.png"
+          alt="SuperCine"
+          className={ui.invuln ? 'scp-char-invuln' : ''}
+          style={{
+            position: 'absolute',
+            left: ui.screenX,
+            top: ui.screenY,
+            width: 42,
+            height: 42,
+            transform: `translate(-50%, -50%) scaleX(${ui.facing})`,
+            pointerEvents: 'none',
+            zIndex: 5,
+            imageRendering: 'auto',
+            filter: ui.powerup ? 'drop-shadow(0 0 6px #ffd700)' : 'drop-shadow(0 0 3px rgba(0,0,0,0.5))',
+            opacity: ui.phase === 'over' ? 0.4 : 1,
+            transition: 'filter 0.3s, opacity 0.3s',
+          }}
+          onError={(e) => { console.error('SuperCine character missing:', e.currentTarget.src); e.currentTarget.style.display = 'none'; }}
+        />
+      )}
 
       {/* HUD */}
       {ui.phase === 'play' && (

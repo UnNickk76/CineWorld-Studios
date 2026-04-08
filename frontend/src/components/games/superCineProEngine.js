@@ -390,8 +390,8 @@ export function render(ctx,g){
   // Finish
   if(lv.finish.x>cx-60&&lv.finish.x<cx+w+60) drawFinish(ctx,lv.finish,g.runTime);
 
-  // Player
-  drawPlayer(ctx,p,g);
+  // Player drawn as PNG overlay — skip canvas player
+  // drawPlayer(ctx,p,g);
 
   // Particles
   for(const pt of g.particles){

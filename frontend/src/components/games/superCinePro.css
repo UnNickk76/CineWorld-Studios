@@ -56,3 +56,5 @@
 .scp-rank-big { font-size:26px; letter-spacing:2px; }
 .scp-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font:10px monospace; color:rgba(255,255,255,0.6); margin:10px 0; }
 .scp-congrats { font:bold 11px monospace; color:#00ff66; margin-top:8px; }
+.scp-char-invuln { animation:scpCharBlink .1s infinite alternate; }
+@keyframes scpCharBlink { from{opacity:1} to{opacity:0.3} }

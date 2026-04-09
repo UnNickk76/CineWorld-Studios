@@ -118,6 +118,25 @@ Frontend (Tab Migrazione in AdminPage.jsx):
 - Batch "Migra Tutti" per migrazione massiva
 - Funziona su qualsiasi DB a cui l'app è connessa
 
+### SISTEMA EPISODI COMPLETO (2026-04-09) - NUOVO
+Backend (/app/backend/routes/pipeline_v2.py):
+- Generazione ricca episodi UNA SOLA VOLTA con titolo, trama, tipo nascosto
+- 5 tipi: normal, peak, filler, plot_twist, season_finale
+- Ogni tipo modifica hype (+15 finale, +12 twist, +8 peak, -3 filler), audience (x1.8 finale, x1.5 twist), qualita
+- Anime: piu peak, bonus audience su picchi. Serie TV: bonus audience continuita seconda meta
+- Watch episode: calcola rating + audience + hype con trend dinamico
+- Valutazione finale serie: media + trend (1a vs 2a meta) + peso finale
+- Endpoint enrich per episodi vecchio formato
+- Protezione: no ri-generazione, no doppio-watch, scelta modo irreversibile
+Frontend (PipelineV2.jsx):
+- EpisodeCard Netflix-style: titolo, trama, tipo icon, stato, data, rating, audience
+- Progress bar doppia: rilascio (cyan) + visti (emerald)
+- Stats card: rating medio, audience totale, hype, visti
+- Bottone PlayCircle per guardare, Eye per gia visti
+- Current episode highlight con barra accent colorata
+- Enrich button per episodi vecchi formato
+- Selector modalita (binge/daily/weekly) con icone e descrizioni
+
 ## Backlog
 
 ### P1

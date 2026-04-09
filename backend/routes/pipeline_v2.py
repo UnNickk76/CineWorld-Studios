@@ -2396,13 +2396,187 @@ class SetReleaseMode(BaseModel):
     mode: str  # binge / daily / weekly
 
 
+# ── Episode Type System ──
+EPISODE_TYPES = {
+    'normal':        {'hype_mod': 0,    'audience_mod': 1.0,  'quality_mod': 0},
+    'peak':          {'hype_mod': 8,    'audience_mod': 1.35, 'quality_mod': 5},
+    'filler':        {'hype_mod': -3,   'audience_mod': 0.7,  'quality_mod': -3},
+    'plot_twist':    {'hype_mod': 12,   'audience_mod': 1.5,  'quality_mod': 3},
+    'season_finale': {'hype_mod': 15,   'audience_mod': 1.8,  'quality_mod': 8},
+}
+
+def _assign_episode_types(ep_count: int, content_type: str) -> list:
+    """Assign hidden episode types. Anime = more peaks, Serie TV = more continuity."""
+    types = ['normal'] * ep_count
+    types[-1] = 'season_finale'  # Last episode always finale
+
+    # Budget for special episodes based on count
+    special_budget = max(2, ep_count // 4)
+
+    # Content-type weights
+    if content_type == 'anime':
+        peak_ratio, twist_ratio, filler_ratio = 0.45, 0.25, 0.30
+    else:  # serie_tv
+        peak_ratio, twist_ratio, filler_ratio = 0.30, 0.35, 0.35
+
+    n_peak = max(1, round(special_budget * peak_ratio))
+    n_twist = max(1, round(special_budget * twist_ratio))
+    n_filler = max(0, special_budget - n_peak - n_twist)
+
+    # Available slots (exclude first ep and finale)
+    available = list(range(1, ep_count - 1))
+    random.shuffle(available)
+
+    assigned = 0
+    # Peaks tend to be in second half
+    peak_candidates = [i for i in available if i >= ep_count // 3]
+    random.shuffle(peak_candidates)
+    for idx in peak_candidates[:n_peak]:
+        types[idx] = 'peak'
+        available.remove(idx)
+        assigned += 1
+
+    # Plot twists in middle section
+    twist_candidates = [i for i in available if ep_count // 4 <= i <= ep_count * 3 // 4]
+    random.shuffle(twist_candidates)
+    for idx in twist_candidates[:n_twist]:
+        types[idx] = 'plot_twist'
+        available.remove(idx)
+        assigned += 1
+
+    # Fillers spread out
+    random.shuffle(available)
+    for idx in available[:n_filler]:
+        types[idx] = 'filler'
+
+    return types
+
+
+# Title/plot templates per type
+_EP_TITLES = {
+    'normal': [
+        "Il cammino continua", "Ombre e luci", "Nuovi orizzonti", "La scelta",
+        "Punto di svolta", "Segreti rivelati", "L'attesa", "Destini incrociati",
+        "Il prezzo da pagare", "Oltre il confine", "Risvegli", "La resa dei conti",
+        "Territori inesplorati", "Legami nascosti", "Il peso della verita",
+    ],
+    'peak': [
+        "La tempesta", "Cuore di fuoco", "L'ascesa", "Gloria e caduta",
+        "Il momento della verita", "Oltre ogni limite", "Fiamme nella notte",
+        "L'ora del destino", "Sangue e onore", "L'ultimo baluardo",
+    ],
+    'filler': [
+        "Un giorno di pausa", "Ricordi lontani", "Breve respiro", "Piccole storie",
+        "Intermezzo", "La quiete prima", "Momenti rubati", "Aria fresca",
+    ],
+    'plot_twist': [
+        "Nulla e come sembra", "Il tradimento", "Rivelazione", "Facce nascoste",
+        "La verita sepolta", "Doppio gioco", "Sotto la superficie", "Il rovescio",
+    ],
+    'season_finale': [
+        "L'ultimo atto", "Fine di un'era", "Il gran finale", "Resa dei conti finale",
+        "Quando cala il sipario", "L'ultima pagina", "Destino compiuto",
+    ],
+}
+
+_EP_PLOTS = {
+    'normal': [
+        "I protagonisti affrontano nuove sfide mentre la trama si sviluppa in direzioni inaspettate.",
+        "Relazioni messe alla prova e alleanze che vacillano in un episodio denso di tensione.",
+        "La storia avanza con colpi di scena sottili che preparano gli eventi futuri.",
+        "Un episodio che approfondisce i personaggi e rivela nuove sfaccettature della trama.",
+        "Le conseguenze delle scelte passate iniziano a farsi sentire su tutti i protagonisti.",
+    ],
+    'peak': [
+        "Un episodio esplosivo che cambia le regole del gioco per sempre.",
+        "Azione mozzafiato e rivelazioni sconvolgenti in uno degli episodi piu intensi della stagione.",
+        "Il culmine di tensioni accumulate esplode in sequenze indimenticabili.",
+        "Un punto di non ritorno che ridefinisce ogni certezza dello spettatore.",
+    ],
+    'filler': [
+        "Un momento di respiro tra i protagonisti, con sottotrame leggere ma necessarie.",
+        "Episodio di transizione che prepara il terreno per gli eventi a venire.",
+        "I personaggi secondari prendono il centro della scena in una parentesi narrativa.",
+    ],
+    'plot_twist': [
+        "Una rivelazione scioccante ribalta completamente la prospettiva della storia.",
+        "Tradimenti inaspettati e verita sepolte emergono con forza devastante.",
+        "Niente e come sembrava: un colpo di scena magistrale riscrive le regole.",
+        "Un alleato si rivela nemico e le certezze crollano una dopo l'altra.",
+    ],
+    'season_finale': [
+        "Il confronto definitivo che decidera il destino di tutti i personaggi.",
+        "Tutti i fili narrativi convergono in un finale esplosivo e carico di emozione.",
+        "L'ultimo capitolo della stagione chiude i conti aperti e ne apre di nuovi.",
+    ],
+}
+
+
+def _generate_episodes(ep_count: int, content_type: str, title: str, genre: str, season: int) -> list:
+    """Generate rich episode data. Called ONCE at release mode selection. Persisted forever."""
+    types = _assign_episode_types(ep_count, content_type)
+    episodes = []
+
+    used_titles = set()
+    used_plots = set()
+
+    for i in range(ep_count):
+        ep_type = types[i]
+        ep_num = i + 1
+
+        # Pick unique title
+        pool = list(_EP_TITLES.get(ep_type, _EP_TITLES['normal']))
+        random.shuffle(pool)
+        ep_title = pool[0]
+        for t in pool:
+            if t not in used_titles:
+                ep_title = t
+                break
+        used_titles.add(ep_title)
+
+        # Pick unique plot
+        plot_pool = list(_EP_PLOTS.get(ep_type, _EP_PLOTS['normal']))
+        random.shuffle(plot_pool)
+        ep_plot = plot_pool[0]
+        for p in plot_pool:
+            if p not in used_plots:
+                ep_plot = p
+                break
+        used_plots.add(ep_plot)
+
+        # Impact metrics per episode
+        type_data = EPISODE_TYPES[ep_type]
+        base_quality = random.randint(55, 85)
+        ep_quality = max(10, min(100, base_quality + type_data['quality_mod'] + random.randint(-5, 5)))
+
+        episodes.append({
+            'number': ep_num,
+            'title': ep_title,
+            'plot': ep_plot,
+            'episode_type': ep_type,
+            'status': 'locked',
+            'release_at': None,
+            'released_at': None,
+            'quality': ep_quality,
+            'hype_impact': type_data['hype_mod'] + random.randint(-2, 2),
+            'audience_multiplier': round(type_data['audience_mod'] + random.uniform(-0.1, 0.1), 2),
+            'rating': None,
+            'audience_count': None,
+            'watched': False,
+        })
+
+    return episodes
+
+
 @router.post("/films/{pid}/set-release-mode")
 async def set_episode_release_mode(pid: str, body: SetReleaseMode, user: dict = Depends(get_current_user)):
-    """Set episode release mode AFTER release. Permanent choice."""
+    """Set episode release mode AND generate all episodes. ONE-TIME generation, persisted forever."""
     project = await _get_project(pid, user['id'])
     ct = project.get('content_type', 'film')
     if ct == 'film':
         raise HTTPException(400, "Solo per Serie TV e Anime")
+    if project.get('episodes_generated'):
+        raise HTTPException(400, "Episodi gia generati — non rigenerabili")
     if project.get('episode_release_mode'):
         raise HTTPException(400, "Modalita gia scelta — non modificabile")
     if body.mode not in ('binge', 'daily', 'weekly'):
@@ -2410,63 +2584,296 @@ async def set_episode_release_mode(pid: str, body: SetReleaseMode, user: dict = 
 
     ep_count = project.get('episode_count', 12)
     now = _now()
-    episodes = []
-    for i in range(1, ep_count + 1):
+    now_dt = datetime.fromisoformat(now)
+
+    # Generate rich episodes ONCE
+    episodes = _generate_episodes(
+        ep_count, ct, project.get('title', ''),
+        project.get('genre', 'drama'), project.get('season_number', 1)
+    )
+
+    # Assign release schedules
+    for i, ep in enumerate(episodes):
         if body.mode == 'binge':
-            release_at = now
-            status = 'released'
+            ep['release_at'] = now
+            ep['status'] = 'released'
+            ep['released_at'] = now
         elif body.mode == 'daily':
-            release_at = (datetime.fromisoformat(now) + timedelta(days=i - 1)).isoformat()
-            status = 'released' if i == 1 else 'locked'
+            release_at = (now_dt + timedelta(days=i)).isoformat()
+            ep['release_at'] = release_at
+            if i == 0:
+                ep['status'] = 'released'
+                ep['released_at'] = now
+            else:
+                ep['status'] = 'scheduled'
         else:  # weekly
-            release_at = (datetime.fromisoformat(now) + timedelta(weeks=i - 1)).isoformat()
-            status = 'released' if i == 1 else 'locked'
-        episodes.append({
-            'number': i,
-            'status': status,
-            'release_at': release_at,
-        })
+            release_at = (now_dt + timedelta(weeks=i)).isoformat()
+            ep['release_at'] = release_at
+            if i == 0:
+                ep['status'] = 'released'
+                ep['released_at'] = now
+            else:
+                ep['status'] = 'scheduled'
+
+    # Initial hype from first episode(s)
+    initial_hype = sum(ep['hype_impact'] for ep in episodes if ep['status'] == 'released')
 
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'episode_release_mode': body.mode,
             'episodes': episodes,
+            'episodes_generated': True,
             'episodes_started_at': now,
+            'episode_hype_total': initial_hype,
+            'episode_audience_total': 0,
+            'episode_quality_avg': None,
         }}
     )
-    return {'mode': body.mode, 'episodes': episodes}
+    return {
+        'mode': body.mode,
+        'episodes': episodes,
+        'episodes_count': len(episodes),
+    }
 
 
 @router.get("/films/{pid}/episodes")
 async def get_episodes(pid: str, user: dict = Depends(get_current_user)):
-    """Get episode list with auto-unlock based on time."""
+    """Get episode list with auto-unlock based on time. Never regenerates."""
     project = await _get_project(pid, user['id'])
     episodes = project.get('episodes', [])
     now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.isoformat()
 
     updated = False
     for ep in episodes:
-        if ep['status'] == 'locked':
-            rel_dt = datetime.fromisoformat(ep['release_at'].replace('Z', '+00:00'))
-            if rel_dt.tzinfo is None:
-                rel_dt = rel_dt.replace(tzinfo=timezone.utc)
-            if now_dt >= rel_dt:
-                ep['status'] = 'released'
-                updated = True
+        if ep.get('status') in ('locked', 'scheduled'):
+            rel = ep.get('release_at')
+            if rel:
+                try:
+                    rel_dt = datetime.fromisoformat(rel.replace('Z', '+00:00'))
+                    if rel_dt.tzinfo is None:
+                        rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+                    if now_dt >= rel_dt:
+                        ep['status'] = 'released'
+                        if not ep.get('released_at'):
+                            ep['released_at'] = now_str
+                        updated = True
+                except (ValueError, TypeError):
+                    pass
 
     if updated:
         await db.film_projects.update_one({'id': pid}, {'$set': {'episodes': episodes}})
 
-    released_count = sum(1 for e in episodes if e['status'] == 'released')
+    released_eps = [e for e in episodes if e['status'] == 'released']
+    released_count = len(released_eps)
+    total = len(episodes)
+
+    # Current episode = first unreleased, or last if all released
+    current_ep = total
+    for ep in episodes:
+        if ep['status'] != 'released':
+            current_ep = ep['number']
+            break
+
+    # Calculate running stats
+    watched_eps = [e for e in episodes if e.get('watched')]
+    avg_quality = round(sum(e.get('quality', 50) for e in watched_eps) / len(watched_eps), 1) if watched_eps else None
+    avg_rating = round(sum(e.get('rating', 50) for e in watched_eps) / len(watched_eps), 1) if watched_eps else None
+
     return {
         'episodes': episodes,
-        'total': len(episodes),
+        'total': total,
         'released': released_count,
-        'all_released': released_count == len(episodes) and len(episodes) > 0,
+        'all_released': released_count == total and total > 0,
+        'current_episode': current_ep,
         'mode': project.get('episode_release_mode'),
         'content_type': project.get('content_type', 'film'),
+        'episodes_generated': project.get('episodes_generated', False),
+        'stats': {
+            'avg_quality': avg_quality,
+            'avg_rating': avg_rating,
+            'total_hype': project.get('episode_hype_total', 0),
+            'total_audience': project.get('episode_audience_total', 0),
+            'watched': len(watched_eps),
+        },
     }
+
+
+@router.post("/films/{pid}/episodes/{ep_num}/watch")
+async def watch_episode(pid: str, ep_num: int, user: dict = Depends(get_current_user)):
+    """Simulate watching an episode. Calculates rating, hype and audience impact."""
+    project = await _get_project(pid, user['id'])
+    episodes = project.get('episodes', [])
+    ct = project.get('content_type', 'film')
+
+    if ep_num < 1 or ep_num > len(episodes):
+        raise HTTPException(400, "Numero episodio non valido")
+
+    ep = episodes[ep_num - 1]
+    if ep['status'] != 'released':
+        raise HTTPException(400, "Episodio non ancora rilasciato")
+    if ep.get('watched'):
+        raise HTTPException(400, "Episodio gia visto")
+
+    # Calculate episode rating based on series quality + episode type
+    base_quality = project.get('final_quality') or project.get('pre_imdb_score', 5) * 10
+    ep_quality = ep.get('quality', 60)
+    type_data = EPISODE_TYPES.get(ep.get('episode_type', 'normal'), EPISODE_TYPES['normal'])
+
+    # Rating = mix of series quality and episode quality + randomness
+    rating = round(max(10, min(100, (base_quality * 0.4 + ep_quality * 0.6) + random.randint(-8, 8))))
+
+    # Audience calculation
+    base_audience = random.randint(5000, 50000)
+    audience_mult = ep.get('audience_multiplier', 1.0)
+
+    # Anime peaks get extra audience bonus
+    if ct == 'anime' and ep.get('episode_type') in ('peak', 'season_finale'):
+        audience_mult *= 1.2
+
+    # Serie TV continuity bonus for later episodes
+    if ct == 'serie_tv' and ep_num > len(episodes) // 2:
+        audience_mult *= 1.1
+
+    audience = int(base_audience * audience_mult)
+
+    # Hype impact
+    hype_change = ep.get('hype_impact', 0)
+
+    # Trend bonus: if previous episodes were good, audience grows
+    prev_watched = [e for e in episodes[:ep_num - 1] if e.get('watched')]
+    if prev_watched:
+        prev_avg_rating = sum(e.get('rating', 50) for e in prev_watched) / len(prev_watched)
+        if prev_avg_rating >= 70:
+            audience = int(audience * 1.15)
+            hype_change += 2
+        elif prev_avg_rating < 40:
+            audience = int(audience * 0.8)
+            hype_change -= 2
+
+    # Update episode
+    ep['watched'] = True
+    ep['rating'] = rating
+    ep['audience_count'] = audience
+    ep['watched_at'] = _now()
+
+    # Update totals
+    total_hype = (project.get('episode_hype_total', 0) or 0) + hype_change
+    total_audience = (project.get('episode_audience_total', 0) or 0) + audience
+
+    # Check if all episodes watched → calculate final series quality
+    all_watched = all(e.get('watched') for e in episodes)
+    series_final = None
+
+    update_fields = {
+        'episodes': episodes,
+        'episode_hype_total': total_hype,
+        'episode_audience_total': total_audience,
+    }
+
+    if all_watched:
+        # Final series quality: weighted average with trend
+        ratings = [e.get('rating', 50) for e in episodes if e.get('watched')]
+        avg_rating = sum(ratings) / len(ratings)
+
+        # Trend bonus: compare first half vs second half
+        mid = len(ratings) // 2
+        first_half = sum(ratings[:mid]) / max(1, mid)
+        second_half = sum(ratings[mid:]) / max(1, len(ratings) - mid)
+        trend = second_half - first_half  # positive = improving
+
+        # Finale weight
+        finale_rating = ratings[-1]
+        finale_bonus = (finale_rating - avg_rating) * 0.3
+
+        # Anime: heavier finale and peak weight
+        if ct == 'anime':
+            finale_bonus *= 1.5
+            peak_eps = [e.get('rating', 50) for e in episodes if e.get('episode_type') == 'peak' and e.get('watched')]
+            if peak_eps:
+                peak_avg = sum(peak_eps) / len(peak_eps)
+                avg_rating = avg_rating * 0.7 + peak_avg * 0.3
+
+        series_final = round(max(10, min(100, avg_rating + trend * 0.2 + finale_bonus)))
+
+        update_fields['episode_quality_avg'] = round(avg_rating, 1)
+        update_fields['series_episode_score'] = series_final
+
+    await db.film_projects.update_one({'id': pid}, {'$set': update_fields})
+
+    return {
+        'episode': ep,
+        'rating': rating,
+        'audience': audience,
+        'hype_change': hype_change,
+        'total_hype': total_hype,
+        'total_audience': total_audience,
+        'all_watched': all_watched,
+        'series_final_score': series_final,
+    }
+
+
+
+@router.post("/films/{pid}/episodes/enrich")
+async def enrich_old_episodes(pid: str, user: dict = Depends(get_current_user)):
+    """One-time enrichment of old-format episodes (adds title, plot, type). Preserves status/dates."""
+    project = await _get_project(pid, user['id'])
+    episodes = project.get('episodes', [])
+    ct = project.get('content_type', 'film')
+
+    if not episodes:
+        raise HTTPException(400, "Nessun episodio trovato")
+    if project.get('episodes_generated'):
+        raise HTTPException(400, "Episodi gia nel formato completo")
+    if episodes[0].get('title'):
+        raise HTTPException(400, "Episodi gia arricchiti")
+
+    ep_count = len(episodes)
+    types = _assign_episode_types(ep_count, ct)
+    used_titles = set()
+    used_plots = set()
+
+    for i, ep in enumerate(episodes):
+        ep_type = types[i]
+        pool = list(_EP_TITLES.get(ep_type, _EP_TITLES['normal']))
+        random.shuffle(pool)
+        ep_title = pool[0]
+        for t in pool:
+            if t not in used_titles:
+                ep_title = t
+                break
+        used_titles.add(ep_title)
+
+        plot_pool = list(_EP_PLOTS.get(ep_type, _EP_PLOTS['normal']))
+        random.shuffle(plot_pool)
+        ep_plot = plot_pool[0]
+        for p in plot_pool:
+            if p not in used_plots:
+                ep_plot = p
+                break
+        used_plots.add(ep_plot)
+
+        type_data = EPISODE_TYPES[ep_type]
+        base_quality = random.randint(55, 85)
+        ep_quality = max(10, min(100, base_quality + type_data['quality_mod'] + random.randint(-5, 5)))
+
+        ep['title'] = ep_title
+        ep['plot'] = ep_plot
+        ep['episode_type'] = ep_type
+        ep['quality'] = ep_quality
+        ep['hype_impact'] = type_data['hype_mod'] + random.randint(-2, 2)
+        ep['audience_multiplier'] = round(type_data['audience_mod'] + random.uniform(-0.1, 0.1), 2)
+        ep.setdefault('rating', None)
+        ep.setdefault('audience_count', None)
+        ep.setdefault('watched', False)
+
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {'episodes': episodes, 'episodes_generated': True}}
+    )
+    return {'enriched': len(episodes), 'episodes': episodes}
+
 
 
 class CreateSeasonBody(BaseModel):

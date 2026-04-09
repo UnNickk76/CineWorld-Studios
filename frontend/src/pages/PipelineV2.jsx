@@ -4,7 +4,7 @@ import {
   Plus, Sparkles, Camera, Clapperboard, Megaphone, Award, Ticket,
   MapPin, Palette, FileText, Lock, Users, Music, Wand2, Play,
   Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send,
-  Pencil
+  Pencil, Tv, BarChart3, PlayCircle
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
@@ -1823,8 +1823,112 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 
 
 // ═══════════════════════════════════════════════════════════════
-//  SERIE/ANIME — Episode Manager (Board, post-release)
+//  SERIE/ANIME — Episode Manager (Board, post-release) — Netflix-Style
 // ═══════════════════════════════════════════════════════════════
+
+const EP_TYPE_STYLES = {
+  normal:        { accent: 'cyan',   accentBg: 'bg-cyan-500/15', accentBorder: 'border-cyan-500/50', accentRing: 'ring-cyan-500/20', accentText: 'text-cyan-400', accentBtnBg: 'bg-cyan-500/20', accentBtnHover: 'hover:bg-cyan-500/30', accentBar: 'bg-cyan-500', icon: Play,       label: 'Episodio' },
+  peak:          { accent: 'amber',  accentBg: 'bg-amber-500/15', accentBorder: 'border-amber-500/50', accentRing: 'ring-amber-500/20', accentText: 'text-amber-400', accentBtnBg: 'bg-amber-500/20', accentBtnHover: 'hover:bg-amber-500/30', accentBar: 'bg-amber-500', icon: Zap,        label: 'Episodio Esplosivo' },
+  filler:        { accent: 'gray',   accentBg: 'bg-gray-500/15', accentBorder: 'border-gray-500/50', accentRing: 'ring-gray-500/20', accentText: 'text-gray-400', accentBtnBg: 'bg-gray-500/20', accentBtnHover: 'hover:bg-gray-500/30', accentBar: 'bg-gray-500', icon: Clock,      label: 'Intermezzo' },
+  plot_twist:    { accent: 'purple', accentBg: 'bg-purple-500/15', accentBorder: 'border-purple-500/50', accentRing: 'ring-purple-500/20', accentText: 'text-purple-400', accentBtnBg: 'bg-purple-500/20', accentBtnHover: 'hover:bg-purple-500/30', accentBar: 'bg-purple-500', icon: Sparkles,   label: 'Colpo di Scena' },
+  season_finale: { accent: 'red',    accentBg: 'bg-red-500/15', accentBorder: 'border-red-500/50', accentRing: 'ring-red-500/20', accentText: 'text-red-400', accentBtnBg: 'bg-red-500/20', accentBtnHover: 'hover:bg-red-500/30', accentBar: 'bg-red-500', icon: Award,      label: 'Finale di Stagione' },
+};
+
+const EpisodeCard = ({ ep, isCurrent, onWatch }) => {
+  const isReleased = ep.status === 'released';
+  const isWatched = ep.watched;
+  const typeStyle = EP_TYPE_STYLES[ep.episode_type] || EP_TYPE_STYLES.normal;
+  const TypeIcon = typeStyle.icon;
+
+  return (
+    <div
+      className={`relative rounded-lg border transition-all duration-300 overflow-hidden ${
+        isCurrent && isReleased && !isWatched
+          ? `${typeStyle.accentBorder} ${typeStyle.accentBg} ring-1 ${typeStyle.accentRing}`
+          : isWatched
+            ? 'border-emerald-500/20 bg-emerald-500/5'
+            : isReleased
+              ? 'border-white/10 bg-white/[0.02] hover:border-white/20'
+              : 'border-white/5 bg-black/20 opacity-50'
+      }`}
+      data-testid={`ep-card-${ep.number}`}
+    >
+      <div className="p-3">
+        <div className="flex items-start gap-3">
+          {/* Episode Number */}
+          <div className={`flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-xs font-black ${
+            isWatched ? 'bg-emerald-500/20 text-emerald-400'
+              : isReleased ? `${typeStyle.accentBg} ${typeStyle.accentText}`
+              : 'bg-gray-800 text-gray-600'
+          }`}>
+            {isWatched ? <Check className="w-3.5 h-3.5" /> : ep.number}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[10px] font-bold text-white truncate">{ep.title || `Episodio ${ep.number}`}</span>
+              {ep.episode_type && ep.episode_type !== 'normal' && (
+                <TypeIcon className={`w-3 h-3 flex-shrink-0 ${typeStyle.accentText}`} />
+              )}
+            </div>
+            <p className="text-[9px] text-gray-500 leading-relaxed line-clamp-2">
+              {ep.plot || 'Trama non disponibile.'}
+            </p>
+            {/* Stats row */}
+            <div className="flex items-center gap-3 mt-1.5">
+              {isReleased && (
+                <span className="text-[8px] text-gray-600">
+                  {new Date(ep.release_at || ep.released_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                </span>
+              )}
+              {!isReleased && ep.release_at && (
+                <span className="text-[8px] text-gray-600 flex items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5" />
+                  {new Date(ep.release_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                </span>
+              )}
+              {isWatched && ep.rating && (
+                <span className={`text-[8px] font-bold ${
+                  ep.rating >= 70 ? 'text-emerald-400' : ep.rating >= 45 ? 'text-amber-400' : 'text-red-400'
+                }`}>
+                  {ep.rating}/100
+                </span>
+              )}
+              {isWatched && ep.audience_count && (
+                <span className="text-[8px] text-gray-500">
+                  {ep.audience_count >= 1000 ? `${(ep.audience_count / 1000).toFixed(1)}k` : ep.audience_count} spettatori
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Action */}
+          <div className="flex-shrink-0">
+            {isReleased && !isWatched && (
+              <button onClick={() => onWatch(ep.number)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${typeStyle.accentBtnBg} ${typeStyle.accentText} ${typeStyle.accentBtnHover} transition-colors`}
+                data-testid={`watch-ep-${ep.number}`}
+                title="Guarda episodio">
+                <PlayCircle className="w-4 h-4" />
+              </button>
+            )}
+            {isWatched && (
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/10">
+                <Eye className="w-3.5 h-3.5 text-emerald-500/50" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Current episode indicator bar */}
+      {isCurrent && isReleased && !isWatched && (
+        <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${typeStyle.accentBar}`} />
+      )}
+    </div>
+  );
+};
 
 const EpisodeManager = ({ film, onRefresh, toast }) => {
   const [mode, setMode] = useState(film.episode_release_mode || null);
@@ -1832,10 +1936,15 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
   const [total, setTotal] = useState(0);
   const [released, setReleased] = useState(0);
   const [allReleased, setAllReleased] = useState(false);
+  const [currentEp, setCurrentEp] = useState(1);
+  const [stats, setStats] = useState(null);
+  const [generated, setGenerated] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [loading, setLoading] = useState('');
+  const [watchLoading, setWatchLoading] = useState(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [newSeasonEp, setNewSeasonEp] = useState(12);
+  const [enrichLoading, setEnrichLoading] = useState(false);
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -1844,7 +1953,10 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
       setTotal(res.total || 0);
       setReleased(res.released || 0);
       setAllReleased(res.all_released || false);
+      setCurrentEp(res.current_episode || 1);
       setMode(res.mode || null);
+      setStats(res.stats || null);
+      setGenerated(res.episodes_generated || false);
     } catch (e) {}
   }, [film.id]);
 
@@ -1861,6 +1973,42 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
       toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' });
     }
     setLoading('');
+  };
+
+  const watchEpisode = async (epNum) => {
+    setWatchLoading(epNum);
+    try {
+      const res = await api.post(`/films/${film.id}/episodes/${epNum}/watch`);
+      const ep = res.episode;
+      const ratingMsg = res.rating >= 70 ? 'Ottimo!' : res.rating >= 45 ? 'Discreto' : 'Deludente';
+      toast({
+        title: `Ep${epNum}: "${ep.title}" — ${ratingMsg} (${res.rating}/100)`,
+        description: `Audience: ${(res.audience || 0).toLocaleString()} | Hype: ${res.hype_change >= 0 ? '+' : ''}${res.hype_change}${
+          res.all_watched ? ' | Serie completata!' : ''
+        }`,
+      });
+      if (res.series_final_score) {
+        setTimeout(() => {
+          toast({ title: `Valutazione Finale Serie: ${res.series_final_score}/100` });
+        }, 1500);
+      }
+      await loadEpisodes();
+    } catch (e) {
+      toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' });
+    }
+    setWatchLoading(null);
+  };
+
+  const enrichEpisodes = async () => {
+    setEnrichLoading(true);
+    try {
+      await api.post(`/films/${film.id}/episodes/enrich`);
+      toast({ title: 'Episodi arricchiti con titoli e trame!' });
+      await loadEpisodes();
+    } catch (e) {
+      toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' });
+    }
+    setEnrichLoading(false);
   };
 
   const createSeason = async () => {
@@ -1881,33 +2029,38 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
   };
 
   const modeLabels = { binge: 'Binge', daily: 'Giornaliero', weekly: 'Settimanale' };
+  const modeIcons = { binge: Zap, daily: Clock, weekly: Timer };
 
-  // No mode chosen yet → show selector
+  // ─── No mode chosen → show selector ───
   if (!mode) {
     return (
-      <div className="mt-3 p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15 space-y-2" data-testid="episode-mode-selector">
-        <p className="text-[9px] text-cyan-400 font-bold uppercase">Distribuzione Episodi</p>
+      <div className="mt-3 p-3 rounded-lg bg-[#0a0a0f] border border-cyan-500/15 space-y-2" data-testid="episode-mode-selector">
+        <div className="flex items-center gap-2 mb-1">
+          <Tv className="w-3.5 h-3.5 text-cyan-400" />
+          <p className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider">Distribuzione Episodi</p>
+        </div>
         <p className="text-[8px] text-gray-400">
           {film.episode_count || '?'} episodi — scegli come distribuirli. La scelta e definitiva.
         </p>
         {!choosing ? (
           <button onClick={() => setChoosing(true)}
-            className="w-full py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 text-[10px] font-bold hover:bg-cyan-500/20 transition-colors"
+            className="w-full py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 text-[10px] font-bold hover:bg-cyan-500/20 transition-colors"
             data-testid="choose-mode-btn">
-            Scegli Modalita
+            Scegli Modalita di Rilascio
           </button>
         ) : (
           <div className="space-y-1.5">
             {[
-              { id: 'binge', label: 'Binge', desc: 'Tutti gli episodi subito', icon: 'Zap' },
-              { id: 'daily', label: 'Giornaliero', desc: '1 episodio al giorno', icon: 'Clock' },
-              { id: 'weekly', label: 'Settimanale', desc: '1 episodio ogni 7 giorni', icon: 'Calendar' },
+              { id: 'binge', label: 'Binge', desc: 'Tutti gli episodi subito — ideale per maratone', icon: Zap },
+              { id: 'daily', label: 'Giornaliero', desc: '1 episodio al giorno — hype costante', icon: Clock },
+              { id: 'weekly', label: 'Settimanale', desc: '1 episodio ogni 7 giorni — suspense massima', icon: Timer },
             ].map(m => (
               <button key={m.id} onClick={() => chooseMode(m.id)}
                 disabled={loading !== ''}
-                className="w-full p-2 rounded-lg border border-gray-800 hover:border-cyan-500/30 text-left flex justify-between items-center transition-all active:scale-[0.98]"
+                className="w-full p-2.5 rounded-lg border border-gray-800 hover:border-cyan-500/30 text-left flex items-center gap-3 transition-all active:scale-[0.98]"
                 data-testid={`mode-${m.id}`}>
-                <div>
+                <m.icon className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                <div className="flex-1">
                   <p className="text-[10px] font-bold text-white">{m.label}</p>
                   <p className="text-[8px] text-gray-500">{m.desc}</p>
                 </div>
@@ -1920,41 +2073,101 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
     );
   }
 
-  // Mode chosen → show episode progress
+  // ─── Mode chosen → Netflix-style episode list ───
+  const ModeIcon = modeIcons[mode] || Clock;
+  const pct = total > 0 ? Math.round((released / total) * 100) : 0;
+  const watchedCount = episodes.filter(e => e.watched).length;
+  const watchPct = total > 0 ? Math.round((watchedCount / total) * 100) : 0;
+  const needsEnrich = episodes.length > 0 && !episodes[0].title && !generated;
+
   return (
     <div className="mt-3 space-y-2" data-testid="episode-manager">
-      <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-[9px] text-cyan-400 font-bold uppercase">Episodi — {modeLabels[mode]}</p>
-          <span className="text-[9px] text-gray-400">{released}/{total}</span>
+      {/* Header card with progress */}
+      <div className="p-3 rounded-lg bg-[#0a0a0f] border border-white/10">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <ModeIcon className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider">
+              S{film.season_number || 1} — {modeLabels[mode]}
+            </span>
+          </div>
+          <span className="text-[9px] text-gray-400 font-mono">{released}/{total} usciti</span>
         </div>
-        {/* Progress bar */}
-        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden mb-2">
-          <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all duration-500"
-            style={{ width: `${total > 0 ? (released / total * 100) : 0}%` }} />
+
+        {/* Release progress bar */}
+        <div className="space-y-1">
+          <div className="w-full h-1.5 bg-gray-800/80 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${pct}%` }} />
+          </div>
+          {/* Watch progress bar */}
+          <div className="w-full h-1 bg-gray-800/50 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${watchPct}%` }} />
+          </div>
+          <div className="flex justify-between text-[7px] text-gray-600">
+            <span>{pct}% rilasciati</span>
+            <span>{watchPct}% visti</span>
+          </div>
         </div>
-        {/* Episode grid */}
-        <div className="flex flex-wrap gap-1">
-          {episodes.map(ep => (
-            <div key={ep.number}
-              className={`w-7 h-7 rounded-md flex items-center justify-center text-[8px] font-bold border transition-all ${
-                ep.status === 'released'
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                  : 'bg-gray-900 border-gray-800 text-gray-600'
-              }`}
-              title={ep.status === 'released' ? 'Rilasciato' : `Uscita: ${new Date(ep.release_at).toLocaleDateString('it-IT')}`}
-              data-testid={`ep-${ep.number}`}
-            >
-              {ep.number}
+
+        {/* Stats row */}
+        {stats && (stats.avg_rating || stats.total_audience > 0) && (
+          <div className="flex gap-3 mt-2 pt-2 border-t border-white/5">
+            {stats.avg_rating && (
+              <div className="text-center">
+                <div className={`text-xs font-black ${stats.avg_rating >= 70 ? 'text-emerald-400' : stats.avg_rating >= 45 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {stats.avg_rating}
+                </div>
+                <div className="text-[7px] text-gray-600">Rating Medio</div>
+              </div>
+            )}
+            {stats.total_audience > 0 && (
+              <div className="text-center">
+                <div className="text-xs font-black text-white">
+                  {stats.total_audience >= 1000000 ? `${(stats.total_audience / 1000000).toFixed(1)}M` :
+                   stats.total_audience >= 1000 ? `${(stats.total_audience / 1000).toFixed(1)}k` : stats.total_audience}
+                </div>
+                <div className="text-[7px] text-gray-600">Audience Tot.</div>
+              </div>
+            )}
+            {stats.total_hype !== 0 && (
+              <div className="text-center">
+                <div className={`text-xs font-black ${stats.total_hype >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+                  {stats.total_hype >= 0 ? '+' : ''}{stats.total_hype}
+                </div>
+                <div className="text-[7px] text-gray-600">Hype</div>
+              </div>
+            )}
+            <div className="text-center">
+              <div className="text-xs font-black text-white">{stats.watched}/{total}</div>
+              <div className="text-[7px] text-gray-600">Visti</div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enrich button for old-format episodes */}
+      {needsEnrich && (
+        <button onClick={enrichEpisodes} disabled={enrichLoading}
+          className="w-full py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[9px] font-bold hover:bg-amber-500/20 transition-colors disabled:opacity-30"
+          data-testid="enrich-episodes-btn">
+          {enrichLoading ? 'Generazione titoli...' : 'Genera Titoli & Trame Episodi'}
+        </button>
+      )}
+
+      {/* Episode list */}
+      <div className="space-y-1.5" data-testid="episode-list">
+        {episodes.map(ep => (
+          <EpisodeCard key={ep.number} ep={ep} isCurrent={ep.number === currentEp}
+            onWatch={watchEpisode} />
+        ))}
       </div>
 
       {/* New Season */}
       {allReleased && (
         <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 space-y-2" data-testid="new-season-section">
-          <p className="text-[9px] text-amber-400 font-bold uppercase">Nuova Stagione</p>
+          <p className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">Nuova Stagione</p>
           <p className="text-[8px] text-gray-400">
             Tutti gli episodi rilasciati! Crea la Stagione {(film.season_number || 1) + 1}.
           </p>

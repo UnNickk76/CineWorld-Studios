@@ -1,72 +1,77 @@
-# CineWorld Studio - PRD
+# CineWorld Studio's - PRD
 
 ## Problema Originale
-Gioco browser di simulazione cinematografica. L'utente gestisce uno studio, produce film/serie/anime, gestisce una rete TV.
+Gioco browser di simulazione cinematografica con produzione film, serie TV, anime, sistema TV con palinsesto, marketplace, PvP arena, minigiochi e social features.
 
 ## Architettura
-- **Frontend**: React (SPA), pagine in `/app/frontend/src/pages/`
-- **Backend**: FastAPI, routes in `/app/backend/routes/`
-- **Database**: MongoDB
+- **Frontend**: React + TailwindCSS + Shadcn UI + Framer Motion
+- **Backend**: FastAPI + MongoDB
+- **Auth**: JWT-based con bcrypt
 
-## Funzionalità Implementate
+## Cosa è stato implementato
 
-### Core
-- Auth (login/register), Dashboard, Profilo
-- Sistema fondi, Moneta virtuale, Daily bonus
+### Sessione Corrente (Apr 2026)
 
-### Pipeline V2 (Film/Serie/Anime)
-- Produzione multi-step (concept -> script -> cast -> filming -> post -> release)
-- Sistema stagioni multiple con franchise fatigue
-- Generazione episodi persistente (titolo, trama, tipo: normal/peak/filler/plot_twist/season_finale)
-- Cast con animatori/doppiatori per anime
-- UI stile Netflix per episodi
+#### Dashboard Refactor (VETRINA MOBILE-FIRST)
+- Dashboard completamente rifattorizzata con solo 8 sezioni in ordine:
+  1. LaPrima (glow-gold)
+  2. Eventi WOW (EPICO/LEGGENDARIO, max 3, derivati da film di alta qualità)
+  3. Prossimamente FILM (glow-blue)
+  4. Ultimi Aggiornamenti FILM (glow-purple)
+  5. Prossimamente SERIE TV (glow-blue)
+  6. Ultimi Aggiornamenti SERIE TV (glow-purple)
+  7. Prossimamente ANIME (glow-blue)
+  8. Ultimi Aggiornamenti ANIME (glow-purple)
+- Rimossi: blocchi operativi (produci, mercato ecc), sezioni I Miei film/serie/anime
+- Tutte le sezioni con scroll orizzontale (overflow-x-auto)
 
-### Emittente TV (Palinsesto)
-- Creazione stazione TV con infrastruttura
-- Aggiunta contenuti (film/serie/anime) al palinsesto
-- Sistema Broadcast Episodi:
-  - Trasmissione in tempo reale (1 ep ogni X giorni, configurabile)
-  - Modalità Binge (tutti gli episodi subito)
-  - Auto-avanzamento basato su timestamp reale
-  - Performance per-episodio (viewers, revenue, rating)
-  - Post-stagione: Repliche (audience al 40%) o Ritiro
-  - Revenue accreditato automaticamente all'utente
-- Sezioni Netflix, Classifica stazioni, Marketplace
+#### SideMenu Laterale Sinistro
+- Menu slide-in da sinistra (25% larghezza)
+- 9 voci: Produci, Sceneggiature, Mercato, Le mie TV, Infrastrutture, Minigiochi+Sfide, Contest, Arena, Festival
+- Trigger: bottone Menu in fondo dashboard + CIACK dalla bottom nav (quando già su dashboard)
+- Overlay scuro con chiusura al click esterno
 
-### Sistema Notifiche Globale (NUOVO)
-- **Backend**: `notification_helper.py` - utility globale richiamabile da qualsiasi route
-- **Categorie**: production, tv_episodes, events, economy, social, infrastructure, arena, minigames
-- **Priorità**: high (popup), medium (toast), low (badge only)
-- **Anti-spam**: raggruppamento notifiche simili (finestra 5 min), cooldown popup 30s
-- **NotificationProvider**: polling centralizzato (30s count, 15s popup), soppressione popup al login
-- **UI**: Badge rosso con conteggio nella navbar, pagina con tab categorie + tab severità
-- **Endpoints**: GET /notifications (con category filter), GET /notifications/stats, GET /notifications/popup (solo high/medium)
+#### Glow Animato Sezioni
+- `.glow-gold` per LaPrima e eventi LEGGENDARIO
+- `.glow-blue` per sezioni Prossimamente
+- `.glow-purple` per sezioni Ultimi Aggiornamenti e eventi EPICO
+- Animazioni lente (4s) solo sui container
 
-### Dialog Conferma Custom (NUOVO)
-- `ConfirmDialog.jsx` con `useConfirm()` hook - sostituisce tutti i `window.confirm()`
-- Design: sfondo scuro, bordo giallo glow, mascotte Velion + CineOx, bottoni stilizzati
-- Tutti i confirm del gioco (10+ occorrenze) convertiti al nuovo stile
+#### Sistema TV Refactoring
+- TVStationPage → puro stile Netflix (solo caroselli + locandine, nessun bottone gestionale)
+- TVMenuModal (4 tab): Contenuti, Palinsesto, Pubblicità, Statistiche
+- SeriesDetailModal: dettaglio serie/anime con "Gestisci Palinsesto"
+- PalinsestoModal: gestione episodi con schedulazione calendario reale
+- Menu button in alto a destra nella TV Station page
+- Integrazione in MyFilms.jsx per aprire SeriesDetailModal da "I Miei"
 
-### Minigiochi Arcade
-- TapCiak, SceneFlip, CatchTheStar, Velion AI
+#### Notifiche Globali + ConfirmDialog
+- Sistema NotificationProvider con raggruppamento anti-spam
+- ConfirmDialog custom al posto di window.confirm
 
-### Admin
-- Tool Migrazione V1 -> V2
+### Sessioni Precedenti
+- Pipeline Film V2, Serie TV, Anime
+- Sistema Marketplace (Fase 1 e 2)
+- PvP Arena con sfide e divisioni
+- Minigiochi (IndovinaIncasso, TriviaCinema, etc.)
+- Festival, Tour del Cinema, Contest
+- Infrastrutture con upgrade
+- Sistema Social CineBoard + Amici
+- Chat di gruppo
+- Leaderboard + Classifiche
 
-## Backlog
+## Backlog Prioritizzato
 
 ### P1
-- Fix minigiochi residui (TapCiak, ecc.)
-- Fase 3 Mercato: vendita serie/anime e distribuzione
+- Fase 3 Mercato: vendita serie/anime con distribuzione a chi acquista
 
 ### P2
-- Sfida della Settimana (minigioco rotante con premi)
+- Sfida della Settimana (minigioco rotante con premi extra)
 
 ### P3
 - Previsioni Festival
 - Marketplace diritti TV/Anime
-- Velion Mood, Chat Evolution, CinePass+Stripe
-- Push notifications, Velion Livelli
+- Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli
 
 ## Credenziali Test
 - Email: fandrex1@gmail.com

@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft } from 'lucide-react';
 import { AuthContext } from '../contexts';
+import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
@@ -1611,6 +1612,7 @@ const CAT_CONFIG = {
 const V2_STATES = ['draft','idea','proposed','hype_setup','hype_live','casting_live','prep','shooting','postproduction','sponsorship','marketing','premiere_setup','premiere_live','release_pending','released','completed','discarded'];
 
 function MigrationTab({ api }) {
+  const gameConfirm = useConfirm();
   const [scan, setScan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -1661,7 +1663,7 @@ function MigrationTab({ api }) {
   };
 
   const doBatchMigrate = async () => {
-    if (!window.confirm('Migrare TUTTI i progetti eligibili? Questa azione non e reversibile.')) return;
+    if (!await gameConfirm({ title: 'Migrare TUTTI i progetti?', subtitle: 'Questa azione non è reversibile.', confirmLabel: 'Migra Tutti' })) return;
     setBatchRunning(true);
     try {
       const res = await api.post('/admin/migration/migrate-all', {});

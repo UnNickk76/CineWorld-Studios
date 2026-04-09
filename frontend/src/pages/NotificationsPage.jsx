@@ -19,23 +19,41 @@ import {
   Mail, BarChart3, CheckCircle, TrendingDown, Camera, Gavel
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { useNotifications } from '../components/NotificationProvider';
+import { Tv, Building, Gamepad2, DollarSign } from 'lucide-react';
+
+const CATEGORY_TABS = [
+  { key: 'all', label: 'Tutte', icon: Bell },
+  { key: 'production', label: 'Produzione', icon: Film },
+  { key: 'tv_episodes', label: 'TV', icon: Tv },
+  { key: 'economy', label: 'Economia', icon: DollarSign },
+  { key: 'events', label: 'Eventi', icon: Flame },
+  { key: 'social', label: 'Social', icon: Heart },
+  { key: 'infrastructure', label: 'Infra', icon: Building },
+  { key: 'arena', label: 'Arena', icon: Swords },
+  { key: 'minigames', label: 'Giochi', icon: Gamepad2 },
+];
 
 const NotificationsPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
   const navigate = useNavigate();
+  const { refreshNotifications, categoryStats } = useNotifications();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actorPopup, setActorPopup] = useState(null);
   const [filter, setFilter] = useState('all'); // all, critical, important, positive
+  const [categoryFilter, setCategoryFilter] = useState('all');
   
   const loadNotifications = React.useCallback(async () => {
     try {
-      const res = await api.get('/notifications?limit=80');
+      const params = new URLSearchParams({ limit: '80' });
+      if (categoryFilter !== 'all') params.append('category', categoryFilter);
+      const res = await api.get(`/notifications?${params.toString()}`);
       setNotifications(res.data.notifications);
     } catch (e) {}
     setLoading(false);
-  }, [api]);
+  }, [api, categoryFilter]);
 
   useEffect(() => {
     loadNotifications();
@@ -45,6 +63,7 @@ const NotificationsPage = () => {
     try {
       await api.post('/notifications/read', { notification_ids: [] });
       loadNotifications();
+      refreshNotifications();
       toast.success('Tutte le notifiche segnate come lette');
     } catch (e) {}
   };
@@ -212,7 +231,32 @@ const NotificationsPage = () => {
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Category Tabs */}
+      <div className="flex gap-1 mb-2 overflow-x-auto pb-1 scrollbar-hide" data-testid="category-tabs">
+        {CATEGORY_TABS.map(cat => {
+          const Icon = cat.icon;
+          const count = cat.key === 'all' ? 0 : (categoryStats[cat.key] || 0);
+          return (
+            <button
+              key={cat.key}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all whitespace-nowrap ${
+                categoryFilter === cat.key
+                  ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                  : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
+              }`}
+              onClick={() => { setCategoryFilter(cat.key); setLoading(true); }}
+              data-testid={`category-${cat.key}`}
+            >
+              <Icon className="w-3 h-3" /> {cat.label}
+              {count > 0 && (
+                <span className="min-w-[14px] h-3.5 px-1 bg-red-500/80 text-white text-[8px] font-bold rounded-full flex items-center justify-center">{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Severity Filter Tabs */}
       <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
         {[
           { key: 'all', label: 'Tutte', color: 'text-white' },

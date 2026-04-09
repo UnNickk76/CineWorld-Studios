@@ -11,6 +11,7 @@ import math
 
 from database import db
 from auth_utils import get_current_user
+from routes.notification_helper import send_notification
 
 router = APIRouter()
 
@@ -169,6 +170,14 @@ async def setup_step2(req: SetupStep2Request, user: dict = Depends(get_current_u
             'setup_complete': True,
             'updated_at': datetime.now(timezone.utc).isoformat(),
         }}
+    )
+    
+    await send_notification(
+        user['id'], 'infrastructure', 'medium',
+        'Emittente TV Attiva!',
+        f"La tua emittente '{station['station_name']}' è pronta a trasmettere!",
+        notif_type='tv_station_created',
+        link=f'/tv-station/{req.station_id}',
     )
     
     return {"message": f"'{station['station_name']}' è pronta a trasmettere!", "station_id": req.station_id}
@@ -909,6 +918,14 @@ async def _auto_advance_broadcasts(station):
                 if cur_ep + 1 >= total:
                     entry['broadcast_state'] = 'completed'
                     entry['next_air_at'] = None
+                    # Notify: series broadcast completed
+                    await send_notification(
+                        station['user_id'], 'tv_episodes', 'high',
+                        'Stagione Completata!',
+                        f'Tutti gli episodi sono andati in onda. Viewers totali: {station.get("total_viewers", 0):,}',
+                        notif_type='season_complete',
+                        link=f'/tv-station/{station["id"]}',
+                    )
                     break
                 else:
                     interval = entry.get('air_interval_days', 1)

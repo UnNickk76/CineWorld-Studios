@@ -44,6 +44,8 @@ import { SKILL_TRANSLATIONS } from './constants';
 import { PageTransition, PageSkeleton } from './components/PageTransition';
 import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
+import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
+import { NotificationProvider, useNotifications } from './components/NotificationProvider';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 import { GuestTutorial } from './components/GuestTutorial';
@@ -401,7 +403,7 @@ const TopNavbar = () => {
   const [donationsEnabled, setDonationsEnabled] = useState(true);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const { unreadCount: notificationCount } = useNotifications();
   const [releaseNotesCount, setReleaseNotesCount] = useState(0);
   const [systemNotesCount, setSystemNotesCount] = useState(0);
   const [emergingScreenplaysCount, setEmergingScreenplaysCount] = useState(0);
@@ -496,7 +498,6 @@ const TopNavbar = () => {
   // Core data - fetch once on mount + poll
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
-    api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/system-notes/unread').then(r => setSystemNotesCount(r.data.unread_count)).catch(() => {});
     api.get('/emerging-screenplays/count').then(r => setEmergingScreenplaysCount(r.data.new || 0)).catch(() => {});
@@ -583,8 +584,7 @@ const TopNavbar = () => {
           // SOFT: Only update badge count (no popup/toast)
           // Already handled by notification count update below
           
-          // Update notification count
-          api.get('/notifications/count').then(r2 => setNotificationCount(r2.data.unread_count)).catch(() => {});
+          // Count now managed by NotificationProvider
         }
       }).catch(() => {});
     };
@@ -635,9 +635,8 @@ const TopNavbar = () => {
     return () => clearTimeout(timer);
   }, [user]);
 
-  // Lightweight refresh on navigation - only notification counts
+  // Lightweight refresh on navigation
   useEffect(() => {
-    api.get('/notifications/count').then(r => setNotificationCount(r.data.unread_count)).catch(() => {});
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
     setShowProductionMenu(false);
     setShowCineboardMenu(false);
@@ -2450,6 +2449,8 @@ function App() {
         <AuthProvider>
           <GameStoreProvider>
           <LanguageProvider>
+            <ConfirmProvider>
+            <NotificationProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
               <Routes>
@@ -2512,6 +2513,8 @@ function App() {
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </UrlManager>
+            </NotificationProvider>
+            </ConfirmProvider>
           </LanguageProvider>
           </GameStoreProvider>
         </AuthProvider>

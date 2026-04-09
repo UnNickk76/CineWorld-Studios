@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
+import CiakIntroOverlay from '../components/CiakIntroOverlay';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -1303,6 +1304,7 @@ const PrepPhase = ({ film, onRefresh, toast }) => {
   const [vfx, setVfx] = useState(film.production_setup?.vfx_packages || []);
   const [extras, setExtras] = useState(film.production_setup?.extras_count || 100);
   const [loading, setLoading] = useState('');
+  const [showCiakIntro, setShowCiakIntro] = useState(false);
 
   useEffect(() => {
     api.get(`/films/${film.id}/prep-options`).then(setOptions).catch(() => {});
@@ -1312,11 +1314,19 @@ const PrepPhase = ({ film, onRefresh, toast }) => {
     setLoading('save');
     try {
       await api.post(`/films/${film.id}/save-prep`, { equipment, cgi_packages: cgi, vfx_packages: vfx, extras_count: extras });
+      setLoading('');
+      // Show cinematic intro, then start CIAK at the end
+      setShowCiakIntro(true);
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); setLoading(''); }
+  };
+
+  const onIntroComplete = async () => {
+    setShowCiakIntro(false);
+    try {
       await api.post(`/films/${film.id}/start-ciak`);
       onRefresh();
       toast({ title: 'CIAK! Riprese avviate!' });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
-    setLoading('');
   };
 
   const toggleItem = (item, list, setList, max = 10) => {
@@ -1386,10 +1396,11 @@ const PrepPhase = ({ film, onRefresh, toast }) => {
         <p className="text-[8px] text-gray-500">Costo: ${(extras * (options.extras_cost_per_person || 500)).toLocaleString()}</p>
       </div>
 
-      <button onClick={saveAndProceed} disabled={loading === 'save'}
+      <button onClick={saveAndProceed} disabled={loading === 'save' || showCiakIntro}
         className="w-full text-[10px] py-2.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="start-ciak-btn">
-        {loading === 'save' ? '...' : 'Salva e Avvia Riprese'}
+        {loading === 'save' ? 'Salvataggio...' : showCiakIntro ? 'Avvio riprese...' : 'Salva e Avvia Riprese'}
       </button>
+      {showCiakIntro && <CiakIntroOverlay onComplete={onIntroComplete} />}
     </PhaseWrapper>
   );
 };

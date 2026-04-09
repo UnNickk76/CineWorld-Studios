@@ -91,6 +91,7 @@ from routes.pvp import router as pvp_router
 from routes.pvp_cinema import router as pvp_cinema_router
 from routes.velion import router as velion_router, init as velion_init
 from routes.cast import router as cast_router, initialize_cast_pool_if_needed as _cast_init_pool
+from routes.admin_migration import router as admin_migration_router
 from routes.users import router as users_router
 from routes.chat import router as chat_router
 from routes.festivals import router as festivals_router
@@ -9835,6 +9836,7 @@ app.include_router(pvp_cinema_router, prefix="/api")
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
+app.include_router(admin_migration_router)
 app.include_router(users_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(festivals_router, prefix="/api")

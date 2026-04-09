@@ -1,0 +1,447 @@
+================================================================================
+               CINEWORLD STUDIO'S - GUIDA COMPLETA INFRASTRUTTURE
+================================================================================
+                        Versione: Aprile 2026
+================================================================================
+
+
+INDICE
+------
+  1. Panoramica Generale
+  2. Categorie Infrastrutture
+  3. Cinema e Proiezioni (Revenue da Biglietti)
+  4. Studi di Produzione
+  5. Broadcasting (Emittenti TV)
+  6. Agenzie e Talent Scout
+  7. Divisioni PvP (Strategiche)
+  8. Sistema di Upgrade (Livelli 1-10)
+  9. Prodotti Sbloccabili per Livello
+ 10. Revenue e Riscossione Incassi
+ 11. Marketplace (Compra/Vendita Infrastrutture)
+ 12. Gestione Film nei Cinema
+ 13. Scuola di Recitazione (Dettaglio)
+ 14. Sistema Citta e Paesi
+ 15. Eventi, Sicurezza e Influenza
+ 16. Requisiti CinePass
+
+
+================================================================================
+1. PANORAMICA GENERALE
+================================================================================
+
+Le infrastrutture sono asset fisici che il giocatore acquista nel mondo
+di gioco. Ogni infrastruttura ha:
+  - Costo di acquisto (in dollari di gioco)
+  - Requisiti di livello giocatore e fama
+  - Costo CinePass (valuta premium)
+  - Livello da 1 a 10 (upgradabile)
+  - Collocazione in una citta specifica (con moltiplicatori)
+  - Revenue passiva o attiva in base al tipo
+
+Le infrastrutture si dividono in 5 categorie funzionali:
+  CINEMA        -> Generano revenue dalla proiezione di film
+  STUDI         -> Bonus produzione per film, serie e anime
+  BROADCASTING  -> Trasmissione contenuti su canali TV
+  AGENZIE       -> Scoperta talenti e sceneggiature
+  STRATEGICHE   -> Divisioni PvP (investigare, attaccare, difendere)
+
+
+================================================================================
+2. MAPPA COMPLETA INFRASTRUTTURE
+================================================================================
+
+ID                       | Nome IT                        | Lv  | Fama | Costo Base     | Unica?
+-------------------------|--------------------------------|-----|------|----------------|-------
+cinema                   | Cinema                         |  5  |  20  | $2,000,000     | No
+drive_in                 | Cinema Drive-In                |  8  |  25  | $1,500,000     | No
+multiplex_small          | Centro Commerciale Piccolo     | 10  |  30  | $5,000,000     | No
+multiplex_medium         | Centro Commerciale Medio       | 20  |  50  | $15,000,000    | No
+multiplex_large          | Centro Commerciale Grande IMAX | 35  |  65  | $35,000,000    | No
+vip_cinema               | Cinema VIP di Lusso            | 40  |  70  | $25,000,000    | No
+cinema_museum            | Museo del Cinema               | 30  |  60  | $20,000,000    | No
+film_festival_venue      | Sede Festival del Cinema       | 45  |  75  | $40,000,000    | No
+theme_park               | Parco a Tema Cinematografico   | 50  |  80  | $100,000,000   | No
+production_studio        | Studio di Produzione           | 15  |  40  | $8,000,000     | Si
+studio_serie_tv          | Studio Serie TV                |  7  |  60  | $3,000,000     | Si
+studio_anime             | Studio Anime                   |  9  |  90  | $4,000,000     | Si
+emittente_tv             | Emittente TV                   |  7  |  80  | $2,000,000     | No*
+cinema_school            | Scuola di Recitazione          | 12  |  30  | $5,000,000     | Si
+talent_scout_actors      | Talent Scout Attori            | 10  |  25  | $500,000       | Si
+talent_scout_screenwriters| Talent Scout Sceneggiatori    | 10  |  25  | $500,000       | Si
+pvp_investigative        | Divisione Investigativa        |  3  |   0  | $500,000       | Si
+pvp_operative            | Divisione Operativa            |  2  |   0  | $300,000       | Si
+pvp_legal                | Divisione Legale               |  5  |  60  | $1,000,000     | Si
+
+* Emittente TV: puoi averne piu di una, ma ogni acquisto successivo costa
+  2.5x in piu e richiede +3 livelli e +40 fama rispetto al precedente.
+
+
+================================================================================
+3. CINEMA E PROIEZIONI (Revenue da Biglietti)
+================================================================================
+
+Queste infrastrutture hanno "schermi" (screens) dove proiettare film.
+La revenue dipende da: qualita film, prezzo biglietto, citta, livello.
+
+--- CINEMA (Lv 5) ---
+  Schermi: 4 | Posti/Schermo: 150 | Moltiplicatore: 1.0x
+  Costo base: $2,000,000
+  Il primo cinema standard. Buon punto di partenza.
+
+--- DRIVE-IN (Lv 8) ---
+  Schermi: 2 | Posti/Schermo: 200 (auto) | Moltiplicatore: 0.9x
+  Costo base: $1,500,000
+  Cinema all'aperto classico. Meno schermi, piu capienza.
+
+--- CENTRO COMMERCIALE PICCOLO (Lv 10) ---
+  Schermi: 6 | Posti/Schermo: 120 | Moltiplicatore: 1.2x | 3D: Si
+  Costo base: $5,000,000
+  Primo step verso il multiplex. Include food court.
+
+--- CENTRO COMMERCIALE MEDIO (Lv 20) ---
+  Schermi: 10 | Posti/Schermo: 150 | Moltiplicatore: 1.4x | 3D: Si
+  Costo base: $15,000,000
+  Multiplex intermedio con food court.
+
+--- CENTRO COMMERCIALE GRANDE IMAX (Lv 35) ---
+  Schermi: 16 | Posti/Schermo: 200 | Moltiplicatore: 1.8x | 3D: Si | IMAX: Si
+  Costo base: $35,000,000
+  Il multiplex top con IMAX e food court.
+
+--- CINEMA VIP DI LUSSO (Lv 40) ---
+  Schermi: 6 | Posti/Schermo: 50 | Moltiplicatore: 2.5x | 3D: Si
+  Costo base: $25,000,000
+  Pochi posti ma prezzi x3. Revenue per spettatore altissima.
+
+--- MUSEO DEL CINEMA (Lv 30) ---
+  Schermi: 2 | Posti/Schermo: 100 | Moltiplicatore: 0.8x
+  Costo base: $20,000,000
+  Attrazione turistica. Bonus fama giornaliero +0.5.
+
+--- SEDE FESTIVAL DEL CINEMA (Lv 45) ---
+  Schermi: 8 | Posti/Schermo: 300 | Moltiplicatore: 1.5x
+  Costo base: $40,000,000
+  Ospita festival del cinema. Bonus fama giornaliero +1.0.
+
+--- PARCO A TEMA CINEMATOGRAFICO (Lv 50) ---
+  Schermi: 4 | Posti/Schermo: 500 | Moltiplicatore: 3.0x
+  Costo base: $100,000,000
+  L'infrastruttura piu costosa. Attrazione turistica con giostre.
+  Bonus fama giornaliero +2.0.
+
+
+Come funziona la revenue dai cinema:
+  - Visitatori/ora = 10 + (qualita_film * 0.5) + (imdb * 5)
+  - Revenue/ora = visitatori * prezzo_biglietto * revenue_share
+  - Revenue accumulata ogni ora, max 4 ore
+  - Moltiplicata dal fattore citta (wealth * revenue_multiplier)
+
+
+================================================================================
+4. STUDI DI PRODUZIONE
+================================================================================
+
+Non generano revenue diretta da biglietti. Forniscono bonus alla
+produzione di contenuti.
+
+--- STUDIO DI PRODUZIONE (Lv 15) ---
+  Costo: $8,000,000 | Unico
+  Bonus: -15% costi produzione film, +5% qualita
+  Prerequisito per funzionalita avanzate di produzione.
+
+--- STUDIO SERIE TV (Lv 7) ---
+  Costo: $3,000,000 | Unico
+  Bonus: +10% produzione | Prerequisito: nessuno
+  Necessario per produrre Serie TV nella pipeline completa.
+
+--- STUDIO ANIME (Lv 9) ---
+  Costo: $4,000,000 | Unico
+  Bonus: +10% produzione | Prerequisito: nessuno
+  Necessario per produrre Anime (Shonen, Seinen, Shojo, Mecha, Isekai).
+
+
+================================================================================
+5. BROADCASTING (EMITTENTI TV)
+================================================================================
+
+--- EMITTENTE TV (Lv 7, Fama 80) ---
+  Costo base: $2,000,000 | Multipla (costo esponenziale)
+  Slot iniziali: 2 | Reddito passivo: $5,000/ora
+  
+  Funzionalita:
+  - Trasmetti Film, Serie TV e Anime sul tuo canale
+  - Palinsesto gestibile con orari e programmazione
+  - Sezione "Prossimamente" per contenuti in arrivo
+  - Revenue passiva basata sui contenuti trasmessi
+  
+  Costo per TV aggiuntive:
+    TV #2: $2M * 2.5   = $5,000,000   (richiede Lv 10, Fama 120)
+    TV #3: $2M * 6.25  = $12,500,000  (richiede Lv 13, Fama 160)
+    TV #4: $2M * 15.6  = $31,250,000  (richiede Lv 16, Fama 200)
+
+
+================================================================================
+6. AGENZIE E TALENT SCOUT
+================================================================================
+
+--- SCUOLA DI RECITAZIONE (Lv 12) ---
+  Costo: $5,000,000 | Unica
+  Max studenti: 1 (contemporaneamente in training)
+  
+  Come funziona:
+  1. "Iscrivi Studente" -> genera uno studente casuale con stats
+  2. "Allena" -> ogni sessione = 1 giorno di training
+  3. Dopo 30+ giorni -> "Diploma" -> attore personale (people collection)
+  4. L'attore diplomato entra nella tua Agenzia Cast
+  5. Attenzione: se ignori lo studente troppo a lungo, se ne va!
+  
+  Stats studente: talento, disciplina, carisma, versatilita, motivazione
+  Lo studente cresce in base a training_speed della scuola.
+
+--- TALENT SCOUT ATTORI (Lv 10) ---
+  Costo: $500,000 | Unico | Max Lv 5
+  Scopre giovani attori con potenziale nascosto.
+  I talenti scoperti entrano direttamente nella tua Agenzia Cast.
+
+--- TALENT SCOUT SCENEGGIATORI (Lv 10) ---
+  Costo: $500,000 | Unico | Max Lv 5
+  Trova sceneggiatori che propongono sceneggiature pronte.
+  Senza questo scout, devi scrivere tutto da zero.
+  Le sceneggiature proposte appaiono nel sistema "Sceneggiature Emergenti".
+
+
+================================================================================
+7. DIVISIONI PvP (STRATEGICHE)
+================================================================================
+
+Non generano revenue. Servono per il sistema Player vs Player.
+
+--- DIVISIONE OPERATIVA (Lv 2) ---
+  Costo: $300,000 | Unica
+  Funzione: Esegui boicottaggi difensivi e contro-attacchi.
+  Abilita azioni PvP offensive contro rivali.
+
+--- DIVISIONE INVESTIGATIVA (Lv 3) ---
+  Costo: $500,000 | Unica
+  Funzione: Indaga sui boicottaggi ricevuti per scoprire il sabotatore.
+  Senza questa, non sai chi ti ha attaccato.
+
+--- DIVISIONE LEGALE (Lv 5, Fama 60) ---
+  Costo: $1,000,000 | Unica
+  Prerequisito: Divisione Investigativa (Lv 1+)
+  Funzione: Avvia azioni legali contro sabotatori identificati.
+  Puo bloccare un attaccante per un periodo di tempo.
+
+
+================================================================================
+8. SISTEMA DI UPGRADE (LIVELLI 1-10)
+================================================================================
+
+Ogni infrastruttura puo essere migliorata dal Lv 1 al Lv 10.
+
+Formula costo upgrade:
+  costo = base_cost * 0.4 * 1.7^(livello_attuale - 1)
+
+Esempio per Cinema (base $2,000,000):
+  Lv 1->2: $2M * 0.4 * 1.7^0 = $800,000
+  Lv 2->3: $2M * 0.4 * 1.7^1 = $1,360,000
+  Lv 3->4: $2M * 0.4 * 1.7^2 = $2,312,000
+  Lv 4->5: $2M * 0.4 * 1.7^3 = $3,930,400
+  ...e cosi via (esponenziale)
+
+Requisito livello giocatore per upgrade:
+  livello_richiesto = livello_base_infra + (livello_attuale * 3)
+  Esempio Cinema (base 5): Lv2 richiede Lv8, Lv3 richiede Lv11, ecc.
+
+Benefici per livello (cinema con schermi):
+  - +2 schermi per livello
+  - +25 posti per schermo per livello
+  - +20% revenue multiplier per livello
+  - Sblocco nuovi prodotti vendibili
+
+Benefici per livello (infra senza schermi):
+  - Revenue passiva scala con sqrt(livello)
+  - Bonus qualita/produzione crescenti
+
+
+================================================================================
+9. PRODOTTI SBLOCCABILI PER LIVELLO
+================================================================================
+
+Ogni cinema sblocca prodotti vendibili in base al livello:
+
+  Lv 1: Biglietto ($12), Popcorn ($8), Bevande ($5), Combo ($18)
+  Lv 2: Nachos ($7)
+  Lv 3: Hot Dog ($6)
+  Lv 4: Gelato ($5)
+  Lv 5: Merchandising ($15)
+  Lv 6: VIP Lounge ($30)
+  Lv 7: Premium 3D ($8)
+  Lv 8: Cocktail Bar ($12)
+
+I prezzi sono personalizzabili dal giocatore tramite il pannello Prezzi.
+
+
+================================================================================
+10. REVENUE E RISCOSSIONE INCASSI
+================================================================================
+
+Sistema di accumulo:
+  - La revenue si accumula ogni ora
+  - Massimo accumulo: 4 ore (poi si ferma)
+  - Minimo tra riscossioni: 6 minuti
+  
+Revenue per tipo:
+  CINEMA (con schermi e film in programmazione):
+    visitatori/h = 10 + (qualita * 0.5) + (imdb * 5)
+    revenue/h = visitatori * prezzo_biglietto * revenue_share * citta_mult
+  
+  ALTRI (senza schermi o senza film):
+    Revenue passiva base:
+      Production Studio: $2,000/h
+      Cinema School: $1,500/h
+      Cinema Museum: $1,000/h
+      Emittente TV: $5,000/h
+      Altri: $500/h
+    Scalata: base * sqrt(livello) * citta_revenue_multiplier
+
+Revenue share (film a noleggio):
+  - Film propri: 100% al proprietario
+  - Film noleggiati: 70% al noleggiatore, 30% al proprietario del film
+
+
+================================================================================
+11. MARKETPLACE (COMPRA/VENDITA INFRASTRUTTURE)
+================================================================================
+
+Livello richiesto per il trading: vedi TRADE_REQUIRED_LEVEL in cast_system.
+
+Vendere:
+  1. Vai nel dettaglio dell'infrastruttura
+  2. "Metti in vendita" -> imposta prezzo (tra min e max calcolati)
+  3. Il valore viene calcolato in base a: livello, revenue totale, citta
+  4. Gli altri giocatori vedono l'annuncio e possono fare offerte
+
+Comprare:
+  1. Vai nel Marketplace
+  2. Filtra per tipo, prezzo, paese
+  3. Fai un'offerta
+  4. Il venditore accetta o rifiuta
+
+Quando la vendita si chiude:
+  - L'infrastruttura cambia proprietario
+  - I fondi vengono trasferiti
+  - Entrambi ricevono XP
+
+
+================================================================================
+12. GESTIONE FILM NEI CINEMA
+================================================================================
+
+Puoi aggiungere film ai tuoi cinema in due modi:
+
+1. FILM PROPRI (Aggiungi Film):
+   - Seleziona un tuo film rilasciato
+   - Revenue 100% tua
+   - Nessun costo aggiuntivo
+
+2. FILM NOLEGGIATI (Noleggio da altri giocatori):
+   - Paghi un canone settimanale basato su qualita e popolarita
+   - Formula: (imdb * qualita * 100) + (likes * 500), min $5K, max $100K
+   - Revenue split: 70% a te, 30% al proprietario
+   - 30% del canone va subito al proprietario come anticipo
+   - Il noleggio scade dopo il numero di settimane scelto
+
+Limite schermi: base_schermi + (livello - 1) * 2
+  Es: Cinema Lv3 = 4 + (3-1)*2 = 8 schermi
+
+
+================================================================================
+13. SCUOLA DI RECITAZIONE (Dettaglio)
+================================================================================
+
+Flusso completo:
+  1. Acquista la Scuola di Recitazione ($5M, Lv 12)
+  2. "Iscrivi Studente" -> genera studente con nome, nazionalita, stats
+  3. Stats iniziali: talento (0.3-0.8), disciplina (0.4-0.9), carisma, ecc.
+  4. Ogni "Allena" = 1 giorno. Le stats crescono in base a training_speed
+  5. Se non dai attenzione per troppi giorni -> motivazione cala -> se ne va!
+  6. "Dai Attenzione" -> resetta il contatore e aumenta motivazione (+0.1)
+  7. Dopo 30+ giorni -> "Diploma" -> l'attore entra nella collection `people`
+  8. L'attore diplomato ha un avatar generato e stats finali
+  9. Puoi usarlo nei tuoi film tramite l'Agenzia Cast
+
+
+================================================================================
+14. SISTEMA CITTA E PAESI
+================================================================================
+
+Le infrastrutture vanno collocate in citta reali. Ogni citta ha:
+  - wealth: ricchezza (influenza revenue)
+  - population: popolazione (influenza affluenza)
+  - cost_multiplier: moltiplicatore sul costo base
+  - revenue_multiplier: calcolato da wealth
+
+Regola: il PRIMO cinema deve essere nel paese della tua lingua.
+  Italiano -> Italy, English -> USA, ecc.
+
+Paesi disponibili (con citta principali):
+  - USA: New York, Los Angeles, Chicago, Houston, Miami, San Francisco
+  - Italy: Roma, Milano, Napoli, Torino, Firenze, Venezia
+  - UK: London, Manchester, Birmingham, Edinburgh, Liverpool
+  - France: Paris, Lyon, Marseille, Nice, Cannes
+  - Germany: Berlin, Munich, Hamburg, Frankfurt, Cologne
+  - Spain: Madrid, Barcelona, Seville, Valencia, Bilbao
+  - Japan: Tokyo, Osaka, Kyoto, Yokohama, Fukuoka
+  - South Korea: Seoul, Busan, Incheon, Daegu
+  - India: Mumbai, New Delhi, Bangalore, Chennai, Kolkata
+  - Brazil: Sao Paulo, Rio de Janeiro, Brasilia, Salvador
+
+
+================================================================================
+15. EVENTI, SICUREZZA E INFLUENZA
+================================================================================
+
+EVENTI:
+  Ogni infrastruttura ha uno storico eventi (positivi e negativi).
+  Gli eventi sono generati dal sistema in base alla categoria infrastruttura.
+  Categorie: cinema, studi, commerciale, agenzie, strategico.
+
+SICUREZZA:
+  Le divisioni PvP forniscono difese passive:
+  - Investigativa: scoperta attaccanti
+  - Operativa: contro-attacchi
+  - Legale: blocchi legali (impediscono attacchi futuri)
+  
+  Ogni divisione ha un valore difensivo che scala col livello:
+    valore = base_value + (livello - 1) * per_level (cap: max_value)
+  
+  Threat Level: low (<3 attacchi/7gg), medium (3-5), high (>5)
+
+INFLUENZA (Bonus su progetti attivi):
+  Ogni infrastruttura fornisce bonus in base alla categoria e livello:
+  - Cinema: +2.5% revenue boost per livello, +50 audience per livello
+  - Commerciale: +1.5% revenue boost, +$5,000 reddito passivo per livello
+  - Studi: +1.0% qualita, +0.5% velocita produzione per livello
+  - Agenzie: +3.0% scoperta talenti, +2 fama per livello
+  - Strategico: +2.0% difesa, +1.5% intelligence per livello
+  
+  Combo: se hai progetti attivi (film/serie in produzione), moltiplicatore x1.5
+
+
+================================================================================
+16. REQUISITI CINEPASS
+================================================================================
+
+Ogni acquisto e upgrade richiede CinePass (valuta premium).
+
+Acquisto infrastruttura: varia per tipo (funzione get_infra_cinepass_cost)
+  PvP: Investigativa 5 CP, Operativa 3 CP, Legale 10 CP
+
+Upgrade CinePass per livello (funzione get_upgrade_cinepass_cost):
+  Il costo CinePass per upgrade scala col livello corrente.
+
+
+================================================================================
+                           FINE DOCUMENTO
+================================================================================

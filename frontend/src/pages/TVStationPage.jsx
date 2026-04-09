@@ -346,6 +346,10 @@ export default function TVStationPage() {
         infraLevel={infraLevel}
         onRefresh={() => loadStation(stationId)}
         onOpenPalinsesto={(series) => setPalinsestoSeries(series)}
+        onOpenContentDetail={(item) => {
+          setShowMenu(false);
+          handleContentClick({ ...item, id: item.id, type: item._contentType || item.content_type });
+        }}
       />
 
       {/* Series/Anime Detail Modal */}
@@ -437,7 +441,7 @@ function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, s
 function FilmDetailPopup({ film, onClose }) {
   if (!film) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div className="bg-[#0F0F10] border border-white/10 rounded-xl max-w-sm w-[90vw] overflow-hidden" onClick={e => e.stopPropagation()} data-testid="film-detail-popup">
         <div className="aspect-video relative">
           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" />

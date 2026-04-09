@@ -28,6 +28,12 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Auto-transizione in `_auto_advance_broadcasts`
 - Backend endpoints: add-upcoming, get upcoming, remove-upcoming, available-upcoming
 
+#### Rifinitura Prossimamente Gestionale (Apr 2026)
+- Click su locandina nel "Prossimamente" → apre popup dettaglio gestione (SeriesDetailModal/FilmDetailPopup) invece del cestino
+- Bottone "Elimina dalla programmazione" esplicito sotto ogni locandina
+- Merge vecchi contenuti schedulati (`scheduled_for_tv`) con nuovi (`upcoming_content`) nella lista Prossimamente
+- Fix overlay click-through su FilmDetailPopup (e.stopPropagation su backdrop)
+
 #### Dashboard Refactor + SideMenu + Glow + Menu Hamburger
 (come precedentemente implementato)
 

@@ -9,6 +9,7 @@ import {
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
 import CiakIntroOverlay from '../components/CiakIntroOverlay';
+import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -1701,6 +1702,7 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
 
 const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
+  const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
   const [duration, setDuration] = useState(24);
@@ -1728,11 +1730,16 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const completePremiere = async () => {
     setLoading('complete');
     try {
-      const res = await api.post(`/films/${film.id}/complete-premiere`);
-      onRefresh();
-      toast({ title: `Premiere completata! Impact: ${res.premiere_impact}` });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+      await api.post(`/films/${film.id}/complete-premiere`);
+      setShowReleaseOverlay(true);
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); setLoading(''); }
+  };
+
+  const onPremiereOverlayDone = () => {
+    setShowReleaseOverlay(false);
     setLoading('');
+    onRefresh();
+    toast({ title: `Premiere completata!` });
   };
 
   const speedup = async () => {
@@ -1779,7 +1786,6 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[9px] text-gray-500 uppercase">Premiere a {film.premiere?.city}</p>
             <p className="text-xl font-bold text-yellow-400 font-mono">{remaining}</p>
           </div>
-          {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
           {done && (
             <button onClick={completePremiere} disabled={loading === 'complete'}
               className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-premiere-btn">
@@ -1787,6 +1793,13 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
             </button>
           )}
         </div>
+      )}
+      {showReleaseOverlay && (
+        <CinematicReleaseOverlay
+          filmTitle={film.title} productionHouseName={film.production_house_name}
+          posterUrl={film.poster_url} genre={film.genre} releaseType="premiere"
+          onComplete={onPremiereOverlayDone}
+        />
       )}
     </PhaseWrapper>
   );
@@ -1799,6 +1812,7 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
+  const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const state = film.pipeline_state;
 
   const release = async () => {
@@ -1806,10 +1820,15 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
     try {
       const res = await api.post(`/films/${film.id}/release`);
       setResult(res);
-      onRefresh();
-      toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+      setShowReleaseOverlay(true);
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); setLoading(''); }
+  };
+
+  const onCinemaOverlayDone = () => {
+    setShowReleaseOverlay(false);
     setLoading('');
+    onRefresh();
+    toast({ title: `${film.title} rilasciato! Quality: ${result?.quality_score || '?'}` });
   };
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
@@ -1855,7 +1874,15 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               </div>
             </div>
           )}
+          )}
         </div>
+      )}
+      {showReleaseOverlay && (
+        <CinematicReleaseOverlay
+          filmTitle={film.title} productionHouseName={film.production_house_name}
+          posterUrl={film.poster_url} genre={film.genre} releaseType="cinema"
+          onComplete={onCinemaOverlayDone}
+        />
       )}
     </PhaseWrapper>
   );

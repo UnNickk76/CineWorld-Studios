@@ -301,16 +301,24 @@ async def get_arena(user: dict = Depends(get_current_user)):
         gid = _find_group(f.get('genre', ''))
         genre_sections[gid]['films'].append(f)
 
-    # Pipeline V2: marketing/la_prima → coming_soon
+    # Pipeline V2: marketing → coming_soon (prossimamente)
+    # Pipeline V2: premiere_live/la_prima → separate la_prima_films list
+    la_prima_films = []
     for f in v2_coming:
-        f['film_status'] = 'coming_soon'
+        ps = f.get('pipeline_state', '')
         f['source'] = 'projects'
         f['pipeline_v2'] = True
-        f['v2_phase'] = 'Marketing' if f.get('pipeline_state') == 'marketing' else 'La Prima'
         f['quality_score'] = f.get('pre_imdb_score', 5) * 10
         f['hype_score'] = f.get('pipeline_metrics', {}).get('hype_score', 0)
-        gid = _find_group(f.get('genre', ''))
-        genre_sections[gid]['films'].append(f)
+        if ps in ('la_prima', 'premiere_live'):
+            f['film_status'] = 'la_prima'
+            f['v2_phase'] = 'La Prima'
+            la_prima_films.append(f)
+        else:
+            f['film_status'] = 'coming_soon'
+            f['v2_phase'] = 'Marketing'
+            gid = _find_group(f.get('genre', ''))
+            genre_sections[gid]['films'].append(f)
 
     # Pipeline V2: released → in_sala
     for f in v2_released:
@@ -345,6 +353,7 @@ async def get_arena(user: dict = Depends(get_current_user)):
 
     return {
         'genre_sections': genre_sections,
+        'la_prima_films': la_prima_films,
         'actions_remaining': max(0, MAX_ACTIONS_PER_HOUR - actions_last_hour),
         'max_actions_per_hour': MAX_ACTIONS_PER_HOUR,
         'support_types': {k: {**v, 'type': 'support'} for k, v in SUPPORT_ACTIONS.items()},
@@ -403,7 +412,7 @@ async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_u
     v2_state_map = {
         'casting_live': 'anteprima', 'prep': 'anteprima',
         'ciak_live': 'anteprima', 'shooting': 'anteprima', 'final_cut': 'anteprima',
-        'marketing': 'coming_soon', 'la_prima': 'coming_soon', 'premiere_live': 'coming_soon',
+        'marketing': 'coming_soon', 'la_prima': 'la_prima', 'premiere_live': 'la_prima',
         'released': 'in_sala',
     }
     is_v2 = film.get('pipeline_version') == 2

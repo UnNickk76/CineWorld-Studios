@@ -15,6 +15,7 @@ const ICON_MAP = {
 const STATUS_LABELS = {
   'in_sala': { label: 'In Sala', color: 'text-green-400 bg-green-500/15' },
   'coming_soon': { label: 'Coming Soon', color: 'text-yellow-400 bg-yellow-500/15' },
+  'la_prima': { label: 'La Prima', color: 'text-amber-400 bg-amber-500/15' },
   'anteprima': { label: 'Anteprima', color: 'text-cyan-400 bg-cyan-500/15' },
   'in_aggiornamento': { label: 'In Aggiornamento', color: 'text-amber-400 bg-amber-500/15' },
 };
@@ -199,6 +200,26 @@ export default function PvPArenaPage() {
         {/* ARENA TAB */}
         {tab === 'arena' && arenaData && (
           <div className="space-y-4">
+            {/* LA PRIMA Section */}
+            {(() => {
+              const laprima = arenaData.la_prima_films || [];
+              if (laprima.length === 0) return null;
+              return (
+                <div data-testid="arena-la-prima">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Star className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-400">La Prima</span>
+                    <span className="text-[9px] text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">{laprima.length}</span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                    {laprima.map(film => (
+                      <FilmMiniCard key={film.id} film={film} onClick={() => openFilm(film.id)} userId={user?.id} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Prossimamente Section */}
             {(() => {
               const upcoming = Object.values(arenaData.genre_sections).flatMap(s => s.films.filter(f => f.film_status === 'coming_soon' || f.film_status === 'in_aggiornamento' || f.film_status === 'anteprima'));
@@ -465,7 +486,7 @@ function FilmMiniCard({ film, onClick, userId }) {
         )}
         {/* Status badge */}
         <div className={`absolute top-1 left-1 px-1 py-0.5 rounded text-[7px] font-bold ${st.color}`}>
-          {film.pipeline_v2 ? `V2 ${film.v2_phase || st.label}` : st.label}
+          {film.pipeline_v2 && film.v2_phase ? film.v2_phase : st.label}
         </div>
         {isMine && (
           <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-yellow-500/90 flex items-center justify-center">
@@ -517,7 +538,7 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
         <div className="absolute inset-0 bg-gradient-to-t from-[#111113] via-[#111113]/60 to-transparent" />
         <div className="absolute bottom-3 left-4 right-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${st.color}`}>{film.pipeline_v2 ? `V2 ${film.pipeline_state || ''}` : st.label}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${st.color}`}>{film.pipeline_v2 && film.pipeline_state ? film.pipeline_state.replace('_', ' ') : st.label}</span>
             {film.is_mine && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-yellow-400 bg-yellow-500/15">IL TUO</span>}
             {film.cast_chemistry_indicator && film.cast_chemistry_indicator !== 'neutral' && (
               <span className={`w-2 h-2 rounded-full ${film.cast_chemistry_indicator === 'good' ? 'bg-emerald-400' : 'bg-red-400'}`} title={`Chimica: ${film.cast_chemistry_indicator}`} />

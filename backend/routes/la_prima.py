@@ -715,11 +715,20 @@ async def get_la_prima_live(film_id: str, user: dict = Depends(get_current_user)
 @router.get("/active")
 async def get_active_la_prima(user: dict = Depends(get_current_user)):
     """Get all films currently in La Prima phase."""
-    projects = await db.film_projects.find(
+    # V1 films with premiere system
+    v1_projects = await db.film_projects.find(
         {'premiere.enabled': True, 'premiere.city': {'$ne': None},
          'status': {'$in': list(PREMIERE_ELIGIBLE_STATUSES)}},
         {'_id': 0}
     ).to_list(50)
+
+    # V2 films in premiere_live state
+    v2_projects = await db.film_projects.find(
+        {'pipeline_version': 2, 'pipeline_state': 'premiere_live'},
+        {'_id': 0}
+    ).to_list(50)
+
+    projects = v1_projects + v2_projects
 
     results = []
     for p in projects:
@@ -727,11 +736,23 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         spectators = calculate_spectators(p)
         live_hype = lazy_update_hype(p)
 
-        # Timer
+        # Timer — V2 uses pipeline_timers.premiere_end
+        premiere_end_v2 = (p.get('pipeline_timers') or {}).get('premiere_end')
         setup_at = premiere.get('setup_at') or p.get('created_at')
         delay_days = premiere.get('release_delay_days', 3)
         time_remaining = None
-        if setup_at:
+
+        if premiere_end_v2:
+            try:
+                end = datetime.fromisoformat(str(premiere_end_v2).replace('Z', '+00:00'))
+                remaining = (end - datetime.now(timezone.utc)).total_seconds()
+                if remaining > 0:
+                    hours = int(remaining // 3600)
+                    minutes = int((remaining % 3600) // 60)
+                    time_remaining = f"{hours}h {minutes}m"
+            except Exception:
+                pass
+        elif setup_at:
             try:
                 start = datetime.fromisoformat(str(setup_at).replace('Z', '+00:00'))
                 from datetime import timedelta

@@ -508,3 +508,12 @@ button:active {
   0%,100% { box-shadow: 0 0 8px rgba(180,100,255,0.2); }
   50% { box-shadow: 0 0 14px rgba(180,100,255,0.35); }
 }
+
+/* Side menu open: translate navbars too */
+body[data-sidemenu="open"] .sidemenu-translate {
+  transform: translateX(25%);
+  transition: transform 300ms ease;
+}
+.sidemenu-translate {
+  transition: transform 300ms ease;
+}

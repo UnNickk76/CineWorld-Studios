@@ -61,6 +61,16 @@ const Dashboard = () => {
 
   // SideMenu
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Sync menu state to body for navbar translation
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.setAttribute('data-sidemenu', 'open');
+    } else {
+      document.body.removeAttribute('data-sidemenu');
+    }
+    return () => document.body.removeAttribute('data-sidemenu');
+  }, [menuOpen]);
   // Old-style action grid
   const [showActionGrid, setShowActionGrid] = useState(false);
   const [tvStationCount, setTvStationCount] = useState(0);

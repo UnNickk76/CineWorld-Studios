@@ -560,9 +560,25 @@ async def write_screenplay_v2(pid: str, req: ScreenplayV2Request, user: dict = D
             import uuid
             api_key = __import__('os').environ.get('EMERGENT_LLM_KEY', '')
             subs = ', '.join(project.get('subgenres', []))
+            ct = project.get('content_type', 'film')
+            season_num = project.get('season_number', 1)
+            prev_summary = project.get('prev_screenplay_summary', '')
+
+            # Build continuity context for series sequels
+            continuity = ''
+            if ct in ('serie_tv', 'anime') and season_num > 1 and prev_summary:
+                continuity = (
+                    f"\nQuesta e la STAGIONE {season_num}. "
+                    f"Riassunto trama stagione precedente: {prev_summary}\n"
+                    f"DEVI continuare la storia dalla stagione precedente, mantenendo coerenza narrativa con personaggi e archi esistenti. "
+                    f"Evolvi la trama in modo naturale, introducendo nuovi conflitti senza contraddire gli eventi passati.\n"
+                )
+
             prompt = req.prompt if req.mode == 'ai_custom' and req.prompt else (
-                f"Scrivi una sceneggiatura cinematografica per il film '{project['title']}' (genere: {project['genre']}, sottogeneri: {subs or 'N/A'}). "
+                f"Scrivi una sceneggiatura {'per la serie' if ct in ('serie_tv','anime') else 'cinematografica per il film'} "
+                f"'{project['title']}' (genere: {project['genre']}, sottogeneri: {subs or 'N/A'}). "
                 f"Pre-trama: {project.get('pre_trama', 'N/A')}. "
+                f"{continuity}"
                 f"Scrivi dialoghi vividi, descrizioni di scena dettagliate, in italiano. Max 2000 parole."
             )
             llm = LlmChat(api_key=api_key, session_id=str(uuid.uuid4()), system_message="Sei un sceneggiatore cinematografico italiano esperto.")

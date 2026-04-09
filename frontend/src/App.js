@@ -110,6 +110,9 @@ const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
 const EventHistoryPage = React.lazy(() => import('./pages/EventHistoryPage'));
+const StrutturePage = React.lazy(() => import('./pages/StrutturePage'));
+const AgenziaPage = React.lazy(() => import('./pages/AgenziaPage'));
+const StrategicoPage = React.lazy(() => import('./pages/StrategicoPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -2491,6 +2494,9 @@ function App() {
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+                <Route path="/strutture" element={<ProtectedRoute><StrutturePage /></ProtectedRoute>} />
+                <Route path="/agenzia" element={<ProtectedRoute><AgenziaPage /></ProtectedRoute>} />
+                <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />
                 <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
                 <Route path="/casting-agency" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />

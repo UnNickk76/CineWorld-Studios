@@ -116,7 +116,6 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
   const tabs = [
     { id: 'pre', icon: Clapperboard, label: 'Pre-Produzione', color: 'from-blue-500/20 to-indigo-500/10 border-blue-500/30', accent: 'text-blue-400' },
     { id: 'post', icon: Wand2, label: 'Post-Produzione', color: 'from-purple-500/20 to-pink-500/10 border-purple-500/30', accent: 'text-purple-400' },
-    { id: 'casting', icon: Users, label: 'Agenzia Casting', color: 'from-amber-500/20 to-orange-500/10 border-amber-500/30', accent: 'text-amber-400' }
   ];
 
   return (

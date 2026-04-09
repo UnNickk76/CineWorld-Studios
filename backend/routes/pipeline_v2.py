@@ -2609,7 +2609,7 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     # Auto-mark completed after release
     await db.film_projects.update_one(
         {'id': pid},
-        {'$set': {'pipeline_state': 'completed', 'pipeline_ui_step': 8, 'pipeline_substate': 'done'}}
+        {'$set': {'pipeline_state': 'completed', 'pipeline_ui_step': 8, 'pipeline_substate': 'done', 'release_sequence_played': False}}
     )
 
     return {
@@ -2621,6 +2621,17 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         'fame_change': round(fame_change, 1),
         'message': f'"{project["title"]}" rilasciato! Quality: {quality_score} ({tier})'
     }
+
+
+@router.post("/films/{pid}/mark-release-played")
+async def mark_release_played(pid: str, user: dict = Depends(get_current_user)):
+    """Mark the cinematic release sequence as played to prevent replay."""
+    await db.film_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'release_sequence_played': True}}
+    )
+    return {'ok': True}
+
 
 # ═══════════════════════════════════════════════════════════════
 #  UNIFIED SPEEDUP (4 tiers, CinePass credits, variable cost)

@@ -66,6 +66,16 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Aggiunto padding destro (pr-6) per evitare che l'ultimo step sia tagliato
 - Step USCITA visibile e cliccabile durante premiere_live (allowScheduleStep + pulse animation)
 
+### RILASCIO CINEMATOGRAFICO ULTRA (2026-04-09) - NUOVO
+- Riscrittura totale CinematicReleaseOverlay.jsx con 9 fasi in 6.5 secondi
+- Flow: Blackout → Cinepresa viva → Proiettore acceso → Schermo cinema → Countdown vintage 3-2-1 → Locandina → Titoli → Flash fotografo → Exit
+- Colore proiettore dinamico per genere (horror=rosso, comedy=oro, drama=blu, ecc.)
+- Flag anti-replay: release_sequence_played=true nel DB, non riscatta su refresh
+- Endpoint POST /mark-release-played per marcare sequenza vista
+- Differenza La Prima (flash piu glamour) vs Cinema (piu pulito)
+- CSS puro + JS leggero, zero librerie, GPU friendly
+- Fallback: se locandina mancante, mostra titolo in gold su gradiente
+
 ## Backlog
 
 ### P1

@@ -1740,6 +1740,7 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const onPremiereOverlayDone = () => {
     setShowReleaseOverlay(false);
     setLoading('');
+    api.post(`/films/${film.id}/mark-release-played`).catch(() => {});
     onRefresh();
     toast({ title: `Premiere completata!` });
   };
@@ -1798,8 +1799,7 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
       )}
       {showReleaseOverlay && (
         <CinematicReleaseOverlay
-          filmTitle={film.title} productionHouseName={film.production_house_name}
-          posterUrl={film.poster_url} genre={film.genre} releaseType="premiere"
+          film={film} releaseType="premiere"
           onComplete={onPremiereOverlayDone}
         />
       )}
@@ -1894,7 +1894,13 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         onRefresh(); setLoading('');
       } else {
         setResult(res);
-        setShowReleaseOverlay(true);
+        if (!film.release_sequence_played) {
+          setShowReleaseOverlay(true);
+        } else {
+          setLoading('');
+          onRefresh();
+          toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score || '?'}` });
+        }
       }
     } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }
   };
@@ -1902,6 +1908,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const onCinemaOverlayDone = () => {
     setShowReleaseOverlay(false);
     setLoading('');
+    api.post(`/films/${film.id}/mark-release-played`).catch(() => {});
     onRefresh();
     toast({ title: `${film.title} rilasciato! Quality: ${result?.quality_score || '?'}` });
   };
@@ -1939,8 +1946,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         </div>
         {showReleaseOverlay && (
           <CinematicReleaseOverlay
-            filmTitle={film.title} productionHouseName={film.production_house_name}
-            posterUrl={film.poster_url} genre={film.genre} releaseType="cinema"
+            film={film} releaseType="cinema"
             onComplete={onCinemaOverlayDone}
           />
         )}
@@ -2108,8 +2114,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 
       {showReleaseOverlay && (
         <CinematicReleaseOverlay
-          filmTitle={film.title} productionHouseName={film.production_house_name}
-          posterUrl={film.poster_url} genre={film.genre} releaseType="cinema"
+          film={film} releaseType="cinema"
           onComplete={onCinemaOverlayDone}
         />
       )}

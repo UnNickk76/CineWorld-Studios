@@ -1,143 +1,132 @@
 <analysis>**original_problem_statement**: 
-RISCRIVI COMPLETAMENTE LA PIPELINE FILM CON APPROCCIO ANTI-BUG, MOBILE-FIRST, COSTO QUASI ZERO. La pipeline film NON deve più rompersi mai, non deve più andare in loop, non deve più perdere bottoni o fasi. Va rifatta quasi da zero come sistema unico (Pipeline V2).
-ARCHITETTURA OBBLIGATORIA: Ogni transizione deve passare da . 
-Divieto assoluto di usare il testing agent e lo screenshot tool (No test agent no screenshot, mi fido di te).
-PRODUCT REQUIREMENTS: 
-- Ottimizzazione mobile-first e UI in singola schermata.
-- Integrazione Dashboard per i film V2.
-- Sistema cast strategico con limiti di ruolo e NPC reali dal DB (skills, fama, genere, ecc.).
+Implementare il sistema di episodi, rilascio e stagioni per Serie TV e Anime. Requisiti:
+- Aggiunta campo  (film, serie_tv, anime).
+- Scelta numero episodi (8-24) e formula della qualità finale influenzata dagli episodi.
+- Scelta modalità di distribuzione (binge, daily, weekly) post-completamento, con stato bloccato/rilasciato.
+- Generazione Nuova Stagione: Mantenere continuità narrativa e cast (almeno 50% fisso, con uscite dinamiche), applicare bonus/malus basati sui risultati della stagione precedente, applicare fatica del franchise (maggiore difficoltà ad ogni stagione) e dare un peso altissimo alla nuova sceneggiatura per determinare il successo o il flop della nuova stagione.
+- *NOTA:* Non alterare la pipeline dei Film standard.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-La Pipeline V2 è stabile e altamente cinematografica. In questa sessione sono stati aggiunti:
-- **Job Periodico NPC**: Generazione automatica di nuovi cast (attori, registi, ecc.) inserita in .
-- **Sistema Chimiche Attori**: Core gameplay strategico che calcola le affinità del cast, aggiungendo bonus/malus sulla qualità finale del film.
-- **Sistema Ruoli Cast**: Scelta del ruolo (Protagonista, Antagonista, Cameo, ecc.) con moltiplicatori specifici per Hype e Quality.
-- **Integrazioni V2 in App**: I film V2 sono ora visibili e interagibili in PvP Arena, Dashboard (Prossimamente) e Board La Prima.
-- **Effetti Visivi Cinematografici**: 
-  - Effetto Matrix personalizzato (Verde per Hype, Arancione per timer Ciak).
-  - : Sequenza puro CSS di 5.8s prima dell'avvio riprese (pellicola, luce set, ROLLING).
-  - : Sequenza full-screen di rilascio al cinema/La Prima con fascio di proiezione colorato in base al genere e locandina reale.
+La Pipeline V2 è stata pesantemente potenziata. In questa sessione sono stati creati:
+- **Fix ContestsPage**: Risolto padding UI, scroll, e aggiunta logica di sblocco automatico ogni 4 ore e assegnazione corretta dei CinePass.
+- **Distribuzione V2 (Release Schedule)**: Rilascio immediato o ritardato (fino a 7 giorni) con allocazione budget e CinePass per zone specifiche (mondiale, continenti, nazioni).
+- **Cinematic Release Overlay**: Sequenza iconica di rilascio in 9 fasi implementata in puro CSS in , attivata tramite flag .
+- **Base Serie TV/Anime**: Inserito , selettore episodi, logica di rilascio (binge, daily, weekly) e UI aggiornata in  per mostrare badge e UI dedicate.
+- **Logica Nuova Stagione (Backend)**: Aggiornato l'endpoint  per gestire uscite dinamiche, ereditarietà, fatica del franchise e moltiplicatori della sceneggiatura. 
 
 **Last working item**: 
-    - Last item agent was working: Fix pagina Contest ( e ). Il main agent ha appena letto il codice backend prima della fine della sessione. Obiettivi: 1) Risolvere navbar che copre il titolo. 2) Risolvere scroll bloccato che nasconde gli ultimi 2 contest. 3) Implementare sblocco automatico minigiochi nel tempo (1 sblocco extra ogni 4 ore, in modo progressivo, a prescindere dal completamento di quello precedente). 4) Risolvere mancata assegnazione crediti reward.
+    - Last item agent was working: Implementazione dei requisiti avanzati per le Stagioni di Serie TV/Anime (Fatica del franchise, peso estremo della nuova sceneggiatura, e continuità minima del cast). Il main agent ha appena eseguito un  nel backend () sull'endpoint  e sulla logica di calcolo della qualità.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? Manual testing by curl / python -c / browser locale. (STRICT RULE: NO testing agent / NO screenshots per user's explicit past instruction).
+    - Which testing method agent to use? manual testing by curl / python -c. (STRICT RULE: NO testing agent / NO screenshots per user's explicit instruction No test agent no screenshot, mi fido di te).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Fix UI e Logica ContestsPage (P0)
-     - Attempted fixes: L'agente ha appena analizzato i file  e . Nessuna modifica ancora effettuata.
+  Issue 1: Test e Finalizzazione Logica Nuova Stagione (P0)
+     - Attempted fixes: Modificato l'endpoint  in  per includere , , e uscite dinamiche del cast.
      - Next debug checklist: 
-       - Frontend : Aggiungere  (o simile padding-top) per non far coprire l'header dalla navbar.
-       - Frontend : Sistemare i container per consentire lo scroll completo (es.  / ).
-       - Backend : Aggiornare la logica di calcolo dei minigiochi sbloccati basandola sul tempo (es: ).
-       - Backend/Frontend: Assicurarsi che alla fine del minigioco vengano effettivamente erogati i crediti/ricompense CinePass all'utente.
-     - Why fix this issue and what will be achieved with the fix? L'utente al momento ha la UI rotta e non può finire i minigiochi giornalieri perché se si blocca non si sbloccano mai più.
-     - Status: IN PROGRESS
+       - Verificare via  che l'endpoint  funzioni senza errori 500 (attenzione a variabili  per film mai rilasciati).
+       - Verificare che il calcolo della  al momento del rilascio (in ) calcoli correttamente il peso della sceneggiatura rispetto alla fatica del franchise per i sequel.
+     - Why fix this issue and what will be achieved with the fix? L'utente ha richiesto espressamente regole stringenti sulla continuità narrativa e sul bilanciamento della difficoltà per le stagioni successive.
+     - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (via API json curl test e verifica UI code)
+     - Should Test frontend/backend/both after fix? backend (via curl)
      - Blocked on other issue: Nessuno
 
   Issue 2: Fix minigiochi residui (P1)
-     - Attempted fixes: Light Setup risolto. Restano da controllare logiche interne di altri minigiochi.
-     - Next debug checklist: Verificare i problemi segnalati in precedenza nei minigiochi.
+     - Attempted fixes: Nessuno recente, l'agente precedente ha fixato la UI generale e i timer, ma i bug interni ad alcuni minigiochi (TapCiak, ecc.) rimangono nel backlog.
+     - Next debug checklist: Controllare logiche interne minigiochi arcade.
+     - Why fix this issue and what will be achieved with the fix? Pulizia definitiva della sezione Arcade/Contest.
      - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
+     - Should Test frontend/backend/both after fix? Both (manual testing)
      - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-N/A
+  Task 1: Integrazione episodi nel Palinsesto TV
+     - Where to resume: L'utente ha richiesto che se si possiede l'infrastruttura TV, gli episodi vengano inseriti automaticamente nel palinsesto. Il sistema episodi/release_mode è stato creato, ma il collegamento con  (o le rotte TV) non sembra completato.
+     - What will be achieved with this? Interconnessione tra il modulo Tycoon (TV Network) e le nuove Serie TV.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on something: Issue 1 (Logica stagioni)
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Fix minigiochi residui dell'Arcade/Contest.
-    - (P2) Sfida della Settimana (Minigioco rotante con premi extra).
+    - (P1) Integrazione TV — episodi automatici nel palinsesto.
+    - (P2) Sfida della Settimana (minigioco rotante con premi extra).
     Future Tasks:
     - (P3) Previsioni Festival.
     - (P3) Marketplace TV/Anime rights.
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli.
 
 **Completed work in this session**
-- Job schedulato  fixato per usare  corretto (DONE)
-- Implementazione Sistema Chimiche Attori con bonus su qualità film e UI (DONE)
-- Fix Bug UI Cast (Genere ♂/♀ corretto, IMDb visibile) (DONE)
-- Sistema Ruoli Cast (Protagonista, Cameo, ecc.) con impatto gameplay (DONE)
-- Costi in-game azzerati per selezione chimica/ruoli (risolto malinteso su crediti emergent) (DONE)
-- Integrazione film V2 in Arena PvP e separazione sezione La Prima in Arena e Dashboard (DONE)
-- Fix bug film sparito dalla Board quando in stato  (DONE)
-- Effetto Matrix Arancione su timer Ciak (DONE)
-- Overlay Cinematografico pre-Ciak () (DONE)
-- Overlay Cinematografico full-screen su Rilascio/La Prima () (DONE)
+- Fix bug UI pagina Contest e sblocco temporale automatico minigiochi (DONE)
+- Sistema Distribuzione Uscita V2 (Zone/Date scheduling) (DONE)
+- Rilascio Cinematografico Ultra (Overlay 9-fasi CSS in ) (DONE)
+- Integrazione  (Serie/Anime) nella Pipeline V2 (DONE)
+- Sistema episodi (slider 8-24) e modalità rilascio (binge, daily, weekly) (DONE)
+- Creazione UI per Episodi e Nuova Stagione nel Board di Pipeline V2 (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   Nessuno, l'agente ha seguito e corretto tutte le richieste ricevute in tempo reale.
+Nessuno rilevante omesso, le richieste sono state evase in tempo reale.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Errori React #310 (Hook Hooks). Modificando file enormi come  (2500+ righe). Fai estrema attenzione a non inserire hook in blocchi condizionali.
-  - Recurrence count: 1
-  - Status: RESOLVED
+  - Issue recurrence in previous fork: Errori React #310 (Hook Hooks) / File troncati per mancanza di spazio su disco (Enospace ).
+  - Recurrence count: 2 (Spazio su disco si è riempito 2 volte causando troncamento file).
+  - Status: RESOLVED (L'agente precedente ha svuotato  e  temporaneamente. Fai attenzione se modifichi file enormi, assicurati che la write avvenga con successo).
 
 **Code Architecture**
 - Frontend: React
-  -  (Core UI, StepperBar, Fasi - ENORME, 2500+ righe).
-  -  (Pagina contest da fixare ora).
-  -  &  (Nuovi overlay creati in questa run).
-  -  (Aggiornata per supportare V2 e La Prima).
+  -  (Core UI, StepperBar, Fasi - Oltre 3000 righe, contiene UI Episodi e Stagioni).
+  -  (Animazione rilascio).
 - Backend: FastAPI
-  -  (Core logic, calcolo chimiche, ruoli, stati V2).
-  -  (Arena, aggiornato per query V2 e sezioni la_prima_films).
-  -  (Focus attuale per il fix sblocco temporale ogni 4 ore).
-  -  ( aggiornato per supportare i V2).
+  -  (Core logic: creazione, scheduling, episodi, new-season, quality formula).
+  -  (Gestione minigiochi).
 
 **Key Technical Concepts**
-- **Idempotenza State Machine**:  (V2 standard).
-- **Chimica e Ruoli**: I calcoli vengono fatti nel backend in base ad affinità di skill, fama, genere e il ruolo assegnato (impatto live su Hype/Quality).
-- **Cinematic CSS Overlays**: Utilizzo di CSS animation pure per gestire overlay pesanti (no canvas eccessivi, zero dipendenze extra).
-- **Malinteso Crediti**: L'utente utilizza il termine Costo 2 crediti per indicare il budget di prompt per l'agente AI (crediti Emergent), NON i crediti Cinepass in-game. **Tutte le core feature di UI del cast devono essere gratis nel gioco**.
+- **Idempotenza State Machine**: .
+- **Rilascio Cinematografico**: Solo CSS puro. È tracciato da  nel DB per non ripetersi.
+- **Sistema Stagioni**: La creazione di un sequel crea un nuovo documento ma eredita , , . 
 
 **key DB schema**
-  - : Usa  e stati custom (: , , , , ).
-  - : Gestisce il tracciamento dei minigiochi per utente.
+  - : Aggiunti campi , , ,  (list), , , , .
 
 **changes in tech stack**
   - Nessun cambiamento.
 
 **All files of reference** 
-  -  (Da modificare ora)
-  -  (Da modificare ora)
+  -  (Ultimo file toccato per la logica Stagioni)
   - 
   - 
+  -  (Aggiornato costantemente)
 
 **Areas that need refactoring**: 
-  -  ha superato le 2500 righe. Modificare con cautela tramite  preciso.
+  -  è gigantesco (>3000 righe). Usare  molto precisi.
 
 **key api endpoints**
-  -  (Endpoint da sistemare)
-  -  (Riceve  ora)
-  -  (Calcolo chimica manuale)
+  -  (Da testare)
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **STRICT RULE ON TESTING**: L'utente ha VIETATO ASSOLUTAMENTE l'uso dell'agente di testing automatizzato e del tool di screenshot (No test agent no screenshot, mi fido di te). **Devi testare solo in modalità manuale** (curl, log, python -c script).
-- Quando interagisci con l'utente, DEVI usare SEMPRE l'Italiano.
-- L'utente vuole che i minigiochi nel contest vengano sbloccati non solo quando vinci il precedente, ma ANCHE automaticamente su base tempo (1 sblocco ogni 4 ore), affinché chi si blocca possa comunque continuare più tardi. Devi implementare questo in .
+- **STRICT TESTING RULE**: L'utente ha VIETATO l'uso dell'agente di testing automatizzato e del tool di screenshot. **Testa SOLO in modalità manuale** (curl, terminale python, logs).
+- Quando interagisci, **DEVI usare SEMPRE l'Italiano**.
+- Verifica il codice appena iniettato per l'endpoint  in . L'ultima modifica ha inserito logiche di  e uscite cast; devi testare che il backend risponda con HTTP 200 via .
+- Non riempire il disco. Se ottieni , fai una pulizia ( se sicuro, o usa file temp).
 
 **documents and test reports created in this job** 
-  -  (Aggiornato costantemente con gli ultimi status).
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-(Gli ultimi messaggi riguardano tutti richieste fixate con successo: intro CIAK, release overlay, la prima visibility, matrix effect).
- - L'Ultimo messaggio (PENDING) è la segnalazione con screenshot (IMG_2937 e IMG_2938) relativa alla pagina dei contest:
-   1) Navbar sopra copre tutto (manca top padding).
-   2) Scroll rotto in basso (nasconde gli ultimi 2 contest).
-   3) I minigiochi devono sbloccarsi anche ogni 4 ore in sequenza, per non rimanere perennemente bloccati su un livello.
-   4) I crediti di ricompensa minigioco non vengono assegnati.
+ - L'utente ha approvato l'implementazione del Sistema Serie TV & Anime (Tutto corretto, procedi) ma ha richiesto un **Aggiustamento finale sulle regole delle Stagioni** (messaggio finale). 
+ - L'aggiustamento richiede: Continuità cast (max 50% modificabile, minimo base fissa), Fatica del Franchise (aspettative crescenti), Peso estremo della Sceneggiatura per ribaltare i flop/successi della stagione prima.
+ - *Pending*: L'agente precedente ha effettuato la modifica backend ( endpoint) ma il job si è interrotto prima di testare e avvisare l'utente.
 
 **Project Health Check:**
-- Broken:  (UI scroll/padding rotto, logica di blocco/reward fallata).
+- Broken:  logica (Potenzialmente unstable in quanto appena scritta via  e non testata).
 - Mocked: Nessuno.
 
 **3rd Party Integrations** 
@@ -145,10 +134,15 @@ N/A
 - Gemini / OpenAI (AI Generations via emergentintegrations) - Uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito dall'utente)
+  - Testing agent used after significant changes: NO (Proibito)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
   - Known regressions: []
 
+**Credentials to test flow:**
+- Email: fandrex1@gmail.com
+- Password: Fandrel2776
+- Nickname: NeoMorpheus
+
 **What agent forgot to execute**
-L'agente ha interrotto l'elaborazione proprio mentre analizzava i file per risolvere il bug della pagina Contest (Padding/Scroll UI e sblocco minigiochi ogni 4 ore). Riprendi esattamente da lì.</analysis>
+L'agente non ha fatto in tempo a eseguire alcun test via  sulla nuova modifica delle Regole Stagioni e della Fatica Franchise ( in ) e non ha ancora aggiornato il frontend se necessario. Manca inoltre l'integrazione degli episodi nel palinsesto TV (Network infrastruttura), specificata nei requirement iniziali delle Serie TV. Inizia testando l'endpoint e verificando il corretto funzionamento.</analysis>

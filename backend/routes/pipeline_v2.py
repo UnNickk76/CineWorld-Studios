@@ -2460,13 +2460,12 @@ class CreateSeasonBody(BaseModel):
 
 @router.post("/films/{pid}/new-season")
 async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depends(get_current_user)):
-    """Create a new season inheriting cast and fanbase from previous."""
+    """Create a new season inheriting cast, fanbase, trend and history."""
     project = await _get_project(pid, user['id'])
     ct = project.get('content_type', 'film')
     if ct == 'film':
         raise HTTPException(400, "Solo per Serie TV e Anime")
 
-    # Check all episodes released
     episodes = project.get('episodes', [])
     if episodes and not all(e['status'] == 'released' for e in episodes):
         raise HTTPException(400, "Completa tutti gli episodi prima di creare una nuova stagione")
@@ -2474,34 +2473,98 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
     if body.episode_count < 8 or body.episode_count > 24:
         raise HTTPException(400, "Episodi: range 8-24")
 
+    import random as _rnd
+
     prev_season = project.get('season_number', 1)
     parent_id = project.get('parent_series_id') or project['id']
     prev_cast = project.get('cast', {})
     prev_quality = project.get('final_quality') or 50
 
-    # Dynamic member departure: some cast may refuse to return
-    import random as _rnd
+    # ── Fetch full series history for trend analysis ──
+    all_seasons = await db.film_projects.find(
+        {'$or': [{'parent_series_id': parent_id}, {'id': parent_id}], 'user_id': user['id']},
+        {'_id': 0, 'season_number': 1, 'final_quality': 1, 'pipeline_metrics': 1}
+    ).sort('season_number', 1).to_list(50)
+
+    qualities = [s.get('final_quality') or 50 for s in all_seasons if s.get('final_quality')]
+
+    # ── TREND ANALYSIS ──
+    # positive = growing, negative = declining, 0 = stable
+    trend = 0
+    if len(qualities) >= 2:
+        recent_avg = sum(qualities[-2:]) / len(qualities[-2:])
+        overall_avg = sum(qualities) / len(qualities)
+        trend = round(recent_avg - overall_avg, 1)
+
+    # ── FRANCHISE FATIGUE ──
+    # Each season beyond 2 increases fatigue
+    # fatigue_factor: 0 for S1-S2, grows for S3+
+    fatigue_factor = max(0, (prev_season - 1) * 0.06)  # S3=0.12, S4=0.18, S5=0.24...
+    fatigue_factor = min(fatigue_factor, 0.5)  # Cap at 50%
+
+    # ── RESIDUAL HYPE ──
+    prev_hype = project.get('pipeline_metrics', {}).get('hype_score', 0)
+    hype_carryover = round(prev_hype * max(0.15, 0.5 - fatigue_factor), 1)
+
+    # ── SEASON BONUS/MALUS (enhanced) ──
+    # Good quality boosts, bad quality penalizes, trend amplifies
+    season_bonus = 0
+    if prev_quality >= 70:
+        season_bonus = min(12, (prev_quality - 70) * 0.4)
+    elif prev_quality < 40:
+        season_bonus = max(-12, (prev_quality - 40) * 0.4)
+    # Trend amplifier
+    if trend > 0:
+        season_bonus += min(5, trend * 0.3)
+    elif trend < 0:
+        season_bonus += max(-5, trend * 0.3)
+    season_bonus = round(season_bonus, 1)
+
+    # ── SCREENPLAY WEIGHT for this season ──
+    # Season 1: weight 1.0, Season 2: 1.3, Season 3: 1.6, Season 4+: 1.8
+    screenplay_weight = min(1.8, 1.0 + (prev_season * 0.3))
+
+    # ── DYNAMIC MEMBER DEPARTURE ──
     user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})
     fame = user_doc.get('fame', 0) if user_doc else 0
-    departure_chance = max(0.05, 0.3 - (fame * 0.002) - (prev_quality * 0.002))
+    # Base departure: 15%. Reduced by fame and quality. Increased by fatigue.
+    departure_chance = max(0.05, 0.15 - (fame * 0.001) - (prev_quality * 0.001) + (fatigue_factor * 0.15))
 
+    all_actors = prev_cast.get('actors') or []
     returning_actors = []
     departed_actors = []
-    for actor in (prev_cast.get('actors') or []):
+    for actor in all_actors:
         if _rnd.random() < departure_chance:
             departed_actors.append(actor)
         else:
             returning_actors.append(actor)
 
-    # Season bonus/malus
-    season_bonus = 0
-    if prev_quality >= 70:
-        season_bonus = min(10, (prev_quality - 70) * 0.3)
-    elif prev_quality < 40:
-        season_bonus = max(-10, (prev_quality - 40) * 0.3)
+    # Ensure at least 50% cast stays (enforce continuity)
+    min_keep = max(1, len(all_actors) // 2)
+    if len(returning_actors) < min_keep and len(all_actors) > 0:
+        # Force some departed back
+        needed = min_keep - len(returning_actors)
+        forced_back = departed_actors[:needed]
+        returning_actors.extend(forced_back)
+        departed_actors = departed_actors[needed:]
 
     now = _now()
-    title = body.title.strip() if body.title.strip() else f"{project['title']} — Stagione {prev_season + 1}"
+    base_title = project['title'].split(' — Stagione')[0]
+    title = body.title.strip() if body.title.strip() else f"{base_title} — Stagione {prev_season + 1}"
+
+    # Season context for frontend
+    season_context = {
+        'prev_quality': prev_quality,
+        'trend': trend,
+        'trend_label': 'crescita' if trend > 5 else 'stabile' if trend > -5 else 'calo',
+        'fatigue_factor': round(fatigue_factor, 2),
+        'fatigue_level': 'basso' if fatigue_factor < 0.1 else 'medio' if fatigue_factor < 0.25 else 'alto',
+        'hype_carryover': hype_carryover,
+        'season_bonus': season_bonus,
+        'screenplay_weight': round(screenplay_weight, 1),
+        'qualities_history': qualities,
+    }
+
     new_project = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
@@ -2518,8 +2581,10 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
         'pipeline_timers': {},
         'pipeline_flags': {},
         'pipeline_metrics': {
-            'hype_score': 0, 'agency_interest': 0, 'cast_quality': 0,
-            'season_bonus': round(season_bonus, 1),
+            'hype_score': hype_carryover,
+            'agency_interest': 0,
+            'cast_quality': 0,
+            'season_bonus': season_bonus,
         },
         'title': title,
         'genre': project['genre'],
@@ -2527,10 +2592,12 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
         'subgenres': project.get('subgenres', []),
         'pre_trama': '',
         'locations': [],
-        'poster_url': None,
+        'poster_url': project.get('poster_url'),
         'poster_mode': None,
         'screenplay': '',
         'screenplay_mode': None,
+        'screenplay_weight': round(screenplay_weight, 1),
+        'prev_screenplay_summary': (project.get('screenplay', '') or '')[:500],
         'pre_imdb_score': 0,
         'pre_imdb_breakdown': {},
         'cast': {
@@ -2542,7 +2609,8 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
         'cast_proposals': [],
         'cast_locked': False,
         'cast_inherited_count': len(returning_actors),
-        'cast_max_replaceable': max(1, len(prev_cast.get('actors', [])) // 2),
+        'cast_max_replaceable': max(1, len(all_actors) // 2),
+        'cast_min_keep': min_keep,
         'equipment': [],
         'production_setup': {'extras_count': 0, 'cgi_packages': [], 'vfx_packages': []},
         'sponsors': [],
@@ -2566,7 +2634,9 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
         'parent_series_id': parent_id,
         'prev_season_id': project['id'],
         'prev_season_quality': prev_quality,
-        'season_bonus': round(season_bonus, 1),
+        'season_bonus': season_bonus,
+        'season_context': season_context,
+        'franchise_fatigue': round(fatigue_factor, 2),
         'departed_actors': departed_actors,
         'hype_strategy': None,
         'interested_agencies': [],

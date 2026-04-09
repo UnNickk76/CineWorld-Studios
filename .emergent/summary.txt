@@ -1,64 +1,60 @@
 <analysis>**original_problem_statement**: 
-RISCRIVI COMPLETAMENTE LA PIPELINE FILM CON APPROCCIO ANTI-BUG, MOBILE-FIRST, COSTO QUASI ZERO. La pipeline film NON deve più rompersi mai, non deve più andare in loop, non deve più perdere bottoni o fasi. Va rifatta quasi da zero come sistema unico (Pipeline V2), ma riutilizzando dove possibile API, immagini, logiche, dati, cast, ecc. Creare un backup read-only della pipeline legacy.
-ARCHITETTURA OBBLIGATORIA: Ogni transizione deve passare da . Nuovi campi DB obbligatori: , , , , , , , ecc.
-MACRO STEP: 1. IDEA, 2. HYPE, 3. CAST, 4. PREP, 5. CIAK, 6. FINAL CUT, 7. MARKETING, 8. LA PRIMA / RELEASE, 9. USCITA.
-STOP MOMENTANEO REQUISITI (Ultimo Messaggio): Prima di integrare con Arena/Dashboard, validare la struttura V2 con lock/snapshot, aggiungere protezioni anti-doppio click/refresh, gestire migrazione sicura (version 1 vs 2), completare tutte le 9 fasi isolatamente e testare il tutto in isolamento.
+RISCRIVI COMPLETAMENTE LA PIPELINE FILM CON APPROCCIO ANTI-BUG, MOBILE-FIRST, COSTO QUASI ZERO. La pipeline film NON deve più rompersi mai, non deve più andare in loop, non deve più perdere bottoni o fasi. Va rifatta quasi da zero come sistema unico (Pipeline V2).
+ARCHITETTURA OBBLIGATORIA: Ogni transizione deve passare da . 
+Divieto assoluto di usare il testing agent e lo screenshot tool (No test agent no screenshot, mi fido di te).
 PRODUCT REQUIREMENTS: 
-- Divieto assoluto di usare il testing agent e lo screenshot tool (No test agent no screenshot, mi fido di te).
-- Ottimizzazione mobile-first e UI in singola schermata senza scroll infiniti.
+- Ottimizzazione mobile-first e UI in singola schermata.
+- Integrazione Dashboard per i film V2.
+- Sistema cast strategico con limiti di ruolo e NPC reali dal DB (skills, fama, genere, ecc.).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-Il bug critico P0 Film nel Limbo / Pipeline Infinita è stato risolto con successo modificando  e forzando il rilascio in . È stato creato un backup della vecchia pipeline in  (e relativo frontend). È stata creata l'impalcatura base per la Pipeline V2 ( e ) integrata nel routing. L'agente stava verificando e blindando la logica di state-machine della V2 (lock/snapshot) come richiesto dall'ultimo messaggio di STOP dell'utente.
+La Pipeline V2 è stabile e altamente cinematografica. In questa sessione sono stati aggiunti:
+- **Job Periodico NPC**: Generazione automatica di nuovi cast (attori, registi, ecc.) inserita in .
+- **Sistema Chimiche Attori**: Core gameplay strategico che calcola le affinità del cast, aggiungendo bonus/malus sulla qualità finale del film.
+- **Sistema Ruoli Cast**: Scelta del ruolo (Protagonista, Antagonista, Cameo, ecc.) con moltiplicatori specifici per Hype e Quality.
+- **Integrazioni V2 in App**: I film V2 sono ora visibili e interagibili in PvP Arena, Dashboard (Prossimamente) e Board La Prima.
+- **Effetti Visivi Cinematografici**: 
+  - Effetto Matrix personalizzato (Verde per Hype, Arancione per timer Ciak).
+  - : Sequenza puro CSS di 5.8s prima dell'avvio riprese (pellicola, luce set, ROLLING).
+  - : Sequenza full-screen di rilascio al cinema/La Prima con fascio di proiezione colorato in base al genere e locandina reale.
 
 **Last working item**: 
-    - Last item agent was working: Revisione e blindatura della struttura anti-bug per  (assicurandosi che ogni endpoint rispetti il pattern ) e completamento delle 9 fasi isolate prima dell'integrazione con il resto dell'app.
+    - Last item agent was working: Fix pagina Contest ( e ). Il main agent ha appena letto il codice backend prima della fine della sessione. Obiettivi: 1) Risolvere navbar che copre il titolo. 2) Risolvere scroll bloccato che nasconde gli ultimi 2 contest. 3) Implementare sblocco automatico minigiochi nel tempo (1 sblocco extra ogni 4 ore, in modo progressivo, a prescindere dal completamento di quello precedente). 4) Risolvere mancata assegnazione crediti reward.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? curl / python -c (Strictly NO testing agent / NO screenshots per volere dell'utente)
+    - Which testing method agent to use? Manual testing by curl / python -c / browser locale. (STRICT RULE: NO testing agent / NO screenshots per user's explicit past instruction).
     - User Testing Done: N
 
-**All Pending/In progress Issue list**: 
-  Issue 1: Blindatura e Completamento Fasi Pipeline V2 (P0)
-     - Attempted fixes: L'impalcatura base è stata creata, e l'agente stava leggendo  per applicare le direttive dell'ultimo messaggio.
+**All Pending/In progress Issue list**:  
+  Issue 1: Fix UI e Logica ContestsPage (P0)
+     - Attempted fixes: L'agente ha appena analizzato i file  e . Nessuna modifica ancora effettuata.
      - Next debug checklist: 
-       - Verificare l'idempotenza e i blocchi (pipeline_locked) per TUTTI gli endpoint V2.
-       - Implementare la logica specifica per: Idea (locandina + script), Hype (timer + ondate agenzie), Cast (selezione reale), Prep (attrezzature/VFX/comparse), Ciak (eventi rari + timer), Final Cut, Sponsor/Marketing, La Prima.
-       - Assicurarsi che se  manca o è 1, il sistema faccia fallback sulla vecchia logica.
-     - Why fix this issue and what will be achieved with the fix? È il core requirement richiesto dall'utente per evitare definitivamente i loop infiniti e i crash della feature principale del gioco.
+       - Frontend : Aggiungere  (o simile padding-top) per non far coprire l'header dalla navbar.
+       - Frontend : Sistemare i container per consentire lo scroll completo (es.  / ).
+       - Backend : Aggiornare la logica di calcolo dei minigiochi sbloccati basandola sul tempo (es: ).
+       - Backend/Frontend: Assicurarsi che alla fine del minigioco vengano effettivamente erogati i crediti/ricompense CinePass all'utente.
+     - Why fix this issue and what will be achieved with the fix? L'utente al momento ha la UI rotta e non può finire i minigiochi giornalieri perché se si blocca non si sbloccano mai più.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (Backend via curl, Frontend via logica/codice)
+     - Should Test frontend/backend/both after fix? Both (via API json curl test e verifica UI code)
      - Blocked on other issue: Nessuno
 
-  Issue 2: Integrazione degli ultimi 2 Minigiochi (P1)
-     - Attempted fixes: Nessuno.
-     - Next debug checklist: Attendere il codice dall'utente e integrare come fatto per Flipper Pro.
-     - Why fix this issue and what will be achieved with the fix? Chiusura del set Arcade.
-     - Status: BLOCKED (In attesa dei file dall'utente)
+  Issue 2: Fix minigiochi residui (P1)
+     - Attempted fixes: Light Setup risolto. Restano da controllare logiche interne di altri minigiochi.
+     - Next debug checklist: Verificare i problemi segnalati in precedenza nei minigiochi.
+     - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? NA
-     - Blocked on other issue: Completamento Pipeline V2
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-  Task 1: Sviluppo UI Mobile-First per Pipeline V2 (P0)
-     - Where to resume: Lavorare su .
-     - What will be achieved with this? Un'interfaccia pulita, a singola schermata, senza scroll infiniti, dove lo stato (pipeline_ui_step), i timer e la prossima azione sono sempre chiari e i bottoni prevengono i double-click.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Frontend (manual review del codice React)
-     - Blocked on something: Completamento del backend V2.
-
-  Task 2: Integrazione Arena e Dashboard per Pipeline V2 (P1)
-     - Where to resume: Da iniziare SOLO DOPO che i test isolati della V2 sono passati.
-     - What will be achieved with this? I film proposti in V2 appariranno correttamente nei Prossimamente e nell'Arena.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Completamento e test isolato della Pipeline V2.
+N/A
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Bilanciamento vecchi Minigiochi e Bug (es. TapCiak).
+    - (P1) Fix minigiochi residui dell'Arcade/Contest.
     - (P2) Sfida della Settimana (Minigioco rotante con premi extra).
     Future Tasks:
     - (P3) Previsioni Festival.
@@ -66,84 +62,93 @@ Il bug critico P0 Film nel Limbo / Pipeline Infinita è stato risolto con succes
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli.
 
 **Completed work in this session**
-- Risolto Bug Critico Film nel Limbo / Pipeline Infinita modificando  e  e creando script retroattivi (DONE)
-- Aggiunta Preview Read-Only per gli step completati della pipeline legacy (DONE)
-- Creato backup read-only della pipeline legacy in  (DONE)
-- Creata impalcatura base backend  e frontend  integrata nel router (DONE)
+- Job schedulato  fixato per usare  corretto (DONE)
+- Implementazione Sistema Chimiche Attori con bonus su qualità film e UI (DONE)
+- Fix Bug UI Cast (Genere ♂/♀ corretto, IMDb visibile) (DONE)
+- Sistema Ruoli Cast (Protagonista, Cameo, ecc.) con impatto gameplay (DONE)
+- Costi in-game azzerati per selezione chimica/ruoli (risolto malinteso su crediti emergent) (DONE)
+- Integrazione film V2 in Arena PvP e separazione sezione La Prima in Arena e Dashboard (DONE)
+- Fix bug film sparito dalla Board quando in stato  (DONE)
+- Effetto Matrix Arancione su timer Ciak (DONE)
+- Overlay Cinematografico pre-Ciak () (DONE)
+- Overlay Cinematografico full-screen su Rilascio/La Prima () (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   - Nessuno.
+   Nessuno, l'agente ha seguito e corretto tutte le richieste ricevute in tempo reale.
 
 **Known issue recurrence from previous fork**
-  - Query pesanti al DB: L'agente ha incontrato un timeout generando ondate di agenzie in V2 a causa di query al DB multiple; la funzione è stata temporaneamente semplificata per essere eseguita in memoria. Fai attenzione alla performance delle query.
-  - Import circolari in : L'importazione di  direttamente da  nei nuovi router causa crash. Importare SEMPRE  da .
+  - Issue recurrence in previous fork: Errori React #310 (Hook Hooks). Modificando file enormi come  (2500+ righe). Fai estrema attenzione a non inserire hook in blocchi condizionali.
+  - Recurrence count: 1
+  - Status: RESOLVED
 
 **Code Architecture**
 - Frontend: React
-  -  (Nuova pagina Core V2)
-  -  (Backup UI vecchia pipeline)
+  -  (Core UI, StepperBar, Fasi - ENORME, 2500+ righe).
+  -  (Pagina contest da fixare ora).
+  -  &  (Nuovi overlay creati in questa run).
+  -  (Aggiornata per supportare V2 e La Prima).
 - Backend: FastAPI
-  -  (Nuova macchina a stati V2)
-  -  (Vecchia pipeline, mantenuta per retrocompatibilità version = 1)
-  -  (Backup Backend vecchia pipeline)
+  -  (Core logic, calcolo chimiche, ruoli, stati V2).
+  -  (Arena, aggiornato per query V2 e sezioni la_prima_films).
+  -  (Focus attuale per il fix sblocco temporale ogni 4 ore).
+  -  ( aggiornato per supportare i V2).
 
 **Key Technical Concepts**
-- **State Machine V2**: Il cuore del sistema è  accoppiato a . Ogni step deve rispettare il flow: .
-- **Idempotenza e Fallback**: Nessuna route deve rompersi se chiamata due volte per errore (lag mobile).
+- **Idempotenza State Machine**:  (V2 standard).
+- **Chimica e Ruoli**: I calcoli vengono fatti nel backend in base ad affinità di skill, fama, genere e il ruolo assegnato (impatto live su Hype/Quality).
+- **Cinematic CSS Overlays**: Utilizzo di CSS animation pure per gestire overlay pesanti (no canvas eccessivi, zero dipendenze extra).
+- **Malinteso Crediti**: L'utente utilizza il termine Costo 2 crediti per indicare il budget di prompt per l'agente AI (crediti Emergent), NON i crediti Cinepass in-game. **Tutte le core feature di UI del cast devono essere gratis nel gioco**.
 
 **key DB schema**
-  - : Aggiunti nuovi campi obbligatori per la V2 (, , , , , , , , ).
+  - : Usa  e stati custom (: , , , , ).
+  - : Gestisce il tracciamento dei minigiochi per utente.
 
 **changes in tech stack**
-  - Nessuno.
+  - Nessun cambiamento.
 
 **All files of reference** 
-  -  (Da blindare e completare)
-  -  (Da strutturare mobile-first)
-  -  (Potrebbe servire per i nuovi timer V2)
-  -  (Route V2 già inserite)
+  -  (Da modificare ora)
+  -  (Da modificare ora)
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  - Ottimizzazione di  per rispettare i dettami della UI mobile-first senza scroll.
+  -  ha superato le 2500 righe. Modificare con cautela tramite  preciso.
 
 **key api endpoints**
-  - 
-  - Varie route in via di definizione dentro 
+  -  (Endpoint da sistemare)
+  -  (Riceve  ora)
+  -  (Calcolo chimica manuale)
 
 **Critical Info for New Agent** 
-- **NO TEST AGENT E NO SCREENSHOT**: Regola ferrea. Usa curl o logica. L'utente ha espressamente vietato test visivi automatizzati.
-- **STOP MOMENTANEO**: L'utente ha ordinato di NON integrare ancora la V2 con l'Arena o la Dashboard. Il tuo compito primario è leggere i requisiti dell'ultimo messaggio per blindare  (lock, snapshot, anti doppio-click, retrocompatibilità con i vecchi film) e implementare alla perfezione e in isolamento le 9 fasi richieste.
-- **Retrocompatibilità**: I film esistenti senza  o con  devono continuare a usare il vecchio sistema. I nuovi film usano .
-- **Lingua**: Comunica solo in ITALIANO.
+- **STRICT RULE ON TESTING**: L'utente ha VIETATO ASSOLUTAMENTE l'uso dell'agente di testing automatizzato e del tool di screenshot (No test agent no screenshot, mi fido di te). **Devi testare solo in modalità manuale** (curl, log, python -c script).
+- Quando interagisci con l'utente, DEVI usare SEMPRE l'Italiano.
+- L'utente vuole che i minigiochi nel contest vengano sbloccati non solo quando vinci il precedente, ma ANCHE automaticamente su base tempo (1 sblocco ogni 4 ore), affinché chi si blocca possa comunque continuare più tardi. Devi implementare questo in .
 
 **documents and test reports created in this job** 
-  -  (Aggiornato)
-  -  (Creato)
+  -  (Aggiornato costantemente con gli ultimi status).
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - (225) User impone uno STOP MOMENTANEO. Richiede di validare la struttura V2 (lock, snapshot), aggiungere protezioni anti-bug, gestire migrazione sicura, completare perfettamente le 9 fasi e la UI mobile, testando in isolamento prima di integrare con Arena/Dashboard (IN PROGRESS).
- - (118) User ordina la riscrittura completa della pipeline film (V2) con focus su solidità, backup legacy, lock e mobile-first UI (DONE impalcatura iniziale).
- - (83) User conferma di volerlo vedere solo per Noccioline! (DONE).
- - (80) User chiede se si possono sbloccare i vecchi passaggi della pipeline in read-only mode prima di un futuro refactor (DONE).
- - (58) User chiede un riepilogo dettagliato dell'attuale pipeline film (DONE).
- - (7) User conferma di voler fixare SOLO il bug P0 dei Film nel Limbo per ora (DONE).
+(Gli ultimi messaggi riguardano tutti richieste fixate con successo: intro CIAK, release overlay, la prima visibility, matrix effect).
+ - L'Ultimo messaggio (PENDING) è la segnalazione con screenshot (IMG_2937 e IMG_2938) relativa alla pagina dei contest:
+   1) Navbar sopra copre tutto (manca top padding).
+   2) Scroll rotto in basso (nasconde gli ultimi 2 contest).
+   3) I minigiochi devono sbloccarsi anche ogni 4 ore in sequenza, per non rimanere perennemente bloccati su un livello.
+   4) I crediti di ricompensa minigioco non vengono assegnati.
 
 **Project Health Check:**
-- Broken: NA (Bug vecchi risolti. V2 in fase di sviluppo/blindatura).
-- Mocked: Le ondate di casting in V2 sono attualmente generate localmente in memoria per evitare timeout del DB.
+- Broken:  (UI scroll/padding rotto, logica di blocco/reward fallata).
+- Mocked: Nessuno.
 
 **3rd Party Integrations** 
 - Stripe (Payments) - Requires User API Key
-- Gemini Nano Banana - Uses Emergent LLM Key
+- Gemini / OpenAI (AI Generations via emergentintegrations) - Uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Divieto dell'utente)
+  - Testing agent used after significant changes: NO (Proibito dall'utente)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: Nessuna sulla logica core; solo temporanei timeout di connessione durante la generazione cast.
-
-**Credentials to test flow:**
-  Utente:  / 
+  - Known regressions: []
 
 **What agent forgot to execute**
-L'agente ha creato la struttura base per la Pipeline V2 ma si è fermato a leggere l'ultimo prompt (STOP MOMENTANEO). L'implementazione completa delle protezioni (lock, idempotenza) e la logica dettagliata per ogni specifica fase (Sponsor, Final Cut, La Prima, ecc.) nella V2 deve ancora essere stesa e verificata a fondo prima di poter dichiarare la pipeline conclusa.</analysis>
+L'agente ha interrotto l'elaborazione proprio mentre analizzava i file per risolvere il bug della pagina Contest (Padding/Scroll UI e sblocco minigiochi ogni 4 ore). Riprendi esattamente da lì.</analysis>

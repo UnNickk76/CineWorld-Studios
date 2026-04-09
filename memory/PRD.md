@@ -43,10 +43,17 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Cast selezionato sparisce dalla lista proposte
 - Ruolo mostrato nel CastSlot UI (badge viola)
 
+### FIX Pagina Contest Minigiochi (2026-04-09) - NUOVO
+- Fix navbar che copriva il titolo: aggiunto pt-20 (80px top padding)
+- Fix scroll bloccato: aggiunto pb-40 (160px bottom padding) per bottom nav
+- Fix CinePass non accreditati: cambiato $inc da campo `credits` a `cinepass`
+- Sistema sblocco temporale: 1 step extra ogni 4 ore automaticamente (calc_time_unlocked_step)
+- Testo UI aggiornato da "crediti" a "CinePass" per consistenza
+- Padding corretto anche nella vista gioco attivo (pt-20 pb-40)
+
 ## Backlog
 
 ### P1
-- [ ] Integrazione Arena per film V2
 - [ ] Fix minigiochi residui (TapCiak, ecc.)
 
 ### P2

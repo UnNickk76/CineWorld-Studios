@@ -92,14 +92,24 @@ def serialize_progress(p: dict, normal: list, bonus: list) -> dict:
     }
 
 
+def calc_time_unlocked_step(reset_time):
+    """Calculate how many steps should be unlocked based on time elapsed since reset.
+    1 extra unlock every 4 hours from day start."""
+    now = datetime.now(timezone.utc)
+    if reset_time and reset_time.tzinfo is None:
+        reset_time = reset_time.replace(tzinfo=timezone.utc)
+    hours_since_reset = (now - reset_time).total_seconds() / 3600
+    return min(TOTAL_STEPS, 1 + int(hours_since_reset // 4))
+
+
 @router.get("/progress")
 async def get_progress(user: dict = Depends(get_current_user)):
     user_id = user["id"]
     await reset_if_needed(user_id)
     progress = await db.contest.find_one({"user_id": user_id})
     normal, bonus = get_daily_games()
+    now = datetime.now(timezone.utc)
     if not progress:
-        now = datetime.now(timezone.utc)
         progress = {
             "user_id": user_id,
             "current_step": 1,
@@ -108,6 +118,20 @@ async def get_progress(user: dict = Depends(get_current_user)):
             "last_reset": now,
         }
         await db.contest.insert_one(progress)
+
+    # Time-based auto-advance: 1 extra unlock every 4 hours
+    if not progress.get("completed"):
+        reset_t = progress.get("last_reset", now)
+        time_unlocked = calc_time_unlocked_step(reset_t)
+        current = progress.get("current_step", 1)
+        if current < time_unlocked:
+            await db.contest.update_one(
+                {"user_id": user_id},
+                {"$set": {"current_step": time_unlocked, "next_unlock_at": None}},
+            )
+            progress["current_step"] = time_unlocked
+            progress["next_unlock_at"] = None
+
     return serialize_progress(progress, normal, bonus)
 
 
@@ -128,6 +152,18 @@ async def complete_step(body: CompleteStepBody, user: dict = Depends(get_current
     if progress.get("completed"):
         raise HTTPException(status_code=400, detail="already completed")
 
+    # Time-based auto-advance before checking lock
+    reset_t = progress.get("last_reset", now)
+    time_unlocked = calc_time_unlocked_step(reset_t)
+    current = progress.get("current_step", 1)
+    if current < time_unlocked:
+        await db.contest.update_one(
+            {"user_id": user_id},
+            {"$set": {"current_step": time_unlocked, "next_unlock_at": None}},
+        )
+        progress["current_step"] = time_unlocked
+        progress["next_unlock_at"] = None
+
     if progress.get("next_unlock_at"):
         unlock = progress["next_unlock_at"]
         if unlock.tzinfo is None:
@@ -143,12 +179,12 @@ async def complete_step(body: CompleteStepBody, user: dict = Depends(get_current
     else:
         credits = min(max(body.score // 15, 1), 3)
 
-    current_credits = user.get("credits", 0)
-    if current_credits + credits > MAX_DAILY_CREDITS:
-        credits = max(0, MAX_DAILY_CREDITS - current_credits)
+    current_cinepass = user.get("cinepass", 0)
+    if current_cinepass + credits > MAX_DAILY_CREDITS:
+        credits = max(0, MAX_DAILY_CREDITS - current_cinepass)
 
     if credits > 0:
-        await db.users.update_one({"id": user_id}, {"$inc": {"credits": credits}})
+        await db.users.update_one({"id": user_id}, {"$inc": {"cinepass": credits}})
 
     next_step = step + 1
     cooldown = STEP_COOLDOWNS.get(next_step, 0)

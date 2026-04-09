@@ -338,15 +338,18 @@ class CreateFilmV2(BaseModel):
     genre: str
     subgenre: str = ''
     subgenres: list = []
+    content_type: str = 'film'  # film / serie_tv / anime
 
 @router.post("/films")
 async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_user)):
     """Create a new V2 film project in draft state"""
+    ct = req.content_type if req.content_type in ('film', 'serie_tv', 'anime') else 'film'
     now = _now()
     project = {
         'id': str(uuid.uuid4()),
         'user_id': user['id'],
         'pipeline_version': 2,
+        'content_type': ct,
         'pipeline_state': 'draft',
         'pipeline_substate': '',
         'pipeline_ui_step': 0,
@@ -389,6 +392,11 @@ async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_use
         'final_tier': None,
         'film_id': None,
         'release_type': 'immediate',
+        'episode_count': None,
+        'episode_release_mode': None,
+        'episodes': [],
+        'season_number': 1,
+        'parent_series_id': None,
         'hype_strategy': None,
         'interested_agencies': [],
         'agency_waves': [],
@@ -2344,6 +2352,241 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp}
 
 
+# ═══════════════════════════════════════════════════════════════
+#  SERIE TV / ANIME — Episodi, Distribuzione, Stagioni
+# ═══════════════════════════════════════════════════════════════
+
+class SetEpisodesBody(BaseModel):
+    episode_count: int
+
+
+@router.post("/films/{pid}/set-episodes")
+async def set_episode_count(pid: str, body: SetEpisodesBody, user: dict = Depends(get_current_user)):
+    """Set episode count for series/anime. Only before release."""
+    project = await _get_project(pid, user['id'])
+    if project.get('content_type', 'film') == 'film':
+        raise HTTPException(400, "Solo per Serie TV e Anime")
+    if project['pipeline_state'] in ('released', 'completed'):
+        raise HTTPException(400, "Progetto gia rilasciato")
+    if body.episode_count < 8 or body.episode_count > 24:
+        raise HTTPException(400, "Episodi: range 8-24")
+    await db.film_projects.update_one(
+        {'id': pid}, {'$set': {'episode_count': body.episode_count}}
+    )
+    return {'episode_count': body.episode_count}
+
+
+class SetReleaseMode(BaseModel):
+    mode: str  # binge / daily / weekly
+
+
+@router.post("/films/{pid}/set-release-mode")
+async def set_episode_release_mode(pid: str, body: SetReleaseMode, user: dict = Depends(get_current_user)):
+    """Set episode release mode AFTER release. Permanent choice."""
+    project = await _get_project(pid, user['id'])
+    ct = project.get('content_type', 'film')
+    if ct == 'film':
+        raise HTTPException(400, "Solo per Serie TV e Anime")
+    if project.get('episode_release_mode'):
+        raise HTTPException(400, "Modalita gia scelta — non modificabile")
+    if body.mode not in ('binge', 'daily', 'weekly'):
+        raise HTTPException(400, "Modalita: binge / daily / weekly")
+
+    ep_count = project.get('episode_count', 12)
+    now = _now()
+    episodes = []
+    for i in range(1, ep_count + 1):
+        if body.mode == 'binge':
+            release_at = now
+            status = 'released'
+        elif body.mode == 'daily':
+            release_at = (datetime.fromisoformat(now) + timedelta(days=i - 1)).isoformat()
+            status = 'released' if i == 1 else 'locked'
+        else:  # weekly
+            release_at = (datetime.fromisoformat(now) + timedelta(weeks=i - 1)).isoformat()
+            status = 'released' if i == 1 else 'locked'
+        episodes.append({
+            'number': i,
+            'status': status,
+            'release_at': release_at,
+        })
+
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {
+            'episode_release_mode': body.mode,
+            'episodes': episodes,
+            'episodes_started_at': now,
+        }}
+    )
+    return {'mode': body.mode, 'episodes': episodes}
+
+
+@router.get("/films/{pid}/episodes")
+async def get_episodes(pid: str, user: dict = Depends(get_current_user)):
+    """Get episode list with auto-unlock based on time."""
+    project = await _get_project(pid, user['id'])
+    episodes = project.get('episodes', [])
+    now_dt = datetime.now(timezone.utc)
+
+    updated = False
+    for ep in episodes:
+        if ep['status'] == 'locked':
+            rel_dt = datetime.fromisoformat(ep['release_at'].replace('Z', '+00:00'))
+            if rel_dt.tzinfo is None:
+                rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+            if now_dt >= rel_dt:
+                ep['status'] = 'released'
+                updated = True
+
+    if updated:
+        await db.film_projects.update_one({'id': pid}, {'$set': {'episodes': episodes}})
+
+    released_count = sum(1 for e in episodes if e['status'] == 'released')
+    return {
+        'episodes': episodes,
+        'total': len(episodes),
+        'released': released_count,
+        'all_released': released_count == len(episodes) and len(episodes) > 0,
+        'mode': project.get('episode_release_mode'),
+        'content_type': project.get('content_type', 'film'),
+    }
+
+
+class CreateSeasonBody(BaseModel):
+    title: str = ''
+    episode_count: int = 12
+
+
+@router.post("/films/{pid}/new-season")
+async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depends(get_current_user)):
+    """Create a new season inheriting cast and fanbase from previous."""
+    project = await _get_project(pid, user['id'])
+    ct = project.get('content_type', 'film')
+    if ct == 'film':
+        raise HTTPException(400, "Solo per Serie TV e Anime")
+
+    # Check all episodes released
+    episodes = project.get('episodes', [])
+    if episodes and not all(e['status'] == 'released' for e in episodes):
+        raise HTTPException(400, "Completa tutti gli episodi prima di creare una nuova stagione")
+
+    if body.episode_count < 8 or body.episode_count > 24:
+        raise HTTPException(400, "Episodi: range 8-24")
+
+    prev_season = project.get('season_number', 1)
+    parent_id = project.get('parent_series_id') or project['id']
+    prev_cast = project.get('cast', {})
+    prev_quality = project.get('final_quality') or 50
+
+    # Dynamic member departure: some cast may refuse to return
+    import random as _rnd
+    user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})
+    fame = user_doc.get('fame', 0) if user_doc else 0
+    departure_chance = max(0.05, 0.3 - (fame * 0.002) - (prev_quality * 0.002))
+
+    returning_actors = []
+    departed_actors = []
+    for actor in (prev_cast.get('actors') or []):
+        if _rnd.random() < departure_chance:
+            departed_actors.append(actor)
+        else:
+            returning_actors.append(actor)
+
+    # Season bonus/malus
+    season_bonus = 0
+    if prev_quality >= 70:
+        season_bonus = min(10, (prev_quality - 70) * 0.3)
+    elif prev_quality < 40:
+        season_bonus = max(-10, (prev_quality - 40) * 0.3)
+
+    now = _now()
+    title = body.title.strip() if body.title.strip() else f"{project['title']} — Stagione {prev_season + 1}"
+    new_project = {
+        'id': str(uuid.uuid4()),
+        'user_id': user['id'],
+        'pipeline_version': 2,
+        'content_type': ct,
+        'pipeline_state': 'draft',
+        'pipeline_substate': '',
+        'pipeline_ui_step': 0,
+        'pipeline_locked': False,
+        'pipeline_error': None,
+        'pipeline_updated_at': now,
+        'pipeline_history': [],
+        'pipeline_snapshots': [],
+        'pipeline_timers': {},
+        'pipeline_flags': {},
+        'pipeline_metrics': {
+            'hype_score': 0, 'agency_interest': 0, 'cast_quality': 0,
+            'season_bonus': round(season_bonus, 1),
+        },
+        'title': title,
+        'genre': project['genre'],
+        'subgenre': project.get('subgenre', ''),
+        'subgenres': project.get('subgenres', []),
+        'pre_trama': '',
+        'locations': [],
+        'poster_url': None,
+        'poster_mode': None,
+        'screenplay': '',
+        'screenplay_mode': None,
+        'pre_imdb_score': 0,
+        'pre_imdb_breakdown': {},
+        'cast': {
+            'director': prev_cast.get('director'),
+            'screenwriter': None,
+            'actors': returning_actors,
+            'composer': prev_cast.get('composer'),
+        },
+        'cast_proposals': [],
+        'cast_locked': False,
+        'cast_inherited_count': len(returning_actors),
+        'cast_max_replaceable': max(1, len(prev_cast.get('actors', [])) // 2),
+        'equipment': [],
+        'production_setup': {'extras_count': 0, 'cgi_packages': [], 'vfx_packages': []},
+        'sponsors': [],
+        'marketing_packages': [],
+        'premiere': None,
+        'costs_paid': {},
+        'total_cost': 0,
+        'shooting_days': 0,
+        'shooting_started_at': None,
+        'shooting_completed': False,
+        'postproduction_started_at': None,
+        'postproduction_completed': False,
+        'final_quality': None,
+        'final_tier': None,
+        'film_id': None,
+        'release_type': 'immediate',
+        'episode_count': body.episode_count,
+        'episode_release_mode': None,
+        'episodes': [],
+        'season_number': prev_season + 1,
+        'parent_series_id': parent_id,
+        'prev_season_id': project['id'],
+        'prev_season_quality': prev_quality,
+        'season_bonus': round(season_bonus, 1),
+        'departed_actors': departed_actors,
+        'hype_strategy': None,
+        'interested_agencies': [],
+        'agency_waves': [],
+        'created_at': now,
+        'updated_at': now,
+        'status': 'draft',
+    }
+    await db.film_projects.insert_one({**new_project})
+    new_project.pop('_id', None)
+
+    return {
+        'film': new_project,
+        'season': prev_season + 1,
+        'departed_actors': departed_actors,
+        'returning_actors': len(returning_actors),
+        'season_bonus': round(season_bonus, 1),
+    }
+
+
 @router.post("/films/{pid}/release")
 async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     """Final release: calculates quality, creates film in 'films' collection. Idempotent."""
@@ -2496,6 +2739,18 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
 
     quality_score = max(5, min(100, round(base + alchemy)))
 
+    # Episode factor: series/anime with more episodes get slight quality penalty
+    ct = project.get('content_type', 'film')
+    ep_count = project.get('episode_count')
+    if ct in ('serie_tv', 'anime') and ep_count and ep_count > 8:
+        ep_factor = 1 - ((ep_count - 8) * 0.02)
+        quality_score = max(5, round(quality_score * ep_factor))
+
+    # Season bonus/malus from previous season
+    season_bonus = project.get('pipeline_metrics', {}).get('season_bonus', 0)
+    if season_bonus:
+        quality_score = max(5, min(100, round(quality_score + season_bonus)))
+
     # Tier
     if quality_score >= 85: tier = 'masterpiece'
     elif quality_score >= 70: tier = 'excellent'
@@ -2569,6 +2824,10 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         'current_attendance': 0,
         'attendance_history': [],
         'total_screenings': 0,
+        'content_type': ct,
+        'episode_count': ep_count if ct in ('serie_tv', 'anime') else None,
+        'season_number': project.get('season_number', 1),
+        'parent_series_id': project.get('parent_series_id'),
     }
 
     # Calculate IMDb rating

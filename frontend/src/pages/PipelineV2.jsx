@@ -196,9 +196,15 @@ const FilmHeader = ({ film, onBack }) => (
       </div>
     )}
     <div className="flex-1 min-w-0">
-      <h2 className="text-sm font-bold text-white truncate">{film.title || 'Nuovo Film'}</h2>
+      <h2 className="text-sm font-bold text-white truncate">{film.title || 'Nuovo Progetto'}</h2>
       <div className="flex items-center gap-2 mt-0.5">
         <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium uppercase">{film.genre || '—'}</span>
+        {film.content_type && film.content_type !== 'film' && (
+          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
+            film.content_type === 'serie_tv' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/15' :
+            'bg-pink-500/10 text-pink-400 border border-pink-500/15'
+          }`}>{film.content_type === 'serie_tv' ? 'Serie TV' : 'Anime'}{film.season_number > 1 ? ` S${film.season_number}` : ''}</span>
+        )}
         {film.pre_imdb_score > 0 && (
           <span className="text-[9px] text-yellow-400 font-bold flex items-center gap-0.5">
             <Star className="w-2.5 h-2.5" /> {film.pre_imdb_score}
@@ -1815,6 +1821,163 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 //  FASE 9 — USCITA (Release Scheduling + Zones)
 // ═══════════════════════════════════════════════════════════════
 
+
+// ═══════════════════════════════════════════════════════════════
+//  SERIE/ANIME — Episode Manager (Board, post-release)
+// ═══════════════════════════════════════════════════════════════
+
+const EpisodeManager = ({ film, onRefresh, toast }) => {
+  const [mode, setMode] = useState(film.episode_release_mode || null);
+  const [episodes, setEpisodes] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [released, setReleased] = useState(0);
+  const [allReleased, setAllReleased] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [loading, setLoading] = useState('');
+  const [seasonLoading, setSeasonLoading] = useState(false);
+  const [newSeasonEp, setNewSeasonEp] = useState(12);
+
+  const loadEpisodes = useCallback(async () => {
+    try {
+      const res = await api.get(`/films/${film.id}/episodes`);
+      setEpisodes(res.episodes || []);
+      setTotal(res.total || 0);
+      setReleased(res.released || 0);
+      setAllReleased(res.all_released || false);
+      setMode(res.mode || null);
+    } catch (e) {}
+  }, [film.id]);
+
+  useEffect(() => { loadEpisodes(); }, [loadEpisodes]);
+
+  const chooseMode = async (m) => {
+    setLoading(m);
+    try {
+      await api.post(`/films/${film.id}/set-release-mode`, { mode: m });
+      toast({ title: `Modalita ${m === 'binge' ? 'Binge' : m === 'daily' ? 'Giornaliero' : 'Settimanale'} attivata!` });
+      await loadEpisodes();
+      setChoosing(false);
+    } catch (e) {
+      toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' });
+    }
+    setLoading('');
+  };
+
+  const createSeason = async () => {
+    setSeasonLoading(true);
+    try {
+      const res = await api.post(`/films/${film.id}/new-season`, { episode_count: newSeasonEp });
+      toast({
+        title: `Stagione ${res.season} creata!`,
+        description: res.departed_actors?.length > 0
+          ? `${res.departed_actors.length} membri hanno lasciato il progetto`
+          : `Cast confermato. Bonus: ${res.season_bonus > 0 ? '+' : ''}${res.season_bonus}`,
+      });
+      onRefresh();
+    } catch (e) {
+      toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' });
+    }
+    setSeasonLoading(false);
+  };
+
+  const modeLabels = { binge: 'Binge', daily: 'Giornaliero', weekly: 'Settimanale' };
+
+  // No mode chosen yet → show selector
+  if (!mode) {
+    return (
+      <div className="mt-3 p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15 space-y-2" data-testid="episode-mode-selector">
+        <p className="text-[9px] text-cyan-400 font-bold uppercase">Distribuzione Episodi</p>
+        <p className="text-[8px] text-gray-400">
+          {film.episode_count || '?'} episodi — scegli come distribuirli. La scelta e definitiva.
+        </p>
+        {!choosing ? (
+          <button onClick={() => setChoosing(true)}
+            className="w-full py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 text-[10px] font-bold hover:bg-cyan-500/20 transition-colors"
+            data-testid="choose-mode-btn">
+            Scegli Modalita
+          </button>
+        ) : (
+          <div className="space-y-1.5">
+            {[
+              { id: 'binge', label: 'Binge', desc: 'Tutti gli episodi subito', icon: 'Zap' },
+              { id: 'daily', label: 'Giornaliero', desc: '1 episodio al giorno', icon: 'Clock' },
+              { id: 'weekly', label: 'Settimanale', desc: '1 episodio ogni 7 giorni', icon: 'Calendar' },
+            ].map(m => (
+              <button key={m.id} onClick={() => chooseMode(m.id)}
+                disabled={loading !== ''}
+                className="w-full p-2 rounded-lg border border-gray-800 hover:border-cyan-500/30 text-left flex justify-between items-center transition-all active:scale-[0.98]"
+                data-testid={`mode-${m.id}`}>
+                <div>
+                  <p className="text-[10px] font-bold text-white">{m.label}</p>
+                  <p className="text-[8px] text-gray-500">{m.desc}</p>
+                </div>
+                {loading === m.id && <span className="text-[8px] text-cyan-400 animate-pulse">...</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Mode chosen → show episode progress
+  return (
+    <div className="mt-3 space-y-2" data-testid="episode-manager">
+      <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
+        <div className="flex justify-between items-center mb-2">
+          <p className="text-[9px] text-cyan-400 font-bold uppercase">Episodi — {modeLabels[mode]}</p>
+          <span className="text-[9px] text-gray-400">{released}/{total}</span>
+        </div>
+        {/* Progress bar */}
+        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden mb-2">
+          <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all duration-500"
+            style={{ width: `${total > 0 ? (released / total * 100) : 0}%` }} />
+        </div>
+        {/* Episode grid */}
+        <div className="flex flex-wrap gap-1">
+          {episodes.map(ep => (
+            <div key={ep.number}
+              className={`w-7 h-7 rounded-md flex items-center justify-center text-[8px] font-bold border transition-all ${
+                ep.status === 'released'
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : 'bg-gray-900 border-gray-800 text-gray-600'
+              }`}
+              title={ep.status === 'released' ? 'Rilasciato' : `Uscita: ${new Date(ep.release_at).toLocaleDateString('it-IT')}`}
+              data-testid={`ep-${ep.number}`}
+            >
+              {ep.number}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* New Season */}
+      {allReleased && (
+        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 space-y-2" data-testid="new-season-section">
+          <p className="text-[9px] text-amber-400 font-bold uppercase">Nuova Stagione</p>
+          <p className="text-[8px] text-gray-400">
+            Tutti gli episodi rilasciati! Crea la Stagione {(film.season_number || 1) + 1}.
+          </p>
+          <div>
+            <label className="text-[7px] text-gray-500 uppercase">Episodi nuova stagione ({newSeasonEp})</label>
+            <input type="range" min={8} max={24} value={newSeasonEp}
+              onChange={e => setNewSeasonEp(parseInt(e.target.value))}
+              className="w-full h-1 bg-gray-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+              data-testid="new-season-ep-slider"
+            />
+          </div>
+          <button onClick={createSeason} disabled={seasonLoading}
+            className="w-full py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold hover:bg-amber-500/25 transition-colors disabled:opacity-30"
+            data-testid="create-season-btn">
+            {seasonLoading ? 'Creazione...' : `Crea Stagione ${(film.season_number || 1) + 1}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
@@ -1825,10 +1988,13 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [selectedZones, setSelectedZones] = useState([]);
   const [expandedContinent, setExpandedContinent] = useState(null);
   const [scheduled, setScheduled] = useState(film.release_schedule || null);
+  const [epCount, setEpCount] = useState(film.episode_count || 12);
+  const [epSaved, setEpSaved] = useState(!!film.episode_count);
   const state = film.pipeline_state;
   const isPremiere = film.release_type === 'premiere';
   const canRelease = state === 'release_pending';
   const canSchedule = state === 'premiere_live' || state === 'release_pending';
+  const isSeries = film.content_type === 'serie_tv' || film.content_type === 'anime';
 
   useEffect(() => {
     api.get('/pipeline-v2/release-zones').then(res => {
@@ -1943,6 +2109,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               </div>
             </div>
           )}
+
+          {/* ═══ SERIE/ANIME — Episodi + Stagioni ═══ */}
+          {(film.content_type === 'serie_tv' || film.content_type === 'anime') && (
+            <EpisodeManager film={film} onRefresh={onRefresh} toast={toast} />
+          )}
         </div>
         {showReleaseOverlay && (
           <CinematicReleaseOverlay
@@ -1976,6 +2147,40 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         {state === 'premiere_live' && (
           <div className="p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-center">
             <p className="text-[8px] text-yellow-400">La Prima in corso — programma la distribuzione, il rilascio partira al termine</p>
+          </div>
+        )}
+
+        {/* Episode count — solo per Serie/Anime, prima del rilascio */}
+        {isSeries && !epSaved && (
+          <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15 space-y-2">
+            <p className="text-[9px] text-cyan-400 font-bold uppercase">Episodi ({epCount})</p>
+            <input type="range" min={8} max={24} value={epCount}
+              onChange={e => setEpCount(parseInt(e.target.value))}
+              className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer accent-cyan-500"
+              data-testid="ep-count-slider" />
+            <div className="flex justify-between text-[7px]">
+              <span className="text-gray-600">8</span>
+              <span className="text-cyan-400/60">Qualita: {Math.round((1 - ((epCount - 8) * 0.02)) * 100)}%</span>
+              <span className="text-gray-600">24</span>
+            </div>
+            <button onClick={async () => {
+              try {
+                await api.post(`/films/${film.id}/set-episodes`, { episode_count: epCount });
+                setEpSaved(true);
+                toast({ title: `${epCount} episodi confermati!` });
+                onRefresh();
+              } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
+            }}
+              className="w-full py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 text-[9px] font-bold hover:bg-cyan-500/20 transition-colors"
+              data-testid="confirm-episodes-btn">
+              Conferma {epCount} Episodi
+            </button>
+          </div>
+        )}
+        {isSeries && epSaved && (
+          <div className="flex items-center gap-2 px-2 py-1 rounded bg-cyan-500/5 border border-cyan-500/10">
+            <span className="text-[8px] text-cyan-400 font-bold">{film.episode_count || epCount} Episodi</span>
+            <span className="text-[7px] text-gray-500">Qualita: {Math.round((1 - (((film.episode_count || epCount) - 8) * 0.02)) * 100)}%</span>
           </div>
         )}
         {/* Date Selection */}
@@ -2151,7 +2356,7 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
             <Plus className="w-4 h-4 text-gray-600 group-hover:text-amber-400 transition-colors" />
           </div>
           <div className="text-center">
-            <span className="text-[9px] font-bold text-gray-500 group-hover:text-amber-400 transition-colors block">Nuovo Film</span>
+            <span className="text-[9px] font-bold text-gray-500 group-hover:text-amber-400 transition-colors block">Nuovo Progetto</span>
             <span className="text-[7px] text-gray-600 group-hover:text-amber-400/60 transition-colors">Crea da zero</span>
           </div>
         </button>
@@ -2193,6 +2398,12 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
               <div className="p-1.5">
                 <p className="text-[9px] font-bold text-white truncate leading-tight">{f.title}</p>
                 <div className="flex items-center gap-1 mt-0.5">
+                  {f.content_type && f.content_type !== 'film' && (
+                    <span className={`text-[6px] px-1 py-0 rounded font-bold ${
+                      f.content_type === 'serie_tv' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+                      'bg-pink-500/15 text-pink-400 border border-pink-500/20'
+                    }`}>{f.content_type === 'serie_tv' ? 'SERIE' : 'ANIME'}{f.season_number > 1 ? ` S${f.season_number}` : ''}</span>
+                  )}
                   <span className="text-[7px] text-gray-400 capitalize truncate">{f.genre === 'historical' ? 'storico' : (f.genre || '').replace('_', ' ')}</span>
                   {f.pre_imdb_score > 0 && (
                     <span className="text-[7px] text-yellow-400 font-bold flex items-center gap-0.5">
@@ -2552,14 +2763,23 @@ const GENRE_TAGLINES = {
 
 const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'LANCIO'];
 
+const CONTENT_TYPES = [
+  { id: 'film', label: 'Film', icon: 'Film', desc: 'Lungometraggio classico' },
+  { id: 'serie_tv', label: 'Serie TV', icon: 'Tv', desc: 'Serie a episodi' },
+  { id: 'anime', label: 'Anime', icon: 'Sparkles', desc: 'Animazione giapponese' },
+];
+
 const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('drama');
   const [subgenres, setSubgenres] = useState([]);
+  const [contentType, setContentType] = useState('film');
+  const [episodeCount, setEpisodeCount] = useState(12);
   const [creating, setCreating] = useState(false);
   const [showCinematic, setShowCinematic] = useState(false);
   const [count, setCount] = useState(3);
   const pendingFilmRef = useRef(null);
+  const isSeries = contentType === 'serie_tv' || contentType === 'anime';
 
   const availableSubs = SUBGENRE_MAP[genre] || [];
 
@@ -2597,8 +2817,13 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
     if (!title.trim()) return;
     setCreating(true);
     try {
-      const res = await api.post('/films', { title: title.trim(), genre, subgenres });
-      toast({ title: 'Film creato!' });
+      const payload = { title: title.trim(), genre, subgenres, content_type: contentType };
+      const res = await api.post('/films', payload);
+      if (isSeries && episodeCount >= 8 && episodeCount <= 24) {
+        await api.post(`/films/${res.film.id}/set-episodes`, { episode_count: episodeCount }).catch(() => {});
+      }
+      const typeLabel = contentType === 'serie_tv' ? 'Serie TV' : contentType === 'anime' ? 'Anime' : 'Film';
+      toast({ title: `${typeLabel} creato!` });
       pendingFilmRef.current = res.film;
       setShowCinematic(true);
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
@@ -2729,8 +2954,25 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
         </button>
 
         {/* Header */}
-        <h1 className="text-lg font-bold text-amber-400 tracking-tight">Dai vita al tuo prossimo film</h1>
+        <h1 className="text-lg font-bold text-amber-400 tracking-tight">
+          {contentType === 'serie_tv' ? 'Crea la tua Serie TV' : contentType === 'anime' ? 'Crea il tuo Anime' : 'Dai vita al tuo prossimo film'}
+        </h1>
         <p className="text-xs text-gray-400 mt-0.5 mb-2">Scegli titolo e genere. Il resto prendera forma lungo la produzione.</p>
+
+        {/* Content Type Selector */}
+        <div className="flex gap-1.5 mb-3">
+          {CONTENT_TYPES.map(ct => (
+            <button key={ct.id} onClick={() => setContentType(ct.id)}
+              className={`flex-1 py-1.5 px-2 rounded-lg border text-center transition-all ${
+                contentType === ct.id
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                  : 'border-gray-800 text-gray-500 hover:border-gray-600'
+              }`} data-testid={`content-type-${ct.id}`}>
+              <p className="text-[10px] font-bold">{ct.label}</p>
+              <p className="text-[7px] text-gray-500">{ct.desc}</p>
+            </button>
+          ))}
+        </div>
 
         {/* Mini step bar */}
         <div className="flex gap-1 overflow-x-auto no-scrollbar mb-3">
@@ -2812,6 +3054,27 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
               })}
             </div>
           </div>
+
+          {/* Episode count — solo per Serie/Anime */}
+          {isSeries && (
+            <div>
+              <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">
+                Episodi <span className="text-gray-600">({episodeCount})</span>
+              </label>
+              <input type="range" min={8} max={24} value={episodeCount}
+                onChange={e => setEpisodeCount(parseInt(e.target.value))}
+                className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+                data-testid="episode-slider"
+              />
+              <div className="flex justify-between text-[7px] text-gray-600 mt-0.5">
+                <span>8 ep</span>
+                <span className="text-amber-400/60">
+                  Qualita: {episodeCount === 8 ? '100%' : `${Math.round((1 - ((episodeCount - 8) * 0.02)) * 100)}%`}
+                </span>
+                <span>24 ep</span>
+              </div>
+            </div>
+          )}
 
           {/* CTA Button */}
           <button

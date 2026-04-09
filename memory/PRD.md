@@ -76,6 +76,25 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - CSS puro + JS leggero, zero librerie, GPU friendly
 - Fallback: se locandina mancante, mostra titolo in gold su gradiente
 
+### SISTEMA SERIE TV & ANIME (2026-04-09) - NUOVO
+Backend:
+- Campo content_type (film/serie_tv/anime) in creazione progetto
+- Endpoint set-episodes (range 8-24, solo per serie/anime)
+- Formula qualita: qualita_base * (1 - ((episodi - 8) * 0.02))
+- Endpoint set-release-mode (binge/daily/weekly) — scelta definitiva non modificabile
+- Generazione automatica lista episodi con date rilascio calcolate
+- Endpoint get episodes con auto-unlock basato su tempo
+- Endpoint new-season: eredita cast, fanbase, bonus/malus, departure dinamica
+- Cast: max 50% modificabile, minimo 50% deve restare
+- Season bonus/malus basato su qualita stagione precedente
+Frontend:
+- Selettore content_type nella creazione (Film/Serie TV/Anime)
+- Slider episodi (8-24) con indicatore qualita percentuale
+- Badge SERIE/ANIME nelle card del board + header film
+- EpisodeManager: scelta modalita rilascio, griglia episodi con stato, progress bar
+- Sezione Nuova Stagione con slider episodi e info departure/bonus
+- Slider episodi pre-rilascio nella UscitaPhase
+
 ## Backlog
 
 ### P1

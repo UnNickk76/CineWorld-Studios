@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { PlayerBadge } from '../components/PlayerBadge';
 
@@ -17,6 +17,7 @@ const ADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+  { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
 ];
 
@@ -1596,6 +1597,348 @@ function DbManagementCard({ api, isAdmin }) {
   );
 }
 
+/* ─── Migration Tab ─── */
+const CAT_CONFIG = {
+  A_COMPLETED: { label: 'V1 Completati', color: 'bg-blue-500/20 text-blue-400', icon: CheckCircle },
+  A_COMPLETED_NOFILM: { label: 'V1 Completati (no film)', color: 'bg-blue-500/20 text-blue-300', icon: CheckCircle },
+  B_STUCK: { label: 'V1 Bloccati', color: 'bg-yellow-500/20 text-yellow-400', icon: AlertTriangle },
+  C_SYSTEM: { label: 'Film di Sistema', color: 'bg-gray-500/20 text-gray-400', icon: Ban },
+  D_V2_STUCK: { label: 'V2 Bloccati', color: 'bg-orange-500/20 text-orange-400', icon: Clock },
+  D_V2_INVALID: { label: 'V2 Stato Invalido', color: 'bg-red-500/20 text-red-400', icon: XCircle },
+  OK: { label: 'V2 OK', color: 'bg-emerald-500/20 text-emerald-400', icon: CheckCircle },
+};
+
+const V2_STATES = ['draft','idea','proposed','hype_setup','hype_live','casting_live','prep','shooting','postproduction','sponsorship','marketing','premiere_setup','premiere_live','release_pending','released','completed','discarded'];
+
+function MigrationTab({ api }) {
+  const [scan, setScan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(null);
+  const [migrating, setMigrating] = useState(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchResult, setBatchResult] = useState(null);
+  const [forceState, setForceState] = useState({});
+
+  const doScan = async () => {
+    setLoading(true);
+    setScan(null);
+    setPreview(null);
+    setBatchResult(null);
+    try {
+      const res = await api.get('/admin/migration/scan');
+      setScan(res.data);
+    } catch (e) {
+      toast.error('Errore scan: ' + (e.response?.data?.detail || e.message));
+    }
+    setLoading(false);
+  };
+
+  const doPreview = async (pid) => {
+    setPreviewLoading(pid);
+    try {
+      const res = await api.get(`/admin/migration/preview/${pid}`);
+      setPreview(res.data);
+    } catch (e) {
+      toast.error('Errore preview: ' + (e.response?.data?.detail || e.message));
+    }
+    setPreviewLoading(null);
+  };
+
+  const doMigrate = async (pid, forceDiscard = false) => {
+    setMigrating(pid);
+    try {
+      const body = { force_discard: forceDiscard };
+      if (forceState[pid]) body.force_state = forceState[pid];
+      const res = await api.post(`/admin/migration/migrate/${pid}`, body);
+      toast.success(res.data.message || 'Migrato!');
+      doScan();
+      setPreview(null);
+    } catch (e) {
+      toast.error('Errore migrazione: ' + (e.response?.data?.detail || e.message));
+    }
+    setMigrating(null);
+  };
+
+  const doBatchMigrate = async () => {
+    if (!window.confirm('Migrare TUTTI i progetti eligibili? Questa azione non e reversibile.')) return;
+    setBatchRunning(true);
+    try {
+      const res = await api.post('/admin/migration/migrate-all', {});
+      setBatchResult(res.data);
+      toast.success(`Batch: ${res.data.migrated} migrati, ${res.data.fixed} fixati, ${res.data.discarded} scartati`);
+      doScan();
+    } catch (e) {
+      toast.error('Errore batch: ' + (e.response?.data?.detail || e.message));
+    }
+    setBatchRunning(false);
+  };
+
+  const actionable = scan ? ['A_COMPLETED', 'A_COMPLETED_NOFILM', 'B_STUCK', 'C_SYSTEM', 'D_V2_STUCK', 'D_V2_INVALID'] : [];
+
+  return (
+    <div className="space-y-4" data-testid="migration-tab">
+      {/* Header */}
+      <Card className="bg-[#111113] border-white/5">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
+                Tool di Migrazione V1 → V2
+              </h2>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                Scansiona il DB corrente, anteprima e migra i progetti
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={doScan} disabled={loading}
+                className="bg-cyan-600 hover:bg-cyan-700 text-xs h-8"
+                data-testid="migration-scan-btn">
+                {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
+                Scansiona DB
+              </Button>
+              {scan && scan.summary.need_migration + scan.summary.need_fix > 0 && (
+                <Button size="sm" onClick={doBatchMigrate} disabled={batchRunning}
+                  className="bg-amber-600 hover:bg-amber-700 text-xs h-8"
+                  data-testid="migration-batch-btn">
+                  {batchRunning ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
+                  Migra Tutti ({scan.summary.need_migration + scan.summary.need_fix})
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards */}
+      {scan && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { label: 'Da Migrare', val: scan.summary.need_migration, color: 'text-yellow-400' },
+            { label: 'Da Fixare', val: scan.summary.need_fix, color: 'text-orange-400' },
+            { label: 'OK', val: scan.summary.ok, color: 'text-emerald-400' },
+            { label: 'Sistema (skip)', val: scan.summary.skip, color: 'text-gray-400' },
+          ].map(s => (
+            <Card key={s.label} className="bg-[#111113] border-white/5">
+              <CardContent className="p-3 text-center">
+                <div className={`text-xl font-black ${s.color}`}>{s.val}</div>
+                <div className="text-[10px] text-gray-500">{s.label}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Batch Result */}
+      {batchResult && (
+        <Card className="bg-emerald-500/10 border-emerald-500/30">
+          <CardContent className="p-3">
+            <p className="text-xs font-bold text-emerald-400">Batch completato</p>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Migrati: {batchResult.migrated} | Fixati: {batchResult.fixed} | Scartati: {batchResult.discarded} | Errori: {batchResult.errors}
+            </p>
+            {batchResult.details?.map((d, i) => (
+              <p key={i} className="text-[10px] text-gray-500">{d.title}: {d.action}</p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Projects by Category */}
+      {scan && actionable.map(cat => {
+        const items = scan.categories[cat] || [];
+        if (!items.length) return null;
+        const cfg = CAT_CONFIG[cat] || CAT_CONFIG.OK;
+        const CatIcon = cfg.icon;
+        return (
+          <Card key={cat} className="bg-[#111113] border-white/5">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+                <CatIcon className="w-3.5 h-3.5" />
+                {cfg.label} ({items.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-2">
+              {items.map(item => (
+                <div key={item.id} className="bg-black/30 rounded-lg p-3 border border-white/5" data-testid={`migration-item-${item.id}`}>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-white truncate">{item.title}</span>
+                        <Badge className={`text-[9px] h-4 ${cfg.color}`}>
+                          {item.classification?.label}
+                        </Badge>
+                        {item.content_type && item.content_type !== 'film' && (
+                          <Badge className="text-[9px] h-4 bg-purple-500/20 text-purple-400">
+                            {item.content_type === 'serie_tv' ? 'Serie TV' : 'Anime'}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-3 mt-1 text-[10px] text-gray-500 flex-wrap">
+                        <span>Utente: {scan.users_map?.[item.user_id] || item.user_id?.slice(0,8) || 'N/A'}</span>
+                        <span>Genere: {item.genre}</span>
+                        {item.has_cast && <span>Cast: {item.actor_count} attori</span>}
+                        {item.has_screenplay && <span>Sceneggiatura</span>}
+                        {item.has_poster && <span>Poster</span>}
+                        {item.final_quality && <span>Qualita: {item.final_quality}</span>}
+                        {item.film_id && <span>Film rilasciato</span>}
+                      </div>
+                      {item.classification?.issues?.length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {item.classification.issues.map((iss, i) => (
+                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400">{iss}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 items-center flex-shrink-0">
+                      {/* Force state selector for stuck projects */}
+                      {(cat.startsWith('D_') || cat === 'B_STUCK') && (
+                        <select
+                          value={forceState[item.id] || ''}
+                          onChange={e => setForceState(prev => ({...prev, [item.id]: e.target.value}))}
+                          className="bg-black/50 border border-white/10 rounded text-[10px] text-gray-300 h-7 px-1"
+                          data-testid={`force-state-${item.id}`}>
+                          <option value="">Auto</option>
+                          {V2_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      )}
+                      <Button size="sm" variant="outline"
+                        className="text-[10px] h-7 px-2 border-white/10"
+                        onClick={() => doPreview(item.id)}
+                        disabled={previewLoading === item.id}
+                        data-testid={`preview-btn-${item.id}`}>
+                        {previewLoading === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3 mr-1" />}
+                        Anteprima
+                      </Button>
+                      <Button size="sm"
+                        className="text-[10px] h-7 px-2 bg-cyan-600 hover:bg-cyan-700"
+                        onClick={() => doMigrate(item.id)}
+                        disabled={migrating === item.id}
+                        data-testid={`migrate-btn-${item.id}`}>
+                        {migrating === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRightLeft className="w-3 h-3 mr-1" />}
+                        {cat === 'C_SYSTEM' ? 'Scarta' : cat.startsWith('D_') ? 'Fix' : 'Migra'}
+                      </Button>
+                      {cat !== 'C_SYSTEM' && (
+                        <Button size="sm" variant="outline"
+                          className="text-[10px] h-7 px-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                          onClick={() => doMigrate(item.id, true)}
+                          disabled={migrating === item.id}
+                          data-testid={`discard-btn-${item.id}`}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* OK Projects (collapsed) */}
+      {scan && (scan.categories.OK || []).length > 0 && (
+        <Card className="bg-[#111113] border-white/5">
+          <CardContent className="p-3">
+            <p className="text-xs font-bold text-emerald-400 flex items-center gap-2">
+              <CheckCircle className="w-3.5 h-3.5" />
+              V2 OK ({scan.categories.OK.length} progetti)
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {scan.categories.OK.map(item => (
+                <span key={item.id} className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-400/70">
+                  {item.title}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Preview Panel */}
+      {preview && (
+        <Card className="bg-[#0D1117] border-cyan-500/30">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-xs font-bold text-cyan-400 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Eye className="w-3.5 h-3.5" />
+                Anteprima Migrazione: {preview.project?.title}
+              </span>
+              <button onClick={() => setPreview(null)} className="text-gray-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0 space-y-3">
+            {/* Current → Target */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2 py-1 rounded bg-red-500/20 text-red-400">
+                {preview.current_state?.pipeline_state || preview.current_state?.status || '?'}
+              </span>
+              <ArrowRightLeft className="w-3 h-3 text-gray-500" />
+              <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">
+                {preview.proposed_changes?.target_state || preview.proposed_changes?.fixes?.pipeline_state || preview.proposed_changes?.action || '?'}
+              </span>
+            </div>
+
+            {/* Data Preserved */}
+            {preview.data_preserved?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-emerald-400 mb-1">Dati Preservati:</p>
+                <div className="flex flex-wrap gap-1">
+                  {preview.data_preserved.map((d, i) => (
+                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">{d}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fields Added */}
+            {preview.proposed_changes?.fields_added > 0 && (
+              <p className="text-[10px] text-gray-400">
+                Campi aggiunti: <span className="text-white">{preview.proposed_changes.fields_added}</span> |
+                Campi aggiornati: <span className="text-white">{preview.proposed_changes.fields_updated}</span>
+              </p>
+            )}
+
+            {/* Fix Actions */}
+            {preview.proposed_changes?.actions && (
+              <div>
+                <p className="text-[10px] font-semibold text-orange-400 mb-1">Azioni Fix:</p>
+                {preview.proposed_changes.actions.map((a, i) => (
+                  <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 mr-1">{a}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Warnings */}
+            {preview.warnings?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-red-400 mb-1">Avvisi:</p>
+                {preview.warnings.map((w, i) => (
+                  <p key={i} className="text-[9px] text-red-400/70">{w}</p>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!scan && !loading && (
+        <Card className="bg-[#111113] border-white/5">
+          <CardContent className="p-8 text-center">
+            <ArrowRightLeft className="w-8 h-8 mx-auto mb-3 text-gray-600" />
+            <p className="text-xs text-gray-500">Premi "Scansiona DB" per analizzare i progetti</p>
+            <p className="text-[10px] text-gray-600 mt-1">Funziona su qualsiasi DB a cui l'app e connessa</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -1670,6 +2013,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
+        {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
       </div>
     </div>
   );

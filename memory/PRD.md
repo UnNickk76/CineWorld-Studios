@@ -100,8 +100,23 @@ Backend:
 - Fix: screenplay_weight ora moltiplica il bonus sceneggiatura nel calcolo qualità al rilascio
 - Fix: franchise_fatigue ora riduce la qualità finale proporzionalmente (S3: -6%, S4: -12%, S5: -18%, cap -50%)
 - Fix: Aggiunto check stato — new-season richiede pipeline_state='released'/'completed' (prima si poteva creare da draft)
-- Pulizia: Rimosso progetto S3 test creato erroneamente da stato draft
+- Fix: AI screenplay ora usa prev_screenplay_summary per continuità narrativa tra stagioni
 - Formula qualità serie: base*sw → +alchemy → *ep_factor → +season_bonus → *(1-ff)
+
+### TOOL MIGRAZIONE ADMIN V1→V2 (2026-04-09) - NUOVO
+Backend (/app/backend/routes/admin_migration.py):
+- GET /api/admin/migration/scan — Scansiona e classifica tutti i progetti
+- GET /api/admin/migration/preview/{pid} — Anteprima migrazione con dati preservati/resettati
+- POST /api/admin/migration/migrate/{pid} — Migrazione singola (con force_state e force_discard)
+- POST /api/admin/migration/migrate-all — Batch migrazione tutti i progetti eligibili
+- Categorie: A_COMPLETED, B_STUCK, C_SYSTEM, D_V2_STUCK, OK
+- Preserva: cast, sceneggiatura, poster, locations, costi, hype
+Frontend (Tab Migrazione in AdminPage.jsx):
+- Tab "Migrazione" nel pannello admin
+- Scansiona DB → categorie + summary cards
+- Anteprima, Migra/Fix, Scarta, Force State per progetto
+- Batch "Migra Tutti" per migrazione massiva
+- Funziona su qualsiasi DB a cui l'app è connessa
 
 ## Backlog
 

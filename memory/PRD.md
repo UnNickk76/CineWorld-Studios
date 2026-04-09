@@ -12,36 +12,30 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 
 ### Sessione Corrente (Apr 2026)
 
-#### Dashboard Refactor (VETRINA MOBILE-FIRST)
-- Solo 8 sezioni: LaPrima, Eventi WOW, Prossimamente/Ultimi per Film, Serie TV, Anime
-- Glow animato (gold/blue/purple) su tutte le sezioni, 4s
-- Rimossi blocchi operativi e "I Miei" dalla dashboard
+#### Tab Contenuti Rifattorizzato (TVMenuModal)
+- Card "+" come PRIMO elemento inline a sinistra per ogni sezione (Film=giallo, Serie TV=blu, Anime=arancione)
+- Eliminato bottone "+ Aggiungi" a destra
+- Scroll orizzontale su tutte le righe
+- Freccia ➡️ del colore sezione se scroll necessario (20+ items)
 
-#### Bottone Menu → Griglia Azioni (Vecchio Stile)
-- PRODUCI!, MERCATO, SCENEGGIATURE, CONTEST, MINIGIOCHI+SFIDE, ARENA, FESTIVAL, LE MIE TV!
+#### Sezione Prossimamente Emittente TV (NUOVA)
+- Sezione nel tab Contenuti dedicata alla programmazione futura della propria emittente
+- Card "+" → picker contenuti (film/serie/anime, ANCHE in produzione/sviluppo)
+- Timer popup: 6 ore | 12 ore | 24 ore | 2 giorni | 4 giorni | 6 giorni
+- Film: scade timer → va in onda automaticamente
+- Serie/Anime con episodi: dopo timer → apre PalinsestoModal per scheduling episodi
+- Serie/Anime SENZA episodi: resta CONGELATA (icona fiocco neve), si sblocca quando definiti
+- Auto-transizione in `_auto_advance_broadcasts`
+- Backend endpoints: add-upcoming, get upcoming, remove-upcoming, available-upcoming
 
-#### SideMenu Laterale Sinistro
-- Slide-in 25% con 9 voci navigazione
-- Trigger: CIACK logo (top-left) quando su dashboard
-- X button in alto per chiudere
-- Overlay scuro per chiusura al tap esterno
-- **Navbar (top+bottom) traslano** insieme al contenuto quando menu è aperto
-- Body attribute `data-sidemenu="open"` + CSS class `sidemenu-translate`
+#### Dashboard Refactor + SideMenu + Glow + Menu Hamburger
+(come precedentemente implementato)
 
-#### Fix Infrastrutture
-- Emittente TV ripristinata nel tab STUDI
-- Categorie corrette per match backend types
-- Nuova categoria SPECIALE (cinema_museum, film_festival_venue, theme_park)
-
-#### Sistema TV Refactoring
-- TVStationPage Netflix puro + TVMenuModal 4 tab
-- SeriesDetailModal + PalinsestoModal integrati
-- Notifiche Globali + ConfirmDialog custom
-
-### Sessioni Precedenti
-- Pipeline Film V2, Serie TV, Anime, Marketplace, PvP Arena
-- Minigiochi, Festival, Tour, Contest, Infrastrutture
-- Social CineBoard, Amici, Chat, Leaderboard
+## Distinzione Prossimamente
+| Sezione | Dove | Cosa mostra |
+|---|---|---|
+| Prossimamente Dashboard | Dashboard globale | Contenuti di TUTTI i giocatori in sviluppo |
+| Prossimamente Emittente TV | TVMenuModal → Contenuti | Contenuti programmati per la propria emittente con timer |
 
 ## Backlog
 

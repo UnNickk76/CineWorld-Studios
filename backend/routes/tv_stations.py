@@ -675,7 +675,187 @@ async def get_schedulable_content(station_id: str, user: dict = Depends(get_curr
     return {"films": films_in_cinema, "tv_series": series_in_prod, "anime": anime_in_prod}
 
 
-@router.get("/tv-stations/public/all")
+# === UPCOMING / PROSSIMAMENTE EMITTENTE TV ===
+
+class AddUpcomingRequest(BaseModel):
+    station_id: str
+    content_id: str
+    content_type: str  # film, tv_series, anime
+    delay_hours: int  # 6, 12, 24, 48, 96, 144
+    schedule_config: Optional[dict] = None  # for series/anime: episode scheduling
+
+
+@router.post("/tv-stations/add-upcoming")
+async def add_upcoming(req: AddUpcomingRequest, user: dict = Depends(get_current_user)):
+    """Add content to station's 'Prossimamente' with a timer."""
+    station = await db.tv_stations.find_one({'id': req.station_id, 'user_id': user['id']}, {'_id': 0})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    now = datetime.now(timezone.utc)
+    scheduled_air_at = now + timedelta(hours=req.delay_hours)
+
+    # Fetch content info
+    title = '???'
+    poster_url = None
+    num_episodes = 0
+    status = 'unknown'
+    frozen = False
+
+    if req.content_type == 'film':
+        film = await db.films.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'title': 1, 'poster_url': 1, 'status': 1})
+        if not film:
+            fp = await db.film_projects.find_one({'id': req.content_id, 'user_id': user['id'], 'content_type': 'film'}, {'_id': 0, 'title': 1, 'poster_url': 1, 'pipeline_state': 1})
+            if not fp:
+                raise HTTPException(404, "Film non trovato")
+            title = fp.get('title', '???')
+            poster_url = fp.get('poster_url')
+            status = fp.get('pipeline_state', 'production')
+        else:
+            title = film.get('title', '???')
+            poster_url = film.get('poster_url')
+            status = film.get('status', 'unknown')
+    else:
+        series = await db.tv_series.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'title': 1, 'poster_url': 1, 'status': 1, 'num_episodes': 1})
+        if not series:
+            fp = await db.film_projects.find_one({'id': req.content_id, 'user_id': user['id']}, {'_id': 0, 'title': 1, 'poster_url': 1, 'pipeline_state': 1, 'episode_count': 1})
+            if not fp:
+                raise HTTPException(404, "Serie non trovata")
+            title = fp.get('title', '???')
+            poster_url = fp.get('poster_url')
+            status = fp.get('pipeline_state', 'production')
+            num_episodes = fp.get('episode_count', 0)
+        else:
+            title = series.get('title', '???')
+            poster_url = series.get('poster_url')
+            status = series.get('status', 'unknown')
+            num_episodes = series.get('num_episodes', 0)
+
+        # Freeze if no episodes defined for series/anime
+        if num_episodes == 0:
+            frozen = True
+
+    # Check not already in upcoming
+    upcoming = station.get('upcoming_content', [])
+    if any(u['content_id'] == req.content_id for u in upcoming):
+        raise HTTPException(400, "Contenuto già nei Prossimamente")
+
+    entry = {
+        'id': str(uuid.uuid4()),
+        'content_id': req.content_id,
+        'content_type': req.content_type,
+        'title': title,
+        'poster_url': poster_url,
+        'status': status,
+        'num_episodes': num_episodes,
+        'added_at': now.isoformat(),
+        'scheduled_air_at': scheduled_air_at.isoformat(),
+        'delay_hours': req.delay_hours,
+        'schedule_config': req.schedule_config,
+        'frozen': frozen,
+    }
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$push': {'upcoming_content': entry}, '$set': {'updated_at': now.isoformat()}}
+    )
+
+    delay_label = f"{req.delay_hours}h" if req.delay_hours < 48 else f"{req.delay_hours // 24}g"
+    return {"message": f"'{title}' aggiunto ai Prossimamente! In onda tra {delay_label}", "entry": entry}
+
+
+@router.get("/tv-stations/{station_id}/upcoming")
+async def get_upcoming(station_id: str, user: dict = Depends(get_current_user)):
+    """Get station's upcoming/prossimamente content."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'upcoming_content': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    upcoming = station.get('upcoming_content', [])
+    now = datetime.now(timezone.utc)
+
+    for item in upcoming:
+        try:
+            air_dt = datetime.fromisoformat(item['scheduled_air_at'].replace('Z', '+00:00'))
+            if air_dt.tzinfo is None:
+                air_dt = air_dt.replace(tzinfo=timezone.utc)
+            remaining = (air_dt - now).total_seconds()
+            item['remaining_seconds'] = max(0, remaining)
+            item['expired'] = remaining <= 0
+        except:
+            item['remaining_seconds'] = 0
+            item['expired'] = True
+
+    return {"items": upcoming}
+
+
+@router.post("/tv-stations/remove-upcoming")
+async def remove_upcoming(req: RemoveContentRequest, user: dict = Depends(get_current_user)):
+    """Remove content from station's upcoming list."""
+    await db.tv_stations.update_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'$pull': {'upcoming_content': {'content_id': req.content_id}}, '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Rimosso dai Prossimamente"}
+
+
+@router.get("/tv-stations/available-upcoming/{station_id}")
+async def get_available_upcoming(station_id: str, user: dict = Depends(get_current_user)):
+    """Get ALL user content (including in-production) available for Prossimamente."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'contents': 1, 'upcoming_content': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    existing_ids = set()
+    for k in ['films', 'tv_series', 'anime']:
+        for c in station.get('contents', {}).get(k, []):
+            existing_ids.add(c['content_id'])
+    for u in station.get('upcoming_content', []):
+        existing_ids.add(u['content_id'])
+
+    # ALL user films (any status except deleted)
+    films = await db.films.find(
+        {'user_id': user['id'], 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'quality_score': 1}
+    ).to_list(100)
+    # Also film_projects (pipeline V2)
+    fp_films = await db.film_projects.find(
+        {'user_id': user['id'], 'content_type': 'film', 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pipeline_state': 1, 'quality_score': 1}
+    ).to_list(100)
+    for fp in fp_films:
+        fp['status'] = fp.pop('pipeline_state', 'production')
+    films.extend(fp_films)
+
+    # ALL user series
+    series = await db.tv_series.find(
+        {'user_id': user['id'], 'type': 'tv_series', 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'num_episodes': 1}
+    ).to_list(100)
+    fp_series = await db.film_projects.find(
+        {'user_id': user['id'], 'content_type': 'serie_tv', 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pipeline_state': 1, 'episode_count': 1}
+    ).to_list(100)
+    for fp in fp_series:
+        fp['status'] = fp.pop('pipeline_state', 'production')
+        fp['num_episodes'] = fp.pop('episode_count', 0)
+    series.extend(fp_series)
+
+    # ALL user anime
+    anime = await db.tv_series.find(
+        {'user_id': user['id'], 'type': 'anime', 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'num_episodes': 1}
+    ).to_list(100)
+    fp_anime = await db.film_projects.find(
+        {'user_id': user['id'], 'content_type': 'anime', 'id': {'$nin': list(existing_ids)}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'pipeline_state': 1, 'episode_count': 1}
+    ).to_list(100)
+    for fp in fp_anime:
+        fp['status'] = fp.pop('pipeline_state', 'production')
+        fp['num_episodes'] = fp.pop('episode_count', 0)
+    anime.extend(fp_anime)
+
+    return {"films": films, "tv_series": series, "anime": anime}
 async def get_all_public_stations(user: dict = Depends(get_current_user)):
     """Get all TV stations (public listing)."""
     stations = await db.tv_stations.find(
@@ -869,11 +1049,55 @@ def _build_netflix_sections(all_content):
 # === BROADCAST SYSTEM ===
 
 async def _auto_advance_broadcasts(station):
-    """Auto-advance episode broadcasts based on real time. Returns updated station."""
+    """Auto-advance episode broadcasts based on real time. Also process upcoming content."""
     now_dt = datetime.now(timezone.utc)
     now_str = now_dt.isoformat()
     updated = False
     total_new_revenue = 0
+
+    # === Process upcoming content (Prossimamente → in onda) ===
+    upcoming = station.get('upcoming_content', [])
+    items_to_air = []
+    remaining_upcoming = []
+    for item in upcoming:
+        if item.get('frozen'):
+            remaining_upcoming.append(item)
+            continue
+        try:
+            air_dt = datetime.fromisoformat(item['scheduled_air_at'].replace('Z', '+00:00'))
+            if air_dt.tzinfo is None:
+                air_dt = air_dt.replace(tzinfo=timezone.utc)
+            if now_dt >= air_dt:
+                items_to_air.append(item)
+            else:
+                remaining_upcoming.append(item)
+        except:
+            remaining_upcoming.append(item)
+
+    if items_to_air:
+        for item in items_to_air:
+            ct = item['content_type']
+            key = 'films' if ct == 'film' else ('anime' if ct == 'anime' else 'tv_series')
+            contents = station.get('contents', {'films': [], 'tv_series': [], 'anime': []})
+            existing_ids = [c['content_id'] for c in contents.get(key, [])]
+            if item['content_id'] not in existing_ids:
+                entry = {'content_id': item['content_id'], 'added_at': now_str}
+                if ct != 'film':
+                    entry['broadcast_state'] = 'scheduled' if item.get('schedule_config') else 'idle'
+                    entry['total_episodes'] = item.get('num_episodes', 0)
+                    if item.get('schedule_config'):
+                        cfg = item['schedule_config']
+                        entry['start_datetime'] = now_str
+                        entry['schedule_mode'] = cfg.get('mode', 'standard')
+                        entry['air_interval_days'] = cfg.get('air_interval_days', 1)
+                contents.setdefault(key, []).append(entry)
+                station['contents'] = contents
+        station['upcoming_content'] = remaining_upcoming
+        await db.tv_stations.update_one(
+            {'id': station['id']},
+            {'$set': {'contents': station['contents'], 'upcoming_content': remaining_upcoming, 'updated_at': now_str}}
+        )
+        updated = True
 
     for key in ['tv_series', 'anime']:
         entries = station.get('contents', {}).get(key, [])

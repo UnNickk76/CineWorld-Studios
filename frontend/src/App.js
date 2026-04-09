@@ -715,15 +715,16 @@ const TopNavbar = () => {
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
-    { path: '/social', icon: Trophy, label: 'cineboard' },
+    { path: '/social', icon: Globe, label: 'cineboard' },
     { path: '/games', icon: Trophy, label: 'contests' },
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
-    { path: '/leaderboard', icon: Trophy, label: 'leaderboard' },
+    { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
+    { path: '/pvp-arena', icon: Target, label: 'Arena' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
-    { path: '/releases', icon: Sparkles, label: 'release_notes', notificationCount: releaseNotesCount },
+    { path: '/releases', icon: Megaphone, label: 'release_notes', notificationCount: releaseNotesCount },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
-    { path: '/system-notes', icon: Megaphone, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
+    { path: '/system-notes', icon: Bell, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
     { path: '/credits', icon: Info, label: 'credits' },
   ];
 
@@ -1118,11 +1119,11 @@ const TopNavbar = () => {
               {/* Lingua: Solo italiano */}
             </div>
             
-            {/* Admin Panel - Fixed top banner (admin only) */}
+            {/* Admin Panel - Sticky banner (admin only) */}
             {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
               <button
                 onClick={() => { navigate('/admin'); setMobileMenuOpen(false); }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-xs font-bold tracking-wide"
+                className="sticky top-0 z-10 w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-xs font-bold tracking-wide"
                 data-testid="admin-panel-top-btn"
               >
                 <Shield className="w-4 h-4" />
@@ -1130,14 +1131,14 @@ const TopNavbar = () => {
               </button>
             )}
 
-            {/* Mobile Navigation Grid - Solid Background */}
-            <div className="grid grid-cols-3 gap-2 p-3 bg-[#0a0a0a]">
+            {/* Mobile Navigation Grid - Compact 50% */}
+            <div className="grid grid-cols-3 gap-1.5 p-2 bg-[#0a0a0a]">
               {navItems.map(item => (
                 <Button
                   key={item.path + item.label}
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
-                  className={`flex flex-col items-center gap-1.5 h-16 py-2 px-1 relative rounded-xl ${
+                  className={`flex flex-col items-center gap-0.5 h-10 py-1 px-1 relative rounded-lg ${
                     item.disabled ? 'opacity-40 cursor-not-allowed' :
                     item.locked ? 'opacity-50 bg-[#1a1a1a] text-gray-500 border border-white/5' :
                     location.pathname === item.path 
@@ -1150,11 +1151,11 @@ const TopNavbar = () => {
                     navigate(item.path); setMobileMenuOpen(false); 
                   }}
                 >
-                  {item.locked && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-[9px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
+                  {item.locked && <Lock className="w-2 h-2 absolute top-0.5 right-0.5 text-gray-600" />}
+                  <item.icon className="w-3 h-3" />
+                  <span className="text-[7px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
                   {item.notificationCount > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
                   )}
                 </Button>
               ))}

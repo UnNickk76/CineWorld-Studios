@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Film, Clock, Flame, Check, X, Lock, Rocket, Palette, Lightbulb,
@@ -1358,9 +1359,10 @@ function ReleaseStepContent({ film, api, onRefresh, refreshUser }) {
 // ─── DISCARD BUTTON ───
 function DiscardButton({ film, api, onRefresh, refreshUser }) {
   const [loading, setLoading] = useState(false);
+  const gameConfirm = useConfirm();
 
   const discard = async () => {
-    if (!window.confirm(`Scartare "${film.title}"?`)) return;
+    if (!await gameConfirm({ title: `Scartare "${film.title}"?`, subtitle: 'Questa azione è irreversibile.', confirmLabel: 'Scarta' })) return;
     setLoading(true);
     try {
       const res = await api.post(`/film-pipeline/${film.id}/discard`);
@@ -1386,6 +1388,7 @@ function DiscardButton({ film, api, onRefresh, refreshUser }) {
 // ═══════════════════════════════════════════
 export default function FilmPopup({ film, open, onClose, onRefresh, countdown }) {
   const { api, refreshUser } = useContext(AuthContext);
+  const gameConfirm = useConfirm();
   const [stepOverride, setStepOverride] = useState(null);
 
   // Reset step override when film changes

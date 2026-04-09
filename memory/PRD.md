@@ -24,27 +24,34 @@ Gioco browser di simulazione cinematografica. L'utente gestisce uno studio, prod
 ### Emittente TV (Palinsesto)
 - Creazione stazione TV con infrastruttura
 - Aggiunta contenuti (film/serie/anime) al palinsesto
-- **[NUOVO] Sistema Broadcast Episodi**:
+- Sistema Broadcast Episodi:
   - Trasmissione in tempo reale (1 ep ogni X giorni, configurabile)
   - Modalità Binge (tutti gli episodi subito)
   - Auto-avanzamento basato su timestamp reale
   - Performance per-episodio (viewers, revenue, rating)
   - Post-stagione: Repliche (audience al 40%) o Ritiro
-  - Backward compatible con entry legacy
   - Revenue accreditato automaticamente all'utente
 - Sezioni Netflix, Classifica stazioni, Marketplace
+
+### Sistema Notifiche Globale (NUOVO)
+- **Backend**: `notification_helper.py` - utility globale richiamabile da qualsiasi route
+- **Categorie**: production, tv_episodes, events, economy, social, infrastructure, arena, minigames
+- **Priorità**: high (popup), medium (toast), low (badge only)
+- **Anti-spam**: raggruppamento notifiche simili (finestra 5 min), cooldown popup 30s
+- **NotificationProvider**: polling centralizzato (30s count, 15s popup), soppressione popup al login
+- **UI**: Badge rosso con conteggio nella navbar, pagina con tab categorie + tab severità
+- **Endpoints**: GET /notifications (con category filter), GET /notifications/stats, GET /notifications/popup (solo high/medium)
+
+### Dialog Conferma Custom (NUOVO)
+- `ConfirmDialog.jsx` con `useConfirm()` hook - sostituisce tutti i `window.confirm()`
+- Design: sfondo scuro, bordo giallo glow, mascotte Velion + CineOx, bottoni stilizzati
+- Tutti i confirm del gioco (10+ occorrenze) convertiti al nuovo stile
 
 ### Minigiochi Arcade
 - TapCiak, SceneFlip, CatchTheStar, Velion AI
 
 ### Admin
 - Tool Migrazione V1 -> V2
-
-## API Key per Broadcast TV
-- `POST /api/tv-stations/start-broadcast` - Avvia trasmissione (station_id, content_id, air_interval_days)
-- `GET /api/tv-stations/{sid}/broadcast/{cid}` - Dettaglio episodi trasmissione
-- `POST /api/tv-stations/retire-series` - Ritira serie
-- `POST /api/tv-stations/start-reruns` - Avvia repliche (40% audience)
 
 ## Backlog
 

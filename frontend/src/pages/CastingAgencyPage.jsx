@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { AuthContext } from '../contexts';
+import { useConfirm } from '../components/ConfirmDialog';
 
 const GENRE_ICONS = {
   action: Swords, comedy: Sparkles, drama: Heart, horror: Shield,
@@ -444,6 +445,7 @@ function ScoutScreenplaysTab({ api }) {
 
 export default function CastingAgencyPage() {
   const { api } = useContext(AuthContext);
+  const gameConfirm = useConfirm();
   const [tab, setTab] = useState('actors');
   const [info, setInfo] = useState(null);
   const [actors, setActors] = useState([]);
@@ -493,7 +495,7 @@ export default function CastingAgencyPage() {
   };
 
   const fire = async (actorId) => {
-    if (!window.confirm('Vuoi davvero licenziare questo attore? Diventerà disponibile per tutti.')) return;
+    if (!await gameConfirm({ title: 'Licenziare questo attore?', subtitle: 'Diventerà disponibile per tutti i produttori.', confirmLabel: 'Licenzia' })) return;
     setActionId(actorId);
     try {
       const res = await api.post(`/agency/fire/${actorId}`);
@@ -507,7 +509,7 @@ export default function CastingAgencyPage() {
     const actor = actors.find(a => a.id === actorId);
     const costMap = {2: 50000, 3: 100000, 4: 200000, 5: 400000};
     const cost = costMap[actor?.stars || 2] || 50000;
-    if (!window.confirm(`Manda ${actor?.name} alla Scuola di Recitazione?\nCosto iscrizione: $${cost.toLocaleString()}\nInclude 30 giorni di training.`)) return;
+    if (!await gameConfirm({ title: `Manda ${actor?.name} a Scuola?`, subtitle: `Costo iscrizione: $${cost.toLocaleString()}\nInclude 30 giorni di training.`, confirmLabel: 'Iscrivimi' })) return;
     setActionId(actorId);
     try {
       const res = await api.post(`/agency/send-to-school/${actorId}`);
@@ -518,7 +520,7 @@ export default function CastingAgencyPage() {
   };
 
   const transferFromSchool = async (studentId) => {
-    if (!window.confirm('Trasferire questo studente nella tua Agenzia come attore permanente?')) return;
+    if (!await gameConfirm({ title: 'Trasferire in Agenzia?', subtitle: 'Lo studente diventerà un attore permanente della tua Agenzia.', confirmLabel: 'Trasferisci' })) return;
     setActionId(studentId);
     try {
       const res = await api.post(`/agency/transfer-from-school/${studentId}`);

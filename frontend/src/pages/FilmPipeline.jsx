@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   Pencil, ClipboardList, Users, BookOpen, Clapperboard, Play,
   HelpCircle, Star, MapPin, Clock, Check, X, DollarSign,
@@ -1714,6 +1715,7 @@ const CLASSIC_STYLES = [
 
 // ============ SCREENPLAY TAB ============
 const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
+  const gameConfirm = useConfirm();
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState({});
@@ -1804,7 +1806,7 @@ const ScreenplayTab = ({ api, refreshUser, refreshCounts }) => {
                 <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 h-7 px-2"
                   disabled={actionLoading === `discard-${f.id}`}
                   onClick={async () => {
-                    if (!window.confirm(`Scartare "${f.title}"?`)) return;
+                    if (!await gameConfirm({ title: `Scartare "${f.title}"?`, subtitle: 'Questa azione è irreversibile.', confirmLabel: 'Scarta' })) return;
                     setActionLoading(`discard-${f.id}`);
                     try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                     catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -2393,6 +2395,7 @@ const PreProductionTab = ({ api, refreshUser, refreshCounts }) => {
 
 // ============ SHOOTING TAB ============
 const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
+  const gameConfirm = useConfirm();
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
@@ -2615,7 +2618,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                   <Button size="sm" variant="outline" className="text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10 px-2"
                     disabled={actionLoading === `discard-${f.id}`}
                     onClick={async () => {
-                      if (!window.confirm(`Scartare "${f.title}"?`)) return;
+                      if (!await gameConfirm({ title: `Scartare "${f.title}"?`, subtitle: 'Questa azione è irreversibile.', confirmLabel: 'Scarta' })) return;
                       setActionLoading(`discard-${f.id}`);
                       try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                       catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }
@@ -2643,7 +2646,7 @@ const ShootingTab = ({ api, refreshUser, refreshCounts }) => {
                   <Button size="sm" variant="outline" className="w-full text-[10px] border-red-800/50 text-red-400 hover:bg-red-500/10"
                     disabled={actionLoading === `discard-${f.id}`}
                     onClick={async () => {
-                      if (!window.confirm(`Scartare "${f.title}"?`)) return;
+                      if (!await gameConfirm({ title: `Scartare "${f.title}"?`, subtitle: 'Questa azione è irreversibile.', confirmLabel: 'Scarta' })) return;
                       setActionLoading(`discard-${f.id}`);
                       try { const res = await api.post(`/film-pipeline/${f.id}/discard`); toast.success(res.data.message); refreshUser(); refreshCounts(); fetch(); }
                       catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } finally { setActionLoading(null); }

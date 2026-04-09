@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
@@ -50,6 +51,7 @@ const PreEngagementPage = () => {
   const { api, user } = useContext(AuthContext);
   const { language } = useTranslations();
   const navigate = useNavigate();
+  const gameConfirm = useConfirm();
   const [activeTab, setActiveTab] = useState('my-prefilms');
   const [preFilms, setPreFilms] = useState([]);
   const [expiredIdeas, setExpiredIdeas] = useState([]);
@@ -216,10 +218,13 @@ const PreEngagementPage = () => {
   };
 
   const releaseCast = async (preFilmId, type, castId, castName) => {
-    if (!confirm(language === 'it' 
-      ? `Sei sicuro di voler congedare ${castName}? Perderai l'anticipo e potresti dover pagare una penale.`
-      : `Are you sure you want to dismiss ${castName}? You'll lose the advance and may have to pay a penalty.`
-    )) return;
+    if (!await gameConfirm({
+      title: language === 'it' ? `Congedare ${castName}?` : `Dismiss ${castName}?`,
+      subtitle: language === 'it'
+        ? "Perderai l'anticipo e potresti dover pagare una penale."
+        : "You'll lose the advance and may have to pay a penalty.",
+      confirmLabel: language === 'it' ? 'Congeda' : 'Dismiss'
+    })) return;
     
     try {
       const res = await api.post(`/pre-films/${preFilmId}/release`, {

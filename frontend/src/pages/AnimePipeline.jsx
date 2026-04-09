@@ -13,6 +13,7 @@ import { Progress } from '../components/ui/progress';
 import { Sparkles, ArrowRight, ArrowLeft, Users, Pen, Play, Lock, Loader2, Trash2, Check, Star, ChevronDown, ChevronUp, Film, Clock, Flame, Target, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmDialog';
 import { ReleaseModeSelector } from '../components/ReleaseModeSelector';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -35,6 +36,7 @@ const STATUS_TO_STEP = { concept: 0, coming_soon: 0, ready_for_casting: 0, casti
 export default function AnimePipeline() {
   const { api, user, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const gameConfirm = useConfirm();
   const [genres, setGenres] = useState({});
   const [mySeries, setMySeries] = useState([]);
   const [activeSeries, setActiveSeries] = useState(null);
@@ -280,7 +282,7 @@ export default function AnimePipeline() {
   };
 
   const discardSeries = async () => {
-    if (!window.confirm('Vuoi cancellare questo anime? Rimborso 50%.')) return;
+    if (!await gameConfirm({ title: 'Cancellare questo anime?', subtitle: 'Riceverai un rimborso del 50%.', confirmLabel: 'Cancella' })) return;
     setActionLoading(true);
     try {
       const res = await api.post(`/series-pipeline/${activeSeries.id}/discard`);

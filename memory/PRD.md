@@ -22,43 +22,55 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
   6. Ultimi Aggiornamenti SERIE TV (glow-purple)
   7. Prossimamente ANIME (glow-blue)
   8. Ultimi Aggiornamenti ANIME (glow-purple)
-- Rimossi: blocchi operativi (produci, mercato ecc), sezioni I Miei film/serie/anime
-- Tutte le sezioni con scroll orizzontale (overflow-x-auto)
+- Rimossi: blocchi operativi e "I Miei" dalla dashboard
+- Tutte le sezioni con scroll orizzontale
+
+#### Bottone Menu → Griglia Azioni (Vecchio Stile)
+- Click su "Menu" in fondo alla dashboard apre la griglia:
+  - PRODUCI! (full width, gold)
+  - MERCATO + SCENEGGIATURE (2 colonne)
+  - CONTEST + MINIGIOCHI+SFIDE (2 colonne)
+  - ARENA + FESTIVAL (2 colonne)
+  - LE MIE TV! (full width, rosso)
 
 #### SideMenu Laterale Sinistro
 - Menu slide-in da sinistra (25% larghezza)
 - 9 voci: Produci, Sceneggiature, Mercato, Le mie TV, Infrastrutture, Minigiochi+Sfide, Contest, Arena, Festival
-- Trigger: bottone Menu in fondo dashboard + CIACK dalla bottom nav (quando già su dashboard)
+- Trigger: CIACK (logo Clapperboard in alto sx) quando si è già in dashboard
+- Se si è in altre pagine, CIACK porta a dashboard senza aprire menu
 - Overlay scuro con chiusura al click esterno
 
 #### Glow Animato Sezioni
-- `.glow-gold` per LaPrima e eventi LEGGENDARIO
-- `.glow-blue` per sezioni Prossimamente
-- `.glow-purple` per sezioni Ultimi Aggiornamenti e eventi EPICO
-- Animazioni lente (4s) solo sui container
+- .glow-gold per LaPrima e eventi LEGGENDARIO
+- .glow-blue per Prossimamente
+- .glow-purple per Ultimi Aggiornamenti e eventi EPICO
+- Animazioni lente 4s solo sui container
+
+#### Fix Infrastrutture - Emittente TV
+- Aggiunta EMITTENTE TV nel tab STUDI della pagina Infrastrutture
+- Corrette categorie CATEGORIES per match con backend types:
+  - cinema → cinema, drive_in, vip_cinema
+  - commerciale → multiplex_small, multiplex_medium, multiplex_large
+  - studi → production_studio, studio_serie_tv, studio_anime, emittente_tv
+  - agenzie → cinema_school, talent_scout_actors, talent_scout_screenwriters
+  - strategico → pvp_operative, pvp_investigative, pvp_legal
+  - speciale (NUOVA) → cinema_museum, film_festival_venue, theme_park
 
 #### Sistema TV Refactoring
-- TVStationPage → puro stile Netflix (solo caroselli + locandine, nessun bottone gestionale)
+- TVStationPage → puro stile Netflix (solo caroselli + locandine)
 - TVMenuModal (4 tab): Contenuti, Palinsesto, Pubblicità, Statistiche
-- SeriesDetailModal: dettaglio serie/anime con "Gestisci Palinsesto"
-- PalinsestoModal: gestione episodi con schedulazione calendario reale
+- SeriesDetailModal + PalinsestoModal integrati
 - Menu button in alto a destra nella TV Station page
-- Integrazione in MyFilms.jsx per aprire SeriesDetailModal da "I Miei"
-
-#### Notifiche Globali + ConfirmDialog
-- Sistema NotificationProvider con raggruppamento anti-spam
-- ConfirmDialog custom al posto di window.confirm
 
 ### Sessioni Precedenti
 - Pipeline Film V2, Serie TV, Anime
 - Sistema Marketplace (Fase 1 e 2)
 - PvP Arena con sfide e divisioni
-- Minigiochi (IndovinaIncasso, TriviaCinema, etc.)
-- Festival, Tour del Cinema, Contest
+- Minigiochi, Festival, Tour del Cinema, Contest
 - Infrastrutture con upgrade
 - Sistema Social CineBoard + Amici
-- Chat di gruppo
-- Leaderboard + Classifiche
+- Chat di gruppo, Leaderboard + Classifiche
+- Notifiche Globali + ConfirmDialog custom
 
 ## Backlog Prioritizzato
 

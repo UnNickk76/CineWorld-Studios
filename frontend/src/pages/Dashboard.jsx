@@ -20,7 +20,8 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
   Film, Sparkles, ChevronRight, Globe, Loader2, DollarSign, TrendingUp, Heart,
-  Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon
+  Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon,
+  Store, Pen, Gamepad2, Trophy, Target, Award, Radio
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -60,6 +61,12 @@ const Dashboard = () => {
 
   // SideMenu
   const [menuOpen, setMenuOpen] = useState(false);
+  // Old-style action grid
+  const [showActionGrid, setShowActionGrid] = useState(false);
+  const [tvStationCount, setTvStationCount] = useState(0);
+  const [arenaActions, setArenaActions] = useState(0);
+  const [contestCount, setContestCount] = useState(0);
+  const { setIsOpen: openProductionMenu } = useProductionMenu();
 
   // SWR batch data
   const { data: batchData } = useSWR('/dashboard/batch');
@@ -106,6 +113,14 @@ const Dashboard = () => {
       try {
         const configRes = await api.get('/films/shooting/config');
         setShootingConfig(configRes.data);
+      } catch {}
+      try {
+        const tvRes = await api.get('/tv-stations/my');
+        setTvStationCount(tvRes.data.stations?.length || 0);
+      } catch {}
+      try {
+        const pvpRes = await api.get('/pvp/status');
+        setArenaActions(pvpRes.data?.remaining_actions || 0);
       } catch {}
     };
     fetchExtra();
@@ -379,15 +394,60 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Menu button at bottom */}
+          {/* Menu button at bottom → opens old-style action grid */}
           <button
-            onClick={() => setMenuOpen(true)}
-            className="w-full mt-2 mb-6 py-3 rounded-lg bg-white/10 text-white text-sm border border-white/10 active:scale-[0.98] transition-transform"
+            onClick={() => setShowActionGrid(prev => !prev)}
+            className="w-full mt-2 mb-2 py-3 rounded-lg bg-white/10 text-white text-sm border border-white/10 active:scale-[0.98] transition-transform"
             data-testid="dashboard-menu-btn"
           >
             <MenuIcon className="w-4 h-4 inline mr-2" />
             Menu
           </button>
+
+          {/* Old-style Action Grid (Foto 2) */}
+          {showActionGrid && (
+            <div className="mb-6 space-y-2" data-testid="action-grid">
+              {/* PRODUCI! - full width */}
+              <button
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-yellow-500/20 to-amber-500/10 border border-yellow-500/30 active:scale-[0.98] transition-transform"
+                onClick={() => { setShowActionGrid(false); openProductionMenu(true); }}
+                data-testid="action-produci"
+              >
+                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <Clapperboard className="w-5 h-5 text-yellow-400" />
+                </div>
+                <div className="text-left">
+                  <p className="font-['Bebas_Neue'] text-base text-yellow-400">PRODUCI!</p>
+                  <p className="text-[10px] text-gray-400">Nuova produzione</p>
+                </div>
+              </button>
+
+              {/* 2x2 grid */}
+              <div className="grid grid-cols-2 gap-2">
+                <ActionCard icon={<Store className="w-4 h-4 text-orange-400" />} title="MERCATO" subtitle="Film scartati" color="orange" onClick={() => { setShowActionGrid(false); navigate('/marketplace'); }} testId="action-mercato" />
+                <ActionCard icon={<Pen className="w-4 h-4 text-green-400" />} title="SCENEGGIATURE" subtitle="Trame pronte" color="green" onClick={() => { setShowActionGrid(false); navigate('/emerging-screenplays'); }} testId="action-sceneggiature" />
+                <ActionCard icon={<Trophy className="w-4 h-4 text-cyan-400" />} title="CONTEST" subtitle="Guadagna CinePass" color="cyan" badge={contestCount > 0 ? contestCount : null} onClick={() => { setShowActionGrid(false); navigate('/games'); }} testId="action-contest" />
+                <ActionCard icon={<Gamepad2 className="w-4 h-4 text-blue-400" />} title="MINIGIOCHI + SFIDE" subtitle="Gioca e sfida!" color="blue" onClick={() => { setShowActionGrid(false); navigate('/minigiochi'); }} testId="action-minigiochi" />
+                <ActionCard icon={<Target className="w-4 h-4 text-red-400" />} title="ARENA" subtitle={`${arenaActions} azioni`} color="red" badge={arenaActions > 0 ? arenaActions : null} onClick={() => { setShowActionGrid(false); navigate('/pvp-arena'); }} testId="action-arena" />
+                <ActionCard icon={<Award className="w-4 h-4 text-pink-400" />} title="FESTIVAL" subtitle="Premi cinema" color="pink" onClick={() => { setShowActionGrid(false); navigate('/festivals'); }} testId="action-festival" />
+              </div>
+
+              {/* LE MIE TV! - full width */}
+              <button
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500/15 to-rose-500/5 border border-red-500/20 active:scale-[0.98] transition-transform"
+                onClick={() => { setShowActionGrid(false); navigate('/my-tv'); }}
+                data-testid="action-le-mie-tv"
+              >
+                <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                  <Radio className="w-5 h-5 text-red-400" />
+                </div>
+                <div className="text-left">
+                  <p className="font-['Bebas_Neue'] text-base text-red-400">LE MIE TV!</p>
+                  <p className="text-[10px] text-gray-400">{tvStationCount} emittente{tvStationCount !== 1 ? 'i' : ''} televisiv{tvStationCount !== 1 ? 'e' : 'a'}</p>
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* ===== GAMEPLAY DIALOGS (preserved from original) ===== */}
 
@@ -629,3 +689,24 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+function ActionCard({ icon, title, subtitle, color, badge, onClick, testId }) {
+  return (
+    <button
+      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl border border-${color}-500/20 bg-${color}-500/5 active:scale-[0.95] transition-transform relative`}
+      onClick={onClick}
+      data-testid={testId}
+    >
+      {badge && (
+        <span className={`absolute top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-${color}-500 text-white text-[8px] font-bold flex items-center justify-center`}>
+          {badge}
+        </span>
+      )}
+      <div className={`w-8 h-8 rounded-lg bg-${color}-500/15 flex items-center justify-center`}>
+        {icon}
+      </div>
+      <p className={`font-['Bebas_Neue'] text-xs text-${color}-400 leading-tight text-center`}>{title}</p>
+      <p className="text-[8px] text-gray-500 leading-tight">{subtitle}</p>
+    </button>
+  );
+}

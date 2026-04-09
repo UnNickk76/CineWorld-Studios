@@ -223,7 +223,7 @@ async def get_arena(user: dict = Depends(get_current_user)):
     ).to_list(50)
 
     v2_coming = await db.film_projects.find(
-        {'pipeline_version': 2, 'pipeline_state': {'$in': ['marketing', 'la_prima']}},
+        {'pipeline_version': 2, 'pipeline_state': {'$in': ['marketing', 'la_prima', 'premiere_live']}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'user_id': 1, 'pre_imdb_score': 1,
          'poster_url': 1, 'pipeline_metrics': 1, 'pipeline_state': 1, 'pipeline_version': 1,
          'subgenres': 1, 'scheduled_release_at': 1}
@@ -403,7 +403,7 @@ async def get_arena_film_detail(film_id: str, user: dict = Depends(get_current_u
     v2_state_map = {
         'casting_live': 'anteprima', 'prep': 'anteprima',
         'ciak_live': 'anteprima', 'shooting': 'anteprima', 'final_cut': 'anteprima',
-        'marketing': 'coming_soon', 'la_prima': 'coming_soon',
+        'marketing': 'coming_soon', 'la_prima': 'coming_soon', 'premiere_live': 'coming_soon',
         'released': 'in_sala',
     }
     is_v2 = film.get('pipeline_version') == 2

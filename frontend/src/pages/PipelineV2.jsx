@@ -1865,7 +1865,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 //  BOARD — card tratteggiata "Nuovo Film" + film in pipeline
 // ═══════════════════════════════════════════════════════════════
 
-const BOARD_HIDDEN = new Set(['released', 'completed', 'discarded', 'premiere_live']);
+const BOARD_HIDDEN = new Set(['released', 'completed', 'discarded']);
 
 const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
   const active = films.filter(f => !BOARD_HIDDEN.has(f.pipeline_state));

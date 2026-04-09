@@ -1786,7 +1786,6 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[9px] text-gray-500 uppercase">Premiere a {film.premiere?.city}</p>
             <p className="text-xl font-bold text-yellow-400 font-mono">{remaining}</p>
           </div>
-          {!done && <SpeedupPanel film={film} onRefresh={onRefresh} toast={toast} />}
           {done && (
             <button onClick={completePremiere} disabled={loading === 'complete'}
               className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="complete-premiere-btn">

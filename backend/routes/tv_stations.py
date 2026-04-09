@@ -72,6 +72,15 @@ class StartBroadcastRequest(BaseModel):
     content_id: str
     air_interval_days: int = 1  # 0=binge, 1=daily, 2-7=custom
 
+class ScheduleBroadcastRequest(BaseModel):
+    station_id: str
+    content_id: str
+    start_datetime: str  # ISO format real datetime
+    mode: str = 'standard'  # standard, marathon, binge
+    air_interval_days: int = 1  # days between episodes
+    marathon_eps_per_slot: int = 1  # episodes per slot for marathon (2-3)
+    immediate_first: bool = False  # if True, first ep airs NOW
+
 class RetireSeriesRequest(BaseModel):
     station_id: str
     content_id: str
@@ -306,7 +315,9 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
                 item['current_episode'] = entry.get('current_episode', 0)
                 item['total_episodes'] = entry.get('total_episodes', item.get('num_episodes', 0))
                 item['air_interval_days'] = entry.get('air_interval_days', 1)
+                item['schedule_mode'] = entry.get('schedule_mode', 'standard')
                 item['next_air_at'] = entry.get('next_air_at')
+                item['start_datetime'] = entry.get('start_datetime')
                 item['last_aired_at'] = entry.get('last_aired_at')
                 item['broadcast_started_at'] = entry.get('broadcast_started_at')
                 item['rerun_count'] = entry.get('rerun_count', 0)
@@ -867,11 +878,36 @@ async def _auto_advance_broadcasts(station):
     for key in ['tv_series', 'anime']:
         entries = station.get('contents', {}).get(key, [])
         for entry in entries:
-            if entry.get('broadcast_state') != 'airing':
+            bstate = entry.get('broadcast_state', 'idle')
+
+            # Scheduled → check if it's time to start airing
+            if bstate == 'scheduled':
+                start = entry.get('start_datetime') or entry.get('next_air_at')
+                if start:
+                    try:
+                        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                        if start_dt.tzinfo is None:
+                            start_dt = start_dt.replace(tzinfo=timezone.utc)
+                        if now_dt >= start_dt:
+                            entry['broadcast_state'] = 'airing'
+                            bstate = 'airing'
+                            updated = True
+                    except (ValueError, TypeError):
+                        pass
+
+            if bstate != 'airing':
                 continue
             next_air = entry.get('next_air_at')
             if not next_air:
-                continue
+                # Try ep_schedule for next unaired episode
+                ep_sched = entry.get('ep_schedule', [])
+                cur_ep = entry.get('current_episode', 0)
+                if cur_ep < len(ep_sched):
+                    next_air = ep_sched[cur_ep].get('release_datetime')
+                    if next_air:
+                        entry['next_air_at'] = next_air
+                if not next_air:
+                    continue
             try:
                 next_dt = datetime.fromisoformat(next_air.replace('Z', '+00:00'))
                 if next_dt.tzinfo is None:
@@ -904,11 +940,21 @@ async def _auto_advance_broadcasts(station):
                     'viewers': perf['viewers'],
                     'revenue': perf['revenue'],
                     'rating': perf.get('rating', 0),
+                    'consensus_pct': perf.get('consensus_pct', 0),
                 })
                 entry['last_aired_at'] = next_dt.isoformat()
                 entry['current_episode'] = cur_ep + 1
                 updated = True
                 total_new_revenue += perf['revenue']
+
+                # Update ep_schedule entry if exists
+                ep_sched = entry.get('ep_schedule', [])
+                if cur_ep < len(ep_sched):
+                    ep_sched[cur_ep]['aired'] = True
+                    ep_sched[cur_ep]['viewers'] = perf['viewers']
+                    ep_sched[cur_ep]['revenue'] = perf['revenue']
+                    ep_sched[cur_ep]['rating'] = perf.get('rating', 0)
+                    ep_sched[cur_ep]['consensus_pct'] = perf.get('consensus_pct', 0)
 
                 # Credit station
                 station['total_revenue'] = station.get('total_revenue', 0) + perf['revenue']
@@ -928,12 +974,31 @@ async def _auto_advance_broadcasts(station):
                     )
                     break
                 else:
-                    interval = entry.get('air_interval_days', 1)
-                    if interval <= 0:
-                        # Binge: all episodes air at once, no time gap
-                        continue
+                    # Use ep_schedule release_datetime for next episode if available
+                    ep_sched = entry.get('ep_schedule', [])
+                    next_ep_idx = cur_ep + 1
+                    if next_ep_idx < len(ep_sched):
+                        next_release = ep_sched[next_ep_idx].get('release_datetime')
+                        if next_release:
+                            try:
+                                next_dt = datetime.fromisoformat(next_release.replace('Z', '+00:00'))
+                                if next_dt.tzinfo is None:
+                                    next_dt = next_dt.replace(tzinfo=timezone.utc)
+                            except (ValueError, TypeError):
+                                interval = entry.get('air_interval_days', 1)
+                                next_dt = next_dt + timedelta(days=max(1, interval))
+                        else:
+                            interval = entry.get('air_interval_days', 1)
+                            if interval <= 0:
+                                continue
+                            else:
+                                next_dt = next_dt + timedelta(days=interval)
                     else:
-                        next_dt = next_dt + timedelta(days=interval)
+                        interval = entry.get('air_interval_days', 1)
+                        if interval <= 0:
+                            continue
+                        else:
+                            next_dt = next_dt + timedelta(days=interval)
                     entry['next_air_at'] = next_dt.isoformat()
                     if now_dt < next_dt:
                         break
@@ -1004,7 +1069,7 @@ async def _get_episode_data(entry, ep_num):
 
 
 def _calc_episode_performance(ep_data, station, rerun_mult=1.0):
-    """Calculate viewers and revenue for a single episode broadcast."""
+    """Calculate viewers, revenue, and consensus for a single episode broadcast."""
     quality = ep_data.get('quality', 65)
     ep_type = ep_data.get('episode_type', 'normal')
     aud_mult = ep_data.get('audience_multiplier', 1.0)
@@ -1027,12 +1092,17 @@ def _calc_episode_performance(ep_data, station, rerun_mult=1.0):
 
     rating = round(min(10, (quality / 10) * random.uniform(0.85, 1.1)), 1)
 
-    return {'viewers': viewers, 'revenue': revenue, 'rating': rating}
+    # Consensus percentage (audience approval 0-100%)
+    base_consensus = quality * 0.8 + rating * 2
+    type_consensus = {'normal': 0, 'peak': 10, 'filler': -15, 'plot_twist': 8, 'season_finale': 12}
+    consensus_pct = round(min(100, max(5, base_consensus + type_consensus.get(ep_type, 0) + random.uniform(-8, 8))), 1)
+
+    return {'viewers': viewers, 'revenue': revenue, 'rating': rating, 'consensus_pct': consensus_pct}
 
 
 @router.post("/tv-stations/start-broadcast")
 async def start_broadcast(req: StartBroadcastRequest, user: dict = Depends(get_current_user)):
-    """Start broadcasting a series/anime episode by episode."""
+    """Legacy start-broadcast - immediate start. Use schedule-broadcast for calendar scheduling."""
     station = await db.tv_stations.find_one(
         {'id': req.station_id, 'user_id': user['id']},
         {'_id': 0}
@@ -1075,12 +1145,32 @@ async def start_broadcast(req: StartBroadcastRequest, user: dict = Depends(get_c
                 if total == 0:
                     raise HTTPException(400, "Nessun episodio disponibile")
 
+                # Build pre-calculated schedule
+                ep_schedule = []
+                cur = now
+                for i in range(total):
+                    ep_schedule.append({
+                        'ep': i,
+                        'release_datetime': cur.isoformat(),
+                        'aired': False,
+                        'viewers': 0,
+                        'revenue': 0,
+                        'rating': 0,
+                        'consensus_pct': 0,
+                    })
+                    if interval <= 0:
+                        cur = cur + timedelta(seconds=1)
+                    else:
+                        cur = cur + timedelta(days=interval)
+
                 entry['broadcast_state'] = 'airing'
                 entry['current_episode'] = 0
                 entry['air_interval_days'] = interval
                 entry['broadcast_started_at'] = now_str
-                entry['next_air_at'] = now_str  # First episode airs now
+                entry['next_air_at'] = now_str
                 entry['last_aired_at'] = None
+                entry['schedule_mode'] = 'binge' if interval == 0 else 'standard'
+                entry['ep_schedule'] = ep_schedule
                 entry['rerun_multiplier'] = 1.0 if state != 'reruns' else RERUN_MULTIPLIER
                 if state in ('completed', 'reruns'):
                     entry['rerun_count'] = entry.get('rerun_count', 0) + 1
@@ -1101,6 +1191,126 @@ async def start_broadcast(req: StartBroadcastRequest, user: dict = Depends(get_c
 
     label = "Repliche avviate" if entry.get('rerun_count', 0) > 0 else "Trasmissione avviata"
     return {"message": f"{label}! Primo episodio in onda ora.", "broadcast_state": "airing"}
+
+
+@router.post("/tv-stations/schedule-broadcast")
+async def schedule_broadcast(req: ScheduleBroadcastRequest, user: dict = Depends(get_current_user)):
+    """Schedule a broadcast with real calendar dates. Netflix/Disney+ style."""
+    station = await db.tv_stations.find_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
+
+    # Parse start datetime
+    try:
+        if req.immediate_first:
+            start_dt = now
+        else:
+            start_dt = datetime.fromisoformat(req.start_datetime.replace('Z', '+00:00'))
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Data/ora non valida. Usa formato ISO (es: 2026-04-10T21:00:00)")
+
+    interval = max(1, min(30, req.air_interval_days))
+    mode = req.mode if req.mode in ('standard', 'marathon', 'binge') else 'standard'
+    marathon_eps = max(1, min(5, req.marathon_eps_per_slot)) if mode == 'marathon' else 1
+
+    found = False
+    for key in ['tv_series', 'anime']:
+        entries = station.get('contents', {}).get(key, [])
+        for entry in entries:
+            if entry['content_id'] == req.content_id:
+                state = entry.get('broadcast_state', 'idle')
+                if state == 'airing':
+                    raise HTTPException(400, "Trasmissione già in corso!")
+
+                total = entry.get('total_episodes', 0)
+                if total == 0:
+                    cid = entry['content_id']
+                    source = entry.get('source', 'tv_series')
+                    if source == 'film_projects':
+                        fp = await db.film_projects.find_one({'id': cid}, {'_id': 0, 'episode_count': 1})
+                        if fp:
+                            total = fp.get('episode_count', 0)
+                    else:
+                        ts_doc = await db.tv_series.find_one({'id': cid}, {'_id': 0, 'num_episodes': 1, 'episodes': 1})
+                        if ts_doc:
+                            total = ts_doc.get('num_episodes', 0) or len(ts_doc.get('episodes', []))
+                    entry['total_episodes'] = total
+                if total == 0:
+                    raise HTTPException(400, "Nessun episodio disponibile")
+
+                # Build pre-calculated schedule based on mode
+                ep_schedule = []
+                cur = start_dt
+                i = 0
+                while i < total:
+                    if mode == 'binge':
+                        # All episodes at start_dt
+                        ep_schedule.append({
+                            'ep': i, 'release_datetime': cur.isoformat(),
+                            'aired': False, 'viewers': 0, 'revenue': 0, 'rating': 0, 'consensus_pct': 0,
+                        })
+                        i += 1
+                    elif mode == 'marathon':
+                        # marathon_eps episodes per slot
+                        for _ in range(marathon_eps):
+                            if i >= total:
+                                break
+                            ep_schedule.append({
+                                'ep': i, 'release_datetime': cur.isoformat(),
+                                'aired': False, 'viewers': 0, 'revenue': 0, 'rating': 0, 'consensus_pct': 0,
+                            })
+                            i += 1
+                        cur = cur + timedelta(days=interval)
+                    else:
+                        # Standard: 1 episode per interval
+                        ep_schedule.append({
+                            'ep': i, 'release_datetime': cur.isoformat(),
+                            'aired': False, 'viewers': 0, 'revenue': 0, 'rating': 0, 'consensus_pct': 0,
+                        })
+                        i += 1
+                        cur = cur + timedelta(days=interval)
+
+                entry['broadcast_state'] = 'scheduled' if start_dt > now else 'airing'
+                entry['current_episode'] = 0
+                entry['air_interval_days'] = interval
+                entry['schedule_mode'] = mode
+                entry['broadcast_started_at'] = start_dt.isoformat()
+                entry['start_datetime'] = start_dt.isoformat()
+                entry['next_air_at'] = ep_schedule[0]['release_datetime'] if ep_schedule else None
+                entry['last_aired_at'] = None
+                entry['ep_schedule'] = ep_schedule
+                entry['ep_broadcast_log'] = []
+                entry['rerun_multiplier'] = 1.0
+                if state in ('completed', 'reruns'):
+                    entry['rerun_count'] = entry.get('rerun_count', 0) + 1
+                    entry['rerun_multiplier'] = RERUN_MULTIPLIER
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(404, "Contenuto non trovato nella programmazione")
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$set': {'contents': station['contents'], 'updated_at': now_str}}
+    )
+
+    mode_label = {'standard': 'Standard', 'marathon': 'Maratona', 'binge': 'Binge'}
+    return {
+        "message": f"Programmazione {mode_label.get(mode, mode)} impostata! Primo episodio: {ep_schedule[0]['release_datetime'][:16]}",
+        "broadcast_state": entry['broadcast_state'],
+        "schedule": ep_schedule[:3],
+    }
 
 
 @router.get("/tv-stations/{station_id}/broadcast/{content_id}")
@@ -1176,20 +1386,26 @@ async def get_broadcast_detail(station_id: str, content_id: str, user: dict = De
                         'quality': ts.get('quality_score', 65),
                     })
 
-    # Merge broadcast log data into episodes
+    # Merge broadcast log data + schedule into episodes
     log = {e['ep']: e for e in entry.get('ep_broadcast_log', [])}
+    schedule = {e['ep']: e for e in entry.get('ep_schedule', [])}
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     for ep in episodes:
         num = ep['number'] - 1  # 0-indexed in log
+        sched = schedule.get(num, {})
+        ep['release_datetime'] = sched.get('release_datetime')
+
         if num in log:
             ep['broadcast_state'] = 'aired'
             ep['aired_at'] = log[num].get('aired_at')
             ep['viewers'] = log[num].get('viewers', 0)
             ep['revenue'] = log[num].get('revenue', 0)
             ep['broadcast_rating'] = log[num].get('rating', 0)
-        elif num == entry.get('current_episode', 0) and entry.get('broadcast_state') == 'airing':
+            ep['consensus_pct'] = log[num].get('consensus_pct', 0)
+        elif ep.get('release_datetime') and ep['release_datetime'] <= now_iso:
             ep['broadcast_state'] = 'on_air'
-            ep['next_air_at'] = entry.get('next_air_at')
-        elif num > entry.get('current_episode', 0):
+        elif ep.get('release_datetime'):
             ep['broadcast_state'] = 'pending'
         else:
             ep['broadcast_state'] = 'pending'
@@ -1206,7 +1422,9 @@ async def get_broadcast_detail(station_id: str, content_id: str, user: dict = De
         'current_episode': entry.get('current_episode', 0),
         'total_episodes': entry.get('total_episodes', 0),
         'air_interval_days': entry.get('air_interval_days', 1),
+        'schedule_mode': entry.get('schedule_mode', 'standard'),
         'broadcast_started_at': entry.get('broadcast_started_at'),
+        'start_datetime': entry.get('start_datetime'),
         'next_air_at': entry.get('next_air_at'),
         'last_aired_at': entry.get('last_aired_at'),
         'rerun_count': entry.get('rerun_count', 0),

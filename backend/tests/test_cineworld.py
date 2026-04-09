@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://series-pipeline.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://broadcast-manager-14.preview.emergentagent.com').rstrip('/')
 
 @pytest.fixture(scope="module")
 def api_session():

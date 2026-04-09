@@ -1,128 +1,126 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-Completare il sistema delle Serie TV e Anime implementando le dinamiche avanzate per gli Episodi, i ruoli del Cast specifici per l'animazione e completando l'integrazione con l'Infrastruttura di Rete TV (Palinsesto). 
-Requisiti raggiunti: Generazione unica e persistente degli episodi con trama, tipologia nascosta (peak, filler, finale) e UI stile Netflix; Cast dedicato per gli anime (animatori, doppiatori) con pesi specifici; Tool di migrazione da Pipeline V1 a V2.
-Requisiti da completare (Attuale): Integrare gli episodi generati nel Palinsesto TV () per gestirne la messa in onda, la chiusura della stagione, il ritiro o le repliche (con calcoli di performance dinamici).
+<analysis>**original_problem_statement**: 
+Rifattorizzazione completa del sistema TV + Palinsesto + Gestione contenuti (Film / Serie TV / Anime). Separazione totale tra UI estetica e gestione. 
+- Da I Miei, il click su una serie/anime apre un Modale Dettaglio (Locandina, Titolo, Genere, n. episodi, Valore, Views, Stato). Al proprietario è mostrato il tasto [Gestisci Palinsesto].
+- Modale Palinsesto: Lista episodi. Se non trasmesso = bloccato (solo titolo, countdown reale). Se trasmesso = cliccabile con trama, views e % consenso.
+- Azioni: Invia alla TV, Programma uscita (basata su Calendario e Orario Reali, no tempo simulato - Giornaliero, Settimanale, Binge), Maratona, Replica, Ritira.
+- TV Menu: Il tasto Menu in alto a destra nella pagina TV diventa l'Hub Gestione con 4 sezioni (Contenuti, Palinsesto, Pubblicità, Statistiche TV).
+- TV Dashboard: Diventa in puro stile Netflix solo estetico (Caroselli, Locandine). Rimuovere tasti gestione e Aggiungi dalla dashboard principale.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-- Backend Pipeline V2 robusto con gestione completa di stagioni multiple, fatica del franchise ed ereditarietà narrativa (la AI ora legge la trama della stagione precedente).
-- Pannello di Migrazione interno ( e ) per aggiornare i progetti dalla V1 alla V2 in modo sicuro.
-- Sistema episodi persistente in : gli episodi vengono generati UNA SOLA VOLTA (con titolo, trama, tipo come  o ), arricchiti progressivamente con audience e rating. UI stile Netflix implementata su .
-- Sistema di Casting aggiornato: per gli Anime ora richiede/propone  e  con pesi sul quality_score ad hoc per il content type.
+- Il sistema Notifiche Globale e il Dialog di Conferma custom () sono stati completati in tutto il gioco.
+- Backend TV (): Endpoint aggiornati per supportare la schedulazione basata su calendario in tempo reale (), l'aggiunta di  e .
+- Frontend TV (Inizio Refactor): I componenti  e  sono stati appena creati, ma non ancora integrati.
 
 **Last working item**: 
-    - Last item agent was working: Integrazione degli Episodi nel sistema TV (). L'agente ha appena iniziato a leggere il file backend  per capire come inserire nel palinsesto i singoli episodi delle serie TV/Anime (binge, giornaliero, custom), gestire gli orari di trasmissione e il ciclo di vita (trasmissione -> fine -> ritira/repliche).
+    - Last item agent was working: Rifattorizzazione Frontend del Sistema TV. L'agente ha completato il backend per la schedulazione a tempo reale e ha appena generato i primi due modali React ( e ). Si stava apprestando a creare il Modale del Menu TV a 4 sezioni e a pulire  dalla vecchia UI gestionale.
     - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by curl/python -c (L'utente ha precedentemente espresso forte preferenza per test manuali senza agenti automatici/screenshot a meno che non sia strettamente necessario, procedere con molta cautela e validare sempre con CURL).
+    - Agent Testing Done: N (Backend testato via bash/curl, UI frontend ancora in lavorazione)
+    - Which testing method agent to use? manual testing by curl/python -c / screenshot tool for frontend modals
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Fix minigiochi residui (P1)
-     - Attempted fixes: Nessuno recente, bug interni ad alcuni minigiochi (TapCiak, ecc.) rimangono nel backlog dal fork precedente.
-     - Next debug checklist: Controllare logiche interne minigiochi arcade.
-     - Why fix this issue and what will be achieved with the fix? Pulizia definitiva sezione Arcade.
+  Issue 1: Pulizia UI Gestionale da TVStationPage.jsx (P0)
+     - Attempted fixes: N/A
+     - Next debug checklist: Verificare  per rimuovere i tasti Aggiungi, i toggle di gestione e implementare esclusivamente UI estetica a caroselli.
+     - Why fix this issue and what will be achieved with the fix? Requisito esplicito dell'utente per separare lato gestione dal lato estetico.
      - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on other issue: Nessuno
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: N/A
 
 **In progress Task List**: 
-  Task 1: Integrazione Episodi nel Palinsesto TV (P0)
-     - Where to resume: Continuare l'analisi di  e . 
-     - What will be achieved with this? Trasformare le serie e gli anime in contenuti trasmissibili in tempo reale sull'emittente TV dell'utente. Si dovrà schedulare la messa in onda degli episodi basata su orari fissi, calcolare le performance step-by-step per episodio, visualizzare una UI stile Netflix nel pannello TV e attivare opzioni post-trasmissione (Ritira, Avvia Repliche).
+  Task 1: Integrazione Modali e TV Menu (P0)
+     - Where to resume: Creare il componente  (4 sezioni: Contenuti, Palinsesto, Pubblicità, Statistiche). Agganciare  e  a  e .
+     - What will be achieved with this? Navigazione pulita tra gestione contenuti (tramite modali e menu) e visualizzazione stile Netflix del palinsesto.
      - Status: IN PROGRESS
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Nessuno. Assicurarsi solo di NON duplicare i dati degli episodi nel DB, ma aggiornare lo stato in  e gestire la messa in onda via .
+     - Blocked on something: Nessuno
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione (e il TV palinsesto) a chi acquista.
+    - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione a chi acquista.
     - (P2) Sfida della Settimana (minigioco rotante con premi extra).
     Future Tasks:
     - (P3) Previsioni Festival.
     - (P3) Marketplace TV/Anime rights.
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli.
+    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli.
 
 **Completed work in this session**
-- Test e Fix logica Nuova Stagione (Franchise fatigue e Screenplay weight) (DONE)
-- Fix bug ereditarietà narrativa (la AI ora legge correttamente ) (DONE)
-- Tool Migrazione Sicura Admin V1 -> V2 (DONE)
-- Generazione Episodi ricca (tipi dinamici: normal/peak/filler ecc.) e UI Episodi Netflix style (DONE)
-- Implementazione Casting per Anime (animatori, doppiatori) con ricalcolo quality_score dedicato (DONE)
+- Sostituzione globale di  con un custom  in tutto il Frontend (DONE)
+- Sistema Notifiche Globale: , , raggruppamento anti-spam e API backend (DONE)
+- Backend : Modifica della programmazione episodi per usare un timestamp di calendario reale anziché un loop di simulazione. Endpoint  aggiunto (DONE)
+- Creazione base di  e  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-Nessuno rilevato.
+- Nessuno
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: File troncati per mancanza di spazio su disco (Enospace ).
-  - Recurrence count: 2 (nel fork precedente). In questo fork non è accaduto, ma fare attenzione quando si modificano file enormi.
-  - Status: RESOLVED
+  - Nessuno in questo fork.
 
 **Code Architecture**
 - Frontend: React
-  -  (Core UI V2, contiene il nuovo  UI stile Netflix).
-  -  (Contiene il tool di migrazione ).
+  -  (Include ora  e ).
+  - ,  (Nuovi componenti UI TV).
+  -  (Da rifattorizzare pesantemente per rimuovere logiche di gestione).
 - Backend: FastAPI
-  -  (Core pipeline, generazione episodi, casting).
-  -  (Gestione pool NPC, aggiornato con  e ).
-  -  (Gestione emittente TV - FILE ATTUALE DA MODIFICARE).
-  -  (Nuova rotta per la migrazione V1->V2).
+  -  (Gestisce scheduling in tempo reale).
+  - ,  (Sistema Notifiche).
 
 **Key Technical Concepts**
-- **Generazione Episodi Persistente**: L'array  in  viene generato UNA SOLA VOLTA e non va mai rigenerato o sovrascritto.
-- **Pesi differenziati Anime/Serie**: Le serie TV puntano sulla continuità, gli anime premiano fortemente i peak episodes e il season finale, usando le skills di disegnatori e doppiatori nel calcolo del cast.
-- **TV Scheduling**: L'inserimento nel palinsesto avviene tramite  (attualmente in lavorazione).
+- **Scheduling Calendario Reale**: Gli episodi non avanzano più tramite un intervallo fittizio e il task cron, ma sono controllati da un  preciso. Se la data/ora attuale supera il , l'episodio sblocca lo stato  al client.
+- **Global Context Providers**: Il sistema ora usa abbondantemente React Context per le Notifiche e i Dialog di conferma. *Non usare mai più *.
 
 **key DB schema**
-  - : Aggiunti campi per  (array arricchito con trame e tipi),  ora include liste  e  quando .
+  -  -> : Ora contiene  (ISO string),  (standard, marathon, binge),  (float).
 
 **changes in tech stack**
   - Nessuno.
 
 **All files of reference** 
-  -  (Da modificare per il palinsesto episodi)
   -  
+  -  (Creato in questa sessione)
   - 
   -  (Creato in questa sessione)
-  -  (Modificato in questa sessione)
+  -  (Creato in questa sessione)
+  -  (Creato in questa sessione - da integrare)
+  -  (Creato in questa sessione - da integrare)
+  -  (Da modificare/rifattorizzare ora)
 
 **Areas that need refactoring**: 
-  - I file  (3300+ righe) e  (3700+ righe) sono giganteschi. Usare  prestando estrema attenzione per evitare di sovrascrivere o corrompere il file.
+  -  - Deve essere convertita per fungere *esclusivamente* da dashboard visiva stile Netflix, spostando tutto il codice di gestione in un Menu Emittente modulare.
 
 **key api endpoints**
-  - *(Da implementare/modificare)*:  (deve accettare e schedulare Serie/Anime per episodio in base alla ).
-  - *(Da implementare/modificare)*:  (deve ritornare gli episodi).
+  -  (Assegna date e orari reali di programmazione)
+  -  (Aggiornato per restituire countdown e datetime di rilascio)
 
 **Critical Info for New Agent** 
-- **LINGUA**: L'utente parla Italiano e si aspetta che tu risponda **ESCLUSIVAMENTE in Italiano**.
-- **Gestione Dati Episodi TV**: Come richiesto dall'utente, NON duplicare gli episodi nel DB e non rigenerarli. Usare lo storico di quelli creati in  e far scattare solo stati temporali (scheduled -> live -> completed) gestiti dal modulo TV.
-- Testare costantemente in manuale (CURL / python -c). Evitare strumenti come screenshot_tool o testing_agent, a meno che tu non ne chieda prima l'esplicito permesso, data la preferenza storica dell'utente.
-- Continua esattamente dal task del palinsesto TV (leggendo l'ultimo messaggio in cui l'utente dice Prosegui).
+- **Linguaggio**: L'utente richiede categoricamente risposte in Italiano.
+- Non usare  nel codice React; utilizza l'hook  dal .
+- Non usare simulazioni a tempo compresso per il palinsesto TV, deve essere basato su calendario in tempo reale ().
+- Il focus principale ora è completare l'integrazione frontend per la TV: l'utente non vuole più vedere i pulsanti di gestione (Aggiungi, Trasmetti) sparsi nella TVStationPage; tutto deve vivere dentro il TV Menu modale o nei modali richiamati da MyFilms.jsx / TVStationPage.jsx.
 
 **documents and test reports created in this job** 
-  -  (aggiornato durante le sessioni).
+  -  (Aggiornato)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - L'utente ha approvato l'inserimento dei pesi Serie VS Anime e del nuovo cast.
- - Successivamente ha fornito le regole del **Task P0: Integrazione TV (Palinsesto e Trasmissione)**, specificando come gestire Binge/Daily, la trasmissione episodio per episodio, il Ritiro o le Repliche a fine stagione.
- - L'agente ha iniziato ad analizzare .
- - Ultimo messaggio dell'utente: Prosegui (PENDING - Significa che devi procedere con l'implementazione del sistema di Palinsesto TV).
+ - L'utente ha definito il task di rifattorizzazione per la gestione del palinsesto e della dashboard TV, separando nettamente gestione dall'estetica.
+ - L'utente ha inviato un aggiornamento AGGIORNAMENTO SPECIFICHE stabilendo l'utilizzo tassativo di orari di calendario reali.
+ - L'agente ha implementato il backend, creato i primi modali (Series Detail e Palinsesto) e aspetta il completamento della rifattorizzazione su  e . Nessun input in attesa dall'utente: *l'agente deve procedere*.
 
 **Project Health Check:**
-Nessun problema bloccante. App funzionante, pronti per l'estensione del Modulo TV.
+Sistema stabile. Nuove api di scheduling TV testate con successo tramite bash. Backend pulito (Lint ok). Frontend presenta avvisi Webpack standard, ma compilazione e UI sono intatti.
 
 **3rd Party Integrations** 
-- Stripe (Payments) - Requires User API Key
-- Gemini / OpenAI (AI Generations via emergentintegrations) - Uses Emergent LLM Key
+- Stripe (Payments) — requires User API Key
+- Gemini/OpenAI (Emergent Integrations via ) — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (usati test manuali approfonditi via bash e CURL).
+  - Testing agent used after significant changes: NO (test e debug eseguiti manualmente)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: Nessuno
-  - Known regressions: Nessuna.
+  - Test files created: None
+  - Known regressions: None
 
 **Credentials to test flow:**
 - Email: fandrex1@gmail.com
@@ -130,5 +128,4 @@ Nessun problema bloccante. App funzionante, pronti per l'estensione del Modulo T
 - Nickname: NeoMorpheus
 
 **What agent forgot to execute**
-Niente di dimenticato, l'agente stava procedendo correttamente all'esplorazione di  e attende di eseguire la logica di inserimento degli episodi (schedulazione TV) richiesta nel lungo prompt fornito dall'utente.
-</handoff summary></analysis>
+L'agente ha creato i due file  e , ma non li ha ancora integrati nei rispettivi root files ( e ), né ha iniziato la stesura del terzo modale richiesto dall'utente:  (Menu emittente a 4 sezioni) né la pulizia visiva di . Questo è il prossimo step logico.</analysis>

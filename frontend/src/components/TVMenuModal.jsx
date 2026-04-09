@@ -38,7 +38,7 @@ const DELAY_OPTIONS = [
   { hours: 144, label: '6 giorni' },
 ];
 
-export function TVMenuModal({ open, onClose, station, enrichedContents, capacity, shareData, infraLevel, onRefresh, onOpenPalinsesto }) {
+export function TVMenuModal({ open, onClose, station, enrichedContents, capacity, shareData, infraLevel, onRefresh, onOpenPalinsesto, onOpenContentDetail }) {
   const { api } = useContext(AuthContext);
   const gameConfirm = useConfirm();
   const [activeTab, setActiveTab] = useState('contenuti');
@@ -70,11 +70,26 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   const contents = enrichedContents || { films: [], tv_series: [], anime: [] };
   const allSeries = [...(contents.tv_series || []), ...(contents.anime || [])];
 
-  // Load upcoming content
+  // Load upcoming content (new system + old scheduled_for_tv system merged)
   async function loadUpcoming() {
     try {
-      const res = await api.get(`/tv-stations/${stationId}/upcoming`);
-      setUpcomingItems(res.data.items || []);
+      const [upRes, schRes] = await Promise.all([
+        api.get(`/tv-stations/${stationId}/upcoming`),
+        api.get(`/tv-stations/${stationId}/scheduled`).catch(() => ({ data: { items: [] } }))
+      ]);
+      const upItems = upRes.data.items || [];
+      const schItems = (schRes.data.items || []).map(s => ({
+        content_id: s.id,
+        title: s.title,
+        poster_url: s.poster_url,
+        content_type: s.content_type,
+        frozen: false,
+        remaining_seconds: 0,
+        _isOldScheduled: true,
+      }));
+      const upIds = new Set(upItems.map(u => u.content_id));
+      const merged = [...upItems, ...schItems.filter(s => !upIds.has(s.content_id))];
+      setUpcomingItems(merged);
     } catch { setUpcomingItems([]); }
   }
 
@@ -250,11 +265,12 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                   <Badge className="text-[8px] bg-cyan-500/15 text-cyan-400 border-0">{upcomingItems.length}</Badge>
                 </div>
                 <ScrollRow
-                  items={upcomingItems.map(u => ({ id: u.content_id, title: u.title, poster_url: u.poster_url, _frozen: u.frozen, _remaining: u.remaining_seconds, _upcomingId: u.id }))}
+                  items={upcomingItems.map(u => ({ id: u.content_id, title: u.title, poster_url: u.poster_url, _frozen: u.frozen, _remaining: u.remaining_seconds, _upcomingId: u.id, _contentType: u.content_type, content_type: u.content_type, type: u.content_type }))}
                   color="cyan"
                   canAdd={true}
                   onAdd={openAddUpcomingPicker}
                   onRemove={(id) => removeUpcoming(id)}
+                  onItemClick={(item) => { if (onOpenContentDetail) { onOpenContentDetail(item); } }}
                   isUpcoming
                 />
               </div>
@@ -487,7 +503,7 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
 
 // === Sub-components ===
 
-function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming }) {
+function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming, onItemClick }) {
   const scrollRef = useRef(null);
   const [showArrow, setShowArrow] = useState(false);
 
@@ -511,25 +527,39 @@ function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming }) {
         )}
         {items.map(item => (
           <div key={item.id} className="flex-shrink-0 w-[52px] group relative">
-            <div className="aspect-[2/3] rounded-lg overflow-hidden relative">
+            <div
+              className={`aspect-[2/3] rounded-lg overflow-hidden relative ${isUpcoming && onItemClick ? 'cursor-pointer' : ''}`}
+              onClick={() => { if (isUpcoming && onItemClick) onItemClick(item); }}
+            >
               <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-              {onRemove && (
-                <button className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onRemove(item.id)}>
+              {/* Trash overlay only for NON-upcoming items */}
+              {onRemove && !isUpcoming && (
+                <button className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}>
                   <Trash2 className="w-2 h-2 text-red-400" />
                 </button>
               )}
               {isUpcoming && item._frozen && (
-                <div className="absolute inset-0 bg-blue-900/40 flex items-center justify-center">
+                <div className="absolute inset-0 bg-blue-900/40 flex items-center justify-center pointer-events-none">
                   <Snowflake className="w-4 h-4 text-blue-300" />
                 </div>
               )}
               {isUpcoming && !item._frozen && item._remaining > 0 && (
-                <div className="absolute bottom-0 inset-x-0 bg-black/80 px-0.5 py-0.5 text-center">
+                <div className="absolute bottom-0 inset-x-0 bg-black/80 px-0.5 py-0.5 text-center pointer-events-none">
                   <span className="text-[6px] text-cyan-400 font-bold">{formatCountdown(item._remaining)}</span>
                 </div>
               )}
             </div>
             <p className="text-[6px] font-medium truncate mt-0.5">{item.title}</p>
+            {/* Explicit delete button for upcoming items */}
+            {isUpcoming && onRemove && (
+              <button
+                className="mt-0.5 w-full flex items-center justify-center gap-0.5 text-[6px] text-red-400/70 hover:text-red-400 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
+                data-testid={`remove-upcoming-${item.id}`}
+              >
+                <Trash2 className="w-2 h-2" /> Elimina
+              </button>
+            )}
           </div>
         ))}
         {items.length === 0 && !canAdd && (

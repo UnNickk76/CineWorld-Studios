@@ -1,42 +1,42 @@
 <analysis>**original_problem_statement**: 
-Rifattorizzazione completa del sistema TV + Palinsesto + Gestione contenuti (Film / Serie TV / Anime). Separazione totale tra UI estetica e gestione. 
-- Da I Miei, il click su una serie/anime apre un Modale Dettaglio (Locandina, Titolo, Genere, n. episodi, Valore, Views, Stato). Al proprietario è mostrato il tasto [Gestisci Palinsesto].
-- Modale Palinsesto: Lista episodi. Se non trasmesso = bloccato (solo titolo, countdown reale). Se trasmesso = cliccabile con trama, views e % consenso.
-- Azioni: Invia alla TV, Programma uscita (basata su Calendario e Orario Reali, no tempo simulato - Giornaliero, Settimanale, Binge), Maratona, Replica, Ritira.
-- TV Menu: Il tasto Menu in alto a destra nella pagina TV diventa l'Hub Gestione con 4 sezioni (Contenuti, Palinsesto, Pubblicità, Statistiche TV).
-- TV Dashboard: Diventa in puro stile Netflix solo estetico (Caroselli, Locandine). Rimuovere tasti gestione e Aggiungi dalla dashboard principale.
+Rifattorizzazione completa del sistema TV + Palinsesto + Gestione contenuti (Film / Serie TV / Anime). Separazione totale tra UI estetica e gestione. Rifattorizzazione della Dashboard mobile-first con inserimento SideMenu, Eventi WOW, e Glow CSS. Implementazione della sezione Prossimamente per le Emittenti TV.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-- Il sistema Notifiche Globale e il Dialog di Conferma custom () sono stati completati in tutto il gioco.
-- Backend TV (): Endpoint aggiornati per supportare la schedulazione basata su calendario in tempo reale (), l'aggiunta di  e .
-- Frontend TV (Inizio Refactor): I componenti  e  sono stati appena creati, ma non ancora integrati.
+- La  è ora una vetrina puramente estetica in stile Netflix. Tutta la gestione è stata spostata nel  (4 sezioni).
+- La  principale è stata rifattorizzata per includere LaPrima, Eventi WOW, Prossimamente (Film/Serie/Anime).
+- Creato  laterale attivabile dal logo CIACK in alto a sinistra (con traslazione automatica delle navbar).
+- Creato il sistema backend per aggiungere contenuti al Prossimamente dell'emittente TV (inclusi contenuti in produzione) con timer a scaglioni (6h, 12h, 24h, 2d, 4d, 6d) gestito dal cron.
 
 **Last working item**: 
-    - Last item agent was working: Rifattorizzazione Frontend del Sistema TV. L'agente ha completato il backend per la schedulazione a tempo reale e ha appena generato i primi due modali React ( e ). Si stava apprestando a creare il Modale del Menu TV a 4 sezioni e a pulire  dalla vecchia UI gestionale.
+    - Last item agent was working: Rifinire la sezione gestionale Prossimamente nel . L'utente ha richiesto che cliccando sulla locandina in questa sezione NON appaia il cestino (elimina), ma si apra il popup di gestione (il dettaglio serie/palinsesto), e che solo in questa sezione ci sia il tasto Elimina dalla programmazione. Inoltre, i titoli programmati col vecchio sistema devono apparire in questa lista.
     - Status: IN PROGRESS
-    - Agent Testing Done: N (Backend testato via bash/curl, UI frontend ancora in lavorazione)
-    - Which testing method agent to use? manual testing by curl/python -c / screenshot tool for frontend modals
+    - Agent Testing Done: N
+    - Which testing method agent to use? screenshot tool for frontend validation.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Pulizia UI Gestionale da TVStationPage.jsx (P0)
-     - Attempted fixes: N/A
-     - Next debug checklist: Verificare  per rimuovere i tasti Aggiungi, i toggle di gestione e implementare esclusivamente UI estetica a caroselli.
-     - Why fix this issue and what will be achieved with the fix? Requisito esplicito dell'utente per separare lato gestione dal lato estetico.
+  Issue 1: Rifinitura UI Gestionale Prossimamente in TVMenuModal (P0)
+     - Attempted fixes: L'agente ha visualizzato il file  ma non ha ancora apportato le modifiche.
+     - Next debug checklist: In , sezione Prossimamente: 1) Modificare l'onClick della locandina per aprire il modale di gestione ( o ) invece del cestino. 2) Aggiungere un pulsante dedicato Elimina dalla programmazione. 3) Assicurarsi che i contenuti schedulati col vecchio sistema appaiano nel tab gestionale Prossimamente.
+     - Why fix this issue and what will be achieved with the fix? Requisito esplicito dell'utente (Messaggio 349).
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend (Screenshot)
+     - Blocked on other issue: Nessuno
+
+  Issue 2: Fix overlay FilmDetailPopup su TVStationPage (P1)
+     - Attempted fixes: Nessuno. Trovato dal testing_agent (Iterazione 157) ma non corretto.
+     - Next debug checklist:  linea 440. Il backdrop div del  blocca i click successivi. Sistemare l'handling del click outside o la gestione dello z-index.
+     - Why fix this issue and what will be achieved with the fix? Previene il blocco dell'interfaccia (l'utente non riesce a cliccare altri elementi dopo aver aperto il dettaglio film).
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: N/A
+     - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-  Task 1: Integrazione Modali e TV Menu (P0)
-     - Where to resume: Creare il componente  (4 sezioni: Contenuti, Palinsesto, Pubblicità, Statistiche). Agganciare  e  a  e .
-     - What will be achieved with this? Navigazione pulita tra gestione contenuti (tramite modali e menu) e visualizzazione stile Netflix del palinsesto.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Nessuno
+  Nessun task separato dalle issues sopra elencate.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -48,84 +48,91 @@ Rifattorizzazione completa del sistema TV + Palinsesto + Gestione contenuti (Fil
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli.
 
 **Completed work in this session**
-- Sostituzione globale di  con un custom  in tutto il Frontend (DONE)
-- Sistema Notifiche Globale: , , raggruppamento anti-spam e API backend (DONE)
-- Backend : Modifica della programmazione episodi per usare un timestamp di calendario reale anziché un loop di simulazione. Endpoint  aggiunto (DONE)
-- Creazione base di  e  (DONE)
+- Integrazione , ,  per la TV Station (DONE)
+- Rifattorizzazione estetica  in puro stile Netflix (DONE)
+- Rifattorizzazione main  con inserimento Eventi WOW, card CSS Glow, e spostamento griglia azioni in basso (DONE)
+- Creazione  a scorrimento da sinistra, attivato da icona CIACK con traslazione sincronizzata delle Navbar (DONE)
+- Ottimizzazione  (icon ridotte 50%, icone univoche, header sticky) (DONE)
+- Backend e Frontend TV Prossimamente (Aggiunta rapida tramite card +, timer popup) (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Nessuno
+   - L'Issue 2 (overlay TVStationPage) riportata dal testing agent è l'unica non ancora processata dall'agente principale.
 
 **Known issue recurrence from previous fork**
-  - Nessuno in questo fork.
+  - Nessuno.
 
 **Code Architecture**
 - Frontend: React
-  -  (Include ora  e ).
-  - ,  (Nuovi componenti UI TV).
-  -  (Da rifattorizzare pesantemente per rimuovere logiche di gestione).
+  -  (Routing, Navbars, Hamburger Menu, SideMenu toggle).
+  -  (Main Game Dashboard).
+  -  (Netflix TV Dashboard).
+  -  (Management Hub Emittente).
+  -  (Left navigation menu).
 - Backend: FastAPI
-  -  (Gestisce scheduling in tempo reale).
-  - ,  (Sistema Notifiche).
+  -  (Real-time scheduling, upcoming programming, auto_advance cron job).
 
 **Key Technical Concepts**
-- **Scheduling Calendario Reale**: Gli episodi non avanzano più tramite un intervallo fittizio e il task cron, ma sono controllati da un  preciso. Se la data/ora attuale supera il , l'episodio sblocca lo stato  al client.
-- **Global Context Providers**: Il sistema ora usa abbondantemente React Context per le Notifiche e i Dialog di conferma. *Non usare mai più *.
+- **Sidemenu Translate**: L'apertura del SideMenu applica l'attributo  al body. Le navbar top e bottom usano la classe css  per traslare a destra del 25%, permettendo all'utente di cliccare il toggle o chiudere.
+- **TV Scheduling**: Real time datetime based. I Prossimamente sfruttano logiche temporali (6h, 12h, 24h, 2d, ecc.) che vengono elaborate dal cron .
 
 **key DB schema**
-  -  -> : Ora contiene  (ISO string),  (standard, marathon, binge),  (float).
+  - : Array  contiene dati del contenuto, timer, e stato (, , ).
 
 **changes in tech stack**
-  - Nessuno.
+  - Nessuno
 
 **All files of reference** 
-  -  
-  -  (Creato in questa sessione)
+  -  (File attualmente in uso, necessita modifiche UI immediate)
   - 
-  -  (Creato in questa sessione)
-  -  (Creato in questa sessione)
-  -  (Creato in questa sessione - da integrare)
-  -  (Creato in questa sessione - da integrare)
-  -  (Da modificare/rifattorizzare ora)
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  -  - Deve essere convertita per fungere *esclusivamente* da dashboard visiva stile Netflix, spostando tutto il codice di gestione in un Menu Emittente modulare.
+  -  sta superando le 600 linee. Nel prossimo futuro potrebbe essere necessario splittare le tab in componenti separati (es: , ).
 
 **key api endpoints**
-  -  (Assegna date e orari reali di programmazione)
-  -  (Aggiornato per restituire countdown e datetime di rilascio)
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **Linguaggio**: L'utente richiede categoricamente risposte in Italiano.
-- Non usare  nel codice React; utilizza l'hook  dal .
-- Non usare simulazioni a tempo compresso per il palinsesto TV, deve essere basato su calendario in tempo reale ().
-- Il focus principale ora è completare l'integrazione frontend per la TV: l'utente non vuole più vedere i pulsanti di gestione (Aggiungi, Trasmetti) sparsi nella TVStationPage; tutto deve vivere dentro il TV Menu modale o nei modali richiamati da MyFilms.jsx / TVStationPage.jsx.
+- **LINGUA**: Rispondi *sempre e solo* in Italiano.
+- L'utente ha chiesto un Lavoro di 2 minuti e costo totale di 2 crediti emergent per completare la modifica sul . Sii diretto ed efficiente. Non esplorare l'intero sistema se non necessario.
+-  non deve mai essere usato nel frontend.
+- Per il task attuale su : nella sezione dei Prossimamente (tab gestionale), rimuovi l'azione del cestino quando si clicca la locandina; aprila invece col modale di dettaglio contenuto (usando i modali esistenti). Aggiungi un bottone separato esplicito per Elimina dalla programmazione.
 
 **documents and test reports created in this job** 
-  -  (Aggiornato)
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - L'utente ha definito il task di rifattorizzazione per la gestione del palinsesto e della dashboard TV, separando nettamente gestione dall'estetica.
- - L'utente ha inviato un aggiornamento AGGIORNAMENTO SPECIFICHE stabilendo l'utilizzo tassativo di orari di calendario reali.
- - L'agente ha implementato il backend, creato i primi modali (Series Detail e Palinsesto) e aspetta il completamento della rifattorizzazione su  e . Nessun input in attesa dall'utente: *l'agente deve procedere*.
+ - *User*: Ha richiesto l'implementazione del SideMenu, Dashboard Vetrina, Eventi WOW e CSS Glow.
+ - *User*: Segnalato bug su CIACK, Bottom Menu e Emittente TV non visibile.
+ - *User*: Segnalato problema di overlay tra SideMenu e Navbars (aggiunta traslazione e X).
+ - *User*: Richiesta compattezza e icone univoche per Hamburger Menu.
+ - *User*: Richiesto Prossimamente su TV Station con Card + a sx e timer (6h, 12h...).
+ - *User*: Chiarimento che anche contenuti in produzione vanno nei Prossimamente.
+ - *User*: **ULTIMO MESSAGGIO PENDENTE**: Nel menu gestionale TV, tab Prossimamente: rimuovere cestino dalla locandina (deve aprire il popup dettagli gestione), e inserire esplicitamente il tasto Elimina dalla programmazione. Assicurarsi che i vecchi schedulati appaiano. L'agente ha fatto , l'utente ha confermato di procedere.
 
 **Project Health Check:**
-Sistema stabile. Nuove api di scheduling TV testate con successo tramite bash. Backend pulito (Lint ok). Frontend presenta avvisi Webpack standard, ma compilazione e UI sono intatti.
+App funzionante. Nessun crash. Lint e backend puliti. Segnalato un bug UI minore sul popup dettagli film in .
 
 **3rd Party Integrations** 
-- Stripe (Payments) — requires User API Key
-- Gemini/OpenAI (Emergent Integrations via ) — uses Emergent LLM Key
+ - Stripe (Payments) — requires User API Key
+ - Gemini/OpenAI (Emergent Integrations) — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (test e debug eseguiti manualmente)
+  - Testing agent used after significant changes: YES (Iteration 157)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions:  ha problemi di sovrapposizione in 
 
 **Credentials to test flow:**
-- Email: fandrex1@gmail.com
-- Password: Fandrel2776
-- Nickname: NeoMorpheus
+ - Email: fandrex1@gmail.com
+ - Password: Fandrel2776
 
 **What agent forgot to execute**
-L'agente ha creato i due file  e , ma non li ha ancora integrati nei rispettivi root files ( e ), né ha iniziato la stesura del terzo modale richiesto dall'utente:  (Menu emittente a 4 sezioni) né la pulizia visiva di . Questo è il prossimo step logico.</analysis>
+L'agente si è fermato a causa dei limiti di tempo/token subito dopo aver ricevuto l'approvazione finale dell'utente. Deve essere eseguita la modifica alla sezione Prossimamente nel . Inoltre, l'agente ha trascurato di correggere il bug sull'overlay z-index del  in  trovato dal testing agent nell'iterazione 157.</analysis>

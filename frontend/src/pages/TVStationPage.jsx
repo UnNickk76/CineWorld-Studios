@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Input } from '../components/ui/input';
 import {
   Radio, Tv, Sparkles, Film, Settings, Plus, X, ChevronRight, ChevronLeft,
-  Loader2, DollarSign, Eye, TrendingUp, Globe, Check, Minus, Trash2, BarChart3
+  Loader2, DollarSign, Eye, TrendingUp, Globe, Check, Minus, Trash2, BarChart3,
+  Play, Pause, RotateCcw, Clock, Users, Zap, RefreshCw, Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -63,6 +64,14 @@ export default function TVStationPage() {
   const [schedulableContent, setSchedulableContent] = useState({ films: [], tv_series: [], anime: [] });
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [selectedTVContent, setSelectedTVContent] = useState(null);
+
+  // Broadcast management
+  const [showBroadcastDialog, setShowBroadcastDialog] = useState(null); // content_id
+  const [broadcastDetail, setBroadcastDetail] = useState(null);
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [showStartBroadcast, setShowStartBroadcast] = useState(null); // content_id
+  const [broadcastInterval, setBroadcastInterval] = useState(1);
+  const [startingBroadcast, setStartingBroadcast] = useState(false);
 
   // Settings popup
   const [showSettings, setShowSettings] = useState(false);
@@ -205,6 +214,54 @@ export default function TVStationPage() {
       loadStation(stationId);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setSavingSettings(false);
+  };
+
+  // === BROADCAST FUNCTIONS ===
+  const openBroadcastDetail = async (contentId) => {
+    const sid = stationId || newStationId;
+    if (!sid) return;
+    setShowBroadcastDialog(contentId);
+    setBroadcastLoading(true);
+    try {
+      const res = await api.get(`/tv-stations/${sid}/broadcast/${contentId}`);
+      setBroadcastDetail(res.data);
+    } catch (e) { toast.error('Errore caricamento trasmissione'); }
+    setBroadcastLoading(false);
+  };
+
+  const startBroadcast = async (contentId) => {
+    const sid = stationId || newStationId;
+    setStartingBroadcast(true);
+    try {
+      const res = await api.post('/tv-stations/start-broadcast', {
+        station_id: sid, content_id: contentId, air_interval_days: broadcastInterval
+      });
+      toast.success(res.data.message);
+      setShowStartBroadcast(null);
+      loadStation(sid);
+      if (showBroadcastDialog === contentId) openBroadcastDetail(contentId);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setStartingBroadcast(false);
+  };
+
+  const retireSeries = async (contentId) => {
+    const sid = stationId || newStationId;
+    try {
+      const res = await api.post('/tv-stations/retire-series', { station_id: sid, content_id: contentId });
+      toast.success(res.data.message);
+      loadStation(sid);
+      if (showBroadcastDialog === contentId) openBroadcastDetail(contentId);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+  };
+
+  const startReruns = async (contentId) => {
+    const sid = stationId || newStationId;
+    try {
+      const res = await api.post('/tv-stations/start-reruns', { station_id: sid, content_id: contentId });
+      toast.success(res.data.message);
+      loadStation(sid);
+      if (showBroadcastDialog === contentId) openBroadcastDetail(contentId);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
   };
 
   // === SETUP WIZARD ===
@@ -572,6 +629,128 @@ export default function TVStationPage() {
             <ContentManagementRow type="anime" label="Anime" icon={Sparkles} color="orange" items={enrichedContents.anime} />
           </div>
         )}
+
+        {/* === BROADCAST / PALINSESTO SECTION === */}
+        {isOwner && (enrichedContents.tv_series.length > 0 || enrichedContents.anime.length > 0) && (
+          <div className="mt-4 border-t border-white/5 pt-4" data-testid="broadcast-section">
+            <h2 className="font-['Bebas_Neue'] text-lg text-red-400 mb-3 flex items-center gap-2">
+              <Zap className="w-4 h-4" /> Palinsesto Trasmissione
+            </h2>
+            {[...enrichedContents.tv_series, ...enrichedContents.anime].map((item) => {
+              const bstate = item.broadcast_state || 'idle';
+              const curEp = item.current_episode || 0;
+              const totalEps = item.total_episodes || item.num_episodes || 0;
+              const airsIn = item.next_air_at ? Math.max(0, Math.round((new Date(item.next_air_at) - new Date()) / 3600000)) : null;
+              const progress = totalEps > 0 ? ((item.episodes_aired || 0) / totalEps) * 100 : 0;
+              const isAnime = item.type === 'anime';
+
+              const stateColors = {
+                idle: 'bg-gray-500/20 text-gray-400',
+                airing: 'bg-green-500/20 text-green-400',
+                completed: 'bg-blue-500/20 text-blue-400',
+                reruns: 'bg-amber-500/20 text-amber-400',
+                retired: 'bg-red-500/20 text-red-400',
+              };
+              const stateLabels = {
+                idle: 'Non in onda',
+                airing: 'In onda',
+                completed: 'Completata',
+                reruns: 'Repliche',
+                retired: 'Ritirata',
+              };
+
+              return (
+                <Card key={item.id} className="bg-[#111113] border-white/5 mb-3 overflow-hidden" data-testid={`broadcast-card-${item.id}`}>
+                  <CardContent className="p-0">
+                    <div className="flex gap-3 p-3">
+                      <div className="w-[50px] h-[75px] rounded-lg overflow-hidden flex-shrink-0">
+                        <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-xs font-bold truncate">{item.title}</h3>
+                          <Badge className={`text-[7px] h-4 border-0 flex-shrink-0 ${stateColors[bstate]}`}>
+                            {stateLabels[bstate]}
+                          </Badge>
+                          {item.rerun_count > 0 && (
+                            <Badge className="text-[7px] h-4 border-0 bg-amber-500/10 text-amber-400">
+                              Rep.{item.rerun_count}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[9px] text-gray-500 mb-1.5">
+                          {isAnime ? <Sparkles className="w-2.5 h-2.5 text-orange-400" /> : <Tv className="w-2.5 h-2.5 text-blue-400" />}
+                          <span>{totalEps} episodi</span>
+                          {bstate === 'airing' && (
+                            <>
+                              <span className="text-gray-700">|</span>
+                              <span className="text-green-400">Ep. {curEp + 1}/{totalEps}</span>
+                              {airsIn !== null && (
+                                <>
+                                  <Clock className="w-2.5 h-2.5 text-gray-500" />
+                                  <span>{airsIn <= 0 ? 'Ora!' : airsIn < 24 ? `${airsIn}h` : `${Math.round(airsIn / 24)}g`}</span>
+                                </>
+                              )}
+                            </>
+                          )}
+                          {bstate === 'completed' && (
+                            <>
+                              <span className="text-gray-700">|</span>
+                              <Users className="w-2.5 h-2.5" />
+                              <span>{(item.broadcast_viewers || 0).toLocaleString()}</span>
+                              <DollarSign className="w-2.5 h-2.5 text-green-400" />
+                              <span className="text-green-400">${(item.broadcast_revenue || 0).toLocaleString()}</span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Progress bar */}
+                        {bstate === 'airing' && (
+                          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                          </div>
+                        )}
+                        {bstate === 'completed' && (
+                          <div className="w-full h-1.5 bg-blue-500/30 rounded-full" />
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="flex gap-1.5 mt-2">
+                          {bstate === 'idle' && (
+                            <Button size="sm" className="h-6 text-[9px] bg-green-500 hover:bg-green-600 px-2" onClick={() => { setShowStartBroadcast(item.id); setBroadcastInterval(1); }} data-testid={`start-broadcast-${item.id}`}>
+                              <Play className="w-2.5 h-2.5 mr-0.5" /> Avvia Trasmissione
+                            </Button>
+                          )}
+                          {bstate === 'airing' && (
+                            <Button size="sm" variant="outline" className="h-6 text-[9px] border-green-500/30 text-green-400 px-2" onClick={() => openBroadcastDetail(item.id)} data-testid={`view-broadcast-${item.id}`}>
+                              <Eye className="w-2.5 h-2.5 mr-0.5" /> Dettagli
+                            </Button>
+                          )}
+                          {bstate === 'completed' && (
+                            <>
+                              <Button size="sm" className="h-6 text-[9px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 px-2" onClick={() => startReruns(item.id)} data-testid={`reruns-${item.id}`}>
+                                <RefreshCw className="w-2.5 h-2.5 mr-0.5" /> Repliche
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-6 text-[9px] border-red-500/30 text-red-400 px-2" onClick={() => retireSeries(item.id)} data-testid={`retire-${item.id}`}>
+                                <Ban className="w-2.5 h-2.5 mr-0.5" /> Ritira
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-6 text-[9px] border-blue-500/30 text-blue-400 px-2" onClick={() => openBroadcastDetail(item.id)} data-testid={`detail-completed-${item.id}`}>
+                                <BarChart3 className="w-2.5 h-2.5 mr-0.5" /> Stats
+                              </Button>
+                            </>
+                          )}
+                          {bstate === 'retired' && (
+                            <Badge className="text-[8px] bg-red-500/10 text-red-400 border-0">Rimossa dal palinsesto</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Add Content Dialog */}
@@ -753,6 +932,176 @@ export default function TVStationPage() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Start Broadcast Dialog */}
+      <Dialog open={!!showStartBroadcast} onOpenChange={(open) => { if (!open) setShowStartBroadcast(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-sm p-0" data-testid="start-broadcast-dialog">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="font-['Bebas_Neue'] text-lg text-green-400 flex items-center gap-2">
+              <Play className="w-5 h-5" /> Avvia Trasmissione
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 pt-0 space-y-4">
+            <div>
+              <label className="text-xs text-gray-400 mb-2 block">Intervallo tra episodi</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[{v:0,l:'Binge'},{v:1,l:'1 giorno'},{v:2,l:'2 giorni'},{v:3,l:'3 giorni'}].map(opt => (
+                  <button
+                    key={opt.v}
+                    onClick={() => setBroadcastInterval(opt.v)}
+                    className={`text-xs px-2 py-2 rounded-lg border transition-all ${
+                      broadcastInterval === opt.v
+                        ? 'bg-green-500/20 border-green-500/50 text-green-400'
+                        : 'bg-black/20 border-white/5 text-gray-400 hover:border-white/15'
+                    }`}
+                    data-testid={`interval-${opt.v}`}
+                  >
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+                {[{v:4,l:'4 giorni'},{v:5,l:'5 giorni'},{v:6,l:'6 giorni'},{v:7,l:'Settimanale'}].map(opt => (
+                  <button
+                    key={opt.v}
+                    onClick={() => setBroadcastInterval(opt.v)}
+                    className={`text-xs px-2 py-2 rounded-lg border transition-all ${
+                      broadcastInterval === opt.v
+                        ? 'bg-green-500/20 border-green-500/50 text-green-400'
+                        : 'bg-black/20 border-white/5 text-gray-400 hover:border-white/15'
+                    }`}
+                    data-testid={`interval-${opt.v}`}
+                  >
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Card className="bg-black/30 border-white/5">
+              <CardContent className="p-3 text-[10px] text-gray-400 space-y-1">
+                <p>{broadcastInterval === 0 ? 'Tutti gli episodi vanno in onda subito' : `1 episodio ogni ${broadcastInterval} ${broadcastInterval === 1 ? 'giorno' : 'giorni'}`}</p>
+                <p className="text-green-400/80">Il primo episodio va in onda immediatamente</p>
+                {broadcastInterval === 0 && <p className="text-amber-400/80">Binge: tutto subito ma meno hype per episodio</p>}
+              </CardContent>
+            </Card>
+            <Button
+              className="w-full h-10 bg-green-500 hover:bg-green-600 font-['Bebas_Neue'] text-base"
+              onClick={() => startBroadcast(showStartBroadcast)}
+              disabled={startingBroadcast}
+              data-testid="confirm-start-broadcast"
+            >
+              {startingBroadcast ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+              TRASMETTI
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Broadcast Detail Dialog */}
+      <Dialog open={!!showBroadcastDialog} onOpenChange={(open) => { if (!open) { setShowBroadcastDialog(null); setBroadcastDetail(null); } }}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-md max-h-[85vh] overflow-y-auto p-0" data-testid="broadcast-detail-dialog">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="font-['Bebas_Neue'] text-lg text-green-400 flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Trasmissione
+            </DialogTitle>
+          </DialogHeader>
+          {broadcastLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 text-green-400 animate-spin" /></div>
+          ) : broadcastDetail ? (
+            <div className="px-4 pb-4 space-y-3">
+              {/* Header */}
+              <div className="flex gap-3">
+                <div className="w-[60px] h-[90px] rounded-lg overflow-hidden flex-shrink-0">
+                  <img src={posterSrc(broadcastDetail.series_poster)} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">{broadcastDetail.series_title}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={`text-[8px] border-0 ${broadcastDetail.broadcast_state === 'airing' ? 'bg-green-500/20 text-green-400' : broadcastDetail.broadcast_state === 'completed' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                      {broadcastDetail.broadcast_state === 'airing' ? 'In onda' : broadcastDetail.broadcast_state === 'completed' ? 'Completata' : broadcastDetail.broadcast_state}
+                    </Badge>
+                    {broadcastDetail.rerun_count > 0 && <Badge className="text-[8px] bg-amber-500/10 text-amber-400 border-0">Repliche x{broadcastDetail.rerun_count}</Badge>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-green-400">{broadcastDetail.current_episode}/{broadcastDetail.total_episodes}</p>
+                      <p className="text-[8px] text-gray-500">Episodi</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-cyan-400">{(broadcastDetail.total_viewers || 0).toLocaleString()}</p>
+                      <p className="text-[8px] text-gray-500">Viewers</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-green-400">${(broadcastDetail.total_revenue || 0).toLocaleString()}</p>
+                      <p className="text-[8px] text-gray-500">Revenue</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all" style={{ width: `${broadcastDetail.total_episodes > 0 ? (broadcastDetail.current_episode / broadcastDetail.total_episodes) * 100 : 0}%` }} />
+              </div>
+
+              {/* Episode list */}
+              <div className="space-y-1.5">
+                {(broadcastDetail.episodes || []).map((ep) => {
+                  const isAired = ep.broadcast_state === 'aired';
+                  const isOnAir = ep.broadcast_state === 'on_air';
+                  const typeIcons = { peak: 'text-amber-400', filler: 'text-gray-500', plot_twist: 'text-purple-400', season_finale: 'text-red-400', normal: 'text-gray-400' };
+                  const typeLabels = { peak: 'PEAK', filler: 'FILLER', plot_twist: 'TWIST', season_finale: 'FINALE', normal: '' };
+
+                  return (
+                    <div key={ep.number} className={`rounded-lg p-2 flex items-center gap-2 ${isOnAir ? 'bg-green-500/10 border border-green-500/30' : isAired ? 'bg-white/[0.03]' : 'bg-black/20 opacity-50'}`} data-testid={`broadcast-ep-${ep.number}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isOnAir ? 'bg-green-500 text-white' : isAired ? 'bg-white/10 text-white' : 'bg-white/5 text-gray-600'}`}>
+                        {ep.number}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[10px] font-medium truncate">{ep.title || `Ep. ${ep.number}`}</p>
+                          {typeLabels[ep.episode_type] && (
+                            <span className={`text-[7px] font-bold ${typeIcons[ep.episode_type]}`}>{typeLabels[ep.episode_type]}</span>
+                          )}
+                        </div>
+                        {ep.plot && <p className="text-[8px] text-gray-500 truncate">{ep.plot}</p>}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        {isAired && (
+                          <div>
+                            <p className="text-[9px] font-bold text-cyan-400">{(ep.viewers || 0).toLocaleString()}</p>
+                            <p className="text-[8px] text-green-400">${(ep.revenue || 0).toLocaleString()}</p>
+                          </div>
+                        )}
+                        {isOnAir && (
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                            <span className="text-[9px] text-green-400">LIVE</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Post-season actions */}
+              {broadcastDetail.broadcast_state === 'completed' && (
+                <div className="flex gap-2 pt-2 border-t border-white/5">
+                  <Button size="sm" className="flex-1 h-8 text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-400" onClick={() => { startReruns(broadcastDetail.content_id); }} data-testid="dialog-reruns-btn">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Avvia Repliche
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 h-8 text-[10px] border-red-500/30 text-red-400" onClick={() => { retireSeries(broadcastDetail.content_id); }} data-testid="dialog-retire-btn">
+                    <Ban className="w-3 h-3 mr-1" /> Ritira
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-500 text-xs">Nessun dato</div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

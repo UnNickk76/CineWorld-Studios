@@ -373,7 +373,10 @@ async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_use
         'screenplay_mode': None,
         'pre_imdb_score': 0,
         'pre_imdb_breakdown': {},
-        'cast': {'director': None, 'screenwriter': None, 'actors': [], 'composer': None},
+        'cast': {
+            'director': None, 'screenwriter': None, 'actors': [], 'composer': None,
+            **({'animators': [], 'voice_actors': []} if ct == 'anime' else {}),
+        },
         'cast_proposals': [],
         'cast_locked': False,
         'equipment': [],
@@ -834,6 +837,9 @@ async def _generate_agency_proposals(project, agencies, user_id):
         score += (npc.get('fame', 0) or 0) * 0.5
         return score
 
+    ANIME_AFFINITIES = ['character_design', 'mecha_design', 'background_art', 'action_animation', 'sakuga']
+    VA_AFFINITIES = ['protagonista', 'antagonista', 'comico', 'drammatico', 'narratore']
+
     def _map_npc(npc, role_type, ag_idx):
         ag_id = agency_ids[ag_idx % len(agency_ids)] if agency_ids else ''
         ag_name = agency_names.get(ag_id, 'Agenzia')
@@ -852,8 +858,13 @@ async def _generate_agency_proposals(project, agencies, user_id):
                 genre_skill = min(98, genre_skill + int(skills[sk] * genre_weights[sk] * 0.02))
         cost = npc.get('cost', int(base_skill * 800 + fame_val * 200 + stars * 15000))
         if is_star: cost = int(cost * 1.5)
+        # Anime roles: adjust cost & affinity
+        if role_type == 'animator':
+            cost = int(cost * 0.8)  # Slightly cheaper
+        elif role_type == 'voice_actor':
+            cost = int(cost * 0.6)
         return {
-            'id': npc.get('id', ''),
+            'id': npc.get('id', '') + ('_anim' if role_type == 'animator' else '_va' if role_type == 'voice_actor' else ''),
             'name': npc.get('name', '?'),
             'role_type': role_type,
             'skill': base_skill,
@@ -864,14 +875,19 @@ async def _generate_agency_proposals(project, agencies, user_id):
             'is_star': is_star,
             'gender': npc.get('gender', 'other'),
             'age': npc.get('age', random.randint(25, 55)),
-            'nationality': npc.get('nationality', 'IT'),
+            'nationality': npc.get('nationality', 'JP' if role_type in ('animator', 'voice_actor') else 'IT'),
             'cost': cost,
             'agency_id': ag_id,
             'agency_name': ag_name,
             'skills': skills,
             'strengths': npc.get('primary_skills', [])[:2],
             'weaknesses': [f"debole in {npc['secondary_skill']}"] if npc.get('secondary_skill') else [],
-            'role_affinity': random.choice(ROLE_AFFINITIES) if role_type == 'actor' else None,
+            'role_affinity': (
+                random.choice(ANIME_AFFINITIES) if role_type == 'animator'
+                else random.choice(VA_AFFINITIES) if role_type == 'voice_actor'
+                else random.choice(ROLE_AFFINITIES) if role_type == 'actor'
+                else None
+            ),
             'genre_affinity': [genre] if genre_skill > base_skill else [],
             'worked_with_us': npc.get('id', '') in past_ids,
             'imdb_rating': npc.get('imdb_rating', 0),
@@ -884,20 +900,33 @@ async def _generate_agency_proposals(project, agencies, user_id):
         }
 
     proposals = []
+    ct = project.get('content_type', 'film')
+
+    # Base roles
+    roles = [('director', 10), ('writer', 10), ('actor', 30), ('composer', 8)]
+
+    # Add anime-specific roles (reuse existing NPCs from director/actor pools)
+    if ct in ('anime',):
+        roles.append(('animator', 12))     # Disegnatori from director pool
+        roles.append(('voice_actor', 15))  # Doppiatori from actor pool
 
     # Fetch per role, sorted by genre compatibility
-    for role_type, count in [('director', 10), ('writer', 10), ('actor', 30), ('composer', 8)]:
-        # Sample more than needed, then sort by genre score
+    for role_type, count in roles:
+        # Map anime roles to existing NPC pools
+        query_role = role_type
+        if role_type == 'animator':
+            query_role = 'director'
+        elif role_type == 'voice_actor':
+            query_role = 'actor'
+
         sample_size = count * 3
         cursor = db.people.aggregate([
-            {'$match': {'role_type': role_type}},
+            {'$match': {'role_type': query_role}},
             {'$sample': {'size': sample_size}},
             {'$project': {'_id': 0}},
         ])
         candidates = await cursor.to_list(sample_size)
-        # Score and sort by genre compatibility
         candidates.sort(key=_score_npc, reverse=True)
-        # Take top N
         for i, npc in enumerate(candidates[:count]):
             proposals.append(_map_npc(npc, role_type, i))
 
@@ -1252,16 +1281,24 @@ async def calculate_cast_chemistry(cast: dict, genre: str, subgenres: list) -> d
     }
 
 
-def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
-    """Calculate strategic cast quality with bonus/malus breakdown."""
+def _calc_cast_quality(cast: dict, genre: str, subgenres: list, content_type: str = 'film') -> dict:
+    """Calculate strategic cast quality with bonus/malus breakdown. Weights differ by content_type."""
     breakdown = []
     total = 0
     sub_set = set(subgenres)
 
-    # DIRECTOR (weight 30%)
+    is_anime = content_type == 'anime'
+
+    # ── WEIGHTS by content_type ──
+    if is_anime:
+        dir_w, scr_w, actor_w, comp_w = 0.20, 0.15, 0.08, 0.10
+    else:
+        dir_w, scr_w, actor_w, comp_w = 0.30, 0.15, 0.10, 0.05
+
+    # DIRECTOR (weight varies)
     d = cast.get('director')
     if d:
-        base = d.get('genre_skill', d.get('skill', 50)) * 0.30
+        base = d.get('genre_skill', d.get('skill', 50)) * dir_w
         bonus = 0
         if genre in d.get('genre_affinity', []):
             bonus += 5
@@ -1282,26 +1319,24 @@ def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
     if cast.get('screenwriter'):
         sws = [cast['screenwriter']] if not sws else sws
     for i, sw in enumerate(sws[:3]):
-        w = 0.15 if i == 0 else (0.10 if i == 1 else 0.05)
+        w = scr_w if i == 0 else (0.10 if i == 1 else 0.05)
         base = sw.get('genre_skill', sw.get('skill', 50)) * w
         bonus = 0
         if genre in sw.get('genre_affinity', []):
             bonus += 3
         total += base + bonus
 
-    # ACTORS (diminishing returns)
+    # ACTORS (diminishing returns — less weight for anime)
     actors = cast.get('actors', [])
     for i, a in enumerate(actors):
-        # Diminishing: first 3 = 100%, 4-6 = 60%, 7+ = 30%
         if i < 3:
-            w = 0.10
+            w = actor_w
         elif i < 6:
-            w = 0.06
+            w = actor_w * 0.6
         else:
-            w = 0.03
+            w = actor_w * 0.3
         base = a.get('genre_skill', a.get('skill', 50)) * w
         bonus = 0
-        # Role affinity bonus
         aff = a.get('role_affinity', '')
         genre_bonuses = GENRE_ROLE_BONUS.get(genre, {})
         if aff in genre_bonuses:
@@ -1309,29 +1344,65 @@ def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
             bonus += (mult - 1) * base * 2
             if i < 3:
                 breakdown.append(f'+{int((mult-1)*base*2)}% {a["name"]} affinita {aff}')
-        # Star bonus
         if a.get('is_star'):
             bonus += 3
-        # Subgenre bonus
         for sg in sub_set & set(a.get('genre_affinity', [])):
             bonus += 2
         total += base + bonus
 
-    # COMPOSER (weight 5%)
+    # COMPOSER (weight varies — more important for anime)
     c = cast.get('composer')
     if c:
-        base = c.get('genre_skill', c.get('skill', 50)) * 0.05
+        base = c.get('genre_skill', c.get('skill', 50)) * comp_w
         bonus = 0
         if genre in c.get('genre_affinity', []):
             bonus += 2
             breakdown.append('+2% compositore coerente genere')
+        if is_anime:
+            bonus += 3  # Anime OST is crucial
+            breakdown.append('+3% OST cruciale (anime)')
         total += base + bonus
 
-    # Malus: missing key roles
+    # ── ANIME-EXCLUSIVE ROLES ──
+    if is_anime:
+        # ANIMATORS / DISEGNATORI (weight 25%)
+        animators = cast.get('animators', [])
+        for i, anim in enumerate(animators[:3]):
+            w = 0.25 if i == 0 else (0.15 if i == 1 else 0.08)
+            base = anim.get('genre_skill', anim.get('skill', 50)) * w
+            bonus = 0
+            if anim.get('is_star'):
+                bonus += 5
+                breakdown.append(f'+5% disegnatore star {anim.get("name","")}')
+            if genre in anim.get('genre_affinity', []):
+                bonus += 4
+                breakdown.append(f'+4% disegnatore affinita genere')
+            total += base + bonus
+
+        if not animators:
+            total -= 15
+            breakdown.append('-15% nessun disegnatore (anime)')
+
+        # VOICE ACTORS / DOPPIATORI (weight 20%)
+        voice_actors = cast.get('voice_actors', [])
+        for i, va in enumerate(voice_actors):
+            w = 0.20 if i == 0 else (0.12 if i < 3 else 0.05)
+            base = va.get('genre_skill', va.get('skill', 50)) * w
+            bonus = 0
+            if va.get('is_star'):
+                bonus += 4
+                breakdown.append(f'+4% doppiatore star {va.get("name","")}')
+            total += base + bonus
+
+        if not voice_actors:
+            total -= 10
+            breakdown.append('-10% nessun doppiatore (anime)')
+
+    # Malus: missing key roles (universal)
     if not d:
         total -= 10
         breakdown.append('-10% nessun regista')
-    if len(actors) < 2:
+    if not is_anime and len(actors) < 2:
         total -= 8
         breakdown.append('-8% meno di 2 attori')
 
@@ -1430,6 +1501,12 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
     if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
         cast['screenwriters'] = [cast['screenwriter']]
 
+    # Ensure anime-specific lists exist
+    ct = project.get('content_type', 'film')
+    if ct == 'anime':
+        cast.setdefault('animators', [])
+        cast.setdefault('voice_actors', [])
+
     role = req.role
     # Normalize writer/screenwriter
     if role == 'writer':
@@ -1441,6 +1518,14 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         raise HTTPException(400, "Hai gia un compositore (max 1)")
     if role == 'screenwriter' and len(cast.get('screenwriters', [])) >= 3:
         raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+    if role == 'animator' and ct != 'anime':
+        raise HTTPException(400, "Disegnatori solo per Anime")
+    if role == 'voice_actor' and ct != 'anime':
+        raise HTTPException(400, "Doppiatori solo per Anime")
+    if role == 'animator' and len(cast.get('animators', [])) >= 3:
+        raise HTTPException(400, "Hai gia 3 disegnatori (max 3)")
+    if role == 'voice_actor' and len(cast.get('voice_actors', [])) >= 5:
+        raise HTTPException(400, "Hai gia 5 doppiatori (max 5)")
 
     # REJECTION CHANCE: top talent may refuse low-level players
     player = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'fame': 1})
@@ -1491,6 +1576,14 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         cast['actors'].append(proposal)
     elif role == 'composer':
         cast['composer'] = proposal
+    elif role == 'animator':
+        if not cast.get('animators'):
+            cast['animators'] = []
+        cast['animators'].append(proposal)
+    elif role == 'voice_actor':
+        if not cast.get('voice_actors'):
+            cast['voice_actors'] = []
+        cast['voice_actors'].append(proposal)
 
     # Deduct cost from funds
     cost = proposal.get('cost', 0)
@@ -1498,7 +1591,7 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, project.get('content_type', 'film'))
 
     # Calculate chemistry indicators for the current cast
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
@@ -1641,7 +1734,7 @@ async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, project.get('content_type', 'film'))
 
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
 
@@ -1674,15 +1767,18 @@ async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
         raise HTTPException(400, "Non in fase casting")
 
     cast = project.get('cast', {})
+    ct = project.get('content_type', 'film')
     if not cast.get('director'):
         raise HTTPException(400, "Serve almeno un regista")
-    if len(cast.get('actors', [])) < 2:
+    if ct != 'anime' and len(cast.get('actors', [])) < 2:
         raise HTTPException(400, "Servono almeno 2 attori")
+    if ct == 'anime' and not cast.get('animators'):
+        raise HTTPException(400, "Serve almeno un disegnatore per anime")
 
     # Final quality calculation
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, ct)
 
     # Final chemistry calculation — saved for gameplay impact
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
@@ -2396,13 +2492,187 @@ class SetReleaseMode(BaseModel):
     mode: str  # binge / daily / weekly
 
 
+# ── Episode Type System ──
+EPISODE_TYPES = {
+    'normal':        {'hype_mod': 0,    'audience_mod': 1.0,  'quality_mod': 0},
+    'peak':          {'hype_mod': 8,    'audience_mod': 1.35, 'quality_mod': 5},
+    'filler':        {'hype_mod': -3,   'audience_mod': 0.7,  'quality_mod': -3},
+    'plot_twist':    {'hype_mod': 12,   'audience_mod': 1.5,  'quality_mod': 3},
+    'season_finale': {'hype_mod': 15,   'audience_mod': 1.8,  'quality_mod': 8},
+}
+
+def _assign_episode_types(ep_count: int, content_type: str) -> list:
+    """Assign hidden episode types. Anime = more peaks, Serie TV = more continuity."""
+    types = ['normal'] * ep_count
+    types[-1] = 'season_finale'  # Last episode always finale
+
+    # Budget for special episodes based on count
+    special_budget = max(2, ep_count // 4)
+
+    # Content-type weights
+    if content_type == 'anime':
+        peak_ratio, twist_ratio, filler_ratio = 0.45, 0.25, 0.30
+    else:  # serie_tv
+        peak_ratio, twist_ratio, filler_ratio = 0.30, 0.35, 0.35
+
+    n_peak = max(1, round(special_budget * peak_ratio))
+    n_twist = max(1, round(special_budget * twist_ratio))
+    n_filler = max(0, special_budget - n_peak - n_twist)
+
+    # Available slots (exclude first ep and finale)
+    available = list(range(1, ep_count - 1))
+    random.shuffle(available)
+
+    assigned = 0
+    # Peaks tend to be in second half
+    peak_candidates = [i for i in available if i >= ep_count // 3]
+    random.shuffle(peak_candidates)
+    for idx in peak_candidates[:n_peak]:
+        types[idx] = 'peak'
+        available.remove(idx)
+        assigned += 1
+
+    # Plot twists in middle section
+    twist_candidates = [i for i in available if ep_count // 4 <= i <= ep_count * 3 // 4]
+    random.shuffle(twist_candidates)
+    for idx in twist_candidates[:n_twist]:
+        types[idx] = 'plot_twist'
+        available.remove(idx)
+        assigned += 1
+
+    # Fillers spread out
+    random.shuffle(available)
+    for idx in available[:n_filler]:
+        types[idx] = 'filler'
+
+    return types
+
+
+# Title/plot templates per type
+_EP_TITLES = {
+    'normal': [
+        "Il cammino continua", "Ombre e luci", "Nuovi orizzonti", "La scelta",
+        "Punto di svolta", "Segreti rivelati", "L'attesa", "Destini incrociati",
+        "Il prezzo da pagare", "Oltre il confine", "Risvegli", "La resa dei conti",
+        "Territori inesplorati", "Legami nascosti", "Il peso della verita",
+    ],
+    'peak': [
+        "La tempesta", "Cuore di fuoco", "L'ascesa", "Gloria e caduta",
+        "Il momento della verita", "Oltre ogni limite", "Fiamme nella notte",
+        "L'ora del destino", "Sangue e onore", "L'ultimo baluardo",
+    ],
+    'filler': [
+        "Un giorno di pausa", "Ricordi lontani", "Breve respiro", "Piccole storie",
+        "Intermezzo", "La quiete prima", "Momenti rubati", "Aria fresca",
+    ],
+    'plot_twist': [
+        "Nulla e come sembra", "Il tradimento", "Rivelazione", "Facce nascoste",
+        "La verita sepolta", "Doppio gioco", "Sotto la superficie", "Il rovescio",
+    ],
+    'season_finale': [
+        "L'ultimo atto", "Fine di un'era", "Il gran finale", "Resa dei conti finale",
+        "Quando cala il sipario", "L'ultima pagina", "Destino compiuto",
+    ],
+}
+
+_EP_PLOTS = {
+    'normal': [
+        "I protagonisti affrontano nuove sfide mentre la trama si sviluppa in direzioni inaspettate.",
+        "Relazioni messe alla prova e alleanze che vacillano in un episodio denso di tensione.",
+        "La storia avanza con colpi di scena sottili che preparano gli eventi futuri.",
+        "Un episodio che approfondisce i personaggi e rivela nuove sfaccettature della trama.",
+        "Le conseguenze delle scelte passate iniziano a farsi sentire su tutti i protagonisti.",
+    ],
+    'peak': [
+        "Un episodio esplosivo che cambia le regole del gioco per sempre.",
+        "Azione mozzafiato e rivelazioni sconvolgenti in uno degli episodi piu intensi della stagione.",
+        "Il culmine di tensioni accumulate esplode in sequenze indimenticabili.",
+        "Un punto di non ritorno che ridefinisce ogni certezza dello spettatore.",
+    ],
+    'filler': [
+        "Un momento di respiro tra i protagonisti, con sottotrame leggere ma necessarie.",
+        "Episodio di transizione che prepara il terreno per gli eventi a venire.",
+        "I personaggi secondari prendono il centro della scena in una parentesi narrativa.",
+    ],
+    'plot_twist': [
+        "Una rivelazione scioccante ribalta completamente la prospettiva della storia.",
+        "Tradimenti inaspettati e verita sepolte emergono con forza devastante.",
+        "Niente e come sembrava: un colpo di scena magistrale riscrive le regole.",
+        "Un alleato si rivela nemico e le certezze crollano una dopo l'altra.",
+    ],
+    'season_finale': [
+        "Il confronto definitivo che decidera il destino di tutti i personaggi.",
+        "Tutti i fili narrativi convergono in un finale esplosivo e carico di emozione.",
+        "L'ultimo capitolo della stagione chiude i conti aperti e ne apre di nuovi.",
+    ],
+}
+
+
+def _generate_episodes(ep_count: int, content_type: str, title: str, genre: str, season: int) -> list:
+    """Generate rich episode data. Called ONCE at release mode selection. Persisted forever."""
+    types = _assign_episode_types(ep_count, content_type)
+    episodes = []
+
+    used_titles = set()
+    used_plots = set()
+
+    for i in range(ep_count):
+        ep_type = types[i]
+        ep_num = i + 1
+
+        # Pick unique title
+        pool = list(_EP_TITLES.get(ep_type, _EP_TITLES['normal']))
+        random.shuffle(pool)
+        ep_title = pool[0]
+        for t in pool:
+            if t not in used_titles:
+                ep_title = t
+                break
+        used_titles.add(ep_title)
+
+        # Pick unique plot
+        plot_pool = list(_EP_PLOTS.get(ep_type, _EP_PLOTS['normal']))
+        random.shuffle(plot_pool)
+        ep_plot = plot_pool[0]
+        for p in plot_pool:
+            if p not in used_plots:
+                ep_plot = p
+                break
+        used_plots.add(ep_plot)
+
+        # Impact metrics per episode
+        type_data = EPISODE_TYPES[ep_type]
+        base_quality = random.randint(55, 85)
+        ep_quality = max(10, min(100, base_quality + type_data['quality_mod'] + random.randint(-5, 5)))
+
+        episodes.append({
+            'number': ep_num,
+            'title': ep_title,
+            'plot': ep_plot,
+            'episode_type': ep_type,
+            'status': 'locked',
+            'release_at': None,
+            'released_at': None,
+            'quality': ep_quality,
+            'hype_impact': type_data['hype_mod'] + random.randint(-2, 2),
+            'audience_multiplier': round(type_data['audience_mod'] + random.uniform(-0.1, 0.1), 2),
+            'rating': None,
+            'audience_count': None,
+            'watched': False,
+        })
+
+    return episodes
+
+
 @router.post("/films/{pid}/set-release-mode")
 async def set_episode_release_mode(pid: str, body: SetReleaseMode, user: dict = Depends(get_current_user)):
-    """Set episode release mode AFTER release. Permanent choice."""
+    """Set episode release mode AND generate all episodes. ONE-TIME generation, persisted forever."""
     project = await _get_project(pid, user['id'])
     ct = project.get('content_type', 'film')
     if ct == 'film':
         raise HTTPException(400, "Solo per Serie TV e Anime")
+    if project.get('episodes_generated'):
+        raise HTTPException(400, "Episodi gia generati — non rigenerabili")
     if project.get('episode_release_mode'):
         raise HTTPException(400, "Modalita gia scelta — non modificabile")
     if body.mode not in ('binge', 'daily', 'weekly'):
@@ -2410,63 +2680,296 @@ async def set_episode_release_mode(pid: str, body: SetReleaseMode, user: dict = 
 
     ep_count = project.get('episode_count', 12)
     now = _now()
-    episodes = []
-    for i in range(1, ep_count + 1):
+    now_dt = datetime.fromisoformat(now)
+
+    # Generate rich episodes ONCE
+    episodes = _generate_episodes(
+        ep_count, ct, project.get('title', ''),
+        project.get('genre', 'drama'), project.get('season_number', 1)
+    )
+
+    # Assign release schedules
+    for i, ep in enumerate(episodes):
         if body.mode == 'binge':
-            release_at = now
-            status = 'released'
+            ep['release_at'] = now
+            ep['status'] = 'released'
+            ep['released_at'] = now
         elif body.mode == 'daily':
-            release_at = (datetime.fromisoformat(now) + timedelta(days=i - 1)).isoformat()
-            status = 'released' if i == 1 else 'locked'
+            release_at = (now_dt + timedelta(days=i)).isoformat()
+            ep['release_at'] = release_at
+            if i == 0:
+                ep['status'] = 'released'
+                ep['released_at'] = now
+            else:
+                ep['status'] = 'scheduled'
         else:  # weekly
-            release_at = (datetime.fromisoformat(now) + timedelta(weeks=i - 1)).isoformat()
-            status = 'released' if i == 1 else 'locked'
-        episodes.append({
-            'number': i,
-            'status': status,
-            'release_at': release_at,
-        })
+            release_at = (now_dt + timedelta(weeks=i)).isoformat()
+            ep['release_at'] = release_at
+            if i == 0:
+                ep['status'] = 'released'
+                ep['released_at'] = now
+            else:
+                ep['status'] = 'scheduled'
+
+    # Initial hype from first episode(s)
+    initial_hype = sum(ep['hype_impact'] for ep in episodes if ep['status'] == 'released')
 
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'episode_release_mode': body.mode,
             'episodes': episodes,
+            'episodes_generated': True,
             'episodes_started_at': now,
+            'episode_hype_total': initial_hype,
+            'episode_audience_total': 0,
+            'episode_quality_avg': None,
         }}
     )
-    return {'mode': body.mode, 'episodes': episodes}
+    return {
+        'mode': body.mode,
+        'episodes': episodes,
+        'episodes_count': len(episodes),
+    }
 
 
 @router.get("/films/{pid}/episodes")
 async def get_episodes(pid: str, user: dict = Depends(get_current_user)):
-    """Get episode list with auto-unlock based on time."""
+    """Get episode list with auto-unlock based on time. Never regenerates."""
     project = await _get_project(pid, user['id'])
     episodes = project.get('episodes', [])
     now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.isoformat()
 
     updated = False
     for ep in episodes:
-        if ep['status'] == 'locked':
-            rel_dt = datetime.fromisoformat(ep['release_at'].replace('Z', '+00:00'))
-            if rel_dt.tzinfo is None:
-                rel_dt = rel_dt.replace(tzinfo=timezone.utc)
-            if now_dt >= rel_dt:
-                ep['status'] = 'released'
-                updated = True
+        if ep.get('status') in ('locked', 'scheduled'):
+            rel = ep.get('release_at')
+            if rel:
+                try:
+                    rel_dt = datetime.fromisoformat(rel.replace('Z', '+00:00'))
+                    if rel_dt.tzinfo is None:
+                        rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+                    if now_dt >= rel_dt:
+                        ep['status'] = 'released'
+                        if not ep.get('released_at'):
+                            ep['released_at'] = now_str
+                        updated = True
+                except (ValueError, TypeError):
+                    pass
 
     if updated:
         await db.film_projects.update_one({'id': pid}, {'$set': {'episodes': episodes}})
 
-    released_count = sum(1 for e in episodes if e['status'] == 'released')
+    released_eps = [e for e in episodes if e['status'] == 'released']
+    released_count = len(released_eps)
+    total = len(episodes)
+
+    # Current episode = first unreleased, or last if all released
+    current_ep = total
+    for ep in episodes:
+        if ep['status'] != 'released':
+            current_ep = ep['number']
+            break
+
+    # Calculate running stats
+    watched_eps = [e for e in episodes if e.get('watched')]
+    avg_quality = round(sum(e.get('quality', 50) for e in watched_eps) / len(watched_eps), 1) if watched_eps else None
+    avg_rating = round(sum(e.get('rating', 50) for e in watched_eps) / len(watched_eps), 1) if watched_eps else None
+
     return {
         'episodes': episodes,
-        'total': len(episodes),
+        'total': total,
         'released': released_count,
-        'all_released': released_count == len(episodes) and len(episodes) > 0,
+        'all_released': released_count == total and total > 0,
+        'current_episode': current_ep,
         'mode': project.get('episode_release_mode'),
         'content_type': project.get('content_type', 'film'),
+        'episodes_generated': project.get('episodes_generated', False),
+        'stats': {
+            'avg_quality': avg_quality,
+            'avg_rating': avg_rating,
+            'total_hype': project.get('episode_hype_total', 0),
+            'total_audience': project.get('episode_audience_total', 0),
+            'watched': len(watched_eps),
+        },
     }
+
+
+@router.post("/films/{pid}/episodes/{ep_num}/watch")
+async def watch_episode(pid: str, ep_num: int, user: dict = Depends(get_current_user)):
+    """Simulate watching an episode. Calculates rating, hype and audience impact."""
+    project = await _get_project(pid, user['id'])
+    episodes = project.get('episodes', [])
+    ct = project.get('content_type', 'film')
+
+    if ep_num < 1 or ep_num > len(episodes):
+        raise HTTPException(400, "Numero episodio non valido")
+
+    ep = episodes[ep_num - 1]
+    if ep['status'] != 'released':
+        raise HTTPException(400, "Episodio non ancora rilasciato")
+    if ep.get('watched'):
+        raise HTTPException(400, "Episodio gia visto")
+
+    # Calculate episode rating based on series quality + episode type
+    base_quality = project.get('final_quality') or project.get('pre_imdb_score', 5) * 10
+    ep_quality = ep.get('quality', 60)
+    type_data = EPISODE_TYPES.get(ep.get('episode_type', 'normal'), EPISODE_TYPES['normal'])
+
+    # Rating = mix of series quality and episode quality + randomness
+    rating = round(max(10, min(100, (base_quality * 0.4 + ep_quality * 0.6) + random.randint(-8, 8))))
+
+    # Audience calculation
+    base_audience = random.randint(5000, 50000)
+    audience_mult = ep.get('audience_multiplier', 1.0)
+
+    # Anime peaks get extra audience bonus
+    if ct == 'anime' and ep.get('episode_type') in ('peak', 'season_finale'):
+        audience_mult *= 1.2
+
+    # Serie TV continuity bonus for later episodes
+    if ct == 'serie_tv' and ep_num > len(episodes) // 2:
+        audience_mult *= 1.1
+
+    audience = int(base_audience * audience_mult)
+
+    # Hype impact
+    hype_change = ep.get('hype_impact', 0)
+
+    # Trend bonus: if previous episodes were good, audience grows
+    prev_watched = [e for e in episodes[:ep_num - 1] if e.get('watched')]
+    if prev_watched:
+        prev_avg_rating = sum(e.get('rating', 50) for e in prev_watched) / len(prev_watched)
+        if prev_avg_rating >= 70:
+            audience = int(audience * 1.15)
+            hype_change += 2
+        elif prev_avg_rating < 40:
+            audience = int(audience * 0.8)
+            hype_change -= 2
+
+    # Update episode
+    ep['watched'] = True
+    ep['rating'] = rating
+    ep['audience_count'] = audience
+    ep['watched_at'] = _now()
+
+    # Update totals
+    total_hype = (project.get('episode_hype_total', 0) or 0) + hype_change
+    total_audience = (project.get('episode_audience_total', 0) or 0) + audience
+
+    # Check if all episodes watched → calculate final series quality
+    all_watched = all(e.get('watched') for e in episodes)
+    series_final = None
+
+    update_fields = {
+        'episodes': episodes,
+        'episode_hype_total': total_hype,
+        'episode_audience_total': total_audience,
+    }
+
+    if all_watched:
+        # Final series quality: weighted average with trend
+        ratings = [e.get('rating', 50) for e in episodes if e.get('watched')]
+        avg_rating = sum(ratings) / len(ratings)
+
+        # Trend bonus: compare first half vs second half
+        mid = len(ratings) // 2
+        first_half = sum(ratings[:mid]) / max(1, mid)
+        second_half = sum(ratings[mid:]) / max(1, len(ratings) - mid)
+        trend = second_half - first_half  # positive = improving
+
+        # Finale weight
+        finale_rating = ratings[-1]
+        finale_bonus = (finale_rating - avg_rating) * 0.3
+
+        # Anime: heavier finale and peak weight
+        if ct == 'anime':
+            finale_bonus *= 1.5
+            peak_eps = [e.get('rating', 50) for e in episodes if e.get('episode_type') == 'peak' and e.get('watched')]
+            if peak_eps:
+                peak_avg = sum(peak_eps) / len(peak_eps)
+                avg_rating = avg_rating * 0.7 + peak_avg * 0.3
+
+        series_final = round(max(10, min(100, avg_rating + trend * 0.2 + finale_bonus)))
+
+        update_fields['episode_quality_avg'] = round(avg_rating, 1)
+        update_fields['series_episode_score'] = series_final
+
+    await db.film_projects.update_one({'id': pid}, {'$set': update_fields})
+
+    return {
+        'episode': ep,
+        'rating': rating,
+        'audience': audience,
+        'hype_change': hype_change,
+        'total_hype': total_hype,
+        'total_audience': total_audience,
+        'all_watched': all_watched,
+        'series_final_score': series_final,
+    }
+
+
+
+@router.post("/films/{pid}/episodes/enrich")
+async def enrich_old_episodes(pid: str, user: dict = Depends(get_current_user)):
+    """One-time enrichment of old-format episodes (adds title, plot, type). Preserves status/dates."""
+    project = await _get_project(pid, user['id'])
+    episodes = project.get('episodes', [])
+    ct = project.get('content_type', 'film')
+
+    if not episodes:
+        raise HTTPException(400, "Nessun episodio trovato")
+    if project.get('episodes_generated'):
+        raise HTTPException(400, "Episodi gia nel formato completo")
+    if episodes[0].get('title'):
+        raise HTTPException(400, "Episodi gia arricchiti")
+
+    ep_count = len(episodes)
+    types = _assign_episode_types(ep_count, ct)
+    used_titles = set()
+    used_plots = set()
+
+    for i, ep in enumerate(episodes):
+        ep_type = types[i]
+        pool = list(_EP_TITLES.get(ep_type, _EP_TITLES['normal']))
+        random.shuffle(pool)
+        ep_title = pool[0]
+        for t in pool:
+            if t not in used_titles:
+                ep_title = t
+                break
+        used_titles.add(ep_title)
+
+        plot_pool = list(_EP_PLOTS.get(ep_type, _EP_PLOTS['normal']))
+        random.shuffle(plot_pool)
+        ep_plot = plot_pool[0]
+        for p in plot_pool:
+            if p not in used_plots:
+                ep_plot = p
+                break
+        used_plots.add(ep_plot)
+
+        type_data = EPISODE_TYPES[ep_type]
+        base_quality = random.randint(55, 85)
+        ep_quality = max(10, min(100, base_quality + type_data['quality_mod'] + random.randint(-5, 5)))
+
+        ep['title'] = ep_title
+        ep['plot'] = ep_plot
+        ep['episode_type'] = ep_type
+        ep['quality'] = ep_quality
+        ep['hype_impact'] = type_data['hype_mod'] + random.randint(-2, 2)
+        ep['audience_multiplier'] = round(type_data['audience_mod'] + random.uniform(-0.1, 0.1), 2)
+        ep.setdefault('rating', None)
+        ep.setdefault('audience_count', None)
+        ep.setdefault('watched', False)
+
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {'episodes': episodes, 'episodes_generated': True}}
+    )
+    return {'enriched': len(episodes), 'episodes': episodes}
+
 
 
 class CreateSeasonBody(BaseModel):
@@ -2626,6 +3129,11 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
             'screenwriter': None,
             'actors': returning_actors,
             'composer': prev_cast.get('composer'),
+            # Anime roles: inherit all animators and voice actors
+            **(
+                {'animators': prev_cast.get('animators', []), 'voice_actors': prev_cast.get('voice_actors', [])}
+                if ct in ('anime',) else {}
+            ),
         },
         'cast_proposals': [],
         'cast_locked': False,

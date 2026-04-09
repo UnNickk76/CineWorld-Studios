@@ -66,6 +66,21 @@ class UpdateAdsRequest(BaseModel):
     station_id: str
     ad_seconds: int
 
+class StartBroadcastRequest(BaseModel):
+    station_id: str
+    content_id: str
+    air_interval_days: int = 1  # 0=binge, 1=daily, 2-7=custom
+
+class RetireSeriesRequest(BaseModel):
+    station_id: str
+    content_id: str
+
+class StartRerunsRequest(BaseModel):
+    station_id: str
+    content_id: str
+
+RERUN_MULTIPLIER = 0.4  # Reruns get 40% of original audience/revenue
+
 
 @router.post("/tv-stations/setup-step1")
 async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_user)):
@@ -94,7 +109,7 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
         raise HTTPException(400, "Questo nome è già in uso da un'altra emittente")
     
     if req.nation not in NATIONS:
-        raise HTTPException(400, f"Nazione non valida")
+        raise HTTPException(400, "Nazione non valida")
     
     now = datetime.now(timezone.utc).isoformat()
     station = {
@@ -227,22 +242,25 @@ async def get_my_stations(user: dict = Depends(get_current_user)):
 
 @router.get("/tv-stations/{station_id}")
 async def get_station(station_id: str, user: dict = Depends(get_current_user)):
-    """Get a single TV station with enriched content data."""
+    """Get a single TV station with enriched content data and auto-advance broadcasts."""
     station = await db.tv_stations.find_one({'id': station_id}, {'_id': 0})
     if not station:
         raise HTTPException(404, "Stazione non trovata")
-    
+
+    # Auto-advance any airing broadcasts
+    station = await _auto_advance_broadcasts(station)
+
     is_owner = station['user_id'] == user['id']
     contents = station.get('contents', {})
-    
+
     # Get infrastructure level and capacity
     infra = await db.infrastructure.find_one({'id': station.get('infra_id')}, {'_id': 0, 'level': 1, 'custom_name': 1, 'city': 1, 'country': 1})
     infra_level = infra.get('level', 1) if infra else 1
     capacity = get_schedule_capacity(infra_level)
-    
+
     # Enrich content data
     enriched = {'films': [], 'tv_series': [], 'anime': []}
-    
+
     film_ids = [c['content_id'] for c in contents.get('films', [])]
     if film_ids:
         films = await db.films.find(
@@ -250,26 +268,51 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
             {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'status': 1}
         ).to_list(100)
         enriched['films'] = films
-    
-    series_ids = [c['content_id'] for c in contents.get('tv_series', []) + contents.get('anime', [])]
-    if series_ids:
-        series = await db.tv_series.find(
-            {'id': {'$in': series_ids}},
-            {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'genre_name': 1, 'quality_score': 1, 'type': 1, 'num_episodes': 1, 'status': 1}
-        ).to_list(100)
-        for s in series:
-            if s.get('type') == 'anime':
-                enriched['anime'].append(s)
-            else:
-                enriched['tv_series'].append(s)
-    
+
+    # Enrich series/anime with broadcast metadata
+    for key in ['tv_series', 'anime']:
+        for entry in contents.get(key, []):
+            cid = entry['content_id']
+            source = entry.get('source', 'tv_series')
+            item = None
+            if source == 'film_projects':
+                item = await db.film_projects.find_one(
+                    {'id': cid},
+                    {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1,
+                     'content_type': 1, 'episode_count': 1, 'episode_release_mode': 1}
+                )
+                if item:
+                    item['genre_name'] = item.pop('genre', '')
+                    item['num_episodes'] = item.pop('episode_count', 12)
+                    item['type'] = 'anime' if item.pop('content_type', '') == 'anime' else 'tv_series'
+            if not item:
+                item = await db.tv_series.find_one(
+                    {'id': cid},
+                    {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre_name': 1, 'quality_score': 1,
+                     'type': 1, 'num_episodes': 1}
+                )
+            if item:
+                # Attach broadcast metadata
+                item['broadcast_state'] = entry.get('broadcast_state', 'idle')
+                item['current_episode'] = entry.get('current_episode', 0)
+                item['total_episodes'] = entry.get('total_episodes', item.get('num_episodes', 0))
+                item['air_interval_days'] = entry.get('air_interval_days', 1)
+                item['next_air_at'] = entry.get('next_air_at')
+                item['last_aired_at'] = entry.get('last_aired_at')
+                item['broadcast_started_at'] = entry.get('broadcast_started_at')
+                item['rerun_count'] = entry.get('rerun_count', 0)
+                item['episodes_aired'] = len(entry.get('ep_broadcast_log', []))
+                item['broadcast_viewers'] = sum(e.get('viewers', 0) for e in entry.get('ep_broadcast_log', []))
+                item['broadcast_revenue'] = sum(e.get('revenue', 0) for e in entry.get('ep_broadcast_log', []))
+                enriched[key].append(item)
+
     # Calculate current share/audience
     share_data = _calc_share_and_revenue(station, enriched)
-    
+
     # Build Netflix sections
     all_content = enriched['films'] + enriched['tv_series'] + enriched['anime']
     sections = _build_netflix_sections(all_content)
-    
+
     return {
         "station": station,
         "enriched_contents": enriched,
@@ -329,20 +372,64 @@ async def add_content(req: AddContentRequest, user: dict = Depends(get_current_u
         key = 'anime' if req.content_type == 'anime' else 'tv_series'
         if len(contents.get(key, [])) >= cap[key]:
             raise HTTPException(400, f"Limite {key.replace('_', ' ')} raggiunto ({cap[key]}). Migliora l'infrastruttura per aggiungerne di più.")
-        series = await db.tv_series.find_one(
-            {'id': req.content_id, 'user_id': user['id'], 'status': 'completed'},
-            {'_id': 0, 'id': 1, 'title': 1, 'type': 1}
+
+        # Try film_projects first (Pipeline V2), then tv_series (old pipeline)
+        source = None
+        series = None
+        total_eps = 0
+
+        fp = await db.film_projects.find_one(
+            {'id': req.content_id, 'user_id': user['id'], 'content_type': {'$in': ['serie_tv', 'anime']},
+             'pipeline_state': {'$in': ['released', 'completed']}},
+            {'_id': 0, 'id': 1, 'title': 1, 'content_type': 1, 'episode_count': 1,
+             'episode_release_mode': 1, 'episodes_generated': 1}
         )
+        if fp:
+            source = 'film_projects'
+            series = fp
+            total_eps = fp.get('episode_count', 12)
+        else:
+            ts = await db.tv_series.find_one(
+                {'id': req.content_id, 'user_id': user['id'], 'status': 'completed'},
+                {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'num_episodes': 1}
+            )
+            if ts:
+                source = 'tv_series'
+                series = ts
+                total_eps = ts.get('num_episodes', 10)
+
         if not series:
             raise HTTPException(404, "Serie non trovata o non completata")
-        actual_key = 'anime' if series.get('type') == 'anime' else 'tv_series'
+
+        actual_key = key
+        if source == 'tv_series':
+            actual_key = 'anime' if series.get('type') == 'anime' else 'tv_series'
+        elif source == 'film_projects':
+            actual_key = 'anime' if series.get('content_type') == 'anime' else 'tv_series'
+
         existing = [c['content_id'] for c in contents.get(actual_key, [])]
         if req.content_id in existing:
             raise HTTPException(400, "Questo contenuto è già nella programmazione")
-        content_entry = {'content_id': req.content_id, 'added_at': datetime.now(timezone.utc).isoformat()}
+
+        now = datetime.now(timezone.utc).isoformat()
+        content_entry = {
+            'content_id': req.content_id,
+            'added_at': now,
+            'source': source,
+            'broadcast_state': 'idle',
+            'total_episodes': total_eps,
+            'current_episode': 0,
+            'air_interval_days': 1,
+            'broadcast_started_at': None,
+            'next_air_at': None,
+            'last_aired_at': None,
+            'rerun_count': 0,
+            'rerun_multiplier': 1.0,
+            'ep_broadcast_log': [],
+        }
         await db.tv_stations.update_one(
             {'id': req.station_id},
-            {'$push': {f'contents.{actual_key}': content_entry}, '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
+            {'$push': {f'contents.{actual_key}': content_entry}, '$set': {'updated_at': now}}
         )
         return {"message": f"'{series['title']}' aggiunto alla programmazione!"}
     else:
@@ -494,7 +581,7 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
         },
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre_name': 1, 'quality_score': 1, 'num_episodes': 1}
     ).to_list(100)
-    
+
     available_anime = await db.tv_series.find(
         {
             'user_id': user['id'],
@@ -504,6 +591,35 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
         },
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre_name': 1, 'quality_score': 1, 'num_episodes': 1}
     ).to_list(100)
+
+    # Also check Pipeline V2 released series/anime (film_projects)
+    fp_series = await db.film_projects.find(
+        {
+            'user_id': user['id'],
+            'content_type': 'serie_tv',
+            'pipeline_state': {'$in': ['released', 'completed']},
+            'id': {'$nin': existing_series_ids}
+        },
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1, 'episode_count': 1}
+    ).to_list(100)
+    for fp in fp_series:
+        fp['genre_name'] = fp.pop('genre', '')
+        fp['num_episodes'] = fp.pop('episode_count', 12)
+    available_series.extend(fp_series)
+
+    fp_anime = await db.film_projects.find(
+        {
+            'user_id': user['id'],
+            'content_type': 'anime',
+            'pipeline_state': {'$in': ['released', 'completed']},
+            'id': {'$nin': existing_series_ids}
+        },
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1, 'episode_count': 1}
+    ).to_list(100)
+    for fp in fp_anime:
+        fp['genre_name'] = fp.pop('genre', '')
+        fp['num_episodes'] = fp.pop('episode_count', 12)
+    available_anime.extend(fp_anime)
     
     return {
         "films": available_films,
@@ -712,19 +828,448 @@ def _build_netflix_sections(all_content):
     """Build Netflix-style sections from content list."""
     if not all_content:
         return {'consigliati': [], 'del_momento': [], 'piu_visti': []}
-    
+
     # Consigliati: highest quality
     by_quality = sorted(all_content, key=lambda c: c.get('quality_score', 0), reverse=True)
-    
+
     # Del Momento: random shuffle for variety
     del_momento = list(all_content)
     random.shuffle(del_momento)
-    
+
     # Più Visti: by likes/revenue (best performing)
     by_popularity = sorted(all_content, key=lambda c: c.get('virtual_likes', 0) + c.get('total_revenue', 0) / 1000, reverse=True)
-    
+
     return {
         'consigliati': by_quality[:10],
         'del_momento': del_momento[:10],
         'piu_visti': by_popularity[:10],
     }
+
+
+# === BROADCAST SYSTEM ===
+
+async def _auto_advance_broadcasts(station):
+    """Auto-advance episode broadcasts based on real time. Returns updated station."""
+    now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.isoformat()
+    updated = False
+    total_new_revenue = 0
+
+    for key in ['tv_series', 'anime']:
+        entries = station.get('contents', {}).get(key, [])
+        for entry in entries:
+            if entry.get('broadcast_state') != 'airing':
+                continue
+            next_air = entry.get('next_air_at')
+            if not next_air:
+                continue
+            try:
+                next_dt = datetime.fromisoformat(next_air.replace('Z', '+00:00'))
+                if next_dt.tzinfo is None:
+                    next_dt = next_dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                continue
+
+            # Air episodes that are due
+            while now_dt >= next_dt:
+                cur_ep = entry.get('current_episode', 0)
+                total = entry.get('total_episodes', 0)
+
+                # Backward compat: ensure ep_broadcast_log exists
+                if 'ep_broadcast_log' not in entry:
+                    entry['ep_broadcast_log'] = []
+
+                if cur_ep >= total:
+                    entry['broadcast_state'] = 'completed'
+                    entry['next_air_at'] = None
+                    updated = True
+                    break
+
+                # Calculate per-episode performance
+                ep_data = await _get_episode_data(entry, cur_ep)
+                perf = _calc_episode_performance(ep_data, station, entry.get('rerun_multiplier', 1.0))
+
+                entry['ep_broadcast_log'].append({
+                    'ep': cur_ep,
+                    'aired_at': next_dt.isoformat(),
+                    'viewers': perf['viewers'],
+                    'revenue': perf['revenue'],
+                    'rating': perf.get('rating', 0),
+                })
+                entry['last_aired_at'] = next_dt.isoformat()
+                entry['current_episode'] = cur_ep + 1
+                updated = True
+                total_new_revenue += perf['revenue']
+
+                # Credit station
+                station['total_revenue'] = station.get('total_revenue', 0) + perf['revenue']
+                station['total_viewers'] = station.get('total_viewers', 0) + perf['viewers']
+
+                # Check if series completed
+                if cur_ep + 1 >= total:
+                    entry['broadcast_state'] = 'completed'
+                    entry['next_air_at'] = None
+                    break
+                else:
+                    interval = entry.get('air_interval_days', 1)
+                    if interval <= 0:
+                        # Binge: all episodes air at once, no time gap
+                        continue
+                    else:
+                        next_dt = next_dt + timedelta(days=interval)
+                    entry['next_air_at'] = next_dt.isoformat()
+                    if now_dt < next_dt:
+                        break
+
+    if updated:
+        await db.tv_stations.update_one(
+            {'id': station['id']},
+            {'$set': {
+                'contents': station['contents'],
+                'total_revenue': station.get('total_revenue', 0),
+                'total_viewers': station.get('total_viewers', 0),
+                'updated_at': now_str,
+            }}
+        )
+        if total_new_revenue > 0:
+            await db.users.update_one(
+                {'id': station['user_id']},
+                {'$inc': {'funds': total_new_revenue}}
+            )
+
+    return station
+
+
+async def _get_episode_data(entry, ep_num):
+    """Fetch episode details from source collection."""
+    cid = entry['content_id']
+    source = entry.get('source', 'tv_series')
+
+    if source == 'film_projects':
+        fp = await db.film_projects.find_one(
+            {'id': cid},
+            {'_id': 0, 'episodes': 1, 'quality_score': 1}
+        )
+        if fp and fp.get('episodes'):
+            eps = fp['episodes']
+            if ep_num < len(eps):
+                ep = eps[ep_num]
+                return {
+                    'number': ep.get('number', ep_num + 1),
+                    'title': ep.get('title', f'Episodio {ep_num + 1}'),
+                    'episode_type': ep.get('episode_type', 'normal'),
+                    'quality': ep.get('quality', 65),
+                    'hype_impact': ep.get('hype_impact', 5),
+                    'audience_multiplier': ep.get('audience_multiplier', 1.0),
+                }
+        return {'number': ep_num + 1, 'title': f'Episodio {ep_num + 1}', 'episode_type': 'normal',
+                'quality': 65, 'hype_impact': 5, 'audience_multiplier': 1.0}
+    else:
+        ts = await db.tv_series.find_one(
+            {'id': cid},
+            {'_id': 0, 'episodes': 1, 'quality_score': 1}
+        )
+        if ts and ts.get('episodes'):
+            eps = ts['episodes']
+            if ep_num < len(eps):
+                ep = eps[ep_num]
+                return {
+                    'number': ep.get('number', ep_num + 1),
+                    'title': ep.get('title', f'Episodio {ep_num + 1}'),
+                    'episode_type': 'normal',
+                    'quality': ep.get('quality_score', 65),
+                    'hype_impact': 5,
+                    'audience_multiplier': 1.0,
+                }
+        qs = ts.get('quality_score', 60) if ts else 60
+        return {'number': ep_num + 1, 'title': f'Episodio {ep_num + 1}', 'episode_type': 'normal',
+                'quality': qs, 'hype_impact': 5, 'audience_multiplier': 1.0}
+
+
+def _calc_episode_performance(ep_data, station, rerun_mult=1.0):
+    """Calculate viewers and revenue for a single episode broadcast."""
+    quality = ep_data.get('quality', 65)
+    ep_type = ep_data.get('episode_type', 'normal')
+    aud_mult = ep_data.get('audience_multiplier', 1.0)
+    ad_seconds = station.get('ad_seconds', 30)
+
+    # Base viewers from quality
+    base_viewers = int(BASE_HOURLY_VIEWERS * (quality / 50) * random.uniform(0.85, 1.15))
+
+    # Type bonus
+    type_mult = {'normal': 1.0, 'peak': 1.35, 'filler': 0.7, 'plot_twist': 1.5, 'season_finale': 1.8}
+    base_viewers = int(base_viewers * type_mult.get(ep_type, 1.0) * aud_mult)
+
+    # Rerun reduction
+    viewers = int(base_viewers * rerun_mult)
+
+    # Revenue from ad seconds
+    ad_mult = 1.0 + (ad_seconds / 60)
+    revenue = int((viewers / 1000) * AD_REVENUE_PER_1K * ad_mult * rerun_mult)
+    revenue = min(revenue, 25000)
+
+    rating = round(min(10, (quality / 10) * random.uniform(0.85, 1.1)), 1)
+
+    return {'viewers': viewers, 'revenue': revenue, 'rating': rating}
+
+
+@router.post("/tv-stations/start-broadcast")
+async def start_broadcast(req: StartBroadcastRequest, user: dict = Depends(get_current_user)):
+    """Start broadcasting a series/anime episode by episode."""
+    station = await db.tv_stations.find_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    interval = max(0, min(7, req.air_interval_days))
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat()
+
+    # Find the content entry
+    found = False
+    for key in ['tv_series', 'anime']:
+        entries = station.get('contents', {}).get(key, [])
+        for entry in entries:
+            if entry['content_id'] == req.content_id:
+                state = entry.get('broadcast_state', 'idle')
+                if state == 'airing':
+                    raise HTTPException(400, "Trasmissione già in corso!")
+                if state == 'retired':
+                    raise HTTPException(400, "Serie ritirata. Rimuovila e riaggiungi per trasmettere.")
+
+                total = entry.get('total_episodes', 0)
+
+                # Backward compat: fetch total_episodes from source if missing
+                if total == 0:
+                    cid = entry['content_id']
+                    source = entry.get('source', 'tv_series')
+                    if source == 'film_projects':
+                        fp = await db.film_projects.find_one({'id': cid}, {'_id': 0, 'episode_count': 1})
+                        if fp:
+                            total = fp.get('episode_count', 0)
+                    else:
+                        ts = await db.tv_series.find_one({'id': cid}, {'_id': 0, 'num_episodes': 1, 'episodes': 1})
+                        if ts:
+                            total = ts.get('num_episodes', 0) or len(ts.get('episodes', []))
+                    entry['total_episodes'] = total
+
+                if total == 0:
+                    raise HTTPException(400, "Nessun episodio disponibile")
+
+                entry['broadcast_state'] = 'airing'
+                entry['current_episode'] = 0
+                entry['air_interval_days'] = interval
+                entry['broadcast_started_at'] = now_str
+                entry['next_air_at'] = now_str  # First episode airs now
+                entry['last_aired_at'] = None
+                entry['rerun_multiplier'] = 1.0 if state != 'reruns' else RERUN_MULTIPLIER
+                if state in ('completed', 'reruns'):
+                    entry['rerun_count'] = entry.get('rerun_count', 0) + 1
+                    entry['rerun_multiplier'] = RERUN_MULTIPLIER
+                    entry['ep_broadcast_log'] = []
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(404, "Contenuto non trovato nella programmazione")
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$set': {'contents': station['contents'], 'updated_at': now_str}}
+    )
+
+    label = "Repliche avviate" if entry.get('rerun_count', 0) > 0 else "Trasmissione avviata"
+    return {"message": f"{label}! Primo episodio in onda ora.", "broadcast_state": "airing"}
+
+
+@router.get("/tv-stations/{station_id}/broadcast/{content_id}")
+async def get_broadcast_detail(station_id: str, content_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed broadcast status for a series including episode list."""
+    station = await db.tv_stations.find_one({'id': station_id}, {'_id': 0})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    # Auto-advance first
+    station = await _auto_advance_broadcasts(station)
+
+    entry = None
+    content_key = None
+    for key in ['tv_series', 'anime']:
+        for e in station.get('contents', {}).get(key, []):
+            if e['content_id'] == content_id:
+                entry = e
+                content_key = key
+                break
+        if entry:
+            break
+
+    if not entry:
+        raise HTTPException(404, "Contenuto non trovato nella programmazione")
+
+    # Fetch episode details from source
+    source = entry.get('source', 'tv_series')
+    episodes = []
+    series_title = ''
+    series_poster = ''
+
+    if source == 'film_projects':
+        fp = await db.film_projects.find_one(
+            {'id': content_id},
+            {'_id': 0, 'title': 1, 'poster_url': 1, 'episodes': 1, 'quality_score': 1, 'content_type': 1}
+        )
+        if fp:
+            series_title = fp.get('title', '')
+            series_poster = fp.get('poster_url', '')
+            for ep in fp.get('episodes', []):
+                episodes.append({
+                    'number': ep.get('number', 0),
+                    'title': ep.get('title', ''),
+                    'plot': ep.get('plot', ''),
+                    'episode_type': ep.get('episode_type', 'normal'),
+                    'quality': ep.get('quality', 65),
+                })
+    else:
+        ts = await db.tv_series.find_one(
+            {'id': content_id},
+            {'_id': 0, 'title': 1, 'poster_url': 1, 'episodes': 1, 'quality_score': 1, 'num_episodes': 1}
+        )
+        if ts:
+            series_title = ts.get('title', '')
+            series_poster = ts.get('poster_url', '')
+            for ep in ts.get('episodes', []):
+                episodes.append({
+                    'number': ep.get('number', 0),
+                    'title': ep.get('title', ''),
+                    'plot': ep.get('mini_plot', ''),
+                    'episode_type': 'normal',
+                    'quality': ep.get('quality_score', 65),
+                })
+            # Fill missing episodes
+            if len(episodes) < entry.get('total_episodes', 0):
+                for i in range(len(episodes), entry.get('total_episodes', 0)):
+                    episodes.append({
+                        'number': i + 1,
+                        'title': f'Episodio {i + 1}',
+                        'plot': '',
+                        'episode_type': 'normal',
+                        'quality': ts.get('quality_score', 65),
+                    })
+
+    # Merge broadcast log data into episodes
+    log = {e['ep']: e for e in entry.get('ep_broadcast_log', [])}
+    for ep in episodes:
+        num = ep['number'] - 1  # 0-indexed in log
+        if num in log:
+            ep['broadcast_state'] = 'aired'
+            ep['aired_at'] = log[num].get('aired_at')
+            ep['viewers'] = log[num].get('viewers', 0)
+            ep['revenue'] = log[num].get('revenue', 0)
+            ep['broadcast_rating'] = log[num].get('rating', 0)
+        elif num == entry.get('current_episode', 0) and entry.get('broadcast_state') == 'airing':
+            ep['broadcast_state'] = 'on_air'
+            ep['next_air_at'] = entry.get('next_air_at')
+        elif num > entry.get('current_episode', 0):
+            ep['broadcast_state'] = 'pending'
+        else:
+            ep['broadcast_state'] = 'pending'
+
+    total_viewers = sum(e.get('viewers', 0) for e in entry.get('ep_broadcast_log', []))
+    total_revenue = sum(e.get('revenue', 0) for e in entry.get('ep_broadcast_log', []))
+
+    return {
+        'content_id': content_id,
+        'series_title': series_title,
+        'series_poster': series_poster,
+        'content_key': content_key,
+        'broadcast_state': entry.get('broadcast_state', 'idle'),
+        'current_episode': entry.get('current_episode', 0),
+        'total_episodes': entry.get('total_episodes', 0),
+        'air_interval_days': entry.get('air_interval_days', 1),
+        'broadcast_started_at': entry.get('broadcast_started_at'),
+        'next_air_at': entry.get('next_air_at'),
+        'last_aired_at': entry.get('last_aired_at'),
+        'rerun_count': entry.get('rerun_count', 0),
+        'total_viewers': total_viewers,
+        'total_revenue': total_revenue,
+        'episodes': episodes,
+    }
+
+
+@router.post("/tv-stations/retire-series")
+async def retire_series(req: RetireSeriesRequest, user: dict = Depends(get_current_user)):
+    """Retire a completed series from broadcast."""
+    station = await db.tv_stations.find_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    found = False
+    for key in ['tv_series', 'anime']:
+        for entry in station.get('contents', {}).get(key, []):
+            if entry['content_id'] == req.content_id:
+                state = entry.get('broadcast_state', 'idle')
+                if state == 'airing':
+                    raise HTTPException(400, "Non puoi ritirare una serie in onda! Aspetta la fine della trasmissione.")
+                entry['broadcast_state'] = 'retired'
+                entry['next_air_at'] = None
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$set': {'contents': station['contents'], 'updated_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Serie ritirata dal palinsesto.", "broadcast_state": "retired"}
+
+
+@router.post("/tv-stations/start-reruns")
+async def start_reruns(req: StartRerunsRequest, user: dict = Depends(get_current_user)):
+    """Start reruns for a completed series (40% audience/revenue)."""
+    station = await db.tv_stations.find_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    found = False
+    for key in ['tv_series', 'anime']:
+        for entry in station.get('contents', {}).get(key, []):
+            if entry['content_id'] == req.content_id:
+                state = entry.get('broadcast_state', 'idle')
+                if state not in ('completed', 'retired'):
+                    raise HTTPException(400, "Le repliche sono disponibili solo per serie completate o ritirate.")
+
+                now_str = datetime.now(timezone.utc).isoformat()
+                entry['broadcast_state'] = 'airing'
+                entry['current_episode'] = 0
+                entry['broadcast_started_at'] = now_str
+                entry['next_air_at'] = now_str
+                entry['last_aired_at'] = None
+                entry['rerun_count'] = entry.get('rerun_count', 0) + 1
+                entry['rerun_multiplier'] = RERUN_MULTIPLIER
+                entry['ep_broadcast_log'] = []
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$set': {'contents': station['contents'], 'updated_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": f"Repliche avviate! Audience al {int(RERUN_MULTIPLIER*100)}%.", "broadcast_state": "airing"}

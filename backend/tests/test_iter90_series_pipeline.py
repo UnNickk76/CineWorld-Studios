@@ -6,7 +6,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://anime-seasons-hub.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://series-pipeline.preview.emergentagent.com')
 TEST_EMAIL = "fandrex1@gmail.com"
 TEST_PASSWORD = "Ciaociao1"
 

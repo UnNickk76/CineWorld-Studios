@@ -1,60 +1,45 @@
-<analysis>**original_problem_statement**: 
-Implementare il sistema di episodi, rilascio e stagioni per Serie TV e Anime. Requisiti:
-- Aggiunta campo  (film, serie_tv, anime).
-- Scelta numero episodi (8-24) e formula della qualità finale influenzata dagli episodi.
-- Scelta modalità di distribuzione (binge, daily, weekly) post-completamento, con stato bloccato/rilasciato.
-- Generazione Nuova Stagione: Mantenere continuità narrativa e cast (almeno 50% fisso, con uscite dinamiche), applicare bonus/malus basati sui risultati della stagione precedente, applicare fatica del franchise (maggiore difficoltà ad ogni stagione) e dare un peso altissimo alla nuova sceneggiatura per determinare il successo o il flop della nuova stagione.
-- *NOTA:* Non alterare la pipeline dei Film standard.
+<analysis><handoff summary>
+**original_problem_statement**: 
+Completare il sistema delle Serie TV e Anime implementando le dinamiche avanzate per gli Episodi, i ruoli del Cast specifici per l'animazione e completando l'integrazione con l'Infrastruttura di Rete TV (Palinsesto). 
+Requisiti raggiunti: Generazione unica e persistente degli episodi con trama, tipologia nascosta (peak, filler, finale) e UI stile Netflix; Cast dedicato per gli anime (animatori, doppiatori) con pesi specifici; Tool di migrazione da Pipeline V1 a V2.
+Requisiti da completare (Attuale): Integrare gli episodi generati nel Palinsesto TV () per gestirne la messa in onda, la chiusura della stagione, il ritiro o le repliche (con calcoli di performance dinamici).
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-La Pipeline V2 è stata pesantemente potenziata. In questa sessione sono stati creati:
-- **Fix ContestsPage**: Risolto padding UI, scroll, e aggiunta logica di sblocco automatico ogni 4 ore e assegnazione corretta dei CinePass.
-- **Distribuzione V2 (Release Schedule)**: Rilascio immediato o ritardato (fino a 7 giorni) con allocazione budget e CinePass per zone specifiche (mondiale, continenti, nazioni).
-- **Cinematic Release Overlay**: Sequenza iconica di rilascio in 9 fasi implementata in puro CSS in , attivata tramite flag .
-- **Base Serie TV/Anime**: Inserito , selettore episodi, logica di rilascio (binge, daily, weekly) e UI aggiornata in  per mostrare badge e UI dedicate.
-- **Logica Nuova Stagione (Backend)**: Aggiornato l'endpoint  per gestire uscite dinamiche, ereditarietà, fatica del franchise e moltiplicatori della sceneggiatura. 
+- Backend Pipeline V2 robusto con gestione completa di stagioni multiple, fatica del franchise ed ereditarietà narrativa (la AI ora legge la trama della stagione precedente).
+- Pannello di Migrazione interno ( e ) per aggiornare i progetti dalla V1 alla V2 in modo sicuro.
+- Sistema episodi persistente in : gli episodi vengono generati UNA SOLA VOLTA (con titolo, trama, tipo come  o ), arricchiti progressivamente con audience e rating. UI stile Netflix implementata su .
+- Sistema di Casting aggiornato: per gli Anime ora richiede/propone  e  con pesi sul quality_score ad hoc per il content type.
 
 **Last working item**: 
-    - Last item agent was working: Implementazione dei requisiti avanzati per le Stagioni di Serie TV/Anime (Fatica del franchise, peso estremo della nuova sceneggiatura, e continuità minima del cast). Il main agent ha appena eseguito un  nel backend () sull'endpoint  e sulla logica di calcolo della qualità.
+    - Last item agent was working: Integrazione degli Episodi nel sistema TV (). L'agente ha appena iniziato a leggere il file backend  per capire come inserire nel palinsesto i singoli episodi delle serie TV/Anime (binge, giornaliero, custom), gestire gli orari di trasmissione e il ciclo di vita (trasmissione -> fine -> ritira/repliche).
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by curl / python -c. (STRICT RULE: NO testing agent / NO screenshots per user's explicit instruction No test agent no screenshot, mi fido di te).
+    - Which testing method agent to use? manual testing by curl/python -c (L'utente ha precedentemente espresso forte preferenza per test manuali senza agenti automatici/screenshot a meno che non sia strettamente necessario, procedere con molta cautela e validare sempre con CURL).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Test e Finalizzazione Logica Nuova Stagione (P0)
-     - Attempted fixes: Modificato l'endpoint  in  per includere , , e uscite dinamiche del cast.
-     - Next debug checklist: 
-       - Verificare via  che l'endpoint  funzioni senza errori 500 (attenzione a variabili  per film mai rilasciati).
-       - Verificare che il calcolo della  al momento del rilascio (in ) calcoli correttamente il peso della sceneggiatura rispetto alla fatica del franchise per i sequel.
-     - Why fix this issue and what will be achieved with the fix? L'utente ha richiesto espressamente regole stringenti sulla continuità narrativa e sul bilanciamento della difficoltà per le stagioni successive.
-     - Status: TESTING PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? backend (via curl)
-     - Blocked on other issue: Nessuno
-
-  Issue 2: Fix minigiochi residui (P1)
-     - Attempted fixes: Nessuno recente, l'agente precedente ha fixato la UI generale e i timer, ma i bug interni ad alcuni minigiochi (TapCiak, ecc.) rimangono nel backlog.
+  Issue 1: Fix minigiochi residui (P1)
+     - Attempted fixes: Nessuno recente, bug interni ad alcuni minigiochi (TapCiak, ecc.) rimangono nel backlog dal fork precedente.
      - Next debug checklist: Controllare logiche interne minigiochi arcade.
-     - Why fix this issue and what will be achieved with the fix? Pulizia definitiva della sezione Arcade/Contest.
+     - Why fix this issue and what will be achieved with the fix? Pulizia definitiva sezione Arcade.
      - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (manual testing)
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: Nessuno
 
 **In progress Task List**: 
-  Task 1: Integrazione episodi nel Palinsesto TV
-     - Where to resume: L'utente ha richiesto che se si possiede l'infrastruttura TV, gli episodi vengano inseriti automaticamente nel palinsesto. Il sistema episodi/release_mode è stato creato, ma il collegamento con  (o le rotte TV) non sembra completato.
-     - What will be achieved with this? Interconnessione tra il modulo Tycoon (TV Network) e le nuove Serie TV.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? backend
-     - Blocked on something: Issue 1 (Logica stagioni)
+  Task 1: Integrazione Episodi nel Palinsesto TV (P0)
+     - Where to resume: Continuare l'analisi di  e . 
+     - What will be achieved with this? Trasformare le serie e gli anime in contenuti trasmissibili in tempo reale sull'emittente TV dell'utente. Si dovrà schedulare la messa in onda degli episodi basata su orari fissi, calcolare le performance step-by-step per episodio, visualizzare una UI stile Netflix nel pannello TV e attivare opzioni post-trasmissione (Ritira, Avvia Repliche).
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: Nessuno. Assicurarsi solo di NON duplicare i dati degli episodi nel DB, ma aggiornare lo stato in  e gestire la messa in onda via .
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Integrazione TV — episodi automatici nel palinsesto.
+    - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione (e il TV palinsesto) a chi acquista.
     - (P2) Sfida della Settimana (minigioco rotante con premi extra).
     Future Tasks:
     - (P3) Previsioni Festival.
@@ -62,82 +47,82 @@ La Pipeline V2 è stata pesantemente potenziata. In questa sessione sono stati c
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Push notifications, Velion Livelli.
 
 **Completed work in this session**
-- Fix bug UI pagina Contest e sblocco temporale automatico minigiochi (DONE)
-- Sistema Distribuzione Uscita V2 (Zone/Date scheduling) (DONE)
-- Rilascio Cinematografico Ultra (Overlay 9-fasi CSS in ) (DONE)
-- Integrazione  (Serie/Anime) nella Pipeline V2 (DONE)
-- Sistema episodi (slider 8-24) e modalità rilascio (binge, daily, weekly) (DONE)
-- Creazione UI per Episodi e Nuova Stagione nel Board di Pipeline V2 (DONE)
+- Test e Fix logica Nuova Stagione (Franchise fatigue e Screenplay weight) (DONE)
+- Fix bug ereditarietà narrativa (la AI ora legge correttamente ) (DONE)
+- Tool Migrazione Sicura Admin V1 -> V2 (DONE)
+- Generazione Episodi ricca (tipi dinamici: normal/peak/filler ecc.) e UI Episodi Netflix style (DONE)
+- Implementazione Casting per Anime (animatori, doppiatori) con ricalcolo quality_score dedicato (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-Nessuno rilevante omesso, le richieste sono state evase in tempo reale.
+Nessuno rilevato.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Errori React #310 (Hook Hooks) / File troncati per mancanza di spazio su disco (Enospace ).
-  - Recurrence count: 2 (Spazio su disco si è riempito 2 volte causando troncamento file).
-  - Status: RESOLVED (L'agente precedente ha svuotato  e  temporaneamente. Fai attenzione se modifichi file enormi, assicurati che la write avvenga con successo).
+  - Issue recurrence in previous fork: File troncati per mancanza di spazio su disco (Enospace ).
+  - Recurrence count: 2 (nel fork precedente). In questo fork non è accaduto, ma fare attenzione quando si modificano file enormi.
+  - Status: RESOLVED
 
 **Code Architecture**
 - Frontend: React
-  -  (Core UI, StepperBar, Fasi - Oltre 3000 righe, contiene UI Episodi e Stagioni).
-  -  (Animazione rilascio).
+  -  (Core UI V2, contiene il nuovo  UI stile Netflix).
+  -  (Contiene il tool di migrazione ).
 - Backend: FastAPI
-  -  (Core logic: creazione, scheduling, episodi, new-season, quality formula).
-  -  (Gestione minigiochi).
+  -  (Core pipeline, generazione episodi, casting).
+  -  (Gestione pool NPC, aggiornato con  e ).
+  -  (Gestione emittente TV - FILE ATTUALE DA MODIFICARE).
+  -  (Nuova rotta per la migrazione V1->V2).
 
 **Key Technical Concepts**
-- **Idempotenza State Machine**: .
-- **Rilascio Cinematografico**: Solo CSS puro. È tracciato da  nel DB per non ripetersi.
-- **Sistema Stagioni**: La creazione di un sequel crea un nuovo documento ma eredita , , . 
+- **Generazione Episodi Persistente**: L'array  in  viene generato UNA SOLA VOLTA e non va mai rigenerato o sovrascritto.
+- **Pesi differenziati Anime/Serie**: Le serie TV puntano sulla continuità, gli anime premiano fortemente i peak episodes e il season finale, usando le skills di disegnatori e doppiatori nel calcolo del cast.
+- **TV Scheduling**: L'inserimento nel palinsesto avviene tramite  (attualmente in lavorazione).
 
 **key DB schema**
-  - : Aggiunti campi , , ,  (list), , , , .
+  - : Aggiunti campi per  (array arricchito con trame e tipi),  ora include liste  e  quando .
 
 **changes in tech stack**
-  - Nessun cambiamento.
+  - Nessuno.
 
 **All files of reference** 
-  -  (Ultimo file toccato per la logica Stagioni)
+  -  (Da modificare per il palinsesto episodi)
+  -  
   - 
-  - 
-  -  (Aggiornato costantemente)
+  -  (Creato in questa sessione)
+  -  (Modificato in questa sessione)
 
 **Areas that need refactoring**: 
-  -  è gigantesco (>3000 righe). Usare  molto precisi.
+  - I file  (3300+ righe) e  (3700+ righe) sono giganteschi. Usare  prestando estrema attenzione per evitare di sovrascrivere o corrompere il file.
 
 **key api endpoints**
-  -  (Da testare)
-  - 
-  - 
-  - 
+  - *(Da implementare/modificare)*:  (deve accettare e schedulare Serie/Anime per episodio in base alla ).
+  - *(Da implementare/modificare)*:  (deve ritornare gli episodi).
 
 **Critical Info for New Agent** 
-- **STRICT TESTING RULE**: L'utente ha VIETATO l'uso dell'agente di testing automatizzato e del tool di screenshot. **Testa SOLO in modalità manuale** (curl, terminale python, logs).
-- Quando interagisci, **DEVI usare SEMPRE l'Italiano**.
-- Verifica il codice appena iniettato per l'endpoint  in . L'ultima modifica ha inserito logiche di  e uscite cast; devi testare che il backend risponda con HTTP 200 via .
-- Non riempire il disco. Se ottieni , fai una pulizia ( se sicuro, o usa file temp).
+- **LINGUA**: L'utente parla Italiano e si aspetta che tu risponda **ESCLUSIVAMENTE in Italiano**.
+- **Gestione Dati Episodi TV**: Come richiesto dall'utente, NON duplicare gli episodi nel DB e non rigenerarli. Usare lo storico di quelli creati in  e far scattare solo stati temporali (scheduled -> live -> completed) gestiti dal modulo TV.
+- Testare costantemente in manuale (CURL / python -c). Evitare strumenti come screenshot_tool o testing_agent, a meno che tu non ne chieda prima l'esplicito permesso, data la preferenza storica dell'utente.
+- Continua esattamente dal task del palinsesto TV (leggendo l'ultimo messaggio in cui l'utente dice Prosegui).
 
 **documents and test reports created in this job** 
-  - 
+  -  (aggiornato durante le sessioni).
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - L'utente ha approvato l'implementazione del Sistema Serie TV & Anime (Tutto corretto, procedi) ma ha richiesto un **Aggiustamento finale sulle regole delle Stagioni** (messaggio finale). 
- - L'aggiustamento richiede: Continuità cast (max 50% modificabile, minimo base fissa), Fatica del Franchise (aspettative crescenti), Peso estremo della Sceneggiatura per ribaltare i flop/successi della stagione prima.
- - *Pending*: L'agente precedente ha effettuato la modifica backend ( endpoint) ma il job si è interrotto prima di testare e avvisare l'utente.
+ - L'utente ha approvato l'inserimento dei pesi Serie VS Anime e del nuovo cast.
+ - Successivamente ha fornito le regole del **Task P0: Integrazione TV (Palinsesto e Trasmissione)**, specificando come gestire Binge/Daily, la trasmissione episodio per episodio, il Ritiro o le Repliche a fine stagione.
+ - L'agente ha iniziato ad analizzare .
+ - Ultimo messaggio dell'utente: Prosegui (PENDING - Significa che devi procedere con l'implementazione del sistema di Palinsesto TV).
 
 **Project Health Check:**
-- Broken:  logica (Potenzialmente unstable in quanto appena scritta via  e non testata).
-- Mocked: Nessuno.
+Nessun problema bloccante. App funzionante, pronti per l'estensione del Modulo TV.
 
 **3rd Party Integrations** 
 - Stripe (Payments) - Requires User API Key
 - Gemini / OpenAI (AI Generations via emergentintegrations) - Uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Proibito)
+  - Testing agent used after significant changes: NO (usati test manuali approfonditi via bash e CURL).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: []
-  - Known regressions: []
+  - Test files created: Nessuno
+  - Known regressions: Nessuna.
 
 **Credentials to test flow:**
 - Email: fandrex1@gmail.com
@@ -145,4 +130,5 @@ Nessuno rilevante omesso, le richieste sono state evase in tempo reale.
 - Nickname: NeoMorpheus
 
 **What agent forgot to execute**
-L'agente non ha fatto in tempo a eseguire alcun test via  sulla nuova modifica delle Regole Stagioni e della Fatica Franchise ( in ) e non ha ancora aggiornato il frontend se necessario. Manca inoltre l'integrazione degli episodi nel palinsesto TV (Network infrastruttura), specificata nei requirement iniziali delle Serie TV. Inizia testando l'endpoint e verificando il corretto funzionamento.</analysis>
+Niente di dimenticato, l'agente stava procedendo correttamente all'esplorazione di  e attende di eseguire la logica di inserimento degli episodi (schedulazione TV) richiesta nel lungo prompt fornito dall'utente.
+</handoff summary></analysis>

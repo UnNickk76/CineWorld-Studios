@@ -2210,8 +2210,139 @@ async def speedup_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
     return {'film': film}
 
 # ═══════════════════════════════════════════════════════════════
-#  FASE 9 — USCITA (Release)
+#  FASE 9 — USCITA (Release) — Zone + Scheduling
 # ═══════════════════════════════════════════════════════════════
+
+RELEASE_ZONES = {
+    'europa_ovest':  {'name': 'Europa Ovest',      'continent': 'Europa',       'countries': 'Francia, Germania, UK, Spagna, Olanda', 'funds': 30000, 'cp': 2, 'rev_mult': 1.2},
+    'europa_est':    {'name': 'Europa Est',         'continent': 'Europa',       'countries': 'Polonia, Ungheria, Romania, Rep. Ceca',  'funds': 15000, 'cp': 1, 'rev_mult': 0.6},
+    'scandinavia':   {'name': 'Scandinavia',        'continent': 'Europa',       'countries': 'Svezia, Norvegia, Danimarca, Finlandia', 'funds': 18000, 'cp': 1, 'rev_mult': 0.7},
+    'mediterraneo':  {'name': 'Mediterraneo',       'continent': 'Europa',       'countries': 'Italia, Grecia, Portogallo, Croazia',    'funds': 18000, 'cp': 1, 'rev_mult': 0.7},
+    'usa_canada':    {'name': 'USA & Canada',       'continent': 'Nord America', 'countries': 'Stati Uniti, Canada',                    'funds': 50000, 'cp': 3, 'rev_mult': 2.0},
+    'messico_centro':{'name': 'Messico & C. America','continent': 'Nord America','countries': 'Messico, Cuba, Costa Rica',              'funds': 12000, 'cp': 1, 'rev_mult': 0.4},
+    'sud_america':   {'name': 'Sud America',        'continent': 'Sud America',  'countries': 'Brasile, Argentina, Colombia, Cile',     'funds': 18000, 'cp': 1, 'rev_mult': 0.7},
+    'est_asia':      {'name': 'Est Asia',           'continent': 'Asia',         'countries': 'Cina, Giappone, Corea del Sud',          'funds': 40000, 'cp': 2, 'rev_mult': 1.5},
+    'sud_est_asia':  {'name': 'Sud-Est Asia',       'continent': 'Asia',         'countries': 'Thailandia, Vietnam, Indonesia',         'funds': 12000, 'cp': 1, 'rev_mult': 0.5},
+    'india':         {'name': 'India & Subcontinente','continent': 'Asia',       'countries': 'India, Pakistan, Bangladesh',            'funds': 18000, 'cp': 1, 'rev_mult': 0.8},
+    'medio_oriente': {'name': 'Medio Oriente',      'continent': 'Asia',         'countries': 'Emirati, Arabia Saudita, Qatar',         'funds': 22000, 'cp': 2, 'rev_mult': 0.8},
+    'nord_africa':   {'name': 'Nord Africa',        'continent': 'Africa',       'countries': 'Egitto, Marocco, Tunisia',               'funds': 8000,  'cp': 1, 'rev_mult': 0.3},
+    'africa_sub':    {'name': 'Africa Sub-Sahariana','continent': 'Africa',       'countries': 'Nigeria, Sudafrica, Kenya, Ghana',       'funds': 8000,  'cp': 1, 'rev_mult': 0.3},
+    'oceania':       {'name': 'Oceania',            'continent': 'Oceania',      'countries': 'Australia, Nuova Zelanda',               'funds': 18000, 'cp': 1, 'rev_mult': 0.6},
+    'world':         {'name': 'Distribuzione Mondiale','continent': 'World',     'countries': 'Tutti i continenti',                     'funds': 80000, 'cp': 5, 'rev_mult': 3.5},
+}
+
+RELEASE_DATE_OPTIONS = {
+    'immediate': {'label': 'Immediato',   'days': 0, 'hype_mult': 0.70, 'direct_only': True},
+    '24h':       {'label': 'Tra 24 ore',  'days': 1, 'hype_mult': 0.85, 'direct_only': True},
+    '2d':        {'label': '2 giorni',    'days': 2, 'hype_mult': 0.95, 'direct_only': False},
+    '3d':        {'label': '3 giorni',    'days': 3, 'hype_mult': 1.05, 'direct_only': False},
+    '4d':        {'label': '4 giorni',    'days': 4, 'hype_mult': 1.10, 'direct_only': False},
+    '5d':        {'label': '5 giorni',    'days': 5, 'hype_mult': 1.05, 'direct_only': False},
+    '6d':        {'label': '6 giorni',    'days': 6, 'hype_mult': 0.95, 'direct_only': False},
+    '7d':        {'label': '7 giorni',    'days': 7, 'hype_mult': 0.85, 'direct_only': False},
+}
+
+
+@router.get("/release-zones")
+async def get_release_zones():
+    """Return all release zones with costs."""
+    zones = []
+    for zid, z in RELEASE_ZONES.items():
+        zones.append({
+            'id': zid, 'name': z['name'], 'continent': z['continent'],
+            'countries': z['countries'], 'funds': z['funds'], 'cp': z['cp'],
+            'rev_mult': z['rev_mult'],
+        })
+    dates = []
+    for did, d in RELEASE_DATE_OPTIONS.items():
+        dates.append({
+            'id': did, 'label': d['label'], 'days': d['days'],
+            'hype_mult': d['hype_mult'], 'direct_only': d.get('direct_only', False),
+        })
+    return {'zones': zones, 'dates': dates}
+
+
+class ScheduleReleaseBody(BaseModel):
+    date_option: str
+    zones: list
+
+
+@router.post("/films/{pid}/schedule-release")
+async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = Depends(get_current_user)):
+    """Schedule release: pick date + zones. Works in premiere_live (draft) and release_pending (active)."""
+    project = await _get_project(pid, user['id'])
+    state = project['pipeline_state']
+    if state not in ('premiere_live', 'release_pending'):
+        raise HTTPException(400, "Film non in fase di uscita")
+
+    is_premiere = project.get('release_type') == 'premiere'
+
+    # Validate date option
+    date_opt = RELEASE_DATE_OPTIONS.get(body.date_option)
+    if not date_opt:
+        raise HTTPException(400, "Opzione data non valida")
+    if date_opt.get('direct_only') and is_premiere:
+        raise HTTPException(400, "Opzione non disponibile per film con La Prima")
+
+    # Validate zones
+    if not body.zones:
+        raise HTTPException(400, "Seleziona almeno una zona")
+    total_funds = 0
+    total_cp = 0
+    selected_zones = []
+    has_world = 'world' in body.zones
+    zone_list = ['world'] if has_world else body.zones
+    for zid in zone_list:
+        z = RELEASE_ZONES.get(zid)
+        if not z:
+            raise HTTPException(400, f"Zona sconosciuta: {zid}")
+        total_funds += z['funds']
+        total_cp += z['cp']
+        selected_zones.append(zid)
+
+    # Check user can afford
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
+    user_funds = u.get('funds', 0)
+    user_cp = u.get('cinepass', 0)
+    if user_funds < total_funds:
+        raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,}, hai ${user_funds:,}")
+    if user_cp < total_cp:
+        raise HTTPException(400, f"CinePass insufficienti: servono {total_cp}, hai {user_cp}")
+
+    # Charge
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'funds': -total_funds, 'cinepass': -total_cp}}
+    )
+
+    # Calculate total revenue multiplier from zones
+    rev_mult = sum(RELEASE_ZONES[z]['rev_mult'] for z in selected_zones)
+    hype_mult = date_opt['hype_mult']
+
+    schedule = {
+        'date_option': body.date_option,
+        'date_label': date_opt['label'],
+        'days': date_opt['days'],
+        'zones': selected_zones,
+        'zone_names': [RELEASE_ZONES[z]['name'] for z in selected_zones],
+        'funds_cost': total_funds,
+        'cp_cost': total_cp,
+        'rev_mult': round(rev_mult, 2),
+        'hype_mult': hype_mult,
+        'scheduled_at': _now(),
+    }
+
+    await db.film_projects.update_one(
+        {'id': pid},
+        {'$set': {
+            'release_schedule': schedule,
+            'costs_paid.release_distribution': total_funds,
+            'costs_paid.release_cp': total_cp,
+        }}
+    )
+
+    return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp}
+
 
 @router.post("/films/{pid}/release")
 async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
@@ -2233,6 +2364,34 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         return {'film': project, 'quality_score': project.get('final_quality', 0), 'tier': project.get('final_tier', ''), 'message': 'Film gia rilasciato.'}
     if project['pipeline_state'] != 'release_pending':
         raise HTTPException(400, "Film non pronto per il rilascio")
+
+    # Check if schedule exists
+    schedule = project.get('release_schedule')
+    if not schedule:
+        raise HTTPException(400, "Devi prima programmare la distribuzione (data + zone)")
+
+    # If delayed release → coming_soon
+    delay_days = schedule.get('days', 0)
+    if delay_days > 0:
+        release_at = datetime.now(timezone.utc) + timedelta(days=delay_days)
+        await db.film_projects.update_one(
+            {'id': pid},
+            {'$set': {
+                'pipeline_state': 'coming_soon_scheduled',
+                'pipeline_substate': 'waiting',
+                'status': 'coming_soon',
+                'scheduled_release_at': release_at.isoformat(),
+                'coming_soon_hype': int(project.get('pipeline_metrics', {}).get('hype_score', 0) * schedule.get('hype_mult', 1)),
+            }}
+        )
+        proj = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+        return {
+            'scheduled': True,
+            'release_at': release_at.isoformat(),
+            'days': delay_days,
+            'zones': schedule.get('zone_names', []),
+            'film': proj,
+        }
 
     cast = project.get('cast', {})
     genre = project.get('genre', 'drama')
@@ -2344,10 +2503,16 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     elif quality_score >= 40: tier = 'mediocre'
     else: tier = 'bad'
 
-    # Revenue
+    # Revenue — apply release schedule multipliers
+    schedule = project.get('release_schedule', {})
+    zone_rev_mult = schedule.get('rev_mult', 1.0) if schedule else 1.0
+    hype_mult = schedule.get('hype_mult', 1.0) if schedule else 1.0
+    hype_score = metrics.get('hype_score', 0)
+    hype_bonus = hype_score * hype_mult * 0.05
+
     costs_paid = project.get('costs_paid', {})
     total_cost = sum(v for v in costs_paid.values() if isinstance(v, (int, float)))
-    opening_day = int((quality_score * 2000) + (total_cost * 0.1) + random.randint(10000, 80000))
+    opening_day = int(((quality_score * 2000) + (total_cost * 0.1) + random.randint(10000, 80000)) * zone_rev_mult * max(0.5, 0.8 + hype_bonus))
 
     # Create film document
     new_film_id = str(uuid.uuid4())
@@ -2395,7 +2560,12 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         'sponsors': project.get('sponsors', []),
         'equipment': project.get('equipment', []),
         'pipeline_version': 2,
-        'current_cinemas': random.randint(30, 150),
+        'release_zones': schedule.get('zones', ['world']) if schedule else ['world'],
+        'release_zone_names': schedule.get('zone_names', ['Mondiale']) if schedule else ['Mondiale'],
+        'release_date_option': schedule.get('date_option', 'immediate') if schedule else 'immediate',
+        'release_hype_mult': hype_mult,
+        'release_rev_mult': zone_rev_mult,
+        'current_cinemas': max(30, int(random.randint(30, 150) * zone_rev_mult)),
         'current_attendance': 0,
         'attendance_history': [],
         'total_screenings': 0,
@@ -2439,7 +2609,7 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     # Auto-mark completed after release
     await db.film_projects.update_one(
         {'id': pid},
-        {'$set': {'pipeline_state': 'completed', 'pipeline_ui_step': 8, 'pipeline_substate': 'done'}}
+        {'$set': {'pipeline_state': 'completed', 'pipeline_ui_step': 8, 'pipeline_substate': 'done', 'release_sequence_played': False}}
     )
 
     return {
@@ -2451,6 +2621,17 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         'fame_change': round(fame_change, 1),
         'message': f'"{project["title"]}" rilasciato! Quality: {quality_score} ({tier})'
     }
+
+
+@router.post("/films/{pid}/mark-release-played")
+async def mark_release_played(pid: str, user: dict = Depends(get_current_user)):
+    """Mark the cinematic release sequence as played to prevent replay."""
+    await db.film_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'release_sequence_played': True}}
+    )
+    return {'ok': True}
+
 
 # ═══════════════════════════════════════════════════════════════
 #  UNIFIED SPEEDUP (4 tiers, CinePass credits, variable cost)

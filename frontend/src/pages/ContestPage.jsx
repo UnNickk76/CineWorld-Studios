@@ -53,7 +53,7 @@ export default function ContestPage() {
     setActiveGame(null);
     try {
       const res = await api.post('/contest/complete-step', { score });
-      setMsg(`+${res.data.credits} crediti!`);
+      setMsg(`+${res.data.credits} CinePass!`);
       setTimeout(() => setMsg(''), 2500);
       fetchProgress();
     } catch (e) {
@@ -72,7 +72,7 @@ export default function ContestPage() {
     const GameComp = GAME_COMPONENTS[activeGame.game_id];
     if (!GameComp) return <div className="text-red-400 text-center py-10">Gioco non trovato: {activeGame.game_id}</div>;
     return (
-      <div className="max-w-md mx-auto px-3 py-2">
+      <div className="max-w-md mx-auto px-3 pt-20 pb-40">
         <div className="flex items-center justify-between mb-2">
           <button className="text-xs text-gray-400 underline" onClick={() => setActiveGame(null)}>Torna al Contest</button>
           <span className="text-xs text-yellow-400 font-mono">Step {activeGame.step}/12 {activeGame.is_bonus ? '(BONUS)' : ''}</span>
@@ -83,13 +83,13 @@ export default function ContestPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-3 py-4 space-y-4" data-testid="contest-page">
+    <div className="max-w-md mx-auto px-3 pt-20 pb-40 space-y-4" data-testid="contest-page">
       {/* Header */}
       <div className="text-center">
         <h2 className="text-lg font-bold text-white flex items-center justify-center gap-2">
           <Trophy className="w-5 h-5 text-yellow-400" /> Contest Giornaliero
         </h2>
-        <p className="text-xs text-gray-400 mt-1">10 minigiochi + 2 bonus | Max 50 crediti/giorno</p>
+        <p className="text-xs text-gray-400 mt-1">10 minigiochi + 2 bonus | Max 50 CinePass/giorno</p>
       </div>
 
       {msg && <div className="text-center text-yellow-400 font-bold text-sm animate-pulse">{msg}</div>}
@@ -139,7 +139,7 @@ export default function ContestPage() {
                   {isBonus && <Gift className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
                 </div>
                 <span className="text-[10px] text-gray-500">
-                  {isBonus ? 'Bonus — max 10 crediti' : `Step ${game.step} — max 3 crediti`}
+                  {isBonus ? 'Bonus — max 10 CinePass' : `Step ${game.step} — max 3 CinePass`}
                 </span>
               </div>
 

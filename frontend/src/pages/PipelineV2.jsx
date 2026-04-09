@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Film, Star, Zap, Clock, ChevronLeft, ChevronRight, Check, Eye, X,
+  Film, Star, Zap, Clock, ChevronLeft, ChevronRight, ChevronDown, Check, Eye, X,
   Plus, Sparkles, Camera, Clapperboard, Megaphone, Award, Ticket,
   MapPin, Palette, FileText, Lock, Users, Music, Wand2, Play,
   Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send,
@@ -127,7 +127,7 @@ function useCountdown(endTime) {
 // Steps that CANNOT be edited (timer-based)
 const EDIT_BLOCKED_STEPS = new Set([4, 5, 8]);
 
-const StepperBar = ({ uiStep, onViewStep }) => {
+const StepperBar = ({ uiStep, onViewStep, allowScheduleStep }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -139,24 +139,26 @@ const StepperBar = ({ uiStep, onViewStep }) => {
 
   return (
     <div className="px-1 py-2">
-      <div ref={ref} className="flex items-center gap-0 px-1 overflow-x-auto scrollbar-hide" data-testid="v2-stepper">
+      <div ref={ref} className="flex items-center gap-0 px-1 pr-6 overflow-x-auto scrollbar-hide" data-testid="v2-stepper">
         {V2_STEPS.map((step, i) => {
           const Icon = step.icon;
           const style = STEP_STYLES[step.color];
           const isCurrent = i === uiStep;
           const isCompleted = i < uiStep;
+          const isSchedulable = allowScheduleStep && i === uiStep + 1;
           return (
             <React.Fragment key={step.id}>
-              {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted ? style.line : 'bg-gray-800'}`} />}
+              {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted || isCurrent ? style.line : 'bg-gray-800'}`} />}
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0 relative" data-step={i}>
                 <div
-                  onClick={isCompleted ? () => onViewStep(i) : undefined}
+                  onClick={isCompleted ? () => onViewStep(i) : isSchedulable ? () => onViewStep(i) : undefined}
                   className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                     isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
                     isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 hover:bg-cyan-500/10 active:scale-95' :
+                    isSchedulable ? `${STEP_STYLES[step.color].active} opacity-70 cursor-pointer animate-pulse` :
                     'border-gray-800 bg-gray-900/50 text-gray-700'
                   }`}
-                  data-testid={isCompleted ? `view-step-${i}` : undefined}
+                  data-testid={isCompleted ? `view-step-${i}` : isSchedulable ? `schedule-step-${i}` : undefined}
                 >
                   {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
                 </div>
@@ -166,7 +168,7 @@ const StepperBar = ({ uiStep, onViewStep }) => {
                   </div>
                 )}
                 <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
-                  isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : 'text-gray-700'
+                  isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : isSchedulable ? STEP_STYLES[step.color].text + ' opacity-70' : 'text-gray-700'
                 }`}>{step.label}</span>
               </div>
             </React.Fragment>
@@ -1809,19 +1811,92 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 //  FASE 9 — USCITA
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+//  FASE 9 — USCITA (Release Scheduling + Zones)
+// ═══════════════════════════════════════════════════════════════
+
 const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
+  const [zones, setZones] = useState([]);
+  const [dateOptions, setDateOptions] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedZones, setSelectedZones] = useState([]);
+  const [expandedContinent, setExpandedContinent] = useState(null);
+  const [scheduled, setScheduled] = useState(film.release_schedule || null);
   const state = film.pipeline_state;
+  const isPremiere = film.release_type === 'premiere';
+  const canRelease = state === 'release_pending';
+  const canSchedule = state === 'premiere_live' || state === 'release_pending';
+
+  useEffect(() => {
+    api.get('/pipeline-v2/release-zones').then(res => {
+      setZones(res.zones || []);
+      setDateOptions(res.dates || []);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (film.release_schedule) {
+      setScheduled(film.release_schedule);
+      setSelectedDate(film.release_schedule.date_option);
+      setSelectedZones(film.release_schedule.zones || []);
+    }
+  }, [film.release_schedule]);
+
+  const hasWorld = selectedZones.includes('world');
+  const activeZones = hasWorld ? ['world'] : selectedZones;
+  const totalFunds = activeZones.reduce((s, z) => s + (zones.find(x => x.id === z)?.funds || 0), 0);
+  const totalCp = activeZones.reduce((s, z) => s + (zones.find(x => x.id === z)?.cp || 0), 0);
+  const dateInfo = dateOptions.find(d => d.id === selectedDate);
+
+  const toggleZone = (zid) => {
+    if (zid === 'world') {
+      setSelectedZones(prev => prev.includes('world') ? [] : ['world']);
+    } else {
+      setSelectedZones(prev => {
+        const without = prev.filter(z => z !== 'world' && z !== zid);
+        return prev.includes(zid) ? without : [...without, zid];
+      });
+    }
+  };
+
+  const continents = {};
+  zones.filter(z => z.id !== 'world').forEach(z => {
+    if (!continents[z.continent]) continents[z.continent] = [];
+    continents[z.continent].push(z);
+  });
+  const worldZone = zones.find(z => z.id === 'world');
+
+  const scheduleRelease = async () => {
+    if (!selectedDate || activeZones.length === 0) {
+      toast({ title: 'Seleziona data e almeno una zona', variant: 'destructive' }); return;
+    }
+    setLoading('schedule');
+    try {
+      const res = await api.post(`/films/${film.id}/schedule-release`, {
+        date_option: selectedDate, zones: activeZones,
+      });
+      setScheduled(res.schedule);
+      toast({ title: `Distribuzione programmata! -$${res.funds_charged?.toLocaleString()} / -${res.cp_charged} CP` });
+      onRefresh();
+    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
+    finally { setLoading(''); }
+  };
 
   const release = async () => {
     setLoading('release');
     try {
       const res = await api.post(`/films/${film.id}/release`);
-      setResult(res);
-      setShowReleaseOverlay(true);
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); setLoading(''); }
+      if (res.scheduled) {
+        toast({ title: `Film programmato per uscita tra ${res.days} giorni in ${res.zones?.join(', ')}` });
+        onRefresh(); setLoading('');
+      } else {
+        setResult(res);
+        setShowReleaseOverlay(true);
+      }
+    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }
   };
 
   const onCinemaOverlayDone = () => {
@@ -1833,23 +1908,10 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
 
-  return (
-    <PhaseWrapper title="Uscita al Cinema" subtitle="Il momento della verita" icon={Ticket} color="emerald">
-      {state === 'release_pending' && !result && (
-        <div className="space-y-3 text-center">
-          <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-            <Ticket className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-            <p className="text-sm font-bold text-white mb-1">Pronto per il rilascio!</p>
-            <p className="text-[9px] text-gray-500">Il tuo film entrera nei cinema di tutto il mondo</p>
-          </div>
-          <button onClick={release} disabled={loading === 'release'}
-            className="w-full text-sm py-3 rounded-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-500/30 hover:to-green-500/30 transition-all disabled:opacity-50 font-bold" data-testid="release-btn">
-            {loading === 'release' ? 'Calcolo qualita...' : 'RILASCIA NEI CINEMA'}
-          </button>
-        </div>
-      )}
-
-      {(result || state === 'completed' || state === 'released') && (
+  // If already released/completed, show results
+  if (result || state === 'completed' || state === 'released') {
+    return (
+      <PhaseWrapper title="Uscita al Cinema" subtitle="Il momento della verita" icon={Ticket} color="emerald">
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
             <p className="text-[9px] text-gray-500 uppercase">Quality Score</p>
@@ -1874,9 +1936,176 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               </div>
             </div>
           )}
+        </div>
+        {showReleaseOverlay && (
+          <CinematicReleaseOverlay
+            filmTitle={film.title} productionHouseName={film.production_house_name}
+            posterUrl={film.poster_url} genre={film.genre} releaseType="cinema"
+            onComplete={onCinemaOverlayDone}
+          />
+        )}
+      </PhaseWrapper>
+    );
+  }
+
+  // If coming_soon_scheduled, show waiting state
+  if (state === 'coming_soon_scheduled') {
+    return (
+      <PhaseWrapper title="Uscita Programmata" subtitle="In attesa del giorno di uscita" icon={Ticket} color="emerald">
+        <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-center space-y-2">
+          <Clock className="w-8 h-8 text-emerald-400 mx-auto" />
+          <p className="text-sm font-bold text-white">Film in Prossimamente</p>
+          <p className="text-[10px] text-gray-400">Uscira tra {scheduled?.days || '?'} giorni</p>
+          {scheduled?.zone_names && (
+            <p className="text-[9px] text-emerald-400">Zone: {scheduled.zone_names.join(', ')}</p>
           )}
         </div>
-      )}
+      </PhaseWrapper>
+    );
+  }
+
+  return (
+    <PhaseWrapper title="Distribuzione" subtitle={state === 'premiere_live' ? 'Programma durante La Prima' : 'Scegli come distribuire'} icon={Ticket} color="emerald">
+      <div className="space-y-3">
+        {state === 'premiere_live' && (
+          <div className="p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-center">
+            <p className="text-[8px] text-yellow-400">La Prima in corso — programma la distribuzione, il rilascio partira al termine</p>
+          </div>
+        )}
+        {/* Date Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
+          <div className="grid grid-cols-4 gap-1">
+            {dateOptions.map(d => {
+              const disabled = d.direct_only && isPremiere;
+              const selected = selectedDate === d.id;
+              return (
+                <button key={d.id} disabled={disabled}
+                  onClick={() => !disabled && setSelectedDate(d.id)}
+                  className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
+                    disabled ? 'opacity-20 cursor-not-allowed border-gray-800 text-gray-600' :
+                    selected ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
+                    'border-gray-800 text-gray-400 hover:border-gray-600'
+                  }`}
+                  data-testid={`date-opt-${d.id}`}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+          {dateInfo && (
+            <div className="mt-1 flex items-center gap-2 text-[8px]">
+              <span className="text-gray-500">Hype:</span>
+              <span className={dateInfo.hype_mult >= 1 ? 'text-green-400' : 'text-orange-400'}>
+                x{dateInfo.hype_mult} {dateInfo.hype_mult >= 1.05 ? '(ottimo!)' : dateInfo.hype_mult < 0.9 ? '(basso)' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Zone Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Zone di distribuzione</p>
+
+          {/* WORLD option */}
+          {worldZone && (
+            <button onClick={() => toggleZone('world')}
+              className={`w-full mb-1.5 p-2 rounded-lg border text-left flex items-center justify-between transition-all ${
+                hasWorld ? 'bg-emerald-500/10 border-emerald-500/30' : 'border-gray-800 hover:border-gray-600'
+              }`} data-testid="zone-world">
+              <div>
+                <span className="text-[10px] font-bold text-white">Mondiale</span>
+                <span className="text-[8px] text-gray-500 ml-2">Tutti i continenti</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-green-400">${(worldZone.funds / 1000).toFixed(0)}K</span>
+                <span className="text-[9px] text-cyan-400 ml-1">{worldZone.cp}CP</span>
+              </div>
+            </button>
+          )}
+
+          <div className="text-center text-[8px] text-gray-600 mb-1.5">— oppure seleziona zone —</div>
+
+          {/* Continent groups */}
+          <div className="space-y-1">
+            {Object.entries(continents).map(([cont, czones]) => (
+              <div key={cont} className={`rounded-lg border transition-all ${hasWorld ? 'opacity-30 pointer-events-none' : 'border-gray-800'}`}>
+                <button onClick={() => setExpandedContinent(expandedContinent === cont ? null : cont)}
+                  className="w-full p-2 flex items-center justify-between text-[10px]" data-testid={`continent-${cont}`}>
+                  <span className="font-bold text-gray-300">{cont}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] text-gray-500">{czones.filter(z => selectedZones.includes(z.id)).length}/{czones.length}</span>
+                    <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${expandedContinent === cont ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+                {expandedContinent === cont && (
+                  <div className="px-2 pb-2 space-y-1">
+                    {czones.map(z => (
+                      <button key={z.id} onClick={() => toggleZone(z.id)}
+                        className={`w-full p-1.5 rounded-md flex items-center justify-between transition-all ${
+                          selectedZones.includes(z.id) ? 'bg-emerald-500/10 border border-emerald-500/25' : 'border border-transparent hover:bg-white/5'
+                        }`} data-testid={`zone-${z.id}`}>
+                        <div>
+                          <span className="text-[9px] font-semibold text-white">{z.name}</span>
+                          <p className="text-[7px] text-gray-600">{z.countries}</p>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="text-[8px] text-green-400">${(z.funds / 1000).toFixed(0)}K</span>
+                          <span className="text-[8px] text-cyan-400 ml-1">{z.cp}CP</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cost Summary */}
+        {(selectedDate && activeZones.length > 0) && (
+          <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30 flex items-center justify-between">
+            <span className="text-[9px] text-gray-400">Costo distribuzione:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-green-400">${totalFunds.toLocaleString()}</span>
+              <span className="text-[10px] font-bold text-cyan-400">{totalCp} CP</span>
+            </div>
+          </div>
+        )}
+
+        {/* Already scheduled info */}
+        {scheduled && (
+          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
+            <p className="text-[8px] text-emerald-400 font-bold">Distribuzione programmata</p>
+            <p className="text-[8px] text-gray-400">{scheduled.date_label} — {scheduled.zone_names?.join(', ')}</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        {canSchedule && !scheduled && (
+          <button onClick={scheduleRelease} disabled={!selectedDate || activeZones.length === 0 || loading === 'schedule'}
+            className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-30 font-bold"
+            data-testid="schedule-release-btn">
+            {loading === 'schedule' ? '...' : state === 'premiere_live' ? 'Programma Uscita' : 'Conferma Distribuzione'}
+          </button>
+        )}
+
+        {canRelease && scheduled && (
+          <button onClick={release} disabled={loading === 'release'}
+            className="w-full text-sm py-3 rounded-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-500/30 hover:to-green-500/30 transition-all disabled:opacity-50 font-bold"
+            data-testid="release-btn">
+            {loading === 'release' ? 'Calcolo qualita...' : 'RILASCIA NEI CINEMA'}
+          </button>
+        )}
+
+        {state === 'premiere_live' && scheduled && (
+          <p className="text-[8px] text-yellow-400/70 text-center">
+            Il rilascio avverra automaticamente al termine de La Prima
+          </p>
+        )}
+      </div>
+
       {showReleaseOverlay && (
         <CinematicReleaseOverlay
           filmTitle={film.title} productionHouseName={film.production_house_name}
@@ -2001,6 +2230,7 @@ const PipelineV2 = () => {
   const [films, setFilms] = useState([]);
   const [selected, setSelected] = useState(null);
   const [viewingStep, setViewingStep] = useState(null);
+  const [forceUscita, setForceUscita] = useState(false);
   const [showEditConfirm, setShowEditConfirm] = useState(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -2021,7 +2251,7 @@ const PipelineV2 = () => {
 
   const openFilm = (f) => { setSelected(f); setView('detail'); };
   const openCreate = () => setView('create');
-  const backToBoard = () => { setSelected(null); setView('board'); loadFilms(); };
+  const backToBoard = () => { setSelected(null); setView('board'); setForceUscita(false); loadFilms(); };
 
   const refreshSelected = async () => {
     if (!selected) return;
@@ -2047,6 +2277,9 @@ const PipelineV2 = () => {
     const ui = selected.pipeline_ui_step;
     const props = { film: selected, onRefresh: refreshSelected, toast };
 
+    // Allow USCITA scheduling during premiere_live
+    if (forceUscita && st === 'premiere_live') return <UscitaPhase {...props} />;
+
     if (ui === 0 || st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
     if (ui === 1 || st === 'proposed' || st === 'hype_setup' || st === 'hype_live') return <HypePhase {...props} />;
     if (ui === 2 || st === 'casting_live') return <CastPhase {...props} />;
@@ -2055,7 +2288,7 @@ const PipelineV2 = () => {
     if (ui === 5 || st === 'postproduction') return <FinalCutPhase {...props} />;
     if (ui === 6 || st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
     if (ui === 7 || st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
-    if (ui === 8 || st === 'release_pending' || st === 'released' || st === 'completed') return <UscitaPhase {...props} />;
+    if (ui === 8 || st === 'release_pending' || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
@@ -2167,8 +2400,17 @@ const PipelineV2 = () => {
     const editCount = selected.edit_count || 0;
     const canEdit = editCount < 3 && !['released', 'completed', 'discarded', 'release_pending'].includes(selected.pipeline_state);
 
-    const handleViewStep = (stepIdx) => setViewingStep(stepIdx);
-    const handleCloseView = () => { setViewingStep(null); setShowEditConfirm(null); };
+    const handleViewStep = (stepIdx) => {
+      // Allow viewing USCITA (step 8) during premiere_live
+      if (stepIdx === 8 && selected?.pipeline_state === 'premiere_live') {
+        setViewingStep(null); // Not read-only view, just navigate there
+        setForceUscita(true);
+        return;
+      }
+      setForceUscita(false);
+      setViewingStep(stepIdx);
+    };
+    const handleCloseView = () => { setViewingStep(null); setShowEditConfirm(null); setForceUscita(false); };
 
     const handleConfirmEdit = async () => {
       const targetStep = showEditConfirm;
@@ -2250,8 +2492,9 @@ const PipelineV2 = () => {
       <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar
-          uiStep={selected.pipeline_ui_step ?? 0}
+          uiStep={forceUscita ? 8 : (selected.pipeline_ui_step ?? 0)}
           onViewStep={handleViewStep}
+          allowScheduleStep={selected.pipeline_state === 'premiere_live'}
         />
         {renderPhase()}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (

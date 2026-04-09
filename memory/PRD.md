@@ -51,6 +51,21 @@ Piattaforma di simulazione cinematografica (tycoon). I giocatori creano film, ge
 - Testo UI aggiornato da "crediti" a "CinePass" per consistenza
 - Padding corretto anche nella vista gioco attivo (pt-20 pb-40)
 
+### SISTEMA DISTRIBUZIONE USCITA V2 (2026-04-09) - NUOVO
+- Scelta data di uscita: Immediato, 24h, 2-7 giorni (Immediato/24h freezati per film La Prima)
+- Scelta zone di distribuzione: 14 zone raggruppate per continente + Mondiale
+- Costi: fondi in-game + CinePass (1-5 CP per zona, 5 CP Mondiale)
+- Hype multiplier variabile per data (bell curve: 3-4 giorni = ottimo, immediato = basso)
+- Revenue multiplier basato su zone scelte (USA=x2, World=x3.5)
+- Programmazione durante La Prima: configurabile ma rilascio bloccato fino a fine timer
+- Rilascio differito: film va in "Prossimamente" con countdown
+- StepperBar aggiornata: step USCITA cliccabile/animato durante premiere_live
+- Backend: GET /release-zones, POST /schedule-release, rilascio usa schedule per calcolo revenue
+
+### FIX StepperBar (2026-04-09)
+- Aggiunto padding destro (pr-6) per evitare che l'ultimo step sia tagliato
+- Step USCITA visibile e cliccabile durante premiere_live (allowScheduleStep + pulse animation)
+
 ## Backlog
 
 ### P1

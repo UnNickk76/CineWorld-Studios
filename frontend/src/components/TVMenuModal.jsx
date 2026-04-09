@@ -1,18 +1,17 @@
 // CineWorld - TV Menu Modal (Hub Gestione Emittente)
 // 4 sections: Contenuti, Palinsesto, Pubblicità, Statistiche TV
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { AuthContext } from '../contexts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
-import { Input } from './ui/input';
 import { useConfirm } from './ConfirmDialog';
 import {
   Tv, Sparkles, Film, Settings, Plus, X, Loader2, DollarSign, Eye,
-  TrendingUp, Check, Trash2, BarChart3, Play, Clock, Users, Zap,
-  RefreshCw, Ban, ChevronRight, Radio, Globe, Star, Calendar
+  TrendingUp, Check, Trash2, BarChart3, Clock, Users, Zap,
+  RefreshCw, Ban, ChevronRight, Radio, Star, Snowflake
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +29,15 @@ const TABS = [
   { id: 'statistiche', label: 'Statistiche', icon: BarChart3 },
 ];
 
+const DELAY_OPTIONS = [
+  { hours: 6, label: '6 ore' },
+  { hours: 12, label: '12 ore' },
+  { hours: 24, label: '24 ore' },
+  { hours: 48, label: '2 giorni' },
+  { hours: 96, label: '4 giorni' },
+  { hours: 144, label: '6 giorni' },
+];
+
 export function TVMenuModal({ open, onClose, station, enrichedContents, capacity, shareData, infraLevel, onRefresh, onOpenPalinsesto }) {
   const { api } = useContext(AuthContext);
   const gameConfirm = useConfirm();
@@ -41,8 +49,19 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   const [savingSettings, setSavingSettings] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
+  // Prossimamente state
+  const [upcomingItems, setUpcomingItems] = useState([]);
+  const [showAddUpcoming, setShowAddUpcoming] = useState(false);
+  const [availableUpcoming, setAvailableUpcoming] = useState({ films: [], tv_series: [], anime: [] });
+  const [upcomingLoading, setUpcomingLoading] = useState(false);
+  const [timerPopup, setTimerPopup] = useState(null); // { content, contentType }
+  const [addingUpcoming, setAddingUpcoming] = useState(false);
+
   useEffect(() => {
-    if (open && station) setSettingsAd(station.ad_seconds || 30);
+    if (open && station) {
+      setSettingsAd(station.ad_seconds || 30);
+      loadUpcoming();
+    }
   }, [open, station]);
 
   if (!station) return null;
@@ -51,7 +70,15 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   const contents = enrichedContents || { films: [], tv_series: [], anime: [] };
   const allSeries = [...(contents.tv_series || []), ...(contents.anime || [])];
 
-  // Content management
+  // Load upcoming content
+  async function loadUpcoming() {
+    try {
+      const res = await api.get(`/tv-stations/${stationId}/upcoming`);
+      setUpcomingItems(res.data.items || []);
+    } catch { setUpcomingItems([]); }
+  }
+
+  // Open add content picker (for existing palette)
   const openAddContent = async (type) => {
     setShowAddType(type);
     setContentLoading(true);
@@ -60,6 +87,17 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
       setAvailableContent(res.data);
     } catch { toast.error('Errore caricamento contenuti'); }
     setContentLoading(false);
+  };
+
+  // Open add upcoming picker
+  const openAddUpcomingPicker = async () => {
+    setShowAddUpcoming(true);
+    setUpcomingLoading(true);
+    try {
+      const res = await api.get(`/tv-stations/available-upcoming/${stationId}`);
+      setAvailableUpcoming(res.data);
+    } catch { toast.error('Errore caricamento'); }
+    setUpcomingLoading(false);
   };
 
   const addContent = async (contentId, contentType) => {
@@ -77,6 +115,39 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
       await api.post('/tv-stations/remove-content', { station_id: stationId, content_id: contentId });
       toast.success('Contenuto rimosso');
       onRefresh?.();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+  };
+
+  // Add upcoming with timer
+  const handleAddUpcoming = async (delayHours) => {
+    if (!timerPopup) return;
+    setAddingUpcoming(true);
+    try {
+      const res = await api.post('/tv-stations/add-upcoming', {
+        station_id: stationId,
+        content_id: timerPopup.content.id,
+        content_type: timerPopup.contentType,
+        delay_hours: delayHours,
+      });
+      toast.success(res.data.message);
+      setTimerPopup(null);
+      setShowAddUpcoming(false);
+      loadUpcoming();
+
+      // For series/anime with episodes → open PalinsestoModal
+      if (timerPopup.contentType !== 'film' && (timerPopup.content.num_episodes || 0) > 0) {
+        onClose();
+        onOpenPalinsesto?.(timerPopup.content);
+      }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setAddingUpcoming(false);
+  };
+
+  const removeUpcoming = async (contentId) => {
+    try {
+      await api.post('/tv-stations/remove-upcoming', { station_id: stationId, content_id: contentId });
+      toast.success('Rimosso dai Prossimamente');
+      loadUpcoming();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
   };
 
@@ -115,7 +186,7 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); setShowAddType(null); } }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); setShowAddType(null); setShowAddUpcoming(false); setTimerPopup(null); } }}>
       <DialogContent className="bg-[#0A0A0B] border-white/10 max-w-[460px] max-h-[90vh] overflow-hidden p-0 [&>button]:hidden" data-testid="tv-menu-modal">
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
@@ -128,18 +199,12 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
               <X className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Tabs */}
           <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1" data-testid="tv-menu-tabs">
             {TABS.map(tab => {
               const Icon = tab.icon;
               return (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); setShowAddType(null); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-medium transition-all ${
-                    activeTab === tab.id ? 'bg-red-500/15 text-red-400 border border-red-500/25' : 'text-gray-500 hover:text-gray-300'
-                  }`}
+                <button key={tab.id} onClick={() => { setActiveTab(tab.id); setShowAddType(null); setShowAddUpcoming(false); setTimerPopup(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-medium transition-all ${activeTab === tab.id ? 'bg-red-500/15 text-red-400 border border-red-500/25' : 'text-gray-500 hover:text-gray-300'}`}
                   data-testid={`tab-${tab.id}`}
                 >
                   <Icon className="w-3 h-3" />
@@ -150,11 +215,12 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
           </div>
         </div>
 
-        {/* Tab content */}
         <div className="overflow-y-auto px-4 pb-4" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-          {/* === CONTENUTI === */}
-          {activeTab === 'contenuti' && !showAddType && (
+
+          {/* === CONTENUTI TAB === */}
+          {activeTab === 'contenuti' && !showAddType && !showAddUpcoming && !timerPopup && (
             <div className="space-y-3" data-testid="tab-contenuti-content">
+              {/* Content rows: Film, Serie TV, Anime */}
               {['film', 'tv_series', 'anime'].map(type => {
                 const labels = { film: 'Film', tv_series: 'Serie TV', anime: 'Anime' };
                 const colors = { film: 'yellow', tv_series: 'blue', anime: 'orange' };
@@ -163,85 +229,129 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                 const capKey = type === 'film' ? 'films' : type;
                 const items = contents[capKey] || [];
                 const maxItems = capacity?.[capKey] || 99;
-
+                const canAdd = items.length < maxItems;
                 return (
                   <div key={type}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Icon className={`w-4 h-4 text-${colors[type]}-400`} />
-                        <span className="text-xs font-bold">{labels[type]}</span>
-                        <Badge className="text-[9px] bg-white/5 border-0">{items.length}/{maxItems}</Badge>
-                      </div>
-                      {items.length < maxItems && (
-                        <Button size="sm" variant="ghost" className={`h-6 text-[10px] text-${colors[type]}-400`} onClick={() => openAddContent(type)} data-testid={`menu-add-${type}`}>
-                          <Plus className="w-3 h-3 mr-0.5" /> Aggiungi
-                        </Button>
-                      )}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Icon className={`w-3.5 h-3.5 text-${colors[type]}-400`} />
+                      <span className="text-[10px] font-bold">{labels[type]}</span>
+                      <Badge className="text-[8px] bg-white/5 border-0">{items.length}/{maxItems}</Badge>
                     </div>
-                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-                      {items.map(item => (
-                        <div key={item.id} className="flex-shrink-0 w-[60px] group relative">
-                          <div className="aspect-[2/3] rounded-lg overflow-hidden">
-                            <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-                            <button className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeContent(item.id)}>
-                              <Trash2 className="w-2.5 h-2.5 text-red-400" />
-                            </button>
-                          </div>
-                          <p className="text-[7px] font-medium truncate mt-0.5">{item.title}</p>
-                        </div>
-                      ))}
-                      {items.length === 0 && (
-                        <button className="flex-shrink-0 w-[60px] aspect-[2/3] rounded-lg border border-dashed border-white/10 flex items-center justify-center hover:border-red-500/30 transition-colors" onClick={() => openAddContent(type)}>
-                          <Plus className="w-4 h-4 text-gray-600" />
-                        </button>
-                      )}
-                    </div>
+                    <ScrollRow items={items} color={colors[type]} canAdd={canAdd} onAdd={() => openAddContent(type)} onRemove={removeContent} />
                   </div>
                 );
               })}
+
+              {/* PROSSIMAMENTE section */}
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[10px] font-bold">Prossimamente</span>
+                  <Badge className="text-[8px] bg-cyan-500/15 text-cyan-400 border-0">{upcomingItems.length}</Badge>
+                </div>
+                <ScrollRow
+                  items={upcomingItems.map(u => ({ id: u.content_id, title: u.title, poster_url: u.poster_url, _frozen: u.frozen, _remaining: u.remaining_seconds, _upcomingId: u.id }))}
+                  color="cyan"
+                  canAdd={true}
+                  onAdd={openAddUpcomingPicker}
+                  onRemove={(id) => removeUpcoming(id)}
+                  isUpcoming
+                />
+              </div>
             </div>
           )}
 
-          {/* Add Content sub-view */}
-          {activeTab === 'contenuti' && showAddType && (
-            <div data-testid="add-content-subview">
-              <button onClick={() => setShowAddType(null)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white mb-2">
+          {/* Add Content sub-view (for palette) */}
+          {activeTab === 'contenuti' && showAddType && !showAddUpcoming && (
+            <ContentPicker
+              loading={contentLoading}
+              items={showAddType === 'film' ? availableContent.films : showAddType === 'tv_series' ? availableContent.tv_series : availableContent.anime}
+              type={showAddType}
+              onBack={() => setShowAddType(null)}
+              onSelect={(item) => addContent(item.id, showAddType)}
+            />
+          )}
+
+          {/* Add Upcoming sub-view */}
+          {activeTab === 'contenuti' && showAddUpcoming && !timerPopup && (
+            <div data-testid="add-upcoming-subview">
+              <button onClick={() => setShowAddUpcoming(false)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white mb-2">
                 <ChevronRight className="w-3 h-3 rotate-180" /> Torna
               </button>
-              <p className="text-xs font-bold mb-2">Aggiungi {showAddType === 'film' ? 'Film' : showAddType === 'tv_series' ? 'Serie TV' : 'Anime'}</p>
-              {contentLoading ? (
-                <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-red-400 animate-spin" /></div>
-              ) : (() => {
-                const items = showAddType === 'film' ? availableContent.films : showAddType === 'tv_series' ? availableContent.tv_series : availableContent.anime;
-                return items.length === 0 ? (
-                  <p className="text-gray-500 text-[10px] text-center py-6">Nessun contenuto disponibile</p>
-                ) : (
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {items.map(item => (
-                      <button key={item.id} className="group text-left" onClick={() => addContent(item.id, showAddType)} data-testid={`add-item-${item.id}`}>
-                        <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/5 hover:border-red-500/40 transition-colors relative">
-                          <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center">
-                            <Plus className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                        <p className="text-[7px] font-medium truncate mt-0.5">{item.title}</p>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              <p className="text-xs font-bold mb-2">Aggiungi ai Prossimamente</p>
+              {upcomingLoading ? (
+                <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 text-cyan-400 animate-spin" /></div>
+              ) : (
+                ['film', 'tv_series', 'anime'].map(type => {
+                  const labels = { film: 'Film', tv_series: 'Serie TV', anime: 'Anime' };
+                  const colors = { film: 'yellow', tv_series: 'blue', anime: 'orange' };
+                  const items = type === 'film' ? availableUpcoming.films : type === 'tv_series' ? availableUpcoming.tv_series : availableUpcoming.anime;
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <div key={type} className="mb-3">
+                      <p className={`text-[9px] font-bold text-${colors[type]}-400 mb-1 uppercase`}>{labels[type]}</p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {items.slice(0, 12).map(item => (
+                          <button key={item.id} className="group text-left" onClick={() => setTimerPopup({ content: item, contentType: type })} data-testid={`upcoming-pick-${item.id}`}>
+                            <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/5 hover:border-cyan-500/40 transition-colors relative">
+                              <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center">
+                                <Plus className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                              {item.status && item.status !== 'completed' && item.status !== 'released' && (
+                                <Badge className="absolute bottom-0.5 left-0.5 text-[5px] bg-orange-500/80 border-0">{item.status}</Badge>
+                              )}
+                            </div>
+                            <p className="text-[6px] font-medium truncate mt-0.5">{item.title}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
 
-          {/* === PALINSESTO === */}
+          {/* Timer popup */}
+          {activeTab === 'contenuti' && timerPopup && (
+            <div data-testid="timer-popup">
+              <button onClick={() => setTimerPopup(null)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white mb-2">
+                <ChevronRight className="w-3 h-3 rotate-180" /> Torna
+              </button>
+              <div className="text-center mb-3">
+                <p className="text-xs font-bold mb-1">Quando va in programmazione?</p>
+                <p className="text-[10px] text-gray-400 truncate">{timerPopup.content.title}</p>
+                {timerPopup.contentType !== 'film' && (timerPopup.content.num_episodes || 0) === 0 && (
+                  <div className="flex items-center justify-center gap-1 mt-1 text-[9px] text-amber-400">
+                    <Snowflake className="w-3 h-3" />
+                    <span>Senza episodi definiti, resterà congelato</span>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {DELAY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.hours}
+                    onClick={() => handleAddUpcoming(opt.hours)}
+                    disabled={addingUpcoming}
+                    className="py-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-bold hover:bg-cyan-500/20 active:scale-95 transition-all disabled:opacity-40"
+                    data-testid={`delay-${opt.hours}`}
+                  >
+                    {addingUpcoming ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* === PALINSESTO TAB === */}
           {activeTab === 'palinsesto' && (
             <div className="space-y-2" data-testid="tab-palinsesto-content">
               {allSeries.length === 0 ? (
                 <div className="text-center py-8">
                   <Zap className="w-8 h-8 text-gray-700 mx-auto mb-2" />
                   <p className="text-gray-500 text-xs">Nessuna serie/anime nel palinsesto</p>
-                  <p className="text-gray-600 text-[10px] mt-1">Aggiungi contenuti nella sezione Contenuti</p>
                 </div>
               ) : (
                 allSeries.map(item => {
@@ -252,7 +362,6 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                   const progress = totalEps > 0 ? (airedEps / totalEps) * 100 : 0;
                   const stateColors = { idle: 'bg-gray-500/20 text-gray-400', airing: 'bg-green-500/20 text-green-400', scheduled: 'bg-blue-500/20 text-blue-400', completed: 'bg-cyan-500/20 text-cyan-400', reruns: 'bg-amber-500/20 text-amber-400', retired: 'bg-red-500/20 text-red-400' };
                   const stateLabels = { idle: 'Non in onda', airing: 'In onda', scheduled: 'Programmata', completed: 'Completata', reruns: 'Repliche', retired: 'Ritirata' };
-
                   return (
                     <Card key={item.id} className="bg-[#111113] border-white/5 overflow-hidden" data-testid={`pali-card-${item.id}`}>
                       <CardContent className="p-0">
@@ -281,12 +390,12 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                                 <Settings className="w-2.5 h-2.5 mr-0.5" /> Gestisci
                               </Button>
                               {bstate === 'completed' && (
-                                <Button size="sm" className="h-6 text-[9px] bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 px-2" onClick={() => startReruns(item.id)} disabled={actionLoading === `reruns-${item.id}`} data-testid={`pali-reruns-${item.id}`}>
+                                <Button size="sm" className="h-6 text-[9px] bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 px-2" onClick={() => startReruns(item.id)} disabled={actionLoading === `reruns-${item.id}`}>
                                   <RefreshCw className="w-2.5 h-2.5 mr-0.5" /> Repliche
                                 </Button>
                               )}
                               {(bstate === 'completed' || bstate === 'reruns') && (
-                                <Button size="sm" variant="outline" className="h-6 text-[9px] border-red-500/20 text-red-400 px-2" onClick={() => retireSeries(item.id)} disabled={actionLoading === `retire-${item.id}`} data-testid={`pali-retire-${item.id}`}>
+                                <Button size="sm" variant="outline" className="h-6 text-[9px] border-red-500/20 text-red-400 px-2" onClick={() => retireSeries(item.id)} disabled={actionLoading === `retire-${item.id}`}>
                                   <Ban className="w-2.5 h-2.5 mr-0.5" /> Ritira
                                 </Button>
                               )}
@@ -309,15 +418,8 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                   <span className="text-xs text-gray-400">Secondi di Pubblicità per Contenuto</span>
                   <span className="text-lg font-bold text-red-400">{settingsAd}s</span>
                 </div>
-                <input
-                  type="range" min="0" max="120" value={settingsAd}
-                  onChange={(e) => setSettingsAd(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-red-500"
-                  data-testid="menu-ad-slider"
-                />
-                <div className="flex justify-between text-[9px] text-gray-600 mt-1">
-                  <span>0s (no ads)</span><span>60s</span><span>120s (max)</span>
-                </div>
+                <input type="range" min="0" max="120" value={settingsAd} onChange={(e) => setSettingsAd(Number(e.target.value))} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-red-500" data-testid="menu-ad-slider" />
+                <div className="flex justify-between text-[9px] text-gray-600 mt-1"><span>0s</span><span>60s</span><span>120s</span></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Card className={`${settingsAd > 60 ? 'bg-green-500/10 border-green-500/20' : 'bg-white/[0.03] border-white/5'}`}>
@@ -335,12 +437,7 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                   </CardContent>
                 </Card>
               </div>
-              <Button
-                className="w-full bg-red-500 hover:bg-red-600 font-bold"
-                onClick={saveSettings}
-                disabled={savingSettings || settingsAd === station.ad_seconds}
-                data-testid="menu-save-ads"
-              >
+              <Button className="w-full bg-red-500 hover:bg-red-600 font-bold" onClick={saveSettings} disabled={savingSettings || settingsAd === station.ad_seconds} data-testid="menu-save-ads">
                 {savingSettings ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
                 Salva Impostazioni
               </Button>
@@ -358,51 +455,26 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
               </div>
               <Card className="bg-[#111113] border-white/5">
                 <CardContent className="p-3 space-y-2">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Livello infrastruttura</span>
-                    <span className="font-bold text-red-400">Lv.{infraLevel}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Contenuti nel palinsesto</span>
-                    <span className="font-bold">{shareData?.total_content || 0}/{capacity?.total || 7}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Nazione</span>
-                    <span className="font-bold">{station.nation}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Secondi pubblicità</span>
-                    <span className="font-bold">{station.ad_seconds}s</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Ricavo giornaliero stimato</span>
-                    <span className="font-bold text-green-400">${(shareData?.estimated_daily_revenue || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-500">Revenue totale</span>
-                    <span className="font-bold text-green-400">${(station.total_revenue || 0).toLocaleString()}</span>
-                  </div>
+                  {[
+                    ['Livello infrastruttura', <span className="font-bold text-red-400">Lv.{infraLevel}</span>],
+                    ['Contenuti nel palinsesto', <span className="font-bold">{shareData?.total_content || 0}/{capacity?.total || 7}</span>],
+                    ['Nazione', <span className="font-bold">{station.nation}</span>],
+                    ['Secondi pubblicità', <span className="font-bold">{station.ad_seconds}s</span>],
+                    ['Ricavo giornaliero stimato', <span className="font-bold text-green-400">${(shareData?.estimated_daily_revenue || 0).toLocaleString()}</span>],
+                    ['Revenue totale', <span className="font-bold text-green-400">${(station.total_revenue || 0).toLocaleString()}</span>],
+                  ].map(([label, val], i) => (
+                    <div key={i} className="flex items-center justify-between text-[10px]"><span className="text-gray-500">{label}</span>{val}</div>
+                  ))}
                 </CardContent>
               </Card>
-              {/* Content breakdown */}
               <div>
                 <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider">Contenuti per tipo</p>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-2 text-center">
-                    <Film className="w-4 h-4 text-yellow-400 mx-auto mb-1" />
-                    <p className="text-sm font-bold">{contents.films?.length || 0}</p>
-                    <p className="text-[8px] text-gray-500">Film</p>
-                  </div>
-                  <div className="bg-blue-500/5 border border-blue-500/15 rounded-lg p-2 text-center">
-                    <Tv className="w-4 h-4 text-blue-400 mx-auto mb-1" />
-                    <p className="text-sm font-bold">{contents.tv_series?.length || 0}</p>
-                    <p className="text-[8px] text-gray-500">Serie TV</p>
-                  </div>
-                  <div className="bg-orange-500/5 border border-orange-500/15 rounded-lg p-2 text-center">
-                    <Sparkles className="w-4 h-4 text-orange-400 mx-auto mb-1" />
-                    <p className="text-sm font-bold">{contents.anime?.length || 0}</p>
-                    <p className="text-[8px] text-gray-500">Anime</p>
-                  </div>
+                  {[['Film', Film, 'yellow', contents.films?.length || 0], ['Serie TV', Tv, 'blue', contents.tv_series?.length || 0], ['Anime', Sparkles, 'orange', contents.anime?.length || 0]].map(([l, I, c, n]) => (
+                    <div key={l} className={`bg-${c}-500/5 border border-${c}-500/15 rounded-lg p-2 text-center`}>
+                      <I className={`w-4 h-4 text-${c}-400 mx-auto mb-1`} /><p className="text-sm font-bold">{n}</p><p className="text-[8px] text-gray-500">{l}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -413,16 +485,114 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   );
 }
 
+// === Sub-components ===
+
+function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming }) {
+  const scrollRef = useRef(null);
+  const [showArrow, setShowArrow] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setShowArrow(el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 10);
+    check();
+    el.addEventListener('scroll', check);
+    return () => el.removeEventListener('scroll', check);
+  }, [items]);
+
+  return (
+    <div className="relative">
+      <div ref={scrollRef} className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {/* + card as first element */}
+        {canAdd && (
+          <button className={`flex-shrink-0 w-[52px] aspect-[2/3] rounded-lg border border-dashed border-${color}-500/30 flex items-center justify-center hover:border-${color}-500/60 hover:bg-${color}-500/5 transition-colors active:scale-95`} onClick={onAdd} data-testid={`add-card-${color}`}>
+            <Plus className={`w-4 h-4 text-${color}-400`} />
+          </button>
+        )}
+        {items.map(item => (
+          <div key={item.id} className="flex-shrink-0 w-[52px] group relative">
+            <div className="aspect-[2/3] rounded-lg overflow-hidden relative">
+              <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+              {onRemove && (
+                <button className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onRemove(item.id)}>
+                  <Trash2 className="w-2 h-2 text-red-400" />
+                </button>
+              )}
+              {isUpcoming && item._frozen && (
+                <div className="absolute inset-0 bg-blue-900/40 flex items-center justify-center">
+                  <Snowflake className="w-4 h-4 text-blue-300" />
+                </div>
+              )}
+              {isUpcoming && !item._frozen && item._remaining > 0 && (
+                <div className="absolute bottom-0 inset-x-0 bg-black/80 px-0.5 py-0.5 text-center">
+                  <span className="text-[6px] text-cyan-400 font-bold">{formatCountdown(item._remaining)}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-[6px] font-medium truncate mt-0.5">{item.title}</p>
+          </div>
+        ))}
+        {items.length === 0 && !canAdd && (
+          <p className="text-[9px] text-gray-600 py-3 pl-1">Vuoto</p>
+        )}
+      </div>
+      {/* Arrow indicator for 20+ items */}
+      {(showArrow || items.length >= 20) && (
+        <div className={`absolute right-0 top-0 bottom-1 w-6 flex items-center justify-center bg-gradient-to-l from-[#0A0A0B] to-transparent pointer-events-none`}>
+          <ChevronRight className={`w-4 h-4 text-${color}-400`} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContentPicker({ loading, items, type, onBack, onSelect }) {
+  const labels = { film: 'Film', tv_series: 'Serie TV', anime: 'Anime' };
+  return (
+    <div data-testid="add-content-subview">
+      <button onClick={onBack} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white mb-2">
+        <ChevronRight className="w-3 h-3 rotate-180" /> Torna
+      </button>
+      <p className="text-xs font-bold mb-2">Aggiungi {labels[type]}</p>
+      {loading ? (
+        <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-red-400 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-gray-500 text-[10px] text-center py-6">Nessun contenuto disponibile</p>
+      ) : (
+        <div className="grid grid-cols-4 gap-1.5">
+          {items.map(item => (
+            <button key={item.id} className="group text-left" onClick={() => onSelect(item)} data-testid={`add-item-${item.id}`}>
+              <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/5 hover:border-red-500/40 transition-colors relative">
+                <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+              <p className="text-[7px] font-medium truncate mt-0.5">{item.title}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon, color, bgColor }) {
   return (
     <Card className={`${bgColor} border-white/5`}>
       <CardContent className="p-3 flex items-center gap-3">
         <div className={color}>{icon}</div>
-        <div>
-          <p className="text-sm font-bold">{value}</p>
-          <p className="text-[9px] text-gray-500">{label}</p>
-        </div>
+        <div><p className="text-sm font-bold">{value}</p><p className="text-[9px] text-gray-500">{label}</p></div>
       </CardContent>
     </Card>
   );
+}
+
+function formatCountdown(seconds) {
+  if (seconds <= 0) return 'ORA';
+  const h = Math.floor(seconds / 3600);
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d}g ${h % 24}h`;
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }

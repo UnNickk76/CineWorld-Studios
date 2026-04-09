@@ -581,7 +581,7 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   );
 }
 
-export function ComingSoonSection({ compact = false }) {
+export function ComingSoonSection({ compact = false, filterType, sectionTitle }) {
   const { api } = useContext(AuthContext);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -591,14 +591,17 @@ export function ComingSoonSection({ compact = false }) {
   const loadItems = useCallback(() => {
     if (!api) return;
     api.get('/coming-soon').then(r => {
-      const sorted = (r.data.items || []).sort((a, b) => {
+      let sorted = (r.data.items || []).sort((a, b) => {
         const da = a.scheduled_release_at ? new Date(a.scheduled_release_at) : new Date('2099-01-01');
         const db = b.scheduled_release_at ? new Date(b.scheduled_release_at) : new Date('2099-01-01');
         return da - db;
       });
+      if (filterType) {
+        sorted = sorted.filter(item => item.content_type === filterType);
+      }
       setItems(sorted);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [api]);
+  }, [api, filterType]);
 
   const loadPvpStatus = useCallback(() => {
     if (!api) return;
@@ -614,29 +617,33 @@ export function ComingSoonSection({ compact = false }) {
 
   if (loading) return null;
 
+  const title = sectionTitle || 'Prossimamente';
+  const typeColors = { film: 'text-yellow-400', tv_series: 'text-blue-400', anime: 'text-orange-400' };
+  const TypeIcons = { film: Film, tv_series: Tv, anime: Sparkles };
+  const TIcon = filterType ? (TypeIcons[filterType] || Clock) : Clock;
+  const tColor = filterType ? (typeColors[filterType] || 'text-cyan-400') : 'text-cyan-400';
+
   return (
-    <div data-testid="coming-soon-section">
-      <div className="flex items-center gap-2 mb-2">
-        <Clock className="w-4 h-4 text-cyan-400" />
-        <h3 className="font-['Bebas_Neue'] text-lg text-white">Prossimamente</h3>
+    <div data-testid={`coming-soon-section${filterType ? `-${filterType}` : ''}`}>
+      <div className="flex items-center gap-2 mb-2 px-2 pt-2">
+        <TIcon className={`w-3.5 h-3.5 ${tColor}`} />
+        <h3 className="font-['Bebas_Neue'] text-base text-white">{title}</h3>
         {items.length > 0 && <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>}
       </div>
 
       {items.length === 0 ? (
-        <div className="p-4 rounded-lg border border-dashed border-gray-700/50 text-center" data-testid="coming-soon-empty">
-          <Clock className="w-6 h-6 mx-auto mb-1 text-gray-700" />
+        <div className="p-3 rounded-lg border border-dashed border-gray-700/50 text-center mx-2 mb-2" data-testid="coming-soon-empty">
+          <Clock className="w-5 h-5 mx-auto mb-1 text-gray-700" />
           <p className="text-[10px] text-gray-600">Nessun contenuto in arrivo</p>
         </div>
       ) : (
-        /* Horizontal scroll */
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-2 overflow-x-auto pb-2 px-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
           {items.map(item => (
             <ComingSoonThumb key={item.id} item={item} onClick={() => setSelectedItem(item)} />
           ))}
         </div>
       )}
 
-      {/* Detail Dialog */}
       <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
         <DialogContent className="bg-[#111113] border-white/10 text-white max-w-md max-h-[85vh] overflow-y-auto p-4"
           style={{ scrollbarWidth: 'thin' }}

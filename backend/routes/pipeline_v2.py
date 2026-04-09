@@ -373,7 +373,10 @@ async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_use
         'screenplay_mode': None,
         'pre_imdb_score': 0,
         'pre_imdb_breakdown': {},
-        'cast': {'director': None, 'screenwriter': None, 'actors': [], 'composer': None},
+        'cast': {
+            'director': None, 'screenwriter': None, 'actors': [], 'composer': None,
+            **({'animators': [], 'voice_actors': []} if ct == 'anime' else {}),
+        },
         'cast_proposals': [],
         'cast_locked': False,
         'equipment': [],
@@ -834,6 +837,9 @@ async def _generate_agency_proposals(project, agencies, user_id):
         score += (npc.get('fame', 0) or 0) * 0.5
         return score
 
+    ANIME_AFFINITIES = ['character_design', 'mecha_design', 'background_art', 'action_animation', 'sakuga']
+    VA_AFFINITIES = ['protagonista', 'antagonista', 'comico', 'drammatico', 'narratore']
+
     def _map_npc(npc, role_type, ag_idx):
         ag_id = agency_ids[ag_idx % len(agency_ids)] if agency_ids else ''
         ag_name = agency_names.get(ag_id, 'Agenzia')
@@ -852,8 +858,13 @@ async def _generate_agency_proposals(project, agencies, user_id):
                 genre_skill = min(98, genre_skill + int(skills[sk] * genre_weights[sk] * 0.02))
         cost = npc.get('cost', int(base_skill * 800 + fame_val * 200 + stars * 15000))
         if is_star: cost = int(cost * 1.5)
+        # Anime roles: adjust cost & affinity
+        if role_type == 'animator':
+            cost = int(cost * 0.8)  # Slightly cheaper
+        elif role_type == 'voice_actor':
+            cost = int(cost * 0.6)
         return {
-            'id': npc.get('id', ''),
+            'id': npc.get('id', '') + ('_anim' if role_type == 'animator' else '_va' if role_type == 'voice_actor' else ''),
             'name': npc.get('name', '?'),
             'role_type': role_type,
             'skill': base_skill,
@@ -864,14 +875,19 @@ async def _generate_agency_proposals(project, agencies, user_id):
             'is_star': is_star,
             'gender': npc.get('gender', 'other'),
             'age': npc.get('age', random.randint(25, 55)),
-            'nationality': npc.get('nationality', 'IT'),
+            'nationality': npc.get('nationality', 'JP' if role_type in ('animator', 'voice_actor') else 'IT'),
             'cost': cost,
             'agency_id': ag_id,
             'agency_name': ag_name,
             'skills': skills,
             'strengths': npc.get('primary_skills', [])[:2],
             'weaknesses': [f"debole in {npc['secondary_skill']}"] if npc.get('secondary_skill') else [],
-            'role_affinity': random.choice(ROLE_AFFINITIES) if role_type == 'actor' else None,
+            'role_affinity': (
+                random.choice(ANIME_AFFINITIES) if role_type == 'animator'
+                else random.choice(VA_AFFINITIES) if role_type == 'voice_actor'
+                else random.choice(ROLE_AFFINITIES) if role_type == 'actor'
+                else None
+            ),
             'genre_affinity': [genre] if genre_skill > base_skill else [],
             'worked_with_us': npc.get('id', '') in past_ids,
             'imdb_rating': npc.get('imdb_rating', 0),
@@ -884,20 +900,33 @@ async def _generate_agency_proposals(project, agencies, user_id):
         }
 
     proposals = []
+    ct = project.get('content_type', 'film')
+
+    # Base roles
+    roles = [('director', 10), ('writer', 10), ('actor', 30), ('composer', 8)]
+
+    # Add anime-specific roles (reuse existing NPCs from director/actor pools)
+    if ct in ('anime',):
+        roles.append(('animator', 12))     # Disegnatori from director pool
+        roles.append(('voice_actor', 15))  # Doppiatori from actor pool
 
     # Fetch per role, sorted by genre compatibility
-    for role_type, count in [('director', 10), ('writer', 10), ('actor', 30), ('composer', 8)]:
-        # Sample more than needed, then sort by genre score
+    for role_type, count in roles:
+        # Map anime roles to existing NPC pools
+        query_role = role_type
+        if role_type == 'animator':
+            query_role = 'director'
+        elif role_type == 'voice_actor':
+            query_role = 'actor'
+
         sample_size = count * 3
         cursor = db.people.aggregate([
-            {'$match': {'role_type': role_type}},
+            {'$match': {'role_type': query_role}},
             {'$sample': {'size': sample_size}},
             {'$project': {'_id': 0}},
         ])
         candidates = await cursor.to_list(sample_size)
-        # Score and sort by genre compatibility
         candidates.sort(key=_score_npc, reverse=True)
-        # Take top N
         for i, npc in enumerate(candidates[:count]):
             proposals.append(_map_npc(npc, role_type, i))
 
@@ -1252,16 +1281,24 @@ async def calculate_cast_chemistry(cast: dict, genre: str, subgenres: list) -> d
     }
 
 
-def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
-    """Calculate strategic cast quality with bonus/malus breakdown."""
+def _calc_cast_quality(cast: dict, genre: str, subgenres: list, content_type: str = 'film') -> dict:
+    """Calculate strategic cast quality with bonus/malus breakdown. Weights differ by content_type."""
     breakdown = []
     total = 0
     sub_set = set(subgenres)
 
-    # DIRECTOR (weight 30%)
+    is_anime = content_type == 'anime'
+
+    # ── WEIGHTS by content_type ──
+    if is_anime:
+        dir_w, scr_w, actor_w, comp_w = 0.20, 0.15, 0.08, 0.10
+    else:
+        dir_w, scr_w, actor_w, comp_w = 0.30, 0.15, 0.10, 0.05
+
+    # DIRECTOR (weight varies)
     d = cast.get('director')
     if d:
-        base = d.get('genre_skill', d.get('skill', 50)) * 0.30
+        base = d.get('genre_skill', d.get('skill', 50)) * dir_w
         bonus = 0
         if genre in d.get('genre_affinity', []):
             bonus += 5
@@ -1282,26 +1319,24 @@ def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
     if cast.get('screenwriter'):
         sws = [cast['screenwriter']] if not sws else sws
     for i, sw in enumerate(sws[:3]):
-        w = 0.15 if i == 0 else (0.10 if i == 1 else 0.05)
+        w = scr_w if i == 0 else (0.10 if i == 1 else 0.05)
         base = sw.get('genre_skill', sw.get('skill', 50)) * w
         bonus = 0
         if genre in sw.get('genre_affinity', []):
             bonus += 3
         total += base + bonus
 
-    # ACTORS (diminishing returns)
+    # ACTORS (diminishing returns — less weight for anime)
     actors = cast.get('actors', [])
     for i, a in enumerate(actors):
-        # Diminishing: first 3 = 100%, 4-6 = 60%, 7+ = 30%
         if i < 3:
-            w = 0.10
+            w = actor_w
         elif i < 6:
-            w = 0.06
+            w = actor_w * 0.6
         else:
-            w = 0.03
+            w = actor_w * 0.3
         base = a.get('genre_skill', a.get('skill', 50)) * w
         bonus = 0
-        # Role affinity bonus
         aff = a.get('role_affinity', '')
         genre_bonuses = GENRE_ROLE_BONUS.get(genre, {})
         if aff in genre_bonuses:
@@ -1309,29 +1344,65 @@ def _calc_cast_quality(cast: dict, genre: str, subgenres: list) -> dict:
             bonus += (mult - 1) * base * 2
             if i < 3:
                 breakdown.append(f'+{int((mult-1)*base*2)}% {a["name"]} affinita {aff}')
-        # Star bonus
         if a.get('is_star'):
             bonus += 3
-        # Subgenre bonus
         for sg in sub_set & set(a.get('genre_affinity', [])):
             bonus += 2
         total += base + bonus
 
-    # COMPOSER (weight 5%)
+    # COMPOSER (weight varies — more important for anime)
     c = cast.get('composer')
     if c:
-        base = c.get('genre_skill', c.get('skill', 50)) * 0.05
+        base = c.get('genre_skill', c.get('skill', 50)) * comp_w
         bonus = 0
         if genre in c.get('genre_affinity', []):
             bonus += 2
             breakdown.append('+2% compositore coerente genere')
+        if is_anime:
+            bonus += 3  # Anime OST is crucial
+            breakdown.append('+3% OST cruciale (anime)')
         total += base + bonus
 
-    # Malus: missing key roles
+    # ── ANIME-EXCLUSIVE ROLES ──
+    if is_anime:
+        # ANIMATORS / DISEGNATORI (weight 25%)
+        animators = cast.get('animators', [])
+        for i, anim in enumerate(animators[:3]):
+            w = 0.25 if i == 0 else (0.15 if i == 1 else 0.08)
+            base = anim.get('genre_skill', anim.get('skill', 50)) * w
+            bonus = 0
+            if anim.get('is_star'):
+                bonus += 5
+                breakdown.append(f'+5% disegnatore star {anim.get("name","")}')
+            if genre in anim.get('genre_affinity', []):
+                bonus += 4
+                breakdown.append(f'+4% disegnatore affinita genere')
+            total += base + bonus
+
+        if not animators:
+            total -= 15
+            breakdown.append('-15% nessun disegnatore (anime)')
+
+        # VOICE ACTORS / DOPPIATORI (weight 20%)
+        voice_actors = cast.get('voice_actors', [])
+        for i, va in enumerate(voice_actors):
+            w = 0.20 if i == 0 else (0.12 if i < 3 else 0.05)
+            base = va.get('genre_skill', va.get('skill', 50)) * w
+            bonus = 0
+            if va.get('is_star'):
+                bonus += 4
+                breakdown.append(f'+4% doppiatore star {va.get("name","")}')
+            total += base + bonus
+
+        if not voice_actors:
+            total -= 10
+            breakdown.append('-10% nessun doppiatore (anime)')
+
+    # Malus: missing key roles (universal)
     if not d:
         total -= 10
         breakdown.append('-10% nessun regista')
-    if len(actors) < 2:
+    if not is_anime and len(actors) < 2:
         total -= 8
         breakdown.append('-8% meno di 2 attori')
 
@@ -1430,6 +1501,12 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
     if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
         cast['screenwriters'] = [cast['screenwriter']]
 
+    # Ensure anime-specific lists exist
+    ct = project.get('content_type', 'film')
+    if ct == 'anime':
+        cast.setdefault('animators', [])
+        cast.setdefault('voice_actors', [])
+
     role = req.role
     # Normalize writer/screenwriter
     if role == 'writer':
@@ -1441,6 +1518,14 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         raise HTTPException(400, "Hai gia un compositore (max 1)")
     if role == 'screenwriter' and len(cast.get('screenwriters', [])) >= 3:
         raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+    if role == 'animator' and ct != 'anime':
+        raise HTTPException(400, "Disegnatori solo per Anime")
+    if role == 'voice_actor' and ct != 'anime':
+        raise HTTPException(400, "Doppiatori solo per Anime")
+    if role == 'animator' and len(cast.get('animators', [])) >= 3:
+        raise HTTPException(400, "Hai gia 3 disegnatori (max 3)")
+    if role == 'voice_actor' and len(cast.get('voice_actors', [])) >= 5:
+        raise HTTPException(400, "Hai gia 5 doppiatori (max 5)")
 
     # REJECTION CHANCE: top talent may refuse low-level players
     player = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'fame': 1})
@@ -1491,6 +1576,14 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
         cast['actors'].append(proposal)
     elif role == 'composer':
         cast['composer'] = proposal
+    elif role == 'animator':
+        if not cast.get('animators'):
+            cast['animators'] = []
+        cast['animators'].append(proposal)
+    elif role == 'voice_actor':
+        if not cast.get('voice_actors'):
+            cast['voice_actors'] = []
+        cast['voice_actors'].append(proposal)
 
     # Deduct cost from funds
     cost = proposal.get('cost', 0)
@@ -1498,7 +1591,7 @@ async def select_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(get_c
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, project.get('content_type', 'film'))
 
     # Calculate chemistry indicators for the current cast
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
@@ -1641,7 +1734,7 @@ async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(
 
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, project.get('content_type', 'film'))
 
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
 
@@ -1674,15 +1767,18 @@ async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
         raise HTTPException(400, "Non in fase casting")
 
     cast = project.get('cast', {})
+    ct = project.get('content_type', 'film')
     if not cast.get('director'):
         raise HTTPException(400, "Serve almeno un regista")
-    if len(cast.get('actors', [])) < 2:
+    if ct != 'anime' and len(cast.get('actors', [])) < 2:
         raise HTTPException(400, "Servono almeno 2 attori")
+    if ct == 'anime' and not cast.get('animators'):
+        raise HTTPException(400, "Serve almeno un disegnatore per anime")
 
     # Final quality calculation
     genre = project.get('genre', 'drama')
     subgenres = project.get('subgenres', [])
-    quality_data = _calc_cast_quality(cast, genre, subgenres)
+    quality_data = _calc_cast_quality(cast, genre, subgenres, ct)
 
     # Final chemistry calculation — saved for gameplay impact
     chemistry = await calculate_cast_chemistry(cast, genre, subgenres)
@@ -3033,6 +3129,11 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
             'screenwriter': None,
             'actors': returning_actors,
             'composer': prev_cast.get('composer'),
+            # Anime roles: inherit all animators and voice actors
+            **(
+                {'animators': prev_cast.get('animators', []), 'voice_actors': prev_cast.get('voice_actors', [])}
+                if ct in ('anime',) else {}
+            ),
         },
         'cast_proposals': [],
         'cast_locked': False,

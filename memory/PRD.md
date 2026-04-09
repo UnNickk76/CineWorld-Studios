@@ -137,6 +137,20 @@ Frontend (PipelineV2.jsx):
 - Enrich button per episodi vecchi formato
 - Selector modalita (binge/daily/weekly) con icone e descrizioni
 
+### CAST ANIME DEDICATO (2026-04-09) - NUOVO
+Backend:
+- Ruoli anime: animators (disegnatori, max 3) e voice_actors (doppiatori, max 5)
+- Pesi qualita diversi: anime → dir 20%, animators 25%, voice_actors 20%, comp 10%, attori 8%
+- Pesi serie_tv: dir 30%, attori 10% each, screenwriters 15%, comp 5%
+- Proposte cast: anime genera proposte per animator e voice_actor da pool NPC esistenti
+- Lock cast: anime richiede 1 regista + 1 disegnatore minimo (non 2 attori)
+- Malus: -15% senza disegnatore, -10% senza doppiatori (anime only)
+- Nuova stagione: eredita animators e voice_actors
+Frontend:
+- Tabs cast dinamici in base a content_type
+- Anime mostra tabs: Registi, Sceneggiatori, Disegnatori, Doppiatori, Attori (opz.), Compositori
+- Riepilogo cast mostra Disegnatore e Doppiatore con icone Palette e Megaphone
+
 ## Backlog
 
 ### P1

@@ -1021,11 +1021,26 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   const [selectedRole, setSelectedRole] = useState({});
   const cast = film.cast || {};
   const proposals = film.cast_proposals || [];
+  const isAnime = film.content_type === 'anime';
   const directors = cast.director ? 1 : 0;
   const screenwriters = (cast.screenwriters || (cast.screenwriter ? [cast.screenwriter] : [])).length;
   const actors = (cast.actors || []).length;
   const composers = cast.composer ? 1 : 0;
-  const canLock = directors >= 1 && actors >= 2;
+  const animators = (cast.animators || []).length;
+  const voiceActors = (cast.voice_actors || []).length;
+  const canLock = directors >= 1 && (isAnime ? animators >= 1 : actors >= 2);
+
+  // Dynamic tabs based on content_type
+  const castTabs = [
+    { key: 'director', label: 'Registi', icon: Camera, max: 1 },
+    { key: 'writer', label: 'Sceneggiatori', icon: FileText, max: 3 },
+    ...(isAnime ? [
+      { key: 'animator', label: 'Disegnatori', icon: Palette, max: 3 },
+      { key: 'voice_actor', label: 'Doppiatori', icon: Megaphone, max: 5 },
+    ] : []),
+    { key: 'actor', label: isAnime ? 'Attori (opz.)' : 'Attori', icon: Star, max: 99 },
+    { key: 'composer', label: 'Compositori', icon: Music, max: 1 },
+  ];
 
   // IDs of already selected cast — hide them from proposal list
   const selectedIds = new Set();
@@ -1033,11 +1048,13 @@ const CastPhase = ({ film, onRefresh, toast }) => {
   for (const sw of (cast.screenwriters || [])) { if (sw?.id) selectedIds.add(sw.id); }
   for (const a of (cast.actors || [])) { if (a?.id) selectedIds.add(a.id); }
   if (cast.composer?.id) selectedIds.add(cast.composer.id);
+  for (const anim of (cast.animators || [])) { if (anim?.id) selectedIds.add(anim.id); }
+  for (const va of (cast.voice_actors || [])) { if (va?.id) selectedIds.add(va.id); }
 
   // Filter proposals by active tab role_type, hide rejected AND already selected
   const tabProposals = proposals.map((p, i) => ({...p, _idx: i})).filter(p => p.role_type === activeTab && p.status !== 'rejected' && !selectedIds.has(p.id));
-  const tabInfo = CAST_TABS.find(t => t.key === activeTab);
-  const currentCount = activeTab === 'director' ? directors : activeTab === 'writer' ? screenwriters : activeTab === 'actor' ? actors : composers;
+  const tabInfo = castTabs.find(t => t.key === activeTab);
+  const currentCount = activeTab === 'director' ? directors : activeTab === 'writer' ? screenwriters : activeTab === 'actor' ? actors : activeTab === 'composer' ? composers : activeTab === 'animator' ? animators : activeTab === 'voice_actor' ? voiceActors : 0;
   const tabFull = currentCount >= (tabInfo?.max || 99);
 
   const ACTOR_ROLES = [
@@ -1152,6 +1169,17 @@ const CastPhase = ({ film, onRefresh, toast }) => {
         </div>
       )}
       {cast.composer && <CastSlot label="Compositore" person={cast.composer} icon={Music} />}
+      {/* Anime-specific roles */}
+      {(cast.animators || []).length > 0 && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {cast.animators.map((a, i) => <CastSlot key={`anim-${i}`} label={`Disegnatore ${i+1}`} person={a} icon={Palette} />)}
+        </div>
+      )}
+      {(cast.voice_actors || []).length > 0 && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {cast.voice_actors.map((a, i) => <CastSlot key={`va-${i}`} label={`Doppiatore ${i+1}`} person={a} icon={Megaphone} />)}
+        </div>
+      )}
 
       {/* Quality + Breakdown */}
       <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/15 space-y-1">
@@ -1182,8 +1210,8 @@ const CastPhase = ({ film, onRefresh, toast }) => {
 
       {/* TABS */}
       <div className="flex gap-1 overflow-x-auto scrollbar-hide" data-testid="cast-tabs">
-        {CAST_TABS.map(tab => {
-          const cnt = tab.key === 'director' ? directors : tab.key === 'writer' ? screenwriters : tab.key === 'actor' ? actors : composers;
+        {castTabs.map(tab => {
+          const cnt = tab.key === 'director' ? directors : tab.key === 'writer' ? screenwriters : tab.key === 'actor' ? actors : tab.key === 'composer' ? composers : tab.key === 'animator' ? animators : tab.key === 'voice_actor' ? voiceActors : 0;
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
           const available = proposals.filter(p => p.role_type === tab.key && p.status !== 'rejected').length;
@@ -1297,7 +1325,7 @@ const CastPhase = ({ film, onRefresh, toast }) => {
         className="w-full text-[10px] py-2.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 transition-colors disabled:opacity-30 font-bold" data-testid="lock-cast-btn">
         {loading === 'lock' ? '...' : 'Conferma Cast e Procedi'}
       </button>
-      {!canLock && <p className="text-[8px] text-gray-600 text-center">Serve: 1 regista + 2 attori minimo</p>}
+      {!canLock && <p className="text-[8px] text-gray-600 text-center">{isAnime ? 'Serve: 1 regista + 1 disegnatore minimo' : 'Serve: 1 regista + 2 attori minimo'}</p>}
     </PhaseWrapper>
   );
 };

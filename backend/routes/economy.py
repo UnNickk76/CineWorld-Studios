@@ -247,6 +247,12 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     ).sort('created_at', -1).to_list(50)
     pending_films_task = db.film_projects.find({'user_id': uid, 'status': 'pending_release'}, {'_id': 0}).to_list(50)
     pipeline_task = db.film_projects.find({'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned', 'completed']}}, {'_id': 0, 'status': 1}).to_list(50)
+    v2_films_task = db.film_projects.find(
+        {'user_id': uid, 'pipeline_version': 2, 'pipeline_state': {'$nin': ['discarded', 'completed']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'pipeline_state': 1, 'pipeline_version': 1,
+         'poster_url': 1, 'pipeline_metrics': 1, 'subgenres': 1, 'pipeline_timers': 1,
+         'pre_imdb_score': 1, 'created_at': 1}
+    ).to_list(50)
     series_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     anime_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
@@ -259,8 +265,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
     ).sort('released_at', -1).to_list(10)
 
-    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task
+    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task, v2_films_task
     )
 
     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
@@ -407,7 +413,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'pipeline_counts': pipeline_counts,
         'pipeline_total': pipeline_total,
         'series_pipeline_total': series_pipeline_total,
-        'anime_pipeline_total': anime_pipeline_total
+        'anime_pipeline_total': anime_pipeline_total,
+        'v2_films': v2_films
     }
 
 

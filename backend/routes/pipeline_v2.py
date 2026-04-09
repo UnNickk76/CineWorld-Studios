@@ -2466,6 +2466,11 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
     if ct == 'film':
         raise HTTPException(400, "Solo per Serie TV e Anime")
 
+    # Must be released/completed to start a new season
+    p_state = project.get('pipeline_state', 'draft')
+    if p_state not in ('released', 'completed'):
+        raise HTTPException(400, "La stagione corrente deve essere rilasciata prima di crearne una nuova")
+
     episodes = project.get('episodes', [])
     if episodes and not all(e['status'] == 'released' for e in episodes):
         raise HTTPException(400, "Completa tutti gli episodi prima di creare una nuova stagione")
@@ -2719,9 +2724,10 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     cast_q = metrics.get('cast_quality', 0)
     base += cast_q * 0.25
 
-    # Screenplay
+    # Screenplay (amplified by screenplay_weight for series sequels)
     scr_bonus = project.get('screenplay_quality_bonus', 0)
-    base += scr_bonus
+    sw = project.get('screenplay_weight', 1.0) or 1.0
+    base += scr_bonus * sw
 
     # Equipment & production
     eq_count = len(project.get('equipment', []))
@@ -2820,6 +2826,11 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     season_bonus = project.get('pipeline_metrics', {}).get('season_bonus', 0)
     if season_bonus:
         quality_score = max(5, min(100, round(quality_score + season_bonus)))
+
+    # Franchise fatigue: higher seasons face tougher audience expectations
+    ff = project.get('franchise_fatigue', 0) or 0
+    if ff > 0:
+        quality_score = max(5, round(quality_score * (1 - ff)))
 
     # Tier
     if quality_score >= 85: tier = 'masterpiece'

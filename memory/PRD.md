@@ -95,6 +95,14 @@ Frontend:
 - Sezione Nuova Stagione con slider episodi e info departure/bonus
 - Slider episodi pre-rilascio nella UscitaPhase
 
+### FIX & COMPLETAMENTO Logica Stagioni (2026-04-09) - NUOVO
+Backend:
+- Fix: screenplay_weight ora moltiplica il bonus sceneggiatura nel calcolo qualità al rilascio
+- Fix: franchise_fatigue ora riduce la qualità finale proporzionalmente (S3: -6%, S4: -12%, S5: -18%, cap -50%)
+- Fix: Aggiunto check stato — new-season richiede pipeline_state='released'/'completed' (prima si poteva creare da draft)
+- Pulizia: Rimosso progetto S3 test creato erroneamente da stato draft
+- Formula qualità serie: base*sw → +alchemy → *ep_factor → +season_bonus → *(1-ff)
+
 ## Backlog
 
 ### P1

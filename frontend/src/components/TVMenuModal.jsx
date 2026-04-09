@@ -252,7 +252,7 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                       <span className="text-[10px] font-bold">{labels[type]}</span>
                       <Badge className="text-[8px] bg-white/5 border-0">{items.length}/{maxItems}</Badge>
                     </div>
-                    <ScrollRow items={items} color={colors[type]} canAdd={canAdd} onAdd={() => openAddContent(type)} onRemove={removeContent} />
+                    <ScrollRow items={items} color={colors[type]} canAdd={canAdd} onAdd={() => openAddContent(type)} onRemove={removeContent} onItemClick={(item) => { if (onOpenContentDetail) onOpenContentDetail({...item, type: type, content_type: type}); }} />
                   </div>
                 );
               })}
@@ -528,16 +528,10 @@ function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming, onItemCl
         {items.map(item => (
           <div key={item.id} className="flex-shrink-0 w-[52px] group relative">
             <div
-              className={`aspect-[2/3] rounded-lg overflow-hidden relative ${isUpcoming && onItemClick ? 'cursor-pointer' : ''}`}
-              onClick={() => { if (isUpcoming && onItemClick) onItemClick(item); }}
+              className={`aspect-[2/3] rounded-lg overflow-hidden relative ${onItemClick ? 'cursor-pointer' : ''}`}
+              onClick={() => { if (onItemClick) onItemClick(item); }}
             >
               <img src={posterSrc(item.poster_url)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-              {/* Trash overlay only for NON-upcoming items */}
-              {onRemove && !isUpcoming && (
-                <button className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}>
-                  <Trash2 className="w-2 h-2 text-red-400" />
-                </button>
-              )}
               {isUpcoming && item._frozen && (
                 <div className="absolute inset-0 bg-blue-900/40 flex items-center justify-center pointer-events-none">
                   <Snowflake className="w-4 h-4 text-blue-300" />
@@ -550,12 +544,12 @@ function ScrollRow({ items, color, canAdd, onAdd, onRemove, isUpcoming, onItemCl
               )}
             </div>
             <p className="text-[6px] font-medium truncate mt-0.5">{item.title}</p>
-            {/* Explicit delete button for upcoming items */}
-            {isUpcoming && onRemove && (
+            {/* Explicit delete button */}
+            {onRemove && (
               <button
                 className="mt-0.5 w-full flex items-center justify-center gap-0.5 text-[6px] text-red-400/70 hover:text-red-400 transition-colors"
                 onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
-                data-testid={`remove-upcoming-${item.id}`}
+                data-testid={`remove-item-${item.id}`}
               >
                 <Trash2 className="w-2 h-2" /> Elimina
               </button>

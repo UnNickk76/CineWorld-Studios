@@ -34,6 +34,19 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Merge vecchi contenuti schedulati (`scheduled_for_tv`) con nuovi (`upcoming_content`) nella lista Prossimamente
 - Fix overlay click-through su FilmDetailPopup (e.stopPropagation su backdrop)
 
+#### Click Gestionale su TUTTE le sezioni TVMenuModal (Apr 2026)
+- Click su locandina in Film/Serie TV/Anime apre il gestionale (SeriesDetailModal o FilmDetailPopup)
+- Bottone "Elimina" esplicito sotto ogni locandina in tutte le sezioni
+- Rimosso trash overlay on hover (sostituito da bottone esplicito)
+
+#### Eventi WOW — Animazione Cinematica (Apr 2026)
+- Click su card "Eventi WOW" in Dashboard ora apre l'animazione cinematica VelionCinematicEvent
+- Rimossa navigazione diretta a `/films/{id}`
+
+#### Velion — Rimozione notifica revenue automatica (Apr 2026)
+- Rimosso tipo `revenue` da HIGH_PRIORITY_TYPES in VelionOverlay
+- La notifica "botteghino da incassare" non appare più (processo automatico)
+
 #### Dashboard Refactor + SideMenu + Glow + Menu Hamburger
 (come precedentemente implementato)
 

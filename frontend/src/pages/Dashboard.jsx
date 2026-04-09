@@ -8,6 +8,7 @@ import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
 import SideMenu from '../components/SideMenu';
+import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -61,6 +62,8 @@ const Dashboard = () => {
 
   // SideMenu
   const [menuOpen, setMenuOpen] = useState(false);
+  // Cinematic event for Eventi WOW
+  const [cinematicWow, setCinematicWow] = useState(null);
 
   // Sync menu state to body for navbar translation
   useEffect(() => {
@@ -226,12 +229,22 @@ const Dashboard = () => {
   };
 
   const openEvento = (evento) => {
-    navigate(`/films/${evento.filmId}`);
+    setCinematicWow({
+      tier: evento.rarita === 'LEGGENDARIO' ? 'legendary' : 'epic',
+      text: evento.testo,
+      event_type: 'positive',
+      project_type: 'film',
+      title: evento.titolo,
+      created_at: Date.now().toString(),
+    });
   };
 
   return (
     <>
       <SideMenu open={menuOpen} setOpen={setMenuOpen} />
+      {cinematicWow && (
+        <VelionCinematicEvent events={[cinematicWow]} onAllDone={() => setCinematicWow(null)} />
+      )}
 
       <div className={`transition-transform duration-300 ${menuOpen ? "translate-x-[25%]" : ""}`}>
         <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">

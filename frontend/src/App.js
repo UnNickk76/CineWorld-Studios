@@ -735,7 +735,7 @@ const TopNavbar = () => {
   const canGoBack = location.pathname !== '/dashboard';
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50 sidemenu-translate" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="max-w-7xl mx-auto h-14 px-2 sm:px-3 flex items-center justify-between">
         {/* Left section: Logo */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -752,7 +752,7 @@ const TopNavbar = () => {
             </Button>
           )}
           
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigate('/dashboard')} data-testid="logo">
+          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { if (location.pathname === '/dashboard') { window.dispatchEvent(new Event('dashboard-toggle-menu')); } else { navigate('/dashboard'); } }} data-testid="logo">
             <Clapperboard className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500" />
             <span className="font-['Bebas_Neue'] text-base sm:text-lg tracking-wide hidden sm:block">CineWorld</span>
           </div>
@@ -1247,7 +1247,7 @@ const TopNavbar = () => {
       {/* Donate Fixed Button - Above bottom nav - HIDDEN on chat page */}
       {donationsEnabled && location.pathname !== '/chat' && (
       <button
-        className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all"
+        className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all sidemenu-translate"
         onClick={() => setShowDonateDialog(true)}
         data-testid="fixed-donate-btn"
       >
@@ -1418,8 +1418,8 @@ const TopNavbar = () => {
       </AnimatePresence>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} data-testid="mobile-bottom-nav">
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => { if (location.pathname === '/dashboard') { window.dispatchEvent(new Event('dashboard-toggle-menu')); } else { navigate('/dashboard'); } }} onMouseEnter={() => handleNavHover('/dashboard')} onTouchStart={() => handleNavHover('/dashboard')} data-testid="bottom-nav-home">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0 sidemenu-translate" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} data-testid="mobile-bottom-nav">
+        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} onMouseEnter={() => handleNavHover('/dashboard')} onTouchStart={() => handleNavHover('/dashboard')} data-testid="bottom-nav-home">
           <Clapperboard className="w-4 h-4" />
           <span className="text-[8px]">Home</span>
         </button>

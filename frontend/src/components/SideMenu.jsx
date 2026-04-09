@@ -33,7 +33,15 @@ const SideMenu = ({ open, setOpen }) => {
         className={`fixed top-0 left-0 h-full w-[25%] min-w-[80px] max-w-[120px] bg-black/90 backdrop-blur-sm z-50 transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="side-menu"
       >
-        <div className="flex flex-col h-full pt-16 px-1.5 gap-1.5 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        {/* Close X button */}
+        <button
+          className="absolute top-3 right-2 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-colors z-10"
+          onClick={() => setOpen(false)}
+          data-testid="side-menu-close"
+        >
+          <span className="text-xs leading-none">&times;</span>
+        </button>
+        <div className="flex flex-col h-full pt-12 px-1.5 gap-1.5 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
           {menuItems.map(item => (
             <button
               key={item.label}

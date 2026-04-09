@@ -46,10 +46,13 @@ import {
 import { SKILL_TRANSLATIONS } from '../constants';
 
 const INFRA_CINEPASS = {
-  cinema: 10, drive_in_cinema: 8, multiplex: 15, cinema_school: 12,
-  vip_cinema: 15, production_studio: 20, imax: 18,
-  centro_commerciale_piccolo: 10, centro_commerciale_medio: 14, centro_commerciale_grande: 18,
-  pvp_investigative: 5, pvp_operative: 3, pvp_legal: 10
+  cinema: 10, drive_in: 8, multiplex: 15, cinema_school: 12,
+  vip_cinema: 15, production_studio: 20,
+  multiplex_small: 10, multiplex_medium: 14, multiplex_large: 18,
+  pvp_investigative: 5, pvp_operative: 3, pvp_legal: 10,
+  studio_serie_tv: 15, studio_anime: 15, emittente_tv: 20,
+  talent_scout_actors: 8, talent_scout_screenwriters: 8,
+  cinema_museum: 25, film_festival_venue: 30, theme_park: 35
 };
 import { LoadingSpinner } from '../components/ErrorBoundary';
 
@@ -121,7 +124,7 @@ const InfrastructurePage = () => {
   }, [api]);
 
   const getIcon = (iconName) => {
-    const icons = { film: Film, car: Car, 'shopping-bag': ShoppingBag, building: Building, 'building-2': Building2, 'graduation-cap': GraduationCap, landmark: Landmark, crown: Crown, award: Award, 'ferris-wheel': Star, clapperboard: Clapperboard };
+    const icons = { film: Film, car: Car, 'shopping-bag': ShoppingBag, building: Building, 'building-2': Building2, 'graduation-cap': GraduationCap, landmark: Landmark, crown: Crown, award: Award, 'ferris-wheel': Star, clapperboard: Clapperboard, radio: Video, sparkles: Sparkles, video: Video, tv: Film, target: Target, shield: Shield, swords: Swords, users: Users, search: Search };
     return icons[iconName] || Building;
   };
 
@@ -405,15 +408,17 @@ const InfrastructurePage = () => {
   // Category definitions for navbar
   const CATEGORIES = [
     { id: 'cinema', label: 'CINEMA', icon: Ticket, color: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/30',
-      types: ['cinema', 'multiplex', 'vip_cinema', 'drive_in_cinema', 'imax'] },
+      types: ['cinema', 'drive_in', 'vip_cinema'] },
     { id: 'commerciale', label: 'COMMERCIALE', icon: Store, color: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/30',
-      types: ['centro_commerciale_piccolo', 'centro_commerciale_medio', 'centro_commerciale_grande', 'parco_giochi'] },
+      types: ['multiplex_small', 'multiplex_medium', 'multiplex_large'] },
     { id: 'studi', label: 'STUDI', icon: Video, color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30',
-      types: ['production_studio', 'studio_serie_tv', 'studio_anime'] },
+      types: ['production_studio', 'studio_serie_tv', 'studio_anime', 'emittente_tv'] },
     { id: 'agenzie', label: 'AGENZIE', icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/15', border: 'border-cyan-500/30',
-      types: ['cinema_school', 'talent_scout'] },
+      types: ['cinema_school', 'talent_scout_actors', 'talent_scout_screenwriters'] },
     { id: 'strategico', label: 'STRATEGICO', icon: Shield, color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30',
       types: ['pvp_operative', 'pvp_investigative', 'pvp_legal'] },
+    { id: 'speciale', label: 'SPECIALE', icon: Crown, color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30',
+      types: ['cinema_museum', 'film_festival_venue', 'theme_park'] },
   ];
 
   const [activeCategory, setActiveCategory] = useState('cinema');

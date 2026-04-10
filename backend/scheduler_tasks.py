@@ -1853,3 +1853,204 @@ async def auto_revenue_tick():
     
     except Exception as e:
         logger.error(f"[AUTO-TICK] Error: {e}")
+
+
+
+# ═══════════════════════════════════════════════════════════════
+#  TREND SCORE SYSTEM — Dynamic popularity ranking
+# ═══════════════════════════════════════════════════════════════
+
+async def update_trend_scores():
+    """
+    Calculate trend_score for all active films and series, assign rankings.
+    Runs every 6 hours. Lightweight batch operation.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        all_items = []
+
+        # --- FILMS ---
+        films = await scheduler_db.films.find(
+            {'status': {'$in': ['in_theaters', 'released', 'completed', 'coming_soon', 'pending_release']}},
+            {'_id': 0, 'id': 1, 'quality_score': 1, 'hype': 1, 'hype_score': 1, 'popularity_score': 1,
+             'cumulative_attendance': 1, 'virtual_likes': 1, 'current_cinemas': 1,
+             'imdb_rating': 1, 'status': 1, 'created_at': 1, 'released_at': 1,
+             'release_event': 1, 'trend_position': 1}
+        ).to_list(5000)
+
+        for f in films:
+            quality = f.get('quality_score', 50)
+            hype = f.get('hype', 0) or f.get('hype_score', 0) or 0
+            attendance = f.get('cumulative_attendance', 0) or 0
+            likes = f.get('virtual_likes', 0) or 0
+            cinemas = f.get('current_cinemas', 0) or 0
+            imdb = f.get('imdb_rating', 5.0) or 5.0
+            status = f.get('status', '')
+
+            # Age decay
+            ref_date = f.get('released_at') or f.get('created_at') or now.isoformat()
+            try:
+                dt = datetime.fromisoformat(str(ref_date).replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                age_days = max(0, (now - dt).total_seconds() / 86400)
+            except Exception:
+                age_days = 30
+
+            decay_rate = 0.97 if imdb >= 8.5 else 0.94 if quality >= 70 else 0.90
+            decay_factor = max(0.05, decay_rate ** age_days)
+
+            # Build score
+            raw = 0
+            raw += quality * 15                                        # max ~1500
+            raw += min(hype, 100) * 20                                 # max ~2000
+            raw += min(attendance / 1000, 2000) * 0.5                  # scaled, max ~1000
+            raw += min(likes, 5000) * 0.2                              # max ~1000
+            raw += cinemas * 3                                         # max ~500
+
+            # Status boosts
+            if 'prima' in status or status == 'premiere_live':
+                raw += 500
+            if status == 'coming_soon':
+                raw += 200
+
+            # Event boost
+            ev = f.get('release_event')
+            if ev and isinstance(ev, dict) and ev.get('type') == 'positive':
+                raw += 200
+
+            # Flop penalty
+            if quality < 35:
+                raw -= 300
+
+            trend_score = max(0, min(10000, int(raw * decay_factor)))
+            old_pos = f.get('trend_position', 0) or 0
+
+            all_items.append({
+                'collection': 'films',
+                'id': f['id'],
+                'trend_score': trend_score,
+                'old_position': old_pos,
+            })
+
+        # --- SERIES / ANIME ---
+        series_list = await scheduler_db.tv_series.find(
+            {'status': {'$in': ['completed', 'released', 'coming_soon', 'ready_to_release', 'production']}},
+            {'_id': 0, 'id': 1, 'quality_score': 1, 'total_revenue': 1, 'audience': 1,
+             'audience_rating': 1, 'status': 1, 'created_at': 1, 'num_episodes': 1,
+             'trend_position': 1}
+        ).to_list(5000)
+
+        for s in series_list:
+            quality = s.get('quality_score', 50) or 50
+            audience = s.get('audience', 0) or 0
+            revenue = s.get('total_revenue', 0) or 0
+            episodes = s.get('num_episodes', 1) or 1
+            status = s.get('status', '')
+
+            ref_date = s.get('created_at') or now.isoformat()
+            try:
+                dt = datetime.fromisoformat(str(ref_date).replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                age_days = max(0, (now - dt).total_seconds() / 86400)
+            except Exception:
+                age_days = 30
+
+            decay_factor = max(0.05, (0.95 if quality >= 70 else 0.91) ** age_days)
+
+            raw = 0
+            raw += quality * 15
+            raw += min(audience / 100, 1500) * 0.5
+            raw += min(revenue / 10000, 1500) * 0.3
+            raw += episodes * 20
+
+            if status == 'coming_soon':
+                raw += 200
+
+            if quality < 35:
+                raw -= 300
+
+            trend_score = max(0, min(10000, int(raw * decay_factor)))
+            old_pos = s.get('trend_position', 0) or 0
+
+            all_items.append({
+                'collection': 'tv_series',
+                'id': s['id'],
+                'trend_score': trend_score,
+                'old_position': old_pos,
+            })
+
+        # --- RANK by trend_score DESC ---
+        all_items.sort(key=lambda x: x['trend_score'], reverse=True)
+
+        film_ops = []
+        series_ops = []
+        big_movers_up = []
+        big_movers_down = []
+
+        for idx, item in enumerate(all_items):
+            new_pos = idx + 1
+            old_pos = item['old_position']
+            delta = (old_pos - new_pos) if old_pos > 0 else 0
+
+            update = {
+                'trend_score': item['trend_score'],
+                'trend_last': old_pos,
+                'trend_position': new_pos,
+                'trend_delta': delta,
+                'trend_updated_at': now.isoformat(),
+            }
+
+            if item['collection'] == 'films':
+                film_ops.append(({'id': item['id']}, {'$set': update}))
+                if delta > 20:
+                    big_movers_up.append(item['id'])
+                elif delta < -20:
+                    big_movers_down.append(item['id'])
+            else:
+                series_ops.append(({'id': item['id']}, {'$set': update}))
+                if delta > 20:
+                    big_movers_up.append(item['id'])
+                elif delta < -20:
+                    big_movers_down.append(item['id'])
+
+        # Batch update films
+        for filt, upd in film_ops:
+            await scheduler_db.films.update_one(filt, upd)
+        for filt, upd in series_ops:
+            await scheduler_db.tv_series.update_one(filt, upd)
+
+        # --- EVENTS for big movers ---
+        for fid in big_movers_up[:5]:
+            film = await scheduler_db.films.find_one({'id': fid}, {'_id': 0, 'title': 1, 'user_id': 1})
+            if film:
+                await scheduler_db.notifications.insert_one({
+                    'user_id': film['user_id'],
+                    'type': 'trend_surge',
+                    'title': 'Trend in Salita!',
+                    'message': f'"{film.get("title", "Il tuo film")}" sta esplodendo nelle classifiche!',
+                    'read': False,
+                    'created_at': now.isoformat(),
+                })
+
+        for fid in big_movers_down[:5]:
+            film = await scheduler_db.films.find_one({'id': fid}, {'_id': 0, 'title': 1, 'user_id': 1})
+            if not film:
+                film = await scheduler_db.tv_series.find_one({'id': fid}, {'_id': 0, 'title': 1, 'user_id': 1})
+            if film:
+                await scheduler_db.notifications.insert_one({
+                    'user_id': film['user_id'],
+                    'type': 'trend_drop',
+                    'title': 'Interesse in Calo',
+                    'message': f'"{film.get("title", "Il tuo contenuto")}" sta perdendo posizioni.',
+                    'read': False,
+                    'created_at': now.isoformat(),
+                })
+
+        total = len(all_items)
+        logger.info(f"[TREND] Updated {total} items ({len(film_ops)} films, {len(series_ops)} series). "
+                     f"Big movers: +{len(big_movers_up)} surge, -{len(big_movers_down)} drop")
+
+    except Exception as e:
+        logger.error(f"[TREND] Error updating trend scores: {e}")

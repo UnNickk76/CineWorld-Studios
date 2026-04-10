@@ -101,6 +101,31 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Backend: `/app/backend/routes/tutorial.py`, model: `/app/backend/models/tutorial.py`
 - Endpoints AI: `POST /api/admin/tutorial/update-ai/{type}` (static/velion/guest)
 
+#### Restyling UI Pagina Dettaglio + Sistema Durata (Apr 2026)
+- **ContentTemplate.jsx riscritto**: Layout a flusso mobile-first (rimosso overlay PNG con positioning assoluto)
+- **Nuovo ordine UI**: Status bar → Poster+Trama breve → Titolo → Regia+Cast → Barra dati (IMDb/Durata) → Box giornali → Box pubblico/eventi → Sceneggiatura scrollabile → Trailer placeholder
+- **5 stati dinamici**: LaPrima! (glow oro), Prossimamente, Al Cinema (verde), In TV! (blu), In Catalogo
+- **Box giornali verdi**: VARIETY/EMPIRE/HOLLYWOOD R. (film) o IGN/COLLIDER/ENTERTAINMENT W. (serie)
+- **Box celeste pubblico+eventi**: Percezione pubblica + headline news_events
+- **Sistema Durata backend**: 5 categorie film (Cortometraggio→Kolossal, 20-280 min) + 5 categorie serie (Breve→Kolossal Seriale, 15-110 min/ep)
+- **Calcolo deterministico**: Basato su genere, lunghezza trama, bias controllato
+- **short_plot**: Generato automaticamente dalla sceneggiatura (max 500 char), salvato una volta
+- **Retrocompatibilita assoluta**: Nessuna migrazione DB, fallback sicuri per tutti i campi opzionali
+- **Impatto gameplay durata**: quality_mod, revenue_mult, cost_mult per categoria
+- Endpoints: `POST /api/pipeline-v2/films/{pid}/set-duration`, `POST /api/series-pipeline/{id}/set-duration`, `GET .../duration-categories`
+- File: `ContentTemplate.jsx`, `content-template.css`, `pipeline_v2.py`, `series_pipeline.py`, `films.py`
+
+#### Sistema Trend Dinamico (Apr 2026)
+- **Scheduler `update_trend_scores()`**: Calcolo batch ogni 6h per tutti film+serie attivi
+- **Formula**: quality*15 + hype*20 + attendance + likes + cinemas + status_boost - age_decay - flop_penalty, range 0-10000
+- **Ranking**: Posizione globale ordinata per trend_score DESC
+- **Delta**: Differenza posizione tra calcoli (es: +12 = in salita, -5 = in calo)
+- **Frontend**: Integrato nella barra dati fucsia: `🔥 #9 ↑+12` con colore verde/rosso/grigio
+- **Eventi automatici**: Notifica "Trend in Salita!" (delta>+20) o "Interesse in Calo" (delta<-20)
+- **Retrocompatibilita**: Campi opzionali con fallback a 0/null, nessuna migrazione
+- **Performance**: Query batch, no loop pesanti, aggiornamento ogni 6h
+- File: `scheduler_tasks.py`, `server.py`, `ContentTemplate.jsx`, `content-template.css`, `films.py`, `series_pipeline.py`
+
 ## Backlog
 
 ### P1

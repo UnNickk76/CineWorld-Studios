@@ -1476,11 +1476,12 @@ const TopNavbar = () => {
           <Disc className="w-4 h-4" />
           <span className="text-[8px]">Arena</span>
         </button>
-        <button className={`relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/notifications')} data-testid="bottom-nav-notifiche">
-          <Bell className="w-4 h-4" />
-          {notificationCount > 0 && <span className="absolute top-0 right-0 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">{notificationCount > 9 ? '9+' : notificationCount}</span>}
-          <span className="text-[8px]">Eventi</span>
-        </button>
+        {productionUnlocks?.has_emittente_tv && (
+          <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname.startsWith('/my-tv') || location.pathname.startsWith('/tv-station') ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/my-tv')} data-testid="bottom-nav-tv">
+            <Tv className="w-4 h-4" />
+            <span className="text-[8px]">La Mia TV</span>
+          </button>
+        )}
       </div>
 
       {/* Notification Popup Toasts - Slide from top with vibration */}

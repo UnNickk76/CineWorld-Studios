@@ -2108,7 +2108,123 @@ function MigrationTab({ api }) {
           </CardContent>
         </Card>
       )}
+
+      {/* ═══ MIGRAZIONE SERIE / ANIME ═══ */}
+      <SeriesAnimeMigrationSection api={api} />
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// MIGRAZIONE SERIE / ANIME (vecchio → nuovo formato)
+// ═══════════════════════════════════════════
+function SeriesAnimeMigrationSection({ api }) {
+  const [series, setSeries] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState({});
+  const pollingRefs = useRef({});
+  const gameConfirm = useConfirm();
+
+  const fetchSeries = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/migration/old-series');
+      setSeries(res.data.series || []);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchSeries(); return () => { Object.values(pollingRefs.current).forEach(clearInterval); }; }, []);
+
+  const startMigration = async (sid) => {
+    if (!await gameConfirm({ title: 'Migrare questa serie?', subtitle: 'AI generera titoli e trame episodi. Il valore IMDb restera invariato.', confirmLabel: 'Migra con AI' })) return;
+    try {
+      await api.post('/admin/migration/migrate-series', { series_id: sid });
+      toast.success('Migrazione avviata');
+      // Start polling
+      pollingRefs.current[sid] = setInterval(async () => {
+        try {
+          const res = await api.get(`/admin/migration/migrate-status/${sid}`);
+          setMigrationStatus(prev => ({ ...prev, [sid]: res.data }));
+          if (res.data.status === 'done' || res.data.status === 'error') {
+            clearInterval(pollingRefs.current[sid]);
+            delete pollingRefs.current[sid];
+            if (res.data.status === 'done') fetchSeries();
+          }
+        } catch { }
+      }, 1500);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+  };
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="series-migration-section">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <Film className="w-4 h-4 text-purple-400" />
+            Migrazione Serie TV / Anime
+          </h2>
+          <Button size="sm" onClick={fetchSeries} disabled={loading} className="bg-purple-600 hover:bg-purple-700 text-xs h-7" data-testid="scan-series-btn">
+            {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Aggiorna
+          </Button>
+        </div>
+        <p className="text-[10px] text-gray-500 mb-3">
+          Converte serie/anime dal vecchio formato al nuovo (episodi con titoli AI, cast strutturato). IMDb invariato.
+        </p>
+
+        {series.length === 0 && !loading && (
+          <p className="text-xs text-gray-600 text-center py-4">Nessuna serie/anime trovata</p>
+        )}
+
+        <div className="space-y-2">
+          {series.map(s => {
+            const ms = migrationStatus[s.id] || {};
+            const isProcessing = ms.status === 'processing';
+            return (
+              <div key={s.id} className={`bg-black/30 rounded-lg p-3 border ${s.migrated ? 'border-emerald-500/20' : 'border-white/5'}`} data-testid={`series-item-${s.id}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-white truncate">{s.title}</span>
+                      <Badge className={`text-[9px] h-4 ${s.type === 'anime' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {s.type === 'anime' ? 'Anime' : 'Serie TV'}
+                      </Badge>
+                      {s.migrated && <Badge className="text-[9px] h-4 bg-emerald-500/20 text-emerald-400">Migrato</Badge>}
+                      {!s.migrated && s.needs_migration && <Badge className="text-[9px] h-4 bg-yellow-500/20 text-yellow-400">Da migrare</Badge>}
+                    </div>
+                    <div className="flex gap-3 mt-1 text-[10px] text-gray-500 flex-wrap">
+                      <span>{s.genre}</span>
+                      <span>{s.episodes_count} ep</span>
+                      <span>Cast: {s.cast_format}</span>
+                      {s.quality_score > 0 && <span>Q: {Math.round(s.quality_score)}</span>}
+                    </div>
+                  </div>
+                  {!s.migrated && (
+                    <Button size="sm" onClick={() => startMigration(s.id)} disabled={isProcessing}
+                      className="h-7 text-[10px] bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 border border-purple-500/20 flex-shrink-0"
+                      data-testid={`migrate-btn-${s.id}`}>
+                      {isProcessing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                      Migra AI
+                    </Button>
+                  )}
+                </div>
+                {/* Progress bar */}
+                {(isProcessing || ms.status === 'done' || ms.status === 'error') && (
+                  <div className="mt-2">
+                    <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-1.5 rounded-full transition-all duration-500 ${ms.status === 'done' ? 'bg-emerald-500' : ms.status === 'error' ? 'bg-red-500' : 'bg-purple-500'}`}
+                        style={{ width: `${ms.progress || 0}%` }} />
+                    </div>
+                    <p className="text-[9px] text-gray-500 mt-0.5">{ms.step || ''} {ms.progress ? `(${ms.progress}%)` : ''}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

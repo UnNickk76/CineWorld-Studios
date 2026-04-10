@@ -317,18 +317,22 @@ export default function TVStationPage() {
               <NetflixRow title="Anime" items={enrichedContents.anime} color="orange-400" onItemClick={handleContentClick} showBroadcastBadge />
             )}
           </>
+        ) : isOwner ? (
+          <>
+            {/* Empty palinsesto structure with placeholder slots */}
+            <EmptyPalinsestoRow title="Prossimamente" color="cyan-400" slots={3} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="In Onda Ora" color="green-400" slots={2} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="Consigliati" color="white" slots={4} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="Del Momento" color="red-400" slots={3} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="I Piu Visti" color="yellow-400" slots={3} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="Film" color="yellow-400" slots={3} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="Serie TV" color="blue-400" slots={2} onSlotClick={() => setShowMenu(true)} />
+            <EmptyPalinsestoRow title="Anime" color="orange-400" slots={2} onSlotClick={() => setShowMenu(true)} />
+          </>
         ) : (
           <div className="text-center py-12">
             <Radio className="w-12 h-12 text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">Nessun contenuto in programmazione</p>
-            {isOwner && (
-              <>
-                <p className="text-gray-600 text-xs mt-1">Usa il Menu per aggiungere contenuti</p>
-                <Button size="sm" className="mt-4 bg-red-500 hover:bg-red-600 text-xs" onClick={() => setShowMenu(true)} data-testid="empty-open-menu">
-                  <MenuIcon className="w-3.5 h-3.5 mr-1.5" /> Apri Menu Gestione
-                </Button>
-              </>
-            )}
           </div>
         )}
       </div>
@@ -463,3 +467,27 @@ function FilmDetailPopup({ film, onClose }) {
     </div>
   );
 }
+
+// Empty palinsesto row with placeholder slots (film icon, clickable)
+function EmptyPalinsestoRow({ title, color, slots, onSlotClick }) {
+  return (
+    <div className="mb-4">
+      <h3 className={`font-['Bebas_Neue'] text-sm text-${color} mb-2 tracking-wide`}>{title}</h3>
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+        {Array.from({ length: slots }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-shrink-0 w-[80px] cursor-pointer group"
+            onClick={onSlotClick}
+            data-testid={`empty-slot-${title.toLowerCase().replace(/\s/g,'-')}-${i}`}
+          >
+            <div className="aspect-[2/3] rounded-lg border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-center group-hover:border-red-500/30 group-hover:bg-red-500/5 transition-all">
+              <Film className="w-5 h-5 text-gray-600 group-hover:text-red-400 transition-colors" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

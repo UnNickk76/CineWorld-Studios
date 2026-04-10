@@ -11,7 +11,7 @@ import {
   Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
-  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff,
+  Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
   KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, Disc
@@ -1182,6 +1182,28 @@ const TopNavbar = () => {
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Tutorial</span>
               </Button>
+              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-cyan-400 hover:bg-cyan-500/10 gap-1.5 h-8 text-xs"
+                  onClick={() => { window.dispatchEvent(new Event('velion-tutorial-open')); setMobileMenuOpen(false); }}
+                  data-testid="menu-velion-tutorial-btn"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tutorial Velion</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-amber-400 hover:bg-amber-500/10 gap-1.5 h-8 text-xs"
+                  onClick={() => { window.dispatchEvent(new Event('pipeline-tutorial-open')); setMobileMenuOpen(false); }}
+                  data-testid="menu-pipeline-tutorial-btn"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Pipeline Film</span>
+                </Button>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"

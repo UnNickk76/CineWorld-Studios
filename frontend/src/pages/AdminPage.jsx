@@ -1626,7 +1626,6 @@ function TutorialManagerTab({ api }) {
       const res = await api.get('/admin/tutorial/status');
       setStatus(res.data);
       setLoading(false);
-      // Stop polling when done
       if (res.data.update_job?.status === 'done' || res.data.update_job?.status === 'error') {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
       }
@@ -1635,21 +1634,31 @@ function TutorialManagerTab({ api }) {
 
   useEffect(() => { fetchStatus(); return () => { if (pollingRef.current) clearInterval(pollingRef.current); }; }, [fetchStatus]);
 
+  const startPolling = () => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(fetchStatus, 1500);
+    fetchStatus();
+  };
+
   const startUpdate = async (type) => {
     try {
       await api.post(`/admin/tutorial/update/${type}`);
-      toast.success(`Aggiornamento ${type} avviato`);
-      // Start polling
-      if (pollingRef.current) clearInterval(pollingRef.current);
-      pollingRef.current = setInterval(fetchStatus, 1500);
-      fetchStatus();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Errore');
-    }
+      toast.success(`Aggiornamento ${type} (DB) avviato`);
+      startPolling();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Errore'); }
+  };
+
+  const startAiUpdate = async (type) => {
+    try {
+      await api.post(`/admin/tutorial/update-ai/${type}`);
+      toast.success(`Generazione AI ${type} avviata`);
+      startPolling();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Errore'); }
   };
 
   const job = status?.update_job || {};
   const isProcessing = job.status === 'processing' || job.status === 'starting';
+  const isAiJob = (job.type || '').includes('_ai');
 
   const formatDate = (iso) => {
     if (!iso) return 'Mai';
@@ -1657,6 +1666,12 @@ function TutorialManagerTab({ api }) {
   };
 
   if (loading) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto text-yellow-500" /></div>;
+
+  const CARDS = [
+    { key: 'static', label: 'Tutorial Statico', sub: `Contenuti: ${status?.static?.content_count || 0} blocchi`, ver: status?.static?.version, date: status?.static?.last_update, dbColor: 'blue', aiColor: 'emerald' },
+    { key: 'velion', label: 'Tutorial Velion', sub: `Steps: ${status?.velion?.steps_count || 0}`, ver: status?.velion?.version, date: status?.velion?.last_update, dbColor: 'cyan', aiColor: 'emerald' },
+    { key: 'guest', label: 'Tutorial Guest', sub: `Steps: ${status?.guest?.steps_count || 0}`, ver: status?.guest?.version, date: status?.guest?.last_update, dbColor: 'purple', aiColor: 'emerald' },
+  ];
 
   return (
     <div className="space-y-4" data-testid="tutorial-manager-tab">
@@ -1667,64 +1682,56 @@ function TutorialManagerTab({ api }) {
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            {/* Static */}
-            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-300">Tutorial Statico</span>
-                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.static?.version || 0}</Badge>
+            {CARDS.map(c => (
+              <div key={c.key} className="bg-black/30 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-300">{c.label}</span>
+                  <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{c.ver || 0}</Badge>
+                </div>
+                <p className="text-[10px] text-gray-500 mb-1">{c.sub}</p>
+                <p className="text-[10px] text-gray-600 mb-2.5">Ultimo: {formatDate(c.date)}</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button
+                    size="sm"
+                    className={`h-7 text-[10px] bg-${c.dbColor}-500/15 text-${c.dbColor}-400 hover:bg-${c.dbColor}-500/25 border border-${c.dbColor}-500/20`}
+                    style={{ backgroundColor: c.dbColor === 'blue' ? 'rgba(59,130,246,0.15)' : c.dbColor === 'cyan' ? 'rgba(6,182,212,0.15)' : 'rgba(168,85,247,0.15)', color: c.dbColor === 'blue' ? '#60a5fa' : c.dbColor === 'cyan' ? '#22d3ee' : '#c084fc', borderColor: c.dbColor === 'blue' ? 'rgba(59,130,246,0.2)' : c.dbColor === 'cyan' ? 'rgba(6,182,212,0.2)' : 'rgba(168,85,247,0.2)' }}
+                    onClick={() => startUpdate(c.key)}
+                    disabled={isProcessing}
+                    data-testid={`update-${c.key}-db-btn`}
+                  >
+                    {isProcessing && job.type === c.key ? <Loader2 className="w-3 h-3 animate-spin mr-0.5" /> : <RefreshCw className="w-3 h-3 mr-0.5" />}
+                    Da DB
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[10px] border"
+                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#34d399', borderColor: 'rgba(16,185,129,0.25)' }}
+                    onClick={() => startAiUpdate(c.key)}
+                    disabled={isProcessing}
+                    data-testid={`update-${c.key}-ai-btn`}
+                  >
+                    {isProcessing && job.type === `${c.key}_ai` ? <Loader2 className="w-3 h-3 animate-spin mr-0.5" /> : <Sparkles className="w-3 h-3 mr-0.5" />}
+                    Con AI
+                  </Button>
+                </div>
               </div>
-              <p className="text-[10px] text-gray-500 mb-2">Contenuti: {status?.static?.content_count || 0} blocchi</p>
-              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.static?.last_update)}</p>
-              <Button size="sm" className="w-full h-7 text-[11px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/20" onClick={() => startUpdate('static')} disabled={isProcessing} data-testid="update-static-btn">
-                {isProcessing && job.type === 'static' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-                Aggiorna Statico
-              </Button>
-            </div>
-
-            {/* Velion */}
-            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-300">Tutorial Velion</span>
-                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.velion?.version || 0}</Badge>
-              </div>
-              <p className="text-[10px] text-gray-500 mb-2">Steps: {status?.velion?.steps_count || 0}</p>
-              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.velion?.last_update)}</p>
-              <Button size="sm" className="w-full h-7 text-[11px] bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/20" onClick={() => startUpdate('velion')} disabled={isProcessing} data-testid="update-velion-btn">
-                {isProcessing && job.type === 'velion' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-                Aggiorna Velion
-              </Button>
-            </div>
-
-            {/* Guest */}
-            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-300">Tutorial Guest</span>
-                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.guest?.version || 0}</Badge>
-              </div>
-              <p className="text-[10px] text-gray-500 mb-2">Steps: {status?.guest?.steps_count || 0}</p>
-              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.guest?.last_update)}</p>
-              <Button size="sm" className="w-full h-7 text-[11px] bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/20" onClick={() => startUpdate('guest')} disabled={isProcessing} data-testid="update-guest-btn">
-                {isProcessing && job.type === 'guest' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-                Aggiorna Guest
-              </Button>
-            </div>
+            ))}
           </div>
 
           {/* Progress Box */}
           {(isProcessing || job.status === 'done' || job.status === 'error') && (
-            <div className="bg-black/40 rounded-lg p-3 border border-white/5" data-testid="tutorial-progress-box">
+            <div className={`rounded-lg p-3 border ${isAiJob ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-black/40 border-white/5'}`} data-testid="tutorial-progress-box">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-gray-300">
-                  {isProcessing ? 'Aggiornamento in corso' : job.status === 'done' ? 'Completato' : 'Errore'}
+                  {isProcessing ? (isAiJob ? 'Generazione AI in corso' : 'Aggiornamento DB in corso') : job.status === 'done' ? 'Completato' : 'Errore'}
                 </span>
-                <Badge className={`text-[9px] h-4 ${job.status === 'done' ? 'bg-green-500/20 text-green-400' : job.status === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                  {job.type}
+                <Badge className={`text-[9px] h-4 ${job.status === 'done' ? 'bg-green-500/20 text-green-400' : job.status === 'error' ? 'bg-red-500/20 text-red-400' : isAiJob ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                  {isAiJob ? `${(job.type || '').replace('_ai', '')} (AI)` : job.type}
                 </Badge>
               </div>
-              {/* Progress bar */}
               <div className="w-full bg-white/5 rounded-full h-2 mb-2 overflow-hidden">
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ${job.status === 'done' ? 'bg-green-500' : job.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}
+                  className={`h-2 rounded-full transition-all duration-500 ${job.status === 'done' ? 'bg-green-500' : job.status === 'error' ? 'bg-red-500' : isAiJob ? 'bg-emerald-500' : 'bg-yellow-500'}`}
                   style={{ width: `${job.progress || 0}%` }}
                   data-testid="tutorial-progress-bar"
                 />

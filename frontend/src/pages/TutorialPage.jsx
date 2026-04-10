@@ -1,7 +1,7 @@
 // CineWorld Studio's - Tutorial Page (reads from DB)
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Film, Clapperboard, Users, Trophy, Building, DollarSign, Star, HelpCircle, Ticket, Flame, GraduationCap, ScrollText, Globe } from 'lucide-react';
+import { Film, Clapperboard, Users, Trophy, Building, DollarSign, Star, HelpCircle, Ticket, Flame, GraduationCap, ScrollText, Globe, Eye, Play } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -37,11 +37,33 @@ const TutorialPage = () => {
         <h1 className="font-['Bebas_Neue'] text-3xl flex items-center gap-2">
           <HelpCircle className="w-7 h-7 text-yellow-500" /> Tutorial
         </h1>
-        {version > 0 && (
-          <Badge variant="outline" className="text-[10px] border-white/10 text-gray-500">
-            v{version}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {version > 0 && (
+            <Badge variant="outline" className="text-[10px] border-white/10 text-gray-500">
+              v{version}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Launch Buttons */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <Button
+          size="sm"
+          className="h-9 text-xs bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20"
+          onClick={() => window.dispatchEvent(new Event('velion-tutorial-open'))}
+          data-testid="launch-velion-tutorial-btn"
+        >
+          <Eye className="w-3.5 h-3.5 mr-1.5" /> Tutorial Velion
+        </Button>
+        <Button
+          size="sm"
+          className="h-9 text-xs bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
+          onClick={() => window.dispatchEvent(new Event('pipeline-tutorial-open'))}
+          data-testid="launch-pipeline-tutorial-btn"
+        >
+          <Play className="w-3.5 h-3.5 mr-1.5" /> Pipeline Film
+        </Button>
       </div>
       
       <div className="grid gap-3">

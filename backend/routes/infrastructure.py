@@ -1688,12 +1688,10 @@ async def generate_parco_studio_base_map(user: dict = Depends(get_current_user))
 
         image_gen = OpenAIImageGeneration(api_key=api_key)
         prompt = (
-            "High-angle aerial view of a film studio lot called CineWorld Studios, "
-            "photorealistic cinematic visualization. Central grand studio building with curved golden facade "
-            "and illuminated golden sign, surrounded by 6 large empty rectangular construction lots "
-            "arranged symmetrically. Dry golden-brown earth on empty lots, asphalt roads in radial pattern, "
-            "green trees between lots, distant city skyline. Golden hour warm lighting, no people, "
-            "architectural visualization, depth of field, clean composition"
+            "large cinematic film studio park, isometric top view, "
+            "central big movie studio building with sign CineWorld Studios, "
+            "5 empty land plots around, dirt terrain lots, roads connecting, "
+            "realistic, no people, game map style, high detail, soft lighting"
         )
         images = await image_gen.generate_images(prompt=prompt, model='gpt-image-1', number_of_images=1)
 

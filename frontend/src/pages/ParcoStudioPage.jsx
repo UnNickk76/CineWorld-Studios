@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
-import { toast } from 'sonner';
-import { Lock, Loader2, Building, Film, Tv, Sparkles, Camera, Radio, GraduationCap, Search, Shield, Swords, Scale, ChevronRight } from 'lucide-react';
+import { Lock, Loader2, Building, Film, Tv, Sparkles, Camera, Radio, GraduationCap, Shield, ChevronRight } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -21,40 +20,46 @@ export default function ParcoStudioPage() {
   const [backgrounds, setBackgrounds] = useState({});
   const [baseMap, setBaseMap] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generatingBase, setGeneratingBase] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const scrollRef = useRef(null);
+  const generatedRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
       const res = await api.get('/infrastructure/parco-studio/backgrounds');
       setBackgrounds(res.data.backgrounds || {});
       setBaseMap(res.data.base_map_url || null);
-    } catch { /* silent */ }
+      return res.data.base_map_url;
+    } catch { return null; }
     finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Load data + auto-generate if needed
+  useEffect(() => {
+    const init = async () => {
+      const mapUrl = await loadData();
+      // Auto-generate if no map exists (once)
+      if (!mapUrl && !generatedRef.current) {
+        generatedRef.current = true;
+        setGenerating(true);
+        try {
+          const res = await api.post('/infrastructure/parco-studio/generate-base-map');
+          setBaseMap(res.data.image_url);
+        } catch { /* silent - will show fallback */ }
+        finally { setGenerating(false); }
+      }
+    };
+    init();
+  }, [loadData, api]);
 
   // Auto-center on studio
   useEffect(() => {
-    if (!loading && scrollRef.current) {
+    if (!loading && !generating && scrollRef.current) {
       const el = scrollRef.current;
       el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
-      el.scrollTop = (el.scrollHeight * 0.3) - (el.clientHeight / 3);
+      el.scrollTop = (el.scrollHeight * 0.28) - (el.clientHeight / 3);
     }
-  }, [loading]);
-
-  // Generate base map if not exists
-  const generateBaseMap = async () => {
-    setGeneratingBase(true);
-    try {
-      const res = await api.post('/infrastructure/parco-studio/generate-base-map');
-      setBaseMap(res.data.image_url);
-      toast.success('Mappa base generata!');
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore generazione mappa');
-    } finally { setGeneratingBase(false); }
-  };
+  }, [loading, generating, baseMap]);
 
   const getSlotState = (slot) => {
     let ownedCount = 0, firstId = null;
@@ -73,42 +78,37 @@ export default function ParcoStudioPage() {
     else navigate(slot.route);
   };
 
-  if (loading) return <div className="fixed inset-0 bg-[#080604] flex items-center justify-center z-40"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin" /></div>;
+  // Loading / Generating screen
+  if (loading || generating) {
+    return (
+      <div className="fixed inset-0 bg-[#080604] flex flex-col items-center justify-center z-40 gap-3" style={{ top: 48, bottom: 52 }}>
+        <Loader2 className="w-8 h-8 text-yellow-500 animate-spin" />
+        <p className="text-gray-500 text-xs">{generating ? 'Costruzione Parco Studio in corso...' : 'Caricamento...'}</p>
+      </div>
+    );
+  }
 
   const mapSize = 1200;
+  const mapBg = baseMap ? (baseMap.startsWith('/') ? `${BACKEND_URL}${baseMap}` : baseMap) : null;
 
   return (
     <div className="fixed inset-0 bg-[#060503] z-30" style={{ top: 48, bottom: 52 }} data-testid="parco-studio-page">
       <div ref={scrollRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="relative" style={{ width: mapSize, height: mapSize }}>
-          {/* Background map image */}
-          {baseMap ? (
-            <img src={baseMap.startsWith('/') ? `${BACKEND_URL}${baseMap}` : baseMap} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} loading="lazy" />
+          {/* Background map */}
+          {mapBg ? (
+            <img src={mapBg} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} loading="lazy" />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-b from-[#1a1508] via-[#0d0a04] to-[#080604]" />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1a1508] via-[#0d0a04] to-[#080604]" />
           )}
           <div className="absolute inset-0 bg-black/15 pointer-events-none" />
 
-          {/* Central Studio */}
+          {/* Central Studio Label */}
           <div className="absolute flex flex-col items-center pointer-events-none" style={{ left: '30%', top: '38%', width: '40%' }}>
             <div className="bg-black/60 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-500/30">
               <p className="font-['Bebas_Neue'] text-xl text-yellow-500 tracking-widest text-center">CineWorld Studio's</p>
             </div>
           </div>
-
-          {/* Generate base map button if no map */}
-          {!baseMap && !generatingBase && (
-            <div className="absolute flex items-center justify-center" style={{ left: '25%', top: '48%', width: '50%' }}>
-              <button onClick={generateBaseMap} className="bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                <Sparkles className="w-4 h-4" /> Genera Mappa Studio
-              </button>
-            </div>
-          )}
-          {generatingBase && (
-            <div className="absolute flex items-center justify-center" style={{ left: '25%', top: '48%', width: '50%' }}>
-              <div className="text-yellow-400 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Generazione mappa...</div>
-            </div>
-          )}
 
           {/* 6 Slots */}
           {SLOTS.map(slot => {
@@ -149,7 +149,7 @@ export default function ParcoStudioPage() {
         </div>
       </div>
 
-      {/* Top UI */}
+      {/* UI overlays */}
       <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 border border-white/10">
         <p className="text-[7px] text-yellow-500/70 font-bold tracking-wider">VISTA PARCO STUDIO</p>
       </div>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
@@ -18,6 +18,7 @@ const ADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+  { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
 ];
@@ -1611,6 +1612,169 @@ const CAT_CONFIG = {
 
 const V2_STATES = ['draft','idea','proposed','hype_setup','hype_live','casting_live','prep','shooting','postproduction','sponsorship','marketing','premiere_setup','premiere_live','release_pending','released','completed','discarded'];
 
+
+// ═══════════════════════════════════════════
+// TUTORIAL MANAGER TAB
+// ═══════════════════════════════════════════
+function TutorialManagerTab({ api }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const pollingRef = useRef(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/admin/tutorial/status');
+      setStatus(res.data);
+      setLoading(false);
+      // Stop polling when done
+      if (res.data.update_job?.status === 'done' || res.data.update_job?.status === 'error') {
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+      }
+    } catch { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { fetchStatus(); return () => { if (pollingRef.current) clearInterval(pollingRef.current); }; }, [fetchStatus]);
+
+  const startUpdate = async (type) => {
+    try {
+      await api.post(`/admin/tutorial/update/${type}`);
+      toast.success(`Aggiornamento ${type} avviato`);
+      // Start polling
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = setInterval(fetchStatus, 1500);
+      fetchStatus();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore');
+    }
+  };
+
+  const job = status?.update_job || {};
+  const isProcessing = job.status === 'processing' || job.status === 'starting';
+
+  const formatDate = (iso) => {
+    if (!iso) return 'Mai';
+    return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) return <div className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto text-yellow-500" /></div>;
+
+  return (
+    <div className="space-y-4" data-testid="tutorial-manager-tab">
+      <Card className="bg-[#111] border-white/10">
+        <CardContent className="p-4">
+          <h3 className="font-bold text-sm text-white mb-3 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-yellow-500" /> TUTORIAL MANAGER
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            {/* Static */}
+            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-300">Tutorial Statico</span>
+                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.static?.version || 0}</Badge>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Contenuti: {status?.static?.content_count || 0} blocchi</p>
+              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.static?.last_update)}</p>
+              <Button size="sm" className="w-full h-7 text-[11px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/20" onClick={() => startUpdate('static')} disabled={isProcessing} data-testid="update-static-btn">
+                {isProcessing && job.type === 'static' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Aggiorna Statico
+              </Button>
+            </div>
+
+            {/* Velion */}
+            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-300">Tutorial Velion</span>
+                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.velion?.version || 0}</Badge>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Steps: {status?.velion?.steps_count || 0}</p>
+              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.velion?.last_update)}</p>
+              <Button size="sm" className="w-full h-7 text-[11px] bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/20" onClick={() => startUpdate('velion')} disabled={isProcessing} data-testid="update-velion-btn">
+                {isProcessing && job.type === 'velion' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Aggiorna Velion
+              </Button>
+            </div>
+
+            {/* Guest */}
+            <div className="bg-black/30 rounded-lg p-3 border border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-300">Tutorial Guest</span>
+                <Badge variant="outline" className="text-[9px] h-4 border-white/10">v{status?.guest?.version || 0}</Badge>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Steps: {status?.guest?.steps_count || 0}</p>
+              <p className="text-[10px] text-gray-600 mb-2">Ultimo: {formatDate(status?.guest?.last_update)}</p>
+              <Button size="sm" className="w-full h-7 text-[11px] bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/20" onClick={() => startUpdate('guest')} disabled={isProcessing} data-testid="update-guest-btn">
+                {isProcessing && job.type === 'guest' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Aggiorna Guest
+              </Button>
+            </div>
+          </div>
+
+          {/* Progress Box */}
+          {(isProcessing || job.status === 'done' || job.status === 'error') && (
+            <div className="bg-black/40 rounded-lg p-3 border border-white/5" data-testid="tutorial-progress-box">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-300">
+                  {isProcessing ? 'Aggiornamento in corso' : job.status === 'done' ? 'Completato' : 'Errore'}
+                </span>
+                <Badge className={`text-[9px] h-4 ${job.status === 'done' ? 'bg-green-500/20 text-green-400' : job.status === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                  {job.type}
+                </Badge>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full bg-white/5 rounded-full h-2 mb-2 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${job.status === 'done' ? 'bg-green-500' : job.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}
+                  style={{ width: `${job.progress || 0}%` }}
+                  data-testid="tutorial-progress-bar"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-500">{job.current_step || 'Idle'}</span>
+                <span className="text-[10px] text-gray-400 font-mono">{job.progress || 0}%</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Frozen Sections Info */}
+      <Card className="bg-[#111] border-white/10">
+        <CardContent className="p-4">
+          <h3 className="font-bold text-sm text-white mb-3 flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-500" /> SEZIONI TEMPORANEAMENTE FREEZATE
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-black/30 rounded-lg p-3 border border-amber-500/10 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Lock className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-300">Note di Rilascio</p>
+                <p className="text-[10px] text-amber-400">
+                  {status?.frozen_sections?.release_notes?.label || 'In aggiornamento'}
+                </p>
+              </div>
+            </div>
+            <div className="bg-black/30 rounded-lg p-3 border border-amber-500/10 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Lock className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-300">Note di Sistema</p>
+                <p className="text-[10px] text-amber-400">
+                  {status?.frozen_sections?.system_notes?.label || 'In aggiornamento'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
 function MigrationTab({ api }) {
   const gameConfirm = useConfirm();
   const [scan, setScan] = useState(null);
@@ -2016,6 +2180,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
+        {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}
       </div>
     </div>
   );

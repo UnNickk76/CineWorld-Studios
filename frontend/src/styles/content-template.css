@@ -267,6 +267,24 @@
 .ct2-data-duration {
   color: #d0a0b8;
 }
+.ct2-data-trend {
+  color: #f0a040;
+  font-weight: 700;
+}
+.ct2-data-delta {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.ct2-delta-up {
+  color: #50d070;
+}
+.ct2-delta-down {
+  color: #e05050;
+}
+.ct2-delta-flat {
+  color: #808080;
+}
 .ct2-series .ct2-data-bar {
   background: linear-gradient(135deg, rgba(50, 80, 160, 0.18) 0%, rgba(30, 50, 100, 0.1) 100%);
   border-color: rgba(80, 140, 220, 0.2);
@@ -275,6 +293,7 @@
 .ct2-series .ct2-data-type { color: #a0c0e8; }
 .ct2-series .ct2-data-sep { color: rgba(80, 140, 220, 0.3); }
 .ct2-series .ct2-data-duration { color: #90b0d0; }
+.ct2-series .ct2-data-trend { color: #80b0e0; }
 
 /* ═══════════════════════════════════
    6. JOURNALIST REVIEWS (green boxes)

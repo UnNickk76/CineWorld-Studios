@@ -1383,6 +1383,10 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('duration_category', None)
     film.setdefault('duration_minutes', None)
     film.setdefault('short_plot', None)
+    film.setdefault('trend_score', 0)
+    film.setdefault('trend_position', None)
+    film.setdefault('trend_delta', None)
+    film.setdefault('trend_last', None)
 
     return film
 

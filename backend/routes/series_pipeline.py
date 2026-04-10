@@ -2027,6 +2027,10 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     series.setdefault('episode_runtime_minutes', None)
     series.setdefault('total_runtime_minutes', None)
     series.setdefault('short_plot', None)
+    series.setdefault('trend_score', 0)
+    series.setdefault('trend_position', None)
+    series.setdefault('trend_delta', None)
+    series.setdefault('trend_last', None)
 
     # Get owner info
     owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})

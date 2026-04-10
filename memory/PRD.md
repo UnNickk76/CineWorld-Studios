@@ -115,6 +115,17 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Endpoints: `POST /api/pipeline-v2/films/{pid}/set-duration`, `POST /api/series-pipeline/{id}/set-duration`, `GET .../duration-categories`
 - File: `ContentTemplate.jsx`, `content-template.css`, `pipeline_v2.py`, `series_pipeline.py`, `films.py`
 
+#### Sistema Trend Dinamico (Apr 2026)
+- **Scheduler `update_trend_scores()`**: Calcolo batch ogni 6h per tutti film+serie attivi
+- **Formula**: quality*15 + hype*20 + attendance + likes + cinemas + status_boost - age_decay - flop_penalty, range 0-10000
+- **Ranking**: Posizione globale ordinata per trend_score DESC
+- **Delta**: Differenza posizione tra calcoli (es: +12 = in salita, -5 = in calo)
+- **Frontend**: Integrato nella barra dati fucsia: `🔥 #9 ↑+12` con colore verde/rosso/grigio
+- **Eventi automatici**: Notifica "Trend in Salita!" (delta>+20) o "Interesse in Calo" (delta<-20)
+- **Retrocompatibilita**: Campi opzionali con fallback a 0/null, nessuna migrazione
+- **Performance**: Query batch, no loop pesanti, aggiornamento ogni 6h
+- File: `scheduler_tasks.py`, `server.py`, `ContentTemplate.jsx`, `content-template.css`, `films.py`, `series_pipeline.py`
+
 ## Backlog
 
 ### P1

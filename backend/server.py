@@ -7507,6 +7507,15 @@ async def startup_event():
         replace_existing=True
     )
 
+    # Trend scores: every 6 hours
+    from scheduler_tasks import update_trend_scores
+    scheduler.add_job(
+        update_trend_scores,
+        IntervalTrigger(hours=6),
+        id='update_trend_scores',
+        replace_existing=True
+    )
+
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
 

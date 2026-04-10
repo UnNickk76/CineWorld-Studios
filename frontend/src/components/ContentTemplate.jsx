@@ -257,6 +257,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
   const durationStr = formatDuration(film, contentType);
   const shortPlot = film.short_plot || null;
+  const trendPos = film.trend_position;
+  const trendDelta = film.trend_delta;
   const screenplay = toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '';
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
@@ -319,6 +321,21 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
         <Clock size={13} />
         <span className="ct2-data-duration">{durationStr || 'Durata non disponibile'}</span>
+        {trendPos && (
+          <>
+            <span className="ct2-data-sep">|</span>
+            <Flame size={13} />
+            <span className="ct2-data-trend">#{trendPos}</span>
+            {trendDelta != null && trendDelta !== 0 && (
+              <span className={`ct2-data-delta ${trendDelta > 0 ? 'ct2-delta-up' : 'ct2-delta-down'}`}>
+                {trendDelta > 0 ? '\u2191' : '\u2193'}{trendDelta > 0 ? `+${trendDelta}` : trendDelta}
+              </span>
+            )}
+            {trendDelta === 0 && (
+              <span className="ct2-data-delta ct2-delta-flat">&rarr; 0</span>
+            )}
+          </>
+        )}
       </div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}

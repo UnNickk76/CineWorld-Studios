@@ -151,6 +151,12 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Popup conferma**: ConfirmDialog personalizzato CineWorld (Velion/CineOx) gia presente ovunque, nessun `window.confirm` nel codice
 - File: `pipeline_v2.py`, `film_pipeline.py`, `ContentTemplate.jsx`, `ComingSoonSection.jsx`
 
+#### Menu Laterale Pellicola Cinematografica (Apr 2026)
+- **Effetto pellicola animata CSS-only**: Background con bande scure + gradient dorato + perforazioni laterali, animazione verticale 20s loop infinito
+- **Frame dorati**: Ogni voce menu stilizzata come frame pellicola con bordo gold, glow sottile, sfondo semi-trasparente
+- **Performance**: Solo CSS (will-change: transform), nessuna immagine, nessun repaint pesante
+- File: `App.js`, `styles/film-strip-menu.css`
+
 ## Backlog
 
 ### P1

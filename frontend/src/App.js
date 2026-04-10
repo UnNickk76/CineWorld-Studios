@@ -28,6 +28,7 @@ import { ScrollArea } from './components/ui/scroll-area';
 import { Slider } from './components/ui/slider';
 import { Textarea } from './components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from './components/ui/dialog';
+import './styles/film-strip-menu.css';
 import { Label } from './components/ui/label';
 import { Calendar as CalendarComponent } from './components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './components/ui/popover';
@@ -554,19 +555,28 @@ const GlobalSideMenu = () => {
         data-testid="global-side-menu-overlay"
       />
       <div
-        className={`fixed top-0 left-0 h-full w-[25%] min-w-[80px] max-w-[120px] bg-black/90 backdrop-blur-sm z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed top-0 left-0 h-full w-[28%] min-w-[90px] max-w-[130px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
+        style={{ background: '#050505' }}
       >
-        <div className="flex flex-col h-full pt-16 px-1.5 gap-1.5 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        {/* LAYER 1: Animated film strip background */}
+        <div className="film-strip-bg" aria-hidden="true" />
+        {/* Film perforations left */}
+        <div className="film-perfs film-perfs-left" aria-hidden="true" />
+        {/* Film perforations right */}
+        <div className="film-perfs film-perfs-right" aria-hidden="true" />
+
+        {/* LAYER 2: Fixed menu items (film frames) */}
+        <div className="relative z-10 flex flex-col h-full pt-14 px-1.5 gap-2 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
           {menuItems.map(item => (
             <button
               key={item.label}
-              className="flex flex-col items-center justify-center min-h-[56px] rounded-lg border border-white/10 text-gray-300 text-[10px] active:scale-95 transition-all hover:bg-white/5 hover:border-white/20"
+              className="film-frame-btn"
               onClick={item.action}
               data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
             >
-              <item.icon className="w-4 h-4 mb-0.5 text-yellow-500/80" />
-              <span className="text-center leading-tight px-0.5">{item.label}</span>
+              <item.icon className="w-4.5 h-4.5 mb-0.5 text-yellow-500/90" style={{ width: 18, height: 18 }} />
+              <span className="text-[10px] text-center leading-tight text-gray-200/90">{item.label}</span>
             </button>
           ))}
         </div>

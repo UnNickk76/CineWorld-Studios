@@ -144,6 +144,13 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Swipe semplificato**: Solo dashboard swipe destro → apre menu. Rimosso swipe tra pagine.
 - File: `App.js`, `Dashboard.jsx`
 
+#### Fase 2: Mercato Auto + Prossimamente Fix + Placeholder (Apr 2026)
+- **Mercato auto-listing**: Film scartati (`discard_film_v2`) entrano automaticamente nel marketplace con prezzo proporzionale (40-60% investito, min $10K). Split 50/50 (50% venditore, 50% rimosso dal sistema)
+- **Prossimamente fix**: V2 detail ora ha bottone "Vedi Dettaglio" → naviga a ContentTemplate. Campi mancanti mostrano spazio vuoto (no "non disponibile")
+- **ContentTemplate cleanup**: Rimossi tutti i placeholder "Trama non disponibile", "Durata non disponibile" — spazio vuoto se dato assente
+- **Popup conferma**: ConfirmDialog personalizzato CineWorld (Velion/CineOx) gia presente ovunque, nessun `window.confirm` nel codice
+- File: `pipeline_v2.py`, `film_pipeline.py`, `ContentTemplate.jsx`, `ComingSoonSection.jsx`
+
 ## Backlog
 
 ### P1

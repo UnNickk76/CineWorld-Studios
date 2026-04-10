@@ -2588,9 +2588,13 @@ async def buy_discarded_film(project_id: str, user: dict = Depends(get_current_u
     if user.get('funds', 0) < price:
         raise HTTPException(status_code=400, detail=f"Fondi insufficienti. Servono ${price:,}")
 
-    # Transfer funds
+    # Split 50/50: half to seller, half removed from system
+    seller_share = price // 2
+
+    # Buyer pays full price
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -price}})
-    await db.users.update_one({'id': project['discarded_by']}, {'$inc': {'funds': price}})
+    # Seller receives 50%
+    await db.users.update_one({'id': project['discarded_by']}, {'$inc': {'funds': seller_share}})
 
     # Determine which phase to place the film in
     buyer_status = project.get('status_before_discard', 'proposed')

@@ -229,7 +229,7 @@ function ComingSoonThumb({ item, onClick }) {
 function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const navigate = useNavigate();
 
-  // V2 films: simple read-only card (no hype/interact system)
+  // V2 films: navigate to detail page (uses new ContentTemplate)
   if (item.is_v2) {
     const poster = posterSrc(item.poster_url);
     return (
@@ -237,8 +237,8 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
         {poster && <img src={poster} alt="" className="w-full aspect-[2/3] object-cover rounded-lg" />}
         <div className="text-center space-y-1">
           <h3 className="font-['Bebas_Neue'] text-xl text-white">{item.title}</h3>
-          <p className="text-[10px] text-gray-400">{item.genre_name} {item.subgenres?.length > 0 && `• ${item.subgenres.join(', ')}`}</p>
-          <p className="text-[9px] text-gray-500">di {item.production_house}</p>
+          {item.genre_name && <p className="text-[10px] text-gray-400">{item.genre_name} {item.subgenres?.length > 0 && `• ${item.subgenres.join(', ')}`}</p>}
+          {item.production_house && <p className="text-[9px] text-gray-500">di {item.production_house}</p>}
           {item.pipeline_status_label && (
             <span className="inline-block text-[9px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 font-bold">
               Fase: {item.pipeline_status_label}
@@ -247,6 +247,10 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
           {item.pre_imdb_score > 0 && (
             <p className="text-[9px] text-yellow-400">Pre-IMDb: {item.pre_imdb_score?.toFixed(1)}</p>
           )}
+          <Button size="sm" className="mt-2 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/30"
+            onClick={() => { onClose?.(); navigate(`/films/${item.id}`); }}>
+            Vedi Dettaglio
+          </Button>
         </div>
       </div>
     );

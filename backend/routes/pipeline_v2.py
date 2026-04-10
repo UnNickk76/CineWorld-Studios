@@ -3818,24 +3818,50 @@ async def edit_step_v2(pid: str, req: EditStepRequest, user: dict = Depends(get_
 
 @router.post("/films/{pid}/discard")
 async def discard_film_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Discard film at any stage"""
+    """Discard film at any stage — auto-lists on marketplace"""
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] in ('released', 'completed', 'discarded'):
         raise HTTPException(400, "Non puoi scartare un film gia rilasciato o completato")
 
+    # Calculate sale price: proportional to invested costs, discounted
+    total_cost = project.get('total_cost', 0) or 0
+    costs_paid = project.get('costs_paid', {})
+    invested = sum(v for v in costs_paid.values() if isinstance(v, (int, float)))
+    if invested == 0:
+        invested = total_cost
+    # Sale price = 40-60% of invested, minimum $10,000
+    discount = 0.5 + random.uniform(-0.1, 0.1)
+    sale_price = max(10000, int(invested * discount))
+
+    # Map V2 state to legacy status for marketplace compatibility
+    state_map = {
+        'draft': 'proposed', 'idea': 'proposed', 'proposed': 'proposed',
+        'hype_setup': 'proposed', 'hype_live': 'proposed',
+        'casting_live': 'casting', 'prep': 'pre_production',
+        'shooting': 'shooting', 'postproduction': 'shooting',
+        'sponsorship': 'pre_production', 'marketing': 'pre_production',
+    }
+    status_before = state_map.get(project['pipeline_state'], 'proposed')
+
+    now = _now()
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'pipeline_state': 'discarded',
-            'pipeline_substate': 'abandoned',
+            'pipeline_substate': 'marketplace',
             'pipeline_ui_step': -1,
             'pipeline_locked': False,
-            'discarded_at': _now(),
-            'updated_at': _now(),
+            'discarded_at': now,
+            'updated_at': now,
+            'available_for_purchase': True,
+            'sale_price': sale_price,
+            'discarded_by': user['id'],
+            'status_before_discard': status_before,
+            'status': status_before,
         },
-        '$push': {'pipeline_history': {'from': project['pipeline_state'], 'to': 'discarded', 'at': _now()}}}
+        '$push': {'pipeline_history': {'from': project['pipeline_state'], 'to': 'discarded', 'at': now}}}
     )
-    return {'success': True, 'message': 'Film scartato'}
+    return {'success': True, 'message': f'Film scartato e messo in vendita a ${sale_price:,}', 'sale_price': sale_price}
 
 @router.post("/admin/diagnose")
 async def admin_diagnose_v2(user: dict = Depends(get_current_user)):

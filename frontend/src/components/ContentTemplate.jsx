@@ -286,7 +286,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           )}
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
-          {shortPlot || 'Trama non disponibile'}
+          {shortPlot || ''}
         </div>
       </div>
 
@@ -320,7 +320,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || 'Durata non disponibile'}</span>
+        <span className="ct2-data-duration">{durationStr || ''}</span>
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>

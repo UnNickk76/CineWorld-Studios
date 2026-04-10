@@ -1380,6 +1380,9 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('advanced_factors', {})
     film.setdefault('soundtrack_rating', None)
     film.setdefault('critic_reviews', [])
+    film.setdefault('duration_category', None)
+    film.setdefault('duration_minutes', None)
+    film.setdefault('short_plot', None)
 
     return film
 

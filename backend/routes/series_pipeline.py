@@ -1105,6 +1105,94 @@ async def get_poster_status(series_id: str, user: dict = Depends(get_current_use
 
 
 
+# ═══════════════════════════════════════════════════════════════
+#  SISTEMA DURATA SERIE/ANIME — Solo nuovi contenuti
+# ═══════════════════════════════════════════════════════════════
+
+SERIES_DURATION_CATEGORIES = {
+    'breve':            {'min_ep': 15, 'max_ep': 25, 'label': 'Breve', 'quality_mod': -2, 'revenue_mult': 0.7},
+    'standard':         {'min_ep': 26, 'max_ep': 45, 'label': 'Standard', 'quality_mod': 0, 'revenue_mult': 1.0},
+    'estesa':           {'min_ep': 46, 'max_ep': 60, 'label': 'Estesa', 'quality_mod': 2, 'revenue_mult': 1.2},
+    'evento':           {'min_ep': 61, 'max_ep': 80, 'label': 'Evento', 'quality_mod': 4, 'revenue_mult': 1.4},
+    'kolossal_seriale': {'min_ep': 81, 'max_ep': 110, 'label': 'Kolossal Seriale', 'quality_mod': 5, 'revenue_mult': 1.6},
+}
+
+def _calc_episode_runtime(category: str, genre: str, num_episodes: int) -> int:
+    cat = SERIES_DURATION_CATEGORIES.get(category, SERIES_DURATION_CATEGORIES['standard'])
+    mid = (cat['min_ep'] + cat['max_ep']) // 2
+    genre_bias = {'action': 3, 'drama': 5, 'comedy': -5, 'horror': -2, 'sci_fi': 4, 'fantasy': 3, 'romance': -3}.get(genre, 0)
+    ep_adjust = -3 if num_episodes > 20 else (3 if num_episodes <= 6 else 0)
+    result = mid + genre_bias + ep_adjust + random.randint(-4, 4)
+    return max(cat['min_ep'], min(cat['max_ep'], result))
+
+def _generate_short_plot_series(screenplay, max_chars=500):
+    text = ''
+    if isinstance(screenplay, dict):
+        text = screenplay.get('text', '')
+    elif isinstance(screenplay, str):
+        text = screenplay
+    text = (text or '').strip()
+    if not text or len(text) < 30:
+        return None
+    excerpt = text[:max_chars]
+    for i in range(len(excerpt) - 1, max(0, len(excerpt) - 150), -1):
+        if excerpt[i] in '.!?\n':
+            return excerpt[:i+1].strip()
+    return excerpt.strip() + '...'
+
+
+class SetSeriesDuration(BaseModel):
+    category: str = 'standard'
+
+
+@router.post("/series-pipeline/{series_id}/set-duration")
+async def set_series_duration(series_id: str, req: SetSeriesDuration, user: dict = Depends(get_current_user)):
+    """Set duration category for a series/anime. Callable in screenplay phase."""
+    series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0})
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series['status'] not in ('screenplay', 'casting', 'concept'):
+        raise HTTPException(400, "Durata impostabile solo prima della produzione")
+    if req.category not in SERIES_DURATION_CATEGORIES:
+        raise HTTPException(400, f"Categoria non valida. Opzioni: {list(SERIES_DURATION_CATEGORIES.keys())}")
+
+    cat_info = SERIES_DURATION_CATEGORIES[req.category]
+    genre = series.get('genre_name', series.get('genre', 'drama'))
+    num_eps = series.get('num_episodes', 8)
+    ep_runtime = _calc_episode_runtime(req.category, genre, num_eps)
+    total_runtime = ep_runtime * num_eps
+    short_plot = _generate_short_plot_series(series.get('screenplay'))
+
+    update_data = {
+        'duration_category': req.category,
+        'episode_runtime_minutes': ep_runtime,
+        'total_runtime_minutes': total_runtime,
+        'duration_label': cat_info['label'],
+        'duration_quality_mod': cat_info['quality_mod'],
+        'duration_revenue_mult': cat_info['revenue_mult'],
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+    }
+    if short_plot:
+        update_data['short_plot'] = short_plot
+
+    await db.tv_series.update_one({'id': series_id}, {'$set': update_data})
+    updated = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
+    return {
+        'series': updated,
+        'episode_runtime_minutes': ep_runtime,
+        'total_runtime_minutes': total_runtime,
+        'duration_label': cat_info['label'],
+        'categories': {k: {'label': v['label'], 'range': f"{v['min_ep']}-{v['max_ep']} min/ep"} for k, v in SERIES_DURATION_CATEGORIES.items()},
+    }
+
+@router.get("/series-pipeline/{series_id}/duration-categories")
+async def get_series_duration_categories(series_id: str, user: dict = Depends(get_current_user)):
+    """Get available duration categories for series/anime."""
+    return {
+        'categories': {k: {'label': v['label'], 'range': f"{v['min_ep']}-{v['max_ep']} min/ep"} for k, v in SERIES_DURATION_CATEGORIES.items()},
+    }
+
+
 @router.post("/series-pipeline/{series_id}/start-production")
 async def start_production(series_id: str, user: dict = Depends(get_current_user)):
     """Start production phase (timer-based)."""
@@ -1935,7 +2023,11 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     series.setdefault('production_cost', 0)
     series.setdefault('cast_total_salary', 0)
     series.setdefault('screenplay', None)
-    
+    series.setdefault('duration_category', None)
+    series.setdefault('episode_runtime_minutes', None)
+    series.setdefault('total_runtime_minutes', None)
+    series.setdefault('short_plot', None)
+
     # Get owner info
     owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
     series['owner'] = owner

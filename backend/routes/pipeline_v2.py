@@ -603,6 +603,91 @@ async def write_screenplay_v2(pid: str, req: ScreenplayV2Request, user: dict = D
     film = await _update_project(pid, update)
     return {'film': film, 'quality_bonus': quality_bonus}
 
+# ═══════════════════════════════════════════════════════════════
+#  SISTEMA DURATA — Solo nuovi contenuti V2
+# ═══════════════════════════════════════════════════════════════
+
+FILM_DURATION_CATEGORIES = {
+    'cortometraggio': {'min': 20, 'max': 45, 'label': 'Cortometraggio', 'quality_mod': -3, 'revenue_mult': 0.45, 'cost_mult': 0.4},
+    'feature_breve':  {'min': 46, 'max': 70, 'label': 'Feature Breve', 'quality_mod': -1, 'revenue_mult': 0.7, 'cost_mult': 0.6},
+    'standard':       {'min': 71, 'max': 140, 'label': 'Standard', 'quality_mod': 0, 'revenue_mult': 1.0, 'cost_mult': 1.0},
+    'extended':       {'min': 141, 'max': 210, 'label': 'Extended', 'quality_mod': 3, 'revenue_mult': 1.3, 'cost_mult': 1.4},
+    'kolossal':       {'min': 211, 'max': 280, 'label': 'Kolossal', 'quality_mod': 5, 'revenue_mult': 1.6, 'cost_mult': 1.8},
+}
+
+# Genre-based duration bias (shifts center of range)
+GENRE_DURATION_BIAS = {
+    'action': 10, 'sci_fi': 15, 'fantasy': 12, 'war': 20, 'adventure': 8,
+    'comedy': -8, 'romance': -5, 'horror': -3, 'documentary': -10,
+    'drama': 5, 'thriller': 0, 'animation': -5, 'musical': 3,
+    'western': 5, 'noir': -2, 'biographical': 8, 'mystery': 0, 'crime': 3, 'historical': 10,
+}
+
+def _calc_film_duration(category: str, genre: str, screenplay_len: int) -> int:
+    cat = FILM_DURATION_CATEGORIES.get(category, FILM_DURATION_CATEGORIES['standard'])
+    mid = (cat['min'] + cat['max']) // 2
+    bias = GENRE_DURATION_BIAS.get(genre, 0)
+    text_factor = min(15, max(-10, (screenplay_len - 800) // 200))
+    base = mid + bias + text_factor + random.randint(-8, 8)
+    return max(cat['min'], min(cat['max'], base))
+
+def _generate_short_plot(screenplay_text: str, max_chars: int = 500) -> str:
+    text = (screenplay_text or '').strip()
+    if not text or len(text) < 30:
+        return None
+    excerpt = text[:max_chars]
+    for i in range(len(excerpt) - 1, max(0, len(excerpt) - 150), -1):
+        if excerpt[i] in '.!?\n':
+            return excerpt[:i+1].strip()
+    return excerpt.strip() + '...'
+
+class SetDurationV2(BaseModel):
+    category: str = 'standard'
+
+@router.post("/films/{pid}/set-duration")
+async def set_duration_v2(pid: str, req: SetDurationV2, user: dict = Depends(get_current_user)):
+    """Set duration category for a V2 film. Callable in idea/draft phase."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] not in ('draft', 'idea'):
+        raise HTTPException(400, "Durata impostabile solo in fase IDEA")
+    if req.category not in FILM_DURATION_CATEGORIES:
+        raise HTTPException(400, f"Categoria non valida. Opzioni: {list(FILM_DURATION_CATEGORIES.keys())}")
+
+    cat_info = FILM_DURATION_CATEGORIES[req.category]
+    screenplay_text = project.get('screenplay', '') or ''
+    duration_min = _calc_film_duration(req.category, project.get('genre', 'drama'), len(screenplay_text))
+    short_plot = _generate_short_plot(screenplay_text)
+
+    update = {
+        'duration_category': req.category,
+        'duration_minutes': duration_min,
+        'duration_label': cat_info['label'],
+        'duration_quality_mod': cat_info['quality_mod'],
+        'duration_revenue_mult': cat_info['revenue_mult'],
+        'duration_cost_mult': cat_info['cost_mult'],
+    }
+    if short_plot:
+        update['short_plot'] = short_plot
+
+    film = await _update_project(pid, update)
+    return {
+        'film': film,
+        'duration_minutes': duration_min,
+        'duration_label': cat_info['label'],
+        'categories': {k: v['label'] for k, v in FILM_DURATION_CATEGORIES.items()},
+    }
+
+@router.get("/films/{pid}/duration-categories")
+async def get_duration_categories(pid: str, user: dict = Depends(get_current_user)):
+    """Get available duration categories for films."""
+    project = await _get_project(pid, user['id'])
+    ct = project.get('content_type', 'film')
+    return {
+        'categories': {k: {'label': v['label'], 'range': f"{v['min']}-{v['max']} min"} for k, v in FILM_DURATION_CATEGORIES.items()},
+        'current': project.get('duration_category'),
+        'content_type': ct,
+    }
+
 @router.post("/films/{pid}/propose")
 async def propose_film_v2(pid: str, user: dict = Depends(get_current_user)):
     """Propose the film: idea → proposed. Idempotent: if already proposed, returns current."""

@@ -136,6 +136,14 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **z-index corretto**: Menu (z-40/z-48) sotto navbar (z-50), CIACK sempre cliccabile
 - File: `App.js`, `Dashboard.jsx`
 
+#### Navbar Definitiva + Comandi Rapidi (Apr 2026)
+- **Top navbar**: 8 icone fisse (CIACK, HOME, PRODUCI, ARENA, LE MIE TV, MAJOR, CHAT, NOTIFICHE) + fondi compatti. Rimosso hamburger menu, CineBoard dropdown, tutorial, online users.
+- **Bottom navbar**: 11 item (HOME, I MIEI, PRODUCI, CINEBOARD, CLASSIFICHE, FESTIVAL, CINEJOURNAL, MERCATO, MINIGIOCHI, EVENTI, RAPIDI). Icona Zap per Comandi Rapidi.
+- **Comandi Rapidi**: Panel popup dalla bottom nav con 8 scorciatoie (Sceneggiature, Le mie TV, Infrastrutture, Arena, Contest, Saghe, Stelle, Profilo)
+- **Side menu**: Icone Lucide React (giallo/gold) al posto di emoji — stile identico alle navbar
+- **Swipe semplificato**: Solo dashboard swipe destro → apre menu. Rimosso swipe tra pagine.
+- File: `App.js`, `Dashboard.jsx`
+
 ## Backlog
 
 ### P1

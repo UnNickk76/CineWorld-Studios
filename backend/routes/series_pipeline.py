@@ -1043,7 +1043,11 @@ async def generate_series_poster(series_id: str, body: PosterRequest = PosterReq
     )
     if not series:
         raise HTTPException(404, "Serie non trovata")
-    
+
+    regen_count = series.get('poster_regen_count', 0)
+    if regen_count >= 3 and series.get('poster_url'):
+        raise HTTPException(400, "Limite rigenerazioni raggiunto (max 3)")
+
     key = os.environ.get('EMERGENT_LLM_KEY', '')
     if not key:
         raise HTTPException(500, "Servizio generazione immagini non disponibile")
@@ -1082,11 +1086,14 @@ async def generate_series_poster(series_id: str, body: PosterRequest = PosterReq
             await poster_storage.save_poster(filename, png_bytes, 'image/png')
             
             poster_url = f"/api/posters/{filename}"
+            new_count = regen_count + 1 if series.get('poster_url') else 0
             await db.tv_series.update_one(
                 {'id': series_id},
-                {'$set': {'poster_url': poster_url, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+                {'$set': {'poster_url': poster_url, 'poster_regen_count': new_count, 'updated_at': datetime.now(timezone.utc).isoformat()}}
             )
-            return {"poster_url": poster_url, "message": "Locandina generata!"}
+            return {"poster_url": poster_url, "message": "Locandina generata!", "regen_count": new_count, "success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Poster generation error: {e}")
         raise HTTPException(500, f"Errore generazione poster: {str(e)}")

@@ -489,10 +489,10 @@ export default function AnimePipeline() {
                                 data-testid={`anime-poster-prompt-${s.id}`} />
                             )}
                             <Button size="sm" className="w-full bg-orange-600 hover:bg-orange-700 text-[10px] h-7"
-                              onClick={() => generateAnimePoster(s.id)} disabled={posterLoading === s.id}
+                              onClick={() => generateAnimePoster(s.id)} disabled={posterLoading === s.id || (s.poster_regen_count >= 3 && s.poster_url)}
                               data-testid={`anime-generate-poster-${s.id}`}>
                               {posterLoading === s.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                              {s.poster_regen_count >= 3 && s.poster_url ? 'Max 3 rigenerate' : s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
                             </Button>
                           </div>
                         )}

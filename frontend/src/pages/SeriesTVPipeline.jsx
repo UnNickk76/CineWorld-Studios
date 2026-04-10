@@ -579,10 +579,10 @@ export default function SeriesTVPipeline() {
                             )}
 
                             <Button size="sm" className="w-full bg-purple-700 hover:bg-purple-800 text-[10px] h-7"
-                              onClick={() => generateSeriesPoster(s.id)} disabled={posterLoading === s.id}
+                              onClick={() => generateSeriesPoster(s.id)} disabled={posterLoading === s.id || (s.poster_regen_count >= 3 && s.poster_url)}
                               data-testid={`generate-poster-${s.id}`}>
                               {posterLoading === s.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                              {s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
+                              {s.poster_regen_count >= 3 && s.poster_url ? 'Max 3 rigenerate' : s.poster_url ? 'Rigenera Locandina' : 'Crea Locandina'}
                             </Button>
                           </div>
                         )}

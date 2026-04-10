@@ -476,6 +476,32 @@ async def remove_content(req: RemoveContentRequest, user: dict = Depends(get_cur
     return {"message": "Contenuto rimosso dalla programmazione"}
 
 
+class ClearScheduleRequest(BaseModel):
+    station_id: str
+
+
+@router.post("/tv-stations/clear-schedule")
+async def clear_schedule(req: ClearScheduleRequest, user: dict = Depends(get_current_user)):
+    """Azzera tutto il palinsesto mantenendo le statistiche."""
+    station = await db.tv_stations.find_one(
+        {'id': req.station_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1}
+    )
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+
+    await db.tv_stations.update_one(
+        {'id': req.station_id},
+        {'$set': {
+            'contents.films': [],
+            'contents.tv_series': [],
+            'contents.anime': [],
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"message": "Palinsesto azzerato. Le statistiche sono state mantenute."}
+
+
 @router.post("/tv-stations/update-ads")
 async def update_ads(req: UpdateAdsRequest, user: dict = Depends(get_current_user)):
     """Update ad duration for a TV station."""

@@ -129,8 +129,8 @@ export function AutoTickNotifications({ api }) {
           // Update unread badge — only count non-revenue events
           const newEventCount = events.filter(e => e.type !== 'REVENUE_GAINED').length;
           if (newEventCount > 0) {
-            const prev = parseInt(sessionStorage.getItem('cw_unread_events') || '0');
-            sessionStorage.setItem('cw_unread_events', String(prev + newEventCount));
+            // Set to actual new events count (not accumulate indefinitely)
+            sessionStorage.setItem('cw_unread_events', String(newEventCount));
             window.dispatchEvent(new Event('cw-unread-update'));
           }
         }

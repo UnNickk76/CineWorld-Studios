@@ -1210,37 +1210,63 @@ const TopNavbar = () => {
       {showOnlineUsersPanel && (
         <div className="fixed inset-0 z-[100]" data-testid="online-users-panel">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowOnlineUsersPanel(false)} />
-          <div className="absolute top-12 right-1 w-64 max-h-[70vh] bg-[#111113] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="sticky top-0 bg-[#111113] px-3 py-2 border-b border-white/5 flex items-center justify-between">
-              <span className="text-xs font-bold text-green-400">Utenti Online ({onlineUsersCount})</span>
+          <div className="absolute top-12 right-1 w-72 max-h-[75vh] bg-[#111113] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+            <div className="sticky top-0 bg-[#111113] px-3 py-2 border-b border-white/5 flex items-center justify-between z-10">
+              <span className="text-xs font-bold text-green-400">Giocatori ({allPlayersList.filter(u => !u.is_bot).length})</span>
               <button onClick={() => setShowOnlineUsersPanel(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1">
-              {onlineUsersList.filter(u => !u.is_bot).map(u => (
-                <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                  onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
-                  <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-xs text-gray-300 truncate">{u.nickname}</span>
-                  {u.level && <span className="text-[8px] text-gray-500 ml-auto">Lv.{u.level}</span>}
-                </div>
-              ))}
-              {onlineUsersList.filter(u => !u.is_bot).length === 0 && (
-                <p className="text-[10px] text-gray-500 text-center py-4">Nessun utente online</p>
-              )}
-              {allPlayersList.length > 0 && (
-                <>
-                  <div className="border-t border-white/5 mt-2 pt-2">
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider px-1 mb-1">Tutti i giocatori</p>
-                  </div>
-                  {allPlayersList.filter(u => !onlineUsersList.find(o => o.nickname === u.nickname)).slice(0, 20).map(u => (
-                    <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 cursor-pointer"
-                      onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
-                      <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
-                      <span className="text-xs text-gray-500 truncate">{u.nickname}</span>
+            <div className="max-h-[65vh] overflow-y-auto">
+              {/* ONLINE section */}
+              {(() => {
+                const onlineReal = onlineUsersList.filter(u => !u.is_bot);
+                const offlinePlayers = allPlayersList.filter(u => !u.is_bot && !onlineReal.find(o => o.nickname === u.nickname));
+                const timeAgo = (dateStr) => {
+                  if (!dateStr) return '';
+                  try {
+                    const d = new Date(dateStr);
+                    const now = new Date();
+                    const diff = Math.floor((now - d) / 1000);
+                    if (diff < 60) return 'ora';
+                    if (diff < 3600) return `${Math.floor(diff/60)}m fa`;
+                    if (diff < 86400) return `${Math.floor(diff/3600)}h fa`;
+                    if (diff < 604800) return `${Math.floor(diff/86400)}g fa`;
+                    return `${Math.floor(diff/604800)}sett fa`;
+                  } catch { return ''; }
+                };
+                return (
+                  <>
+                    {onlineReal.length > 0 && (
+                      <div className="px-2 pt-2 pb-1">
+                        <p className="text-[8px] text-green-500 font-bold uppercase tracking-widest px-1 mb-1">Online ({onlineReal.length})</p>
+                        {onlineReal.map(u => (
+                          <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+                            onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                            <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_4px_rgba(74,222,128,0.5)]" />
+                            <span className="text-xs text-gray-200 truncate flex-1">{u.nickname}</span>
+                            {u.level > 0 && <span className="text-[8px] text-gray-500">Lv.{u.level}</span>}
+                            <span className="text-[8px] text-green-500">ora</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="px-2 pt-1 pb-2">
+                      <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest px-1 mb-1">Offline ({offlinePlayers.length})</p>
+                      {offlinePlayers.slice(0, 30).map(u => (
+                        <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+                          onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                          <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
+                          <span className="text-xs text-gray-400 truncate flex-1">{u.nickname}</span>
+                          {u.level > 0 && <span className="text-[8px] text-gray-600">Lv.{u.level}</span>}
+                          <span className="text-[8px] text-gray-600">{timeAgo(u.last_active || u.last_login)}</span>
+                        </div>
+                      ))}
+                      {offlinePlayers.length === 0 && onlineReal.length === 0 && (
+                        <p className="text-[10px] text-gray-500 text-center py-4">Nessun giocatore</p>
+                      )}
                     </div>
-                  ))}
-                </>
-              )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

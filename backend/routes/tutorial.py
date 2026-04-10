@@ -185,6 +185,179 @@ async def _run_tutorial_update(update_type: str):
 
 
 # ═══════════════════════════════════════════
+# AI GENERATION (GPT via Emergent LLM Key)
+# ═══════════════════════════════════════════
+
+AI_PROMPTS = {
+    'static': """Sei un game designer per CineWorld Studio's, un gioco browser di simulazione cinematografica.
+Genera un tutorial statico in italiano con ESATTAMENTE 8 blocchi.
+Ogni blocco deve avere: id (numero 1-8), icon (una tra: clapperboard, users, film, dollar-sign, building, globe, trophy, star), title (breve), text (1-2 frasi mobile-friendly).
+
+Il gioco include: produzione film/serie/anime, casting, infrastrutture (cinema), La Prima (premiere), festival, PvP arena, social (CineBoard), minigiochi.
+
+Rispondi SOLO con un array JSON valido, senza altro testo. Esempio formato:
+[{"id": 1, "icon": "clapperboard", "title": "Titolo", "text": "Descrizione breve."}]""",
+
+    'velion': """Sei Velion, l'assistente AI del gioco CineWorld Studio's.
+Genera ESATTAMENTE 6 step per un tutorial interattivo guidato in italiano.
+Ogni step deve avere: order (1-6), target (id sezione UI: dashboard, produce-film, my-films, infrastructure, festivals, social), text (frase breve e amichevole in prima persona come Velion).
+
+Rispondi SOLO con un array JSON valido, senza altro testo. Esempio formato:
+[{"order": 1, "target": "dashboard", "text": "Ciao! Questa e' la tua base operativa."}]""",
+
+    'guest': """Sei un game designer per CineWorld Studio's.
+Genera ESATTAMENTE 7 step per il tutorial guest (primo film) in italiano.
+Ogni step: order (1-7), target (id fase: welcome, choose-genre, set-budget, cast-selection, start-production, release, register), text (frase breve e incoraggiante).
+
+Rispondi SOLO con un array JSON valido, senza altro testo. Esempio formato:
+[{"order": 1, "target": "welcome", "text": "Benvenuto! Crea il tuo primo capolavoro."}]""",
+}
+
+
+async def _run_tutorial_ai_update(update_type: str):
+    """Background task AI: genera contenuti tutorial con GPT."""
+    try:
+        import os
+        import json
+        import uuid
+        from dotenv import load_dotenv
+        load_dotenv()
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Step 1: Avvio
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.status': 'processing',
+                'update_job.progress': 10,
+                'update_job.current_step': 'Inizializzazione AI',
+                'update_job.type': f'{update_type}_ai',
+                'update_job.started_at': now,
+            }}
+        )
+
+        # Step 2: Preparazione prompt
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.progress': 25,
+                'update_job.current_step': 'Preparazione prompt',
+            }}
+        )
+
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise ValueError("EMERGENT_LLM_KEY non configurata")
+
+        prompt = AI_PROMPTS.get(update_type, AI_PROMPTS['static'])
+
+        # Step 3: Generazione AI
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.progress': 40,
+                'update_job.current_step': 'Generazione AI in corso...',
+            }}
+        )
+
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"tutorial-ai-{update_type}-{uuid.uuid4().hex[:8]}",
+            system_message="Sei un assistente che genera contenuti JSON per un gioco. Rispondi SOLO con JSON valido."
+        ).with_model("openai", "gpt-4.1-mini")
+
+        user_msg = UserMessage(text=prompt)
+        response = await chat.send_message(user_msg)
+
+        # Step 4: Parsing risposta
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.progress': 70,
+                'update_job.current_step': 'Parsing risposta AI',
+            }}
+        )
+
+        # Pulizia risposta: rimuovi markdown code blocks se presenti
+        clean = response.strip()
+        if clean.startswith('```'):
+            clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+        if clean.endswith('```'):
+            clean = clean[:-3]
+        clean = clean.strip()
+
+        parsed = json.loads(clean)
+        if not isinstance(parsed, list) or len(parsed) == 0:
+            raise ValueError("Risposta AI non valida: non e' un array")
+
+        # Step 5: Salvataggio
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.progress': 85,
+                'update_job.current_step': 'Salvataggio contenuti AI',
+            }}
+        )
+
+        if update_type == 'static':
+            await db.tutorial_config.update_one(
+                {'_id': 'main'},
+                {
+                    '$set': {'static.content': parsed, 'static.last_update': now},
+                    '$inc': {'static.version': 1}
+                }
+            )
+        elif update_type == 'velion':
+            await db.tutorial_config.update_one(
+                {'_id': 'main'},
+                {
+                    '$set': {'velion.steps': parsed, 'velion.last_update': now},
+                    '$inc': {'velion.version': 1}
+                }
+            )
+        elif update_type == 'guest':
+            await db.tutorial_config.update_one(
+                {'_id': 'main'},
+                {
+                    '$set': {'guest.steps': parsed, 'guest.last_update': now},
+                    '$inc': {'guest.version': 1}
+                }
+            )
+
+        # Step 6: Completato
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.progress': 100,
+                'update_job.current_step': 'Completato (AI)',
+                'update_job.status': 'done',
+            }}
+        )
+        logger.info(f"[TUTORIAL-AI] Generazione '{update_type}' completata con {len(parsed)} elementi")
+
+    except json.JSONDecodeError as je:
+        logger.error(f"[TUTORIAL-AI] JSON parse error: {je}")
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.status': 'error',
+                'update_job.current_step': 'Errore: risposta AI non valida',
+            }}
+        )
+    except Exception as e:
+        logger.error(f"[TUTORIAL-AI] Errore: {e}")
+        await db.tutorial_config.update_one(
+            {'_id': 'main'},
+            {'$set': {
+                'update_job.status': 'error',
+                'update_job.current_step': f'Errore AI: {str(e)[:80]}',
+            }}
+        )
+
+
+# ═══════════════════════════════════════════
 # ADMIN ENDPOINTS
 # ═══════════════════════════════════════════
 
@@ -212,6 +385,31 @@ async def start_tutorial_update(update_type: str, background_tasks: BackgroundTa
 
     background_tasks.add_task(_run_tutorial_update, update_type)
     return {'status': 'started', 'type': update_type}
+
+
+@router.post("/admin/tutorial/update-ai/{update_type}")
+async def start_tutorial_ai_update(update_type: str, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    if user.get('nickname') != ADMIN_NICK:
+        raise HTTPException(403, "Solo admin")
+    if update_type not in ('static', 'velion', 'guest'):
+        raise HTTPException(400, "Tipo non valido. Usa: static, velion, guest")
+
+    doc = await _ensure_tutorial_doc()
+    if doc.get('update_job', {}).get('status') == 'processing':
+        raise HTTPException(409, "Aggiornamento gia' in corso")
+
+    await db.tutorial_config.update_one(
+        {'_id': 'main'},
+        {'$set': {
+            'update_job.status': 'starting',
+            'update_job.progress': 0,
+            'update_job.current_step': 'Avvio AI...',
+            'update_job.type': f'{update_type}_ai',
+        }}
+    )
+
+    background_tasks.add_task(_run_tutorial_ai_update, update_type)
+    return {'status': 'started', 'type': f'{update_type}_ai', 'mode': 'ai'}
 
 
 @router.get("/admin/tutorial/status")

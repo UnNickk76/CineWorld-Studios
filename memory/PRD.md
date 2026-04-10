@@ -86,8 +86,12 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 
 #### Sistema Tutorial PRO (Apr 2026)
 - **Backend model**: `tutorial_config` collection MongoDB con template statico/velion/guest
-- **Admin Tutorial Manager**: 3 pulsanti aggiornamento (statico, velion, guest) con progress bar live
+- **Admin Tutorial Manager**: 3 card con 2 pulsanti ciascuna (Da DB + Con AI = 6 azioni totali)
+- **Generazione AI**: GPT-4.1-mini via Emergent LLM Key, genera contenuti JSON strutturati per ogni tipo tutorial
+  - Prompt dedicati per statico (8 blocchi), velion (6 step interattivi), guest (7 step pipeline)
+  - Parsing JSON automatico, gestione errori, versioning incrementale
 - **Background task non bloccante**: Processing → Generazione → Salvataggio → Completato con polling 1.5s
+- **Progress bar differenziata**: colore verde per AI, giallo per DB, badge tipo (es. "static (AI)")
 - **Frozen Sections**: "Note di Rilascio" e "Note di Sistema" freezate con badge "In aggiornamento"
   - Pagine sostituite con layout freeze (icona lucchetto, messaggio, box AI futuro)
   - Menu grid: opacita ridotta, badge "SOSPESO", click disabilitato
@@ -95,6 +99,7 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Tutorial Page**: Legge contenuti da DB (`/api/tutorial/content`), versioning visibile
 - **Preparazione riattivazione futura**: Struttura DB pronta per AI/Admin Panel
 - Backend: `/app/backend/routes/tutorial.py`, model: `/app/backend/models/tutorial.py`
+- Endpoints AI: `POST /api/admin/tutorial/update-ai/{type}` (static/velion/guest)
 
 ## Backlog
 

@@ -169,6 +169,14 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Retrocompatibile**: sistema classico invariato, pagina completamente separata
 - File: `App.js`, `ParcoStudioPage.jsx`, `routes/infrastructure.py`, `server.py`
 
+#### Parco Studio V2 — Mappa Scrollabile (Apr 2026)
+- **Mappa 2000x2000**: Sfondo aereo AI generato (CineWorld Studios con 6 lotti), scrollabile touch su mobile
+- **Auto-centering**: All'apertura la vista si centra automaticamente sullo studio centrale
+- **6 slot raggruppati**: Studi Produzione, Cinema & Distribuzione, Agenzia & Talenti, Eventi & Esperienza, Broadcast TV, Divisioni Strategiche
+- **Stato dinamico**: empty (terreno + lucchetto), partial (barra progresso), complete (icona piena)
+- **Click → route esistenti**: Nessuna nuova UI, richiama esattamente le pagine attuali
+- File: `ParcoStudioPage.jsx`
+
 ## Backlog
 
 ### P1
